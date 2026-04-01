@@ -389,19 +389,33 @@
     document.querySelectorAll('.stat-val').forEach(el => observer.observe(el));
 
     /* ── Form submissions ── */
-    function submitHero() {
+    const FORMSPREE = 'https://formspree.io/f/xdapdwkq';
+
+    async function submitHero() {
       const email = document.getElementById('heroEmail').value;
-      if (email.includes('@')) {
-        document.getElementById('heroForm').style.display = 'none';
-        document.getElementById('heroSuccess').style.display = 'block';
-      }
+      if (!email.includes('@')) return;
+      try {
+        await fetch(FORMSPREE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: email, source: 'hero' })
+        });
+      } catch(e) {}
+      document.getElementById('heroForm').style.display = 'none';
+      document.getElementById('heroSuccess').style.display = 'block';
     }
-    function submitCta() {
+    async function submitCta() {
       const email = document.getElementById('ctaEmail').value;
-      if (email.includes('@')) {
-        document.getElementById('ctaForm').style.display = 'none';
-        document.getElementById('ctaSuccess').style.display = 'block';
-      }
+      if (!email.includes('@')) return;
+      try {
+        await fetch(FORMSPREE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: email, source: 'cta_footer' })
+        });
+      } catch(e) {}
+      document.getElementById('ctaForm').style.display = 'none';
+      document.getElementById('ctaSuccess').style.display = 'block';
     }
     document.getElementById('heroEmail').addEventListener('keydown', e => { if (e.key === 'Enter') submitHero(); });
     document.getElementById('ctaEmail').addEventListener('keydown', e => { if (e.key === 'Enter') submitCta(); });
@@ -418,4 +432,3 @@
 
 </body>
 </html>
- 
