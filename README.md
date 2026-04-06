@@ -1,13 +1,23 @@
-# Next.js + TypeScript + Tailwind CSS (Vercel-ready)
+# Revold — Plateforme d'intelligence revenue
 
-Projet initialisé avec:
+Application Next.js avec TypeScript, Tailwind CSS et configuration Vercel.
+
+## Stack
 
 - Next.js (App Router)
 - TypeScript
 - Tailwind CSS
-- ESLint
+- Supabase (`@supabase/supabase-js`, `@supabase/ssr`)
 
 ## Lancer en local
+
+1. Copier les variables d'environnement :
+
+```bash
+cp .env.example .env.local
+```
+
+2. Installer et lancer :
 
 ```bash
 npm install
@@ -16,20 +26,16 @@ npm run dev
 
 Puis ouvrir `http://localhost:3000`.
 
-## Build de production
+## Pages principales
 
-```bash
-npm run build
-npm run start
-```
+- `/login` : écran de connexion Revold (email + mot de passe)
+- `/dashboard` : vue d'ensemble revenue avec scorecards, KPI et insight IA
 
 ## Déploiement Vercel
 
-Le projet inclut un fichier `vercel.json` avec une configuration explicite:
+Le projet inclut un `vercel.json` avec configuration explicite :
 
 - framework: `nextjs`
 - install command: `npm install`
 - build command: `npm run build`
 - dev command: `npm run dev`
-
-Vous pouvez déployer directement sur Vercel en important ce dépôt.
