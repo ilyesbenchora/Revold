@@ -23,7 +23,11 @@ export async function createSupabaseServerClient() {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
+            try {
+              cookieStore.set(name, value, options);
+            } catch {
+              // Setting cookies may fail in contexts where response cookies are immutable.
+            }
           });
         },
       },

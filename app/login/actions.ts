@@ -20,16 +20,22 @@ export async function loginAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) {
+    if (error || !data.session) {
+      return {
+        error: "Email ou mot de passe incorrect",
+      };
+    }
+
+    redirect("/dashboard");
+  } catch {
     return {
       error: "Email ou mot de passe incorrect",
     };
   }
-
-  redirect("/dashboard");
 }
 
 export async function logoutAction() {
