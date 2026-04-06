@@ -1,30 +1,39 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function loginAction(formData: FormData) {
+export type LoginActionState = {
+  error?: string;
+};
+
+export async function loginAction(
+  _prevState: LoginActionState,
+  formData: FormData,
+): Promise<LoginActionState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "").trim();
 
   if (!email || !password) {
-    redirect("/login");
+    return {
+      error: "Email ou mot de passe incorrect",
+    };
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set("revold_session", "demo-authenticated", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 8,
-  });
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    return {
+      error: "Email ou mot de passe incorrect",
+    };
+  }
 
   redirect("/dashboard");
 }
 
 export async function logoutAction() {
-  const cookieStore = await cookies();
-  cookieStore.delete("revold_session");
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
   redirect("/login");
 }

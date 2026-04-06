@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 
@@ -9,13 +7,6 @@ type DashboardLayoutProps = {
 };
 
 export default async function DashboardLayout({ children }: DashboardLayoutProps) {
-  const cookieStore = await cookies();
-  const isAuthenticated = cookieStore.has("revold_session");
-
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader companyName="NovaTech SAS" />

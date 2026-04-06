@@ -1,5 +1,5 @@
 import { RevoldLogo } from "@/components/revold-logo";
-import { loginAction } from "@/app/login/actions";
+import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
   return (
@@ -11,45 +11,7 @@ export default function LoginPage() {
           Accédez à votre plateforme d&apos;intelligence revenue.
         </p>
 
-        <form action={loginAction} className="mt-8 space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-300">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="vous@entreprise.com"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-              required
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-1 block text-sm font-medium text-slate-300"
-            >
-              Mot de passe
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="••••••••"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
-          >
-            Se connecter
-          </button>
-        </form>
+        <LoginForm />
       </section>
     </main>
   );
