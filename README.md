@@ -18,7 +18,6 @@ cp .env.example .env.local
 ```
 
 2. Installer et lancer :
-
 ```bash
 npm install
 npm run dev
