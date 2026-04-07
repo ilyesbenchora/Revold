@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
+import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
 
@@ -9,60 +9,59 @@ export default async function PerformanceCommercialePage() {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
 
-  let k;
-  let totalDeals = 0;
-  let atRiskDeals = 0;
-  let wonDealsCount = 0;
-  let wonAmount = 0;
-  let openDealsCount = 0;
-  let stagnantCount = 0;
-  let openDeals: Array<{ id: string; name: string; amount: number; last_activity_at: string | null }> = [];
+  const supabase = await createSupabaseServerClient();
 
-  try {
-    const supabase = await createSupabaseServerClient();
-    k = await getLatestKpi();
+  // All counts in parallel — no heavy data loads
+  const [
+    { count: totalDeals },
+    { count: wonDeals },
+    { count: lostDeals },
+    { count: openDeals },
+    { data: wonAmountData },
+    { data: openAmountData },
+    { data: recentDeals },
+    { data: stagnantDeals },
+    { count: dealsWithAmount },
+  ] = await Promise.all([
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_lost", true),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true).gt("amount", 0),
+    supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("amount", 0),
+    supabase.from("deals").select("id, name, amount, created_date, last_activity_at").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).order("created_date", { ascending: false }).limit(10),
+    supabase.from("deals").select("id, name, amount, last_activity_at").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).lt("last_activity_at", new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gt("amount", 0),
+  ]);
 
-    const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
-      supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-      supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_at_risk", true),
-      supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
-      supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true),
-      supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
-      supabase.from("deals").select("id, name, amount, last_activity_at").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).order("amount", { ascending: false }).limit(10),
-      supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).lt("last_activity_at", new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()),
-    ]);
+  const total = totalDeals ?? 0;
+  const won = wonDeals ?? 0;
+  const lost = lostDeals ?? 0;
+  const open = openDeals ?? 0;
+  const closingRate = (won + lost) > 0 ? Math.round((won / (won + lost)) * 100) : 0;
+  const wonTotal = (wonAmountData ?? []).reduce((s, d) => s + Number(d.amount || 0), 0);
+  const openTotal = (openAmountData ?? []).reduce((s, d) => s + Number(d.amount || 0), 0);
+  const stagnant = stagnantDeals ?? [];
+  const recent = recentDeals ?? [];
+  const withAmount = dealsWithAmount ?? 0;
 
-    totalDeals = r1.count ?? 0;
-    atRiskDeals = r2.count ?? 0;
-    wonDealsCount = r3.count ?? 0;
-    wonAmount = (r4.data ?? []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-    openDealsCount = r5.count ?? 0;
-    openDeals = (r6.data ?? []) as typeof openDeals;
-    stagnantCount = r7.count ?? 0;
-  } catch (err) {
-    return <p className="p-8 text-center text-sm text-red-600">Erreur: {String(err)}</p>;
-  }
-
-  const salesScore = Number(k?.sales_score) || 0;
-  const closingRate = Number(k?.closing_rate) || 0;
-  const pipelineCoverage = Number(k?.pipeline_coverage) || 0;
-  const cycleDays = Number(k?.sales_cycle_days) || 0;
+  // Score: basé sur closing rate + ratio open/total + remplissage montant
+  const completenessScore = total > 0 ? Math.round((withAmount / total) * 100) : 0;
+  const salesScore = Math.round(
+    Math.min(100, closingRate * 2) * 0.4 +
+    (total > 0 ? Math.min(100, (open / total) * 150) : 0) * 0.3 +
+    completenessScore * 0.3
+  );
 
   return (
     <section className="space-y-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Performance Commerciale</h1>
-          <p className="mt-1 text-sm text-slate-500">KPIs de performance de l&apos;équipe commerciale.</p>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="rounded-lg border border-card-border bg-white px-3 py-1.5 text-slate-600">{totalDeals} deals</span>
-          <span className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">{atRiskDeals} à risque</span>
-        </div>
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Performance Commerciale</h1>
+        <p className="mt-1 text-sm text-slate-500">Analyse des transactions et du pipeline commercial.</p>
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Sales" score={salesScore} colorClass="stroke-blue-500" />
+        <ProgressScore label="Score Commercial" score={salesScore} colorClass="stroke-blue-500" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{salesScore}</span>
@@ -72,76 +71,109 @@ export default async function PerformanceCommercialePage() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* Vue pipeline */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />KPIs Sales
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Vue pipeline
         </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          <article className="card p-5">
-            <p className="text-xs text-slate-500">Taux de closing</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{closingRate > 0 ? `${closingRate}%` : "—"}</p>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Transactions totales</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{total}</p>
           </article>
-          <article className="card p-5">
-            <p className="text-xs text-slate-500">Couverture pipeline</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{pipelineCoverage > 0 ? `${pipelineCoverage}x` : "—"}</p>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">En cours</p>
+            <p className="mt-1 text-3xl font-bold text-blue-600">{open}</p>
           </article>
-          <article className="card p-5">
-            <p className="text-xs text-slate-500">Cycle de vente</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{cycleDays > 0 ? `${cycleDays} jours` : "—"}</p>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Gagnées</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{won}</p>
           </article>
-          <article className="card p-5">
-            <p className="text-xs text-slate-500">Transactions gagnées</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-600">{wonDealsCount}</p>
-          </article>
-          <article className="card p-5">
-            <p className="text-xs text-slate-500">Montant gagné</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{wonAmount > 0 ? `€${Math.round(wonAmount / 1000)}K` : "—"}</p>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Perdues</p>
+            <p className="mt-1 text-3xl font-bold text-red-500">{lost}</p>
           </article>
         </div>
       </div>
 
-      {/* Pipeline */}
+      {/* KPIs clés */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Pipeline
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />Indicateurs clés
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Deals créés</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{totalDeals}</p>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Taux de closing</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{(won + lost) > 0 ? `${closingRate}%` : "—"}</p>
+            <p className="mt-1 text-xs text-slate-400">Gagnées sur transactions clôturées</p>
           </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Deals en cours</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{openDealsCount}</p>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Montant gagné</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{wonTotal > 0 ? `€${Math.round(wonTotal / 1000)}K` : "—"}</p>
+            <p className="mt-1 text-xs text-slate-400">Valeur des transactions gagnées</p>
           </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Deals stagnants</p>
-            <p className={`mt-1 text-3xl font-bold ${stagnantCount > 5 ? "text-red-500" : stagnantCount > 2 ? "text-orange-500" : "text-emerald-600"}`}>{stagnantCount}</p>
-            <p className="mt-1 text-xs text-slate-400">Dernière activité &gt; 6j</p>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Pipeline en cours</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{openTotal > 0 ? `€${Math.round(openTotal / 1000)}K` : "—"}</p>
+            <p className="mt-1 text-xs text-slate-400">Valeur des transactions ouvertes</p>
           </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Deals à risque</p>
-            <p className="mt-1 text-3xl font-bold text-red-500">{atRiskDeals}</p>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Complétude des montants</p>
+            <p className={`mt-1 text-2xl font-bold ${completenessScore >= 70 ? "text-emerald-600" : completenessScore >= 40 ? "text-orange-500" : "text-red-500"}`}>{completenessScore}%</p>
+            <p className="mt-1 text-xs text-slate-400">Transactions avec un montant renseigné</p>
           </article>
         </div>
+      </div>
 
-        {openDeals.length > 0 && (
+      {/* Transactions stagnantes */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-orange-500" />Transactions stagnantes
+          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{stagnant.length}</span>
+        </h2>
+        <p className="text-sm text-slate-400">Aucune activité depuis plus de 6 jours</p>
+        {stagnant.length > 0 ? (
           <div className="card overflow-hidden">
-            <div className="border-b border-card-border px-5 py-3">
-              <p className="text-sm font-semibold text-slate-700">Top deals en cours</p>
-            </div>
             <div className="divide-y divide-card-border">
-              {openDeals.map((d) => (
+              {stagnant.map((d) => (
                 <div key={d.id} className="flex items-center justify-between px-5 py-3">
-                  <p className="text-sm font-medium text-slate-800">{d.name}</p>
-                  <p className="text-sm text-slate-600">{Number(d.amount) > 0 ? `€${Math.round(Number(d.amount) / 1000)}K` : "—"}</p>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                    <p className="text-xs text-slate-400">
+                      Dernière activité : {d.last_activity_at ? new Date(d.last_activity_at).toLocaleDateString("fr-FR") : "jamais"}
+                    </p>
+                  </div>
+                  {Number(d.amount) > 0 && <p className="text-sm text-slate-600">€{Math.round(Number(d.amount) / 1000)}K</p>}
                 </div>
               ))}
             </div>
           </div>
+        ) : (
+          <p className="text-sm text-slate-500">Aucune transaction stagnante détectée.</p>
         )}
       </div>
+
+      {/* Dernières transactions créées */}
+      {recent.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />Dernières transactions créées
+          </h2>
+          <div className="card overflow-hidden">
+            <div className="divide-y divide-card-border">
+              {recent.map((d) => (
+                <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                    <p className="text-xs text-slate-400">Créée le {d.created_date ? new Date(d.created_date).toLocaleDateString("fr-FR") : "—"}</p>
+                  </div>
+                  {Number(d.amount) > 0 && <p className="text-sm text-slate-600">€{Math.round(Number(d.amount) / 1000)}K</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

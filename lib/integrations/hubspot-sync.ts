@@ -60,9 +60,11 @@ export async function syncHubSpotDataByType(
       else count += batch.length;
     }
   } else if (syncType === "deals") {
+    // Fetch pipeline stages first to correctly identify won/lost
+    const stageMap = await fetchStageMap(accessToken);
     const data = await fetchHubSpotDeals(accessToken);
     for (let i = 0; i < data.length; i += 50) {
-      const batch = data.slice(i, i + 50).map((d) => mapDeal(d, orgId));
+      const batch = data.slice(i, i + 50).map((d) => mapDeal(d, orgId, stageMap));
       const { error } = await supabase.from("deals").upsert(batch, { onConflict: "organization_id,hubspot_id" });
       if (error) errors.push(error.message);
       else count += batch.length;
@@ -161,14 +163,39 @@ function mapContact(hscont: HubSpotContact, orgId: string) {
   };
 }
 
-function mapDeal(hsd: HubSpotDeal, orgId: string) {
-  // Use HubSpot native properties — most reliable
-  const isClosedWon = hsd.properties.hs_is_closed_won === "true";
-  const isClosed = hsd.properties.hs_is_closed === "true";
-  const isClosedLost = isClosed && !isClosedWon;
-  const probability = hsd.properties.hs_deal_stage_probability
-    ? Math.round(parseFloat(hsd.properties.hs_deal_stage_probability) * 100)
-    : 0;
+type StageInfo = { isWon: boolean; isLost: boolean; probability: number };
+
+async function fetchStageMap(accessToken: string): Promise<Map<string, StageInfo>> {
+  const res = await fetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return new Map();
+  const data = await res.json();
+  const map = new Map<string, StageInfo>();
+  for (const pipeline of data.results ?? []) {
+    for (const stage of pipeline.stages ?? []) {
+      const isClosed = stage.metadata?.isClosed === "true";
+      const prob = parseFloat(stage.metadata?.probability ?? "0");
+      map.set(stage.id, {
+        isWon: isClosed && prob === 1.0,
+        isLost: isClosed && prob === 0.0,
+        probability: Math.round(prob * 100),
+      });
+    }
+  }
+  return map;
+}
+
+function mapDeal(hsd: HubSpotDeal, orgId: string, stages: Map<string, StageInfo>) {
+  // Use pipeline stages API — hs_is_closed_won is unreliable on custom pipelines
+  const stageInfo = stages.get(hsd.properties.dealstage);
+  const isClosedWon = stageInfo?.isWon ?? false;
+  const isClosedLost = stageInfo?.isLost ?? false;
+  const probability = stageInfo?.probability ?? (
+    hsd.properties.hs_deal_stage_probability
+      ? Math.round(parseFloat(hsd.properties.hs_deal_stage_probability) * 100)
+      : 0
+  );
 
   return {
     organization_id: orgId,
