@@ -3,5 +3,23 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/compute-kpis",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/detect-risks",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/generate-insights",
+      "schedule": "30 6 * * 1"
+    },
+    {
+      "path": "/api/integrations/hubspot/sync",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }
