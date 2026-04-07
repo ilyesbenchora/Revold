@@ -139,9 +139,10 @@ export async function fetchHubSpotDeals(accessToken: string): Promise<HubSpotDea
   return deals;
 }
 
-export async function fetchHubSpotContacts(accessToken: string): Promise<HubSpotContact[]> {
+export async function fetchHubSpotContacts(accessToken: string, maxPages: number = 20): Promise<HubSpotContact[]> {
   const contacts: HubSpotContact[] = [];
   let after: string | undefined;
+  let page = 0;
 
   do {
     const params: Record<string, string> = {
@@ -153,14 +154,16 @@ export async function fetchHubSpotContacts(accessToken: string): Promise<HubSpot
     const data = await hubspotFetch(accessToken, "/crm/v3/objects/contacts", params);
     contacts.push(...data.results);
     after = data.paging?.next?.after;
-  } while (after);
+    page++;
+  } while (after && page < maxPages);
 
   return contacts;
 }
 
-export async function fetchHubSpotCompanies(accessToken: string): Promise<HubSpotCompany[]> {
+export async function fetchHubSpotCompanies(accessToken: string, maxPages: number = 20): Promise<HubSpotCompany[]> {
   const companies: HubSpotCompany[] = [];
   let after: string | undefined;
+  let page = 0;
 
   do {
     const params: Record<string, string> = {
@@ -172,7 +175,8 @@ export async function fetchHubSpotCompanies(accessToken: string): Promise<HubSpo
     const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies", params);
     companies.push(...data.results);
     after = data.paging?.next?.after;
-  } while (after);
+    page++;
+  } while (after && page < maxPages);
 
   return companies;
 }
