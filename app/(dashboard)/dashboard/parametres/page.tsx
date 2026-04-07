@@ -148,9 +148,9 @@ export default async function SettingsPage() {
             ) : (
               <a
                 href="/api/integrations/hubspot/auth"
-                className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500"
+                className="inline-block cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition"
               >
-                Connecter
+                Connecter HubSpot
               </a>
             )}
           </div>
