@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { refreshHubSpotToken } from "@/lib/integrations/hubspot";
 import { syncHubSpotData } from "@/lib/integrations/hubspot-sync";
 import { env } from "@/lib/env";
 
@@ -10,54 +9,47 @@ const supabase = createClient(
 );
 
 export async function POST(request: Request) {
-  // Can be called by cron or manually
+  // Auth check for cron
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get all active HubSpot integrations
-  const { data: integrations } = await supabase
-    .from("integrations")
-    .select("*")
-    .eq("provider", "hubspot")
-    .eq("is_active", true);
-
-  if (!integrations || integrations.length === 0) {
-    return NextResponse.json({ message: "No active HubSpot integrations" });
+  const accessToken = process.env.HUBSPOT_ACCESS_TOKEN;
+  if (!accessToken) {
+    return NextResponse.json({ error: "HUBSPOT_ACCESS_TOKEN not configured" }, { status: 400 });
   }
 
-  const results = [];
-
-  for (const integration of integrations) {
-    let accessToken = integration.access_token;
-
-    // Refresh token if expired
-    const expiresAt = new Date(integration.token_expires_at).getTime();
-    if (Date.now() > expiresAt - 60000) {
-      try {
-        const tokens = await refreshHubSpotToken(integration.refresh_token);
-        accessToken = tokens.access_token;
-
-        await supabase.from("integrations").update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq("id", integration.id);
-      } catch (err) {
-        results.push({ org_id: integration.organization_id, error: `Token refresh failed: ${err}` });
-        continue;
-      }
-    }
-
-    try {
-      const result = await syncHubSpotData(supabase, integration.organization_id, accessToken);
-      results.push({ org_id: integration.organization_id, ...result });
-    } catch (err) {
-      results.push({ org_id: integration.organization_id, error: String(err) });
-    }
+  // Get the org to sync for
+  const { data: orgs } = await supabase.from("organizations").select("id").limit(1);
+  if (!orgs || orgs.length === 0) {
+    return NextResponse.json({ error: "No organization found" }, { status: 400 });
   }
 
-  return NextResponse.json({ results });
+  const orgId = orgs[0].id;
+
+  try {
+    const result = await syncHubSpotData(supabase, orgId, accessToken);
+
+    // Upsert integration record
+    await supabase.from("integrations").upsert(
+      {
+        organization_id: orgId,
+        provider: "hubspot",
+        access_token: accessToken,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "organization_id,provider" },
+    );
+
+    return NextResponse.json({ success: true, ...result });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
+// Also support GET for easy manual trigger
+export async function GET(request: Request) {
+  return POST(request);
 }
