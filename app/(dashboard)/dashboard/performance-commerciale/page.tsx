@@ -1,24 +1,10 @@
-export const revalidate = 900; // Cache page for 15 minutes
+export const revalidate = 900;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { KpiChart } from "@/components/kpi-chart";
-import { getScoreLabel, getScoreTextColor, getStrokeColor } from "@/lib/score-utils";
-
-type DealRow = {
-  id: string;
-  name: string;
-  amount: number;
-  is_closed_won: boolean;
-  is_closed_lost: boolean;
-  is_at_risk: boolean;
-  last_activity_at: string | null;
-  days_in_stage: number;
-  companies: { name: string } | null;
-  pipeline_stages: { name: string; is_closed_won: boolean; is_closed_lost: boolean } | null;
-  activity_count: number;
-};
+import { getScoreLabel } from "@/lib/score-utils";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
@@ -32,12 +18,13 @@ export default async function PerformanceCommercialePage() {
     { count: atRiskDeals },
     { count: wonDealsCount },
     { data: wonDealsAmount },
-    { data: openDealsRaw },
+    { count: openDealsCount },
+    { data: openDealsTop },
     { data: stagnantDealsRaw },
   ] = await Promise.all([
     supabase
       .from("kpi_snapshots")
-      .select("snapshot_date, closing_rate, pipeline_coverage, sales_score")
+      .select("snapshot_date, closing_rate, pipeline_coverage")
       .eq("organization_id", orgId)
       .order("snapshot_date", { ascending: true })
       .limit(7),
@@ -45,19 +32,20 @@ export default async function PerformanceCommercialePage() {
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_at_risk", true),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
     supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true),
-    // Open deals with details (limit to avoid timeout)
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    // Top open deals by amount (no joins on nullable FK)
     supabase
       .from("deals")
-      .select("id, name, amount, is_at_risk, last_activity_at, days_in_stage, companies(name), pipeline_stages(name, is_closed_won, is_closed_lost)")
+      .select("id, name, amount, last_activity_at")
       .eq("organization_id", orgId)
       .eq("is_closed_won", false)
       .eq("is_closed_lost", false)
       .order("amount", { ascending: false })
-      .limit(50),
+      .limit(10),
     // Stagnant deals: last_activity > 6 days ago
     supabase
       .from("deals")
-      .select("id, name, amount, last_activity_at, companies(name)")
+      .select("id, name, amount, last_activity_at")
       .eq("organization_id", orgId)
       .eq("is_closed_won", false)
       .eq("is_closed_lost", false)
@@ -67,18 +55,18 @@ export default async function PerformanceCommercialePage() {
   ]);
 
   const wonAmount = (wonDealsAmount ?? []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const openDeals = (openDealsRaw ?? []) as unknown as DealRow[];
-  const openAmount = openDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const stagnantDeals = stagnantDealsRaw ?? [];
+  const openDeals = openDealsTop ?? [];
+  const openAmount = openDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 
-  // Get activity counts for open deals
-  const openDealIds = openDeals.map((d) => d.id);
-  let activityCounts = new Map<string, number>();
-  if (openDealIds.length > 0) {
+  // Activity counts for top deals
+  const dealIds = openDeals.map((d) => d.id);
+  const activityCounts = new Map<string, number>();
+  if (dealIds.length > 0) {
     const { data: activities } = await supabase
       .from("activities")
       .select("deal_id")
-      .in("deal_id", openDealIds);
+      .in("deal_id", dealIds);
     (activities ?? []).forEach((a) => {
       if (a.deal_id) activityCounts.set(a.deal_id, (activityCounts.get(a.deal_id) || 0) + 1);
     });
@@ -87,12 +75,9 @@ export default async function PerformanceCommercialePage() {
   const dealsWithActivity = openDeals.map((d) => ({
     ...d,
     activityCount: activityCounts.get(d.id) || 0,
-    companyName: (d.companies as unknown as { name: string } | null)?.name ?? "—",
-    stageName: (d.pipeline_stages as unknown as { name: string } | null)?.name ?? "—",
   }));
-
-  const mostWorkedDeals = [...dealsWithActivity].sort((a, b) => b.activityCount - a.activityCount).slice(0, 5);
-  const leastWorkedDeals = [...dealsWithActivity].sort((a, b) => a.activityCount - b.activityCount).slice(0, 5);
+  const mostWorked = [...dealsWithActivity].sort((a, b) => b.activityCount - a.activityCount).slice(0, 5);
+  const leastWorked = [...dealsWithActivity].sort((a, b) => a.activityCount - b.activityCount).slice(0, 5);
 
   const closingRate = Number(k?.closing_rate) || 0;
   const pipelineCoverage = Number(k?.pipeline_coverage) || 0;
@@ -190,8 +175,8 @@ export default async function PerformanceCommercialePage() {
             <p className="mt-1 text-3xl font-bold text-slate-900">{totalDeals ?? 0}</p>
           </article>
           <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Montant en cours</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">€{(openAmount / 1000).toFixed(0)}K</p>
+            <p className="text-xs text-slate-500">Deals en cours</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{openDealsCount ?? 0}</p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Transactions gagnées</p>
@@ -207,24 +192,21 @@ export default async function PerformanceCommercialePage() {
           </article>
         </div>
 
-        {mostWorkedDeals.length > 0 && (
+        {mostWorked.length > 0 && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="card overflow-hidden">
               <div className="border-b border-card-border px-5 py-3">
                 <p className="text-sm font-semibold text-slate-700">Deals les + travaillés</p>
               </div>
               <div className="divide-y divide-card-border">
-                {mostWorkedDeals.map((d) => (
+                {mostWorked.map((d) => (
                   <div key={d.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
-                      <p className="text-xs text-slate-400">{d.companyName} · {d.stageName}</p>
-                    </div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
                     <div className="text-right">
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                         {d.activityCount} activité{d.activityCount > 1 ? "s" : ""}
                       </span>
-                      <p className="mt-1 text-xs text-slate-500">€{(Number(d.amount) / 1000).toFixed(0)}K</p>
+                      {Number(d.amount) > 0 && <p className="mt-1 text-xs text-slate-500">€{(Number(d.amount) / 1000).toFixed(0)}K</p>}
                     </div>
                   </div>
                 ))}
@@ -235,17 +217,14 @@ export default async function PerformanceCommercialePage() {
                 <p className="text-sm font-semibold text-slate-700">Deals les - travaillés</p>
               </div>
               <div className="divide-y divide-card-border">
-                {leastWorkedDeals.map((d) => (
+                {leastWorked.map((d) => (
                   <div key={d.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
-                      <p className="text-xs text-slate-400">{d.companyName} · {d.stageName}</p>
-                    </div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
                     <div className="text-right">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.activityCount === 0 ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}>
                         {d.activityCount} activité{d.activityCount > 1 ? "s" : ""}
                       </span>
-                      <p className="mt-1 text-xs text-slate-500">€{(Number(d.amount) / 1000).toFixed(0)}K</p>
+                      {Number(d.amount) > 0 && <p className="mt-1 text-xs text-slate-500">€{(Number(d.amount) / 1000).toFixed(0)}K</p>}
                     </div>
                   </div>
                 ))}
@@ -293,7 +272,7 @@ export default async function PerformanceCommercialePage() {
         </div>
       )}
 
-      {!k && (
+      {!k && !totalDeals && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">Aucune donnée disponible.</p>
         </div>

@@ -1,6 +1,8 @@
 /**
  * HubSpot Sync Engine
- * Maps HubSpot data to Revold schema, batch upserts, then triggers KPI recomputation.
+ * Fetches pipeline stages to correctly map won/lost status.
+ * Maps lifecycle stages properly for MQL/SQL.
+ * Triggers KPI recomputation after deals sync.
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -14,37 +16,60 @@ import {
 } from "./hubspot";
 import { computeAllKpis } from "@/lib/kpi/compute";
 
-type SyncResult = {
-  companies: number;
-  contacts: number;
-  deals: number;
-  kpiComputed: boolean;
-  errors: string[];
-};
+type SyncResult = { count: number; errors: string[] };
 
-// HubSpot closed-won stage IDs (common defaults + common names)
-const CLOSED_WON_STAGES = new Set([
-  "closedwon", "closed won", "closed_won",
-  "qualifiedtobuy", // HubSpot default won stage
-]);
-const CLOSED_LOST_STAGES = new Set([
-  "closedlost", "closed lost", "closed_lost",
-]);
+// ── HubSpot Pipeline Stages ──
 
-function inferDealStatus(dealstage: string): { is_closed_won: boolean; is_closed_lost: boolean } {
-  const stage = dealstage.toLowerCase().replace(/[\s-]/g, "");
-  return {
-    is_closed_won: CLOSED_WON_STAGES.has(stage) || stage.includes("won") || stage.includes("gagn"),
-    is_closed_lost: CLOSED_LOST_STAGES.has(stage) || stage.includes("lost") || stage.includes("perdu"),
-  };
+type StageInfo = { isClosed: boolean; isWon: boolean; isLost: boolean; probability: number };
+
+async function fetchPipelineStages(accessToken: string): Promise<Map<string, StageInfo>> {
+  const res = await fetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return new Map();
+  const data = await res.json();
+  const map = new Map<string, StageInfo>();
+
+  for (const pipeline of data.results ?? []) {
+    for (const stage of pipeline.stages ?? []) {
+      const isClosed = stage.metadata?.isClosed === "true";
+      const prob = parseFloat(stage.metadata?.probability ?? "0");
+      map.set(stage.id, {
+        isClosed,
+        isWon: isClosed && prob === 1.0,
+        isLost: isClosed && prob === 0.0,
+        probability: prob * 100,
+      });
+    }
+  }
+  return map;
 }
+
+// ── Lifecycle stage → MQL/SQL mapping ──
+// HubSpot lifecycle stages: subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer, evangelist, other
+const MQL_STAGES = new Set(["marketingqualifiedlead"]);
+const SQL_STAGES = new Set(["salesqualifiedlead", "opportunity", "customer"]);
+
+function isMql(lifecycle: string | null): boolean {
+  const lc = lifecycle?.toLowerCase() ?? "";
+  return MQL_STAGES.has(lc) || SQL_STAGES.has(lc); // SQL implies MQL
+}
+
+function isSql(lifecycle: string | null): boolean {
+  const lc = lifecycle?.toLowerCase() ?? "";
+  return SQL_STAGES.has(lc);
+}
+
+// ── Sync by type ──
+
+let cachedStages: Map<string, StageInfo> | null = null;
 
 export async function syncHubSpotDataByType(
   supabase: SupabaseClient,
   orgId: string,
   accessToken: string,
   syncType: "companies" | "contacts" | "deals",
-): Promise<{ count: number; errors: string[] }> {
+): Promise<SyncResult> {
   let count = 0;
   const errors: string[] = [];
 
@@ -65,9 +90,11 @@ export async function syncHubSpotDataByType(
       else count += batch.length;
     }
   } else if (syncType === "deals") {
+    // Fetch pipeline stages from HubSpot to correctly identify won/lost
+    cachedStages = await fetchPipelineStages(accessToken);
     const data = await fetchHubSpotDeals(accessToken);
     for (let i = 0; i < data.length; i += 50) {
-      const batch = data.slice(i, i + 50).map((d) => mapDeal(d, orgId));
+      const batch = data.slice(i, i + 50).map((d) => mapDeal(d, orgId, cachedStages!));
       const { error } = await supabase.from("deals").upsert(batch, { onConflict: "organization_id,hubspot_id" });
       if (error) errors.push(error.message);
       else count += batch.length;
@@ -77,11 +104,12 @@ export async function syncHubSpotDataByType(
   return { count, errors };
 }
 
+// ── KPI Recomputation ──
+
 export async function recomputeKpis(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Fetch all data needed for KPI computation
   const [dealsRes, contactsRes, activitiesRes, orgRes] = await Promise.all([
     supabase
       .from("deals")
@@ -148,7 +176,6 @@ function mapCompany(hsc: HubSpotCompany, orgId: string) {
 }
 
 function mapContact(hscont: HubSpotContact, orgId: string) {
-  const lifecycle = hscont.properties.lifecyclestage?.toLowerCase() ?? "";
   return {
     organization_id: orgId,
     hubspot_id: hscont.id,
@@ -156,14 +183,13 @@ function mapContact(hscont: HubSpotContact, orgId: string) {
     full_name: [hscont.properties.firstname, hscont.properties.lastname].filter(Boolean).join(" ") || `Contact ${hscont.id}`,
     title: hscont.properties.jobtitle,
     phone: hscont.properties.phone,
-    is_mql: ["marketingqualifiedlead", "mql"].includes(lifecycle) || lifecycle.includes("qualified"),
-    is_sql: ["salesqualifiedlead", "sql", "opportunity"].includes(lifecycle),
+    is_mql: isMql(hscont.properties.lifecyclestage),
+    is_sql: isSql(hscont.properties.lifecyclestage),
   };
 }
 
-function mapDeal(hsd: HubSpotDeal, orgId: string) {
-  const { is_closed_won, is_closed_lost } = inferDealStatus(hsd.properties.dealstage);
-  const lastModified = hsd.properties.hs_lastmodifieddate;
+function mapDeal(hsd: HubSpotDeal, orgId: string, stages: Map<string, StageInfo>) {
+  const stageInfo = stages.get(hsd.properties.dealstage);
 
   return {
     organization_id: orgId,
@@ -172,9 +198,10 @@ function mapDeal(hsd: HubSpotDeal, orgId: string) {
     amount: hsd.properties.amount ? Number(hsd.properties.amount) : 0,
     close_date: hsd.properties.closedate?.split("T")[0] || null,
     created_date: hsd.properties.createdate?.split("T")[0] ?? new Date().toISOString().split("T")[0],
-    last_activity_at: lastModified || null,
-    is_closed_won,
-    is_closed_lost,
+    last_activity_at: hsd.properties.hs_lastmodifieddate || null,
+    is_closed_won: stageInfo?.isWon ?? false,
+    is_closed_lost: stageInfo?.isLost ?? false,
+    win_probability: stageInfo?.probability ?? 0,
     updated_at: new Date().toISOString(),
   };
 }

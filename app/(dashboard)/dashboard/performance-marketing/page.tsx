@@ -1,4 +1,4 @@
-export const revalidate = 900; // Cache page for 15 minutes
+export const revalidate = 900;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
@@ -17,8 +17,8 @@ export default async function PerformanceMarketingPage() {
     { count: totalContacts },
     { count: mqlCount },
     { count: sqlCount },
-    { count: contactsWithCompany },
-    { count: contactsWithoutCompany },
+    { count: withCompany },
+    { count: withoutCompany },
     { count: emailCount },
   ] = await Promise.all([
     supabase
@@ -38,11 +38,10 @@ export default async function PerformanceMarketingPage() {
   const total = totalContacts ?? 0;
   const mqls = mqlCount ?? 0;
   const sqls = sqlCount ?? 0;
-  const withCompany = contactsWithCompany ?? 0;
-  const withoutCompany = contactsWithoutCompany ?? 0;
+  const assigned = withCompany ?? 0;
+  const unassigned = withoutCompany ?? 0;
   const emails = emailCount ?? 0;
-
-  const formConversionRate = withCompany > 0 ? Math.round((mqls / Math.max(1, withCompany)) * 100) : 0;
+  const formConversion = assigned > 0 ? Math.round((mqls / Math.max(1, assigned)) * 100) : 0;
 
   const kpis = [
     { label: "MQL → SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "—", description: "Taux de conversion des MQL en SQL" },
@@ -81,7 +80,6 @@ export default async function PerformanceMarketingPage() {
         </div>
       </div>
 
-      {/* Funnel */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel
@@ -89,20 +87,19 @@ export default async function PerformanceMarketingPage() {
         <div className="grid grid-cols-3 gap-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Contacts totaux</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{total}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{total.toLocaleString("fr-FR")}</p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">MQL</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{mqls}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{mqls.toLocaleString("fr-FR")}</p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">SQL</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{sqls}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{sqls.toLocaleString("fr-FR")}</p>
           </article>
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-orange-500" />KPIs Marketing
@@ -118,34 +115,32 @@ export default async function PerformanceMarketingPage() {
         </div>
       </div>
 
-      {/* Formulaires */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-violet-500" />Formulaires
+          <span className="h-2 w-2 rounded-full bg-violet-500" />Formulaires et attribution
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Contacts attribués</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{withCompany}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{assigned.toLocaleString("fr-FR")}</p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Non attribués</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{withoutCompany}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{unassigned.toLocaleString("fr-FR")}</p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Taux de conversion</p>
-            <p className={`mt-1 text-3xl font-bold ${formConversionRate >= 20 ? "text-emerald-600" : formConversionRate >= 10 ? "text-yellow-600" : "text-red-500"}`}>
-              {formConversionRate}%
+            <p className={`mt-1 text-3xl font-bold ${formConversion >= 20 ? "text-emerald-600" : formConversion >= 10 ? "text-yellow-600" : "text-red-500"}`}>
+              {formConversion}%
             </p>
           </article>
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Emails marketing</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{emails}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{emails.toLocaleString("fr-FR")}</p>
           </article>
         </div>
       </div>
 
-      {/* Charts */}
       {chartData.length > 1 && (
         <div className="space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -158,7 +153,7 @@ export default async function PerformanceMarketingPage() {
         </div>
       )}
 
-      {!k && (
+      {!k && total === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">Aucune donnée disponible.</p>
         </div>

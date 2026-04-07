@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       organization_id: orgId,
       source: "hubspot",
       direction: "inbound",
+      entity_type: type,
       status: errors.length > 0 ? "partial" : "completed",
       entity_count: count,
       error_message: errors.length > 0 ? errors.slice(0, 3).join("; ") : null,
