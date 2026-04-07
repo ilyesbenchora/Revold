@@ -1,23 +1,12 @@
 import { RevoldLogo } from "@/components/revold-logo";
 import { logoutAction } from "@/app/login/actions";
+import { getScoreLabel, getScoreTextColor } from "@/lib/score-utils";
 
 type DashboardHeaderProps = {
   companyName: string;
   globalScore?: number;
   integrationScore?: number;
 };
-
-function getScoreLabel(score: number): { label: string; className: string } {
-  if (score >= 80) return { label: "Excellent", className: "bg-emerald-50 text-emerald-700" };
-  if (score >= 50) return { label: "Moyen", className: "bg-amber-50 text-amber-700" };
-  return { label: "Insuffisant", className: "bg-red-50 text-red-700" };
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return "text-emerald-600";
-  if (score >= 50) return "text-amber-500";
-  return "text-red-500";
-}
 
 export function DashboardHeader({ companyName, globalScore, integrationScore }: DashboardHeaderProps) {
   return (
@@ -27,7 +16,7 @@ export function DashboardHeader({ companyName, globalScore, integrationScore }: 
         {globalScore != null && (
           <div className="hidden items-center gap-2 md:flex">
             <span className="text-xs text-slate-500">Score global</span>
-            <span className={`text-lg font-bold ${getScoreColor(globalScore)}`}>
+            <span className={`text-lg font-bold ${getScoreTextColor(globalScore)}`}>
               {globalScore}<span className="text-xs font-normal text-slate-400">/100</span>
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getScoreLabel(globalScore).className}`}>
@@ -45,7 +34,7 @@ export function DashboardHeader({ companyName, globalScore, integrationScore }: 
               <circle cx="5" cy="19" r="1" />
             </svg>
             <span className="text-xs text-slate-500">Intégration</span>
-            <span className={`text-sm font-bold ${getScoreColor(integrationScore)}`}>
+            <span className={`text-sm font-bold ${getScoreTextColor(integrationScore)}`}>
               {integrationScore}%
             </span>
           </div>

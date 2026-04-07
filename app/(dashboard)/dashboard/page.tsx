@@ -2,18 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import Link from "next/link";
-
-function getScoreLabel(score: number): { label: string; className: string } {
-  if (score >= 80) return { label: "Excellent", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-  if (score >= 50) return { label: "Moyen", className: "bg-amber-50 text-amber-700 border-amber-200" };
-  return { label: "Insuffisant", className: "bg-red-50 text-red-700 border-red-200" };
-}
-
-function getBarColor(score: number): string {
-  if (score >= 80) return "bg-emerald-500";
-  if (score >= 50) return "bg-amber-500";
-  return "bg-red-500";
-}
+import { getScoreLabel, getBarColor, getScoreTextColor, getStrokeColor } from "@/lib/score-utils";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -204,7 +193,7 @@ export default async function DashboardOverviewPage() {
       {k && (
         <div className="card flex items-center gap-6 p-6">
           <ProgressScore label="Score global" score={globalScore} colorClass={
-            globalScore >= 80 ? "stroke-emerald-500" : globalScore >= 50 ? "stroke-amber-500" : "stroke-red-500"
+            getStrokeColor(globalScore)
           } />
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-3">
@@ -266,7 +255,7 @@ export default async function DashboardOverviewPage() {
                 </div>
                 <div className="text-right">
                   <span className={`text-2xl font-bold ${
-                    cat.score >= 80 ? "text-emerald-600" : cat.score >= 50 ? "text-amber-500" : "text-red-500"
+                    getScoreTextColor(cat.score)
                   }`}>{cat.score}</span>
                   <div className={`mt-1 rounded-full border px-2 py-0.5 text-center text-xs font-medium ${badge.className}`}>
                     {badge.label}

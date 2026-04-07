@@ -2,12 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { KpiChart } from "@/components/kpi-chart";
-
-function getScoreLabel(score: number) {
-  if (score >= 80) return { label: "Excellent", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-  if (score >= 50) return { label: "Moyen", className: "bg-amber-50 text-amber-700 border-amber-200" };
-  return { label: "Insuffisant", className: "bg-red-50 text-red-700 border-red-200" };
-}
+import { getScoreLabel } from "@/lib/score-utils";
 
 type Deal = {
   id: string;

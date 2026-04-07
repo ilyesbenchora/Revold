@@ -1,18 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
-
-function getScoreLabel(score: number) {
-  if (score >= 80) return { label: "Excellent", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-  if (score >= 50) return { label: "Moyen", className: "bg-amber-50 text-amber-700 border-amber-200" };
-  return { label: "Insuffisant", className: "bg-red-50 text-red-700 border-red-200" };
-}
-
-function getBarColor(score: number) {
-  if (score >= 80) return "bg-emerald-500";
-  if (score >= 50) return "bg-amber-500";
-  return "bg-red-500";
-}
+import { getScoreLabel, getBarColor, getScoreTextColor } from "@/lib/score-utils";
 
 type Integration = {
   id: string;
