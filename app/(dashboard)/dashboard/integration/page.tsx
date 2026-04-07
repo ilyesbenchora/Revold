@@ -2,6 +2,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor, getScoreTextColor } from "@/lib/score-utils";
+import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
+import { Suspense } from "react";
+import Link from "next/link";
 
 type Integration = {
   id: string;
@@ -77,6 +80,21 @@ export default async function IntegrationPage() {
           Outils intégrés au CRM, utilisation et complétude des données.
         </p>
       </header>
+
+      <Suspense><HubSpotSyncOrchestrator /></Suspense>
+
+      {/* Sync button */}
+      {hubspotTokenConfigured && (
+        <Link
+          href="/dashboard/integration?sync=true"
+          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+          </svg>
+          Synchroniser maintenant
+        </Link>
+      )}
 
       {/* Score */}
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">

@@ -1,4 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
+import { Suspense } from "react";
 
 export default async function SettingsPage() {
   const supabase = await createSupabaseServerClient();
@@ -50,6 +52,7 @@ export default async function SettingsPage() {
 
   return (
     <section className="space-y-8">
+      <Suspense><HubSpotSyncOrchestrator /></Suspense>
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-600">Configuration de votre organisation et compte.</p>

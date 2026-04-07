@@ -1,3 +1,5 @@
+export const revalidate = 900; // Cache page for 15 minutes
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";

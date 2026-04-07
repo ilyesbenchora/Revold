@@ -36,6 +36,16 @@ export async function GET(request: Request) {
     const type = syncType || "companies";
     const { count, errors } = await syncHubSpotDataByType(supabase, orgId, accessToken, type);
 
+    // Log sync
+    await supabase.from("sync_logs").insert({
+      organization_id: orgId,
+      source: "hubspot",
+      direction: "inbound",
+      status: errors.length > 0 ? "partial" : "completed",
+      entity_count: count,
+      error_message: errors.length > 0 ? errors.slice(0, 3).join("; ") : null,
+    });
+
     // Mark integration as active
     await supabase.from("integrations").upsert(
       { organization_id: orgId, provider: "hubspot", access_token: "private-app", is_active: true, updated_at: new Date().toISOString() },
