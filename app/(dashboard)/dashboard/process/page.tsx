@@ -1,97 +1,97 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
+import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel, getBarColor, getScoreTextColor } from "@/lib/score-utils";
+import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 
 export default async function ProcessPage() {
   const orgId = await getOrgId();
+  if (!orgId) {
+    return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
+  }
+
   const supabase = await createSupabaseServerClient();
-  const latestKpi = await getLatestKpi();
 
-  // Pipeline stages
-  const { data: stages } = await supabase
-    .from("pipeline_stages")
-    .select("id, name, position, probability, is_closed_won, is_closed_lost")
-    .eq("organization_id", orgId)
-    .order("position", { ascending: true });
+  const [
+    { count: totalDeals },
+    { count: openDeals },
+    { count: dealsWithNextActivity },
+    { count: dealsWithoutNextActivity },
+    { count: dealsWithActivity },
+    { count: dealsNoActivity },
+    { count: wonDeals },
+    { count: lostDeals },
+    { count: totalContacts },
+    { count: leadsCount },
+    { count: opportunitiesCount },
+    { data: topStagnant },
+    { data: topActive },
+  ] = await Promise.all([
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    // Deals avec une prochaine activité planifiée
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).not("next_activity_date", "is", null),
+    // Deals sans prochaine activité
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).is("next_activity_date", null),
+    // Deals avec au moins 1 activité commerciale
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("sales_activities_count", 0),
+    // Deals sans aucune activité
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).eq("sales_activities_count", 0),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_lost", true),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", false).eq("is_sql", false),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
+    // Deals stagnants: pas d'activité planifiée + dernier contact > 7j
+    supabase.from("deals").select("id, name, amount, last_contacted_at, sales_activities_count")
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .is("next_activity_date", null)
+      .order("sales_activities_count", { ascending: true }).limit(5),
+    // Deals les mieux suivis
+    supabase.from("deals").select("id, name, amount, sales_activities_count, next_activity_date")
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .not("next_activity_date", "is", null)
+      .order("sales_activities_count", { ascending: false }).limit(5),
+  ]);
 
-  // Deal count per stage
-  const { data: deals } = await supabase
-    .from("deals")
-    .select("stage_id")
-    .eq("organization_id", orgId);
+  const total = totalDeals ?? 0;
+  const open = openDeals ?? 0;
+  const won = wonDeals ?? 0;
+  const lost = lostDeals ?? 0;
+  const withNext = dealsWithNextActivity ?? 0;
+  const withoutNext = dealsWithoutNextActivity ?? 0;
+  const withActivity = dealsWithActivity ?? 0;
+  const noActivity = dealsNoActivity ?? 0;
+  const contacts = totalContacts ?? 0;
+  const leads = leadsCount ?? 0;
+  const opportunities = opportunitiesCount ?? 0;
+  const stagnant = topStagnant ?? [];
+  const active = topActive ?? [];
 
-  const k = latestKpi;
+  // Taux de suivi: deals avec prochaine activité planifiée
+  const followUpRate = open > 0 ? Math.round((withNext / open) * 100) : 0;
+  // Taux d'activation: deals avec au moins 1 activité commerciale
+  const activationRate = open > 0 ? Math.round((withActivity / open) * 100) : 0;
+  // Lifecycle conversion
+  const lifecycleRate = contacts > 0 ? Math.round((opportunities / contacts) * 100) : 0;
+  // Closing rate
+  const closingRate = (won + lost) > 0 ? Math.round((won / (won + lost)) * 100) : 0;
 
-  // Score Process: inverted inactifs (30%), inverted stagnation (30%), activités/deal (20%), inverted cycle (20%)
-  const inactivePct = Number(k?.inactive_deals_pct) || 0;
-  const stagnationPct = Number(k?.deal_stagnation_rate) || 0;
-  const actPerDeal = Number(k?.activities_per_deal) || 0;
-  const cycleDays = Number(k?.sales_cycle_days) || 0;
-  const processScore = k ? Math.round(
-    Math.max(0, (1 - inactivePct / 50) * 100) * 0.30 +
-    Math.max(0, (1 - stagnationPct / 40) * 100) * 0.30 +
-    Math.min(100, (actPerDeal / 12) * 100) * 0.20 +
-    Math.min(100, Math.max(0, (1 - (cycleDays - 30) / 90) * 100)) * 0.20
-  ) : 0;
-
-  // Count deals per stage
-  const dealCountByStage: Record<string, number> = {};
-  (deals ?? []).forEach((d) => {
-    dealCountByStage[d.stage_id] = (dealCountByStage[d.stage_id] || 0) + 1;
-  });
-
-  const workflowMetrics = [
-    {
-      label: "Deals inactifs",
-      value: k?.inactive_deals_pct ?? 0,
-      suffix: "%",
-      description: "Deals sans activité depuis plus de 14 jours",
-      inverted: true,
-    },
-    {
-      label: "Taux de stagnation",
-      value: k?.deal_stagnation_rate ?? 0,
-      suffix: "%",
-      description: "Deals restés trop longtemps au même stage",
-      inverted: true,
-    },
-    {
-      label: "Activités par deal",
-      value: k?.activities_per_deal ?? 0,
-      suffix: "",
-      description: "Nombre moyen d’interactions par deal",
-    },
-  ];
-
-  const processKpis = [
-    {
-      label: "Cycle de vente",
-      value: k?.sales_cycle_days ? `${k.sales_cycle_days} jours` : "—",
-      description: "Durée moyenne entre création et closing",
-    },
-    {
-      label: "Vélocité deals",
-      value: k?.deal_velocity ? `€${(Number(k.deal_velocity) / 1000).toFixed(1)}K par jour` : "—",
-      description: "Valeur traitée par jour de pipeline",
-    },
-    {
-      label: "Taux de closing",
-      value: k?.closing_rate ? `${k.closing_rate}%` : "—",
-      description: "Pourcentage de deals conclus positivement",
-    },
-  ];
+  const processScore = Math.round(
+    followUpRate * 0.35 +
+    activationRate * 0.35 +
+    Math.min(100, lifecycleRate * 3) * 0.15 +
+    Math.min(100, closingRate * 2) * 0.15
+  );
 
   return (
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Process</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Performance des workflows, lifecycle stages et KPIs process métier.
+          Suivi des processus commerciaux, lifecycle et activité de vente.
         </p>
       </header>
 
-      {/* Score global Process */}
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
         <ProgressScore label="Score Process" score={processScore} colorClass="stroke-indigo-500" />
         <div className="flex-1">
@@ -103,120 +103,158 @@ export default async function ProcessPage() {
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            Santé de vos workflows commerciaux, lifecycle stages et processus métier.
+            Basé sur le suivi des transactions, l&apos;activation commerciale et la conversion lifecycle.
           </p>
         </div>
       </div>
 
-      {/* Lifecycle Stages */}
-      {stages && stages.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />
-            Lifecycle Stages
-          </h2>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3">Position</th>
-                  <th className="px-4 py-3">Probabilité</th>
-                  <th className="px-4 py-3">Deals actifs</th>
-                  <th className="px-4 py-3">Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stages.map((stage) => (
-                  <tr key={stage.name} className="border-b border-card-border last:border-0">
-                    <td className="px-4 py-3 font-medium text-slate-800">{stage.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{stage.position}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 rounded-full bg-slate-100">
-                          <div
-                            className="h-1.5 rounded-full bg-indigo-500"
-                            style={{ width: `${stage.probability}%` }}
-                          />
-                        </div>
-                        <span className="text-slate-600">{stage.probability}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {dealCountByStage[stage.id] ?? 0}
-                    </td>
-                    <td className="px-4 py-3">
-                      {stage.is_closed_won ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Gagné</span>
-                      ) : stage.is_closed_lost ? (
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Perdu</span>
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Ouvert</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Workflow Performance */}
+      {/* Suivi commercial */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-violet-500" />
-          Performance des Workflows
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />Suivi des transactions en cours
         </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {workflowMetrics.map((m) => {
-            const numVal = Number(m.value);
-            const displayScore = m.inverted ? Math.max(0, 100 - numVal) : numVal;
-            return (
-              <article key={m.label} className="card p-5">
-                <div className="flex items-start justify-between">
-                  <p className="text-sm font-medium text-slate-600">{m.label}</p>
-                  <span className={`text-xl font-bold ${getScoreTextColor(displayScore)}`}>
-                    {numVal}{m.suffix}
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Transactions en cours</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{open}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Avec prochaine activité</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{withNext}</p>
+            <p className="mt-1 text-xs text-slate-400">Activité planifiée</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Sans prochaine activité</p>
+            <p className={`mt-1 text-3xl font-bold ${withoutNext > open * 0.5 ? "text-red-500" : "text-orange-500"}`}>{withoutNext}</p>
+            <p className="mt-1 text-xs text-slate-400">Aucune activité planifiée</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux de suivi</p>
+            <p className={`mt-1 text-3xl font-bold ${followUpRate >= 70 ? "text-emerald-600" : followUpRate >= 40 ? "text-yellow-600" : "text-red-500"}`}>{followUpRate}%</p>
+            <p className="mt-1 text-xs text-slate-400">Deals avec RDV planifié</p>
+          </article>
+        </div>
+      </div>
+
+      {/* Activation commerciale */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Activation commerciale
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals activés</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{withActivity}</p>
+            <p className="mt-1 text-xs text-slate-400">Au moins 1 activité de vente</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals sans activité</p>
+            <p className={`mt-1 text-3xl font-bold ${noActivity > open * 0.3 ? "text-red-500" : "text-orange-500"}`}>{noActivity}</p>
+            <p className="mt-1 text-xs text-slate-400">Aucune activité de vente</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux d&apos;activation</p>
+            <p className={`mt-1 text-3xl font-bold ${activationRate >= 80 ? "text-emerald-600" : activationRate >= 50 ? "text-yellow-600" : "text-red-500"}`}>{activationRate}%</p>
+          </article>
+        </div>
+      </div>
+
+      {/* Lifecycle */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />Conversion lifecycle
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Contacts</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{contacts.toLocaleString("fr-FR")}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Leads</p>
+            <p className="mt-1 text-3xl font-bold text-blue-600">{leads.toLocaleString("fr-FR")}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Opportunités</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{opportunities.toLocaleString("fr-FR")}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux de conversion</p>
+            <p className={`mt-1 text-3xl font-bold ${lifecycleRate >= 25 ? "text-emerald-600" : lifecycleRate >= 10 ? "text-yellow-600" : "text-orange-500"}`}>{lifecycleRate}%</p>
+            <p className="mt-1 text-xs text-slate-400">Lead vers Opportunité</p>
+          </article>
+        </div>
+      </div>
+
+      {/* Résultat closing */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />Résultats du pipeline
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Gagnées</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{won}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Perdues</p>
+            <p className="mt-1 text-3xl font-bold text-red-500">{lost}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux de closing</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{(won + lost) > 0 ? `${closingRate}%` : "—"}</p>
+          </article>
+        </div>
+      </div>
+
+      {/* Détail deals */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {active.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="border-b border-card-border px-5 py-3">
+              <p className="text-sm font-semibold text-emerald-700">Transactions les mieux suivies</p>
+              <p className="text-xs text-slate-400">Activité planifiée + activités de vente</p>
+            </div>
+            <div className="divide-y divide-card-border">
+              {active.map((d) => (
+                <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                    <p className="text-xs text-slate-400">
+                      Prochain RDV : {d.next_activity_date ? new Date(d.next_activity_date).toLocaleDateString("fr-FR") : "—"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {d.sales_activities_count ?? 0} activités
                   </span>
                 </div>
-                <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
-                  <div
-                    className={`h-1.5 rounded-full ${getBarColor(displayScore)}`}
-                    style={{ width: `${Math.min(100, displayScore)}%` }}
-                  />
+              ))}
+            </div>
+          </div>
+        )}
+        {stagnant.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="border-b border-card-border px-5 py-3">
+              <p className="text-sm font-semibold text-red-700">Transactions à relancer</p>
+              <p className="text-xs text-slate-400">Sans activité planifiée</p>
+            </div>
+            <div className="divide-y divide-card-border">
+              {stagnant.map((d) => (
+                <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                    <p className="text-xs text-slate-400">
+                      Dernier contact : {d.last_contacted_at ? new Date(d.last_contacted_at).toLocaleDateString("fr-FR") : "jamais"}
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${(d.sales_activities_count ?? 0) === 0 ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}>
+                    {d.sales_activities_count ?? 0} activités
+                  </span>
                 </div>
-                <p className="mt-3 text-xs text-slate-400">{m.description}</p>
-              </article>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Process Business KPIs */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />
-          KPIs Process Métier
-        </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {processKpis.map((kpi) => (
-            <article key={kpi.label} className="card p-5">
-              <p className="text-xs text-slate-500">{kpi.label}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{kpi.value}</p>
-              <p className="mt-2 text-xs text-slate-400">{kpi.description}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      {!latestKpi && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">
-            Aucune donnée disponible. Les métriques apparaîtront une fois les données synchronisées.
-          </p>
-        </div>
-      )}
     </section>
   );
 }

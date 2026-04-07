@@ -127,9 +127,9 @@ export async function recomputeKpis(
     { onConflict: "organization_id,snapshot_date" },
   );
 
-  // Generate rule-based insights from KPIs
+  // Generate insights from real CRM data
   if (!error) {
-    await generateRuleBasedInsights(supabase, orgId, kpis);
+    await generateRuleBasedInsights(supabase, orgId);
   }
 
   return { success: !error, error: error?.message };
@@ -220,156 +220,145 @@ function mapDeal(hsd: HubSpotDeal, orgId: string, stages: Map<string, StageInfo>
 
 // ── Rule-based Insights ──
 
-type KpiValues = Record<string, number>;
+async function generateRuleBasedInsights(supabase: SupabaseClient, orgId: string) {
+  // Dismiss old insights
+  await supabase.from("ai_insights").update({ is_dismissed: true }).eq("organization_id", orgId).eq("is_dismissed", false);
 
-async function generateRuleBasedInsights(supabase: SupabaseClient, orgId: string, kpis: KpiValues) {
-  // Dismiss old auto-generated insights
-  await supabase
-    .from("ai_insights")
-    .update({ is_dismissed: true })
-    .eq("organization_id", orgId)
-    .eq("is_dismissed", false);
+  // Query real CRM data for insights
+  const [
+    { count: totalDeals }, { count: wonDeals }, { count: lostDeals }, { count: openDeals },
+    { count: dealsNoNextActivity }, { count: dealsNoActivity },
+    { count: totalContacts }, { count: opportunityContacts }, { count: contactsOrphans },
+    { count: contactsNoPhone }, { count: contactsNoTitle },
+    { count: totalCompanies }, { count: companiesNoIndustry },
+    { count: dealsNoAmount }, { count: dealsNoCloseDate },
+  ] = await Promise.all([
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_lost", true),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).is("next_activity_date", null),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).eq("sales_activities_count", 0),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("company_id", null),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("phone", null),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("title", null),
+    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("industry", null),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).lte("amount", 0),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("close_date", null),
+  ]);
 
-  const insights: Array<{
-    organization_id: string;
-    category: string;
-    severity: string;
-    title: string;
-    body: string;
-    recommendation: string;
-  }> = [];
+  const td = totalDeals ?? 0;
+  const won = wonDeals ?? 0;
+  const lost = lostDeals ?? 0;
+  const open = openDeals ?? 0;
+  const noNext = dealsNoNextActivity ?? 0;
+  const noAct = dealsNoActivity ?? 0;
+  const tc = totalContacts ?? 0;
+  const opps = opportunityContacts ?? 0;
+  const orphans = contactsOrphans ?? 0;
+  const noPhone = contactsNoPhone ?? 0;
+  const noTitle = contactsNoTitle ?? 0;
+  const tco = totalCompanies ?? 0;
+  const noIndustry = companiesNoIndustry ?? 0;
+  const noAmount = dealsNoAmount ?? 0;
+  const noClose = dealsNoCloseDate ?? 0;
 
-  const cr = kpis.closing_rate ?? 0;
-  const pc = kpis.pipeline_coverage ?? 0;
-  const scd = kpis.sales_cycle_days ?? 0;
-  const idp = kpis.inactive_deals_pct ?? 0;
-  const dc = kpis.data_completeness ?? 0;
-  const mql = kpis.mql_to_sql_rate ?? 0;
-  const fl = kpis.funnel_leakage_rate ?? 0;
-  const dsr = kpis.deal_stagnation_rate ?? 0;
-  const apd = kpis.activities_per_deal ?? 0;
+  const closingRate = (won + lost) > 0 ? Math.round((won / (won + lost)) * 100) : 0;
+  const conversionRate = tc > 0 ? Math.round((opps / tc) * 100) : 0;
+  const followUpRate = open > 0 ? Math.round(((open - noNext) / open) * 100) : 0;
 
-  // Sales insights
-  if (cr < 20) {
-    insights.push({
-      organization_id: orgId,
-      category: "sales",
-      severity: "critical",
-      title: `Taux de closing faible : ${cr}%`,
-      body: `Le taux de closing est de ${cr}%, bien en dessous du benchmark de 25-30%. Cela indique un problème de qualification ou de processus de vente.`,
-      recommendation: "Revoir les critères de qualification des deals entrants et renforcer le coaching commercial sur les étapes de négociation.",
-    });
-  } else if (cr < 30) {
-    insights.push({
-      organization_id: orgId,
-      category: "sales",
-      severity: "warning",
-      title: `Taux de closing à améliorer : ${cr}%`,
-      body: `Le taux de closing est de ${cr}%. Il y a une marge d'amélioration par rapport au benchmark de 30%.`,
-      recommendation: "Analyser les deals perdus récemment pour identifier les patterns et ajuster le discours commercial.",
-    });
+  type Insight = { organization_id: string; category: string; severity: string; title: string; body: string; recommendation: string };
+  const insights: Insight[] = [];
+
+  // ── SALES ──
+  if ((won + lost) > 0 && closingRate < 30) {
+    insights.push({ organization_id: orgId, category: "sales", severity: closingRate < 15 ? "critical" : "warning",
+      title: `Taux de closing : ${closingRate}%`,
+      body: `Sur ${won + lost} transactions clôturées, ${won} ont été gagnées. Le benchmark se situe entre 25% et 35%.`,
+      recommendation: "Analyser les transactions perdues pour identifier les causes récurrentes et renforcer le processus de qualification." });
   }
 
-  if (pc < 2) {
-    insights.push({
-      organization_id: orgId,
-      category: "pipeline",
-      severity: "critical",
-      title: `Couverture pipeline insuffisante : ${pc}x`,
-      body: `La couverture pipeline est de ${pc}x. Un ratio minimum de 3x est recommandé pour atteindre les objectifs trimestriels.`,
-      recommendation: "Intensifier la prospection et les actions d'acquisition pour alimenter le pipeline.",
-    });
+  if (open > 0 && noNext > open * 0.5) {
+    insights.push({ organization_id: orgId, category: "sales", severity: "critical",
+      title: `${noNext} transactions sans prochaine activité planifiée`,
+      body: `${Math.round((noNext / open) * 100)}% des transactions en cours n'ont aucune prochaine activité planifiée. Ces deals risquent de stagner.`,
+      recommendation: "Mettre en place une règle : chaque transaction ouverte doit avoir une prochaine étape datée dans le CRM." });
   }
 
-  if (scd > 60) {
-    insights.push({
-      organization_id: orgId,
-      category: "sales",
-      severity: "warning",
-      title: `Cycle de vente long : ${scd} jours`,
-      body: `Le cycle de vente moyen est de ${scd} jours. Un cycle supérieur à 60 jours ralentit la vélocité du pipeline.`,
-      recommendation: "Identifier les étapes du pipeline où les deals stagnent et mettre en place des actions d'accélération.",
-    });
+  if (open > 0 && noAct > 0) {
+    insights.push({ organization_id: orgId, category: "sales", severity: noAct > open * 0.3 ? "critical" : "warning",
+      title: `${noAct} transactions sans aucune activité commerciale`,
+      body: `Ces transactions ont été créées mais jamais travaillées. Elles occupent le pipeline sans avancer.`,
+      recommendation: "Lancer un sprint de qualification : contacter chaque deal sans activité cette semaine ou le clôturer." });
   }
 
-  // Marketing insights
-  if (mql < 15) {
-    insights.push({
-      organization_id: orgId,
-      category: "marketing",
-      severity: "warning",
-      title: `Conversion MQL vers SQL faible : ${mql}%`,
-      body: `Seulement ${mql}% des MQL se convertissent en SQL. Le benchmark se situe entre 15% et 25%.`,
-      recommendation: "Revoir les critères de scoring MQL et aligner marketing et sales sur la définition d'un lead qualifié.",
-    });
+  // ── MARKETING ──
+  if (tc > 0 && conversionRate < 20) {
+    insights.push({ organization_id: orgId, category: "marketing", severity: conversionRate < 10 ? "warning" : "info",
+      title: `Conversion Lead vers Opportunité : ${conversionRate}%`,
+      body: `Sur ${tc.toLocaleString("fr-FR")} contacts, ${opps.toLocaleString("fr-FR")} sont en phase Opportunité. Le reste est encore en statut Lead.`,
+      recommendation: "Revoir les critères de passage Lead → Opportunité et mettre en place des workflows de nurturing automatisés." });
   }
 
-  if (fl > 50) {
-    insights.push({
-      organization_id: orgId,
-      category: "marketing",
-      severity: "critical",
-      title: `Fuite funnel élevée : ${fl}%`,
-      body: `${fl}% des leads qualifiés sont perdus dans le funnel avant de devenir des opportunités.`,
-      recommendation: "Mettre en place des workflows de nurturing pour les leads qui ne convertissent pas immédiatement.",
-    });
+  if (tc > 0 && orphans > tc * 0.2) {
+    insights.push({ organization_id: orgId, category: "marketing", severity: orphans > tc * 0.4 ? "critical" : "warning",
+      title: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise associée`,
+      body: `${Math.round((orphans / tc) * 100)}% des contacts ne sont rattachés à aucune entreprise, ce qui empêche l'analyse par compte.`,
+      recommendation: "Activer l'association automatique par domaine email dans HubSpot et lancer un nettoyage des contacts orphelins." });
   }
 
-  // Data/CRM insights
-  if (dc < 70) {
-    insights.push({
-      organization_id: orgId,
-      category: "data",
-      severity: "critical",
-      title: `Complétude des données CRM faible : ${dc}%`,
-      body: `Seulement ${dc}% des champs obligatoires sont remplis dans le CRM. Cela affecte la fiabilité des KPIs et du scoring.`,
-      recommendation: "Mettre en place des champs obligatoires dans HubSpot et former l'équipe commerciale à la saisie.",
-    });
+  // ── DATA QUALITY ──
+  if (tc > 0 && noPhone > tc * 0.5) {
+    insights.push({ organization_id: orgId, category: "data", severity: "warning",
+      title: `${Math.round((noPhone / tc) * 100)}% des contacts sans numéro de téléphone`,
+      body: `${noPhone.toLocaleString("fr-FR")} contacts n'ont pas de téléphone renseigné. Cela limite les possibilités de contact direct.`,
+      recommendation: "Enrichir les données via un outil tiers (Dropcontact, Clearbit) ou rendre le champ téléphone obligatoire sur les formulaires." });
   }
 
-  if (idp > 30) {
-    insights.push({
-      organization_id: orgId,
-      category: "pipeline",
-      severity: "warning",
-      title: `${idp}% des deals sont inactifs`,
-      body: `Un tiers des deals ouverts n'ont eu aucune activité depuis plus de 14 jours. Ce pipeline dormant fausse les prévisions.`,
-      recommendation: "Lancer une revue de pipeline pour clôturer les deals morts et réactiver ceux qui ont du potentiel.",
-    });
+  if (tc > 0 && noTitle > tc * 0.5) {
+    insights.push({ organization_id: orgId, category: "data", severity: "info",
+      title: `${Math.round((noTitle / tc) * 100)}% des contacts sans poste renseigné`,
+      body: `Le poste permet de qualifier les contacts et de personnaliser les approches commerciales.`,
+      recommendation: "Ajouter le champ poste dans les formulaires et enrichir les contacts existants via LinkedIn Sales Navigator." });
   }
 
-  if (dsr > 25) {
-    insights.push({
-      organization_id: orgId,
-      category: "pipeline",
-      severity: "warning",
-      title: `Stagnation élevée : ${dsr}% des deals bloqués`,
-      body: `${dsr}% des deals sont restés trop longtemps dans la même étape, signe de friction dans le processus de vente.`,
-      recommendation: "Identifier les étapes bloquantes et mettre en place des playbooks d'accélération par stage.",
-    });
+  if (tco > 0 && noIndustry > tco * 0.7) {
+    insights.push({ organization_id: orgId, category: "data", severity: "warning",
+      title: `${Math.round((noIndustry / tco) * 100)}% des entreprises sans secteur d'activité`,
+      body: `${noIndustry.toLocaleString("fr-FR")} entreprises n'ont pas de secteur renseigné. Impossible de segmenter par industrie.`,
+      recommendation: "Enrichir les fiches entreprises avec le secteur d'activité via l'enrichissement automatique HubSpot ou un outil tiers." });
   }
 
-  if (apd < 3) {
-    insights.push({
-      organization_id: orgId,
-      category: "sales",
-      severity: "info",
-      title: `Faible engagement : ${apd} activités par deal`,
-      body: `En moyenne ${apd} activités par deal. Les deals avec plus de 5 activités ont un taux de closing 2x supérieur.`,
-      recommendation: "Encourager les commerciaux à augmenter le nombre de touchpoints (appels, emails, meetings) par deal.",
-    });
+  if (td > 0 && noAmount > td * 0.5) {
+    insights.push({ organization_id: orgId, category: "data", severity: "critical",
+      title: `${Math.round((noAmount / td) * 100)}% des transactions sans montant`,
+      body: `${noAmount} transactions n'ont pas de montant renseigné. Les prévisions de revenus et la couverture pipeline sont faussées.`,
+      recommendation: "Rendre le champ montant obligatoire à partir d'un certain stage du pipeline." });
   }
 
-  // Always add at least one positive insight
-  if (cr >= 30) {
-    insights.push({
-      organization_id: orgId,
-      category: "sales",
-      severity: "info",
-      title: `Bon taux de closing : ${cr}%`,
-      body: `Le taux de closing de ${cr}% est au-dessus du benchmark. L'équipe commerciale performe bien sur la conversion.`,
-      recommendation: "Maintenir les bonnes pratiques et documenter les patterns de succès pour les partager avec l'équipe.",
-    });
+  if (td > 0 && noClose > td * 0.5) {
+    insights.push({ organization_id: orgId, category: "data", severity: "warning",
+      title: `${Math.round((noClose / td) * 100)}% des transactions sans date de closing`,
+      body: `Sans date de closing prévisionnelle, il est impossible de construire un forecast fiable.`,
+      recommendation: "Exiger une date de closing estimée dès la création de la transaction dans le CRM." });
+  }
+
+  // ── POSITIVE ──
+  if (followUpRate >= 70) {
+    insights.push({ organization_id: orgId, category: "sales", severity: "info",
+      title: `Bon taux de suivi : ${followUpRate}% des deals avec activité planifiée`,
+      body: `L'équipe commerciale maintient un bon rythme de suivi avec des prochaines étapes planifiées.`,
+      recommendation: "Maintenir cette discipline et la partager comme bonne pratique à toute l'équipe." });
+  }
+
+  if ((won + lost) > 0 && closingRate >= 30) {
+    insights.push({ organization_id: orgId, category: "sales", severity: "info",
+      title: `Taux de closing solide : ${closingRate}%`,
+      body: `${won} transactions gagnées sur ${won + lost} clôturées — au-dessus du benchmark de 25-30%.`,
+      recommendation: "Documenter les facteurs de succès et les répliquer sur les deals en cours." });
   }
 
   if (insights.length > 0) {
