@@ -40,6 +40,14 @@ export default async function SettingsPage() {
 
   const hubspotConnected = integrations?.some((i) => i.provider === "hubspot" && i.is_active) ?? false;
 
+  // Build HubSpot OAuth URL directly (no server redirect)
+  const hubspotClientId = process.env.HUBSPOT_CLIENT_ID ?? "";
+  const hubspotRedirectUri = process.env.HUBSPOT_REDIRECT_URI ?? "";
+  const hubspotScopes = "crm.objects.deals.read crm.objects.contacts.read crm.objects.companies.read crm.objects.owners.read";
+  const hubspotAuthUrl = hubspotClientId
+    ? `https://app.hubspot.com/oauth/authorize?client_id=${hubspotClientId}&redirect_uri=${encodeURIComponent(hubspotRedirectUri)}&scope=${encodeURIComponent(hubspotScopes)}&state=${profile?.organization_id ?? ""}`
+    : "";
+
   const planLabels: Record<string, string> = {
     trial: "Essai gratuit",
     starter: "Starter",
@@ -147,7 +155,7 @@ export default async function SettingsPage() {
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Connecté</span>
             ) : (
               <a
-                href="/api/integrations/hubspot/auth"
+                href={hubspotAuthUrl}
                 className="inline-block cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition"
               >
                 Connecter HubSpot
