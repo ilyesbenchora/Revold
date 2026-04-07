@@ -1,66 +1,50 @@
-export const revalidate = 900;
-
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
-import { KpiChart } from "@/components/kpi-chart";
 import { getScoreLabel } from "@/lib/score-utils";
 
 export default async function PerformanceMarketingPage() {
   const orgId = await getOrgId();
   if (!orgId) {
-    return (
-      <section className="p-8 text-center">
-        <p className="text-sm text-slate-600">Aucune organisation configurée.</p>
-      </section>
-    );
+    return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
-  const supabase = await createSupabaseServerClient();
-  const k = await getLatestKpi();
+
+  let k;
+  let total = 0;
+  let mqls = 0;
+  let sqls = 0;
+  let assigned = 0;
+  let unassigned = 0;
+  let emails = 0;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    k = await getLatestKpi();
+
+    const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", true),
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("company_id", null),
+      supabase.from("activities").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("type", "email"),
+    ]);
+
+    total = r1.count ?? 0;
+    mqls = r2.count ?? 0;
+    sqls = r3.count ?? 0;
+    assigned = r4.count ?? 0;
+    unassigned = r5.count ?? 0;
+    emails = r6.count ?? 0;
+  } catch (err) {
+    return <p className="p-8 text-center text-sm text-red-600">Erreur: {String(err)}</p>;
+  }
+
   const marketingScore = Number(k?.marketing_score) || 0;
-
-  const [
-    { data: snapshots },
-    { count: totalContacts },
-    { count: mqlCount },
-    { count: sqlCount },
-    { count: withCompany },
-    { count: withoutCompany },
-    { count: emailCount },
-  ] = await Promise.all([
-    supabase
-      .from("kpi_snapshots")
-      .select("snapshot_date, mql_to_sql_rate, lead_velocity_rate, funnel_leakage_rate")
-      .eq("organization_id", orgId)
-      .order("snapshot_date", { ascending: true })
-      .limit(7),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", true),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("company_id", null),
-    supabase.from("activities").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("type", "email"),
-  ]);
-
-  const total = totalContacts ?? 0;
-  const mqls = mqlCount ?? 0;
-  const sqls = sqlCount ?? 0;
-  const assigned = withCompany ?? 0;
-  const unassigned = withoutCompany ?? 0;
-  const emails = emailCount ?? 0;
+  const mqlToSql = Number(k?.mql_to_sql_rate) || 0;
+  const leadVelocity = Number(k?.lead_velocity_rate) || 0;
+  const funnelLeakage = Number(k?.funnel_leakage_rate) || 0;
   const formConversion = assigned > 0 ? Math.round((mqls / Math.max(1, assigned)) * 100) : 0;
-
-  const kpis = [
-    { label: "MQL → SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "—", description: "Taux de conversion des MQL en SQL" },
-    { label: "Vélocité leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "—", description: "Croissance mensuelle du volume de leads" },
-    { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "—", description: "Taux de perte dans le funnel marketing" },
-  ];
-
-  const chartData = (snapshots ?? []).map((s) => ({
-    date: new Date(s.snapshot_date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
-    mqlToSql: Number(s.mql_to_sql_rate),
-    leadVelocity: Number(s.lead_velocity_rate),
-  }));
 
   return (
     <section className="space-y-8">
@@ -81,12 +65,10 @@ export default async function PerformanceMarketingPage() {
               {getScoreLabel(marketingScore).label}
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Performance globale marketing basée sur la conversion, la vélocité et la rétention funnel.
-          </p>
         </div>
       </div>
 
+      {/* Funnel */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel
@@ -107,21 +89,31 @@ export default async function PerformanceMarketingPage() {
         </div>
       </div>
 
+      {/* KPIs */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-orange-500" />KPIs Marketing
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {kpis.map((kpi) => (
-            <article key={kpi.label} className="card p-5">
-              <p className="text-xs text-slate-500">{kpi.label}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{kpi.value}</p>
-              <p className="mt-2 text-xs text-slate-400">{kpi.description}</p>
-            </article>
-          ))}
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">MQL vers SQL</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{mqlToSql > 0 ? `${mqlToSql}%` : "—"}</p>
+            <p className="mt-2 text-xs text-slate-400">Taux de conversion des MQL en SQL</p>
+          </article>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Vélocité leads</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{leadVelocity > 0 ? `+${leadVelocity}%` : "—"}</p>
+            <p className="mt-2 text-xs text-slate-400">Croissance mensuelle du volume de leads</p>
+          </article>
+          <article className="card p-5">
+            <p className="text-xs text-slate-500">Fuite funnel</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{funnelLeakage > 0 ? `${funnelLeakage}%` : "—"}</p>
+            <p className="mt-2 text-xs text-slate-400">Taux de perte dans le funnel marketing</p>
+          </article>
         </div>
       </div>
 
+      {/* Attribution */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-violet-500" />Formulaires et attribution
@@ -147,24 +139,6 @@ export default async function PerformanceMarketingPage() {
           </article>
         </div>
       </div>
-
-      {chartData.length > 1 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />Tendances
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.mqlToSql }))} label="MQL → SQL (%)" color="#f59e0b" format={(v) => `${v}%`} />
-            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.leadVelocity }))} label="Vélocité leads (%)" color="#d97706" format={(v) => `+${v}%`} />
-          </div>
-        </div>
-      )}
-
-      {!k && total === 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Aucune donnée disponible.</p>
-        </div>
-      )}
     </section>
   );
 }
