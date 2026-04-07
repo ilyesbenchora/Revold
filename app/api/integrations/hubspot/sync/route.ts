@@ -1,3 +1,5 @@
+export const maxDuration = 60; // Allow up to 60s on Vercel Pro, 10s on free
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { syncHubSpotData } from "@/lib/integrations/hubspot-sync";

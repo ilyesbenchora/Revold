@@ -1,6 +1,6 @@
 /**
- * HubSpot Sync Engine
- * Maps HubSpot data to Revold schema and upserts into Supabase.
+ * HubSpot Sync Engine — Optimized for speed
+ * Batch upserts instead of one-by-one.
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -26,9 +26,6 @@ export async function syncHubSpotData(
   accessToken: string,
 ): Promise<SyncResult> {
   const errors: string[] = [];
-  let companiesCount = 0;
-  let contactsCount = 0;
-  let dealsCount = 0;
 
   // Log sync start
   const { data: syncLog } = await supabase
@@ -37,55 +34,69 @@ export async function syncHubSpotData(
       organization_id: orgId,
       source: "hubspot",
       direction: "inbound",
-      entity_type: "all",
       status: "running",
     })
     .select("id")
     .single();
 
   try {
-    // 1. Sync Companies
-    const hsCompanies = await fetchHubSpotCompanies(accessToken);
-    for (const hsc of hsCompanies) {
-      const { error } = await supabase.from("companies").upsert(
-        mapCompany(hsc, orgId),
-        { onConflict: "organization_id,hubspot_id", ignoreDuplicates: false },
-      );
-      if (error) errors.push(`Company ${hsc.id}: ${error.message}`);
-      else companiesCount++;
+    // Fetch all in parallel
+    const [hsCompanies, hsContacts, hsDeals] = await Promise.all([
+      fetchHubSpotCompanies(accessToken),
+      fetchHubSpotContacts(accessToken),
+      fetchHubSpotDeals(accessToken),
+    ]);
+
+    // Batch upsert companies (chunks of 50)
+    const companyRows = hsCompanies.map((c) => mapCompany(c, orgId));
+    let companiesCount = 0;
+    for (let i = 0; i < companyRows.length; i += 50) {
+      const batch = companyRows.slice(i, i + 50);
+      const { error } = await supabase.from("companies").upsert(batch, {
+        onConflict: "organization_id,hubspot_id",
+        ignoreDuplicates: false,
+      });
+      if (error) errors.push(`Companies batch: ${error.message}`);
+      else companiesCount += batch.length;
     }
 
-    // 2. Sync Contacts
-    const hsContacts = await fetchHubSpotContacts(accessToken);
-    for (const hscont of hsContacts) {
-      const { error } = await supabase.from("contacts").upsert(
-        mapContact(hscont, orgId),
-        { onConflict: "organization_id,hubspot_id", ignoreDuplicates: false },
-      );
-      if (error) errors.push(`Contact ${hscont.id}: ${error.message}`);
-      else contactsCount++;
+    // Batch upsert contacts
+    const contactRows = hsContacts.map((c) => mapContact(c, orgId));
+    let contactsCount = 0;
+    for (let i = 0; i < contactRows.length; i += 50) {
+      const batch = contactRows.slice(i, i + 50);
+      const { error } = await supabase.from("contacts").upsert(batch, {
+        onConflict: "organization_id,hubspot_id",
+        ignoreDuplicates: false,
+      });
+      if (error) errors.push(`Contacts batch: ${error.message}`);
+      else contactsCount += batch.length;
     }
 
-    // 3. Sync Deals
-    const hsDeals = await fetchHubSpotDeals(accessToken);
-    for (const hsd of hsDeals) {
-      const { error } = await supabase.from("deals").upsert(
-        mapDeal(hsd, orgId),
-        { onConflict: "organization_id,hubspot_id", ignoreDuplicates: false },
-      );
-      if (error) errors.push(`Deal ${hsd.id}: ${error.message}`);
-      else dealsCount++;
+    // Batch upsert deals
+    const dealRows = hsDeals.map((d) => mapDeal(d, orgId));
+    let dealsCount = 0;
+    for (let i = 0; i < dealRows.length; i += 50) {
+      const batch = dealRows.slice(i, i + 50);
+      const { error } = await supabase.from("deals").upsert(batch, {
+        onConflict: "organization_id,hubspot_id",
+        ignoreDuplicates: false,
+      });
+      if (error) errors.push(`Deals batch: ${error.message}`);
+      else dealsCount += batch.length;
     }
 
     // Update sync log
     if (syncLog) {
       await supabase.from("sync_logs").update({
-        status: errors.length > 0 ? "completed" : "completed",
+        status: "completed",
         entity_count: companiesCount + contactsCount + dealsCount,
         error_message: errors.length > 0 ? errors.slice(0, 5).join("; ") : null,
         completed_at: new Date().toISOString(),
       }).eq("id", syncLog.id);
     }
+
+    return { companies: companiesCount, contacts: contactsCount, deals: dealsCount, errors };
   } catch (err) {
     if (syncLog) {
       await supabase.from("sync_logs").update({
@@ -96,8 +107,6 @@ export async function syncHubSpotData(
     }
     throw err;
   }
-
-  return { companies: companiesCount, contacts: contactsCount, deals: dealsCount, errors };
 }
 
 // ── Mappers ──
@@ -135,7 +144,7 @@ function mapDeal(hsd: HubSpotDeal, orgId: string) {
     hubspot_id: hsd.id,
     name: hsd.properties.dealname || `Deal ${hsd.id}`,
     amount: hsd.properties.amount ? Number(hsd.properties.amount) : 0,
-    close_date: hsd.properties.closedate?.split("T")[0] ?? null,
+    close_date: hsd.properties.closedate?.split("T")[0] || null,
     created_date: hsd.properties.createdate?.split("T")[0] ?? new Date().toISOString().split("T")[0],
     updated_at: new Date().toISOString(),
   };
