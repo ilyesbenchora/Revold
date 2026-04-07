@@ -60,19 +60,29 @@ export default async function IntegrationPage() {
     ? Math.round((dataCompleteness * 0.4) + (syncSuccessRate * 0.3) + ((activeIntegrations.length / Math.max(1, totalIntegrations)) * 100 * 0.3))
     : 0;
 
+  // HubSpot OAuth URL
+  const hubspotClientId = process.env.HUBSPOT_CLIENT_ID ?? "";
+  const hubspotRedirectUri = process.env.HUBSPOT_REDIRECT_URI ?? "";
+  const hubspotScopes = "crm.objects.deals.read crm.objects.contacts.read crm.objects.companies.read crm.objects.owners.read";
+  const hubspotAuthUrl = hubspotClientId
+    ? `https://app.hubspot.com/oauth/authorize?client_id=${hubspotClientId}&redirect_uri=${encodeURIComponent(hubspotRedirectUri)}&scope=${encodeURIComponent(hubspotScopes)}&state=${orgId ?? ""}`
+    : "";
+
   // Known CRM tools
   const crmTools = [
     {
       name: "HubSpot",
       provider: "hubspot",
       description: "CRM, Marketing Hub, Sales Hub",
-      icon: "\uD83D\uDFE0",
+      icon: "🟠",
+      authUrl: hubspotAuthUrl,
     },
     {
       name: "Salesforce",
       provider: "salesforce",
       description: "CRM, Sales Cloud",
-      icon: "\u2601\uFE0F",
+      icon: "☁️",
+      authUrl: "",
     },
   ];
 
@@ -157,13 +167,22 @@ export default async function IntegrationPage() {
                       <p className="text-xs text-slate-400">{tool.description}</p>
                     </div>
                   </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    isConnected
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {isConnected ? "Connecté" : "Non connecté"}
-                  </span>
+                  {isConnected ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                      Connecté
+                    </span>
+                  ) : tool.authUrl ? (
+                    <a
+                      href={tool.authUrl}
+                      className="inline-block rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition"
+                    >
+                      Connecter
+                    </a>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                      Bientôt
+                    </span>
+                  )}
                 </div>
 
                 {isConnected && (
