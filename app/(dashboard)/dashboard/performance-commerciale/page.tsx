@@ -11,7 +11,6 @@ export default async function PerformanceCommercialePage() {
 
   const supabase = await createSupabaseServerClient();
 
-  // All counts in parallel — no heavy data loads
   const [
     { count: totalDeals },
     { count: wonDeals },
@@ -19,19 +18,31 @@ export default async function PerformanceCommercialePage() {
     { count: openDeals },
     { data: wonAmountData },
     { data: openAmountData },
-    { data: recentDeals },
     { data: stagnantDeals },
-    { count: dealsWithAmount },
+    { data: topDeals },
+    { data: neglectedDeals },
   ] = await Promise.all([
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_lost", true),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
     supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true).gt("amount", 0),
-    supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("amount", 0),
-    supabase.from("deals").select("id, name, amount, created_date, last_activity_at").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).order("created_date", { ascending: false }).limit(10),
-    supabase.from("deals").select("id, name, amount, last_activity_at").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).lt("last_activity_at", new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gt("amount", 0),
+    supabase.from("deals").select("amount, forecast_amount").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    // Stagnant: dernière activité commerciale > 7j ET aucune prochaine activité planifiée
+    supabase.from("deals").select("id, name, amount, last_contacted_at, next_activity_date, sales_activities_count")
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .is("next_activity_date", null)
+      .lt("last_contacted_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .order("last_contacted_at", { ascending: true }).limit(10),
+    // Top deals par activités commerciales
+    supabase.from("deals").select("id, name, amount, sales_activities_count, associated_contacts_count")
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .order("sales_activities_count", { ascending: false }).limit(5),
+    // Deals négligés (0 activité commerciale)
+    supabase.from("deals").select("id, name, amount, created_date, sales_activities_count")
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .eq("sales_activities_count", 0)
+      .order("created_date", { ascending: false }).limit(5),
   ]);
 
   const total = totalDeals ?? 0;
@@ -40,24 +51,24 @@ export default async function PerformanceCommercialePage() {
   const open = openDeals ?? 0;
   const closingRate = (won + lost) > 0 ? Math.round((won / (won + lost)) * 100) : 0;
   const wonTotal = (wonAmountData ?? []).reduce((s, d) => s + Number(d.amount || 0), 0);
-  const openTotal = (openAmountData ?? []).reduce((s, d) => s + Number(d.amount || 0), 0);
+  const openData = openAmountData ?? [];
+  const openTotal = openData.reduce((s, d) => s + Number(d.amount || 0), 0);
+  const forecastTotal = openData.reduce((s, d) => s + Number(d.forecast_amount || 0), 0);
   const stagnant = stagnantDeals ?? [];
-  const recent = recentDeals ?? [];
-  const withAmount = dealsWithAmount ?? 0;
+  const top = topDeals ?? [];
+  const neglected = neglectedDeals ?? [];
 
-  // Score: basé sur closing rate + ratio open/total + remplissage montant
-  const completenessScore = total > 0 ? Math.round((withAmount / total) * 100) : 0;
   const salesScore = Math.round(
-    Math.min(100, closingRate * 2) * 0.4 +
-    (total > 0 ? Math.min(100, (open / total) * 150) : 0) * 0.3 +
-    completenessScore * 0.3
+    Math.min(100, closingRate * 2.5) * 0.4 +
+    (stagnant.length < 5 ? 80 : stagnant.length < 15 ? 50 : 20) * 0.3 +
+    (neglected.length === 0 ? 100 : neglected.length < 5 ? 60 : 20) * 0.3
   );
 
   return (
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Performance Commerciale</h1>
-        <p className="mt-1 text-sm text-slate-500">Analyse des transactions et du pipeline commercial.</p>
+        <p className="mt-1 text-sm text-slate-500">Suivi du pipeline et de l&apos;activité commerciale.</p>
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
@@ -71,10 +82,10 @@ export default async function PerformanceCommercialePage() {
         </div>
       </div>
 
-      {/* Vue pipeline */}
+      {/* Pipeline */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Vue pipeline
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Pipeline
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
@@ -96,31 +107,31 @@ export default async function PerformanceCommercialePage() {
         </div>
       </div>
 
-      {/* KPIs clés */}
+      {/* Résultats */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Indicateurs clés
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />Résultats commerciaux
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5">
             <p className="text-xs text-slate-500">Taux de closing</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{(won + lost) > 0 ? `${closingRate}%` : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Gagnées sur transactions clôturées</p>
+            <p className="mt-1 text-xs text-slate-400">Gagnées sur clôturées</p>
           </article>
           <article className="card p-5">
-            <p className="text-xs text-slate-500">Montant gagné</p>
+            <p className="text-xs text-slate-500">Revenu généré</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{wonTotal > 0 ? `€${Math.round(wonTotal / 1000)}K` : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Valeur des transactions gagnées</p>
+            <p className="mt-1 text-xs text-slate-400">Montant des transactions gagnées</p>
           </article>
           <article className="card p-5">
-            <p className="text-xs text-slate-500">Pipeline en cours</p>
+            <p className="text-xs text-slate-500">Valeur du pipeline</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{openTotal > 0 ? `€${Math.round(openTotal / 1000)}K` : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Valeur des transactions ouvertes</p>
+            <p className="mt-1 text-xs text-slate-400">Montant des transactions en cours</p>
           </article>
           <article className="card p-5">
-            <p className="text-xs text-slate-500">Complétude des montants</p>
-            <p className={`mt-1 text-2xl font-bold ${completenessScore >= 70 ? "text-emerald-600" : completenessScore >= 40 ? "text-orange-500" : "text-red-500"}`}>{completenessScore}%</p>
-            <p className="mt-1 text-xs text-slate-400">Transactions avec un montant renseigné</p>
+            <p className="text-xs text-slate-500">Prévision pondérée</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{forecastTotal > 0 ? `€${Math.round(forecastTotal / 1000)}K` : "—"}</p>
+            <p className="mt-1 text-xs text-slate-400">Montant pondéré par probabilité</p>
           </article>
         </div>
       </div>
@@ -129,9 +140,9 @@ export default async function PerformanceCommercialePage() {
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-orange-500" />Transactions stagnantes
-          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{stagnant.length}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stagnant.length > 5 ? "bg-red-50 text-red-700" : stagnant.length > 0 ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>{stagnant.length}</span>
         </h2>
-        <p className="text-sm text-slate-400">Aucune activité depuis plus de 6 jours</p>
+        <p className="text-sm text-slate-400">Dernier contact &gt; 7 jours et aucune prochaine activité planifiée</p>
         {stagnant.length > 0 ? (
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
@@ -140,40 +151,66 @@ export default async function PerformanceCommercialePage() {
                   <div>
                     <p className="text-sm font-medium text-slate-800">{d.name}</p>
                     <p className="text-xs text-slate-400">
-                      Dernière activité : {d.last_activity_at ? new Date(d.last_activity_at).toLocaleDateString("fr-FR") : "jamais"}
+                      Dernier contact : {d.last_contacted_at ? new Date(d.last_contacted_at).toLocaleDateString("fr-FR") : "jamais"}
+                      {" · "}{d.sales_activities_count ?? 0} activités
                     </p>
                   </div>
-                  {Number(d.amount) > 0 && <p className="text-sm text-slate-600">€{Math.round(Number(d.amount) / 1000)}K</p>}
+                  {Number(d.amount) > 0 && <p className="text-sm font-medium text-slate-600">€{Math.round(Number(d.amount) / 1000)}K</p>}
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">Aucune transaction stagnante détectée.</p>
+          <p className="text-sm text-emerald-600">Aucune transaction stagnante.</p>
         )}
       </div>
 
-      {/* Dernières transactions créées */}
-      {recent.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />Dernières transactions créées
-          </h2>
-          <div className="card overflow-hidden">
-            <div className="divide-y divide-card-border">
-              {recent.map((d) => (
-                <div key={d.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{d.name}</p>
-                    <p className="text-xs text-slate-400">Créée le {d.created_date ? new Date(d.created_date).toLocaleDateString("fr-FR") : "—"}</p>
+      {/* Activité commerciale */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />Activité commerciale
+        </h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {top.length > 0 && (
+            <div className="card overflow-hidden">
+              <div className="border-b border-card-border px-5 py-3">
+                <p className="text-sm font-semibold text-slate-700">Transactions les plus travaillées</p>
+              </div>
+              <div className="divide-y divide-card-border">
+                {top.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                      <p className="text-xs text-slate-400">{d.associated_contacts_count ?? 0} contacts associés</p>
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {d.sales_activities_count ?? 0} activités
+                    </span>
                   </div>
-                  {Number(d.amount) > 0 && <p className="text-sm text-slate-600">€{Math.round(Number(d.amount) / 1000)}K</p>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+          {neglected.length > 0 && (
+            <div className="card overflow-hidden">
+              <div className="border-b border-card-border px-5 py-3">
+                <p className="text-sm font-semibold text-slate-700">Transactions sans activité</p>
+              </div>
+              <div className="divide-y divide-card-border">
+                {neglected.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                      <p className="text-xs text-slate-400">Créée le {d.created_date ? new Date(d.created_date).toLocaleDateString("fr-FR") : "—"}</p>
+                    </div>
+                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">0 activité</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }

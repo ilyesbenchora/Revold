@@ -93,6 +93,11 @@ export type HubSpotDeal = {
     hs_deal_stage_probability: string | null;
     num_associated_contacts: string | null;
     pipeline: string | null;
+    notes_last_contacted: string | null;
+    notes_next_activity_date: string | null;
+    num_notes: string | null;
+    days_to_close: string | null;
+    hs_forecast_amount: string | null;
   };
 };
 
@@ -127,7 +132,7 @@ export async function fetchHubSpotDeals(accessToken: string): Promise<HubSpotDea
   do {
     const params: Record<string, string> = {
       limit: "100",
-      properties: "dealname,amount,dealstage,closedate,createdate,hs_lastmodifieddate,hubspot_owner_id,hs_is_closed_won,hs_is_closed,hs_deal_stage_probability,num_associated_contacts,pipeline",
+      properties: "dealname,amount,dealstage,closedate,createdate,hs_lastmodifieddate,hubspot_owner_id,hs_is_closed_won,hs_is_closed,hs_deal_stage_probability,num_associated_contacts,pipeline,notes_last_contacted,notes_next_activity_date,num_notes,days_to_close,hs_forecast_amount",
     };
     if (after) params.after = after;
 
@@ -147,7 +152,7 @@ export async function fetchHubSpotContacts(accessToken: string, maxPages: number
   do {
     const params: Record<string, string> = {
       limit: "100",
-      properties: "email,firstname,lastname,jobtitle,phone,hs_lead_status,lifecyclestage",
+      properties: "email,firstname,lastname,jobtitle,phone,hs_lead_status,lifecyclestage,hs_analytics_source,num_conversion_events,num_notes,first_conversion_date,recent_conversion_event_name",
     };
     if (after) params.after = after;
 
