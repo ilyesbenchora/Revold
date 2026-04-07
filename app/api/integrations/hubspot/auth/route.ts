@@ -7,13 +7,38 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: profile } = await supabase
+  // Try to get existing profile
+  let { data: profile } = await supabase
     .from("profiles")
     .select("organization_id")
     .eq("id", user.id)
     .single();
 
-  if (!profile) return NextResponse.json({ error: "No profile" }, { status: 400 });
+  // If no profile, check if an org exists and create profile
+  if (!profile) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (!org) return NextResponse.json({ error: "No organization found" }, { status: 400 });
+
+    const { data: newProfile } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        organization_id: org.id,
+        full_name: user.email?.split("@")[0] ?? "Utilisateur",
+        role: "admin",
+      })
+      .select("organization_id")
+      .single();
+
+    profile = newProfile;
+  }
+
+  if (!profile) return NextResponse.json({ error: "Could not create profile" }, { status: 400 });
 
   const url = getHubSpotAuthUrl(profile.organization_id);
   return NextResponse.redirect(url);

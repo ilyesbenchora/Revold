@@ -17,11 +17,37 @@ export const getOrgId = cache(async (): Promise<string | null> => {
   const user = await getAuthUser();
   if (!user) return null;
   const supabase = await createSupabaseServerClient();
-  const { data: profile } = await supabase
+
+  let { data: profile } = await supabase
     .from("profiles")
     .select("organization_id")
     .eq("id", user.id)
     .single();
+
+  // Auto-create profile if it doesn't exist (new user via Supabase Auth)
+  if (!profile) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (!org) return null;
+
+    const { data: newProfile } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        organization_id: org.id,
+        full_name: user.email?.split("@")[0] ?? "Utilisateur",
+        role: "admin",
+      })
+      .select("organization_id")
+      .single();
+
+    profile = newProfile;
+  }
+
   return profile?.organization_id ?? null;
 });
 
@@ -29,6 +55,10 @@ export const getProfile = cache(async () => {
   const user = await getAuthUser();
   if (!user) return null;
   const supabase = await createSupabaseServerClient();
+
+  // Call getOrgId first to ensure profile exists
+  await getOrgId();
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("full_name, role, organization_id, organizations(name)")
