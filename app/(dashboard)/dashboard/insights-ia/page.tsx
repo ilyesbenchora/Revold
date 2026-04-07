@@ -9,8 +9,8 @@ const severityConfig = {
 
 const categoryLabels: Record<string, string> = {
   pipeline: "Pipeline",
-  deal_risk: "Deal \u00e0 risque",
-  forecast: "Pr\u00e9vision",
+  deal_risk: "Deal à risque",
+  forecast: "Prévision",
   coaching: "Coaching",
   marketing: "Marketing",
   data: "Data",
@@ -141,26 +141,26 @@ export default async function InsightsPage() {
       connected: activeIntegrations.some((i) => i.provider === "hubspot"),
       simulations: [
         {
-          title: "Augmenter la fr\u00e9quence de sync \u00e0 1h",
+          title: "Augmenter la fréquence de sync à 1h",
           impact: inactiveDeals > 10
-            ? `R\u00e9duction estim\u00e9e des deals inactifs de ${inactiveDeals}% \u00e0 ~${Math.max(5, inactiveDeals - 8)}%`
-            : "Maintien de la fra\u00eecheur des donn\u00e9es et d\u00e9tection plus rapide des risques",
+            ? `Réduction estimée des deals inactifs de ${inactiveDeals}% à ~${Math.max(5, inactiveDeals - 8)}%`
+            : "Maintien de la fraîcheur des données et détection plus rapide des risques",
           effort: "Faible",
           priority: inactiveDeals > 15 ? "Haute" : "Moyenne",
         },
         {
-          title: "Activer le sync bidirectionnel des activit\u00e9s",
+          title: "Activer le sync bidirectionnel des activités",
           impact: activitiesPerDeal < 3
-            ? `Am\u00e9lioration du tracking : de ${activitiesPerDeal} \u00e0 ~${(activitiesPerDeal + 2).toFixed(1)} activit\u00e9s/deal`
-            : "Visibilit\u00e9 compl\u00e8te du parcours client dans les deux sens",
+            ? `Amélioration du tracking : de ${activitiesPerDeal} à ~${(activitiesPerDeal + 2).toFixed(1)} activités/deal`
+            : "Visibilité complète du parcours client dans les deux sens",
           effort: "Moyen",
           priority: activitiesPerDeal < 3 ? "Haute" : "Basse",
         },
         {
-          title: "Mapper les champs personnalis\u00e9s",
+          title: "Mapper les champs personnalisés",
           impact: dataCompleteness < 80
-            ? `Compl\u00e9tude donn\u00e9es de ${dataCompleteness}% \u2192 ~${Math.min(95, dataCompleteness + 15)}% (+fiabilit\u00e9 scoring IA)`
-            : "Harmonisation compl\u00e8te du mod\u00e8le de donn\u00e9es",
+            ? `Complétude données de ${dataCompleteness}% → ~${Math.min(95, dataCompleteness + 15)}% (+fiabilité scoring IA)`
+            : "Harmonisation complète du modèle de données",
           effort: "Moyen",
           priority: dataCompleteness < 70 ? "Haute" : "Moyenne",
         },
@@ -172,14 +172,14 @@ export default async function InsightsPage() {
       simulations: [
         {
           title: "Connecter Salesforce pour unifier le pipeline",
-          impact: "Vue 360\u00b0 des opportunit\u00e9s multi-CRM, am\u00e9lioration du forecast de 15-25%",
+          impact: "Vue 360° des opportunités multi-CRM, amélioration du forecast de 15-25%",
           effort: "Moyen",
           priority: "Haute",
         },
         {
-          title: "Synth\u00e9tiser les rapports Salesforce dans Revold",
-          impact: "R\u00e9duction du temps d\u2019analyse RevOps de ~40%, dashboards unifi\u00e9s",
-          effort: "\u00c9lev\u00e9",
+          title: "Synthétiser les rapports Salesforce dans Revold",
+          impact: "Réduction du temps d’analyse RevOps de ~40%, dashboards unifiés",
+          effort: "Élevé",
           priority: "Moyenne",
         },
       ],
@@ -188,39 +188,39 @@ export default async function InsightsPage() {
 
   const scenarios = [
     {
-      label: "Si le taux de closing passe de {current}% \u00e0 {target}%",
+      label: "Si le taux de closing passe de {current}% à {target}%",
       current: closingRate,
       target: Math.min(100, closingRate + 10),
       impact: weightedForecast > 0
-        ? `+\u20ac${((weightedForecast * ((closingRate + 10) / 100 - closingRate / 100)) / 1000).toFixed(0)}K de pr\u00e9vision`
-        : "+10% de revenus pr\u00e9visionnels",
+        ? `+€${((weightedForecast * ((closingRate + 10) / 100 - closingRate / 100)) / 1000).toFixed(0)}K de prévision`
+        : "+10% de revenus prévisionnels",
       color: "border-blue-200 bg-blue-50",
       iconColor: "text-blue-600",
       category: "Commercial",
     },
     {
-      label: "Si la couverture pipeline passe de {current}x \u00e0 {target}x",
+      label: "Si la couverture pipeline passe de {current}x à {target}x",
       current: pipelineCoverage,
       target: Math.max(pipelineCoverage, 3),
-      impact: "Am\u00e9lioration de la pr\u00e9visibilit\u00e9 et r\u00e9duction du risque de sous-performance",
+      impact: "Amélioration de la prévisibilité et réduction du risque de sous-performance",
       color: "border-indigo-200 bg-indigo-50",
       iconColor: "text-indigo-600",
       category: "Commercial",
     },
     {
-      label: "Si le MQL\u2192SQL passe de {current}% \u00e0 {target}%",
+      label: "Si le MQL→SQL passe de {current}% à {target}%",
       current: mqlToSql,
       target: Math.min(100, mqlToSql + 15),
-      impact: `+${Math.round((mqlToSql + 15) / Math.max(1, mqlToSql) * 100 - 100)}% de leads qualifi\u00e9s dans le pipeline`,
+      impact: `+${Math.round((mqlToSql + 15) / Math.max(1, mqlToSql) * 100 - 100)}% de leads qualifiés dans le pipeline`,
       color: "border-amber-200 bg-amber-50",
       iconColor: "text-amber-600",
       category: "Marketing",
     },
     {
-      label: "Si la compl\u00e9tude donn\u00e9es passe de {current}% \u00e0 {target}%",
+      label: "Si la complétude données passe de {current}% à {target}%",
       current: dataCompleteness,
       target: Math.min(100, dataCompleteness + 20),
-      impact: "Am\u00e9lioration de la fiabilit\u00e9 des scores et recommandations IA",
+      impact: "Amélioration de la fiabilité des scores et recommandations IA",
       color: "border-emerald-200 bg-emerald-50",
       iconColor: "text-emerald-600",
       category: "Data",
@@ -247,7 +247,7 @@ export default async function InsightsPage() {
     {
       id: "data",
       label: "Insights Data",
-      description: "Qualit\u00e9 des donn\u00e9es, compl\u00e9tude et hygi\u00e8ne CRM",
+      description: "Qualité des données, complétude et hygiène CRM",
       dot: "bg-emerald-500",
       insights: dataInsights,
       emptyMsg: "Aucun insight data pour le moment.",
@@ -261,7 +261,7 @@ export default async function InsightsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Insights IA</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Analyses et sc\u00e9narios de simulation g\u00e9n\u00e9r\u00e9s par l&apos;IA.
+            Analyses et scénarios de simulation générés par l&apos;IA.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -288,7 +288,7 @@ export default async function InsightsPage() {
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
               <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
             </svg>
-            Sc\u00e9narios de simulation
+            Scénarios de simulation
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {scenarios.map((scenario, i) => (
@@ -359,7 +359,7 @@ export default async function InsightsPage() {
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       tool.connected ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                     }`}>
-                      {tool.connected ? "Connect\u00e9" : "Non connect\u00e9"}
+                      {tool.connected ? "Connecté" : "Non connecté"}
                     </span>
                   </div>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
@@ -426,7 +426,7 @@ export default async function InsightsPage() {
       {allInsights.length === 0 && !k && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">
-            Aucun insight disponible. Les analyses IA appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.
+            Aucun insight disponible. Les analyses IA apparaîtront une fois les données synchronisées.
           </p>
         </div>
       )}

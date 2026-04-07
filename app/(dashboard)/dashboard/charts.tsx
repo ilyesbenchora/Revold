@@ -80,7 +80,7 @@ export function DashboardCharts({ data }: { data: ChartRow[] }) {
           />
           <KpiChart
             data={data.map((d) => ({ date: d.date, value: d.activitiesPerDeal }))}
-            label="Activit\u00e9s par deal"
+            label="Activités par deal"
             color="#059669"
           />
         </div>

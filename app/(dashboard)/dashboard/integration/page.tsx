@@ -79,15 +79,15 @@ export default async function IntegrationPage() {
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Int\u00e9gration</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Intégration</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Outils int\u00e9gr\u00e9s au CRM, utilisation et compl\u00e9tude des donn\u00e9es.
+          Outils intégrés au CRM, utilisation et complétude des données.
         </p>
       </header>
 
       {/* Score */}
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Int\u00e9gration" score={integrationScore} colorClass="stroke-violet-500" />
+        <ProgressScore label="Score Intégration" score={integrationScore} colorClass="stroke-violet-500" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{integrationScore}</span>
@@ -97,7 +97,7 @@ export default async function IntegrationPage() {
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            Sant\u00e9 des int\u00e9grations : connectivit\u00e9, fiabilit\u00e9 des syncs et compl\u00e9tude des donn\u00e9es.
+            Santé des intégrations : connectivité, fiabilité des syncs et complétude des données.
           </p>
         </div>
       </div>
@@ -105,11 +105,11 @@ export default async function IntegrationPage() {
       {/* Overview Cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Outils connect\u00e9s</p>
+          <p className="text-xs text-slate-500">Outils connectés</p>
           <p className="mt-1 text-3xl font-bold text-slate-900">{activeIntegrations.length}</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Compl\u00e9tude CRM</p>
+          <p className="text-xs text-slate-500">Complétude CRM</p>
           <p className={`mt-1 text-3xl font-bold ${
             dataCompleteness >= 80 ? "text-emerald-600" :
             dataCompleteness >= 50 ? "text-amber-500" : "text-red-500"
@@ -162,7 +162,7 @@ export default async function IntegrationPage() {
                       ? "bg-emerald-50 text-emerald-700"
                       : "bg-slate-100 text-slate-500"
                   }`}>
-                    {isConnected ? "Connect\u00e9" : "Non connect\u00e9"}
+                    {isConnected ? "Connecté" : "Non connecté"}
                   </span>
                 </div>
 
@@ -170,7 +170,7 @@ export default async function IntegrationPage() {
                   <div className="mt-4 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs text-slate-400">Fiabilit\u00e9 sync</p>
+                        <p className="text-xs text-slate-400">Fiabilité sync</p>
                         <div className="mt-1 flex items-center gap-2">
                           <div className="h-1.5 flex-1 rounded-full bg-slate-100">
                             <div
@@ -182,13 +182,13 @@ export default async function IntegrationPage() {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-400">Derni\u00e8re sync</p>
+                        <p className="text-xs text-slate-400">Dernière sync</p>
                         <p className="mt-1 text-sm font-medium text-slate-700">
                           {lastSync
                             ? new Date(lastSync.created_at).toLocaleDateString("fr-FR", {
                                 day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                               })
-                            : "\u2014"}
+                            : "—"}
                         </p>
                       </div>
                     </div>
@@ -202,7 +202,7 @@ export default async function IntegrationPage() {
                             : "bg-amber-500"
                         }`} />
                         <span className="text-slate-500">
-                          {lastSync.entity_count} entit\u00e9s synchronis\u00e9es
+                          {lastSync.entity_count} entités synchronisées
                         </span>
                       </div>
                     )}
@@ -211,7 +211,7 @@ export default async function IntegrationPage() {
 
                 {!isConnected && (
                   <p className="mt-4 text-xs text-slate-400">
-                    Connectez {tool.name} dans les param\u00e8tres pour activer la synchronisation.
+                    Connectez {tool.name} dans les paramètres pour activer la synchronisation.
                   </p>
                 )}
               </article>
@@ -233,7 +233,7 @@ export default async function IntegrationPage() {
                 <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Statut</th>
-                  <th className="px-4 py-3">Entit\u00e9s</th>
+                  <th className="px-4 py-3">Entités</th>
                   <th className="px-4 py-3">Date</th>
                 </tr>
               </thead>
@@ -249,7 +249,7 @@ export default async function IntegrationPage() {
                           ? "bg-red-50 text-red-700"
                           : "bg-amber-50 text-amber-700"
                       }`}>
-                        {log.status === "success" || log.status === "completed" ? "Termin\u00e9" :
+                        {log.status === "success" || log.status === "completed" ? "Terminé" :
                          log.status === "error" ? "Erreur" : "En cours"}
                       </span>
                     </td>
@@ -270,7 +270,7 @@ export default async function IntegrationPage() {
       {totalIntegrations === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">
-            Aucune int\u00e9gration configur\u00e9e. Connectez votre CRM dans les param\u00e8tres pour commencer.
+            Aucune intégration configurée. Connectez votre CRM dans les paramètres pour commencer.
           </p>
         </div>
       )}

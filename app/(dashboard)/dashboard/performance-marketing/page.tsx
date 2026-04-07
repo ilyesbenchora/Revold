@@ -102,9 +102,9 @@ export default async function PerformanceMarketingPage() {
   const emailEngagementRate = totalEmails > 0 ? Math.round((emailsWithContact / totalEmails) * 100) : 0;
 
   const kpis = [
-    { label: "MQL \u2192 SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "\u2014", description: "Taux de conversion des MQL en SQL" },
-    { label: "V\u00e9locit\u00e9 leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "\u2014", description: "Croissance mensuelle du volume de leads" },
-    { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "\u2014", description: "Taux de perte dans le funnel marketing" },
+    { label: "MQL → SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "—", description: "Taux de conversion des MQL en SQL" },
+    { label: "Vélocité leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "—", description: "Croissance mensuelle du volume de leads" },
+    { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "—", description: "Taux de perte dans le funnel marketing" },
   ];
 
   const chartData = (snapshots ?? []).map((s) => ({
@@ -118,7 +118,7 @@ export default async function PerformanceMarketingPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Performance Marketing</h1>
         <p className="mt-1 text-sm text-slate-500">
-          KPIs de performance de l&apos;\u00e9quipe marketing et du funnel d&apos;acquisition.
+          KPIs de performance de l&apos;équipe marketing et du funnel d&apos;acquisition.
         </p>
       </header>
 
@@ -134,7 +134,7 @@ export default async function PerformanceMarketingPage() {
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            Performance globale marketing bas\u00e9e sur la conversion, la v\u00e9locit\u00e9 et la r\u00e9tention funnel.
+            Performance globale marketing basée sur la conversion, la vélocité et la rétention funnel.
           </p>
         </div>
       </div>
@@ -187,7 +187,7 @@ export default async function PerformanceMarketingPage() {
             <p className="mt-1 text-3xl font-bold text-slate-900">{withCompany.length}</p>
           </article>
           <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Contacts non attribu\u00e9s</p>
+            <p className="text-xs text-slate-500">Contacts non attribués</p>
             <p className="mt-1 text-3xl font-bold text-slate-900">{withoutCompany.length}</p>
           </article>
           <article className="card p-5 text-center">
@@ -245,11 +245,11 @@ export default async function PerformanceMarketingPage() {
         </h2>
         <div className="grid grid-cols-3 gap-4">
           <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Emails envoy\u00e9s</p>
+            <p className="text-xs text-slate-500">Emails envoyés</p>
             <p className="mt-1 text-3xl font-bold text-slate-900">{totalEmails}</p>
           </article>
           <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Avec contact associ\u00e9</p>
+            <p className="text-xs text-slate-500">Avec contact associé</p>
             <p className="mt-1 text-3xl font-bold text-slate-900">{emailsWithContact}</p>
           </article>
           <article className="card p-5 text-center">
@@ -288,15 +288,15 @@ export default async function PerformanceMarketingPage() {
             <span className="h-2 w-2 rounded-full bg-amber-500" />Tendances
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.mqlToSql }))} label="MQL \u2192 SQL (%)" color="#f59e0b" format={(v) => `${v}%`} />
-            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.leadVelocity }))} label="V\u00e9locit\u00e9 leads (%)" color="#d97706" format={(v) => `+${v}%`} />
+            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.mqlToSql }))} label="MQL → SQL (%)" color="#f59e0b" format={(v) => `${v}%`} />
+            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.leadVelocity }))} label="Vélocité leads (%)" color="#d97706" format={(v) => `+${v}%`} />
           </div>
         </div>
       )}
 
       {!k && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Aucune donn\u00e9e disponible.</p>
+          <p className="text-sm text-slate-600">Aucune donnée disponible.</p>
         </div>
       )}
     </section>

@@ -29,7 +29,7 @@ export default async function DonneesPage() {
 
   const qualityMetrics = [
     {
-      label: "Compl\u00e9tude des donn\u00e9es",
+      label: "Complétude des données",
       value: k?.data_completeness ?? 0,
       suffix: "%",
       description: "Pourcentage de champs obligatoires remplis dans le CRM",
@@ -38,14 +38,14 @@ export default async function DonneesPage() {
       label: "Doublons contacts",
       value: k?.duplicate_contacts_pct ?? 0,
       suffix: "%",
-      description: "Taux de contacts en doublon d\u00e9tect\u00e9s",
+      description: "Taux de contacts en doublon détectés",
       inverted: true,
     },
     {
       label: "Contacts orphelins",
       value: k?.orphan_contacts_pct ?? 0,
       suffix: "%",
-      description: "Contacts sans entreprise associ\u00e9e",
+      description: "Contacts sans entreprise associée",
       inverted: true,
     },
   ];
@@ -55,36 +55,36 @@ export default async function DonneesPage() {
       label: "Deals inactifs",
       value: k?.inactive_deals_pct ?? 0,
       suffix: "%",
-      description: "Deals sans activit\u00e9 depuis plus de 14 jours",
+      description: "Deals sans activité depuis plus de 14 jours",
       inverted: true,
     },
     {
       label: "Taux de stagnation",
       value: k?.deal_stagnation_rate ?? 0,
       suffix: "%",
-      description: "Deals rest\u00e9s trop longtemps dans la m\u00eame \u00e9tape",
+      description: "Deals restés trop longtemps dans la même étape",
       inverted: true,
     },
     {
-      label: "Activit\u00e9s par deal",
+      label: "Activités par deal",
       value: k?.activities_per_deal ?? 0,
       suffix: "",
-      description: "Nombre moyen d\u2019interactions par opportunit\u00e9",
+      description: "Nombre moyen d’interactions par opportunité",
     },
   ];
 
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Donn\u00e9es</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Données</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Qualit\u00e9 et sant\u00e9 des donn\u00e9es dans votre CRM.
+          Qualité et santé des données dans votre CRM.
         </p>
       </header>
 
       {/* Score global Données */}
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Donn\u00e9es" score={dataScore} colorClass="stroke-emerald-500" />
+        <ProgressScore label="Score Données" score={dataScore} colorClass="stroke-emerald-500" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{dataScore}</span>
@@ -94,7 +94,7 @@ export default async function DonneesPage() {
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            \u00c9valuation de la qualit\u00e9, de la compl\u00e9tude et de la propret\u00e9 de vos donn\u00e9es CRM.
+            Évaluation de la qualité, de la complétude et de la propreté de vos données CRM.
           </p>
         </div>
       </div>
@@ -170,7 +170,7 @@ export default async function DonneesPage() {
       {!latestKpi && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">
-            Aucune donn\u00e9e disponible. Les m\u00e9triques appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.
+            Aucune donnée disponible. Les métriques apparaîtront une fois les données synchronisées.
           </p>
         </div>
       )}

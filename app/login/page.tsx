@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <p className="mt-2 text-sm text-slate-400">
           {isSignup
             ? "Commencez à piloter votre revenue intelligence."
-            : "Accédez à votre plateforme d\u2019intelligence revenue."}
+            : "Accédez à votre plateforme d’intelligence revenue."}
         </p>
 
         {error && (

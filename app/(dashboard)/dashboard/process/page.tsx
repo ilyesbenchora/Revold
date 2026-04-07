@@ -57,38 +57,38 @@ export default async function ProcessPage() {
       label: "Deals inactifs",
       value: k?.inactive_deals_pct ?? 0,
       suffix: "%",
-      description: "Deals sans activit\u00e9 depuis plus de 14 jours",
+      description: "Deals sans activité depuis plus de 14 jours",
       inverted: true,
     },
     {
       label: "Taux de stagnation",
       value: k?.deal_stagnation_rate ?? 0,
       suffix: "%",
-      description: "Deals rest\u00e9s trop longtemps au m\u00eame stage",
+      description: "Deals restés trop longtemps au même stage",
       inverted: true,
     },
     {
-      label: "Activit\u00e9s par deal",
+      label: "Activités par deal",
       value: k?.activities_per_deal ?? 0,
       suffix: "",
-      description: "Nombre moyen d\u2019interactions par deal",
+      description: "Nombre moyen d’interactions par deal",
     },
   ];
 
   const processKpis = [
     {
       label: "Cycle de vente",
-      value: k?.sales_cycle_days ? `${k.sales_cycle_days} jours` : "\u2014",
-      description: "Dur\u00e9e moyenne entre cr\u00e9ation et closing",
+      value: k?.sales_cycle_days ? `${k.sales_cycle_days} jours` : "—",
+      description: "Durée moyenne entre création et closing",
     },
     {
-      label: "V\u00e9locit\u00e9 deals",
-      value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K par jour` : "\u2014",
-      description: "Valeur trait\u00e9e par jour de pipeline",
+      label: "Vélocité deals",
+      value: k?.deal_velocity ? `€${(Number(k.deal_velocity) / 1000).toFixed(1)}K par jour` : "—",
+      description: "Valeur traitée par jour de pipeline",
     },
     {
       label: "Taux de closing",
-      value: k?.closing_rate ? `${k.closing_rate}%` : "\u2014",
+      value: k?.closing_rate ? `${k.closing_rate}%` : "—",
       description: "Pourcentage de deals conclus positivement",
     },
   ];
@@ -98,7 +98,7 @@ export default async function ProcessPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Process</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Performance des workflows, lifecycle stages et KPIs process m\u00e9tier.
+          Performance des workflows, lifecycle stages et KPIs process métier.
         </p>
       </header>
 
@@ -114,7 +114,7 @@ export default async function ProcessPage() {
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            Sant\u00e9 de vos workflows commerciaux, lifecycle stages et processus m\u00e9tier.
+            Santé de vos workflows commerciaux, lifecycle stages et processus métier.
           </p>
         </div>
       </div>
@@ -132,7 +132,7 @@ export default async function ProcessPage() {
                 <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
                   <th className="px-4 py-3">Stage</th>
                   <th className="px-4 py-3">Position</th>
-                  <th className="px-4 py-3">Probabilit\u00e9</th>
+                  <th className="px-4 py-3">Probabilité</th>
                   <th className="px-4 py-3">Deals actifs</th>
                   <th className="px-4 py-3">Type</th>
                 </tr>
@@ -158,7 +158,7 @@ export default async function ProcessPage() {
                     </td>
                     <td className="px-4 py-3">
                       {stage.is_closed_won ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Gagn\u00e9</span>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Gagné</span>
                       ) : stage.is_closed_lost ? (
                         <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Perdu</span>
                       ) : (
@@ -211,7 +211,7 @@ export default async function ProcessPage() {
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-blue-500" />
-          KPIs Process M\u00e9tier
+          KPIs Process Métier
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {processKpis.map((kpi) => (
@@ -227,7 +227,7 @@ export default async function ProcessPage() {
       {!latestKpi && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">
-            Aucune donn\u00e9e disponible. Les m\u00e9triques appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.
+            Aucune donnée disponible. Les métriques apparaîtront une fois les données synchronisées.
           </p>
         </div>
       )}

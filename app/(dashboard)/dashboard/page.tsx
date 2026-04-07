@@ -121,14 +121,14 @@ export default async function DashboardOverviewPage() {
 
   const categories = [
     {
-      label: "Donn\u00e9es",
+      label: "Données",
       description: "Data Quality & Data Ops",
       score: donneesScore,
       href: "/dashboard/donnees",
       details: [
-        { label: "Compl\u00e9tude donn\u00e9es", value: k?.data_completeness ? `${k.data_completeness}%` : "\u2014" },
-        { label: "Doublons contacts", value: k?.duplicate_contacts_pct ? `${k.duplicate_contacts_pct}%` : "\u2014" },
-        { label: "Contacts orphelins", value: k?.orphan_contacts_pct ? `${k.orphan_contacts_pct}%` : "\u2014" },
+        { label: "Complétude données", value: k?.data_completeness ? `${k.data_completeness}%` : "—" },
+        { label: "Doublons contacts", value: k?.duplicate_contacts_pct ? `${k.duplicate_contacts_pct}%` : "—" },
+        { label: "Contacts orphelins", value: k?.orphan_contacts_pct ? `${k.orphan_contacts_pct}%` : "—" },
       ],
     },
     {
@@ -141,7 +141,7 @@ export default async function DashboardOverviewPage() {
         { label: "Workflows inactifs", value: `${inactiveWorkflows}` },
         { label: "Attribution contacts", value: `${attributionRate}%` },
         { label: "Conversion lifecycle", value: `${lifecycleConversion}%` },
-        { label: "Cr\u00e9ation transactions", value: `${totalDeals}` },
+        { label: "Création transactions", value: `${totalDeals}` },
       ],
     },
     {
@@ -150,9 +150,9 @@ export default async function DashboardOverviewPage() {
       score: salesScore,
       href: "/dashboard/performance-commerciale",
       details: [
-        { label: "Cycle de vente moyen", value: cycleDays > 0 ? `${cycleDays} jours` : "\u2014" },
-        { label: "Transactions gagn\u00e9es", value: `${wonDealsCount}` },
-        { label: "Montant gagn\u00e9", value: wonAmount > 0 ? `\u20ac${(wonAmount / 1000).toFixed(0)}K` : "\u2014" },
+        { label: "Cycle de vente moyen", value: cycleDays > 0 ? `${cycleDays} jours` : "—" },
+        { label: "Transactions gagnées", value: `${wonDealsCount}` },
+        { label: "Montant gagné", value: wonAmount > 0 ? `€${(wonAmount / 1000).toFixed(0)}K` : "—" },
       ],
     },
     {
@@ -161,20 +161,20 @@ export default async function DashboardOverviewPage() {
       score: marketingScore,
       href: "/dashboard/performance-marketing",
       details: [
-        { label: "MQL \u2192 SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "\u2014" },
-        { label: "V\u00e9locit\u00e9 leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "\u2014" },
-        { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "\u2014" },
+        { label: "MQL → SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "—" },
+        { label: "Vélocité leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "—" },
+        { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "—" },
       ],
     },
     {
-      label: "Int\u00e9gration",
+      label: "Intégration",
       description: "Outils & CRM",
       score: integrationScore,
       href: "/dashboard/integration",
       details: [
-        { label: "Outils int\u00e9gr\u00e9s", value: `${activeIntegrations.length}` },
+        { label: "Outils intégrés", value: `${activeIntegrations.length}` },
         { label: "Utilisateurs actifs", value: `${totalUsers ?? 0}` },
-        { label: "Compl\u00e9tude CRM", value: k?.data_completeness ? `${k.data_completeness}%` : "\u2014" },
+        { label: "Complétude CRM", value: k?.data_completeness ? `${k.data_completeness}%` : "—" },
       ],
     },
   ];
@@ -186,9 +186,9 @@ export default async function DashboardOverviewPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Synth\u00e8se globale de la sant\u00e9 de votre RevOps.
+            Synthèse globale de la santé de votre RevOps.
             {lastUpdated && (
-              <span className="ml-2 text-slate-400">Actualis\u00e9 le {lastUpdated}</span>
+              <span className="ml-2 text-slate-400">Actualisé le {lastUpdated}</span>
             )}
           </p>
         </div>
@@ -198,7 +198,7 @@ export default async function DashboardOverviewPage() {
               {totalDeals} deals
             </span>
             <span className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">
-              {atRiskDeals} \u00e0 risque
+              {atRiskDeals} à risque
             </span>
           </div>
         )}
@@ -219,7 +219,7 @@ export default async function DashboardOverviewPage() {
                   {getScoreLabel(globalScore).label}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Score pond\u00e9r\u00e9 (Data 20%, Process 20%, Sales 25%, Mktg 20%, Int\u00e9g. 15%)</p>
+              <p className="text-xs text-slate-500">Score pondéré (Data 20%, Process 20%, Sales 25%, Mktg 20%, Intég. 15%)</p>
             </div>
           </div>
 
@@ -330,7 +330,7 @@ export default async function DashboardOverviewPage() {
       {!latestKpi && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-600">
-            Aucune donn\u00e9e KPI disponible. Les m\u00e9triques appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.
+            Aucune donnée KPI disponible. Les métriques apparaîtront une fois les données synchronisées.
           </p>
         </div>
       )}

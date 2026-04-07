@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const sidebarLinks = [
   {
     href: "/dashboard",
-    label: "Vue d\u2019ensemble",
+    label: "Vue d’ensemble",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -18,7 +18,7 @@ const sidebarLinks = [
   },
   {
     href: "/dashboard/donnees",
-    label: "Donn\u00e9es",
+    label: "Données",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -78,7 +78,7 @@ const sidebarLinks = [
   },
   {
     href: "/dashboard/integration",
-    label: "Int\u00e9gration",
+    label: "Intégration",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 11a9 9 0 0 1 9 9" />
