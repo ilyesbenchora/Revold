@@ -7,6 +7,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 const HUBSPOT_PORTAL = "48372600";
+const HS = {
+  workflows: `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}`,
+};
 
 export default async function IntegrationPage() {
   const orgId = await getOrgId();
@@ -22,6 +25,14 @@ export default async function IntegrationPage() {
   let teamDistribution: Record<string, number> = {};
   let contactSourceDetail: Record<string, number> = {};
   let dealSourceDetail: Record<string, number> = {};
+  let dealsPerOwner: Record<string, number> = {};
+  let trackingSample = 0;
+  let onlineContacts = 0;
+  let offlineContacts = 0;
+  let withPageViews = 0;
+  let withSessions = 0;
+  let withFormSubmissions = 0;
+  let withMarketingEmails = 0;
 
   if (hubspotTokenConfigured) {
     try {
@@ -57,9 +68,9 @@ export default async function IntegrationPage() {
         });
       }
 
-      // Deal sources (sample 100)
+      // Deal sources + owner assignment (sample 100)
       const dealRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/deals?limit=100&properties=hs_object_source_label,hs_object_source_detail_1`,
+        `https://api.hubapi.com/crm/v3/objects/deals?limit=100&properties=hs_object_source_label,hs_object_source_detail_1,hubspot_owner_id`,
         { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
       );
       if (dealRes.ok) {
@@ -68,6 +79,31 @@ export default async function IntegrationPage() {
           const props = d.properties as Record<string, string | null>;
           const src = props.hs_object_source_detail_1 || props.hs_object_source_label || "Autre";
           dealSourceDetail[src] = (dealSourceDetail[src] || 0) + 1;
+        });
+        // Count deals per owner
+        (dealData.results ?? []).forEach((d: Record<string, unknown>) => {
+          const ownerId = (d.properties as Record<string, string | null>).hubspot_owner_id;
+          dealsPerOwner[ownerId || "(non assigné)"] = (dealsPerOwner[ownerId || "(non assigné)"] || 0) + 1;
+        });
+      }
+
+      // Contact tracking data (sample 100)
+      const trackingRes = await fetch(
+        `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=hs_analytics_source,hs_analytics_num_page_views,hs_analytics_num_visits,num_conversion_events,hs_email_first_send_date`,
+        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
+      );
+      if (trackingRes.ok) {
+        const trackingData = await trackingRes.json();
+        (trackingData.results ?? []).forEach((c: Record<string, unknown>) => {
+          const p = c.properties as Record<string, string | null>;
+          trackingSample++;
+          const src = p.hs_analytics_source || "";
+          if (["ORGANIC_SEARCH", "PAID_SEARCH", "PAID_SOCIAL", "SOCIAL_MEDIA", "EMAIL_MARKETING", "REFERRALS", "DIRECT_TRAFFIC"].includes(src)) onlineContacts++;
+          else offlineContacts++;
+          if (Number(p.hs_analytics_num_page_views) > 0) withPageViews++;
+          if (Number(p.hs_analytics_num_visits) > 0) withSessions++;
+          if (Number(p.num_conversion_events) > 0) withFormSubmissions++;
+          if (p.hs_email_first_send_date) withMarketingEmails++;
         });
       }
     } catch {
@@ -284,6 +320,230 @@ export default async function IntegrationPage() {
           </div>
         </div>
       )}
+
+      {/* Tracking et adoption digitale */}
+      {trackingSample > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
+            <span className="text-sm font-normal text-slate-400">(échantillon de {trackingSample} contacts)</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Source online</p>
+              <p className={`mt-1 text-2xl font-bold ${onlineContacts > 0 ? "text-emerald-600" : "text-red-500"}`}>{onlineContacts}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Source offline</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{offlineContacts}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Pages vues</p>
+              <p className={`mt-1 text-2xl font-bold ${withPageViews > 0 ? "text-slate-900" : "text-red-500"}`}>{withPageViews}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Sessions web</p>
+              <p className={`mt-1 text-2xl font-bold ${withSessions > 0 ? "text-slate-900" : "text-red-500"}`}>{withSessions}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Soumissions formulaire</p>
+              <p className={`mt-1 text-2xl font-bold ${withFormSubmissions > 0 ? "text-slate-900" : "text-red-500"}`}>{withFormSubmissions}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Email marketing reçu</p>
+              <p className={`mt-1 text-2xl font-bold ${withMarketingEmails > 0 ? "text-slate-900" : "text-red-500"}`}>{withMarketingEmails}</p>
+            </article>
+          </div>
+        </div>
+      )}
+
+      {/* Insights IA Intégration */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+            <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+          </svg>
+          Insights IA Intégration
+        </h2>
+        <div className="space-y-3">
+
+          {/* Tracking online */}
+          {trackingSample > 0 && onlineContacts === 0 && (
+            <article className="rounded-xl border border-red-200 bg-red-50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">Critique</span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Tracking</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">Aucun contact tracké en ligne</h3>
+              <p className="mt-1.5 text-sm text-slate-700">
+                100% des contacts proviennent de sources offline. Le tracking HubSpot (script de suivi, formulaires, landing pages) n&apos;est pas actif ou pas installé sur votre site web.
+              </p>
+              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  Installer le code de suivi HubSpot sur votre site, activer les formulaires HubSpot et connecter vos landing pages pour commencer à tracker les sources online (SEO, Ads, Social, Email).
+                </p>
+              </div>
+              <div className="mt-3">
+                <a href={`https://app.hubspot.com/settings/${HUBSPOT_PORTAL}/website/tracking-code`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
+                  Installer le tracking HubSpot
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+          )}
+
+          {/* Deals non assignés */}
+          {(dealsPerOwner["(non assigné)"] ?? 0) > 0 && (
+            <article className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">Attention</span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Attribution</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">
+                {dealsPerOwner["(non assigné)"]}% des transactions sans propriétaire
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-700">
+                {dealsPerOwner["(non assigné)"]} transactions sur 100 ne sont assignées à aucun commercial. Impossible de mesurer la performance individuelle et de piloter l&apos;équipe.
+              </p>
+              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  Mettre en place un workflow d&apos;attribution automatique des deals ou rendre le champ propriétaire obligatoire à la création.
+                </p>
+              </div>
+              <div className="mt-3">
+                <a href={`${HS.workflows}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
+                  Créer un workflow d&apos;attribution
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+          )}
+
+          {/* Utilisateurs inactifs */}
+          {(() => {
+            const now = Date.now();
+            const inactive = owners.filter((o) => {
+              // We check teams — owners without teams or with many teams but no deals
+              const ownerDeals = Object.entries(dealsPerOwner).find(([k]) => k !== "(non assigné)" && owners.some((ow) => ow.email === o.email));
+              return !ownerDeals;
+            });
+            const activeOwners = owners.length - inactive.length;
+            return inactive.length > owners.length * 0.5 ? (
+              <article className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">Attention</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Adoption</span>
+                </div>
+                <h3 className="mt-3 text-base font-semibold text-slate-900">
+                  {owners.length - Object.keys(dealsPerOwner).filter((k) => k !== "(non assigné)").length} utilisateurs sans transaction assignée
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-700">
+                  Sur {owners.length} utilisateurs CRM, seuls {Object.keys(dealsPerOwner).filter((k) => k !== "(non assigné)").length} ont des transactions à leur nom. Les autres n&apos;utilisent pas activement le pipeline.
+                </p>
+                <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    Former les utilisateurs inactifs à la création et au suivi des transactions. Désactiver les comptes non utilisés pour nettoyer le portail.
+                  </p>
+                </div>
+                <div className="mt-3">
+                  <a href={`https://app.hubspot.com/settings/${HUBSPOT_PORTAL}/users`} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
+                    Gérer les utilisateurs
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </a>
+                </div>
+              </article>
+            ) : null;
+          })()}
+
+          {/* Email marketing sous-exploité */}
+          {trackingSample > 0 && withMarketingEmails < trackingSample * 0.1 && (
+            <article className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700">Info</span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Email Marketing</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">
+                Email marketing sous-exploité : {withMarketingEmails} contacts touchés sur {trackingSample}
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-700">
+                Moins de 10% des contacts ont reçu un email marketing. Le canal email est un levier majeur de nurturing et de conversion non exploité.
+              </p>
+              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  Mettre en place des séquences email de nurturing pour les leads et des newsletters pour maintenir l&apos;engagement.
+                </p>
+              </div>
+              <div className="mt-3">
+                <a href={`https://app.hubspot.com/email/${HUBSPOT_PORTAL}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
+                  Créer un email marketing
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+          )}
+
+          {/* Formulaires sous-exploités */}
+          {trackingSample > 0 && withFormSubmissions < trackingSample * 0.05 && (
+            <article className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700">Info</span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Formulaires</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">
+                Formulaires HubSpot non utilisés : {withFormSubmissions} soumissions sur {trackingSample} contacts
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-700">
+                Les formulaires HubSpot permettent de capturer des leads qualifiés automatiquement avec le tracking. Actuellement très peu de contacts passent par un formulaire.
+              </p>
+              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  Créer des formulaires HubSpot sur les pages clés de votre site (contact, devis, démo) pour alimenter automatiquement le CRM.
+                </p>
+              </div>
+              <div className="mt-3">
+                <a href={`https://app.hubspot.com/forms/${HUBSPOT_PORTAL}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
+                  Créer un formulaire
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+          )}
+
+          {/* Positif si tracking actif */}
+          {onlineContacts > 0 && (
+            <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700">Positif</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">Tracking online actif : {onlineContacts} contacts trackés</h3>
+              <p className="mt-1.5 text-sm text-slate-700">
+                {Math.round((onlineContacts / trackingSample) * 100)}% des contacts proviennent de sources digitales. Continuez à investir dans les canaux online performants.
+              </p>
+            </article>
+          )}
+        </div>
+      </div>
 
       {/* Sync logs */}
       {syncLogs && syncLogs.length > 0 && (
