@@ -108,10 +108,6 @@ export default async function DashboardOverviewPage() {
     marketingScore * 0.20 + integrationScore * 0.15
   ) : 0;
 
-  const averageScore = k ? Math.round(
-    (donneesScore + processScore + salesScore + marketingScore + integrationScore) / 5
-  ) : 0;
-
   const activeIntegrations = (integrations ?? []).filter((i) => i.is_active);
   const inactiveWorkflows = openDealsCount > 0 ? Math.round(openDealsCount * inactivePct / 100) : 0;
 
@@ -204,44 +200,27 @@ export default async function DashboardOverviewPage() {
         )}
       </header>
 
-      {/* Scorecards: Global + Moyen */}
+      {/* Scorecard Global */}
       {k && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="card flex items-center gap-6 p-6">
-            <ProgressScore label="Score global" score={globalScore} colorClass={
-              globalScore >= 80 ? "stroke-emerald-500" : globalScore >= 50 ? "stroke-amber-500" : "stroke-red-500"
-            } />
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-bold text-slate-900">{globalScore}</span>
-                <span className="text-sm text-slate-400">/100</span>
-                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(globalScore).className}`}>
-                  {getScoreLabel(globalScore).label}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">Score pondéré (Data 20%, Process 20%, Sales 25%, Mktg 20%, Intég. 15%)</p>
+        <div className="card flex items-center gap-6 p-6">
+          <ProgressScore label="Score global" score={globalScore} colorClass={
+            globalScore >= 80 ? "stroke-emerald-500" : globalScore >= 50 ? "stroke-amber-500" : "stroke-red-500"
+          } />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-bold text-slate-900">{globalScore}</span>
+              <span className="text-sm text-slate-400">/100</span>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(globalScore).className}`}>
+                {getScoreLabel(globalScore).label}
+              </span>
             </div>
-          </div>
-
-          <div className="card flex items-center gap-6 p-6">
-            <ProgressScore label="Score moyen" score={averageScore} colorClass={
-              averageScore >= 80 ? "stroke-emerald-500" : averageScore >= 50 ? "stroke-amber-500" : "stroke-red-500"
-            } />
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-bold text-slate-900">{averageScore}</span>
-                <span className="text-sm text-slate-400">/100</span>
-                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(averageScore).className}`}>
-                  {getScoreLabel(averageScore).label}
+            <p className="text-xs text-slate-500">Score pondéré (Data 20%, Process 20%, Sales 25%, Mktg 20%, Intég. 15%)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((cat) => (
+                <span key={cat.label} className={`rounded-full px-2 py-0.5 text-xs font-medium ${getScoreLabel(cat.score).className}`}>
+                  {cat.label} {cat.score}
                 </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map((cat) => (
-                  <span key={cat.label} className={`rounded-full px-2 py-0.5 text-xs font-medium ${getScoreLabel(cat.score).className}`}>
-                    {cat.label} {cat.score}
-                  </span>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         </div>
