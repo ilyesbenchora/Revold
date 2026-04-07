@@ -68,7 +68,7 @@ export default async function ProcessPage() {
       inverted: true,
     },
     {
-      label: "Activit\u00e9s / deal",
+      label: "Activit\u00e9s par deal",
       value: k?.activities_per_deal ?? 0,
       suffix: "",
       description: "Nombre moyen d\u2019interactions par deal",
@@ -83,7 +83,7 @@ export default async function ProcessPage() {
     },
     {
       label: "V\u00e9locit\u00e9 deals",
-      value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K/j` : "\u2014",
+      value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K par jour` : "\u2014",
       description: "Valeur trait\u00e9e par jour de pipeline",
     },
     {

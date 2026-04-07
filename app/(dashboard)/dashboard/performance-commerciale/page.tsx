@@ -135,10 +135,10 @@ export default async function PerformanceCommercialePage() {
   // ── KPIs ──
   const kpis = [
     { label: "Taux de closing", value: k?.closing_rate ? `${k.closing_rate}%` : "\u2014", description: "Pourcentage de deals conclus positivement" },
-    { label: "Couverture pipeline", value: k?.pipeline_coverage ? `${k.pipeline_coverage}x` : "\u2014", description: "Ratio pipeline total / objectif de vente" },
+    { label: "Couverture pipeline", value: k?.pipeline_coverage ? `${k.pipeline_coverage}x` : "\u2014", description: "Ratio pipeline sur objectif de vente" },
     { label: "Cycle de vente", value: cycleDays > 0 ? `${cycleDays} jours` : "\u2014", description: "Dur\u00e9e moyenne entre cr\u00e9ation et closing" },
     { label: "Pr\u00e9vision pond\u00e9r\u00e9e", value: k?.weighted_forecast ? `\u20ac${(k.weighted_forecast / 1000000).toFixed(2)}M` : "\u2014", description: "Montant pr\u00e9visionnel ajust\u00e9 par probabilit\u00e9" },
-    { label: "V\u00e9locit\u00e9 deals", value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K/j` : "\u2014", description: "Valeur trait\u00e9e par jour de pipeline" },
+    { label: "V\u00e9locit\u00e9 deals", value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K par jour` : "\u2014", description: "Valeur trait\u00e9e par jour de pipeline" },
   ];
 
   const chartData = (snapshots ?? []).map((s) => ({
