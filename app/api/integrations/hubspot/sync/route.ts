@@ -2,11 +2,7 @@ export const maxDuration = 60;
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import {
-  fetchHubSpotCompanies,
-  fetchHubSpotContacts,
-  fetchHubSpotDeals,
-} from "@/lib/integrations/hubspot";
+import { syncHubSpotDataByType, recomputeKpis } from "@/lib/integrations/hubspot-sync";
 import { env } from "@/lib/env";
 
 const supabase = createClient(
@@ -27,66 +23,18 @@ export async function GET(request: Request) {
   const orgId = orgs[0].id;
 
   const url = new URL(request.url);
-  const syncType = url.searchParams.get("type") || "companies";
+  const syncType = url.searchParams.get("type") as "companies" | "contacts" | "deals" | "kpi" | null;
 
   try {
-    let count = 0;
-    const errors: string[] = [];
-
-    if (syncType === "companies") {
-      const data = await fetchHubSpotCompanies(accessToken);
-      for (let i = 0; i < data.length; i += 50) {
-        const batch = data.slice(i, i + 50).map((c) => ({
-          organization_id: orgId,
-          hubspot_id: c.id,
-          name: c.properties.name || `Company ${c.id}`,
-          domain: c.properties.domain,
-          industry: c.properties.industry,
-          annual_revenue: c.properties.annualrevenue ? Number(c.properties.annualrevenue) : null,
-          employee_count: c.properties.numberofemployees ? Number(c.properties.numberofemployees) : null,
-          updated_at: new Date().toISOString(),
-        }));
-        const { error } = await supabase.from("companies").upsert(batch, { onConflict: "organization_id,hubspot_id" });
-        if (error) errors.push(error.message);
-        else count += batch.length;
-      }
-    } else if (syncType === "contacts") {
-      const data = await fetchHubSpotContacts(accessToken);
-      for (let i = 0; i < data.length; i += 50) {
-        const batch = data.slice(i, i + 50).map((c) => {
-          const lc = c.properties.lifecyclestage?.toLowerCase() ?? "";
-          return {
-            organization_id: orgId,
-            hubspot_id: c.id,
-            email: c.properties.email || `unknown-${c.id}@hubspot.com`,
-            full_name: [c.properties.firstname, c.properties.lastname].filter(Boolean).join(" ") || `Contact ${c.id}`,
-            title: c.properties.jobtitle,
-            phone: c.properties.phone,
-            is_mql: ["marketingqualifiedlead", "mql"].includes(lc) || lc.includes("qualified"),
-            is_sql: ["salesqualifiedlead", "sql", "opportunity"].includes(lc),
-          };
-        });
-        const { error } = await supabase.from("contacts").upsert(batch, { onConflict: "organization_id,hubspot_id" });
-        if (error) errors.push(error.message);
-        else count += batch.length;
-      }
-    } else if (syncType === "deals") {
-      const data = await fetchHubSpotDeals(accessToken);
-      for (let i = 0; i < data.length; i += 50) {
-        const batch = data.slice(i, i + 50).map((d) => ({
-          organization_id: orgId,
-          hubspot_id: d.id,
-          name: d.properties.dealname || `Deal ${d.id}`,
-          amount: d.properties.amount ? Number(d.properties.amount) : 0,
-          close_date: d.properties.closedate?.split("T")[0] || null,
-          created_date: d.properties.createdate?.split("T")[0] ?? new Date().toISOString().split("T")[0],
-          updated_at: new Date().toISOString(),
-        }));
-        const { error } = await supabase.from("deals").upsert(batch, { onConflict: "organization_id,hubspot_id" });
-        if (error) errors.push(error.message);
-        else count += batch.length;
-      }
+    // ?type=kpi → only recompute KPIs from existing data
+    if (syncType === "kpi") {
+      const kpiResult = await recomputeKpis(supabase, orgId);
+      return NextResponse.json({ type: "kpi", ...kpiResult });
     }
+
+    // Sync a specific type, default to companies
+    const type = syncType || "companies";
+    const { count, errors } = await syncHubSpotDataByType(supabase, orgId, accessToken, type);
 
     // Mark integration as active
     await supabase.from("integrations").upsert(
@@ -94,8 +42,14 @@ export async function GET(request: Request) {
       { onConflict: "organization_id,provider" },
     );
 
-    const next = syncType === "companies" ? "contacts" : syncType === "contacts" ? "deals" : "done";
-    return NextResponse.json({ type: syncType, count, errors, next });
+    // After deals sync, auto-trigger KPI recomputation
+    let kpiResult = null;
+    if (type === "deals") {
+      kpiResult = await recomputeKpis(supabase, orgId);
+    }
+
+    const next = type === "companies" ? "contacts" : type === "contacts" ? "deals" : "done";
+    return NextResponse.json({ type, count, errors, kpiComputed: kpiResult, next });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
