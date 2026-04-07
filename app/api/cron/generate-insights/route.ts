@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     // Get deals at risk
     const { data: riskyDeals } = await supabase
       .from("deals")
-      .select("name, amount, risk_reasons, days_in_stage, pipeline_stages(name)")
+      .select("name, amount, risk_reasons, days_in_stage")
       .eq("organization_id", org.id)
       .eq("is_at_risk", true)
       .order("amount", { ascending: false })
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const dealsAtRisk = (riskyDeals ?? []).map((d) => ({
       name: d.name,
       amount: Number(d.amount),
-      stage: (d.pipeline_stages as unknown as { name: string })?.name ?? "Unknown",
+      stage: "N/A",
       days_in_stage: d.days_in_stage ?? 0,
       risk_reasons: Array.isArray(d.risk_reasons) ? d.risk_reasons as string[] : [],
     }));

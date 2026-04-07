@@ -88,6 +88,11 @@ export type HubSpotDeal = {
     createdate: string;
     hs_lastmodifieddate: string;
     hubspot_owner_id: string | null;
+    hs_is_closed_won: string | null;
+    hs_is_closed: string | null;
+    hs_deal_stage_probability: string | null;
+    num_associated_contacts: string | null;
+    pipeline: string | null;
   };
 };
 
@@ -122,7 +127,7 @@ export async function fetchHubSpotDeals(accessToken: string): Promise<HubSpotDea
   do {
     const params: Record<string, string> = {
       limit: "100",
-      properties: "dealname,amount,dealstage,closedate,createdate,hs_lastmodifieddate,hubspot_owner_id",
+      properties: "dealname,amount,dealstage,closedate,createdate,hs_lastmodifieddate,hubspot_owner_id,hs_is_closed_won,hs_is_closed,hs_deal_stage_probability,num_associated_contacts,pipeline",
     };
     if (after) params.after = after;
 

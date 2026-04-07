@@ -8,6 +8,13 @@ import { getScoreLabel } from "@/lib/score-utils";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
+  if (!orgId) {
+    return (
+      <section className="p-8 text-center">
+        <p className="text-sm text-slate-600">Aucune organisation configurée.</p>
+      </section>
+    );
+  }
   const supabase = await createSupabaseServerClient();
   const k = await getLatestKpi();
   const salesScore = Number(k?.sales_score) || 0;
