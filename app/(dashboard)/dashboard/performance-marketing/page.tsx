@@ -9,74 +9,108 @@ function getScoreLabel(score: number) {
   return { label: "Insuffisant", className: "bg-red-50 text-red-700 border-red-200" };
 }
 
+type Activity = {
+  id: string;
+  type: string;
+  subject: string | null;
+  contact_id: string | null;
+  occurred_at: string;
+};
+
+type Contact = {
+  id: string;
+  is_mql: boolean;
+  is_sql: boolean;
+  company_id: string | null;
+  created_at: string;
+};
+
 export default async function PerformanceMarketingPage() {
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
-
-  const { data: latestKpi } = await supabase
-    .from("kpi_snapshots")
-    .select("*")
-    .eq("organization_id", orgId)
-    .order("snapshot_date", { ascending: false })
-    .limit(1)
-    .single();
-
-  const { data: snapshots } = await supabase
-    .from("kpi_snapshots")
-    .select("snapshot_date, mql_to_sql_rate, lead_velocity_rate, funnel_leakage_rate, marketing_score")
-    .eq("organization_id", orgId)
-    .order("snapshot_date", { ascending: true })
-    .limit(7);
-
-  const { count: totalContacts } = await supabase
-    .from("contacts")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId);
-
-  const { count: mqlCount } = await supabase
-    .from("contacts")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId)
-    .eq("is_mql", true);
-
-  const { count: sqlCount } = await supabase
-    .from("contacts")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId)
-    .eq("is_sql", true);
-
-  const k = latestKpi;
+  const k = await getLatestKpi();
   const marketingScore = Number(k?.marketing_score) || 0;
 
-  const kpis = [
-    {
-      label: "MQL \u2192 SQL",
-      value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "\u2014",
-      description: "Taux de conversion des MQL en SQL",
-    },
-    {
-      label: "V\u00e9locit\u00e9 leads",
-      value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "\u2014",
-      description: "Croissance mensuelle du volume de leads",
-    },
-    {
-      label: "Fuite funnel",
-      value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "\u2014",
-      description: "Taux de perte dans le funnel marketing",
-    },
-  ];
+  const [
+    { data: snapshots },
+    { data: allContacts },
+    { data: emailActivities },
+  ] = await Promise.all([
+    supabase
+      .from("kpi_snapshots")
+      .select("snapshot_date, mql_to_sql_rate, lead_velocity_rate, funnel_leakage_rate")
+      .eq("organization_id", orgId)
+      .order("snapshot_date", { ascending: true })
+      .limit(7),
+    supabase
+      .from("contacts")
+      .select("id, is_mql, is_sql, company_id, created_at")
+      .eq("organization_id", orgId),
+    supabase
+      .from("activities")
+      .select("id, type, subject, contact_id, occurred_at")
+      .eq("organization_id", orgId)
+      .eq("type", "email"),
+  ]);
 
-  const funnelStats = [
-    { label: "Contacts totaux", value: totalContacts ?? 0 },
-    { label: "MQL", value: mqlCount ?? 0 },
-    { label: "SQL", value: sqlCount ?? 0 },
+  const contacts = (allContacts ?? []) as Contact[];
+  const emails = (emailActivities ?? []) as Activity[];
+
+  const totalContacts = contacts.length;
+  const mqlCount = contacts.filter((c) => c.is_mql).length;
+  const sqlCount = contacts.filter((c) => c.is_sql).length;
+
+  // ── Formulaires: contacts grouped by source (company = source proxy) ──
+  // Contacts with a company = came via a form/attribution, without = organic
+  const withCompany = contacts.filter((c) => c.company_id != null);
+  const withoutCompany = contacts.filter((c) => c.company_id == null);
+
+  // Group contacts by company_id as "form sources"
+  const sourceMap = new Map<string, { count: number; mqls: number; sqls: number }>();
+  withCompany.forEach((c) => {
+    const key = c.company_id!;
+    const entry = sourceMap.get(key) || { count: 0, mqls: 0, sqls: 0 };
+    entry.count++;
+    if (c.is_mql) entry.mqls++;
+    if (c.is_sql) entry.sqls++;
+    sourceMap.set(key, entry);
+  });
+
+  const topSources = Array.from(sourceMap.entries())
+    .sort((a, b) => b[1].sqls - a[1].sqls || b[1].mqls - a[1].mqls)
+    .slice(0, 5);
+
+  const formConversionRate = withCompany.length > 0
+    ? Math.round((withCompany.filter((c) => c.is_mql).length / withCompany.length) * 100)
+    : 0;
+
+  // ── Emails marketing ──
+  const totalEmails = emails.length;
+
+  // Group emails by subject to find most performant
+  const emailsBySubject = new Map<string, number>();
+  emails.forEach((e) => {
+    const subject = e.subject || "Sans objet";
+    emailsBySubject.set(subject, (emailsBySubject.get(subject) || 0) + 1);
+  });
+  const topEmails = Array.from(emailsBySubject.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  // Emails with contact (engaged) vs without
+  const emailsWithContact = emails.filter((e) => e.contact_id != null).length;
+  const emailEngagementRate = totalEmails > 0 ? Math.round((emailsWithContact / totalEmails) * 100) : 0;
+
+  const kpis = [
+    { label: "MQL \u2192 SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "\u2014", description: "Taux de conversion des MQL en SQL" },
+    { label: "V\u00e9locit\u00e9 leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "\u2014", description: "Croissance mensuelle du volume de leads" },
+    { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "\u2014", description: "Taux de perte dans le funnel marketing" },
   ];
 
   const chartData = (snapshots ?? []).map((s) => ({
     date: new Date(s.snapshot_date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
     mqlToSql: Number(s.mql_to_sql_rate),
     leadVelocity: Number(s.lead_velocity_rate),
-    funnelLeakage: Number(s.funnel_leakage_rate),
   }));
 
   return (
@@ -105,27 +139,31 @@ export default async function PerformanceMarketingPage() {
         </div>
       </div>
 
-      {/* Funnel Overview */}
+      {/* Funnel */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />
-          Funnel
+          <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel
         </h2>
         <div className="grid grid-cols-3 gap-4">
-          {funnelStats.map((stat) => (
-            <article key={stat.label} className="card p-5 text-center">
-              <p className="text-xs text-slate-500">{stat.label}</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900">{stat.value}</p>
-            </article>
-          ))}
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Contacts totaux</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{totalContacts}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">MQL</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{mqlCount}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">SQL</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{sqlCount}</p>
+          </article>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />
-          KPIs Marketing
+          <span className="h-2 w-2 rounded-full bg-orange-500" />KPIs Marketing
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {kpis.map((kpi) => (
@@ -138,35 +176,127 @@ export default async function PerformanceMarketingPage() {
         </div>
       </div>
 
+      {/* Formulaires */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-violet-500" />Formulaires
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Soumissions totales</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{withCompany.length}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Contacts non attribu\u00e9s</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{withoutCompany.length}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux de conversion</p>
+            <p className={`mt-1 text-3xl font-bold ${formConversionRate >= 20 ? "text-emerald-600" : formConversionRate >= 10 ? "text-amber-500" : "text-red-500"}`}>
+              {formConversionRate}%
+            </p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Sources d&apos;origine</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{sourceMap.size}</p>
+          </article>
+        </div>
+
+        {/* Top sources */}
+        {topSources.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="border-b border-card-border px-5 py-3">
+              <p className="text-sm font-semibold text-slate-700">Sources d&apos;origine les plus performantes</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="px-5 py-2">#</th>
+                  <th className="px-5 py-2">Source</th>
+                  <th className="px-5 py-2">Contacts</th>
+                  <th className="px-5 py-2">MQL</th>
+                  <th className="px-5 py-2">SQL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topSources.map(([sourceId, data], i) => (
+                  <tr key={sourceId} className="border-b border-card-border last:border-0">
+                    <td className="px-5 py-2.5 text-slate-400">{i + 1}</td>
+                    <td className="px-5 py-2.5 font-medium text-slate-800">Source {i + 1}</td>
+                    <td className="px-5 py-2.5 text-slate-600">{data.count}</td>
+                    <td className="px-5 py-2.5 text-slate-600">{data.mqls}</td>
+                    <td className="px-5 py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${data.sqls > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                        {data.sqls}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Emails Marketing */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Emails Marketing
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Emails envoy\u00e9s</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{totalEmails}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Avec contact associ\u00e9</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{emailsWithContact}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux d&apos;engagement</p>
+            <p className={`mt-1 text-3xl font-bold ${emailEngagementRate >= 50 ? "text-emerald-600" : emailEngagementRate >= 25 ? "text-amber-500" : "text-red-500"}`}>
+              {emailEngagementRate}%
+            </p>
+          </article>
+        </div>
+
+        {/* Top emails */}
+        {topEmails.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="border-b border-card-border px-5 py-3">
+              <p className="text-sm font-semibold text-slate-700">Emails marketing les plus performants</p>
+            </div>
+            <div className="divide-y divide-card-border">
+              {topEmails.map(([subject, count], i) => (
+                <div key={i} className="flex items-center justify-between px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-medium text-blue-700">{i + 1}</span>
+                    <span className="text-sm font-medium text-slate-800">{subject}</span>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{count} envoi{count > 1 ? "s" : ""}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Charts */}
       {chartData.length > 1 && (
         <div className="space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            Tendances
+            <span className="h-2 w-2 rounded-full bg-amber-500" />Tendances
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <KpiChart
-              data={chartData.map((d) => ({ date: d.date, value: d.mqlToSql }))}
-              label="MQL \u2192 SQL (%)"
-              color="#f59e0b"
-              format={(v) => `${v}%`}
-            />
-            <KpiChart
-              data={chartData.map((d) => ({ date: d.date, value: d.leadVelocity }))}
-              label="V\u00e9locit\u00e9 leads (%)"
-              color="#d97706"
-              format={(v) => `+${v}%`}
-            />
+            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.mqlToSql }))} label="MQL \u2192 SQL (%)" color="#f59e0b" format={(v) => `${v}%`} />
+            <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.leadVelocity }))} label="V\u00e9locit\u00e9 leads (%)" color="#d97706" format={(v) => `+${v}%`} />
           </div>
         </div>
       )}
 
-      {!latestKpi && (
+      {!k && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">
-            Aucune donn\u00e9e disponible. Les m\u00e9triques appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.
-          </p>
+          <p className="text-sm text-slate-600">Aucune donn\u00e9e disponible.</p>
         </div>
       )}
     </section>

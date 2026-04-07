@@ -9,13 +9,34 @@ function getScoreLabel(score: number) {
   return { label: "Insuffisant", className: "bg-red-50 text-red-700 border-red-200" };
 }
 
+type Deal = {
+  id: string;
+  name: string;
+  amount: number;
+  is_closed_won: boolean;
+  is_closed_lost: boolean;
+  is_at_risk: boolean;
+  last_activity_at: string | null;
+  days_in_stage: number;
+  companies: { name: string } | null;
+  pipeline_stages: { name: string; is_closed_won: boolean; is_closed_lost: boolean } | null;
+};
+
+type Activity = {
+  deal_id: string | null;
+};
+
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
   const k = await getLatestKpi();
   const salesScore = Number(k?.sales_score) || 0;
 
-  const [{ data: snapshots }, { count: totalDeals }, { count: atRiskDeals }] = await Promise.all([
+  const [
+    { data: snapshots },
+    { data: allDeals },
+    { data: allActivities },
+  ] = await Promise.all([
     supabase
       .from("kpi_snapshots")
       .select("snapshot_date, closing_rate, pipeline_coverage, sales_score")
@@ -24,19 +45,98 @@ export default async function PerformanceCommercialePage() {
       .limit(7),
     supabase
       .from("deals")
-      .select("*", { count: "exact", head: true })
+      .select("id, name, amount, is_closed_won, is_closed_lost, is_at_risk, last_activity_at, days_in_stage, companies(name), pipeline_stages(name, is_closed_won, is_closed_lost)")
       .eq("organization_id", orgId),
     supabase
-      .from("deals")
-      .select("*", { count: "exact", head: true })
-      .eq("organization_id", orgId)
-      .eq("is_at_risk", true),
+      .from("activities")
+      .select("deal_id")
+      .eq("organization_id", orgId),
   ]);
 
+  const deals = (allDeals ?? []) as unknown as Deal[];
+  const activities = (allActivities ?? []) as Activity[];
+
+  const totalDeals = deals.length;
+  const atRiskDeals = deals.filter((d) => d.is_at_risk).length;
+
+  // ── Pipeline metrics ──
+  const openDeals = deals.filter((d) => !d.is_closed_won && !d.is_closed_lost);
+  const openAmount = openDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+  // Stagnant: no activity planned AND last sales activity > 6 days
+  const now = Date.now();
+  const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+  const stagnantDeals = openDeals.filter((d) => {
+    if (!d.last_activity_at) return true;
+    return (now - new Date(d.last_activity_at).getTime()) > sixDaysMs;
+  });
+
+  // In-progress deals (not in closing phase)
+  const inProgressDeals = openDeals.filter((d) => {
+    const stage = d.pipeline_stages;
+    return stage && !stage.is_closed_won && !stage.is_closed_lost;
+  });
+
+  // Count activities per deal
+  const activityCountByDeal = new Map<string, number>();
+  activities.forEach((a) => {
+    if (a.deal_id) activityCountByDeal.set(a.deal_id, (activityCountByDeal.get(a.deal_id) || 0) + 1);
+  });
+
+  // Most worked deals (in progress, sorted by activity count desc)
+  const dealsWithActivityCount = inProgressDeals.map((d) => ({
+    ...d,
+    activityCount: activityCountByDeal.get(d.id) || 0,
+    companyName: (d.companies as unknown as { name: string } | null)?.name ?? "\u2014",
+    stageName: (d.pipeline_stages as unknown as { name: string } | null)?.name ?? "\u2014",
+  }));
+
+  const mostWorkedDeals = [...dealsWithActivityCount]
+    .sort((a, b) => b.activityCount - a.activityCount)
+    .slice(0, 5);
+
+  const leastWorkedDeals = [...dealsWithActivityCount]
+    .sort((a, b) => a.activityCount - b.activityCount)
+    .slice(0, 5);
+
+  // ── Insight IA simulations ──
+  const closingRate = Number(k?.closing_rate) || 0;
+  const pipelineCoverage = Number(k?.pipeline_coverage) || 0;
+  const cycleDays = Number(k?.sales_cycle_days) || 0;
+  const weightedForecast = Number(k?.weighted_forecast) || 0;
+
+  const scenarios = [
+    {
+      title: `Si le taux de closing passe de ${closingRate}% \u00e0 ${Math.min(100, closingRate + 10)}%`,
+      impact: weightedForecast > 0
+        ? `+\u20ac${Math.round(weightedForecast * 0.1 / 1000)}K de pr\u00e9vision pond\u00e9r\u00e9e`
+        : "+10% de revenus pr\u00e9visionnels",
+      color: "border-blue-200 bg-blue-50",
+    },
+    {
+      title: `Si le cycle de vente passe de ${cycleDays}j \u00e0 ${Math.max(20, cycleDays - 10)}j`,
+      impact: `V\u00e9locit\u00e9 pipeline am\u00e9lior\u00e9e de ~${Math.round(10 / Math.max(1, cycleDays) * 100)}%, closing plus rapide`,
+      color: "border-indigo-200 bg-indigo-50",
+    },
+    {
+      title: `Si la couverture pipeline passe de ${pipelineCoverage}x \u00e0 ${Math.max(pipelineCoverage, 3).toFixed(1)}x`,
+      impact: "R\u00e9duction du risque de sous-performance, meilleure pr\u00e9visibilit\u00e9 du trimestre",
+      color: "border-emerald-200 bg-emerald-50",
+    },
+    {
+      title: `Si ${stagnantDeals.length} deals stagnants sont r\u00e9activ\u00e9s`,
+      impact: stagnantDeals.length > 0
+        ? `R\u00e9cup\u00e9ration potentielle de \u20ac${Math.round(stagnantDeals.reduce((s, d) => s + Number(d.amount), 0) / 1000)}K de pipeline`
+        : "Aucun deal stagnant d\u00e9tect\u00e9",
+      color: "border-amber-200 bg-amber-50",
+    },
+  ];
+
+  // ── KPIs ──
   const kpis = [
     { label: "Taux de closing", value: k?.closing_rate ? `${k.closing_rate}%` : "\u2014", description: "Pourcentage de deals conclus positivement" },
     { label: "Couverture pipeline", value: k?.pipeline_coverage ? `${k.pipeline_coverage}x` : "\u2014", description: "Ratio pipeline total / objectif de vente" },
-    { label: "Cycle de vente", value: k?.sales_cycle_days ? `${k.sales_cycle_days} jours` : "\u2014", description: "Dur\u00e9e moyenne entre cr\u00e9ation et closing" },
+    { label: "Cycle de vente", value: cycleDays > 0 ? `${cycleDays} jours` : "\u2014", description: "Dur\u00e9e moyenne entre cr\u00e9ation et closing" },
     { label: "Pr\u00e9vision pond\u00e9r\u00e9e", value: k?.weighted_forecast ? `\u20ac${(k.weighted_forecast / 1000000).toFixed(2)}M` : "\u2014", description: "Montant pr\u00e9visionnel ajust\u00e9 par probabilit\u00e9" },
     { label: "V\u00e9locit\u00e9 deals", value: k?.deal_velocity ? `\u20ac${(Number(k.deal_velocity) / 1000).toFixed(1)}K/j` : "\u2014", description: "Valeur trait\u00e9e par jour de pipeline" },
   ];
@@ -55,11 +155,12 @@ export default async function PerformanceCommercialePage() {
           <p className="mt-1 text-sm text-slate-500">KPIs de performance de l&apos;\u00e9quipe commerciale.</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="rounded-lg border border-card-border bg-white px-3 py-1.5 text-slate-600">{totalDeals ?? 0} deals</span>
-          <span className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">{atRiskDeals ?? 0} \u00e0 risque</span>
+          <span className="rounded-lg border border-card-border bg-white px-3 py-1.5 text-slate-600">{totalDeals} deals</span>
+          <span className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">{atRiskDeals} \u00e0 risque</span>
         </div>
       </header>
 
+      {/* Score */}
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
         <ProgressScore label="Score Sales" score={salesScore} colorClass="stroke-blue-500" />
         <div className="flex-1">
@@ -68,10 +169,11 @@ export default async function PerformanceCommercialePage() {
             <span className="text-sm text-slate-400">/100</span>
             <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(salesScore).className}`}>{getScoreLabel(salesScore).label}</span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">Performance globale de l&apos;\u00e9quipe commerciale bas\u00e9e sur les KPIs cl\u00e9s.</p>
+          <p className="mt-2 text-sm text-slate-500">Performance globale de l&apos;\u00e9quipe commerciale.</p>
         </div>
       </div>
 
+      {/* KPIs Sales */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-blue-500" />KPIs Sales
@@ -87,10 +189,88 @@ export default async function PerformanceCommercialePage() {
         </div>
       </div>
 
+      {/* Pipeline */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />Pipeline
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals cr\u00e9\u00e9s</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{totalDeals}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Montant en cours</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">\u20ac{(openAmount / 1000).toFixed(0)}K</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals en cours</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{openDeals.length}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals stagnants</p>
+            <p className={`mt-1 text-3xl font-bold ${stagnantDeals.length > 5 ? "text-red-500" : stagnantDeals.length > 2 ? "text-amber-500" : "text-emerald-600"}`}>
+              {stagnantDeals.length}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">Derni\u00e8re activit\u00e9 &gt; 6j</p>
+          </article>
+        </div>
+
+        {/* Most worked deals */}
+        {mostWorkedDeals.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="card overflow-hidden">
+              <div className="border-b border-card-border px-5 py-3">
+                <p className="text-sm font-semibold text-slate-700">Deals les + travaill\u00e9s</p>
+              </div>
+              <div className="divide-y divide-card-border">
+                {mostWorkedDeals.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                      <p className="text-xs text-slate-400">{d.companyName} \u00b7 {d.stageName}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        {d.activityCount} activit\u00e9{d.activityCount > 1 ? "s" : ""}
+                      </span>
+                      <p className="mt-1 text-xs text-slate-500">\u20ac{(Number(d.amount) / 1000).toFixed(0)}K</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card overflow-hidden">
+              <div className="border-b border-card-border px-5 py-3">
+                <p className="text-sm font-semibold text-slate-700">Deals les - travaill\u00e9s</p>
+              </div>
+              <div className="divide-y divide-card-border">
+                {leastWorkedDeals.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{d.name}</p>
+                      <p className="text-xs text-slate-400">{d.companyName} \u00b7 {d.stageName}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.activityCount === 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                        {d.activityCount} activit\u00e9{d.activityCount > 1 ? "s" : ""}
+                      </span>
+                      <p className="mt-1 text-xs text-slate-500">\u20ac{(Number(d.amount) / 1000).toFixed(0)}K</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Charts */}
       {chartData.length > 1 && (
         <div className="space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />Tendances
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Tendances
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <KpiChart data={chartData.map((d) => ({ date: d.date, value: d.closingRate }))} label="Taux de closing (%)" color="#6366f1" format={(v) => `${v}%`} />
@@ -99,9 +279,36 @@ export default async function PerformanceCommercialePage() {
         </div>
       )}
 
+      {/* Insight IA - Simulations */}
+      {k && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+              <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+              <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+            </svg>
+            Insight IA &mdash; Sc\u00e9narios What/If
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {scenarios.map((s, i) => (
+              <article key={i} className={`rounded-xl border p-5 ${s.color}`}>
+                <p className="text-sm font-medium text-slate-800">{s.title}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                    <polyline points="16 7 22 7 22 13" />
+                  </svg>
+                  <p className="text-sm font-semibold text-slate-900">{s.impact}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!k && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Aucune donn\u00e9e disponible. Les m\u00e9triques appara\u00eetront une fois les donn\u00e9es synchronis\u00e9es.</p>
+          <p className="text-sm text-slate-600">Aucune donn\u00e9e disponible.</p>
         </div>
       )}
     </section>
