@@ -311,6 +311,9 @@ async function fetchSourceDetails(
   objectType: string,
 ): Promise<Record<string, { count: number; owners: Record<string, number> }>> {
   try {
+    // Sort by createdate DESC so the sample contains the MOST RECENT records
+    // — this maximises the chance of catching apps that recently synced data
+    // (Mailchimp, Zapier, etc.) instead of always seeing the oldest contacts.
     const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -319,6 +322,7 @@ async function fetchSourceDetails(
           { filters: [{ propertyName: "hs_object_source_detail_1", operator: "HAS_PROPERTY" }] },
         ],
         properties: ["hs_object_source_detail_1", "hs_object_source", "hubspot_owner_id"],
+        sorts: [{ propertyName: "createdate", direction: "DESCENDING" }],
         limit: 100,
       }),
     });
@@ -356,6 +360,7 @@ async function fetchEngagementSources(
       body: JSON.stringify({
         filterGroups: [],
         properties: ["hs_object_source_detail_1", "hs_object_source", "hubspot_owner_id"],
+        sorts: [{ propertyName: "hs_createdate", direction: "DESCENDING" }],
         limit: 100,
       }),
     });
@@ -648,13 +653,48 @@ export async function detectIntegrations(
   // 3. Surface UNMATCHED portal apps as "other connected apps" — these are
   // really installed on HubSpot (they call the API) but we don't have a
   // curated catalogue entry yet.
-  // Skip noise: messaging (Outlook/Gmail/Slack/Teams), visio (Zoom/Meet),
-  // chat support (Intercom/Zendesk/Crisp/Freshdesk), HubSpot natives, API
-  // meters and HubSpot system parameters. Only RevOps business tools
-  // (billing, quoting, prospection, accounting, automation, enrichment)
-  // should surface.
-  const PORTAL_APP_NOISE =
-    /(outlook|gmail|slack|teams|whatsapp|messenger|zoom|google\s*meet|google\s*calendar|calendly|intercom|zendesk|crisp|freshdesk|export|import|migration|sync|hubspot|workflow|forms?|backup|csv|api[-_\s]*calls|api[-_\s]*usage|daily[-_\s]*usage|paramètre|parameter|^setting|créer\s*et\s*associer|create\s*and\s*associate)/i;
+  // Skip noise: messaging/visio/chat support tools and HubSpot system meters.
+  // Carefully scoped so it does NOT accidentally catch real apps like
+  // Salesforce, Sales Navigator, Mailchimp, Email Octopus, etc.
+  const PORTAL_APP_NOISE = new RegExp(
+    [
+      // Messaging & email clients
+      "\\boutlook\\b",
+      "\\bgmail\\b",
+      "\\bslack\\b",
+      "\\bteams\\b",
+      "whatsapp",
+      "messenger",
+      // Visio & meeting scheduling
+      "\\bzoom\\b",
+      "google\\s*meet",
+      "google\\s*calendar",
+      "calendly",
+      // Customer support / chat
+      "intercom",
+      "zendesk",
+      "\\bcrisp\\b",
+      "freshdesk",
+      // Exports & imports
+      "export\\s*contact",
+      "export\\s*csv",
+      "\\bimports?\\b",
+      "migration",
+      // HubSpot natives (prefix only)
+      "^hubspot",
+      "^hs[\\s_-]",
+      // API meters & system parameters
+      "api[-_\\s]*calls",
+      "api[-_\\s]*usage",
+      "daily[-_\\s]*usage",
+      "^paramètre",
+      "^parameter",
+      "^setting\\b",
+      "créer\\s*et\\s*associer",
+      "create\\s*and\\s*associate",
+    ].join("|"),
+    "i",
+  );
   portalApps
     .filter((app) => !claimedPortalApps.has(app.name) && !PORTAL_APP_NOISE.test(app.name))
     .sort((a, b) => b.usageCount - a.usageCount)

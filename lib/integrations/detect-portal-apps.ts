@@ -156,9 +156,30 @@ async function fetchAllConsumersDaily(
   }
 }
 
-// Names that should be filtered out as HubSpot-internal (not real "apps")
-const HUBSPOT_NATIVE =
-  /(^(hubspot|crm|forms?|workflows?|engagement|marketing email|sales|lists|reporting|email|integration platform|paramètre|parameter|setting))|(api[-_\s]*calls)|(api[-_\s]*usage)|(daily[-_\s]*usage)|(créer\s*et\s*associer)|(create\s*and\s*associate)/i;
+// Names that should be filtered out as HubSpot-internal or system meters.
+// IMPORTANT: must NOT match real third-party apps like Salesforce, Sales
+// Navigator, Mailchimp, Email Octopus, etc. — keep prefixes very specific.
+const HUBSPOT_NATIVE = new RegExp(
+  [
+    // HubSpot-prefixed system tools
+    "^hubspot[\\s_-]",
+    "^hs[\\s_-]",
+    "^hub\\s*spot",
+    "^integration\\s*platform",
+    // System parameters
+    "^paramètre",
+    "^parameter",
+    "^setting\\b",
+    // API meters (anywhere in the name)
+    "api[-_\\s]*calls",
+    "api[-_\\s]*usage",
+    "daily[-_\\s]*usage",
+    // Specific known noise
+    "créer\\s*et\\s*associer",
+    "create\\s*and\\s*associate",
+  ].join("|"),
+  "i",
+);
 
 export async function detectPortalApps(token: string): Promise<{
   privateApps: PortalApp[];
