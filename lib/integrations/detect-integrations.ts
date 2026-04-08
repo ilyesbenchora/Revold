@@ -817,9 +817,11 @@ export async function detectIntegrations(
       "zendesk",
       "\\bcrisp\\b",
       "freshdesk",
-      // Exports & imports
-      "export\\s*contact",
-      "export\\s*csv",
+      // File exports / imports / migrations
+      "\\.xlsx?$",
+      "\\.csv$",
+      "\\.xls$",
+      "\\bexports?\\b",
       "\\bimports?\\b",
       "migration",
       // HubSpot natives (prefix only)
@@ -834,6 +836,13 @@ export async function detectIntegrations(
       "^setting\\b",
       "créer\\s*et\\s*associer",
       "create\\s*and\\s*associate",
+      // Forms (not business automation tools)
+      "\\bformulaire(s)?\\b",
+      "\\bcontact\\s*form\\b",
+      // News / data feeds
+      "\\bcfnews\\b",
+      "cf[-_\\s]?news",
+      "\\bnews(letter)?\\b",
     ].join("|"),
     "i",
   );

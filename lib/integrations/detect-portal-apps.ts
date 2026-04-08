@@ -170,13 +170,25 @@ const HUBSPOT_NATIVE = new RegExp(
     "^paramètre",
     "^parameter",
     "^setting\\b",
-    // API meters (anywhere in the name)
+    // API meters
     "api[-_\\s]*calls",
     "api[-_\\s]*usage",
     "daily[-_\\s]*usage",
     // Specific known noise
     "créer\\s*et\\s*associer",
     "create\\s*and\\s*associate",
+    // File imports / exports
+    "\\.xlsx?$",
+    "\\.csv$",
+    "\\.xls$",
+    "\\bexports?\\b",
+    "\\bimports?\\b",
+    // Forms & news / data feeds
+    "\\bformulaire(s)?\\b",
+    "\\bcontact\\s*form\\b",
+    "\\bcfnews\\b",
+    "cf[-_\\s]?news",
+    "\\bnews(letter)?\\b",
   ].join("|"),
   "i",
 );

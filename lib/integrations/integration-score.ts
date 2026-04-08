@@ -30,12 +30,22 @@ export const NOISE_INTEGRATION_KEYS = new Set([
 
 export const NOISE_LABEL_REGEX = new RegExp(
   [
+    // Messaging / chat / visio / support
     "\\boutlook\\b", "\\bgmail\\b", "\\bslack\\b", "\\bzoom\\b",
     "calendly", "intercom", "zendesk", "\\bcrisp\\b", "freshdesk",
-    "export\\s*contact", "export\\s*csv", "\\bimports?\\b", "migration",
     "google\\s*calendar", "\\bteams\\b", "whatsapp", "messenger",
+    // Files & manual imports / exports
+    "\\.xlsx?$", "\\.csv$", "\\.xls$",
+    "export\\s*contact", "export\\s*csv", "\\bexports?\\b",
+    "\\bimports?\\b", "migration",
+    // HubSpot system meters & parameters
     "api[-_\\s]*calls", "api[-_\\s]*usage", "daily[-_\\s]*usage",
     "^paramètre", "^parameter", "créer\\s*et\\s*associer", "create\\s*and\\s*associate",
+    // Forms (HubSpot native or third-party form builders)
+    "\\bformulaire(s)?\\b", "\\bformulaire\\s*de\\s*contact\\b", "\\bcontact\\s*form\\b",
+    // News / data feeds — not business automation tools
+    "\\bcfnews\\b", "cf[-_\\s]?news",
+    "\\bnews(letter)?\\b", "rss\\s*feed", "data\\s*feed",
   ].join("|"),
   "i",
 );
