@@ -4,6 +4,7 @@ import { AutomationInsights } from "@/components/automation-insights";
 import { InsightCard } from "@/components/insight-card";
 import { InsightTabs } from "@/components/insight-tabs";
 import { ScenarioCarousel } from "@/components/scenario-carousel";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 import { selectInsights, type InsightContext } from "@/lib/ai/insights-library";
 import { fetchTrackingStats } from "./context";
 
@@ -244,27 +245,33 @@ export default async function InsightsPage() {
       <InsightTabs doneCount={doneCount} removedCount={removedCount} />
 
       {/* Scénarios de simulation */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
-              <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-            </svg>
-            Scénarios de simulation
-          </h2>
-          <span className="text-xs text-slate-400">{scenarios.length} scénarios — faites défiler →</span>
-        </div>
+      <CollapsibleBlock
+        title={
+          <div className="flex w-full items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+                <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+              </svg>
+              Scénarios de simulation
+            </h2>
+            <span className="mr-4 text-xs text-slate-400">{scenarios.length} scénarios</span>
+          </div>
+        }
+      >
         <ScenarioCarousel scenarios={scenarios} />
-      </div>
+      </CollapsibleBlock>
 
       {/* Insights IA Automation */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
-            <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-          </svg>
-          Insights IA Automation
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+              <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+            </svg>
+            Insights IA Automation
+          </h2>
+        }
+      >
         <p className="text-sm text-slate-500">Workflows manquants ou sous-exploités pour optimiser vos processus RevOps.</p>
         <AutomationInsights
           workflows={workflows}
@@ -277,17 +284,20 @@ export default async function InsightsPage() {
           leads={leadsCount}
           dismissedKeys={dismissedKeys}
         />
-      </div>
+      </CollapsibleBlock>
 
       {/* Insight blocs (commercial / marketing / data) */}
       {blocs.map((bloc) => (
-        <div key={bloc.id} className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className={`h-2 w-2 rounded-full ${bloc.dot}`} />
-            {bloc.label}
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{bloc.insights.length}</span>
-          </h2>
-
+        <CollapsibleBlock
+          key={bloc.id}
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className={`h-2 w-2 rounded-full ${bloc.dot}`} />
+              {bloc.label}
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{bloc.insights.length}</span>
+            </h2>
+          }
+        >
           {bloc.insights.length === 0 ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
               <p className="text-sm text-emerald-700">Toutes les recommandations ont été traitées pour cette catégorie.</p>
@@ -308,7 +318,7 @@ export default async function InsightsPage() {
               ))}
             </div>
           )}
-        </div>
+        </CollapsibleBlock>
       ))}
     </section>
   );

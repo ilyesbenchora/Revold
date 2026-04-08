@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 type Alert = {
   id: string;
@@ -70,13 +71,15 @@ export default async function AlertesPage() {
       </div>
 
       {/* Alertes en cours */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />
-          Alertes en cours
-          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{activeAlerts.length}</span>
-        </h2>
-
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />
+            Alertes en cours
+            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{activeAlerts.length}</span>
+          </h2>
+        }
+      >
         {activeAlerts.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
             <p className="text-sm text-slate-500">Aucune alerte active. Activez un scénario depuis la page Insights IA.</p>
@@ -113,16 +116,18 @@ export default async function AlertesPage() {
             })}
           </div>
         )}
-      </div>
+      </CollapsibleBlock>
 
       {/* Objectifs atteints */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          Objectifs atteints
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{resolvedAlerts.length}</span>
-        </h2>
-
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Objectifs atteints
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{resolvedAlerts.length}</span>
+          </h2>
+        }
+      >
         {resolvedAlerts.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
             <p className="text-sm text-slate-500">Aucun objectif atteint pour le moment.</p>
@@ -158,7 +163,7 @@ export default async function AlertesPage() {
             })}
           </div>
         )}
-      </div>
+      </CollapsibleBlock>
     </section>
   );
 }

@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
 import { InsightTabs } from "@/components/insight-tabs";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 type DismissalRow = {
   template_key: string;
@@ -69,12 +70,16 @@ export default async function InsightsRetireesPage() {
         </div>
       ) : (
         blocs.filter((b) => b.insights.length > 0).map((bloc) => (
-          <div key={bloc.id} className="space-y-4">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className={`h-2 w-2 rounded-full ${bloc.dot}`} />
-              {bloc.label}
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{bloc.insights.length}</span>
-            </h2>
+          <CollapsibleBlock
+            key={bloc.id}
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className={`h-2 w-2 rounded-full ${bloc.dot}`} />
+                {bloc.label}
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{bloc.insights.length}</span>
+              </h2>
+            }
+          >
             <div className="space-y-3">
               {bloc.insights.map((d) => (
                 <InsightCard
@@ -90,7 +95,7 @@ export default async function InsightsRetireesPage() {
                 />
               ))}
             </div>
-          </div>
+          </CollapsibleBlock>
         ))
       )}
     </section>
