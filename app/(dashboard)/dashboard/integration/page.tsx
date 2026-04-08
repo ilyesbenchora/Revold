@@ -329,11 +329,11 @@ export default async function IntegrationPage({
                       <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
                       <p className="text-xs text-slate-400">{int.vendor} · {int.objectTypes.join(", ")}</p>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {int.detectionMethods.includes("portal_app") && (
+                        {(int.detectionMethods.includes("property_group") || int.detectionMethods.includes("portal_app")) && (
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">✓ Connecté</span>
                         )}
-                        {int.detectionMethods.includes("properties") && (
-                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">Propriétés CRM</span>
+                        {int.detectionMethods.includes("property_group") && (
+                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">Groupe de propriétés</span>
                         )}
                         {int.detectionMethods.includes("source_detail") && (
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">Source d&apos;enregistrement</span>
@@ -465,7 +465,9 @@ export default async function IntegrationPage({
                         )}
                       </div>
                     ) : (
-                      <p className="mt-2 text-xs text-slate-400">Aucun utilisateur identifié</p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        Adoption non mesurable — l&apos;app synchronise les données sans propriétaire utilisateur attribué.
+                      </p>
                     )}
                   </div>
                 </div>

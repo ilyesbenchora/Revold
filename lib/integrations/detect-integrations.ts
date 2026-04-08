@@ -234,7 +234,7 @@ export type DetectedIntegration = {
   distinctUsers: number;
   topUsers: Array<{ ownerId: string; name: string; count: number }>;
   // Detection method (used for explanation in UI)
-  detectionMethods: Array<"properties" | "source_detail" | "engagements" | "portal_app">;
+  detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app">;
   // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
   sourceLabels?: string[];
   // Portal apps matched (name + privacy + API usage) when detected via /account-info
@@ -266,6 +266,30 @@ async function fetchProperties(token: string, objectType: string): Promise<RawPr
     groupName: (p.groupName as string) || "",
     type: (p.type as string) || "string",
   }));
+}
+
+type RawPropertyGroup = { name: string; label: string; objectType: string };
+
+/**
+ * Fetch the explicit property GROUPS for an object type. This is the most
+ * reliable signal of "an app is installed" — every connected HubSpot app
+ * creates its own group (e.g. "Mailchimp Information", "PandaDoc", "Kaspr").
+ */
+async function fetchPropertyGroups(token: string, objectType: string): Promise<RawPropertyGroup[]> {
+  try {
+    const res = await fetch(`${HS_API}/crm/v3/properties/${objectType}/groups`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.results ?? []).map((g: Record<string, unknown>) => ({
+      name: (g.name as string) || "",
+      label: (g.label as string) || (g.name as string) || "",
+      objectType,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 async function countTotal(token: string, objectType: string): Promise<number> {
@@ -387,40 +411,57 @@ async function fetchOwnersByProperty(
   objectType: string,
   propertyName: string,
 ): Promise<Record<string, number>> {
-  // Sample 100 records with the property filled, count by owner
-  try {
+  // Strategy: query the most recently MODIFIED records that have the property
+  // and count distinct users. We try `hubspot_owner_id` first (the assigned
+  // sales rep) and fall back to `hs_created_by_user_id` / `hs_updated_by_user_id`
+  // (the human who actually touched the record). Two batches of 100 = up to
+  // 200 most-recent records sampled.
+  const owners: Record<string, number> = {};
+
+  async function runBatch(after?: string): Promise<string | undefined> {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: [{ propertyName, operator: "HAS_PROPERTY" }] }],
+      properties: ["hubspot_owner_id", "hs_created_by_user_id", "hs_updated_by_user_id"],
+      sorts: [{ propertyName: "lastmodifieddate", direction: "DESCENDING" }],
+      limit: 100,
+    };
+    if (after) body.after = after;
+
     const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filterGroups: [{ filters: [{ propertyName, operator: "HAS_PROPERTY" }] }],
-        properties: ["hubspot_owner_id"],
-        limit: 100,
-      }),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) return {};
+    if (!res.ok) return undefined;
     const data = await res.json();
-    const owners: Record<string, number> = {};
     (data.results ?? []).forEach((r: Record<string, unknown>) => {
-      const props = r.properties as Record<string, string | null>;
-      const ownerId = props.hubspot_owner_id;
-      if (ownerId) {
-        owners[ownerId] = (owners[ownerId] || 0) + 1;
-      }
+      const props = (r.properties as Record<string, string | null>) ?? {};
+      // Prefer owner_id, fall back to the human who created/updated the record.
+      const id =
+        props.hubspot_owner_id ||
+        props.hs_updated_by_user_id ||
+        props.hs_created_by_user_id;
+      if (id) owners[id] = (owners[id] || 0) + 1;
     });
-    return owners;
-  } catch {
-    return {};
+    return data.paging?.next?.after as string | undefined;
   }
+
+  try {
+    const next = await runBatch();
+    if (next) await runBatch(next);
+  } catch {}
+  return owners;
 }
 
 export async function detectIntegrations(
   token: string,
   portalApps: PortalAppForMatching[] = [],
 ): Promise<DetectedIntegration[]> {
-  // 1. Fetch all properties + totals + owners list + source signals from CRM and engagement objects
+  // 1. Fetch all properties + GROUPS + totals + owners list + source signals
+  //    Property GROUPS are the most reliable signal of an installed app.
   const [
     contactProps, companyProps, dealProps,
+    contactGroups, companyGroups, dealGroups,
     totalContacts, totalCompanies, totalDeals,
     ownersRes,
     contactSources, companySources, dealSources,
@@ -429,6 +470,9 @@ export async function detectIntegrations(
     fetchProperties(token, "contacts"),
     fetchProperties(token, "companies"),
     fetchProperties(token, "deals"),
+    fetchPropertyGroups(token, "contacts"),
+    fetchPropertyGroups(token, "companies"),
+    fetchPropertyGroups(token, "deals"),
     countTotal(token, "contacts"),
     countTotal(token, "companies"),
     countTotal(token, "deals"),
@@ -443,6 +487,8 @@ export async function detectIntegrations(
     fetchEngagementSources(token, "notes"),
     fetchEngagementSources(token, "tasks"),
   ]);
+
+  const allGroups: RawPropertyGroup[] = [...contactGroups, ...companyGroups, ...dealGroups];
 
   // Build owner_id → name map
   const ownerNames = new Map<string, string>();
@@ -502,24 +548,38 @@ export async function detectIntegrations(
   const claimedPortalApps = new Set<string>();
 
   for (const def of BUSINESS_INTEGRATIONS) {
-    // Find all properties matching any pattern
-    const matched = allObjectProps.filter(({ prop }) =>
-      def.patterns.some((pattern) => pattern.test(prop.name) || pattern.test(prop.groupName))
+    // 1. Match against property GROUPS — most reliable signal: every connected
+    //    HubSpot app installs its own group with a label like "Mailchimp", "PandaDoc"
+    const matchedGroups = allGroups.filter((g) =>
+      def.patterns.some((p) => p.test(g.name) || p.test(g.label)),
     );
 
-    // Match against source signals (e.g. "Outlook Contacts", "Aircall")
+    // 2. Find all properties matching any pattern (by name OR by group name).
+    //    Also include every property that belongs to a matched group.
+    const matchedGroupNames = new Set(matchedGroups.map((g) => g.name));
+    const matched = allObjectProps.filter(({ prop }) =>
+      matchedGroupNames.has(prop.groupName) ||
+      def.patterns.some((pattern) => pattern.test(prop.name) || pattern.test(prop.groupName)),
+    );
+
+    // 3. Match against source signals (e.g. "Outlook Contacts", "Aircall")
     const matchedSources = Object.entries(allSourceSignals).filter(([label]) =>
       def.patterns.some((p) => p.test(label)),
     );
     matchedSources.forEach(([label]) => claimedSourceLabels.add(label));
 
-    // Match against portal apps actually connected to HubSpot via API usage
+    // 4. Match against portal apps actually calling the HubSpot API
     const matchedPortalApps = portalApps.filter((app) =>
       def.patterns.some((p) => p.test(app.name)),
     );
     matchedPortalApps.forEach((app) => claimedPortalApps.add(app.name));
 
-    if (matched.length === 0 && matchedSources.length === 0 && matchedPortalApps.length === 0) continue;
+    if (
+      matched.length === 0 &&
+      matchedGroups.length === 0 &&
+      matchedSources.length === 0 &&
+      matchedPortalApps.length === 0
+    ) continue;
 
     // Choose top 3 sample properties to compute enrichment
     const sample = matched.slice(0, 3);
@@ -579,7 +639,8 @@ export async function detectIntegrations(
     // For source-only integrations (no properties), use source volume as the metric.
     const effectiveEnriched = Math.max(maxEnriched, sourceTotalCount);
 
-    const detectionMethods: Array<"properties" | "source_detail" | "engagements" | "portal_app"> = [];
+    const detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app"> = [];
+    if (matchedGroups.length > 0) detectionMethods.push("property_group");
     if (matched.length > 0) detectionMethods.push("properties");
     if (matchedSources.some(([, d]) =>
       Array.from(d.objectTypes).some((o) => ["contacts", "companies", "deals"].includes(o)),
