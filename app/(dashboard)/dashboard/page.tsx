@@ -185,16 +185,6 @@ export default async function DashboardOverviewPage() {
             )}
           </p>
         </div>
-        {totalDeals > 0 && (
-          <div className="flex items-center gap-4 text-sm">
-            <span className="rounded-lg border border-card-border bg-white px-3 py-1.5 text-slate-600">
-              {totalDeals} deals
-            </span>
-            <span className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">
-              {atRiskDeals} à risque
-            </span>
-          </div>
-        )}
       </header>
 
       {/* Scorecard Global */}
@@ -217,28 +207,6 @@ export default async function DashboardOverviewPage() {
                 </span>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Progress bars */}
-      {k && (
-        <div className="card p-5">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-5">
-            {categories.map((cat) => (
-              <div key={cat.label} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">{cat.label}</span>
-                  <span className="font-medium text-slate-700">{cat.score}%</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-slate-100">
-                  <div
-                    className={`h-1.5 rounded-full ${getBarColor(cat.score)}`}
-                    style={{ width: `${Math.min(100, cat.score)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
