@@ -21,6 +21,8 @@ export default async function PerformanceCommercialePage() {
     { data: stagnantDeals },
     { data: topDeals },
     { data: neglectedDeals },
+    { count: dealsWithNextActivity },
+    { count: dealsActivated },
   ] = await Promise.all([
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
@@ -43,6 +45,14 @@ export default async function PerformanceCommercialePage() {
       .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
       .eq("sales_activities_count", 0)
       .order("created_date", { ascending: false }).limit(5),
+    // Deals en cours avec prochaine activité planifiée
+    supabase.from("deals").select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .not("next_activity_date", "is", null),
+    // Deals en cours avec au moins une activité commerciale
+    supabase.from("deals").select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false)
+      .gt("sales_activities_count", 0),
   ]);
 
   const total = totalDeals ?? 0;
@@ -57,6 +67,12 @@ export default async function PerformanceCommercialePage() {
   const stagnant = stagnantDeals ?? [];
   const top = topDeals ?? [];
   const neglected = neglectedDeals ?? [];
+  const withNext = dealsWithNextActivity ?? 0;
+  const withoutNext = open - withNext;
+  const activated = dealsActivated ?? 0;
+  const notActivated = open - activated;
+  const followUpRate = open > 0 ? Math.round((withNext / open) * 100) : 0;
+  const activationRate = open > 0 ? Math.round((activated / open) * 100) : 0;
 
   const salesScore = Math.round(
     Math.min(100, closingRate * 2.5) * 0.4 +
@@ -163,6 +179,57 @@ export default async function PerformanceCommercialePage() {
         ) : (
           <p className="text-sm text-emerald-600">Aucune transaction stagnante.</p>
         )}
+      </div>
+
+      {/* Suivi des transactions en cours */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />Suivi des transactions en cours
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Transactions en cours</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{open}</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Avec prochaine activité</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{withNext}</p>
+            <p className="mt-1 text-xs text-slate-400">Activité planifiée</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Sans prochaine activité</p>
+            <p className={`mt-1 text-3xl font-bold ${withoutNext > open * 0.5 ? "text-red-500" : "text-orange-500"}`}>{withoutNext}</p>
+            <p className="mt-1 text-xs text-slate-400">Aucune activité planifiée</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux de suivi</p>
+            <p className={`mt-1 text-3xl font-bold ${followUpRate >= 70 ? "text-emerald-600" : followUpRate >= 40 ? "text-yellow-600" : "text-red-500"}`}>{followUpRate}%</p>
+            <p className="mt-1 text-xs text-slate-400">Deals avec RDV planifié</p>
+          </article>
+        </div>
+      </div>
+
+      {/* Activation commerciale */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Activation commerciale
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals activés</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{activated}</p>
+            <p className="mt-1 text-xs text-slate-400">Au moins 1 activité de vente</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Deals sans activité</p>
+            <p className={`mt-1 text-3xl font-bold ${notActivated > open * 0.3 ? "text-red-500" : "text-orange-500"}`}>{notActivated}</p>
+            <p className="mt-1 text-xs text-slate-400">Aucune activité de vente</p>
+          </article>
+          <article className="card p-5 text-center">
+            <p className="text-xs text-slate-500">Taux d&apos;activation</p>
+            <p className={`mt-1 text-3xl font-bold ${activationRate >= 80 ? "text-emerald-600" : activationRate >= 50 ? "text-yellow-600" : "text-red-500"}`}>{activationRate}%</p>
+          </article>
+        </div>
       </div>
 
       {/* Activité commerciale */}
