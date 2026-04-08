@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getConnectableTool, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { BrandLogo } from "@/components/brand-logo";
 import { connectToolAction, disconnectToolAction } from "./actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -61,7 +62,7 @@ export default async function ConnectToolPage({
 
       <div className="card p-6">
         <div className="flex items-start gap-4">
-          <span className="text-4xl">{tool.icon}</span>
+          <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={56} />
           <div className="flex-1">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
               {getCategoryLabel(tool.category)}

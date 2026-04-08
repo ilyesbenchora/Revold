@@ -22,6 +22,8 @@ export type ConnectableTool = {
   label: string;
   vendor: string;
   icon: string;
+  // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
+  domain: string;
   category: "crm" | "billing" | "support";
   description: string;
   helpUrl: string;
@@ -36,6 +38,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Salesforce",
     vendor: "Salesforce.com",
     icon: "☁️",
+    domain: "salesforce.com",
     category: "crm",
     description: "CRM B2B leader mondial. Synchronisez contacts, comptes, opportunités et activités directement dans Revold.",
     helpUrl: "https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm",
@@ -51,6 +54,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Pipedrive",
     vendor: "Pipedrive",
     icon: "🟢",
+    domain: "pipedrive.com",
     category: "crm",
     description: "CRM pipeline-first orienté PME. Synchronisez deals, contacts et activités.",
     helpUrl: "https://support.pipedrive.com/en/article/how-can-i-find-my-personal-api-key",
@@ -65,6 +69,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Zoho CRM",
     vendor: "Zoho Corporation",
     icon: "🟣",
+    domain: "zoho.com",
     category: "crm",
     description: "Suite CRM tout-en-un. Synchronisez leads, comptes, deals et tâches.",
     helpUrl: "https://www.zoho.com/crm/developer/docs/api/v6/auth-request.html",
@@ -81,6 +86,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "monday CRM",
     vendor: "monday.com",
     icon: "🟦",
+    domain: "monday.com",
     category: "crm",
     description: "CRM visuel collaboratif. Synchronisez vos boards CRM, items et activités.",
     helpUrl: "https://developer.monday.com/api-reference/docs/authentication",
@@ -96,6 +102,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Stripe",
     vendor: "Stripe",
     icon: "💳",
+    domain: "stripe.com",
     category: "billing",
     description: "Paiements & abonnements. Synchronisez factures, paiements et clients dans Revold.",
     helpUrl: "https://dashboard.stripe.com/apikeys",
@@ -109,6 +116,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Pennylane",
     vendor: "Pennylane",
     icon: "📊",
+    domain: "pennylane.com",
     category: "billing",
     description: "Comptabilité & gestion FR. Synchronisez factures, paiements et clients.",
     helpUrl: "https://pennylane.readme.io/reference/authentication",
@@ -122,6 +130,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Sellsy",
     vendor: "Sellsy",
     icon: "💼",
+    domain: "sellsy.com",
     category: "billing",
     description: "Devis & facturation FR. Centralisez vos opportunités et factures.",
     helpUrl: "https://api.sellsy.com/doc/v2/#section/Authentication",
@@ -136,6 +145,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Axonaut",
     vendor: "Axonaut",
     icon: "⚙️",
+    domain: "axonaut.com",
     category: "billing",
     description: "Gestion d'entreprise FR. Synchronisez devis, factures, paiements.",
     helpUrl: "https://axonaut.com/api/v2",
@@ -149,6 +159,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "QuickBooks",
     vendor: "Intuit",
     icon: "📒",
+    domain: "quickbooks.intuit.com",
     category: "billing",
     description: "Comptabilité internationale. Synchronisez factures, paiements et clients.",
     helpUrl: "https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0",
@@ -167,6 +178,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Intercom",
     vendor: "Intercom",
     icon: "💬",
+    domain: "intercom.com",
     category: "support",
     description: "Messagerie & support client. Croisez tickets et opportunités pour anticiper le churn.",
     helpUrl: "https://developers.intercom.com/building-apps/docs/authentication-types",
@@ -180,6 +192,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Zendesk",
     vendor: "Zendesk",
     icon: "🎧",
+    domain: "zendesk.com",
     category: "support",
     description: "Helpdesk & ticketing. Mesurez la santé des comptes et anticipez le churn.",
     helpUrl: "https://support.zendesk.com/hc/en-us/articles/4408889192858",
@@ -195,6 +208,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Crisp",
     vendor: "Crisp",
     icon: "🗨️",
+    domain: "crisp.chat",
     category: "support",
     description: "Live chat & helpdesk FR. Synchronisez conversations et tickets.",
     helpUrl: "https://docs.crisp.chat/guides/rest-api/authentication/",
@@ -210,6 +224,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     label: "Freshdesk",
     vendor: "Freshworks",
     icon: "🆘",
+    domain: "freshdesk.com",
     category: "support",
     description: "Support client multicanal. Centralisez tous les tickets dans Revold.",
     helpUrl: "https://developers.freshdesk.com/api/#authentication",

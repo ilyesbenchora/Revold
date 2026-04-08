@@ -8,6 +8,7 @@ import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator"
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
+import { BrandLogo } from "@/components/brand-logo";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -314,7 +315,7 @@ export default async function IntegrationPage({
                       href={tool.connectUrl}
                       className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition"
                     >
-                      <span className="text-xl">{tool.icon}</span>
+                      <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={32} />
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-slate-900 group-hover:text-indigo-700">{tool.label}</p>
                         <p className="truncate text-xs text-slate-500">{tool.description}</p>
