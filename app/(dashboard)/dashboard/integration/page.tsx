@@ -1,16 +1,16 @@
+export const maxDuration = 60;
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { Suspense } from "react";
 import Link from "next/link";
 
 const HUBSPOT_PORTAL = "48372600";
-const HS = {
-  workflows: `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}`,
-};
 
 export default async function IntegrationPage() {
   const orgId = await getOrgId();
@@ -21,121 +21,49 @@ export default async function IntegrationPage() {
   const supabase = await createSupabaseServerClient();
   const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
 
-  // Fetch live data from HubSpot API
+  let detectedIntegrations: DetectedIntegration[] = [];
   let owners: Array<{ email: string; firstName: string; lastName: string; teams: string[] }> = [];
-  let teamDistribution: Record<string, number> = {};
-  let contactSourcesGlobal: Array<{ source: string; count: number }> = [];
-  let dealsPerOwner: Record<string, number> = {};
-
-  // Helper to count records by source via Search API
-  async function countBySource(object: "contacts", source: string): Promise<number> {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${object}/search`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filterGroups: [{ filters: [{ propertyName: "hs_object_source", operator: "EQ", value: source }] }],
-        limit: 1,
-      }),
-    });
-    if (!res.ok) return 0;
-    const data = await res.json();
-    return data.total ?? 0;
-  }
-
-  // Mapping for human-readable source names
-  const sourceLabels: Record<string, string> = {
-    INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
-    EMAIL_INTEGRATION: "Intégration Email (Gmail/Outlook)",
-    IMPORT: "Import de fichier (CSV/Excel)",
-    CRM_UI: "Création manuelle CRM",
-    FORM: "Formulaires HubSpot",
-    API: "API HubSpot",
-    MOBILE_IOS: "Application mobile iOS",
-    MOBILE_ANDROID: "Application mobile Android",
-    INTERNAL_PROCESSING: "Traitement interne HubSpot",
-    CRM_SETTING: "Paramètres CRM (auto-association)",
-    MARKETING_EMAIL: "Email marketing",
-    WORKFLOW: "Workflow HubSpot",
-    BATCH_UPDATE: "Mise à jour par batch",
-    CONTACTS_WEB: "Site web (tracking HubSpot)",
-  };
 
   if (hubspotTokenConfigured) {
     try {
-      // Owners
-      const ownerRes = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-        headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
-      });
-      if (ownerRes.ok) {
-        const ownerData = await ownerRes.json();
-        owners = (ownerData.results ?? []).map((o: Record<string, unknown>) => ({
-          email: o.email as string,
-          firstName: (o.firstName as string) || "",
-          lastName: (o.lastName as string) || "",
-          teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
-        }));
-        owners.forEach((o) => {
-          o.teams.forEach((t) => { teamDistribution[t] = (teamDistribution[t] || 0) + 1; });
-          if (o.teams.length === 0) teamDistribution["Sans équipe"] = (teamDistribution["Sans équipe"] || 0) + 1;
-        });
-      }
-
-      // Get TOTAL contacts count per source via Search API
-      const sourcesToCheck = ["INTEGRATION", "EMAIL_INTEGRATION", "IMPORT", "CRM_UI", "FORM", "API", "MOBILE_IOS", "MOBILE_ANDROID", "INTERNAL_PROCESSING", "CRM_SETTING", "MARKETING_EMAIL", "WORKFLOW", "BATCH_UPDATE", "CONTACTS_WEB"];
-
-      const contactCounts = await Promise.all(
-        sourcesToCheck.map(async (src) => ({ source: src, count: await countBySource("contacts", src) })),
-      );
-      contactSourcesGlobal = contactCounts.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
-
-      // Deal owner assignment (sample 100)
-      const dealRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/deals?limit=100&properties=hubspot_owner_id`,
-        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
-      );
-      if (dealRes.ok) {
-        const dealData = await dealRes.json();
-        (dealData.results ?? []).forEach((d: Record<string, unknown>) => {
-          const ownerId = (d.properties as Record<string, string | null>).hubspot_owner_id;
-          dealsPerOwner[ownerId || "(non assigné)"] = (dealsPerOwner[ownerId || "(non assigné)"] || 0) + 1;
-        });
-      }
-
-    } catch {
-      // Silently fail — page still renders with DB data
-    }
+      const [integrations, ownersRes] = await Promise.all([
+        detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!),
+        fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
+        }).then((r) => r.ok ? r.json() : { results: [] }),
+      ]);
+      detectedIntegrations = integrations;
+      owners = (ownersRes.results ?? []).map((o: Record<string, unknown>) => ({
+        email: o.email as string,
+        firstName: (o.firstName as string) || "",
+        lastName: (o.lastName as string) || "",
+        teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
+      }));
+    } catch {}
   }
 
-  // DB counts
-  const [
-    { count: totalContacts },
-    { count: totalCompanies },
-    { count: totalDeals },
-    { data: syncLogs },
-    { data: integrations },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+  // DB counts for sync logs
+  const [{ data: syncLogs }, { data: integrationsRecords }] = await Promise.all([
     supabase.from("sync_logs").select("*").eq("organization_id", orgId).order("started_at", { ascending: false }).limit(5),
     supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId),
   ]);
 
-  const activeIntegrations = (integrations ?? []).filter((i) => i.is_active);
-  const sortedTeams = Object.entries(teamDistribution).sort((a, b) => b[1] - a[1]);
-  const totalSourceContacts = contactSourcesGlobal.reduce((s, c) => s + c.count, 0);
+  const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
 
-  // Native integrations: INTEGRATION, EMAIL_INTEGRATION, FORM, MARKETING_EMAIL, WORKFLOW, CONTACTS_WEB
-  const nativeKeys = ["INTEGRATION", "EMAIL_INTEGRATION", "FORM", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
-  const nativeIntegrations = contactSourcesGlobal.filter((s) => nativeKeys.includes(s.source));
-  const totalNative = nativeIntegrations.reduce((s, i) => s + i.count, 0);
-  const nativeShare = totalSourceContacts > 0 ? Math.round((totalNative / totalSourceContacts) * 100) : 0;
+  // Aggregate stats
+  const totalIntegrations = detectedIntegrations.length;
+  const totalSyncedProperties = detectedIntegrations.reduce((s, i) => s + i.totalProperties, 0);
+  const avgEnrichmentRate = detectedIntegrations.length > 0
+    ? Math.round(detectedIntegrations.reduce((s, i) => s + i.enrichmentRate, 0) / detectedIntegrations.length)
+    : 0;
+  const wellEnriched = detectedIntegrations.filter((i) => i.enrichmentRate >= 30).length;
 
+  // Score Intégration
   const integrationScore = hubspotTokenConfigured
     ? Math.round(
-        Math.min(50, nativeShare * 0.5) +
-        (owners.length > 10 ? 25 : owners.length > 5 ? 15 : 5) +
-        (nativeIntegrations.length > 1 ? 25 : nativeIntegrations.length === 1 ? 15 : 0)
+        Math.min(50, totalIntegrations * 8) +
+        Math.min(30, avgEnrichmentRate) +
+        (owners.length > 10 ? 20 : owners.length > 5 ? 10 : 5)
       )
     : 0;
 
@@ -145,7 +73,9 @@ export default async function IntegrationPage() {
 
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Intégration</h1>
-        <p className="mt-1 text-sm text-slate-500">Connexions CRM, utilisateurs et sources d&apos;acquisition.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Outils tiers connectés à votre CRM, propriétés synchronisées et taux d&apos;enrichissement.
+        </p>
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
@@ -158,6 +88,9 @@ export default async function IntegrationPage() {
               {getScoreLabel(integrationScore).label}
             </span>
           </div>
+          <p className="mt-2 text-sm text-slate-500">
+            Basé sur le nombre d&apos;outils connectés, le taux d&apos;enrichissement et l&apos;équipe.
+          </p>
         </div>
       </div>
 
@@ -175,29 +108,107 @@ export default async function IntegrationPage() {
       {/* Vue d'ensemble */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Intégrations actives</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-600">{activeIntegrations.length}</p>
+          <p className="text-xs text-slate-500">Outils connectés</p>
+          <p className="mt-1 text-3xl font-bold text-violet-600">{totalIntegrations}</p>
+          <p className="mt-1 text-xs text-slate-400">Détectés via les propriétés CRM</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Utilisateurs CRM</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{owners.length}</p>
+          <p className="text-xs text-slate-500">Propriétés synchronisées</p>
+          <p className="mt-1 text-3xl font-bold text-slate-900">{totalSyncedProperties}</p>
+          <p className="mt-1 text-xs text-slate-400">Tous outils confondus</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Équipes</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{Object.keys(teamDistribution).filter((k) => k !== "Sans équipe").length}</p>
+          <p className="text-xs text-slate-500">Taux d&apos;enrichissement moyen</p>
+          <p className={`mt-1 text-3xl font-bold ${avgEnrichmentRate >= 50 ? "text-emerald-600" : avgEnrichmentRate >= 20 ? "text-yellow-600" : "text-orange-500"}`}>
+            {avgEnrichmentRate}%
+          </p>
+          <p className="mt-1 text-xs text-slate-400">Données effectivement remplies</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Données synchronisées</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{((totalContacts ?? 0) + (totalCompanies ?? 0) + (totalDeals ?? 0)).toLocaleString("fr-FR")}</p>
+          <p className="text-xs text-slate-500">Outils bien exploités</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-600">{wellEnriched}</p>
+          <p className="mt-1 text-xs text-slate-400">Enrichissement &gt; 30%</p>
         </article>
       </div>
+
+      {/* Applications connectées */}
+      {detectedIntegrations.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées
+              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">{totalIntegrations}</span>
+            </h2>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Détectées automatiquement via l&apos;analyse des groupes de propriétés CRM. Chaque outil HubSpot installe ses propres champs personnalisés.
+          </p>
+          <div className="space-y-3">
+            {detectedIntegrations.map((int) => (
+              <article key={int.groupName} className="card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{int.icon}</span>
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
+                      <p className="text-xs text-slate-400">{int.vendor} · {int.objectTypes.join(", ")}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Propriétés synchronisées</p>
+                    <p className="text-2xl font-bold text-slate-900">{int.totalProperties}</p>
+                  </div>
+                </div>
+
+                {/* Enrichment rate */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-slate-600">Taux d&apos;enrichissement</span>
+                    <span className={`font-bold ${
+                      int.enrichmentRate >= 50 ? "text-emerald-600" :
+                      int.enrichmentRate >= 20 ? "text-yellow-600" :
+                      int.enrichmentRate >= 5 ? "text-orange-500" : "text-red-500"
+                    }`}>
+                      {int.enrichmentRate}% — {int.enrichedRecords.toLocaleString("fr-FR")} / {int.totalRecords.toLocaleString("fr-FR")} {int.objectTypes[0]}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                    <div
+                      className={`h-2 rounded-full ${getBarColor(int.enrichmentRate)}`}
+                      style={{ width: `${Math.min(100, int.enrichmentRate)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Top properties */}
+                {int.topProperties.length > 0 && (
+                  <div className="mt-4 rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Propriétés synchronisées (échantillon)</p>
+                    <div className="mt-2 space-y-1.5">
+                      {int.topProperties.map((p) => (
+                        <div key={p.name} className="flex items-center justify-between text-xs">
+                          <span className="text-slate-700">{p.label}</span>
+                          <span className="font-medium text-slate-500">
+                            {p.enrichedCount.toLocaleString("fr-FR")} ({p.rate}%)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </CollapsibleBlock>
+      )}
 
       {/* Sync logs */}
       {syncLogs && syncLogs.length > 0 && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-slate-400" />Dernières synchronisations
+              <span className="h-2 w-2 rounded-full bg-slate-400" />Dernières synchronisations Revold
             </h2>
           }
         >
