@@ -157,7 +157,8 @@ async function fetchAllConsumersDaily(
 }
 
 // Names that should be filtered out as HubSpot-internal (not real "apps")
-const HUBSPOT_NATIVE = /^(hubspot|crm|forms?|workflows?|engagement|marketing email|sales|lists|reporting|email|integration platform)/i;
+const HUBSPOT_NATIVE =
+  /(^(hubspot|crm|forms?|workflows?|engagement|marketing email|sales|lists|reporting|email|integration platform|paramètre|parameter|setting))|(api[-_\s]*calls)|(api[-_\s]*usage)|(daily[-_\s]*usage)|(créer\s*et\s*associer)|(create\s*and\s*associate)/i;
 
 export async function detectPortalApps(token: string): Promise<{
   privateApps: PortalApp[];

@@ -86,7 +86,7 @@ export default async function IntegrationPage({
     // Service client / chat
     "intercom", "zendesk", "crisp", "freshdesk",
   ]);
-  const NOISE_LABEL = /(outlook|gmail|slack|zoom|calendly|intercom|zendesk|crisp|freshdesk|export\s*contact|export\s*csv|imports?|migration|google\s*calendar|teams|whatsapp|messenger)/i;
+  const NOISE_LABEL = /(outlook|gmail|slack|zoom|calendly|intercom|zendesk|crisp|freshdesk|export\s*contact|export\s*csv|imports?|migration|google\s*calendar|teams|whatsapp|messenger|api[-_\s]*calls|api[-_\s]*usage|daily[-_\s]*usage|paramètre|parameter|créer\s*et\s*associer|create\s*and\s*associate)/i;
   const businessIntegrations = detectedIntegrations.filter(
     (i) => !NOISE_INTEGRATION_KEYS.has(i.key) && !NOISE_LABEL.test(i.label),
   );

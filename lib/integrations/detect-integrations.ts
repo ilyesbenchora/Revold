@@ -649,10 +649,12 @@ export async function detectIntegrations(
   // really installed on HubSpot (they call the API) but we don't have a
   // curated catalogue entry yet.
   // Skip noise: messaging (Outlook/Gmail/Slack/Teams), visio (Zoom/Meet),
-  // chat support (Intercom/Zendesk/Crisp/Freshdesk), HubSpot natives + system tools.
-  // Only RevOps business tools (billing, quoting, prospection, accounting,
-  // automation, enrichment) should surface.
-  const PORTAL_APP_NOISE = /(outlook|gmail|slack|teams|whatsapp|messenger|zoom|google\s*meet|google\s*calendar|calendly|intercom|zendesk|crisp|freshdesk|export|import|migration|sync|hubspot|workflow|forms?|backup|csv)/i;
+  // chat support (Intercom/Zendesk/Crisp/Freshdesk), HubSpot natives, API
+  // meters and HubSpot system parameters. Only RevOps business tools
+  // (billing, quoting, prospection, accounting, automation, enrichment)
+  // should surface.
+  const PORTAL_APP_NOISE =
+    /(outlook|gmail|slack|teams|whatsapp|messenger|zoom|google\s*meet|google\s*calendar|calendly|intercom|zendesk|crisp|freshdesk|export|import|migration|sync|hubspot|workflow|forms?|backup|csv|api[-_\s]*calls|api[-_\s]*usage|daily[-_\s]*usage|paramètre|parameter|^setting|créer\s*et\s*associer|create\s*and\s*associate)/i;
   portalApps
     .filter((app) => !claimedPortalApps.has(app.name) && !PORTAL_APP_NOISE.test(app.name))
     .sort((a, b) => b.usageCount - a.usageCount)
