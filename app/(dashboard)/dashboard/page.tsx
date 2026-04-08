@@ -136,7 +136,7 @@ export default async function DashboardOverviewPage() {
       ],
     },
     {
-      label: "Process",
+      label: "Process & Alignement",
       description: "Workflows & Lifecycle",
       score: processScore,
       href: "/dashboard/process",

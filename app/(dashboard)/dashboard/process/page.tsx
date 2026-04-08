@@ -125,14 +125,14 @@ export default async function ProcessPage() {
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Process</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Process & Alignement</h1>
         <p className="mt-1 text-sm text-slate-500">
           Workflows d&apos;automatisation et conversion lifecycle.
         </p>
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Process" score={processScore} />
+        <ProgressScore label="Score Process & Alignement" score={processScore} />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{processScore}</span>
