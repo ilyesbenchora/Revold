@@ -243,10 +243,7 @@ export default async function DashboardOverviewPage() {
               className={`card group p-5 transition hover:shadow-md ${wide ? "md:col-span-2 lg:col-span-2" : ""}`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent">{cat.label}</h3>
-                  <p className="mt-0.5 text-xs text-slate-400">{cat.description}</p>
-                </div>
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent">{cat.label}</h3>
                 <div className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
                   {badge.label}
                 </div>
