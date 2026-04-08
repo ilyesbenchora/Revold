@@ -13,7 +13,15 @@ import Link from "next/link";
 
 const HUBSPOT_PORTAL = "48372600";
 
-export default async function IntegrationPage() {
+export default async function IntegrationPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const connectedTool = typeof sp.connected === "string" ? sp.connected : null;
+  const disconnectedTool = typeof sp.disconnected === "string" ? sp.disconnected : null;
+
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -62,8 +70,16 @@ export default async function IntegrationPage() {
   detectedIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
   const totalActiveUsers = allActiveUsers.size;
 
-  // Recommended tools to connect (categories where nothing is detected yet)
-  const recommendedCategories = getRecommendedCategories(detectedIntegrations.map((i) => i.key));
+  // Tools already connected directly to Revold (via the connect/[tool] flow)
+  const directlyConnectedKeys = activeIntegrations
+    .map((i) => i.provider)
+    .filter((p) => p !== "hubspot");
+
+  // Recommended tools to connect (filter out HubSpot-detected AND directly-connected ones)
+  const recommendedCategories = getRecommendedCategories([
+    ...detectedIntegrations.map((i) => i.key),
+    ...directlyConnectedKeys,
+  ]);
 
   // Score Intégration
   const integrationScore = hubspotTokenConfigured
@@ -77,6 +93,17 @@ export default async function IntegrationPage() {
   return (
     <section className="space-y-8">
       <Suspense><HubSpotSyncOrchestrator /></Suspense>
+
+      {connectedTool && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          ✓ <strong>{connectedTool}</strong> est maintenant connecté à Revold. Vos données seront synchronisées en arrière-plan.
+        </div>
+      )}
+      {disconnectedTool && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <strong>{disconnectedTool}</strong> a été déconnecté de Revold.
+        </div>
+      )}
 
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Intégration</h1>
