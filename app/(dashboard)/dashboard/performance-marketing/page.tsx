@@ -3,6 +3,21 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
 
+const sourceLabels: Record<string, string> = {
+  INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
+  EMAIL_INTEGRATION: "Intégration Email (Gmail/Outlook)",
+  IMPORT: "Import de fichier (CSV/Excel)",
+  CRM_UI: "Création manuelle CRM",
+  FORM: "Formulaires HubSpot",
+  API: "API HubSpot",
+  MOBILE_IOS: "Application mobile iOS",
+  INTERNAL_PROCESSING: "Traitement interne HubSpot",
+  MARKETING_EMAIL: "Email marketing",
+  WORKFLOW: "Workflow HubSpot",
+  CONTACTS_WEB: "Site web (tracking HubSpot)",
+};
+const nativeKeys = ["INTEGRATION", "EMAIL_INTEGRATION", "FORM", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
+
 export default async function PerformanceMarketingPage() {
   const orgId = await getOrgId();
   if (!orgId) {
@@ -10,6 +25,35 @@ export default async function PerformanceMarketingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // Fetch contact sources from HubSpot Search API
+  let contactSourcesGlobal: Array<{ source: string; count: number }> = [];
+  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+    const sourcesToCheck = ["INTEGRATION", "EMAIL_INTEGRATION", "IMPORT", "CRM_UI", "FORM", "API", "MOBILE_IOS", "INTERNAL_PROCESSING", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
+    try {
+      const counts = await Promise.all(sourcesToCheck.map(async (src) => {
+        const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: "hs_object_source", operator: "EQ", value: src }] }],
+            limit: 1,
+          }),
+        });
+        if (!res.ok) return { source: src, count: 0 };
+        const data = await res.json();
+        return { source: src, count: data.total ?? 0 };
+      }));
+      contactSourcesGlobal = counts.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
+    } catch {
+      // Fail silently
+    }
+  }
+
+  const totalSourceContacts = contactSourcesGlobal.reduce((s, c) => s + c.count, 0);
+  const nativeIntegrations = contactSourcesGlobal.filter((s) => nativeKeys.includes(s.source));
+  const totalNative = nativeIntegrations.reduce((s, i) => s + i.count, 0);
+  const nativeShare = totalSourceContacts > 0 ? Math.round((totalNative / totalSourceContacts) * 100) : 0;
 
   const [
     { count: totalContacts },
@@ -129,6 +173,76 @@ export default async function PerformanceMarketingPage() {
           </article>
         </div>
       </div>
+
+      {/* Intégrations natives utilisées */}
+      {nativeIntegrations.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
+            <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
+          </h2>
+          <p className="text-sm text-slate-500">Contacts créés via des intégrations connectées au portail HubSpot.</p>
+          <div className="card overflow-hidden">
+            <div className="divide-y divide-card-border">
+              {nativeIntegrations.map((s) => {
+                const pct = totalNative > 0 ? Math.round((s.count / totalNative) * 100) : 0;
+                return (
+                  <div key={s.source} className="px-5 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
+                        <p className="text-xs text-slate-400">{s.source}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</p>
+                        <p className="text-xs text-slate-400">{pct}% des intégrations natives</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
+                      <div className="h-1.5 rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toutes les sources de contacts */}
+      {contactSourcesGlobal.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources d&apos;acquisition
+            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
+          </h2>
+          <div className="card overflow-hidden">
+            <div className="divide-y divide-card-border">
+              {contactSourcesGlobal.map((s) => {
+                const pct = totalSourceContacts > 0 ? Math.round((s.count / totalSourceContacts) * 100) : 0;
+                const isNative = nativeKeys.includes(s.source);
+                return (
+                  <div key={s.source} className="px-5 py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
+                        {isNative && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">Native</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</span>
+                        <span className="text-xs text-slate-400">{pct}%</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
+                      <div className={`h-1.5 rounded-full ${isNative ? "bg-violet-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Derniers contacts */}
       {recent.length > 0 && (

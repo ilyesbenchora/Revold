@@ -198,10 +198,10 @@ export default async function IntegrationPage() {
       )}
 
       {/* Vue d'ensemble */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Intégrations natives</p>
-          <p className="mt-1 text-3xl font-bold text-violet-600">{nativeIntegrations.length}</p>
+          <p className="text-xs text-slate-500">Intégrations actives</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-600">{activeIntegrations.length}</p>
         </article>
         <article className="card p-5 text-center">
           <p className="text-xs text-slate-500">Utilisateurs CRM</p>
@@ -212,13 +212,8 @@ export default async function IntegrationPage() {
           <p className="mt-1 text-3xl font-bold text-slate-900">{Object.keys(teamDistribution).filter((k) => k !== "Sans équipe").length}</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Contacts via intégrations</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{totalNative.toLocaleString("fr-FR")}</p>
-          <p className="mt-1 text-xs text-slate-400">{nativeShare}% du total</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Total contacts</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{(totalContacts ?? 0).toLocaleString("fr-FR")}</p>
+          <p className="text-xs text-slate-500">Données synchronisées</p>
+          <p className="mt-1 text-3xl font-bold text-slate-900">{((totalContacts ?? 0) + (totalCompanies ?? 0) + (totalDeals ?? 0)).toLocaleString("fr-FR")}</p>
         </article>
       </div>
 
@@ -240,75 +235,6 @@ export default async function IntegrationPage() {
         </div>
       )}
 
-      {/* Intégrations natives — volume de contacts remontés */}
-      {nativeIntegrations.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
-            <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
-          </h2>
-          <p className="text-sm text-slate-500">Contacts créés via des intégrations connectées au portail HubSpot.</p>
-          <div className="card overflow-hidden">
-            <div className="divide-y divide-card-border">
-              {nativeIntegrations.map((s) => {
-                const pct = totalNative > 0 ? Math.round((s.count / totalNative) * 100) : 0;
-                return (
-                  <div key={s.source} className="px-5 py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
-                        <p className="text-xs text-slate-400">{s.source}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</p>
-                        <p className="text-xs text-slate-400">{pct}% des intégrations natives</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-                      <div className="h-1.5 rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toutes les sources de contacts */}
-      {contactSourcesGlobal.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources de contacts
-            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
-          </h2>
-          <div className="card overflow-hidden">
-            <div className="divide-y divide-card-border">
-              {contactSourcesGlobal.map((s) => {
-                const pct = totalSourceContacts > 0 ? Math.round((s.count / totalSourceContacts) * 100) : 0;
-                const isNative = nativeKeys.includes(s.source);
-                return (
-                  <div key={s.source} className="px-5 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
-                        {isNative && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">Native</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</span>
-                        <span className="text-xs text-slate-400">{pct}%</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-                      <div className={`h-1.5 rounded-full ${isNative ? "bg-violet-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Utilisateurs CRM */}
       {owners.length > 0 && (
@@ -503,68 +429,6 @@ export default async function IntegrationPage() {
               </article>
             ) : null;
           })()}
-
-          {/* Email marketing sous-exploité */}
-          {trackingSample > 0 && withMarketingEmails < trackingSample * 0.1 && (
-            <article className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700">Info</span>
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Email Marketing</span>
-              </div>
-              <h3 className="mt-3 text-base font-semibold text-slate-900">
-                Email marketing sous-exploité : {withMarketingEmails} contacts touchés sur {trackingSample}
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-700">
-                Moins de 10% des contacts ont reçu un email marketing. Le canal email est un levier majeur de nurturing et de conversion non exploité.
-              </p>
-              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
-                <p className="mt-1 text-sm font-medium text-slate-800">
-                  Mettre en place des séquences email de nurturing pour les leads et des newsletters pour maintenir l&apos;engagement.
-                </p>
-              </div>
-              <div className="mt-3">
-                <a href={`https://app.hubspot.com/email/${HUBSPOT_PORTAL}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
-                  Créer un email marketing
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </a>
-              </div>
-            </article>
-          )}
-
-          {/* Formulaires sous-exploités */}
-          {trackingSample > 0 && withFormSubmissions < trackingSample * 0.05 && (
-            <article className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700">Info</span>
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Formulaires</span>
-              </div>
-              <h3 className="mt-3 text-base font-semibold text-slate-900">
-                Formulaires HubSpot non utilisés : {withFormSubmissions} soumissions sur {trackingSample} contacts
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-700">
-                Les formulaires HubSpot permettent de capturer des leads qualifiés automatiquement avec le tracking. Actuellement très peu de contacts passent par un formulaire.
-              </p>
-              <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
-                <p className="mt-1 text-sm font-medium text-slate-800">
-                  Créer des formulaires HubSpot sur les pages clés de votre site (contact, devis, démo) pour alimenter automatiquement le CRM.
-                </p>
-              </div>
-              <div className="mt-3">
-                <a href={`https://app.hubspot.com/forms/${HUBSPOT_PORTAL}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
-                  Créer un formulaire
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </a>
-              </div>
-            </article>
-          )}
 
           {/* Positif si tracking actif */}
           {onlineContacts > 0 && (

@@ -51,6 +51,28 @@ export default async function InsightsPage() {
 
   const supabase = await createSupabaseServerClient();
 
+  // Fetch HubSpot tracking data for marketing insights
+  let trackingSample = 0;
+  let withMarketingEmails = 0;
+  let withFormSubmissions = 0;
+  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+    try {
+      const trackingRes = await fetch(
+        `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=num_conversion_events,hs_email_first_send_date`,
+        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
+      );
+      if (trackingRes.ok) {
+        const trackingData = await trackingRes.json();
+        (trackingData.results ?? []).forEach((c: Record<string, unknown>) => {
+          const p = c.properties as Record<string, string | null>;
+          trackingSample++;
+          if (Number(p.num_conversion_events) > 0) withFormSubmissions++;
+          if (p.hs_email_first_send_date) withMarketingEmails++;
+        });
+      }
+    } catch {}
+  }
+
   const [{ data: insights }, r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
     supabase.from("ai_insights").select("*").eq("organization_id", orgId).eq("is_dismissed", false).order("generated_at", { ascending: false }),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
@@ -66,6 +88,32 @@ export default async function InsightsPage() {
   const commercial = allInsights.filter((i) => classifyInsight(i.category) === "commercial");
   const marketing = allInsights.filter((i) => classifyInsight(i.category) === "marketing");
   const data = allInsights.filter((i) => classifyInsight(i.category) === "data");
+
+  // Dynamic marketing insights from tracking data
+  const dynamicMarketingInsights: Insight[] = [];
+  if (trackingSample > 0 && withMarketingEmails < trackingSample * 0.1) {
+    dynamicMarketingInsights.push({
+      id: "dynamic-email-marketing",
+      category: "marketing",
+      severity: "info",
+      title: `Email marketing sous-exploité : ${withMarketingEmails} contacts touchés sur ${trackingSample}`,
+      body: `Moins de 10% des contacts ont reçu un email marketing. Le canal email est un levier majeur de nurturing et de conversion non exploité.`,
+      recommendation: `Mettre en place des séquences email de nurturing pour les leads et des newsletters pour maintenir l'engagement.`,
+      generated_at: new Date().toISOString(),
+    });
+  }
+  if (trackingSample > 0 && withFormSubmissions < trackingSample * 0.05) {
+    dynamicMarketingInsights.push({
+      id: "dynamic-forms",
+      category: "marketing",
+      severity: "info",
+      title: `Formulaires HubSpot non utilisés : ${withFormSubmissions} soumissions sur ${trackingSample} contacts`,
+      body: `Les formulaires HubSpot permettent de capturer des leads qualifiés automatiquement avec le tracking. Actuellement très peu de contacts passent par un formulaire.`,
+      recommendation: `Créer des formulaires HubSpot sur les pages clés de votre site (contact, devis, démo) pour alimenter automatiquement le CRM.`,
+      generated_at: new Date().toISOString(),
+    });
+  }
+  const marketingWithDynamic = [...dynamicMarketingInsights, ...marketing];
 
   const totalDeals = r1.count ?? 0;
   const won = r2.count ?? 0;
@@ -112,7 +160,7 @@ export default async function InsightsPage() {
 
   const blocs = [
     { id: "commercial", label: "Insights Commerciaux", insights: commercial, dot: "bg-blue-500", hsLink: hubspotLinks.sales },
-    { id: "marketing", label: "Insights Marketing", insights: marketing, dot: "bg-amber-500", hsLink: hubspotLinks.marketing },
+    { id: "marketing", label: "Insights Marketing", insights: marketingWithDynamic, dot: "bg-amber-500", hsLink: hubspotLinks.marketing },
     { id: "data", label: "Insights Data", insights: data, dot: "bg-emerald-500", hsLink: hubspotLinks.data },
   ];
 
