@@ -12,6 +12,7 @@
  */
 
 import { detectWorkflowIntegrations, type WorkflowIntegrationHit } from "./detect-workflow-integrations";
+import { detectAuditInstalls, type AuditInstall } from "./detect-audit-installs";
 
 const HS_API = "https://api.hubapi.com";
 
@@ -236,9 +237,11 @@ export type DetectedIntegration = {
   distinctUsers: number;
   topUsers: Array<{ ownerId: string; name: string; count: number }>;
   // Detection method (used for explanation in UI)
-  detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook">;
+  detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook" | "audit_install">;
   // Number of HubSpot workflows that include a webhook for this integration
   workflowWebhookCount?: number;
+  // ISO date when the app was installed (audit logs, Enterprise only)
+  auditInstalledAt?: string;
   // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
   sourceLabels?: string[];
   // Portal apps matched (name + privacy + API usage) when detected via /account-info
@@ -493,7 +496,11 @@ export async function detectIntegrations(
   ]);
 
   // Workflow webhook scan — runs in parallel-ish, catches Zapier/Make/n8n etc.
-  const workflowHits: WorkflowIntegrationHit[] = await detectWorkflowIntegrations(token);
+  // Audit log scan — Enterprise-only, returns [] on Pro/Starter (silent skip).
+  const [workflowHits, auditInstalls]: [WorkflowIntegrationHit[], AuditInstall[]] = await Promise.all([
+    detectWorkflowIntegrations(token),
+    detectAuditInstalls(token),
+  ]);
   const workflowHitsByKey = new Map(workflowHits.map((h) => [h.key, h]));
 
   const allGroups: RawPropertyGroup[] = [...contactGroups, ...companyGroups, ...dealGroups];
@@ -628,13 +635,19 @@ export async function detectIntegrations(
     // 6. Match against workflow webhook signatures (Zapier/Make/n8n/Pabbly/...)
     const matchedWorkflowHit = workflowHitsByKey.get(def.key);
 
+    // 7. Match against audit log installs (Enterprise plan only — empty on Pro)
+    const matchedAuditInstall = auditInstalls.find((a) =>
+      def.patterns.some((p) => p.test(a.appName)),
+    );
+
     if (
       matched.length === 0 &&
       matchedGroups.length === 0 &&
       matchedSources.length === 0 &&
       matchedPortalApps.length === 0 &&
       matchedTargeted.length === 0 &&
-      !matchedWorkflowHit
+      !matchedWorkflowHit &&
+      !matchedAuditInstall
     ) continue;
 
     // Choose top 3 sample properties to compute enrichment
@@ -703,10 +716,11 @@ export async function detectIntegrations(
     // For source-only integrations (no properties), use source volume as the metric.
     const effectiveEnriched = Math.max(maxEnriched, sourceTotalCount);
 
-    const detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook"> = [];
+    const detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook" | "audit_install"> = [];
     if (matchedGroups.length > 0) detectionMethods.push("property_group");
     if (matched.length > 0) detectionMethods.push("properties");
     if (matchedWorkflowHit) detectionMethods.push("workflow_webhook");
+    if (matchedAuditInstall) detectionMethods.push("audit_install");
     if (matchedSources.some(([, d]) =>
       Array.from(d.objectTypes).some((o) => ["contacts", "companies", "deals"].includes(o)),
     )) detectionMethods.push("source_detail");
@@ -732,6 +746,7 @@ export async function detectIntegrations(
       sourceLabels: matchedSources.map(([label]) => label),
       portalAppMatches: matchedPortalApps,
       workflowWebhookCount: matchedWorkflowHit?.workflowsCount,
+      auditInstalledAt: matchedAuditInstall?.installedAt,
     });
   }
 
