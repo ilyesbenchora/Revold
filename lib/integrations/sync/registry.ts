@@ -11,6 +11,7 @@
 
 import type { SourceConnector } from "./types";
 import { stripeConnector } from "./connectors/stripe";
+import { pipedriveConnector } from "./connectors/pipedrive";
 import { makeStubConnector } from "./connectors/stub";
 
 export const SYNC_REGISTRY: Record<string, SourceConnector> = {
@@ -23,7 +24,7 @@ export const SYNC_REGISTRY: Record<string, SourceConnector> = {
 
   // ── CRM ────────────────────────────────────────────────────────
   salesforce: makeStubConnector("Salesforce"),
-  pipedrive: makeStubConnector("Pipedrive"),
+  pipedrive: pipedriveConnector,
   zoho: makeStubConnector("Zoho CRM"),
   monday: makeStubConnector("monday CRM"),
 
