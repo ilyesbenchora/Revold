@@ -238,7 +238,7 @@ export type DetectedIntegration = {
   // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
   sourceLabels?: string[];
   // Portal apps matched (name + privacy + API usage) when detected via /account-info
-  portalAppMatches?: Array<{ name: string; type: "private" | "public"; usageCount: number }>;
+  portalAppMatches?: PortalAppForMatching[];
 };
 
 /**
@@ -250,6 +250,8 @@ export type PortalAppForMatching = {
   name: string;
   type: "private" | "public";
   usageCount: number;
+  installedAt?: string;
+  lastActivityAt?: string;
 };
 
 async function fetchProperties(token: string, objectType: string): Promise<RawProperty[]> {

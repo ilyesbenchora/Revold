@@ -354,11 +354,16 @@ export default async function IntegrationPage({
                   </div>
                 )}
 
-                <div className={`mt-4 grid grid-cols-1 gap-3 ${int.topProperties.length > 0 ? "md:grid-cols-2" : ""}`}>
-                  {/* Top properties */}
-                  {int.topProperties.length > 0 && (
-                    <div className="rounded-lg bg-slate-50 p-3">
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* Properties — always shown for visual consistency */}
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Propriétés synchronisées</p>
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">
+                        {int.totalProperties}
+                      </span>
+                    </div>
+                    {int.topProperties.length > 0 ? (
                       <div className="mt-2 space-y-1.5">
                         {int.topProperties.map((p) => (
                           <div key={p.name} className="flex items-center justify-between text-xs">
@@ -369,18 +374,28 @@ export default async function IntegrationPage({
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">Aucune propriété personnalisée installée par cette app.</p>
+                    )}
+                  </div>
 
-                  {/* User adoption */}
+                  {/* User adoption — always shown, with API activity fallback */}
                   <div className="rounded-lg bg-slate-50 p-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Adoption utilisateurs</p>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                        int.distinctUsers >= 5 ? "bg-emerald-100 text-emerald-700" :
-                        int.distinctUsers >= 2 ? "bg-yellow-100 text-yellow-700" :
-                        "bg-orange-100 text-orange-700"
-                      }`}>{int.distinctUsers} util.</span>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        {int.distinctUsers > 0 ? "Adoption utilisateurs" : "Activité de l'app"}
+                      </p>
+                      {int.distinctUsers > 0 ? (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          int.distinctUsers >= 5 ? "bg-emerald-100 text-emerald-700" :
+                          int.distinctUsers >= 2 ? "bg-yellow-100 text-yellow-700" :
+                          "bg-orange-100 text-orange-700"
+                        }`}>{int.distinctUsers} util.</span>
+                      ) : int.portalAppMatches && int.portalAppMatches.length > 0 ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                          ✓ Active
+                        </span>
+                      ) : null}
                     </div>
                     {int.topUsers.length > 0 ? (
                       <div className="mt-2 space-y-1.5">
@@ -390,6 +405,36 @@ export default async function IntegrationPage({
                             <span className="ml-2 shrink-0 font-medium text-slate-500">{u.count} connexions</span>
                           </div>
                         ))}
+                      </div>
+                    ) : int.portalAppMatches && int.portalAppMatches.length > 0 ? (
+                      <div className="mt-2 space-y-1.5 text-xs">
+                        {int.portalAppMatches[0].lastActivityAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700">Dernière activité</span>
+                            <span className="ml-2 shrink-0 font-medium text-slate-500">
+                              {new Date(int.portalAppMatches[0].lastActivityAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        )}
+                        {int.portalAppMatches[0].installedAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700">Installée le</span>
+                            <span className="ml-2 shrink-0 font-medium text-slate-500">
+                              {new Date(int.portalAppMatches[0].installedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        )}
+                        {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0) > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700">Appels API récents</span>
+                            <span className="ml-2 shrink-0 font-medium text-slate-500">
+                              {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0).toLocaleString("fr-FR")}
+                            </span>
+                          </div>
+                        )}
+                        {!int.portalAppMatches[0].lastActivityAt && !int.portalAppMatches[0].installedAt && int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0) === 0 && (
+                          <p className="text-slate-400">App détectée comme connectée à HubSpot.</p>
+                        )}
                       </div>
                     ) : (
                       <p className="mt-2 text-xs text-slate-400">Aucun utilisateur identifié</p>
