@@ -99,7 +99,7 @@ export default async function DonneesPage() {
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Data Quality" score={dataScore} colorClass="stroke-emerald-500" />
+        <ProgressScore label="Score Data Quality" score={dataScore} />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{dataScore}</span>

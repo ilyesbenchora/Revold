@@ -192,9 +192,7 @@ export default async function DashboardOverviewPage() {
       {/* Scorecard Global */}
       {k && (
         <div className="card flex items-center gap-6 p-6">
-          <ProgressScore label="Score global" score={globalScore} colorClass={
-            getStrokeColor(globalScore)
-          } />
+          <ProgressScore label="Score global" score={globalScore} />
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-3">
               <span className="text-3xl font-bold text-slate-900">{globalScore}</span>

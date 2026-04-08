@@ -114,7 +114,7 @@ export default async function ConduiteChangementPage() {
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Adoption" score={adoptionScore} colorClass="stroke-emerald-500" />
+        <ProgressScore label="Score Adoption" score={adoptionScore} />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{adoptionScore}</span>

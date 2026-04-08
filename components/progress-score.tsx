@@ -1,7 +1,9 @@
+import { getStrokeColor } from "@/lib/score-utils";
+
 type ProgressScoreProps = {
   label: string;
   score: number;
-  colorClass: string;
+  colorClass?: string;
 };
 
 export function ProgressScore({ label, score, colorClass }: ProgressScoreProps) {
@@ -9,6 +11,7 @@ export function ProgressScore({ label, score, colorClass }: ProgressScoreProps) 
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (clampedScore / 100) * circumference;
+  const stroke = colorClass ?? getStrokeColor(clampedScore);
 
   return (
     <div className="card p-5">
@@ -25,7 +28,7 @@ export function ProgressScore({ label, score, colorClass }: ProgressScoreProps) 
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            className={colorClass}
+            className={stroke}
           />
         </svg>
         <span className="absolute text-xl font-semibold text-slate-900">{clampedScore}/100</span>

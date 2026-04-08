@@ -107,7 +107,7 @@ export default async function PerformanceMarketingPage() {
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Marketing" score={marketingScore} colorClass="stroke-amber-500" />
+        <ProgressScore label="Score Marketing" score={marketingScore} />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{marketingScore}</span>

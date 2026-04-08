@@ -88,7 +88,7 @@ export default async function PerformanceCommercialePage() {
       </header>
 
       <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Commercial" score={salesScore} colorClass="stroke-blue-500" />
+        <ProgressScore label="Score Commercial" score={salesScore} />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-slate-900">{salesScore}</span>
