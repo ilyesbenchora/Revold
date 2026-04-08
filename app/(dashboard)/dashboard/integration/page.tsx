@@ -75,11 +75,18 @@ export default async function IntegrationPage({
 
   const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
 
-  // Filter out non-business apps from the "Applications connectées à HubSpot" block.
-  // Outlook / Gmail / exports are noise for a CRO/RevOps view — they're system
-  // tools, not metier integrations like LinkedIn, Pandadoc, Kaspr, Aircall...
-  const NOISE_INTEGRATION_KEYS = new Set(["outlook", "gmail"]);
-  const NOISE_LABEL = /(outlook|gmail|export\s*contact|export\s*csv|imports?|migration)/i;
+  // Filter the "Applications connectées à HubSpot" block to ONLY show real
+  // RevOps business tools : facturation, devis, prospection, comptable,
+  // enrichissement, automatisation. Email/chat/visio/support sont exclus.
+  const NOISE_INTEGRATION_KEYS = new Set([
+    // Email & messagerie
+    "outlook", "gmail", "slack",
+    // Visio & meeting scheduling
+    "zoom", "calendly",
+    // Service client / chat
+    "intercom", "zendesk", "crisp", "freshdesk",
+  ]);
+  const NOISE_LABEL = /(outlook|gmail|slack|zoom|calendly|intercom|zendesk|crisp|freshdesk|export\s*contact|export\s*csv|imports?|migration|google\s*calendar|teams|whatsapp|messenger)/i;
   const businessIntegrations = detectedIntegrations.filter(
     (i) => !NOISE_INTEGRATION_KEYS.has(i.key) && !NOISE_LABEL.test(i.label),
   );
