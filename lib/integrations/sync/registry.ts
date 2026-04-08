@@ -12,27 +12,37 @@
 import type { SourceConnector } from "./types";
 import { stripeConnector } from "./connectors/stripe";
 import { pipedriveConnector } from "./connectors/pipedrive";
-import { makeStubConnector } from "./connectors/stub";
+import { intercomConnector } from "./connectors/intercom";
+import { zendeskConnector } from "./connectors/zendesk";
+import { freshdeskConnector } from "./connectors/freshdesk";
+import { crispConnector } from "./connectors/crisp";
+import { salesforceConnector } from "./connectors/salesforce";
+import { zohoConnector } from "./connectors/zoho";
+import { mondayConnector } from "./connectors/monday";
+import { pennylaneConnector } from "./connectors/pennylane";
+import { sellsyConnector } from "./connectors/sellsy";
+import { axonautConnector } from "./connectors/axonaut";
+import { quickbooksConnector } from "./connectors/quickbooks";
 
 export const SYNC_REGISTRY: Record<string, SourceConnector> = {
-  // ── Billing ────────────────────────────────────────────────────
+  // ── Billing & ERP ──────────────────────────────────────────────
   stripe: stripeConnector,
-  pennylane: makeStubConnector("Pennylane"),
-  sellsy: makeStubConnector("Sellsy"),
-  axonaut: makeStubConnector("Axonaut"),
-  quickbooks: makeStubConnector("QuickBooks"),
+  pennylane: pennylaneConnector,
+  sellsy: sellsyConnector,
+  axonaut: axonautConnector,
+  quickbooks: quickbooksConnector,
 
   // ── CRM ────────────────────────────────────────────────────────
-  salesforce: makeStubConnector("Salesforce"),
+  salesforce: salesforceConnector,
   pipedrive: pipedriveConnector,
-  zoho: makeStubConnector("Zoho CRM"),
-  monday: makeStubConnector("monday CRM"),
+  zoho: zohoConnector,
+  monday: mondayConnector,
 
   // ── Service client ─────────────────────────────────────────────
-  intercom: makeStubConnector("Intercom"),
-  zendesk: makeStubConnector("Zendesk"),
-  crisp: makeStubConnector("Crisp"),
-  freshdesk: makeStubConnector("Freshdesk"),
+  intercom: intercomConnector,
+  zendesk: zendeskConnector,
+  crisp: crispConnector,
+  freshdesk: freshdeskConnector,
 };
 
 export function getConnector(provider: string): SourceConnector | null {
