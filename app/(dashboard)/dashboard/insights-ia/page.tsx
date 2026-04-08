@@ -65,7 +65,7 @@ export default async function InsightsPage() {
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("industry", null),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("annual_revenue", null),
-    supabase.from("insight_dismissals").select("template_key, status").eq("organization_id", orgId),
+    supabase.from("insight_dismissals").select("*").eq("organization_id", orgId),
   ]);
 
   // ── Fetch workflows for automation insights ──
@@ -141,9 +141,10 @@ export default async function InsightsPage() {
     companiesNoRevenue: companiesNoRevenue ?? 0,
   };
 
-  const allDismissed = (dismissals ?? []) as Array<{ template_key: string; status: string }>;
+  const allDismissed = (dismissals ?? []) as Array<{ template_key: string; status?: string }>;
   const dismissedKeys = new Set(allDismissed.map((d) => d.template_key));
-  const doneCount = allDismissed.filter((d) => d.status === "done").length;
+  // If status column doesn't exist, treat all as "done" for backward compat
+  const doneCount = allDismissed.filter((d) => !d.status || d.status === "done").length;
   const removedCount = allDismissed.filter((d) => d.status === "removed").length;
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
   const totalShown = insightsByCategory.commercial.length + insightsByCategory.marketing.length + insightsByCategory.data.length;

@@ -14,12 +14,13 @@ export default async function InsightsRealiseesPage() {
   const supabase = await createSupabaseServerClient();
   const ctx = await buildContext(supabase, orgId);
 
-  const { data: dismissals } = await supabase
+  // Fetch all dismissals, then filter — robust to missing status column
+  const { data: rawDismissals } = await supabase
     .from("insight_dismissals")
-    .select("template_key, status, dismissed_at")
+    .select("*")
     .eq("organization_id", orgId)
-    .eq("status", "done")
     .order("dismissed_at", { ascending: false });
+  const dismissals = (rawDismissals ?? []).filter((d: { status?: string }) => !d.status || d.status === "done");
 
   const insights = buildDismissedInsights(ctx, (dismissals ?? []) as Array<{ template_key: string; status: string; dismissed_at: string }>);
 

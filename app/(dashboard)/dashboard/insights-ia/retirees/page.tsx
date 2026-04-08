@@ -14,12 +14,12 @@ export default async function InsightsRetireesPage() {
   const supabase = await createSupabaseServerClient();
   const ctx = await buildContext(supabase, orgId);
 
-  const { data: dismissals } = await supabase
+  const { data: rawDismissals } = await supabase
     .from("insight_dismissals")
-    .select("template_key, status, dismissed_at")
+    .select("*")
     .eq("organization_id", orgId)
-    .eq("status", "removed")
     .order("dismissed_at", { ascending: false });
+  const dismissals = (rawDismissals ?? []).filter((d: { status?: string }) => d.status === "removed");
 
   const insights = buildDismissedInsights(ctx, (dismissals ?? []) as Array<{ template_key: string; status: string; dismissed_at: string }>);
 
