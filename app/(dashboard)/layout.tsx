@@ -52,7 +52,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       <DashboardHeader companyName={orgName} globalScore={globalScore} integrationScore={integrationScore} />
       <div className="mx-auto flex w-full max-w-[1400px]">
         <DashboardSidebar />
-        <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>
   );

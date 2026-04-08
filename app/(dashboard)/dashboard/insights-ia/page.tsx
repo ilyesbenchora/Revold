@@ -268,6 +268,7 @@ export default async function InsightsPage() {
           openDeals={open}
           contacts={tContacts}
           leads={leadsCount}
+          dismissedKeys={dismissedKeys}
         />
       </div>
 
