@@ -318,7 +318,6 @@ export default async function IntegrationPage({
                       <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={32} />
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-slate-900 group-hover:text-indigo-700">{tool.label}</p>
-                        <p className="truncate text-xs text-slate-500">{tool.description}</p>
                       </div>
                       <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white opacity-0 transition group-hover:opacity-100">
                         Connecter
