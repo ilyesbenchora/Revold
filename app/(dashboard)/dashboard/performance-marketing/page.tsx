@@ -26,34 +26,62 @@ export default async function PerformanceMarketingPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  // Fetch contact sources from HubSpot Search API
+  // Helper: count contacts by HubSpot search filter (real global count, no sample)
+  async function countContactsBy(filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> {
+    if (!process.env.HUBSPOT_ACCESS_TOKEN) return 0;
+    try {
+      const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
+      });
+      if (!res.ok) return 0;
+      const data = await res.json();
+      return data.total ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  // Fetch contact sources globally via Search API
   let contactSourcesGlobal: Array<{ source: string; count: number }> = [];
+  // Fetch tracking stats globally (no sample)
+  let onlineContactsTotal = 0;
+  let offlineContactsTotal = 0;
+  let withPageViewsTotal = 0;
+  let withSessionsTotal = 0;
+  let withFormsTotal = 0;
+  let withMarketingEmailsTotal = 0;
+
   if (process.env.HUBSPOT_ACCESS_TOKEN) {
     const sourcesToCheck = ["INTEGRATION", "EMAIL_INTEGRATION", "IMPORT", "CRM_UI", "FORM", "API", "MOBILE_IOS", "INTERNAL_PROCESSING", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
-    try {
-      const counts = await Promise.all(sourcesToCheck.map(async (src) => {
-        const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/search`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filterGroups: [{ filters: [{ propertyName: "hs_object_source", operator: "EQ", value: src }] }],
-            limit: 1,
-          }),
-        });
-        if (!res.ok) return { source: src, count: 0 };
-        const data = await res.json();
-        return { source: src, count: data.total ?? 0 };
-      }));
-      contactSourcesGlobal = counts.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
-    } catch {
-      // Fail silently
-    }
+    const onlineSources = ["ORGANIC_SEARCH", "PAID_SEARCH", "PAID_SOCIAL", "SOCIAL_MEDIA", "EMAIL_MARKETING", "REFERRALS", "DIRECT_TRAFFIC"];
+
+    const [sourceCounts, onlineCounts, pageViews, sessions, forms, emails] = await Promise.all([
+      Promise.all(sourcesToCheck.map(async (src) => ({
+        source: src,
+        count: await countContactsBy([{ propertyName: "hs_object_source", operator: "EQ", value: src }]),
+      }))),
+      Promise.all(onlineSources.map((s) => countContactsBy([{ propertyName: "hs_analytics_source", operator: "EQ", value: s }]))),
+      countContactsBy([{ propertyName: "hs_analytics_num_page_views", operator: "GT", value: "0" }]),
+      countContactsBy([{ propertyName: "hs_analytics_num_visits", operator: "GT", value: "0" }]),
+      countContactsBy([{ propertyName: "num_conversion_events", operator: "GT", value: "0" }]),
+      countContactsBy([{ propertyName: "hs_email_first_send_date", operator: "HAS_PROPERTY" }]),
+    ]);
+
+    contactSourcesGlobal = sourceCounts.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
+    onlineContactsTotal = onlineCounts.reduce((s, n) => s + n, 0);
+    withPageViewsTotal = pageViews;
+    withSessionsTotal = sessions;
+    withFormsTotal = forms;
+    withMarketingEmailsTotal = emails;
   }
 
   const totalSourceContacts = contactSourcesGlobal.reduce((s, c) => s + c.count, 0);
   const nativeIntegrations = contactSourcesGlobal.filter((s) => nativeKeys.includes(s.source));
   const totalNative = nativeIntegrations.reduce((s, i) => s + i.count, 0);
   const nativeShare = totalSourceContacts > 0 ? Math.round((totalNative / totalSourceContacts) * 100) : 0;
+  offlineContactsTotal = Math.max(0, totalSourceContacts - onlineContactsTotal);
 
   const [
     { count: totalContacts },
@@ -173,6 +201,42 @@ export default async function PerformanceMarketingPage() {
           </article>
         </div>
       </div>
+
+      {/* Adoption digitale */}
+      {totalSourceContacts > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
+            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts analysés</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Source online</p>
+              <p className={`mt-1 text-2xl font-bold ${onlineContactsTotal > 0 ? "text-emerald-600" : "text-red-500"}`}>{onlineContactsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Source offline</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{offlineContactsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Pages vues</p>
+              <p className={`mt-1 text-2xl font-bold ${withPageViewsTotal > 0 ? "text-slate-900" : "text-red-500"}`}>{withPageViewsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Sessions web</p>
+              <p className={`mt-1 text-2xl font-bold ${withSessionsTotal > 0 ? "text-slate-900" : "text-red-500"}`}>{withSessionsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Soumissions formulaire</p>
+              <p className={`mt-1 text-2xl font-bold ${withFormsTotal > 0 ? "text-slate-900" : "text-red-500"}`}>{withFormsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-4 text-center">
+              <p className="text-xs text-slate-500">Email marketing reçu</p>
+              <p className={`mt-1 text-2xl font-bold ${withMarketingEmailsTotal > 0 ? "text-slate-900" : "text-red-500"}`}>{withMarketingEmailsTotal.toLocaleString("fr-FR")}</p>
+            </article>
+          </div>
+        </div>
+      )}
 
       {/* Intégrations natives utilisées */}
       {nativeIntegrations.length > 0 && (

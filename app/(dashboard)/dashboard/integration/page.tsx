@@ -25,13 +25,6 @@ export default async function IntegrationPage() {
   let teamDistribution: Record<string, number> = {};
   let contactSourcesGlobal: Array<{ source: string; count: number }> = [];
   let dealsPerOwner: Record<string, number> = {};
-  let trackingSample = 0;
-  let onlineContacts = 0;
-  let offlineContacts = 0;
-  let withPageViews = 0;
-  let withSessions = 0;
-  let withFormSubmissions = 0;
-  let withMarketingEmails = 0;
 
   // Helper to count records by source via Search API
   async function countBySource(object: "contacts", source: string): Promise<number> {
@@ -107,25 +100,6 @@ export default async function IntegrationPage() {
         });
       }
 
-      // Contact tracking data (sample 100)
-      const trackingRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=hs_analytics_source,hs_analytics_num_page_views,hs_analytics_num_visits,num_conversion_events,hs_email_first_send_date`,
-        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
-      );
-      if (trackingRes.ok) {
-        const trackingData = await trackingRes.json();
-        (trackingData.results ?? []).forEach((c: Record<string, unknown>) => {
-          const p = c.properties as Record<string, string | null>;
-          trackingSample++;
-          const src = p.hs_analytics_source || "";
-          if (["ORGANIC_SEARCH", "PAID_SEARCH", "PAID_SOCIAL", "SOCIAL_MEDIA", "EMAIL_MARKETING", "REFERRALS", "DIRECT_TRAFFIC"].includes(src)) onlineContacts++;
-          else offlineContacts++;
-          if (Number(p.hs_analytics_num_page_views) > 0) withPageViews++;
-          if (Number(p.hs_analytics_num_visits) > 0) withSessions++;
-          if (Number(p.num_conversion_events) > 0) withFormSubmissions++;
-          if (p.hs_email_first_send_date) withMarketingEmails++;
-        });
-      }
     } catch {
       // Silently fail — page still renders with DB data
     }
@@ -216,42 +190,6 @@ export default async function IntegrationPage() {
           <p className="mt-1 text-3xl font-bold text-slate-900">{((totalContacts ?? 0) + (totalCompanies ?? 0) + (totalDeals ?? 0)).toLocaleString("fr-FR")}</p>
         </article>
       </div>
-
-      {/* Tracking et adoption digitale */}
-      {trackingSample > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
-            <span className="text-sm font-normal text-slate-400">(échantillon de {trackingSample} contacts)</span>
-          </h2>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Source online</p>
-              <p className={`mt-1 text-2xl font-bold ${onlineContacts > 0 ? "text-emerald-600" : "text-red-500"}`}>{onlineContacts}</p>
-            </article>
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Source offline</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{offlineContacts}</p>
-            </article>
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Pages vues</p>
-              <p className={`mt-1 text-2xl font-bold ${withPageViews > 0 ? "text-slate-900" : "text-red-500"}`}>{withPageViews}</p>
-            </article>
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Sessions web</p>
-              <p className={`mt-1 text-2xl font-bold ${withSessions > 0 ? "text-slate-900" : "text-red-500"}`}>{withSessions}</p>
-            </article>
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Soumissions formulaire</p>
-              <p className={`mt-1 text-2xl font-bold ${withFormSubmissions > 0 ? "text-slate-900" : "text-red-500"}`}>{withFormSubmissions}</p>
-            </article>
-            <article className="card p-4 text-center">
-              <p className="text-xs text-slate-500">Email marketing reçu</p>
-              <p className={`mt-1 text-2xl font-bold ${withMarketingEmails > 0 ? "text-slate-900" : "text-red-500"}`}>{withMarketingEmails}</p>
-            </article>
-          </div>
-        </div>
-      )}
 
       {/* Sync logs */}
       {syncLogs && syncLogs.length > 0 && (
