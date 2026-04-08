@@ -56,7 +56,10 @@ export default async function IntegrationPage() {
   const avgEnrichmentRate = detectedIntegrations.length > 0
     ? Math.round(detectedIntegrations.reduce((s, i) => s + i.enrichmentRate, 0) / detectedIntegrations.length)
     : 0;
-  const wellEnriched = detectedIntegrations.filter((i) => i.enrichmentRate >= 30).length;
+  // Distinct users across all integrations
+  const allActiveUsers = new Set<string>();
+  detectedIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
+  const totalActiveUsers = allActiveUsers.size;
 
   // Score Intégration
   const integrationScore = hubspotTokenConfigured
@@ -125,9 +128,9 @@ export default async function IntegrationPage() {
           <p className="mt-1 text-xs text-slate-400">Données effectivement remplies</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Outils bien exploités</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-600">{wellEnriched}</p>
-          <p className="mt-1 text-xs text-slate-400">Enrichissement &gt; 30%</p>
+          <p className="text-xs text-slate-500">Utilisateurs actifs</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-600">{totalActiveUsers}</p>
+          <p className="mt-1 text-xs text-slate-400">Au moins 1 outil utilisé</p>
         </article>
       </div>
 
@@ -146,7 +149,7 @@ export default async function IntegrationPage() {
           </p>
           <div className="space-y-3">
             {detectedIntegrations.map((int) => (
-              <article key={int.groupName} className="card p-5">
+              <article key={int.key} className="card p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{int.icon}</span>
@@ -181,22 +184,48 @@ export default async function IntegrationPage() {
                   </div>
                 </div>
 
-                {/* Top properties */}
-                {int.topProperties.length > 0 && (
-                  <div className="mt-4 rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Propriétés synchronisées (échantillon)</p>
-                    <div className="mt-2 space-y-1.5">
-                      {int.topProperties.map((p) => (
-                        <div key={p.name} className="flex items-center justify-between text-xs">
-                          <span className="text-slate-700">{p.label}</span>
-                          <span className="font-medium text-slate-500">
-                            {p.enrichedCount.toLocaleString("fr-FR")} ({p.rate}%)
-                          </span>
-                        </div>
-                      ))}
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* Top properties */}
+                  {int.topProperties.length > 0 && (
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Propriétés synchronisées</p>
+                      <div className="mt-2 space-y-1.5">
+                        {int.topProperties.map((p) => (
+                          <div key={p.name} className="flex items-center justify-between text-xs">
+                            <span className="truncate text-slate-700">{p.label}</span>
+                            <span className="ml-2 shrink-0 font-medium text-slate-500">
+                              {p.enrichedCount.toLocaleString("fr-FR")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  )}
+
+                  {/* User adoption */}
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Adoption utilisateurs</p>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        int.distinctUsers >= 5 ? "bg-emerald-100 text-emerald-700" :
+                        int.distinctUsers >= 2 ? "bg-yellow-100 text-yellow-700" :
+                        "bg-orange-100 text-orange-700"
+                      }`}>{int.distinctUsers} util.</span>
+                    </div>
+                    {int.topUsers.length > 0 ? (
+                      <div className="mt-2 space-y-1.5">
+                        {int.topUsers.slice(0, 5).map((u) => (
+                          <div key={u.ownerId} className="flex items-center justify-between text-xs">
+                            <span className="truncate text-slate-700">{u.name}</span>
+                            <span className="ml-2 shrink-0 font-medium text-slate-500">{u.count} connexions</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">Aucun utilisateur identifié</p>
+                    )}
                   </div>
-                )}
+                </div>
               </article>
             ))}
           </div>
