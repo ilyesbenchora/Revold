@@ -20,11 +20,10 @@ export default async function IntegrationPage() {
   const supabase = await createSupabaseServerClient();
   const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
 
-  // Fetch owners directly from HubSpot API for live data
+  // Fetch live data from HubSpot API
   let owners: Array<{ email: string; firstName: string; lastName: string; teams: string[] }> = [];
   let teamDistribution: Record<string, number> = {};
-  let contactSourceDetail: Record<string, number> = {};
-  let dealSourceDetail: Record<string, number> = {};
+  let contactSourcesGlobal: Array<{ source: string; count: number }> = [];
   let dealsPerOwner: Record<string, number> = {};
   let trackingSample = 0;
   let onlineContacts = 0;
@@ -33,6 +32,39 @@ export default async function IntegrationPage() {
   let withSessions = 0;
   let withFormSubmissions = 0;
   let withMarketingEmails = 0;
+
+  // Helper to count records by source via Search API
+  async function countBySource(object: "contacts", source: string): Promise<number> {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${object}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filterGroups: [{ filters: [{ propertyName: "hs_object_source", operator: "EQ", value: source }] }],
+        limit: 1,
+      }),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.total ?? 0;
+  }
+
+  // Mapping for human-readable source names
+  const sourceLabels: Record<string, string> = {
+    INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
+    EMAIL_INTEGRATION: "Intégration Email (Gmail/Outlook)",
+    IMPORT: "Import de fichier (CSV/Excel)",
+    CRM_UI: "Création manuelle CRM",
+    FORM: "Formulaires HubSpot",
+    API: "API HubSpot",
+    MOBILE_IOS: "Application mobile iOS",
+    MOBILE_ANDROID: "Application mobile Android",
+    INTERNAL_PROCESSING: "Traitement interne HubSpot",
+    CRM_SETTING: "Paramètres CRM (auto-association)",
+    MARKETING_EMAIL: "Email marketing",
+    WORKFLOW: "Workflow HubSpot",
+    BATCH_UPDATE: "Mise à jour par batch",
+    CONTACTS_WEB: "Site web (tracking HubSpot)",
+  };
 
   if (hubspotTokenConfigured) {
     try {
@@ -54,33 +86,21 @@ export default async function IntegrationPage() {
         });
       }
 
-      // Contact sources (sample 100)
-      const contactRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=hs_object_source_label,hs_object_source_detail_1`,
-        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
-      );
-      if (contactRes.ok) {
-        const contactData = await contactRes.json();
-        (contactData.results ?? []).forEach((c: Record<string, unknown>) => {
-          const props = c.properties as Record<string, string | null>;
-          const src = props.hs_object_source_detail_1 || props.hs_object_source_label || "Autre";
-          contactSourceDetail[src] = (contactSourceDetail[src] || 0) + 1;
-        });
-      }
+      // Get TOTAL contacts count per source via Search API
+      const sourcesToCheck = ["INTEGRATION", "EMAIL_INTEGRATION", "IMPORT", "CRM_UI", "FORM", "API", "MOBILE_IOS", "MOBILE_ANDROID", "INTERNAL_PROCESSING", "CRM_SETTING", "MARKETING_EMAIL", "WORKFLOW", "BATCH_UPDATE", "CONTACTS_WEB"];
 
-      // Deal sources + owner assignment (sample 100)
+      const contactCounts = await Promise.all(
+        sourcesToCheck.map(async (src) => ({ source: src, count: await countBySource("contacts", src) })),
+      );
+      contactSourcesGlobal = contactCounts.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
+
+      // Deal owner assignment (sample 100)
       const dealRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/deals?limit=100&properties=hs_object_source_label,hs_object_source_detail_1,hubspot_owner_id`,
+        `https://api.hubapi.com/crm/v3/objects/deals?limit=100&properties=hubspot_owner_id`,
         { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
       );
       if (dealRes.ok) {
         const dealData = await dealRes.json();
-        (dealData.results ?? []).forEach((d: Record<string, unknown>) => {
-          const props = d.properties as Record<string, string | null>;
-          const src = props.hs_object_source_detail_1 || props.hs_object_source_label || "Autre";
-          dealSourceDetail[src] = (dealSourceDetail[src] || 0) + 1;
-        });
-        // Count deals per owner
         (dealData.results ?? []).forEach((d: Record<string, unknown>) => {
           const ownerId = (d.properties as Record<string, string | null>).hubspot_owner_id;
           dealsPerOwner[ownerId || "(non assigné)"] = (dealsPerOwner[ownerId || "(non assigné)"] || 0) + 1;
@@ -127,17 +147,20 @@ export default async function IntegrationPage() {
   ]);
 
   const activeIntegrations = (integrations ?? []).filter((i) => i.is_active);
-  const sortedContactSources = Object.entries(contactSourceDetail).sort((a, b) => b[1] - a[1]);
-  const sortedDealSources = Object.entries(dealSourceDetail).sort((a, b) => b[1] - a[1]);
   const sortedTeams = Object.entries(teamDistribution).sort((a, b) => b[1] - a[1]);
-  const totalSourceContacts = sortedContactSources.reduce((s, [, v]) => s + v, 0);
-  const totalSourceDeals = sortedDealSources.reduce((s, [, v]) => s + v, 0);
+  const totalSourceContacts = contactSourcesGlobal.reduce((s, c) => s + c.count, 0);
+
+  // Native integrations: INTEGRATION, EMAIL_INTEGRATION, FORM, MARKETING_EMAIL, WORKFLOW, CONTACTS_WEB
+  const nativeKeys = ["INTEGRATION", "EMAIL_INTEGRATION", "FORM", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
+  const nativeIntegrations = contactSourcesGlobal.filter((s) => nativeKeys.includes(s.source));
+  const totalNative = nativeIntegrations.reduce((s, i) => s + i.count, 0);
+  const nativeShare = totalSourceContacts > 0 ? Math.round((totalNative / totalSourceContacts) * 100) : 0;
 
   const integrationScore = hubspotTokenConfigured
     ? Math.round(
-        (activeIntegrations.length > 0 ? 40 : 0) +
-        (owners.length > 10 ? 30 : owners.length > 5 ? 20 : 10) +
-        (sortedContactSources.length > 1 ? 30 : sortedContactSources.length === 1 ? 15 : 0)
+        Math.min(50, nativeShare * 0.5) +
+        (owners.length > 10 ? 25 : owners.length > 5 ? 15 : 5) +
+        (nativeIntegrations.length > 1 ? 25 : nativeIntegrations.length === 1 ? 15 : 0)
       )
     : 0;
 
@@ -175,10 +198,10 @@ export default async function IntegrationPage() {
       )}
 
       {/* Vue d'ensemble */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Intégrations actives</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-600">{activeIntegrations.length}</p>
+          <p className="text-xs text-slate-500">Intégrations natives</p>
+          <p className="mt-1 text-3xl font-bold text-violet-600">{nativeIntegrations.length}</p>
         </article>
         <article className="card p-5 text-center">
           <p className="text-xs text-slate-500">Utilisateurs CRM</p>
@@ -189,8 +212,13 @@ export default async function IntegrationPage() {
           <p className="mt-1 text-3xl font-bold text-slate-900">{Object.keys(teamDistribution).filter((k) => k !== "Sans équipe").length}</p>
         </article>
         <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Données synchronisées</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{((totalContacts ?? 0) + (totalCompanies ?? 0) + (totalDeals ?? 0)).toLocaleString("fr-FR")}</p>
+          <p className="text-xs text-slate-500">Contacts via intégrations</p>
+          <p className="mt-1 text-3xl font-bold text-slate-900">{totalNative.toLocaleString("fr-FR")}</p>
+          <p className="mt-1 text-xs text-slate-400">{nativeShare}% du total</p>
+        </article>
+        <article className="card p-5 text-center">
+          <p className="text-xs text-slate-500">Total contacts</p>
+          <p className="mt-1 text-3xl font-bold text-slate-900">{(totalContacts ?? 0).toLocaleString("fr-FR")}</p>
         </article>
       </div>
 
@@ -212,28 +240,32 @@ export default async function IntegrationPage() {
         </div>
       )}
 
-      {/* Sources d'acquisition des contacts */}
-      {sortedContactSources.length > 0 && (
+      {/* Intégrations natives — volume de contacts remontés */}
+      {nativeIntegrations.length > 0 && (
         <div className="space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Sources d&apos;acquisition des contacts
-            <span className="text-sm font-normal text-slate-400">(échantillon de {totalSourceContacts})</span>
+            <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
+            <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
           </h2>
+          <p className="text-sm text-slate-500">Contacts créés via des intégrations connectées au portail HubSpot.</p>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
-              {sortedContactSources.map(([source, count]) => {
-                const pct = totalSourceContacts > 0 ? Math.round((count / totalSourceContacts) * 100) : 0;
+              {nativeIntegrations.map((s) => {
+                const pct = totalNative > 0 ? Math.round((s.count / totalNative) * 100) : 0;
                 return (
-                  <div key={source} className="px-5 py-3">
+                  <div key={s.source} className="px-5 py-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-800">{source}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">{count}</span>
-                        <span className="text-xs text-slate-400">{pct}%</span>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
+                        <p className="text-xs text-slate-400">{s.source}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</p>
+                        <p className="text-xs text-slate-400">{pct}% des intégrations natives</p>
                       </div>
                     </div>
                     <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-                      <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                      <div className="h-1.5 rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
@@ -243,28 +275,32 @@ export default async function IntegrationPage() {
         </div>
       )}
 
-      {/* Sources d'acquisition des deals */}
-      {sortedDealSources.length > 0 && (
+      {/* Toutes les sources de contacts */}
+      {contactSourcesGlobal.length > 0 && (
         <div className="space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />Sources de création des transactions
-            <span className="text-sm font-normal text-slate-400">(échantillon de {totalSourceDeals})</span>
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources de contacts
+            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
           </h2>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
-              {sortedDealSources.map(([source, count]) => {
-                const pct = totalSourceDeals > 0 ? Math.round((count / totalSourceDeals) * 100) : 0;
+              {contactSourcesGlobal.map((s) => {
+                const pct = totalSourceContacts > 0 ? Math.round((s.count / totalSourceContacts) * 100) : 0;
+                const isNative = nativeKeys.includes(s.source);
                 return (
-                  <div key={source} className="px-5 py-3">
+                  <div key={s.source} className="px-5 py-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-800">{source}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">{count}</span>
+                        <p className="text-sm font-medium text-slate-800">{sourceLabels[s.source] ?? s.source}</p>
+                        {isNative && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">Native</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">{s.count.toLocaleString("fr-FR")}</span>
                         <span className="text-xs text-slate-400">{pct}%</span>
                       </div>
                     </div>
                     <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-                      <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                      <div className={`h-1.5 rounded-full ${isNative ? "bg-violet-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
