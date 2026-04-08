@@ -11,6 +11,8 @@
  *  - User adoption (distinct owners using it + top users)
  */
 
+import { detectWorkflowIntegrations, type WorkflowIntegrationHit } from "./detect-workflow-integrations";
+
 const HS_API = "https://api.hubapi.com";
 
 // Curated whitelist of business tools that matter for RevOps/CRO
@@ -234,7 +236,9 @@ export type DetectedIntegration = {
   distinctUsers: number;
   topUsers: Array<{ ownerId: string; name: string; count: number }>;
   // Detection method (used for explanation in UI)
-  detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app">;
+  detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook">;
+  // Number of HubSpot workflows that include a webhook for this integration
+  workflowWebhookCount?: number;
   // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
   sourceLabels?: string[];
   // Portal apps matched (name + privacy + API usage) when detected via /account-info
@@ -488,7 +492,49 @@ export async function detectIntegrations(
     fetchEngagementSources(token, "tasks"),
   ]);
 
+  // Workflow webhook scan — runs in parallel-ish, catches Zapier/Make/n8n etc.
+  const workflowHits: WorkflowIntegrationHit[] = await detectWorkflowIntegrations(token);
+  const workflowHitsByKey = new Map(workflowHits.map((h) => [h.key, h]));
+
   const allGroups: RawPropertyGroup[] = [...contactGroups, ...companyGroups, ...dealGroups];
+
+  // ── Targeted source-detail search for known business apps ─────────────
+  // For each app in the catalogue, run a precise search for records whose
+  // hs_object_source_detail_1 contains the app name. This catches Zapier,
+  // Make, n8n, Brevo and other automation tools that don't install custom
+  // property groups but DO tag the records they create.
+  const targetedSourceMatches = new Map<string, { count: number; objectTypes: Set<string> }>();
+  const TARGETED_SEARCH_NAMES = ["zapier", "make.com", "integromat", "n8n", "brevo", "mailchimp", "activecampaign"];
+  for (const needle of TARGETED_SEARCH_NAMES) {
+    for (const objectType of ["contacts", "companies", "deals"]) {
+      try {
+        const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{
+              filters: [{
+                propertyName: "hs_object_source_detail_1",
+                operator: "CONTAINS_TOKEN",
+                value: needle,
+              }],
+            }],
+            properties: ["hs_object_source_detail_1"],
+            limit: 1,
+          }),
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const total = data.total ?? 0;
+        if (total > 0) {
+          const existing = targetedSourceMatches.get(needle) ?? { count: 0, objectTypes: new Set<string>() };
+          existing.count += total;
+          existing.objectTypes.add(objectType);
+          targetedSourceMatches.set(needle, existing);
+        }
+      } catch {}
+    }
+  }
 
   // Build owner_id → name map
   const ownerNames = new Map<string, string>();
@@ -574,11 +620,21 @@ export async function detectIntegrations(
     );
     matchedPortalApps.forEach((app) => claimedPortalApps.add(app.name));
 
+    // 5. Match against targeted source detail searches (Zapier, Make, etc.)
+    const matchedTargeted = Array.from(targetedSourceMatches.entries()).filter(([needle]) =>
+      def.patterns.some((p) => p.test(needle)),
+    );
+
+    // 6. Match against workflow webhook signatures (Zapier/Make/n8n/Pabbly/...)
+    const matchedWorkflowHit = workflowHitsByKey.get(def.key);
+
     if (
       matched.length === 0 &&
       matchedGroups.length === 0 &&
       matchedSources.length === 0 &&
-      matchedPortalApps.length === 0
+      matchedPortalApps.length === 0 &&
+      matchedTargeted.length === 0 &&
+      !matchedWorkflowHit
     ) continue;
 
     // Choose top 3 sample properties to compute enrichment
@@ -601,7 +657,12 @@ export async function detectIntegrations(
 
     // Total volume coming from source signals (records created by this integration)
     const sourceTotalCount = matchedSources.reduce((s, [, d]) => s + d.count, 0);
-    const maxEnriched = Math.max(...enrichmentResults.map((r) => r.enrichedCount), 0);
+    const targetedTotalCount = matchedTargeted.reduce((s, [, d]) => s + d.count, 0);
+    const maxEnriched = Math.max(
+      ...enrichmentResults.map((r) => r.enrichedCount),
+      targetedTotalCount,
+      0,
+    );
     // We DO NOT skip when data is empty: the existence of installed properties
     // (matched.length > 0) is itself a reliable proof that the app is connected,
     // even if no record uses those properties yet.
@@ -632,16 +693,20 @@ export async function detectIntegrations(
 
     const objectTypesFromProps = matched.map((m) => m.objectType);
     const objectTypesFromSources = matchedSources.flatMap(([, d]) => Array.from(d.objectTypes));
-    const objectTypes = Array.from(new Set([...objectTypesFromProps, ...objectTypesFromSources]));
+    const objectTypesFromTargeted = matchedTargeted.flatMap(([, d]) => Array.from(d.objectTypes));
+    const objectTypes = Array.from(
+      new Set([...objectTypesFromProps, ...objectTypesFromSources, ...objectTypesFromTargeted]),
+    );
     const dominantObject = primary?.objectType || objectTypes[0] || "contacts";
     const total = totalsByObject[dominantObject] || 1;
 
     // For source-only integrations (no properties), use source volume as the metric.
     const effectiveEnriched = Math.max(maxEnriched, sourceTotalCount);
 
-    const detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app"> = [];
+    const detectionMethods: Array<"property_group" | "properties" | "source_detail" | "engagements" | "portal_app" | "workflow_webhook"> = [];
     if (matchedGroups.length > 0) detectionMethods.push("property_group");
     if (matched.length > 0) detectionMethods.push("properties");
+    if (matchedWorkflowHit) detectionMethods.push("workflow_webhook");
     if (matchedSources.some(([, d]) =>
       Array.from(d.objectTypes).some((o) => ["contacts", "companies", "deals"].includes(o)),
     )) detectionMethods.push("source_detail");
@@ -666,6 +731,7 @@ export async function detectIntegrations(
       detectionMethods,
       sourceLabels: matchedSources.map(([label]) => label),
       portalAppMatches: matchedPortalApps,
+      workflowWebhookCount: matchedWorkflowHit?.workflowsCount,
     });
   }
 
