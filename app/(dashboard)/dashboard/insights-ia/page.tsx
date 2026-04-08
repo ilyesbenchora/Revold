@@ -1,8 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { AlertButton } from "@/components/alert-button";
 import { AutomationInsights } from "@/components/automation-insights";
 import { InsightCard } from "@/components/insight-card";
+import { InsightTabs } from "@/components/insight-tabs";
+import { ScenarioCarousel } from "@/components/scenario-carousel";
 import { selectInsights, type InsightContext } from "@/lib/ai/insights-library";
 
 const HUBSPOT_PORTAL = "48372600";
@@ -64,7 +65,7 @@ export default async function InsightsPage() {
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("industry", null),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("annual_revenue", null),
-    supabase.from("insight_dismissals").select("template_key").eq("organization_id", orgId),
+    supabase.from("insight_dismissals").select("template_key, status").eq("organization_id", orgId),
   ]);
 
   // ── Fetch workflows for automation insights ──
@@ -140,39 +141,70 @@ export default async function InsightsPage() {
     companiesNoRevenue: companiesNoRevenue ?? 0,
   };
 
-  const dismissedKeys = new Set((dismissals ?? []).map((d) => d.template_key));
+  const allDismissed = (dismissals ?? []) as Array<{ template_key: string; status: string }>;
+  const dismissedKeys = new Set(allDismissed.map((d) => d.template_key));
+  const doneCount = allDismissed.filter((d) => d.status === "done").length;
+  const removedCount = allDismissed.filter((d) => d.status === "removed").length;
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
   const totalShown = insightsByCategory.commercial.length + insightsByCategory.marketing.length + insightsByCategory.data.length;
 
-  // ── Scenarios ──
+  // ── Scenarios (8 scenarios in carousel) ──
   const scenarios = [
     {
-      title: `Si le taux de closing passe de ${closingRate}% à ${Math.min(100, closingRate + 15)}%`,
-      description: `Actuellement ${won} transactions gagnées sur ${won + lost} clôturées. Améliorer la qualification et le suivi des deals en cours.`,
-      impact: `+${Math.min(100, closingRate + 15) - closingRate} points de closing, potentiellement ${Math.round(won * 0.15)} transactions supplémentaires`,
+      title: `Closing rate : ${closingRate}% → ${Math.min(100, closingRate + 15)}%`,
+      description: `Actuellement ${won} transactions gagnées sur ${won + lost} clôturées. Améliorer la qualification.`,
+      impact: `+${Math.min(100, closingRate + 15) - closingRate} pts, ~${Math.round(won * 0.5)} deals supplémentaires`,
       category: "sales",
       color: "border-blue-200 bg-blue-50",
     },
     {
-      title: `Réduire les transactions sans activité planifiée de ${dealsNoNextActivity ?? 0} à ${Math.round((dealsNoNextActivity ?? 0) * 0.3)}`,
-      description: `${dealsNoNextActivity ?? 0} transactions en cours n'ont aucune prochaine activité. Chaque deal devrait avoir un prochain RDV.`,
-      impact: `Taux de suivi de ${tDeals > 0 ? Math.round(((tDeals - (dealsNoNextActivity ?? 0)) / tDeals) * 100) : 0}% à ${tDeals > 0 ? Math.round(((tDeals - Math.round((dealsNoNextActivity ?? 0) * 0.3)) / tDeals) * 100) : 0}%`,
+      title: `Suivi pipeline : ${tDeals > 0 ? Math.round(((tDeals - (dealsNoNextActivity ?? 0)) / tDeals) * 100) : 0}% → 80%`,
+      description: `${dealsNoNextActivity ?? 0} deals sans activité planifiée. Chaque deal doit avoir un prochain RDV.`,
+      impact: `+${Math.round((dealsNoNextActivity ?? 0) * 0.7)} deals suivis activement`,
       category: "sales",
       color: "border-indigo-200 bg-indigo-50",
     },
     {
-      title: `Augmenter la conversion Lead vers Opportunité de ${conversionRate}% à ${Math.min(100, conversionRate + 10)}%`,
-      description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, seulement ${opps.toLocaleString("fr-FR")} sont en phase Opportunité.`,
-      impact: `+${Math.round(tContacts * 0.1)} opportunités potentielles dans le pipeline`,
+      title: `Conversion Lead→Opp : ${conversionRate}% → ${Math.min(100, conversionRate + 10)}%`,
+      description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, ${opps.toLocaleString("fr-FR")} sont en phase Opportunité.`,
+      impact: `+${Math.round(tContacts * 0.1).toLocaleString("fr-FR")} opportunités potentielles`,
       category: "marketing",
       color: "border-amber-200 bg-amber-50",
     },
     {
-      title: `Réduire les contacts orphelins de ${orphanRate}% à ${Math.max(0, orphanRate - 20)}%`,
-      description: `${orphans.toLocaleString("fr-FR")} contacts ne sont rattachés à aucune entreprise. L'analyse par compte est impossible.`,
-      impact: `Meilleure segmentation et ciblage ABM, fiabilité des rapports par entreprise`,
+      title: `Orphelins : ${orphanRate}% → ${Math.max(0, orphanRate - 20)}%`,
+      description: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise associée.`,
+      impact: `Segmentation ABM, fiabilité des rapports par compte`,
       category: "data",
       color: "border-emerald-200 bg-emerald-50",
+    },
+    {
+      title: `Activation deals : ${open > 0 ? Math.round(((open - (dealsNoActivity ?? 0)) / open) * 100) : 0}% → 100%`,
+      description: `${dealsNoActivity ?? 0} deals en cours sans aucune activité commerciale enregistrée.`,
+      impact: `Pipeline réellement travaillé, ~${Math.round((dealsNoActivity ?? 0) * 0.4)} deals à transformer`,
+      category: "sales",
+      color: "border-blue-200 bg-blue-50",
+    },
+    {
+      title: `Données enrichies : téléphone +${tContacts > 0 ? Math.round(((tContacts - (contactsNoPhone ?? 0)) / tContacts) * 100) : 0}% → 80%`,
+      description: `${contactsNoPhone ?? 0} contacts sans numéro de téléphone. Outbound téléphone impossible.`,
+      impact: `Multicanal débloqué, ${Math.round((contactsNoPhone ?? 0) * 0.6).toLocaleString("fr-FR")} contacts joignables`,
+      category: "data",
+      color: "border-emerald-200 bg-emerald-50",
+    },
+    {
+      title: `Pipeline en valeur : forecast +20%`,
+      description: `Renseigner les montants sur tous les deals permet de construire un forecast fiable.`,
+      impact: `Visibilité revenue trimestriel, prévisions data-driven`,
+      category: "sales",
+      color: "border-indigo-200 bg-indigo-50",
+    },
+    {
+      title: `Réactivation contacts dormants`,
+      description: `Lancer une campagne sur les contacts sans engagement depuis 6 mois pour identifier les opportunités latentes.`,
+      impact: `~${Math.round(tContacts * 0.05).toLocaleString("fr-FR")} contacts potentiellement réactivables`,
+      category: "marketing",
+      color: "border-amber-200 bg-amber-50",
     },
   ];
 
@@ -191,40 +223,31 @@ export default async function InsightsPage() {
         </div>
         <div className="flex items-center gap-2 text-sm">
           <span className="rounded-lg border border-card-border bg-white px-3 py-1.5 text-slate-600">
-            {totalShown} insight{totalShown > 1 ? "s" : ""}
+            {totalShown} actif{totalShown > 1 ? "s" : ""}
           </span>
           <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
-            {dismissedKeys.size} fait{dismissedKeys.size > 1 ? "s" : ""}
+            {doneCount} réalisé{doneCount > 1 ? "s" : ""}
+          </span>
+          <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
+            {removedCount} retiré{removedCount > 1 ? "s" : ""}
           </span>
         </div>
       </header>
 
+      <InsightTabs />
+
       {/* Scénarios de simulation */}
       <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
-            <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-          </svg>
-          Scénarios de simulation
-        </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {scenarios.map((s, i) => (
-            <article key={i} className={`rounded-xl border p-5 ${s.color}`}>
-              <p className="text-sm font-medium text-slate-800">{s.title}</p>
-              <p className="mt-1.5 text-xs text-slate-600">{s.description}</p>
-              <div className="mt-3 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
-                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-                  <polyline points="16 7 22 7 22 13" />
-                </svg>
-                <p className="text-sm font-semibold text-slate-900">{s.impact}</p>
-              </div>
-              <div className="mt-4">
-                <AlertButton title={s.title} description={s.description} impact={s.impact} category={s.category} />
-              </div>
-            </article>
-          ))}
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+              <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+            </svg>
+            Scénarios de simulation
+          </h2>
+          <span className="text-xs text-slate-400">{scenarios.length} scénarios — faites défiler →</span>
         </div>
+        <ScenarioCarousel scenarios={scenarios} />
       </div>
 
       {/* Insights IA Automation */}

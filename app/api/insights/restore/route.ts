@@ -14,26 +14,15 @@ export async function POST(request: Request) {
 
   if (!profile) return NextResponse.json({ error: "No profile" }, { status: 400 });
 
-  const body = await request.json();
-  const { templateKey, status } = body;
+  const { templateKey } = await request.json();
+  if (!templateKey) return NextResponse.json({ error: "templateKey required" }, { status: 400 });
 
-  if (!templateKey || typeof templateKey !== "string") {
-    return NextResponse.json({ error: "templateKey required" }, { status: 400 });
-  }
-
-  const dismissalStatus = status === "removed" ? "removed" : "done";
-
-  const { error } = await supabase.from("insight_dismissals").upsert(
-    {
-      organization_id: profile.organization_id,
-      template_key: templateKey,
-      status: dismissalStatus,
-      dismissed_at: new Date().toISOString(),
-    },
-    { onConflict: "organization_id,template_key" },
-  );
+  const { error } = await supabase
+    .from("insight_dismissals")
+    .delete()
+    .eq("organization_id", profile.organization_id)
+    .eq("template_key", templateKey);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
   return NextResponse.json({ success: true });
 }
