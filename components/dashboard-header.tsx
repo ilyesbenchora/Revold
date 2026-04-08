@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RevoldLogo } from "@/components/revold-logo";
 import { logoutAction } from "@/app/login/actions";
 import { getScoreLabel, getScoreTextColor } from "@/lib/score-utils";
@@ -40,6 +41,17 @@ export function DashboardHeader({ companyName, globalScore, integrationScore }: 
           </div>
         )}
         <span className="text-sm font-medium text-slate-600">{companyName}</span>
+        <Link
+          href="/dashboard/mon-compte"
+          aria-label="Mon compte"
+          title="Mon compte"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-card-border text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </Link>
         <form action={logoutAction}>
           <button
             type="submit"
