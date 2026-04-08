@@ -192,9 +192,22 @@ export type DetectedIntegration = {
   distinctUsers: number;
   topUsers: Array<{ ownerId: string; name: string; count: number }>;
   // Detection method (used for explanation in UI)
-  detectionMethods: Array<"properties" | "source_detail" | "engagements">;
+  detectionMethods: Array<"properties" | "source_detail" | "engagements" | "portal_app">;
   // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
   sourceLabels?: string[];
+  // Portal apps matched (name + privacy + API usage) when detected via /account-info
+  portalAppMatches?: Array<{ name: string; type: "private" | "public"; usageCount: number }>;
+};
+
+/**
+ * Subset of the PortalApp shape used by detectIntegrations to match against
+ * the BUSINESS_INTEGRATIONS catalogue. Lets us inject the apps fetched by
+ * detectPortalApps without creating a circular import.
+ */
+export type PortalAppForMatching = {
+  name: string;
+  type: "private" | "public";
+  usageCount: number;
 };
 
 async function fetchProperties(token: string, objectType: string): Promise<RawProperty[]> {
@@ -352,7 +365,10 @@ async function fetchOwnersByProperty(
   }
 }
 
-export async function detectIntegrations(token: string): Promise<DetectedIntegration[]> {
+export async function detectIntegrations(
+  token: string,
+  portalApps: PortalAppForMatching[] = [],
+): Promise<DetectedIntegration[]> {
   // 1. Fetch all properties + totals + owners list + source signals from CRM and engagement objects
   const [
     contactProps, companyProps, dealProps,
@@ -432,6 +448,9 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
   // Track which source labels have been claimed by a known integration so we
   // don't surface them again as "unknown".
   const claimedSourceLabels = new Set<string>();
+  // Track which portal apps have been claimed so we can surface the rest as
+  // "other connected apps" at the end.
+  const claimedPortalApps = new Set<string>();
 
   for (const def of BUSINESS_INTEGRATIONS) {
     // Find all properties matching any pattern
@@ -445,7 +464,13 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     );
     matchedSources.forEach(([label]) => claimedSourceLabels.add(label));
 
-    if (matched.length === 0 && matchedSources.length === 0) continue;
+    // Match against portal apps actually connected to HubSpot via API usage
+    const matchedPortalApps = portalApps.filter((app) =>
+      def.patterns.some((p) => p.test(app.name)),
+    );
+    matchedPortalApps.forEach((app) => claimedPortalApps.add(app.name));
+
+    if (matched.length === 0 && matchedSources.length === 0 && matchedPortalApps.length === 0) continue;
 
     // Choose top 3 sample properties to compute enrichment
     const sample = matched.slice(0, 3);
@@ -468,9 +493,9 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     // Total volume coming from source signals (records created by this integration)
     const sourceTotalCount = matchedSources.reduce((s, [, d]) => s + d.count, 0);
 
-    // Skip if no actual data (zero enrichment AND no source signals)
+    // Skip if no actual data AND no portal app match (the app isn't installed)
     const maxEnriched = Math.max(...enrichmentResults.map((r) => r.enrichedCount), 0);
-    if (maxEnriched === 0 && sourceTotalCount === 0) continue;
+    if (maxEnriched === 0 && sourceTotalCount === 0 && matchedPortalApps.length === 0) continue;
 
     // Use the property with highest enrichment as primary for user adoption
     const primary = [...enrichmentResults].sort((a, b) => b.enrichedCount - a.enrichedCount)[0];
@@ -505,7 +530,7 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     // For source-only integrations (no properties), use source volume as the metric.
     const effectiveEnriched = Math.max(maxEnriched, sourceTotalCount);
 
-    const detectionMethods: Array<"properties" | "source_detail" | "engagements"> = [];
+    const detectionMethods: Array<"properties" | "source_detail" | "engagements" | "portal_app"> = [];
     if (matched.length > 0) detectionMethods.push("properties");
     if (matchedSources.some(([, d]) =>
       Array.from(d.objectTypes).some((o) => ["contacts", "companies", "deals"].includes(o)),
@@ -513,6 +538,7 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     if (matchedSources.some(([, d]) =>
       Array.from(d.objectTypes).some((o) => ["calls", "emails", "meetings", "notes", "tasks"].includes(o)),
     )) detectionMethods.push("engagements");
+    if (matchedPortalApps.length > 0) detectionMethods.push("portal_app");
 
     integrations.push({
       key: def.key,
@@ -529,6 +555,7 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       topUsers,
       detectionMethods,
       sourceLabels: matchedSources.map(([label]) => label),
+      portalAppMatches: matchedPortalApps,
     });
   }
 
@@ -574,5 +601,37 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       });
     });
 
-  return integrations.sort((a, b) => b.enrichedRecords - a.enrichedRecords);
+  // 3. Surface UNMATCHED portal apps as "other connected apps" — these are
+  // really installed on HubSpot (they call the API) but we don't have a
+  // curated catalogue entry yet.
+  portalApps
+    .filter((app) => !claimedPortalApps.has(app.name))
+    .sort((a, b) => b.usageCount - a.usageCount)
+    .slice(0, 15)
+    .forEach((app) => {
+      integrations.push({
+        key: `portal_${app.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+        label: app.name,
+        vendor: app.type === "private" ? "App privée HubSpot" : "App marketplace HubSpot",
+        icon: app.type === "private" ? "🔒" : "🧩",
+        objectTypes: [],
+        totalProperties: 0,
+        enrichedRecords: 0,
+        totalRecords: 0,
+        enrichmentRate: 0,
+        topProperties: [],
+        distinctUsers: 0,
+        topUsers: [],
+        detectionMethods: ["portal_app"],
+        portalAppMatches: [app],
+      });
+    });
+
+  return integrations.sort((a, b) => {
+    // Curated business integrations first, then portal apps, then unknowns
+    const aRank = a.key.startsWith("portal_") ? 2 : a.key.startsWith("other_") ? 3 : 1;
+    const bRank = b.key.startsWith("portal_") ? 2 : b.key.startsWith("other_") ? 3 : 1;
+    if (aRank !== bRank) return aRank - bRank;
+    return b.enrichedRecords - a.enrichedRecords;
+  });
 }

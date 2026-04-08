@@ -43,21 +43,26 @@ export default async function IntegrationPage({
 
   if (hubspotTokenConfigured) {
     try {
-      const [integrations, ownersRes, apps] = await Promise.all([
-        detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!),
+      // Fetch portal apps first so we can pass them into detectIntegrations
+      // for cross-matching with the BUSINESS_INTEGRATIONS catalogue.
+      const [apps, ownersRes] = await Promise.all([
+        detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN!),
         fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
           headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
         }).then((r) => r.ok ? r.json() : { results: [] }),
-        detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN!),
       ]);
-      detectedIntegrations = integrations;
+      portalApps = apps;
+      const allPortalApps = [...apps.privateApps, ...apps.publicApps];
+      detectedIntegrations = await detectIntegrations(
+        process.env.HUBSPOT_ACCESS_TOKEN!,
+        allPortalApps,
+      );
       owners = (ownersRes.results ?? []).map((o: Record<string, unknown>) => ({
         email: o.email as string,
         firstName: (o.firstName as string) || "",
         lastName: (o.lastName as string) || "",
         teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
       }));
-      portalApps = apps;
     } catch {}
   }
 
@@ -256,7 +261,7 @@ export default async function IntegrationPage({
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées
+              <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées à HubSpot
               <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">{totalIntegrations}</span>
             </h2>
           }
@@ -274,6 +279,9 @@ export default async function IntegrationPage({
                       <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
                       <p className="text-xs text-slate-400">{int.vendor} · {int.objectTypes.join(", ")}</p>
                       <div className="mt-1 flex flex-wrap gap-1">
+                        {int.detectionMethods.includes("portal_app") && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">✓ Connecté</span>
+                        )}
                         {int.detectionMethods.includes("properties") && (
                           <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">Propriétés CRM</span>
                         )}
@@ -281,7 +289,7 @@ export default async function IntegrationPage({
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">Source d&apos;enregistrement</span>
                         )}
                         {int.detectionMethods.includes("engagements") && (
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">Engagements</span>
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Engagements</span>
                         )}
                       </div>
                     </div>
@@ -312,9 +320,15 @@ export default async function IntegrationPage({
                       />
                     </div>
                   </div>
-                ) : (
+                ) : int.enrichedRecords > 0 ? (
                   <div className="mt-4 rounded-lg bg-blue-50 p-3 text-xs text-blue-800">
                     <span className="font-semibold">{int.enrichedRecords.toLocaleString("fr-FR")}</span> enregistrements détectés via les sources HubSpot ({int.objectTypes.join(", ")}). Aucune propriété personnalisée installée — connectez l&apos;app pour enrichir vos données.
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                    App connectée à HubSpot{int.portalAppMatches && int.portalAppMatches.length > 0 && (
+                      <> · {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0).toLocaleString("fr-FR")} appels API récents</>
+                    )}. Aucune propriété ni enregistrement encore synchronisé — l&apos;adoption viendra avec l&apos;usage.
                   </div>
                 )}
 
