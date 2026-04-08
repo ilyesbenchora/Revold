@@ -11,6 +11,7 @@ import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations
 import { detectPortalApps, type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
 import { BrandLogo } from "@/components/brand-logo";
+import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -74,15 +75,28 @@ export default async function IntegrationPage({
 
   const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
 
-  // Aggregate stats
-  const totalIntegrations = detectedIntegrations.length;
-  const totalSyncedProperties = detectedIntegrations.reduce((s, i) => s + i.totalProperties, 0);
-  const avgEnrichmentRate = detectedIntegrations.length > 0
-    ? Math.round(detectedIntegrations.reduce((s, i) => s + i.enrichmentRate, 0) / detectedIntegrations.length)
+  // Filter out non-business apps from the "Applications connectées à HubSpot" block.
+  // Outlook / Gmail / exports are noise for a CRO/RevOps view — they're system
+  // tools, not metier integrations like LinkedIn, Pandadoc, Kaspr, Aircall...
+  const NOISE_INTEGRATION_KEYS = new Set(["outlook", "gmail"]);
+  const NOISE_LABEL = /(outlook|gmail|export\s*contact|export\s*csv|imports?|migration)/i;
+  const businessIntegrations = detectedIntegrations.filter(
+    (i) => !NOISE_INTEGRATION_KEYS.has(i.key) && !NOISE_LABEL.test(i.label),
+  );
+
+  // Aggregate stats — based on the filtered business-integration list
+  const totalIntegrations = businessIntegrations.length;
+  const totalSyncedProperties = businessIntegrations.reduce((s, i) => s + i.totalProperties, 0);
+  const integrationsWithProperties = businessIntegrations.filter((i) => i.totalProperties > 0);
+  const avgEnrichmentRate = integrationsWithProperties.length > 0
+    ? Math.round(
+        integrationsWithProperties.reduce((s, i) => s + i.enrichmentRate, 0) /
+          integrationsWithProperties.length,
+      )
     : 0;
   // Distinct users across all integrations
   const allActiveUsers = new Set<string>();
-  detectedIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
+  businessIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
   const totalActiveUsers = allActiveUsers.size;
 
   // Tools already connected directly to Revold (via the connect/[tool] flow)
@@ -92,7 +106,7 @@ export default async function IntegrationPage({
 
   // Recommended tools to connect (filter out HubSpot-detected AND directly-connected ones)
   const recommendedCategories = getRecommendedCategories([
-    ...detectedIntegrations.map((i) => i.key),
+    ...businessIntegrations.map((i) => i.key),
     ...directlyConnectedKeys,
   ]);
 
@@ -257,7 +271,7 @@ export default async function IntegrationPage({
       )}
 
       {/* Applications connectées */}
-      {detectedIntegrations.length > 0 && (
+      {businessIntegrations.length > 0 && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -267,10 +281,11 @@ export default async function IntegrationPage({
           }
         >
           <p className="text-sm text-slate-500">
-            Détectées automatiquement via l&apos;analyse des groupes de propriétés CRM. Chaque outil HubSpot installe ses propres champs personnalisés.
+            Outils métiers (LinkedIn, PandaDoc, Kaspr, Aircall…) connectés à votre portail HubSpot,
+            détectés via les propriétés installées, les sources d&apos;enregistrement et l&apos;activité API du portail.
           </p>
-          <div className="space-y-3">
-            {detectedIntegrations.map((int) => (
+          <ExpandableIntegrationsList totalCount={businessIntegrations.length} visibleByDefault={2}>
+            {businessIntegrations.map((int) => (
               <article key={int.key} className="card p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -376,7 +391,7 @@ export default async function IntegrationPage({
                 </div>
               </article>
             ))}
-          </div>
+          </ExpandableIntegrationsList>
         </CollapsibleBlock>
       )}
 

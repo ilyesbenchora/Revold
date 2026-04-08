@@ -492,10 +492,10 @@ export async function detectIntegrations(
 
     // Total volume coming from source signals (records created by this integration)
     const sourceTotalCount = matchedSources.reduce((s, [, d]) => s + d.count, 0);
-
-    // Skip if no actual data AND no portal app match (the app isn't installed)
     const maxEnriched = Math.max(...enrichmentResults.map((r) => r.enrichedCount), 0);
-    if (maxEnriched === 0 && sourceTotalCount === 0 && matchedPortalApps.length === 0) continue;
+    // We DO NOT skip when data is empty: the existence of installed properties
+    // (matched.length > 0) is itself a reliable proof that the app is connected,
+    // even if no record uses those properties yet.
 
     // Use the property with highest enrichment as primary for user adoption
     const primary = [...enrichmentResults].sort((a, b) => b.enrichedCount - a.enrichedCount)[0];
@@ -604,8 +604,10 @@ export async function detectIntegrations(
   // 3. Surface UNMATCHED portal apps as "other connected apps" — these are
   // really installed on HubSpot (they call the API) but we don't have a
   // curated catalogue entry yet.
+  // Skip noise: Outlook / Gmail / exports / imports / HubSpot natives.
+  const PORTAL_APP_NOISE = /(outlook|gmail|export|import|migration|sync|hubspot|workflow|forms?|automation|backup|csv|google\s*calendar)/i;
   portalApps
-    .filter((app) => !claimedPortalApps.has(app.name))
+    .filter((app) => !claimedPortalApps.has(app.name) && !PORTAL_APP_NOISE.test(app.name))
     .sort((a, b) => b.usageCount - a.usageCount)
     .slice(0, 15)
     .forEach((app) => {
