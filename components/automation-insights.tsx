@@ -138,6 +138,7 @@ export function AutomationInsights({
           body={i.body}
           recommendation={i.recommendation}
           hubspotUrl={i.hubspotUrl}
+          category="automation"
         />
       ))}
     </div>

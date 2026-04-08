@@ -297,6 +297,7 @@ export default async function InsightsPage() {
                   body={insight.body}
                   recommendation={insight.recommendation}
                   hubspotUrl={hubspotLinks[bloc.id]}
+                  category={bloc.id}
                 />
               ))}
             </div>

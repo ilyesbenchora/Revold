@@ -10,6 +10,7 @@ type Props = {
   body: string;
   recommendation: string;
   hubspotUrl?: string;
+  category?: string;
   showRestore?: boolean;
 };
 
@@ -19,7 +20,7 @@ const severityConfig = {
   info: { bg: "bg-indigo-50", border: "border-indigo-200", badge: "bg-indigo-100 text-indigo-700", label: "Info" },
 } as const;
 
-export function InsightCard({ templateKey, severity, title, body, recommendation, hubspotUrl, showRestore }: Props) {
+export function InsightCard({ templateKey, severity, title, body, recommendation, hubspotUrl, category, showRestore }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -33,7 +34,16 @@ export function InsightCard({ templateKey, severity, title, body, recommendation
       const res = await fetch("/api/insights/dismiss", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateKey, status }),
+        body: JSON.stringify({
+          templateKey,
+          status,
+          title,
+          body,
+          recommendation,
+          severity,
+          category: category ?? "commercial",
+          hubspotUrl,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {

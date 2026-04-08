@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { templateKey, status } = body;
+    const { templateKey, status, title, body: insightBody, recommendation, severity, category, hubspotUrl } = body;
 
     if (!templateKey || typeof templateKey !== "string") {
       return NextResponse.json({ error: "templateKey requis" }, { status: 400 });
@@ -28,29 +28,44 @@ export async function POST(request: Request) {
 
     const dismissalStatus = status === "removed" ? "removed" : "done";
 
-    // First attempt with status column
-    let { error } = await supabase.from("insight_dismissals").upsert(
-      {
+    // Try full snapshot upsert
+    const fullPayload: Record<string, unknown> = {
+      organization_id: profile.organization_id,
+      template_key: templateKey,
+      status: dismissalStatus,
+      dismissed_at: new Date().toISOString(),
+      title: title ?? null,
+      body: insightBody ?? null,
+      recommendation: recommendation ?? null,
+      severity: severity ?? "info",
+      category: category ?? "commercial",
+      hubspot_url: hubspotUrl ?? null,
+    };
+
+    let { error } = await supabase
+      .from("insight_dismissals")
+      .upsert(fullPayload, { onConflict: "organization_id,template_key" });
+
+    // Fallback: if any snapshot column is missing, retry with minimal payload
+    if (error && /column .* does not exist/i.test(error.message)) {
+      console.warn("[dismiss] snapshot columns missing, falling back to minimal payload");
+      const minimalPayload: Record<string, unknown> = {
         organization_id: profile.organization_id,
         template_key: templateKey,
-        status: dismissalStatus,
         dismissed_at: new Date().toISOString(),
-      },
-      { onConflict: "organization_id,template_key" },
-    );
-
-    // Fallback: if status column doesn't exist, retry without it
-    if (error && error.message.toLowerCase().includes("status")) {
-      console.warn("[dismiss] status column missing, falling back without it");
-      const retry = await supabase.from("insight_dismissals").upsert(
-        {
-          organization_id: profile.organization_id,
-          template_key: templateKey,
-          dismissed_at: new Date().toISOString(),
-        },
-        { onConflict: "organization_id,template_key" },
-      );
-      error = retry.error;
+      };
+      // Try with status if column exists
+      const tryWithStatus = await supabase
+        .from("insight_dismissals")
+        .upsert({ ...minimalPayload, status: dismissalStatus }, { onConflict: "organization_id,template_key" });
+      if (tryWithStatus.error && tryWithStatus.error.message.toLowerCase().includes("status")) {
+        const tryNoStatus = await supabase
+          .from("insight_dismissals")
+          .upsert(minimalPayload, { onConflict: "organization_id,template_key" });
+        error = tryNoStatus.error;
+      } else {
+        error = tryWithStatus.error;
+      }
     }
 
     if (error) {
