@@ -1,6 +1,11 @@
 import { cache } from "react";
 import { createSupabaseServerClient } from "./server";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { detectPortalApps, type PortalApp } from "@/lib/integrations/detect-portal-apps";
+import {
+  filterBusinessIntegrations,
+  computeIntegrationScore,
+} from "@/lib/integrations/integration-score";
 
 /**
  * Request-scoped cached helpers.
@@ -70,15 +75,36 @@ export const getProfile = cache(async () => {
 
 /**
  * HubSpot integration detection — cached per request so layout + page can both
- * call it without hitting the HubSpot API twice.
+ * call it without hitting the HubSpot API twice. Includes portal apps so the
+ * detection set is identical to the one rendered on the integration page.
  */
+export const getCanonicalIntegrationData = cache(
+  async (): Promise<{
+    integrations: DetectedIntegration[];
+    portalApps: { privateApps: PortalApp[]; publicApps: PortalApp[]; totalApps: number };
+  }> => {
+    const empty = {
+      integrations: [],
+      portalApps: { privateApps: [], publicApps: [], totalApps: 0 },
+    };
+    if (!process.env.HUBSPOT_ACCESS_TOKEN) return empty;
+    try {
+      const portalApps = await detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN);
+      const allPortalApps = [...portalApps.privateApps, ...portalApps.publicApps];
+      const integrations = await detectIntegrations(
+        process.env.HUBSPOT_ACCESS_TOKEN,
+        allPortalApps,
+      );
+      return { integrations, portalApps };
+    } catch {
+      return empty;
+    }
+  },
+);
+
+/** Backwards compat: returns just the integrations list. */
 export const getDetectedIntegrations = cache(async (): Promise<DetectedIntegration[]> => {
-  if (!process.env.HUBSPOT_ACCESS_TOKEN) return [];
-  try {
-    return await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN);
-  } catch {
-    return [];
-  }
+  return (await getCanonicalIntegrationData()).integrations;
 });
 
 /**
@@ -99,26 +125,20 @@ export const getHubspotOwnersCount = cache(async (): Promise<number> => {
 });
 
 /**
- * Returns the HubSpot integration score (same formula as the Integration page):
- *   score = min(50, tools×8) + min(30, avgEnrichmentRate) + ownersBonus
- * Returns null when no HubSpot token is configured.
+ * Canonical HubSpot integration score — deterministic, count-based.
+ * Same formula and same input data as the Intégration page so the header
+ * and the page always agree.
  */
 export const getHubspotIntegrationScore = cache(async (): Promise<number | null> => {
   if (!process.env.HUBSPOT_ACCESS_TOKEN) return null;
-  const [integrations, ownersCount] = await Promise.all([
-    getDetectedIntegrations(),
+  const [{ integrations }, ownersCount] = await Promise.all([
+    getCanonicalIntegrationData(),
     getHubspotOwnersCount(),
   ]);
-  const totalIntegrations = integrations.length;
-  const avgEnrichmentRate = integrations.length > 0
-    ? Math.round(integrations.reduce((s, i) => s + i.enrichmentRate, 0) / integrations.length)
-    : 0;
-  return Math.round(
-    Math.min(50, totalIntegrations * 8) +
-    Math.min(30, avgEnrichmentRate) +
-    (ownersCount > 10 ? 20 : ownersCount > 5 ? 10 : 5),
-  );
+  const businessIntegrations = filterBusinessIntegrations(integrations);
+  return computeIntegrationScore(businessIntegrations, ownersCount).score;
 });
+
 
 export const getLatestKpi = cache(async () => {
   const orgId = await getOrgId();

@@ -7,9 +7,17 @@ import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
-import { detectPortalApps, type PortalApp } from "@/lib/integrations/detect-portal-apps";
+import { type DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
+import {
+  filterBusinessIntegrations,
+  computeIntegrationScore,
+} from "@/lib/integrations/integration-score";
+import {
+  getCanonicalIntegrationData,
+  getHubspotOwnersCount,
+} from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
 import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
 import { Suspense } from "react";
@@ -35,36 +43,22 @@ export default async function IntegrationPage({
   const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
 
   let detectedIntegrations: DetectedIntegration[] = [];
-  let owners: Array<{ email: string; firstName: string; lastName: string; teams: string[] }> = [];
   let portalApps: { privateApps: PortalApp[]; publicApps: PortalApp[]; totalApps: number } = {
     privateApps: [],
     publicApps: [],
     totalApps: 0,
   };
+  let ownersCount = 0;
 
   if (hubspotTokenConfigured) {
-    try {
-      // Fetch portal apps first so we can pass them into detectIntegrations
-      // for cross-matching with the BUSINESS_INTEGRATIONS catalogue.
-      const [apps, ownersRes] = await Promise.all([
-        detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN!),
-        fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
-        }).then((r) => r.ok ? r.json() : { results: [] }),
-      ]);
-      portalApps = apps;
-      const allPortalApps = [...apps.privateApps, ...apps.publicApps];
-      detectedIntegrations = await detectIntegrations(
-        process.env.HUBSPOT_ACCESS_TOKEN!,
-        allPortalApps,
-      );
-      owners = (ownersRes.results ?? []).map((o: Record<string, unknown>) => ({
-        email: o.email as string,
-        firstName: (o.firstName as string) || "",
-        lastName: (o.lastName as string) || "",
-        teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
-      }));
-    } catch {}
+    // Same canonical helper as the header → guaranteed identical inputs.
+    const [data, count] = await Promise.all([
+      getCanonicalIntegrationData(),
+      getHubspotOwnersCount(),
+    ]);
+    detectedIntegrations = data.integrations;
+    portalApps = data.portalApps;
+    ownersCount = count;
   }
 
   // DB counts for sync logs
@@ -75,49 +69,9 @@ export default async function IntegrationPage({
 
   const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
 
-  // Filter the "Applications connectées à HubSpot" block to ONLY show real
-  // RevOps business tools : facturation, devis, prospection, comptable,
-  // enrichissement, automatisation. Email/chat/visio/support sont exclus.
-  const NOISE_INTEGRATION_KEYS = new Set([
-    // Email & messagerie
-    "outlook", "gmail", "slack",
-    // Visio & meeting scheduling
-    "zoom", "calendly",
-    // Service client / chat
-    "intercom", "zendesk", "crisp", "freshdesk",
-  ]);
-  const NOISE_LABEL = new RegExp(
-    [
-      "\\boutlook\\b",
-      "\\bgmail\\b",
-      "\\bslack\\b",
-      "\\bzoom\\b",
-      "calendly",
-      "intercom",
-      "zendesk",
-      "\\bcrisp\\b",
-      "freshdesk",
-      "export\\s*contact",
-      "export\\s*csv",
-      "\\bimports?\\b",
-      "migration",
-      "google\\s*calendar",
-      "\\bteams\\b",
-      "whatsapp",
-      "messenger",
-      "api[-_\\s]*calls",
-      "api[-_\\s]*usage",
-      "daily[-_\\s]*usage",
-      "^paramètre",
-      "^parameter",
-      "créer\\s*et\\s*associer",
-      "create\\s*and\\s*associate",
-    ].join("|"),
-    "i",
-  );
-  const businessIntegrations = detectedIntegrations.filter(
-    (i) => !NOISE_INTEGRATION_KEYS.has(i.key) && !NOISE_LABEL.test(i.label),
-  );
+  // Same canonical filter used by the header score so KPI numbers and
+  // displayed cards always match.
+  const businessIntegrations = filterBusinessIntegrations(detectedIntegrations);
 
   // Aggregate stats — based on the filtered business-integration list
   const totalIntegrations = businessIntegrations.length;
@@ -145,13 +99,10 @@ export default async function IntegrationPage({
     ...directlyConnectedKeys,
   ]);
 
-  // Score Intégration
+  // Canonical Integration Score — same function as the header so the two
+  // numbers are always identical and deterministic across refreshes.
   const integrationScore = hubspotTokenConfigured
-    ? Math.round(
-        Math.min(50, totalIntegrations * 8) +
-        Math.min(30, avgEnrichmentRate) +
-        (owners.length > 10 ? 20 : owners.length > 5 ? 10 : 5)
-      )
+    ? computeIntegrationScore(businessIntegrations, ownersCount).score
     : 0;
 
   return (
