@@ -43,17 +43,12 @@ export function RevoldLogo({
         </span>
       </div>
       {!compact && (
-        <div className="flex flex-col leading-tight">
-          <span
-            className={`text-base font-bold tracking-tight ${labelClass}`}
-            style={{ letterSpacing: "-0.02em" }}
-          >
-            {companyName}
-          </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-fuchsia-500">
-            Revenue OS
-          </span>
-        </div>
+        <span
+          className={`text-base font-bold tracking-tight ${labelClass}`}
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          {companyName}
+        </span>
       )}
     </div>
   );
