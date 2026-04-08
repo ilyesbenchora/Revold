@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createSupabaseServerClient } from "./server";
+import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 
 /**
  * Request-scoped cached helpers.
@@ -65,6 +66,58 @@ export const getProfile = cache(async () => {
     .eq("id", user.id)
     .single();
   return profile;
+});
+
+/**
+ * HubSpot integration detection — cached per request so layout + page can both
+ * call it without hitting the HubSpot API twice.
+ */
+export const getDetectedIntegrations = cache(async (): Promise<DetectedIntegration[]> => {
+  if (!process.env.HUBSPOT_ACCESS_TOKEN) return [];
+  try {
+    return await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN);
+  } catch {
+    return [];
+  }
+});
+
+/**
+ * HubSpot owners count — cached per request.
+ */
+export const getHubspotOwnersCount = cache(async (): Promise<number> => {
+  if (!process.env.HUBSPOT_ACCESS_TOKEN) return 0;
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+      headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return (data.results ?? []).length;
+  } catch {
+    return 0;
+  }
+});
+
+/**
+ * Returns the HubSpot integration score (same formula as the Integration page):
+ *   score = min(50, tools×8) + min(30, avgEnrichmentRate) + ownersBonus
+ * Returns null when no HubSpot token is configured.
+ */
+export const getHubspotIntegrationScore = cache(async (): Promise<number | null> => {
+  if (!process.env.HUBSPOT_ACCESS_TOKEN) return null;
+  const [integrations, ownersCount] = await Promise.all([
+    getDetectedIntegrations(),
+    getHubspotOwnersCount(),
+  ]);
+  const totalIntegrations = integrations.length;
+  const avgEnrichmentRate = integrations.length > 0
+    ? Math.round(integrations.reduce((s, i) => s + i.enrichmentRate, 0) / integrations.length)
+    : 0;
+  return Math.round(
+    Math.min(50, totalIntegrations * 8) +
+    Math.min(30, avgEnrichmentRate) +
+    (ownersCount > 10 ? 20 : ownersCount > 5 ? 10 : 5),
+  );
 });
 
 export const getLatestKpi = cache(async () => {

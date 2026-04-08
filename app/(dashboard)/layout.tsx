@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getAuthUser, getProfile, getLatestKpi } from "@/lib/supabase/cached";
+import { getAuthUser, getProfile, getLatestKpi, getHubspotIntegrationScore } from "@/lib/supabase/cached";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 
@@ -16,7 +16,10 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   const org = profile?.organizations as unknown as { name: string } | null;
   const orgName = org?.name ?? "Mon entreprise";
 
-  const latestKpi = await getLatestKpi();
+  const [latestKpi, hubspotIntegrationScore] = await Promise.all([
+    getLatestKpi(),
+    getHubspotIntegrationScore(),
+  ]);
 
   let globalScore: number | undefined;
   let integrationScore: number | undefined;
@@ -41,10 +44,14 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       Math.min(100, (actPerDeal / 12) * 100) * 0.20 +
       Math.min(100, Math.max(0, (1 - (cycleDays - 30) / 90) * 100)) * 0.20
     );
-    integrationScore = Math.round(dataComp * 0.4 + crm * 0.6);
+    // Use the real HubSpot integration score (same as the Integration page)
+    // and fall back to the legacy KPI-based score if HubSpot isn't connected.
+    integrationScore = hubspotIntegrationScore ?? Math.round(dataComp * 0.4 + crm * 0.6);
     globalScore = Math.round(
       donneesScore * 0.20 + processScore * 0.20 + sales * 0.25 + marketing * 0.20 + integrationScore * 0.15
     );
+  } else if (hubspotIntegrationScore != null) {
+    integrationScore = hubspotIntegrationScore;
   }
 
   return (
