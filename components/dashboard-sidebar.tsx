@@ -111,12 +111,24 @@ const sidebarLinks = [
   },
 ];
 
+const accountLink = {
+  href: "/dashboard/mon-compte",
+  label: "Mon compte",
+  icon: (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  ),
+};
+
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const isAccountActive = pathname.startsWith(accountLink.href);
 
   return (
-    <aside className="hidden w-64 border-r border-card-border bg-white px-4 py-6 md:block">
-      <nav className="space-y-1">
+    <aside className="hidden w-64 flex-col border-r border-card-border bg-white px-4 py-6 md:flex">
+      <nav className="flex-1 space-y-1">
         {sidebarLinks.map((link) => {
           const isActive =
             link.href === "/dashboard"
@@ -140,6 +152,23 @@ export function DashboardSidebar() {
           );
         })}
       </nav>
+
+      {/* Mon compte — pinned at bottom */}
+      <div className="mt-4 border-t border-card-border pt-4">
+        <Link
+          href={accountLink.href}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+            isAccountActive
+              ? "bg-accent-soft text-accent"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          }`}
+        >
+          <span className={isAccountActive ? "text-accent" : "text-slate-400"}>
+            {accountLink.icon}
+          </span>
+          {accountLink.label}
+        </Link>
+      </div>
     </aside>
   );
 }
