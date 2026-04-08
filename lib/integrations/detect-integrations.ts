@@ -191,6 +191,10 @@ export type DetectedIntegration = {
   // User adoption
   distinctUsers: number;
   topUsers: Array<{ ownerId: string; name: string; count: number }>;
+  // Detection method (used for explanation in UI)
+  detectionMethods: Array<"properties" | "source_detail" | "engagements">;
+  // Optional: source label (e.g. "Outlook Contacts") if detected via hs_object_source_detail_1
+  sourceLabels?: string[];
 };
 
 async function fetchProperties(token: string, objectType: string): Promise<RawProperty[]> {
@@ -240,6 +244,82 @@ async function countWithProperty(token: string, objectType: string, propertyName
   }
 }
 
+/**
+ * Sample records and aggregate distinct values of `hs_object_source_detail_1`
+ * to detect integrations that create records but do NOT install custom properties
+ * (e.g. Outlook contacts sync, Aircall calls, HubSpot Meetings...).
+ */
+async function fetchSourceDetails(
+  token: string,
+  objectType: string,
+): Promise<Record<string, { count: number; owners: Record<string, number> }>> {
+  try {
+    const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filterGroups: [
+          { filters: [{ propertyName: "hs_object_source_detail_1", operator: "HAS_PROPERTY" }] },
+        ],
+        properties: ["hs_object_source_detail_1", "hs_object_source", "hubspot_owner_id"],
+        limit: 100,
+      }),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const acc: Record<string, { count: number; owners: Record<string, number> }> = {};
+    (data.results ?? []).forEach((r: Record<string, unknown>) => {
+      const props = r.properties as Record<string, string | null>;
+      const detail = props.hs_object_source_detail_1;
+      if (!detail) return;
+      if (!acc[detail]) acc[detail] = { count: 0, owners: {} };
+      acc[detail].count += 1;
+      const ownerId = props.hubspot_owner_id;
+      if (ownerId) acc[detail].owners[ownerId] = (acc[detail].owners[ownerId] || 0) + 1;
+    });
+    return acc;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Sample engagement objects (calls, emails, meetings, notes, tasks) and aggregate
+ * by source detail. Each engagement carries its origin app — Aircall calls, Outlook
+ * emails, HubSpot Meetings, etc.
+ */
+async function fetchEngagementSources(
+  token: string,
+  engagementType: "calls" | "emails" | "meetings" | "notes" | "tasks",
+): Promise<Record<string, { count: number; owners: Record<string, number> }>> {
+  try {
+    const res = await fetch(`${HS_API}/crm/v3/objects/${engagementType}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filterGroups: [],
+        properties: ["hs_object_source_detail_1", "hs_object_source", "hubspot_owner_id"],
+        limit: 100,
+      }),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const acc: Record<string, { count: number; owners: Record<string, number> }> = {};
+    (data.results ?? []).forEach((r: Record<string, unknown>) => {
+      const props = r.properties as Record<string, string | null>;
+      const detail = props.hs_object_source_detail_1 || props.hs_object_source;
+      if (!detail) return;
+      if (!acc[detail]) acc[detail] = { count: 0, owners: {} };
+      acc[detail].count += 1;
+      const ownerId = props.hubspot_owner_id;
+      if (ownerId) acc[detail].owners[ownerId] = (acc[detail].owners[ownerId] || 0) + 1;
+    });
+    return acc;
+  } catch {
+    return {};
+  }
+}
+
 async function fetchOwnersByProperty(
   token: string,
   objectType: string,
@@ -273,8 +353,14 @@ async function fetchOwnersByProperty(
 }
 
 export async function detectIntegrations(token: string): Promise<DetectedIntegration[]> {
-  // 1. Fetch all properties + totals + owners list
-  const [contactProps, companyProps, dealProps, totalContacts, totalCompanies, totalDeals, ownersRes] = await Promise.all([
+  // 1. Fetch all properties + totals + owners list + source signals from CRM and engagement objects
+  const [
+    contactProps, companyProps, dealProps,
+    totalContacts, totalCompanies, totalDeals,
+    ownersRes,
+    contactSources, companySources, dealSources,
+    callSources, emailSources, meetingSources, noteSources, taskSources,
+  ] = await Promise.all([
     fetchProperties(token, "contacts"),
     fetchProperties(token, "companies"),
     fetchProperties(token, "deals"),
@@ -283,6 +369,14 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     countTotal(token, "deals"),
     fetch(`${HS_API}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.ok ? r.json() : { results: [] }),
+    fetchSourceDetails(token, "contacts"),
+    fetchSourceDetails(token, "companies"),
+    fetchSourceDetails(token, "deals"),
+    fetchEngagementSources(token, "calls"),
+    fetchEngagementSources(token, "emails"),
+    fetchEngagementSources(token, "meetings"),
+    fetchEngagementSources(token, "notes"),
+    fetchEngagementSources(token, "tasks"),
   ]);
 
   // Build owner_id → name map
@@ -304,7 +398,40 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
     ...dealProps.map((p) => ({ prop: p, objectType: "deals" })),
   ];
 
+  // Merge all source-detail signals from CRM objects + engagements into a single map.
+  // Each entry: sourceLabel → { count, owners, objectTypes }
+  const allSourceSignals: Record<
+    string,
+    { count: number; owners: Record<string, number>; objectTypes: Set<string> }
+  > = {};
+  const addSignals = (
+    src: Record<string, { count: number; owners: Record<string, number> }>,
+    objectType: string,
+  ) => {
+    Object.entries(src).forEach(([label, data]) => {
+      if (!allSourceSignals[label]) {
+        allSourceSignals[label] = { count: 0, owners: {}, objectTypes: new Set() };
+      }
+      allSourceSignals[label].count += data.count;
+      allSourceSignals[label].objectTypes.add(objectType);
+      Object.entries(data.owners).forEach(([oid, c]) => {
+        allSourceSignals[label].owners[oid] = (allSourceSignals[label].owners[oid] || 0) + c;
+      });
+    });
+  };
+  addSignals(contactSources, "contacts");
+  addSignals(companySources, "companies");
+  addSignals(dealSources, "deals");
+  addSignals(callSources, "calls");
+  addSignals(emailSources, "emails");
+  addSignals(meetingSources, "meetings");
+  addSignals(noteSources, "notes");
+  addSignals(taskSources, "tasks");
+
   const integrations: DetectedIntegration[] = [];
+  // Track which source labels have been claimed by a known integration so we
+  // don't surface them again as "unknown".
+  const claimedSourceLabels = new Set<string>();
 
   for (const def of BUSINESS_INTEGRATIONS) {
     // Find all properties matching any pattern
@@ -312,7 +439,13 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       def.patterns.some((pattern) => pattern.test(prop.name) || pattern.test(prop.groupName))
     );
 
-    if (matched.length === 0) continue;
+    // Match against source signals (e.g. "Outlook Contacts", "Aircall")
+    const matchedSources = Object.entries(allSourceSignals).filter(([label]) =>
+      def.patterns.some((p) => p.test(label)),
+    );
+    matchedSources.forEach(([label]) => claimedSourceLabels.add(label));
+
+    if (matched.length === 0 && matchedSources.length === 0) continue;
 
     // Choose top 3 sample properties to compute enrichment
     const sample = matched.slice(0, 3);
@@ -332,17 +465,27 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       }),
     );
 
-    // Skip if no actual data (zero enrichment everywhere)
+    // Total volume coming from source signals (records created by this integration)
+    const sourceTotalCount = matchedSources.reduce((s, [, d]) => s + d.count, 0);
+
+    // Skip if no actual data (zero enrichment AND no source signals)
     const maxEnriched = Math.max(...enrichmentResults.map((r) => r.enrichedCount), 0);
-    if (maxEnriched === 0) continue;
+    if (maxEnriched === 0 && sourceTotalCount === 0) continue;
 
     // Use the property with highest enrichment as primary for user adoption
     const primary = [...enrichmentResults].sort((a, b) => b.enrichedCount - a.enrichedCount)[0];
 
     // Fetch owner adoption from the primary property
-    const ownerCounts = primary
+    const ownerCounts: Record<string, number> = primary
       ? await fetchOwnersByProperty(token, primary.objectType, primary.name)
       : {};
+
+    // Also merge in owner counts coming from source signals
+    matchedSources.forEach(([, data]) => {
+      Object.entries(data.owners).forEach(([oid, c]) => {
+        ownerCounts[oid] = (ownerCounts[oid] || 0) + c;
+      });
+    });
 
     const topUsers = Object.entries(ownerCounts)
       .map(([ownerId, count]) => ({
@@ -353,9 +496,23 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    const objectTypes = Array.from(new Set(matched.map((m) => m.objectType)));
-    const dominantObject = primary?.objectType || objectTypes[0];
+    const objectTypesFromProps = matched.map((m) => m.objectType);
+    const objectTypesFromSources = matchedSources.flatMap(([, d]) => Array.from(d.objectTypes));
+    const objectTypes = Array.from(new Set([...objectTypesFromProps, ...objectTypesFromSources]));
+    const dominantObject = primary?.objectType || objectTypes[0] || "contacts";
     const total = totalsByObject[dominantObject] || 1;
+
+    // For source-only integrations (no properties), use source volume as the metric.
+    const effectiveEnriched = Math.max(maxEnriched, sourceTotalCount);
+
+    const detectionMethods: Array<"properties" | "source_detail" | "engagements"> = [];
+    if (matched.length > 0) detectionMethods.push("properties");
+    if (matchedSources.some(([, d]) =>
+      Array.from(d.objectTypes).some((o) => ["contacts", "companies", "deals"].includes(o)),
+    )) detectionMethods.push("source_detail");
+    if (matchedSources.some(([, d]) =>
+      Array.from(d.objectTypes).some((o) => ["calls", "emails", "meetings", "notes", "tasks"].includes(o)),
+    )) detectionMethods.push("engagements");
 
     integrations.push({
       key: def.key,
@@ -364,14 +521,58 @@ export async function detectIntegrations(token: string): Promise<DetectedIntegra
       icon: def.icon,
       objectTypes,
       totalProperties: matched.length,
-      enrichedRecords: maxEnriched,
+      enrichedRecords: effectiveEnriched,
       totalRecords: total,
       enrichmentRate: total > 0 ? Math.round((maxEnriched / total) * 100) : 0,
       topProperties: enrichmentResults,
       distinctUsers: topUsers.length,
       topUsers,
+      detectionMethods,
+      sourceLabels: matchedSources.map(([label]) => label),
     });
   }
+
+  // 2. Surface UNKNOWN source labels with significant volume as "other detected tools"
+  // (e.g. an integration that we don't have a curated entry for yet).
+  const SYSTEM_LABELS = /^(crm[_ ]?ui|api|workflow|import|migration|sync|email|forms?|meetings?|conversations|automation|hubspot)/i;
+  Object.entries(allSourceSignals)
+    .filter(([label, data]) =>
+      !claimedSourceLabels.has(label) &&
+      data.count >= 5 &&
+      !SYSTEM_LABELS.test(label),
+    )
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .forEach(([label, data]) => {
+      const objectTypes = Array.from(data.objectTypes);
+      const dominantObject = objectTypes[0] || "contacts";
+      const total = totalsByObject[dominantObject] || 1;
+      const topUsers = Object.entries(data.owners)
+        .map(([ownerId, count]) => ({
+          ownerId,
+          name: ownerNames.get(ownerId) || `User ${ownerId}`,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      integrations.push({
+        key: `other_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+        label,
+        vendor: "Source détectée",
+        icon: "🔌",
+        objectTypes,
+        totalProperties: 0,
+        enrichedRecords: data.count,
+        totalRecords: total,
+        enrichmentRate: 0,
+        topProperties: [],
+        distinctUsers: topUsers.length,
+        topUsers,
+        detectionMethods: ["source_detail"],
+        sourceLabels: [label],
+      });
+    });
 
   return integrations.sort((a, b) => b.enrichedRecords - a.enrichedRecords);
 }

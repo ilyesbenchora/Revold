@@ -10,6 +10,7 @@ type Props = {
   body: string;
   recommendation: string;
   hubspotUrl?: string;
+  actionLabel?: string;
   category?: string;
   showRestore?: boolean;
 };
@@ -20,7 +21,7 @@ const severityConfig = {
   info: { bg: "bg-indigo-50", border: "border-indigo-200", badge: "bg-indigo-100 text-indigo-700", label: "Info" },
 } as const;
 
-export function InsightCard({ templateKey, severity, title, body, recommendation, hubspotUrl, category, showRestore }: Props) {
+export function InsightCard({ templateKey, severity, title, body, recommendation, hubspotUrl, actionLabel, category, showRestore }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -119,19 +120,22 @@ export function InsightCard({ templateKey, severity, title, body, recommendation
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {hubspotUrl && (
-          <a
-            href={hubspotUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500"
-          >
-            À faire dans HubSpot
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        )}
+        {hubspotUrl && (() => {
+          const isInternal = hubspotUrl.startsWith("/");
+          return (
+            <a
+              href={hubspotUrl}
+              target={isInternal ? undefined : "_blank"}
+              rel={isInternal ? undefined : "noopener noreferrer"}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500"
+            >
+              {actionLabel ?? (isInternal ? "Voir dans Revold" : "À faire dans HubSpot")}
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          );
+        })()}
         {!showRestore ? (
           <button
             onClick={() => dismiss("done")}

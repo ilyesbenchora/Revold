@@ -7,6 +7,7 @@ import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -60,6 +61,9 @@ export default async function IntegrationPage() {
   const allActiveUsers = new Set<string>();
   detectedIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
   const totalActiveUsers = allActiveUsers.size;
+
+  // Recommended tools to connect (categories where nothing is detected yet)
+  const recommendedCategories = getRecommendedCategories(detectedIntegrations.map((i) => i.key));
 
   // Score Intégration
   const integrationScore = hubspotTokenConfigured
@@ -156,6 +160,17 @@ export default async function IntegrationPage() {
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
                       <p className="text-xs text-slate-400">{int.vendor} · {int.objectTypes.join(", ")}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {int.detectionMethods.includes("properties") && (
+                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">Propriétés CRM</span>
+                        )}
+                        {int.detectionMethods.includes("source_detail") && (
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">Source d&apos;enregistrement</span>
+                        )}
+                        {int.detectionMethods.includes("engagements") && (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">Engagements</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -164,27 +179,33 @@ export default async function IntegrationPage() {
                   </div>
                 </div>
 
-                {/* Enrichment rate */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-600">Taux d&apos;enrichissement</span>
-                    <span className={`font-bold ${
-                      int.enrichmentRate >= 50 ? "text-emerald-600" :
-                      int.enrichmentRate >= 20 ? "text-yellow-600" :
-                      int.enrichmentRate >= 5 ? "text-orange-500" : "text-red-500"
-                    }`}>
-                      {int.enrichmentRate}% — {int.enrichedRecords.toLocaleString("fr-FR")} / {int.totalRecords.toLocaleString("fr-FR")} {int.objectTypes[0]}
-                    </span>
+                {/* Enrichment rate (only when detected via properties) */}
+                {int.totalProperties > 0 ? (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-600">Taux d&apos;enrichissement</span>
+                      <span className={`font-bold ${
+                        int.enrichmentRate >= 50 ? "text-emerald-600" :
+                        int.enrichmentRate >= 20 ? "text-yellow-600" :
+                        int.enrichmentRate >= 5 ? "text-orange-500" : "text-red-500"
+                      }`}>
+                        {int.enrichmentRate}% — {int.enrichedRecords.toLocaleString("fr-FR")} / {int.totalRecords.toLocaleString("fr-FR")} {int.objectTypes[0]}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                      <div
+                        className={`h-2 rounded-full ${getBarColor(int.enrichmentRate)}`}
+                        style={{ width: `${Math.min(100, int.enrichmentRate)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                    <div
-                      className={`h-2 rounded-full ${getBarColor(int.enrichmentRate)}`}
-                      style={{ width: `${Math.min(100, int.enrichmentRate)}%` }}
-                    />
+                ) : (
+                  <div className="mt-4 rounded-lg bg-blue-50 p-3 text-xs text-blue-800">
+                    <span className="font-semibold">{int.enrichedRecords.toLocaleString("fr-FR")}</span> enregistrements détectés via les sources HubSpot ({int.objectTypes.join(", ")}). Aucune propriété personnalisée installée — connectez l&apos;app pour enrichir vos données.
                   </div>
-                </div>
+                )}
 
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className={`mt-4 grid grid-cols-1 gap-3 ${int.topProperties.length > 0 ? "md:grid-cols-2" : ""}`}>
                   {/* Top properties */}
                   {int.topProperties.length > 0 && (
                     <div className="rounded-lg bg-slate-50 p-3">
@@ -225,6 +246,55 @@ export default async function IntegrationPage() {
                       <p className="mt-2 text-xs text-slate-400">Aucun utilisateur identifié</p>
                     )}
                   </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </CollapsibleBlock>
+      )}
+
+      {/* Recommended tools to connect */}
+      {recommendedCategories.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />Outils à connecter à Revold
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                {recommendedCategories.reduce((s, c) => s + c.tools.length, 0)} suggestions
+              </span>
+            </h2>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Connectez ces outils à HubSpot pour que Revold puisse centraliser <strong>l&apos;ensemble des données de votre entreprise</strong> :
+            campagnes outbound, appels, contrats signés, factures, tickets support… Plus vos sources sont riches, plus l&apos;intelligence Revold devient un avantage compétitif.
+          </p>
+          <div className="space-y-4">
+            {recommendedCategories.map((cat) => (
+              <article key={cat.id} className="card p-5">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">{cat.icon}</span>
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-slate-900">{cat.label}</h3>
+                    <p className="mt-1 text-xs text-slate-500">{cat.description}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {cat.tools.map((tool) => (
+                    <a
+                      key={tool.key}
+                      href={tool.marketplaceUrl ?? "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition"
+                    >
+                      <span className="text-xl">{tool.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-900 group-hover:text-indigo-700">{tool.label}</p>
+                        <p className="truncate text-xs text-slate-500">{tool.description}</p>
+                      </div>
+                    </a>
+                  ))}
                 </div>
               </article>
             ))}

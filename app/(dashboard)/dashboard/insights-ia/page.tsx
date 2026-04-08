@@ -7,6 +7,8 @@ import { ScenarioCarousel } from "@/components/scenario-carousel";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { selectInsights, type InsightContext } from "@/lib/ai/insights-library";
 import { fetchTrackingStats } from "./context";
+import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-suggestions";
 
 const HUBSPOT_PORTAL = "48372600";
 const HS = {
@@ -69,6 +71,149 @@ export default async function InsightsPage() {
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("annual_revenue", null),
     supabase.from("insight_dismissals").select("*").eq("organization_id", orgId),
   ]);
+
+  // ── Fetch detected integrations (used by both insights and report suggestions) ──
+  let detectedIntegrations: DetectedIntegration[] = [];
+  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+    try {
+      detectedIntegrations = await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN);
+    } catch {}
+  }
+
+  // Build integration insights — adoption, change management, missing reports
+  type IntInsight = {
+    key: string;
+    severity: "critical" | "warning" | "info";
+    title: string;
+    body: string;
+    recommendation: string;
+  };
+  const integrationInsights: IntInsight[] = [];
+
+  detectedIntegrations.forEach((int) => {
+    const cat = getToolCategory(int.key);
+
+    // 1. Adoption faible : moins de 2 utilisateurs distincts → conduite du changement
+    if (int.distinctUsers > 0 && int.distinctUsers < 2) {
+      integrationInsights.push({
+        key: `int_low_adoption_${int.key}`,
+        severity: "warning",
+        title: `${int.icon} ${int.label} : adoption très faible (${int.distinctUsers} utilisateur)`,
+        body: `Seul ${int.distinctUsers} utilisateur exploite ${int.label} alors que l'outil est connecté au CRM. C'est un signal de conduite du changement à travailler : formation, ambassadeur interne ou rituel d'équipe.`,
+        recommendation: `Identifier un référent ${int.label} dans l'équipe, organiser une session de formation et suivre l'usage hebdomadaire dans Revold.`,
+      });
+    }
+
+    // 2. Outil avec propriétés mais 0% d'enrichissement → outil branché sans usage
+    if (int.totalProperties > 0 && int.enrichmentRate === 0) {
+      integrationInsights.push({
+        key: `int_no_enrichment_${int.key}`,
+        severity: "warning",
+        title: `${int.icon} ${int.label} : ${int.totalProperties} propriétés synchronisées mais 0% d'enrichissement`,
+        body: `${int.label} a installé ses propriétés dans HubSpot mais aucune donnée n'est remontée. L'intégration est probablement mal configurée ou les utilisateurs ne déclenchent pas l'outil depuis le CRM.`,
+        recommendation: `Vérifier la configuration de l'intégration ${int.label} et relancer une formation sur les bons gestes dans HubSpot.`,
+      });
+    }
+
+    // 3. Outil détecté sans propriétés (via source d'enregistrement uniquement)
+    //    → connecter officiellement pour récupérer les propriétés et enrichir
+    if (int.totalProperties === 0 && int.detectionMethods.includes("source_detail")) {
+      integrationInsights.push({
+        key: `int_source_only_${int.key}`,
+        severity: "info",
+        title: `${int.icon} ${int.label} : ${int.enrichedRecords.toLocaleString("fr-FR")} enregistrements détectés sans propriétés`,
+        body: `${int.label} alimente votre CRM (${int.enrichedRecords} enregistrements détectés) mais aucune propriété personnalisée n'est synchronisée. Vous perdez de la donnée exploitable pour vos rapports.`,
+        recommendation: `Installer la version officielle de l'app ${int.label} sur le marketplace HubSpot pour récupérer toutes les propriétés et activer les rapports Revold associés.`,
+      });
+    }
+
+    // 4. Suggestion de rapport selon la catégorie d'outil
+    if (cat === "outbound") {
+      integrationInsights.push({
+        key: `int_report_outbound_${int.key}`,
+        severity: "info",
+        title: `📈 Activer le rapport « Outbound → Deals gagnés » pour ${int.label}`,
+        body: `${int.label} est un outil de prospection. Revold peut croiser les séquences envoyées avec les opportunités créées et les deals gagnés pour mesurer le ROI réel de votre outbound.`,
+        recommendation: `Activer le rapport « Outbound → Opportunités → Deals gagnés » dans la nouvelle page Rapports pour visualiser le funnel complet et identifier les meilleures séquences.`,
+      });
+    }
+
+    if (cat === "calling") {
+      integrationInsights.push({
+        key: `int_report_calling_${int.key}`,
+        severity: "info",
+        title: `📞 Activer le rapport « Activité téléphonique → Pipeline » pour ${int.label}`,
+        body: `Les ${int.enrichedRecords.toLocaleString("fr-FR")} appels passés via ${int.label} peuvent être croisés avec la création et la progression des deals pour mesurer l'impact du téléphone sur votre pipeline.`,
+        recommendation: `Activer le rapport téléphonie dans la page Rapports pour identifier les meilleurs créneaux et le bon nombre de tentatives par lead.`,
+      });
+    }
+
+    if (cat === "billing") {
+      integrationInsights.push({
+        key: `int_report_billing_${int.key}`,
+        severity: "info",
+        title: `💳 Activer la réconciliation Deals ↔ Factures avec ${int.label}`,
+        body: `${int.label} gère votre facturation. Revold peut croiser automatiquement les opportunités gagnées dans HubSpot avec les paiements réels pour fiabiliser votre forecast et faire apparaître les écarts CA forecast vs réalisé.`,
+        recommendation: `Activer le rapport « Réconciliation Deals gagnés ↔ Factures encaissées » dans la page Rapports pour piloter le cash et plus seulement le pipeline.`,
+      });
+    }
+
+    if (cat === "esign") {
+      integrationInsights.push({
+        key: `int_report_esign_${int.key}`,
+        severity: "info",
+        title: `📝 Activer le rapport « Cycle de signature » pour ${int.label}`,
+        body: `${int.label} gère vos contrats. Revold peut mesurer le délai entre l'envoi du contrat et la signature, identifier les blocages et calculer le time-to-close réel par commercial.`,
+        recommendation: `Activer le rapport e-signature dans la page Rapports pour réduire le cycle de vente et augmenter le taux de transformation closing.`,
+      });
+    }
+
+    if (cat === "enrichment") {
+      integrationInsights.push({
+        key: `int_report_enrichment_${int.key}`,
+        severity: "info",
+        title: `💎 Mesurer le ROI de ${int.label}`,
+        body: `${int.label} enrichit votre base contacts. Revold peut comparer les contacts enrichis vs non-enrichis sur le taux de conversion et le CA moyen pour justifier l'investissement.`,
+        recommendation: `Activer le rapport « ROI de l'enrichissement » dans la page Rapports pour visualiser l'impact business de l'enrichissement.`,
+      });
+    }
+
+    if (cat === "support") {
+      integrationInsights.push({
+        key: `int_report_support_${int.key}`,
+        severity: "info",
+        title: `🎧 Activer le rapport « Tickets → Risque de churn » pour ${int.label}`,
+        body: `${int.label} centralise vos tickets support. Revold peut croiser le volume de tickets avec les renouvellements pour anticiper le churn des comptes à risque.`,
+        recommendation: `Activer le rapport churn dans la page Rapports pour permettre à la CSM d'agir en proactif.`,
+      });
+    }
+
+    if (cat === "conv_intel") {
+      integrationInsights.push({
+        key: `int_report_conv_${int.key}`,
+        severity: "info",
+        title: `🎙️ Analyser les appels gagnants vs perdus avec ${int.label}`,
+        body: `${int.label} analyse vos conversations commerciales. Revold peut comparer les patterns (talk ratio, objections, mots-clés) entre les deals gagnés et perdus pour affiner votre méthode de vente.`,
+        recommendation: `Activer le rapport conversational intelligence dans la page Rapports pour un coaching commercial data-driven.`,
+      });
+    }
+  });
+
+  // 5. Insight de niveau global : peu d'outils métiers connectés → opportunité Revold
+  const businessToolCount = detectedIntegrations.filter(
+    (i) => getToolCategory(i.key) !== "other",
+  ).length;
+  if (businessToolCount > 0 && businessToolCount < 3) {
+    integrationInsights.push({
+      key: "int_global_low_stack",
+      severity: "info",
+      title: `🔌 Seulement ${businessToolCount} outil${businessToolCount > 1 ? "s" : ""} métier détecté${businessToolCount > 1 ? "s" : ""} dans votre stack`,
+      body: `Plus vous connectez de sources (prospection, téléphonie, billing, e-sign, support) à HubSpot, plus Revold peut générer des rapports croisés à forte valeur. Aujourd'hui, certaines briques de votre business ne remontent pas dans le CRM.`,
+      recommendation: `Consultez la page Intégration pour découvrir les outils à connecter, et la page Rapports pour voir ce que Revold débloquera ensuite.`,
+    });
+  }
+
+  const totalReportSuggestions = getReportSuggestions(detectedIntegrations).length;
 
   // ── Fetch workflows for automation insights ──
   let workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }> = [];
@@ -154,7 +299,12 @@ export default async function InsightsPage() {
   const doneCount = allDismissed.filter((d) => !d.status || d.status === "done").length;
   const removedCount = allDismissed.filter((d) => d.status === "removed").length;
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
-  const totalShown = insightsByCategory.commercial.length + insightsByCategory.marketing.length + insightsByCategory.data.length;
+  const visibleIntegrationInsights = integrationInsights.filter((i) => !dismissedKeys.has(i.key));
+  const totalShown =
+    insightsByCategory.commercial.length +
+    insightsByCategory.marketing.length +
+    insightsByCategory.data.length +
+    visibleIntegrationInsights.length;
 
   // ── Scenarios (8 scenarios in carousel) ──
   const scenarios = [
@@ -285,6 +435,54 @@ export default async function InsightsPage() {
           dismissedKeys={dismissedKeys}
         />
       </CollapsibleBlock>
+
+      {/* Insights Intégration — adoption, change management, suggestions de rapports */}
+      {visibleIntegrationInsights.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <div className="flex w-full items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                Insights Intégration
+                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                  {visibleIntegrationInsights.length}
+                </span>
+              </h2>
+              {totalReportSuggestions > 0 && (
+                <span className="mr-4 text-xs text-indigo-600">
+                  {totalReportSuggestions} rapport{totalReportSuggestions > 1 ? "s" : ""} suggéré{totalReportSuggestions > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Analyses de l&apos;adoption de vos outils métiers connectés au CRM. Améliorez la conduite du changement
+            et activez de nouveaux rapports croisant vos sources de données.
+          </p>
+          <div className="space-y-3">
+            {visibleIntegrationInsights.map((insight) => (
+              <InsightCard
+                key={insight.key}
+                templateKey={insight.key}
+                severity={insight.severity}
+                title={insight.title}
+                body={insight.body}
+                recommendation={insight.recommendation}
+                hubspotUrl={insight.key.startsWith("int_report_") || insight.key === "int_global_low_stack"
+                  ? "/dashboard/rapports"
+                  : "/dashboard/integration"}
+                actionLabel={insight.key.startsWith("int_report_")
+                  ? "Voir le rapport suggéré"
+                  : insight.key === "int_global_low_stack"
+                  ? "Découvrir les rapports"
+                  : "Voir l'intégration"}
+                category="integration"
+              />
+            ))}
+          </div>
+        </CollapsibleBlock>
+      )}
 
       {/* Insight blocs (commercial / marketing / data) */}
       {blocs.map((bloc) => (
