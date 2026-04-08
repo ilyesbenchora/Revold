@@ -140,7 +140,7 @@ export function DashboardSidebar() {
   const isAccountActive = pathname.startsWith(accountLink.href);
 
   return (
-    <aside className="hidden w-64 flex-col border-r border-card-border bg-white px-4 py-6 md:flex">
+    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 flex-col self-start overflow-y-auto border-r border-card-border bg-white px-4 py-6 md:flex">
       <nav className="flex-1 space-y-1">
         {sidebarLinks.map((link) => {
           const isActive =
