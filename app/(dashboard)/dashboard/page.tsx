@@ -171,7 +171,7 @@ export default async function DashboardOverviewPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Synthèse globale de la santé de votre RevOps.
+            Synthèse globale de la santé de votre HubSpot.
             {lastUpdated && (
               <span className="ml-2 text-slate-400">Actualisé le {lastUpdated}</span>
             )}
