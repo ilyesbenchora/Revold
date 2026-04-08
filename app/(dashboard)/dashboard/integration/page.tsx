@@ -266,8 +266,9 @@ export default async function IntegrationPage() {
           }
         >
           <p className="text-sm text-slate-500">
-            Connectez ces outils à HubSpot pour que Revold puisse centraliser <strong>l&apos;ensemble des données de votre entreprise</strong> :
-            campagnes outbound, appels, contrats signés, factures, tickets support… Plus vos sources sont riches, plus l&apos;intelligence Revold devient un avantage compétitif.
+            Synchronisez ces outils <strong>directement à Revold</strong>, sans passer par HubSpot.
+            C&apos;est ça la puissance de Revold : centraliser <strong>toutes les données revenue de votre entreprise</strong> en un seul endroit
+            — CRM, facturation, service client — pour piloter le business à 360°.
           </p>
           <div className="space-y-4">
             {recommendedCategories.map((cat) => (
@@ -281,19 +282,20 @@ export default async function IntegrationPage() {
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {cat.tools.map((tool) => (
-                    <a
+                    <Link
                       key={tool.key}
-                      href={tool.marketplaceUrl ?? "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition"
+                      href={tool.connectUrl}
+                      className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition"
                     >
                       <span className="text-xl">{tool.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-slate-900 group-hover:text-indigo-700">{tool.label}</p>
                         <p className="truncate text-xs text-slate-500">{tool.description}</p>
                       </div>
-                    </a>
+                      <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white opacity-0 transition group-hover:opacity-100">
+                        Connecter
+                      </span>
+                    </Link>
                   ))}
                 </div>
               </article>
