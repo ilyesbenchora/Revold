@@ -4,13 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type Props = {
+  myCount?: number;
   singleCount?: number;
   multiCount?: number;
 };
 
-export function RapportsTabs({ singleCount, multiCount }: Props) {
+export function RapportsTabs({ myCount, singleCount, multiCount }: Props) {
   const pathname = usePathname();
   const tabs = [
+    {
+      href: "/dashboard/rapports/mes-rapports",
+      label:
+        myCount != null ? `Mes rapports (${myCount})` : "Mes rapports",
+    },
     {
       href: "/dashboard/rapports/integration-unique",
       label:
