@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { AlertButton } from "@/components/alert-button";
+import { AutomationInsights } from "@/components/automation-insights";
 
 const HUBSPOT_PORTAL = "48372600";
 const HS = {
@@ -73,7 +74,7 @@ export default async function InsightsPage() {
     } catch {}
   }
 
-  const [{ data: insights }, r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
+  const [{ data: insights }, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10] = await Promise.all([
     supabase.from("ai_insights").select("*").eq("organization_id", orgId).eq("is_dismissed", false).order("generated_at", { ascending: false }),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", true),
@@ -82,7 +83,45 @@ export default async function InsightsPage() {
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("company_id", null),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).eq("sales_activities_count", 0),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", false).eq("is_sql", false),
   ]);
+
+  // Fetch workflows from HubSpot for automation insights
+  let workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }> = [];
+  let dealsNoOwner = 0;
+  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+    try {
+      const [wfRes, ownerRes] = await Promise.all([
+        fetch("https://api.hubapi.com/automation/v4/flows?limit=100", {
+          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
+        }),
+        fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] }],
+            limit: 1,
+          }),
+        }),
+      ]);
+      if (wfRes.ok) {
+        const wfData = await wfRes.json();
+        workflows = (wfData.results ?? []).map((w: Record<string, unknown>) => ({
+          id: w.id as string,
+          name: (w.name as string) || "Sans nom",
+          enabled: w.isEnabled === true || w.enabled === true,
+          type: (w.type as string) || "unknown",
+          objectType: w.objectTypeId as string | undefined,
+        }));
+      }
+      if (ownerRes.ok) {
+        const od = await ownerRes.json();
+        dealsNoOwner = od.total ?? 0;
+      }
+    } catch {}
+  }
 
   const allInsights = (insights ?? []) as Insight[];
   const commercial = allInsights.filter((i) => classifyInsight(i.category) === "commercial");
@@ -122,6 +161,10 @@ export default async function InsightsPage() {
   const totalContacts = r5.count ?? 0;
   const opportunities = r6.count ?? 0;
   const orphans = r7.count ?? 0;
+  const openDealsCount = r8.count ?? 0;
+  const dealsNoActivity = r9.count ?? 0;
+  const leadsCount = r10.count ?? 0;
+  const dealsNoOwnerPct = totalDeals > 0 ? Math.round((dealsNoOwner / totalDeals) * 100) : 0;
 
   const closingRate = (won + lost) > 0 ? Math.round((won / (won + lost)) * 100) : 0;
   const conversionRate = totalContacts > 0 ? Math.round((opportunities / totalContacts) * 100) : 0;
@@ -204,6 +247,27 @@ export default async function InsightsPage() {
             </article>
           ))}
         </div>
+      </div>
+
+      {/* Insights IA Automation */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+            <path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+          </svg>
+          Insights IA Automation
+        </h2>
+        <p className="text-sm text-slate-500">Workflows manquants ou sous-exploités pour optimiser vos processus RevOps.</p>
+        <AutomationInsights
+          workflows={workflows}
+          dealsNoOwnerPct={dealsNoOwnerPct}
+          dealsNoOwner={dealsNoOwner}
+          dealsNoNextActivity={noNext}
+          dealsNoActivity={dealsNoActivity}
+          openDeals={openDealsCount}
+          contacts={totalContacts}
+          leads={leadsCount}
+        />
       </div>
 
       {/* Insight blocs */}
