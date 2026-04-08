@@ -32,6 +32,8 @@ export default async function InsightsRealiseesPage() {
   const all = (rawDismissals ?? []) as DismissalRow[];
   // "done" status OR no status (legacy = treat as done)
   const done = all.filter((d) => !d.status || d.status === "done");
+  const removedCount = all.filter((d) => d.status === "removed").length;
+  const doneCount = done.length;
 
   // Group by category
   const byCategory: Record<string, DismissalRow[]> = {
@@ -60,7 +62,7 @@ export default async function InsightsRealiseesPage() {
         <p className="mt-1 text-sm text-slate-500">Recommandations que vous avez marquées comme faites.</p>
       </header>
 
-      <InsightTabs />
+      <InsightTabs doneCount={doneCount} removedCount={removedCount} />
 
       {done.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-12 text-center">

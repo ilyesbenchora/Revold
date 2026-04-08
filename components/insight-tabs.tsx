@@ -3,14 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const tabs = [
-  { href: "/dashboard/insights-ia", label: "Insights actifs" },
-  { href: "/dashboard/insights-ia/realisees", label: "Insights réalisés" },
-  { href: "/dashboard/insights-ia/retirees", label: "Insights retirés" },
-];
+type Props = {
+  doneCount?: number;
+  removedCount?: number;
+};
 
-export function InsightTabs() {
+export function InsightTabs({ doneCount, removedCount }: Props) {
   const pathname = usePathname();
+  const tabs = [
+    { href: "/dashboard/insights-ia", label: "Insights actifs" },
+    {
+      href: "/dashboard/insights-ia/realisees",
+      label: doneCount != null ? `Insights réalisés (${doneCount})` : "Insights réalisés",
+    },
+    {
+      href: "/dashboard/insights-ia/retirees",
+      label: removedCount != null ? `Insights retirés (${removedCount})` : "Insights retirés",
+    },
+  ];
+
   return (
     <div className="border-b border-card-border">
       <div className="flex gap-1">

@@ -235,7 +235,7 @@ export default async function InsightsPage() {
         </div>
       </header>
 
-      <InsightTabs />
+      <InsightTabs doneCount={doneCount} removedCount={removedCount} />
 
       {/* Scénarios de simulation */}
       <div className="space-y-4">

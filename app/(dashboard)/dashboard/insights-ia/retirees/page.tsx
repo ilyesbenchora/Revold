@@ -31,6 +31,8 @@ export default async function InsightsRetireesPage() {
 
   const all = (rawDismissals ?? []) as DismissalRow[];
   const removed = all.filter((d) => d.status === "removed");
+  const removedCount = removed.length;
+  const doneCount = all.filter((d) => !d.status || d.status === "done").length;
 
   const byCategory: Record<string, DismissalRow[]> = {
     commercial: [],
@@ -58,7 +60,7 @@ export default async function InsightsRetireesPage() {
         <p className="mt-1 text-sm text-slate-500">Recommandations que vous avez retirées de votre liste active.</p>
       </header>
 
-      <InsightTabs />
+      <InsightTabs doneCount={doneCount} removedCount={removedCount} />
 
       {removed.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-12 text-center">
