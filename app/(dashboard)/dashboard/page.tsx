@@ -28,11 +28,11 @@ export default async function DashboardOverviewPage() {
       .single(),
     supabase
       .from("deals")
-      .select("id, amount, is_closed_won, is_closed_lost, is_at_risk")
+      .select("id, amount, is_closed_won, is_closed_lost, is_at_risk, next_activity_date, sales_activities_count")
       .eq("organization_id", orgId),
     supabase
       .from("contacts")
-      .select("id, company_id, is_mql, is_sql")
+      .select("id, company_id, is_mql, is_sql, phone")
       .eq("organization_id", orgId),
     supabase
       .from("integrations")
@@ -53,17 +53,27 @@ export default async function DashboardOverviewPage() {
   const atRiskDeals = deals.filter((d) => d.is_at_risk).length;
   const wonDeals = deals.filter((d) => d.is_closed_won);
   const wonDealsCount = wonDeals.length;
+  const lostDealsCount = deals.filter((d) => d.is_closed_lost).length;
   const wonAmount = wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const openDeals = deals.filter((d) => !d.is_closed_won && !d.is_closed_lost);
   const openDealsCount = openDeals.length;
+  const openAmount = openDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const dealsWithNextActivity = openDeals.filter((d) => d.next_activity_date != null).length;
+  const followUpRate = openDealsCount > 0 ? Math.round((dealsWithNextActivity / openDealsCount) * 100) : 0;
+  const closingRateComputed = (wonDealsCount + lostDealsCount) > 0
+    ? Math.round((wonDealsCount / (wonDealsCount + lostDealsCount)) * 100)
+    : 0;
 
   // ── Compute from contacts ──
   const contactTotal = contacts.length;
   const contactAssigned = contacts.filter((c) => c.company_id != null).length;
   const attributionRate = contactTotal > 0 ? Math.round((contactAssigned / contactTotal) * 100) : 0;
-  const mqlCount = contacts.filter((c) => c.is_mql).length;
-  const sqlCount = contacts.filter((c) => c.is_sql).length;
-  const lifecycleConversion = mqlCount > 0 ? Math.round((sqlCount / mqlCount) * 100) : 0;
+  const orphansCount = contactTotal - contactAssigned;
+  const opportunityCount = contacts.filter((c) => c.is_sql).length;
+  const leadsCount = contactTotal - opportunityCount;
+  const conversionLeadOpp = contactTotal > 0 ? Math.round((opportunityCount / contactTotal) * 100) : 0;
+  const contactsWithPhone = contacts.filter((c) => c.phone != null).length;
+  const phoneFilledRate = contactTotal > 0 ? Math.round((contactsWithPhone / contactTotal) * 100) : 0;
 
   // ── Scores ──
   const salesScore = Number(k?.sales_score) || 0;
@@ -107,13 +117,13 @@ export default async function DashboardOverviewPage() {
   const categories = [
     {
       label: "Données",
-      description: "Data Quality & Data Ops",
+      description: "Qualité et enrichissement",
       score: donneesScore,
       href: "/dashboard/donnees",
       details: [
-        { label: "Complétude données", value: k?.data_completeness ? `${k.data_completeness}%` : "—" },
-        { label: "Doublons contacts", value: k?.duplicate_contacts_pct ? `${k.duplicate_contacts_pct}%` : "—" },
-        { label: "Contacts orphelins", value: k?.orphan_contacts_pct ? `${k.orphan_contacts_pct}%` : "—" },
+        { label: "Téléphone renseigné", value: contactTotal > 0 ? `${phoneFilledRate}%` : "—" },
+        { label: "Contacts attribués", value: contactTotal > 0 ? `${attributionRate}%` : "—" },
+        { label: "Contacts orphelins", value: `${orphansCount.toLocaleString("fr-FR")}` },
       ],
     },
     {
@@ -122,44 +132,42 @@ export default async function DashboardOverviewPage() {
       score: processScore,
       href: "/dashboard/process",
       details: [
-        { label: "Workflows actifs", value: `${openDealsCount}` },
-        { label: "Workflows inactifs", value: `${inactiveWorkflows}` },
-        { label: "Attribution contacts", value: `${attributionRate}%` },
-        { label: "Conversion lifecycle", value: `${lifecycleConversion}%` },
-        { label: "Création transactions", value: `${totalDeals}` },
+        { label: "Contacts", value: `${contactTotal.toLocaleString("fr-FR")}` },
+        { label: "Conversion Lead → Opp.", value: `${conversionLeadOpp}%` },
+        { label: "Opportunités", value: `${opportunityCount.toLocaleString("fr-FR")}` },
       ],
     },
     {
       label: "Performance Sales",
-      description: "KPIs commerciaux",
+      description: "Pipeline & Closing",
       score: salesScore,
       href: "/dashboard/performance-commerciale",
       details: [
-        { label: "Cycle de vente moyen", value: cycleDays > 0 ? `${cycleDays} jours` : "—" },
-        { label: "Transactions gagnées", value: `${wonDealsCount}` },
-        { label: "Montant gagné", value: wonAmount > 0 ? `€${(wonAmount / 1000).toFixed(0)}K` : "—" },
+        { label: "Taux de closing", value: (wonDealsCount + lostDealsCount) > 0 ? `${closingRateComputed}%` : "—" },
+        { label: "Pipeline en cours", value: openAmount > 0 ? `€${Math.round(openAmount / 1000)}K` : "—" },
+        { label: "Taux de suivi", value: openDealsCount > 0 ? `${followUpRate}%` : "—" },
       ],
     },
     {
       label: "Performance Marketing",
-      description: "KPIs marketing",
+      description: "Funnel & Attribution",
       score: marketingScore,
       href: "/dashboard/performance-marketing",
       details: [
-        { label: "MQL → SQL", value: k?.mql_to_sql_rate ? `${k.mql_to_sql_rate}%` : "—" },
-        { label: "Vélocité leads", value: k?.lead_velocity_rate ? `+${k.lead_velocity_rate}%` : "—" },
-        { label: "Fuite funnel", value: k?.funnel_leakage_rate ? `${k.funnel_leakage_rate}%` : "—" },
+        { label: "Leads", value: `${leadsCount.toLocaleString("fr-FR")}` },
+        { label: "Opportunités", value: `${opportunityCount.toLocaleString("fr-FR")}` },
+        { label: "Conversion Lead → Opp.", value: `${conversionLeadOpp}%` },
       ],
     },
     {
       label: "Intégration",
-      description: "Outils & CRM",
+      description: "Outils & utilisateurs",
       score: integrationScore,
       href: "/dashboard/integration",
       details: [
-        { label: "Outils intégrés", value: `${activeIntegrations.length}` },
-        { label: "Utilisateurs actifs", value: `${totalUsers ?? 0}` },
-        { label: "Complétude CRM", value: k?.data_completeness ? `${k.data_completeness}%` : "—" },
+        { label: "Intégrations actives", value: `${activeIntegrations.length}` },
+        { label: "Utilisateurs CRM", value: `${totalUsers ?? 0}` },
+        { label: "Données synchronisées", value: `${(totalDeals + contactTotal).toLocaleString("fr-FR")}` },
       ],
     },
   ];
