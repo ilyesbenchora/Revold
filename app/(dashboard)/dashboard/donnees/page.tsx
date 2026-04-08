@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor } from "@/lib/score-utils";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 export default async function DonneesPage() {
   const orgId = await getOrgId();
@@ -131,11 +132,14 @@ export default async function DonneesPage() {
       </div>
 
       {/* Qualité contacts */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Enrichissement des contacts
-          <span className="text-sm font-normal text-slate-400">({tc.toLocaleString("fr-FR")} contacts)</span>
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Enrichissement des contacts
+            <span className="text-sm font-normal text-slate-400">({tc.toLocaleString("fr-FR")} contacts)</span>
+          </h2>
+        }
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {contactMetrics.map((m) => (
             <article key={m.label} className="card p-4">
@@ -149,14 +153,17 @@ export default async function DonneesPage() {
             </article>
           ))}
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Qualité entreprises */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-violet-500" />Enrichissement des entreprises
-          <span className="text-sm font-normal text-slate-400">({tco.toLocaleString("fr-FR")} entreprises)</span>
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-violet-500" />Enrichissement des entreprises
+            <span className="text-sm font-normal text-slate-400">({tco.toLocaleString("fr-FR")} entreprises)</span>
+          </h2>
+        }
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {companyMetrics.map((m) => (
             <article key={m.label} className="card p-4">
@@ -170,14 +177,17 @@ export default async function DonneesPage() {
             </article>
           ))}
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Qualité transactions */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />Enrichissement des transactions
-          <span className="text-sm font-normal text-slate-400">({td.toLocaleString("fr-FR")} transactions)</span>
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />Enrichissement des transactions
+            <span className="text-sm font-normal text-slate-400">({td.toLocaleString("fr-FR")} transactions)</span>
+          </h2>
+        }
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {dealMetrics.map((m) => (
             <article key={m.label} className="card p-4">
@@ -191,7 +201,7 @@ export default async function DonneesPage() {
             </article>
           ))}
         </div>
-      </div>
+      </CollapsibleBlock>
     </section>
   );
 }

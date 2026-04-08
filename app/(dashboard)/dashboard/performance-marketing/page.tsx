@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -148,10 +149,13 @@ export default async function PerformanceMarketingPage() {
       </div>
 
       {/* Funnel */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel de conversion
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel de conversion
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Contacts totaux</p>
@@ -172,13 +176,16 @@ export default async function PerformanceMarketingPage() {
             <p className={`mt-1 text-3xl font-bold ${conversionRate >= 25 ? "text-emerald-600" : conversionRate >= 10 ? "text-yellow-600" : "text-orange-500"}`}>{conversionRate}%</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Qualité des données contacts */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-violet-500" />Qualité et attribution des contacts
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-violet-500" />Qualité et attribution des contacts
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Contacts attribués</p>
@@ -200,15 +207,18 @@ export default async function PerformanceMarketingPage() {
             <p className="mt-1 text-xs text-slate-400">Ratio contacts sur deals</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Adoption digitale */}
       {totalSourceContacts > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
-            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts analysés</span>
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
+              <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts analysés</span>
+            </h2>
+          }
+        >
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             <article className="card p-4 text-center">
               <p className="text-xs text-slate-500">Source online</p>
@@ -235,16 +245,19 @@ export default async function PerformanceMarketingPage() {
               <p className={`mt-1 text-2xl font-bold ${withMarketingEmailsTotal > 0 ? "text-slate-900" : "text-red-500"}`}>{withMarketingEmailsTotal.toLocaleString("fr-FR")}</p>
             </article>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {/* Intégrations natives utilisées */}
       {nativeIntegrations.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
-            <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
+              <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
+            </h2>
+          }
+        >
           <p className="text-sm text-slate-500">Contacts créés via des intégrations connectées au portail HubSpot.</p>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
@@ -270,16 +283,19 @@ export default async function PerformanceMarketingPage() {
               })}
             </div>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {/* Toutes les sources de contacts */}
       {contactSourcesGlobal.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources d&apos;acquisition
-            <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources d&apos;acquisition
+              <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
+            </h2>
+          }
+        >
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
               {contactSourcesGlobal.map((s) => {
@@ -305,15 +321,18 @@ export default async function PerformanceMarketingPage() {
               })}
             </div>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {/* Derniers contacts */}
       {recent.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />Derniers contacts ajoutés
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />Derniers contacts ajoutés
+            </h2>
+          }
+        >
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
               {recent.map((c) => (
@@ -334,7 +353,7 @@ export default async function PerformanceMarketingPage() {
               ))}
             </div>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
     </section>
   );

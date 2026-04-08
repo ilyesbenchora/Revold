@@ -1,6 +1,7 @@
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 const HUBSPOT_PORTAL = "48372600";
 
@@ -154,10 +155,13 @@ export default async function ConduiteChangementPage() {
 
       {/* Utilisateurs par équipe */}
       {sortedTeams.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Utilisateurs par équipe
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />Utilisateurs par équipe
+            </h2>
+          }
+        >
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {sortedTeams.map(([team, count]) => (
               <article key={team} className="card p-4">
@@ -167,15 +171,18 @@ export default async function ConduiteChangementPage() {
               </article>
             ))}
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {/* Top utilisateurs actifs */}
       {topUsers.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />Top utilisateurs par volume de données
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />Top utilisateurs par volume de données
+            </h2>
+          }
+        >
           <div className="card overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -215,16 +222,19 @@ export default async function ConduiteChangementPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {/* Comptes fantômes / inactifs */}
       {ghostUsers.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-red-500" />Comptes sans activité
-            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">{ghostUsers.length}</span>
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-red-500" />Comptes sans activité
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">{ghostUsers.length}</span>
+            </h2>
+          }
+        >
           <p className="text-sm text-slate-500">Utilisateurs qui n&apos;ont aucun contact ni transaction associé. Candidats pour désactivation.</p>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
@@ -246,7 +256,7 @@ export default async function ConduiteChangementPage() {
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
             </svg>
           </a>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {!process.env.HUBSPOT_ACCESS_TOKEN && (

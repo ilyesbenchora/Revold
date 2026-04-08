@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 export default async function ProcessPage() {
   const orgId = await getOrgId();
@@ -147,11 +148,13 @@ export default async function ProcessPage() {
       </div>
 
       {/* Workflows */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-violet-500" />Workflows d&apos;automatisation
-        </h2>
-
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-violet-500" />Workflows d&apos;automatisation
+          </h2>
+        }
+      >
         {workflowError ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <p className="text-sm font-medium text-amber-800">{workflowError}</p>
@@ -208,13 +211,16 @@ export default async function ProcessPage() {
             </div>
           </>
         )}
-      </div>
+      </CollapsibleBlock>
 
       {/* Lifecycle */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />Conversion lifecycle
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />Conversion lifecycle
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Contacts</p>
@@ -234,7 +240,7 @@ export default async function ProcessPage() {
             <p className="mt-1 text-xs text-slate-400">Lead vers Opportunité</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
     </section>
   );
 }

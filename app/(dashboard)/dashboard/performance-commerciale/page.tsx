@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
@@ -99,10 +100,13 @@ export default async function PerformanceCommercialePage() {
       </div>
 
       {/* Pipeline */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Pipeline
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Pipeline
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Transactions totales</p>
@@ -121,13 +125,16 @@ export default async function PerformanceCommercialePage() {
             <p className="mt-1 text-3xl font-bold text-red-500">{lost}</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Résultats */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Résultats commerciaux
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-indigo-500" />Résultats commerciaux
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5">
             <p className="text-xs text-slate-500">Taux de closing</p>
@@ -150,14 +157,17 @@ export default async function PerformanceCommercialePage() {
             <p className="mt-1 text-xs text-slate-400">Montant pondéré par probabilité</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Transactions stagnantes */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />Transactions stagnantes
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stagnant.length > 5 ? "bg-red-50 text-red-700" : stagnant.length > 0 ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>{stagnant.length}</span>
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />Transactions stagnantes
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stagnant.length > 5 ? "bg-red-50 text-red-700" : stagnant.length > 0 ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>{stagnant.length}</span>
+          </h2>
+        }
+      >
         <p className="text-sm text-slate-400">Dernier contact &gt; 7 jours et aucune prochaine activité planifiée</p>
         {stagnant.length > 0 ? (
           <div className="card overflow-hidden">
@@ -179,13 +189,16 @@ export default async function PerformanceCommercialePage() {
         ) : (
           <p className="text-sm text-emerald-600">Aucune transaction stagnante.</p>
         )}
-      </div>
+      </CollapsibleBlock>
 
       {/* Suivi des transactions en cours */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Suivi des transactions en cours
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-indigo-500" />Suivi des transactions en cours
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Transactions en cours</p>
@@ -207,13 +220,16 @@ export default async function PerformanceCommercialePage() {
             <p className="mt-1 text-xs text-slate-400">Deals avec RDV planifié</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Activation commerciale */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Activation commerciale
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Activation commerciale
+          </h2>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <article className="card p-5 text-center">
             <p className="text-xs text-slate-500">Deals activés</p>
@@ -230,13 +246,16 @@ export default async function PerformanceCommercialePage() {
             <p className={`mt-1 text-3xl font-bold ${activationRate >= 80 ? "text-emerald-600" : activationRate >= 50 ? "text-yellow-600" : "text-red-500"}`}>{activationRate}%</p>
           </article>
         </div>
-      </div>
+      </CollapsibleBlock>
 
       {/* Activité commerciale */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Activité commerciale
-        </h2>
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />Activité commerciale
+          </h2>
+        }
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {top.length > 0 && (
             <div className="card overflow-hidden">
@@ -277,7 +296,7 @@ export default async function PerformanceCommercialePage() {
             </div>
           )}
         </div>
-      </div>
+      </CollapsibleBlock>
     </section>
   );
 }

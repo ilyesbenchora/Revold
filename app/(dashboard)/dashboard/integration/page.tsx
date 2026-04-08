@@ -3,6 +3,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
+import { CollapsibleBlock } from "@/components/collapsible-block";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -193,10 +194,13 @@ export default async function IntegrationPage() {
 
       {/* Sync logs */}
       {syncLogs && syncLogs.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-slate-400" />Dernières synchronisations
-          </h2>
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />Dernières synchronisations
+            </h2>
+          }
+        >
           <div className="card overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -226,7 +230,7 @@ export default async function IntegrationPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </CollapsibleBlock>
       )}
 
       {!hubspotTokenConfigured && (
