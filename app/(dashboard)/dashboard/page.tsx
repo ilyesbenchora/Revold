@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import Link from "next/link";
-import { getScoreLabel, getBarColor, getScoreTextColor, getStrokeColor } from "@/lib/score-utils";
+import { getScoreLabel } from "@/lib/score-utils";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -102,6 +102,15 @@ export default async function DashboardOverviewPage() {
 
   const integrationScore = k ? Math.round(dataComp * 0.4 + crmScore * 0.6) : 0;
 
+  // Conduite du changement — adoption des outils par l'équipe.
+  // Proxy basé sur le taux d'attribution (50 pts), le nombre d'intégrations
+  // actives (25 pts) et le nombre d'utilisateurs Revold (25 pts).
+  const conduiteScore = Math.round(
+    Math.min(50, attributionRate * 0.5) +
+    Math.min(25, ((integrations ?? []).filter((i) => i.is_active).length) * 5) +
+    Math.min(25, (totalUsers ?? 0) * 5)
+  );
+
   const globalScore = k ? Math.round(
     donneesScore * 0.20 + processScore * 0.20 + salesScore * 0.25 +
     marketingScore * 0.20 + integrationScore * 0.15
@@ -170,6 +179,17 @@ export default async function DashboardOverviewPage() {
         { label: "Données synchronisées", value: `${(totalDeals + contactTotal).toLocaleString("fr-FR")}` },
       ],
     },
+    {
+      label: "Conduite du changement",
+      description: "Adoption & engagement équipe",
+      score: conduiteScore,
+      href: "/dashboard/conduite-changement",
+      details: [
+        { label: "Contacts attribués", value: contactTotal > 0 ? `${attributionRate}%` : "—" },
+        { label: "Utilisateurs Revold", value: `${totalUsers ?? 0}` },
+        { label: "Intégrations actives", value: `${activeIntegrations.length}` },
+      ],
+    },
   ];
 
   return (
@@ -222,24 +242,16 @@ export default async function DashboardOverviewPage() {
               href={cat.href}
               className={`card group p-5 transition hover:shadow-md ${wide ? "md:col-span-2 lg:col-span-2" : ""}`}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent">{cat.label}</h3>
                   <p className="mt-0.5 text-xs text-slate-400">{cat.description}</p>
                 </div>
-                <div className="text-right">
-                  <span className={`text-2xl font-bold ${
-                    getScoreTextColor(cat.score)
-                  }`}>{cat.score}</span>
-                  <div className={`mt-1 rounded-full border px-2 py-0.5 text-center text-xs font-medium ${badge.className}`}>
-                    {badge.label}
-                  </div>
+                <div className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+                  {badge.label}
                 </div>
               </div>
-              <div className="mt-4 h-1.5 w-full rounded-full bg-slate-100">
-                <div className={`h-1.5 rounded-full transition-all ${getBarColor(cat.score)}`} style={{ width: `${Math.min(100, cat.score)}%` }} />
-              </div>
-              <div className={`mt-4 grid gap-2 ${wide ? "grid-cols-3 md:grid-cols-5" : "grid-cols-3"}`}>
+              <div className={`mt-5 grid gap-2 ${wide ? "grid-cols-3 md:grid-cols-5" : "grid-cols-3"}`}>
                 {cat.details.map((d) => (
                   <div key={d.label}>
                     <p className="text-xs text-slate-400">{d.label}</p>
