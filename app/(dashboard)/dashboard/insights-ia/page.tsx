@@ -9,6 +9,7 @@ import { selectInsights, type InsightContext } from "@/lib/ai/insights-library";
 import { fetchTrackingStats } from "./context";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-suggestions";
+import { buildCrossSourceContext, selectCrossSourceInsights } from "@/lib/insights/cross-source";
 
 const HUBSPOT_PORTAL = "48372600";
 const HS = {
@@ -300,11 +301,20 @@ export default async function InsightsPage() {
   const removedCount = allDismissed.filter((d) => d.status === "removed").length;
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
   const visibleIntegrationInsights = integrationInsights.filter((i) => !dismissedKeys.has(i.key));
+
+  // Cross-source insights — joins canonical Revold entities across providers
+  // (HubSpot deals ↔ Stripe invoices ↔ Pipedrive deals ↔ ...)
+  const crossSourceCtx = await buildCrossSourceContext(supabase, orgId);
+  const crossSourceInsights = crossSourceCtx
+    ? selectCrossSourceInsights(crossSourceCtx, dismissedKeys)
+    : [];
+
   const totalShown =
     insightsByCategory.commercial.length +
     insightsByCategory.marketing.length +
     insightsByCategory.data.length +
-    visibleIntegrationInsights.length;
+    visibleIntegrationInsights.length +
+    crossSourceInsights.length;
 
   // ── Scenarios (8 scenarios in carousel) ──
   const scenarios = [
@@ -478,6 +488,46 @@ export default async function InsightsPage() {
                   ? "Découvrir les rapports"
                   : "Voir l'intégration"}
                 category="integration"
+              />
+            ))}
+          </div>
+        </CollapsibleBlock>
+      )}
+
+      {/* Insights Cross-Source — joins HubSpot, Stripe, Pipedrive… via canonical entities */}
+      {crossSourceInsights.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <div className="flex w-full items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className="h-2 w-2 rounded-full bg-fuchsia-500" />
+                Insights Cross-Source
+                <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
+                  {crossSourceInsights.length}
+                </span>
+              </h2>
+              <span className="mr-4 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                🔗 Multi-sources
+              </span>
+            </div>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Insights impossibles à générer avec un seul outil — Revold croise vos sources connectées
+            (HubSpot, Stripe, Pipedrive…) pour faire ressortir les fuites revenue, les angles morts commerciaux et les risques cachés.
+          </p>
+          <div className="space-y-3">
+            {crossSourceInsights.map((insight) => (
+              <InsightCard
+                key={insight.key}
+                templateKey={insight.key}
+                severity={insight.severity}
+                title={insight.title}
+                body={insight.body}
+                recommendation={insight.recommendation}
+                hubspotUrl="/dashboard/rapports"
+                actionLabel="Voir le rapport associé"
+                category="cross_source"
               />
             ))}
           </div>
