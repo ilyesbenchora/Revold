@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RevoldLogo } from "@/components/revold-logo";
+import { AlertsDropdown } from "@/components/alerts-dropdown";
 import { logoutAction } from "@/app/login/actions";
 import { getScoreLabel, getScoreTextColor } from "@/lib/score-utils";
 
@@ -37,6 +38,7 @@ export function DashboardHeader({ companyName, integrationScore }: DashboardHead
           </Link>
         )}
         <span className="text-sm font-medium text-slate-600">{companyName}</span>
+        <AlertsDropdown />
         <Link
           href="/dashboard/mon-compte"
           aria-label="Mon compte"
