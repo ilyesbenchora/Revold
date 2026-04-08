@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
+import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { detectPortalApps, type PortalApp } from "@/lib/integrations/detect-portal-apps";
@@ -102,6 +103,7 @@ export default async function IntegrationPage({
   return (
     <section className="space-y-8">
       <Suspense><HubSpotSyncOrchestrator /></Suspense>
+      <Suspense><ToolSyncOrchestrator /></Suspense>
 
       {connectedTool && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

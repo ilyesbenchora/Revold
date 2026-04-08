@@ -53,7 +53,9 @@ export async function connectToolAction(toolKey: string, formData: FormData) {
     redirect(`/dashboard/integration/connect/${toolKey}?error=save_failed`);
   }
 
-  redirect(`/dashboard/integration?connected=${toolKey}`);
+  // After saving credentials, trigger an initial sync via the orchestrator UI.
+  // The integration page mounts <ToolSyncOrchestrator /> which detects ?sync= and POSTs /api/sync/{tool}.
+  redirect(`/dashboard/integration?connected=${toolKey}&sync=${toolKey}`);
 }
 
 export async function disconnectToolAction(toolKey: string) {
