@@ -5,6 +5,7 @@ import { InsightCard } from "@/components/insight-card";
 import { InsightTabs } from "@/components/insight-tabs";
 import { ScenarioCarousel } from "@/components/scenario-carousel";
 import { selectInsights, type InsightContext } from "@/lib/ai/insights-library";
+import { fetchTrackingStats } from "./context";
 
 const HUBSPOT_PORTAL = "48372600";
 const HS = {
@@ -140,6 +141,11 @@ export default async function InsightsPage() {
     companiesNoIndustry: companiesNoIndustry ?? 0,
     companiesNoRevenue: companiesNoRevenue ?? 0,
   };
+
+  // Add tracking stats from HubSpot for the "no online tracking" insight
+  const tracking = await fetchTrackingStats();
+  ctx.trackingSample = tracking.trackingSample;
+  ctx.onlineContacts = tracking.onlineContacts;
 
   const allDismissed = (dismissals ?? []) as Array<{ template_key: string; status?: string }>;
   const dismissedKeys = new Set(allDismissed.map((d) => d.template_key));

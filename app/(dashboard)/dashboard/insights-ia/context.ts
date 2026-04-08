@@ -73,3 +73,25 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
     companiesNoRevenue: companiesNoRevenue ?? 0,
   };
 }
+
+export async function fetchTrackingStats(): Promise<{ trackingSample: number; onlineContacts: number }> {
+  if (!process.env.HUBSPOT_ACCESS_TOKEN) return { trackingSample: 0, onlineContacts: 0 };
+  try {
+    const res = await fetch(
+      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=hs_analytics_source",
+      { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
+    );
+    if (!res.ok) return { trackingSample: 0, onlineContacts: 0 };
+    const data = await res.json();
+    let online = 0;
+    const onlineSources = ["ORGANIC_SEARCH", "PAID_SEARCH", "PAID_SOCIAL", "SOCIAL_MEDIA", "EMAIL_MARKETING", "REFERRALS", "DIRECT_TRAFFIC"];
+    const results = (data.results ?? []) as Array<{ properties: { hs_analytics_source?: string } }>;
+    results.forEach((c) => {
+      const src = c.properties.hs_analytics_source || "";
+      if (onlineSources.includes(src)) online++;
+    });
+    return { trackingSample: results.length, onlineContacts: online };
+  } catch {
+    return { trackingSample: 0, onlineContacts: 0 };
+  }
+}

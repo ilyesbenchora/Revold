@@ -32,6 +32,9 @@ export type InsightContext = {
   totalCompanies: number;
   companiesNoIndustry: number;
   companiesNoRevenue: number;
+  // Tracking (web analytics)
+  trackingSample?: number;
+  onlineContacts?: number;
 };
 
 export type InsightTemplate = {
@@ -155,6 +158,18 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
   },
 
   // ─────── MARKETING ───────
+  {
+    key: "marketing_no_online_tracking",
+    category: "marketing",
+    severity: "critical",
+    priority: 110,
+    shouldShow: (c) => (c.trackingSample ?? 0) > 0 && (c.onlineContacts ?? 0) === 0,
+    build: () => ({
+      title: "Aucun contact tracké en ligne",
+      body: "100% des contacts proviennent de sources offline. Le tracking HubSpot (script de suivi, formulaires, landing pages) n'est pas actif ou pas installé sur votre site web.",
+      recommendation: "Installer le code de suivi HubSpot sur votre site, activer les formulaires HubSpot et connecter vos landing pages pour commencer à tracker les sources online (SEO, Ads, Social, Email).",
+    }),
+  },
   {
     key: "marketing_low_conversion_rate",
     category: "marketing",
