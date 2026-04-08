@@ -7,6 +7,7 @@ import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { detectPortalApps, type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { Suspense } from "react";
@@ -33,14 +34,20 @@ export default async function IntegrationPage({
 
   let detectedIntegrations: DetectedIntegration[] = [];
   let owners: Array<{ email: string; firstName: string; lastName: string; teams: string[] }> = [];
+  let portalApps: { privateApps: PortalApp[]; publicApps: PortalApp[]; totalApps: number } = {
+    privateApps: [],
+    publicApps: [],
+    totalApps: 0,
+  };
 
   if (hubspotTokenConfigured) {
     try {
-      const [integrations, ownersRes] = await Promise.all([
+      const [integrations, ownersRes, apps] = await Promise.all([
         detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!),
         fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
           headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
         }).then((r) => r.ok ? r.json() : { results: [] }),
+        detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN!),
       ]);
       detectedIntegrations = integrations;
       owners = (ownersRes.results ?? []).map((o: Record<string, unknown>) => ({
@@ -49,6 +56,7 @@ export default async function IntegrationPage({
         lastName: (o.lastName as string) || "",
         teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
       }));
+      portalApps = apps;
     } catch {}
   }
 
@@ -141,11 +149,18 @@ export default async function IntegrationPage({
       )}
 
       {/* Vue d'ensemble */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <article className="card p-5 text-center">
           <p className="text-xs text-slate-500">Outils connectés</p>
           <p className="mt-1 text-3xl font-bold text-violet-600">{totalIntegrations}</p>
           <p className="mt-1 text-xs text-slate-400">Détectés via les propriétés CRM</p>
+        </article>
+        <article className="card p-5 text-center">
+          <p className="text-xs text-slate-500">Apps portail</p>
+          <p className="mt-1 text-3xl font-bold text-blue-600">{portalApps.totalApps}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {portalApps.privateApps.length} privée{portalApps.privateApps.length > 1 ? "s" : ""} · {portalApps.publicApps.length} publique{portalApps.publicApps.length > 1 ? "s" : ""}
+          </p>
         </article>
         <article className="card p-5 text-center">
           <p className="text-xs text-slate-500">Propriétés synchronisées</p>
@@ -165,6 +180,74 @@ export default async function IntegrationPage({
           <p className="mt-1 text-xs text-slate-400">Au moins 1 outil utilisé</p>
         </article>
       </div>
+
+      {/* Apps connectées au portail HubSpot */}
+      {portalApps.totalApps > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />Apps connectées au portail HubSpot
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{portalApps.totalApps}</span>
+            </h2>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Toutes les applications publiques (marketplace) et privées qui consomment l&apos;API de votre portail HubSpot.
+            Indicateur clé pour comprendre l&apos;ampleur de votre stack et identifier les apps actives.
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Apps privées */}
+            <article className="card p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900">Apps privées</h3>
+                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-bold text-violet-700">
+                  {portalApps.privateApps.length}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Développées en interne ou par des partenaires.</p>
+              {portalApps.privateApps.length === 0 ? (
+                <p className="mt-3 text-xs text-slate-400">Aucune app privée détectée.</p>
+              ) : (
+                <ul className="mt-3 space-y-1.5">
+                  {portalApps.privateApps.slice(0, 10).map((app) => (
+                    <li key={app.name} className="flex items-center justify-between text-xs">
+                      <span className="truncate text-slate-700">{app.name}</span>
+                      <span className="ml-2 shrink-0 font-medium text-slate-500">
+                        {app.usageCount.toLocaleString("fr-FR")} appels
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+
+            {/* Apps publiques */}
+            <article className="card p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900">Apps publiques (marketplace)</h3>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                  {portalApps.publicApps.length}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Installées depuis le marketplace HubSpot.</p>
+              {portalApps.publicApps.length === 0 ? (
+                <p className="mt-3 text-xs text-slate-400">Aucune app publique détectée.</p>
+              ) : (
+                <ul className="mt-3 space-y-1.5">
+                  {portalApps.publicApps.slice(0, 10).map((app) => (
+                    <li key={app.name} className="flex items-center justify-between text-xs">
+                      <span className="truncate text-slate-700">{app.name}</span>
+                      <span className="ml-2 shrink-0 font-medium text-slate-500">
+                        {app.usageCount.toLocaleString("fr-FR")} appels
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          </div>
+        </CollapsibleBlock>
+      )}
 
       {/* Applications connectées */}
       {detectedIntegrations.length > 0 && (
@@ -301,12 +384,9 @@ export default async function IntegrationPage({
           <div className="space-y-4">
             {recommendedCategories.map((cat) => (
               <article key={cat.id} className="card p-5">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">{cat.icon}</span>
-                  <div className="flex-1">
-                    <h3 className="text-base font-semibold text-slate-900">{cat.label}</h3>
-                    <p className="mt-1 text-xs text-slate-500">{cat.description}</p>
-                  </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">{cat.label}</h3>
+                  <p className="mt-1 text-xs text-slate-500">{cat.description}</p>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {cat.tools.map((tool) => (

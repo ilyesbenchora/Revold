@@ -242,7 +242,7 @@ export function getConnectableTool(key: string): ConnectableTool | null {
 
 const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   crm: "CRM",
-  billing: "Facturation & ERP",
+  billing: "Facturation",
   support: "Service client",
 };
 

@@ -46,7 +46,7 @@ export const RECOMMENDED_CATEGORIES: RecommendedCategory[] = [
   },
   {
     id: "billing",
-    label: "Facturation & ERP",
+    label: "Facturation",
     icon: "💳",
     description:
       "Reconciliez automatiquement les opportunités fermées avec les factures et paiements réels pour piloter le cash, pas seulement le pipeline.",
