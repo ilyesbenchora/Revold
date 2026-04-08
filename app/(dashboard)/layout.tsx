@@ -21,42 +21,20 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     getHubspotIntegrationScore(),
   ]);
 
-  let globalScore: number | undefined;
+  // Header now only shows the HubSpot integration score. Fallback on the
+  // legacy KPI-based formula if HubSpot isn't connected yet.
   let integrationScore: number | undefined;
-
-  if (latestKpi) {
-    const sales = Number(latestKpi.sales_score) || 0;
-    const marketing = Number(latestKpi.marketing_score) || 0;
+  if (hubspotIntegrationScore != null) {
+    integrationScore = hubspotIntegrationScore;
+  } else if (latestKpi) {
     const crm = Number(latestKpi.crm_ops_score) || 0;
     const dataComp = Number(latestKpi.data_completeness) || 0;
-    const dupesPct = Number(latestKpi.duplicate_contacts_pct) || 0;
-    const orphansPct = Number(latestKpi.orphan_contacts_pct) || 0;
-    const donneesScore = Math.round(
-      dataComp * 0.5 + Math.max(0, 100 - dupesPct * 5) * 0.25 + Math.max(0, 100 - orphansPct * 3) * 0.25
-    );
-    const inactivePct = Number(latestKpi.inactive_deals_pct) || 0;
-    const stagnationPct = Number(latestKpi.deal_stagnation_rate) || 0;
-    const actPerDeal = Number(latestKpi.activities_per_deal) || 0;
-    const cycleDays = Number(latestKpi.sales_cycle_days) || 0;
-    const processScore = Math.round(
-      Math.max(0, (1 - inactivePct / 50) * 100) * 0.30 +
-      Math.max(0, (1 - stagnationPct / 40) * 100) * 0.30 +
-      Math.min(100, (actPerDeal / 12) * 100) * 0.20 +
-      Math.min(100, Math.max(0, (1 - (cycleDays - 30) / 90) * 100)) * 0.20
-    );
-    // Use the real HubSpot integration score (same as the Integration page)
-    // and fall back to the legacy KPI-based score if HubSpot isn't connected.
-    integrationScore = hubspotIntegrationScore ?? Math.round(dataComp * 0.4 + crm * 0.6);
-    globalScore = Math.round(
-      donneesScore * 0.20 + processScore * 0.20 + sales * 0.25 + marketing * 0.20 + integrationScore * 0.15
-    );
-  } else if (hubspotIntegrationScore != null) {
-    integrationScore = hubspotIntegrationScore;
+    integrationScore = Math.round(dataComp * 0.4 + crm * 0.6);
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader companyName={orgName} globalScore={globalScore} integrationScore={integrationScore} />
+      <DashboardHeader companyName={orgName} integrationScore={integrationScore} />
       <div className="mx-auto flex w-full max-w-[1400px]">
         <DashboardSidebar />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>

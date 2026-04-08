@@ -5,26 +5,14 @@ import { getScoreLabel, getScoreTextColor } from "@/lib/score-utils";
 
 type DashboardHeaderProps = {
   companyName: string;
-  globalScore?: number;
   integrationScore?: number;
 };
 
-export function DashboardHeader({ companyName, globalScore, integrationScore }: DashboardHeaderProps) {
+export function DashboardHeader({ companyName, integrationScore }: DashboardHeaderProps) {
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-card-border bg-white px-4 md:px-6">
       <div className="flex items-center gap-6">
         <RevoldLogo />
-        {globalScore != null && (
-          <div className="hidden items-center gap-2 md:flex">
-            <span className="text-xs text-slate-500">Score global</span>
-            <span className={`text-lg font-bold ${getScoreTextColor(globalScore)}`}>
-              {globalScore}<span className="text-xs font-normal text-slate-400">/100</span>
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getScoreLabel(globalScore).className}`}>
-              {getScoreLabel(globalScore).label}
-            </span>
-          </div>
-        )}
       </div>
       <div className="flex items-center gap-4">
         {integrationScore != null && (
