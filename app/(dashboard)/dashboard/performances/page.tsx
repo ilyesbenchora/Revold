@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OldSalesPage() {
+export default function PerformancesIndexPage() {
   redirect("/dashboard/performances/commerciale");
 }

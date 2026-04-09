@@ -150,7 +150,7 @@ export default async function DashboardOverviewPage() {
       label: "Performance Sales",
       description: "Pipeline & Closing",
       score: salesScore,
-      href: "/dashboard/performance-commerciale",
+      href: "/dashboard/performances/commerciale",
       details: [
         { label: "Taux de closing", value: (wonDealsCount + lostDealsCount) > 0 ? `${closingRateComputed}%` : "—" },
         { label: "Pipeline en cours", value: openAmount > 0 ? `€${Math.round(openAmount / 1000)}K` : "—" },
@@ -161,7 +161,7 @@ export default async function DashboardOverviewPage() {
       label: "Performance Marketing",
       description: "Funnel & Attribution",
       score: marketingScore,
-      href: "/dashboard/performance-marketing",
+      href: "/dashboard/performances/marketing",
       details: [
         { label: "Leads", value: `${leadsCount.toLocaleString("fr-FR")}` },
         { label: "Opportunités", value: `${opportunityCount.toLocaleString("fr-FR")}` },
