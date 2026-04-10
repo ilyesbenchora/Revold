@@ -58,8 +58,9 @@ export type PipelineAnalytics = {
     score: number;              // 0-100
     avgActivities: number;
     closeDateFreshPct: number;  // % deals with closedate updated in last 30 days
+    wonCount: number;           // deals closed-won in this pipeline
     lostCount: number;          // deals closed-lost in this pipeline
-    lostRate: number;           // lost / (lost + open) as %
+    lostRate: number;           // lost / (lost + won + open) as %
     forecastReliable: boolean;
   };
 };
@@ -163,43 +164,52 @@ export async function fetchOpenDeals(token: string): Promise<HsDealRow[]> {
 }
 
 /**
- * Fetch closed-lost deals grouped by pipeline (just the pipeline ID + count).
+ * Fetch closed deals (won + lost) grouped by pipeline.
  */
-export async function fetchLostDealsByPipeline(token: string): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
-  let after: string | undefined;
-  for (let batch = 0; batch < 3; batch++) {
-    const body: Record<string, unknown> = {
-      filterGroups: [{
-        filters: [
-          { propertyName: "hs_is_closed_won", operator: "EQ", value: "false" },
-          { propertyName: "hs_is_closed", operator: "EQ", value: "true" },
-        ],
-      }],
-      properties: ["pipeline"],
-      limit: 100,
-    };
-    if (after) body.after = after;
-    try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) break;
-      const data = await res.json();
-      const results = (data.results ?? []) as Array<Record<string, unknown>>;
-      if (results.length === 0) break;
-      for (const r of results) {
-        const props = (r.properties as Record<string, string | null>) ?? {};
-        const pId = props.pipeline || "default";
-        counts[pId] = (counts[pId] || 0) + 1;
-      }
-      after = data.paging?.next?.after;
-      if (!after) break;
-    } catch { break; }
+export async function fetchClosedDealsByPipeline(
+  token: string,
+): Promise<{ won: Record<string, number>; lost: Record<string, number> }> {
+  const won: Record<string, number> = {};
+  const lost: Record<string, number> = {};
+
+  async function fetchClosed(isWon: boolean): Promise<void> {
+    let after: string | undefined;
+    for (let batch = 0; batch < 3; batch++) {
+      const body: Record<string, unknown> = {
+        filterGroups: [{
+          filters: [
+            { propertyName: "hs_is_closed_won", operator: "EQ", value: isWon ? "true" : "false" },
+            { propertyName: "hs_is_closed", operator: "EQ", value: "true" },
+          ],
+        }],
+        properties: ["pipeline"],
+        limit: 100,
+      };
+      if (after) body.after = after;
+      try {
+        const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) break;
+        const data = await res.json();
+        const results = (data.results ?? []) as Array<Record<string, unknown>>;
+        if (results.length === 0) break;
+        const target = isWon ? won : lost;
+        for (const r of results) {
+          const props = (r.properties as Record<string, string | null>) ?? {};
+          const pId = props.pipeline || "default";
+          target[pId] = (target[pId] || 0) + 1;
+        }
+        after = data.paging?.next?.after;
+        if (!after) break;
+      } catch { break; }
+    }
   }
-  return counts;
+
+  await Promise.all([fetchClosed(true), fetchClosed(false)]);
+  return { won, lost };
 }
 
 /**
@@ -208,7 +218,7 @@ export async function fetchLostDealsByPipeline(token: string): Promise<Record<st
 export function buildPipelineAnalytics(
   pipelines: HsPipeline[],
   deals: HsDealRow[],
-  lostByPipeline: Record<string, number> = {},
+  closedByPipeline: { won: Record<string, number>; lost: Record<string, number> } = { won: {}, lost: {} },
 ): PipelineAnalytics[] {
   const now = Date.now();
   const thirtyDaysAgo = now - 30 * 86_400_000;
@@ -270,10 +280,12 @@ export function buildPipelineAnalytics(
       ? Math.round((dealsWithFreshClose / totalDeals) * 100)
       : 0;
 
-    // Lost deals for this pipeline
-    const lostCount = lostByPipeline[pipeline.id] ?? 0;
-    const lostRate = (totalDeals + lostCount) > 0
-      ? Math.round((lostCount / (totalDeals + lostCount)) * 100)
+    // Won + lost deals for this pipeline
+    const wonCount = closedByPipeline.won[pipeline.id] ?? 0;
+    const lostCount = closedByPipeline.lost[pipeline.id] ?? 0;
+    const totalLifetime = totalDeals + wonCount + lostCount;
+    const lostRate = totalLifetime > 0
+      ? Math.round((lostCount / totalLifetime) * 100)
       : 0;
 
     const forecastReliable = closeDateFreshPct >= 60 && avgActivities >= 2 && lostRate < 50;
@@ -299,6 +311,7 @@ export function buildPipelineAnalytics(
         score: attractivenessScore,
         avgActivities,
         closeDateFreshPct,
+        wonCount,
         lostCount,
         lostRate,
         forecastReliable,

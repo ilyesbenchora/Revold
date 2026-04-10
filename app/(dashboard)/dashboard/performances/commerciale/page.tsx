@@ -3,7 +3,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
-import { fetchPipelines, fetchOpenDeals, fetchLostDealsByPipeline, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
+import { fetchPipelines, fetchOpenDeals, fetchClosedDealsByPipeline, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
@@ -61,12 +61,12 @@ export default async function PerformanceCommercialePage() {
   let pipelineAnalytics: PipelineAnalytics[] = [];
   if (process.env.HUBSPOT_ACCESS_TOKEN) {
     try {
-      const [pipelines, openDealRows, lostByPipeline] = await Promise.all([
+      const [pipelines, openDealRows, closedByPipeline] = await Promise.all([
         fetchPipelines(process.env.HUBSPOT_ACCESS_TOKEN),
         fetchOpenDeals(process.env.HUBSPOT_ACCESS_TOKEN),
-        fetchLostDealsByPipeline(process.env.HUBSPOT_ACCESS_TOKEN),
+        fetchClosedDealsByPipeline(process.env.HUBSPOT_ACCESS_TOKEN),
       ]);
-      pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows, lostByPipeline);
+      pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows, closedByPipeline);
     } catch {}
   }
 
@@ -259,7 +259,7 @@ export default async function PerformanceCommercialePage() {
                       {pa.attractiveness.score}/100
                     </span>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                  <div className="mt-2 grid grid-cols-2 gap-3 text-xs md:grid-cols-5">
                     <div>
                       <p className="text-slate-500">Activités moy./deal</p>
                       <p className={`font-semibold ${pa.attractiveness.avgActivities >= 3 ? "text-emerald-700" : pa.attractiveness.avgActivities >= 1 ? "text-amber-700" : "text-red-600"}`}>
@@ -270,6 +270,12 @@ export default async function PerformanceCommercialePage() {
                       <p className="text-slate-500">Close date à jour</p>
                       <p className={`font-semibold ${pa.attractiveness.closeDateFreshPct >= 60 ? "text-emerald-700" : pa.attractiveness.closeDateFreshPct >= 30 ? "text-amber-700" : "text-red-600"}`}>
                         {pa.attractiveness.closeDateFreshPct}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Deals gagnés</p>
+                      <p className="font-semibold text-emerald-700">
+                        {pa.attractiveness.wonCount}
                       </p>
                     </div>
                     <div>
