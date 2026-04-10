@@ -2,6 +2,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 
+const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+const selectClass = inputClass;
+const readOnlyClass = "mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-600";
+
 export default async function ParametresGeneralPage() {
   const orgId = await getOrgId();
   const user = await getAuthUser();
@@ -37,49 +41,100 @@ export default async function ParametresGeneralPage() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-slate-500">Nom de l&apos;organisation</label>
-              <input type="text" defaultValue={org?.name ?? ""} disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700" />
+              <input type="text" name="org_name" defaultValue={org?.name ?? ""} className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Slug</label>
-              <input type="text" defaultValue={org?.slug ?? ""} disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700" />
+              <input type="text" name="org_slug" defaultValue={org?.slug ?? ""} className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Plan actif</label>
-              <input type="text" defaultValue={(org?.plan ?? "trial").toUpperCase()} disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm font-semibold text-indigo-700" />
+              <input type="text" defaultValue={(org?.plan ?? "trial").toUpperCase()} readOnly className={readOnlyClass + " font-semibold text-indigo-700"} />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Devise</label>
-              <select disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <option>EUR (€)</option>
-                <option>USD ($)</option>
-                <option>GBP (£)</option>
+              <select name="currency" defaultValue="EUR" className={selectClass}>
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="CHF">CHF (Fr.)</option>
+                <option value="CAD">CAD ($)</option>
               </select>
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Début d&apos;année fiscale</label>
-              <select disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <option>Janvier</option>
-                <option>Avril</option>
-                <option>Juillet</option>
-                <option>Octobre</option>
+              <select name="fiscal_year_start" defaultValue="1" className={selectClass}>
+                <option value="1">Janvier</option>
+                <option value="4">Avril</option>
+                <option value="7">Juillet</option>
+                <option value="10">Octobre</option>
               </select>
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Fuseau horaire</label>
-              <select disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <option>Europe/Paris (UTC+1)</option>
-                <option>America/New_York (UTC-5)</option>
-                <option>America/Los_Angeles (UTC-8)</option>
+              <select name="timezone" defaultValue="Europe/Paris" className={selectClass}>
+                <option value="Europe/Paris">Europe/Paris (UTC+1)</option>
+                <option value="Europe/London">Europe/London (UTC+0)</option>
+                <option value="Europe/Brussels">Europe/Brussels (UTC+1)</option>
+                <option value="America/New_York">America/New_York (UTC-5)</option>
+                <option value="America/Los_Angeles">America/Los_Angeles (UTC-8)</option>
+                <option value="America/Montreal">America/Montreal (UTC-5)</option>
+                <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500">Objectif trimestriel</label>
-              <input type="text" defaultValue={org?.quarterly_target ? `${Number(org.quarterly_target).toLocaleString("fr-FR")} €` : "—"} disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700" />
+              <label className="text-xs font-medium text-slate-500">Objectif trimestriel (€)</label>
+              <input type="number" name="quarterly_target" defaultValue={org?.quarterly_target ? Number(org.quarterly_target) : ""} placeholder="2000000" className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">HubSpot Portal ID</label>
-              <input type="text" defaultValue={org?.hubspot_portal_id ?? "Non configuré"} disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700" />
+              <input type="text" name="hubspot_portal_id" defaultValue={org?.hubspot_portal_id ?? ""} placeholder="48372600" className={inputClass} />
             </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Pays de l&apos;organisation</label>
+              <select name="country" defaultValue="FR" className={selectClass}>
+                <option value="FR">France</option>
+                <option value="BE">Belgique</option>
+                <option value="CH">Suisse</option>
+                <option value="CA">Canada</option>
+                <option value="US">États-Unis</option>
+                <option value="GB">Royaume-Uni</option>
+                <option value="DE">Allemagne</option>
+                <option value="ES">Espagne</option>
+                <option value="LU">Luxembourg</option>
+                <option value="MA">Maroc</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">SIREN de l&apos;organisation</label>
+              <input type="text" name="org_siren" placeholder="123 456 789" maxLength={11} className={inputClass} />
+              <p className="mt-1 text-[10px] text-slate-400">9 chiffres — utilisé pour le rapprochement automatique entre outils</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">N° TVA intracommunautaire</label>
+              <input type="text" name="org_vat" placeholder="FR12345678901" maxLength={15} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Secteur d&apos;activité</label>
+              <select name="industry" defaultValue="" className={selectClass}>
+                <option value="">Non renseigné</option>
+                <option value="saas">SaaS / Logiciel</option>
+                <option value="services">Services B2B</option>
+                <option value="ecommerce">E-commerce</option>
+                <option value="manufacturing">Industrie / Manufacturing</option>
+                <option value="finance">Finance / Assurance</option>
+                <option value="health">Santé</option>
+                <option value="education">Éducation</option>
+                <option value="consulting">Conseil</option>
+                <option value="agency">Agence</option>
+                <option value="other">Autre</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end">
+            <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
+              Enregistrer les modifications
+            </button>
           </div>
         </div>
       </div>
