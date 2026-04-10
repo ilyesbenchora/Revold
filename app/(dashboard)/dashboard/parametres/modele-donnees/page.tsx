@@ -1,6 +1,8 @@
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { generateDataModelInsights, type DataModelInsight } from "@/lib/insights/data-model-insights";
+import Link from "next/link";
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 const selectClass = inputClass;
@@ -236,16 +238,45 @@ export default async function ParametresModeleDonneesPage() {
   let sourceLinksCount = 0;
   let contactsCount = 0;
   let companiesCount = 0;
+  let contactsWithCompany = 0;
+  let invoicesCount = 0;
+  let subscriptionsCount = 0;
+  let ticketsCount = 0;
+  let connectedTools: Array<{ provider: string; isActive: boolean }> = [];
+
   try {
-    const [sl, co, cp] = await Promise.all([
+    const [sl, co, cp, cwc, inv, sub, tkt, integ] = await Promise.all([
       supabase.from("source_links").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
       supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
       supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
+      supabase.from("invoices").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("tickets").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId),
     ]);
     sourceLinksCount = sl.count ?? 0;
     contactsCount = co.count ?? 0;
     companiesCount = cp.count ?? 0;
+    contactsWithCompany = cwc.count ?? 0;
+    invoicesCount = inv.count ?? 0;
+    subscriptionsCount = sub.count ?? 0;
+    ticketsCount = tkt.count ?? 0;
+    connectedTools = (integ.data ?? []).map((i) => ({ provider: i.provider, isActive: i.is_active }));
   } catch {}
+
+  // ── Generate IA insights based on the actual connected tools ──
+  const dataModelInsights = generateDataModelInsights({
+    connectedTools,
+    hasHubSpot: !!process.env.HUBSPOT_ACCESS_TOKEN,
+    contactsCount,
+    companiesCount,
+    sourceLinksCount,
+    contactsWithCompany,
+    invoicesCount,
+    subscriptionsCount,
+    ticketsCount,
+  });
 
   return (
     <section className="space-y-8">
@@ -281,6 +312,71 @@ export default async function ParametresModeleDonneesPage() {
           </p>
         </article>
       </div>
+
+      {/* ── Insight IA Data Model ── */}
+      {dataModelInsights.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500" />
+              Insight IA Data Model
+              <span className="rounded-full bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                {dataModelInsights.length} recommandation{dataModelInsights.length > 1 ? "s" : ""}
+              </span>
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500">
+            Recommandations personnalisées pour optimiser votre data model selon les outils connectés à Revold.
+            Ces insights se mettent à jour automatiquement quand vous ajoutez ou retirez une intégration.
+          </p>
+          <div className="space-y-2">
+            {dataModelInsights.map((insight) => {
+              const config = {
+                critical: { border: "border-l-red-500", bg: "bg-red-50", badge: "bg-red-100 text-red-700", label: "Critique" },
+                warning: { border: "border-l-amber-500", bg: "bg-amber-50", badge: "bg-amber-100 text-amber-700", label: "Attention" },
+                info: { border: "border-l-blue-500", bg: "bg-blue-50", badge: "bg-blue-100 text-blue-700", label: "Info" },
+                success: { border: "border-l-emerald-500", bg: "bg-emerald-50", badge: "bg-emerald-100 text-emerald-700", label: "OK" },
+              }[insight.severity];
+              const catLabel = {
+                matching: "Matching",
+                field_mapping: "Field mapping",
+                data_quality: "Qualité data",
+                missing_tool: "Outil manquant",
+              }[insight.category];
+              return (
+                <article key={insight.id} className={`card border-l-4 ${config.border} p-4`}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${config.badge}`}>
+                          {config.label}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                          {catLabel}
+                        </span>
+                        <h3 className="text-sm font-semibold text-slate-900">{insight.title}</h3>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">{insight.body}</p>
+                      <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-slate-50 px-3 py-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-accent">
+                          <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+                          <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+                        </svg>
+                        <p className="text-xs font-medium text-slate-700">{insight.recommendation}</p>
+                      </div>
+                      {insight.category === "missing_tool" && (
+                        <Link href="/dashboard/integration" className="mt-2 inline-flex text-xs font-medium text-accent hover:underline">
+                          Connecter un outil →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Identifiants uniques d'entreprise ── */}
       <div className="space-y-3">
