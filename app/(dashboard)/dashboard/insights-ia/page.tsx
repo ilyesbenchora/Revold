@@ -10,6 +10,8 @@ import { fetchTrackingStats } from "./context";
 import { detectIntegrations, type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-suggestions";
 import { buildCrossSourceContext, selectCrossSourceInsights } from "@/lib/insights/cross-source";
+import { generateDataModelInsights } from "@/lib/insights/data-model-insights";
+import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 
 const HUBSPOT_PORTAL = "48372600";
 const HS = {
@@ -309,12 +311,55 @@ export default async function InsightsPage() {
     ? selectCrossSourceInsights(crossSourceCtx, dismissedKeys)
     : [];
 
+  // Data Model insights — CRM audit + matching recommendations
+  const businessTools = filterBusinessIntegrations(detectedIntegrations);
+  let contactsWithCompany = 0;
+  let invoicesCount = 0;
+  let subscriptionsCount = 0;
+  let ticketsCount = 0;
+  let revoldIntegrations: Array<{ provider: string; isActive: boolean }> = [];
+  try {
+    const [cwc, inv, sub, tkt, integ] = await Promise.all([
+      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
+      supabase.from("invoices").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("tickets").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+      supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId),
+    ]);
+    contactsWithCompany = cwc.count ?? 0;
+    invoicesCount = inv.count ?? 0;
+    subscriptionsCount = sub.count ?? 0;
+    ticketsCount = tkt.count ?? 0;
+    revoldIntegrations = (integ.data ?? []).map((i) => ({ provider: i.provider, isActive: i.is_active }));
+  } catch {}
+
+  const dataModelInsights = generateDataModelInsights({
+    connectedTools: revoldIntegrations,
+    hubSpotDetectedTools: businessTools.map((t) => ({
+      key: t.key,
+      label: t.label,
+      totalProperties: t.totalProperties,
+      enrichmentRate: t.enrichmentRate,
+      distinctUsers: t.distinctUsers,
+      enrichedRecords: t.enrichedRecords,
+    })),
+    hasHubSpot: !!process.env.HUBSPOT_ACCESS_TOKEN,
+    contactsCount: tContacts,
+    companiesCount: totalCompanies ?? 0,
+    sourceLinksCount: 0, // source_links count requires try/catch — ok to be 0 here
+    contactsWithCompany,
+    invoicesCount,
+    subscriptionsCount,
+    ticketsCount,
+  }).filter((i) => !dismissedKeys.has(i.id));
+
   const totalShown =
     insightsByCategory.commercial.length +
     insightsByCategory.marketing.length +
     insightsByCategory.data.length +
     visibleIntegrationInsights.length +
-    crossSourceInsights.length;
+    crossSourceInsights.length +
+    dataModelInsights.length;
 
   // ── Scenarios (8 scenarios in carousel) ──
   const scenarios = [
@@ -530,6 +575,54 @@ export default async function InsightsPage() {
                 category="cross_source"
               />
             ))}
+          </div>
+        </CollapsibleBlock>
+      )}
+
+      {/* Insights Data Model — CRM audit + matching recommendations */}
+      {dataModelInsights.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <div className="flex w-full items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className="h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500" />
+                Insights Data Model
+                <span className="rounded-full bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                  {dataModelInsights.length}
+                </span>
+              </h2>
+              <span className="mr-4 text-xs text-indigo-600">
+                Audit CRM + recommandations
+              </span>
+            </div>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Audit automatique des outils connectés à votre CRM et recommandations pour optimiser
+            la communication entre tous vos outils — que chaque source de données parle le même langage.
+          </p>
+          <div className="space-y-3">
+            {dataModelInsights.map((insight) => {
+              const severityMap = {
+                critical: "critical" as const,
+                warning: "warning" as const,
+                info: "info" as const,
+                success: "info" as const,
+              };
+              return (
+                <InsightCard
+                  key={insight.id}
+                  templateKey={insight.id}
+                  severity={severityMap[insight.severity]}
+                  title={insight.title}
+                  body={insight.body}
+                  recommendation={insight.recommendation}
+                  hubspotUrl={insight.category === "missing_tool" ? "/dashboard/integration" : "/dashboard/parametres/modele-donnees"}
+                  actionLabel={insight.category === "missing_tool" ? "Connecter l'outil" : "Configurer le data model"}
+                  category="data_model"
+                />
+              );
+            })}
           </div>
         </CollapsibleBlock>
       )}
