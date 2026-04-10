@@ -4,6 +4,7 @@ import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
+import { fetchPipelines, fetchOpenDeals, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
@@ -57,6 +58,18 @@ export default async function PerformanceCommercialePage() {
       .gt("sales_activities_count", 0),
   ]);
 
+  // ── HubSpot Pipeline analytics (direct API call for pipeline/stage names + velocity) ──
+  let pipelineAnalytics: PipelineAnalytics[] = [];
+  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+    try {
+      const [pipelines, openDealRows] = await Promise.all([
+        fetchPipelines(process.env.HUBSPOT_ACCESS_TOKEN),
+        fetchOpenDeals(process.env.HUBSPOT_ACCESS_TOKEN),
+      ]);
+      pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows);
+    } catch {}
+  }
+
   const total = totalDeals ?? 0;
   const won = wonDeals ?? 0;
   const lost = lostDeals ?? 0;
@@ -102,32 +115,188 @@ export default async function PerformanceCommercialePage() {
         </div>
       </div>
 
-      {/* Pipeline */}
+      {/* Pipeline — analytics par pipeline HubSpot */}
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Pipeline
+            <span className="h-2 w-2 rounded-full bg-blue-500" />Pipelines
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+              {pipelineAnalytics.length} pipeline{pipelineAnalytics.length > 1 ? "s" : ""}
+            </span>
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Transactions totales</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{total}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">En cours</p>
-            <p className="mt-1 text-3xl font-bold text-blue-600">{open}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Gagnées</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{won}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Perdues</p>
-            <p className="mt-1 text-3xl font-bold text-red-500">{lost}</p>
-          </article>
-        </div>
+        {pipelineAnalytics.length === 0 ? (
+          <p className="text-sm text-slate-500">Aucun pipeline détecté. Synchronisez HubSpot pour importer vos pipelines.</p>
+        ) : (
+          <div className="space-y-6">
+            {pipelineAnalytics.map((pa) => (
+              <article key={pa.pipeline.id} className="card overflow-hidden">
+                {/* Pipeline header */}
+                <div className="flex items-start justify-between border-b border-card-border bg-slate-50 px-5 py-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">{pa.pipeline.label}</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {pa.totalDeals} deal{pa.totalDeals > 1 ? "s" : ""} en cours · {pa.pipeline.stages.length} étapes
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-slate-900">
+                      {pa.totalAmount > 0 ? `${Math.round(pa.totalAmount / 1000).toLocaleString("fr-FR")}K €` : "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      CA pondéré : {pa.weightedAmount > 0 ? `${Math.round(pa.weightedAmount / 1000).toLocaleString("fr-FR")}K €` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Répartition CA pondéré par étape */}
+                {pa.stages.length > 0 && (
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Répartition CA pondéré par étape</p>
+                    <div className="mt-2 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+                      {pa.stages.map((sa, idx) => {
+                        const colors = ["bg-blue-400", "bg-indigo-400", "bg-violet-400", "bg-fuchsia-400", "bg-emerald-400", "bg-amber-400", "bg-rose-400", "bg-teal-400"];
+                        return (
+                          <div
+                            key={sa.stage.id}
+                            className={`${colors[idx % colors.length]} transition-all`}
+                            style={{ width: `${Math.max(2, sa.weightedPct)}%` }}
+                            title={`${sa.stage.label} : ${sa.weightedPct}%`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {pa.stages.map((sa, idx) => {
+                        const dots = ["bg-blue-400", "bg-indigo-400", "bg-violet-400", "bg-fuchsia-400", "bg-emerald-400", "bg-amber-400", "bg-rose-400", "bg-teal-400"];
+                        return (
+                          <div key={sa.stage.id} className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                            <span className={`h-2 w-2 rounded-full ${dots[idx % dots.length]}`} />
+                            {sa.stage.label} · <span className="font-semibold">{sa.weightedPct}%</span> · {sa.dealCount} deal{sa.dealCount > 1 ? "s" : ""}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Détails des étapes */}
+                <div className="border-t border-card-border px-5 py-3">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-[10px] font-medium uppercase text-slate-400">
+                          <th className="py-1 pr-4">Étape</th>
+                          <th className="py-1 pr-4 text-right">Deals</th>
+                          <th className="py-1 pr-4 text-right">CA brut</th>
+                          <th className="py-1 pr-4 text-right">CA pondéré</th>
+                          <th className="py-1 pr-4 text-right">Moy. jours</th>
+                          <th className="py-1 text-right">Vélocité</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pa.stages.map((sa) => (
+                          <tr key={sa.stage.id} className="border-t border-slate-100">
+                            <td className="py-1.5 pr-4 font-medium text-slate-700">{sa.stage.label}</td>
+                            <td className="py-1.5 pr-4 text-right text-slate-600">{sa.dealCount}</td>
+                            <td className="py-1.5 pr-4 text-right text-slate-600">
+                              {sa.amount > 0 ? `${Math.round(sa.amount / 1000).toLocaleString("fr-FR")}K €` : "—"}
+                            </td>
+                            <td className="py-1.5 pr-4 text-right font-semibold text-slate-700">
+                              {sa.weightedAmount > 0 ? `${Math.round(sa.weightedAmount / 1000).toLocaleString("fr-FR")}K €` : "—"}
+                            </td>
+                            <td className="py-1.5 pr-4 text-right text-slate-600">{sa.avgDaysInStage}j</td>
+                            <td className="py-1.5 text-right">
+                              {sa.avgDaysInStage <= 7 ? (
+                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Rapide</span>
+                              ) : sa.avgDaysInStage <= 21 ? (
+                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Normal</span>
+                              ) : (
+                                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">Stagnant</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Étapes efficaces vs stagnantes */}
+                <div className="grid grid-cols-1 gap-0 border-t border-card-border md:grid-cols-2 md:divide-x md:divide-card-border">
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Étapes efficaces (&le; 7j moy.)</p>
+                    {pa.efficientStages.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
+                        {pa.efficientStages.map((s) => (
+                          <li key={s.label} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-700">{s.label}</span>
+                            <span className="font-medium text-emerald-600">{s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="mt-1 text-xs text-slate-400">Aucune étape rapide détectée.</p>}
+                  </div>
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-red-600">Étapes stagnantes (&gt; 21j moy.)</p>
+                    {pa.stagnantStages.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
+                        {pa.stagnantStages.map((s) => (
+                          <li key={s.label} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-700">{s.label}</span>
+                            <span className="font-medium text-red-600">{s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="mt-1 text-xs text-slate-400">Aucune étape stagnante.</p>}
+                  </div>
+                </div>
+
+                {/* Attractivité du pipeline */}
+                <div className="border-t border-card-border bg-slate-50/50 px-5 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Audit d&apos;attractivité</p>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      pa.attractiveness.score >= 60 ? "bg-emerald-100 text-emerald-700" :
+                      pa.attractiveness.score >= 30 ? "bg-amber-100 text-amber-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                      {pa.attractiveness.score}/100
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-slate-500">Activités moy./deal</p>
+                      <p className={`font-semibold ${pa.attractiveness.avgActivities >= 3 ? "text-emerald-700" : pa.attractiveness.avgActivities >= 1 ? "text-amber-700" : "text-red-600"}`}>
+                        {pa.attractiveness.avgActivities}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Close date à jour</p>
+                      <p className={`font-semibold ${pa.attractiveness.closeDateFreshPct >= 60 ? "text-emerald-700" : pa.attractiveness.closeDateFreshPct >= 30 ? "text-amber-700" : "text-red-600"}`}>
+                        {pa.attractiveness.closeDateFreshPct}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Forecast</p>
+                      <p className={`font-semibold ${pa.attractiveness.forecastReliable ? "text-emerald-700" : "text-red-600"}`}>
+                        {pa.attractiveness.forecastReliable ? "Fiable" : "Non fiable"}
+                      </p>
+                    </div>
+                  </div>
+                  {!pa.attractiveness.forecastReliable && (
+                    <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
+                      Ce pipeline a un forecast peu fiable : {pa.attractiveness.closeDateFreshPct < 60 ? "les dates de fermeture ne sont pas mises à jour régulièrement" : ""}
+                      {pa.attractiveness.closeDateFreshPct < 60 && pa.attractiveness.avgActivities < 2 ? " et " : ""}
+                      {pa.attractiveness.avgActivities < 2 ? "les commerciaux ne logguent pas assez d'activités de vente" : ""}.
+                    </p>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </CollapsibleBlock>
 
       {/* Résultats */}
