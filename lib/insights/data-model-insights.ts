@@ -21,8 +21,19 @@ type ConnectedTool = {
   isActive: boolean;
 };
 
+/** Subset of DetectedIntegration from HubSpot — tools installed on the CRM */
+type HubSpotDetectedTool = {
+  key: string;
+  label: string;
+  totalProperties: number;
+  enrichmentRate: number;
+  distinctUsers: number;
+  enrichedRecords: number;
+};
+
 type DataModelContext = {
-  connectedTools: ConnectedTool[];
+  connectedTools: ConnectedTool[];        // tools connected directly to Revold
+  hubSpotDetectedTools: HubSpotDetectedTool[];  // tools detected on HubSpot
   hasHubSpot: boolean;
   contactsCount: number;
   companiesCount: number;
@@ -37,6 +48,31 @@ const BILLING_TOOLS = ["stripe", "pennylane", "sellsy", "axonaut", "quickbooks"]
 const CRM_TOOLS = ["salesforce", "pipedrive", "zoho", "monday"];
 const SUPPORT_TOOLS = ["intercom", "zendesk", "crisp", "freshdesk"];
 const FRENCH_BILLING = ["pennylane", "sellsy", "axonaut"];
+const CALLING_TOOLS = ["aircall", "ringover"];
+const PROSPECTION_TOOLS = ["kaspr", "dropcontact", "lusha", "lemlist", "linkedin_sales_nav"];
+const ESIGN_TOOLS = ["pandadoc"];
+const AUTOMATION_TOOLS = ["zapier", "make", "n8n", "mailchimp", "brevo", "activecampaign"];
+
+const TOOL_CATEGORY_LABEL: Record<string, string> = {
+  billing: "Facturation / ERP",
+  calling: "Téléphonie",
+  prospection: "Prospection / Enrichissement",
+  esign: "Signature électronique",
+  automation: "Automatisation / Marketing",
+  support: "Service client",
+  crm: "CRM",
+};
+
+function getToolCategory(key: string): string | null {
+  if (BILLING_TOOLS.includes(key)) return "billing";
+  if (CALLING_TOOLS.includes(key)) return "calling";
+  if (PROSPECTION_TOOLS.includes(key)) return "prospection";
+  if (ESIGN_TOOLS.includes(key)) return "esign";
+  if (AUTOMATION_TOOLS.includes(key)) return "automation";
+  if (SUPPORT_TOOLS.includes(key)) return "support";
+  if (CRM_TOOLS.includes(key)) return "crm";
+  return null;
+}
 
 export function generateDataModelInsights(ctx: DataModelContext): DataModelInsight[] {
   const insights: DataModelInsight[] = [];
@@ -52,7 +88,102 @@ export function generateDataModelInsights(ctx: DataModelContext): DataModelInsig
   const crmNames = CRM_TOOLS.filter((t) => activeProviders.has(t));
   const supportNames = SUPPORT_TOOLS.filter((t) => activeProviders.has(t));
 
-  // ── Matching strategy recommendations ──
+  // ── Phase 1 : Audit CRM — what's already installed on HubSpot? ──
+  // Before recommending anything, scan HubSpot for tools that are ALREADY
+  // communicating (or failing to communicate) with the CRM. This tells us
+  // what the user's stack looks like BEFORE Revold enters the picture.
+
+  const revoldProviders = activeProviders;
+  const hsTools = ctx.hubSpotDetectedTools;
+
+  // Group HubSpot-detected tools by category
+  const hsByCat = new Map<string, HubSpotDetectedTool[]>();
+  for (const t of hsTools) {
+    const cat = getToolCategory(t.key);
+    if (!cat) continue;
+    if (!hsByCat.has(cat)) hsByCat.set(cat, []);
+    hsByCat.get(cat)!.push(t);
+  }
+
+  // For each tool on HubSpot, check if also connected to Revold
+  for (const t of hsTools) {
+    const cat = getToolCategory(t.key);
+    if (!cat) continue;
+    const catLabel = TOOL_CATEGORY_LABEL[cat] || cat;
+    const isOnRevold = revoldProviders.has(t.key);
+
+    if (!isOnRevold) {
+      // Tool on HubSpot but NOT on Revold → recommend connecting to Revold
+      if (t.enrichmentRate > 0 || t.distinctUsers > 0) {
+        insights.push({
+          id: `dm_audit_connect_${t.key}`,
+          severity: "warning",
+          title: `${t.label} est connecté à HubSpot mais pas à Revold`,
+          body: `${t.label} (${catLabel}) communique déjà avec HubSpot : ${t.totalProperties} propriétés, ${t.enrichmentRate}% d'enrichissement, ${t.distinctUsers} utilisateur${t.distinctUsers > 1 ? "s" : ""}. Mais sans connexion directe à Revold, les données restent cloisonnées dans HubSpot — vous ne bénéficiez pas des rapports cross-source ni des insights IA croisés.`,
+          recommendation: `Connectez ${t.label} directement à Revold depuis la page Intégration. Revold pourra alors croiser ces données avec les autres outils (billing, support, CRM) pour générer des insights impossibles autrement.`,
+          category: "missing_tool",
+        });
+      } else {
+        // Tool detected on HubSpot but 0 enrichment → communication broken
+        insights.push({
+          id: `dm_audit_broken_${t.key}`,
+          severity: "critical",
+          title: `${t.label} est installé sur HubSpot mais ne communique PAS`,
+          body: `${t.label} (${catLabel}) a ${t.totalProperties} propriétés installées dans HubSpot mais 0% d'enrichissement — aucune donnée ne transite. L'intégration HubSpot ↔ ${t.label} est probablement mal configurée ou désactivée.`,
+          recommendation: `Vérifiez la configuration de ${t.label} dans HubSpot Settings → Connected Apps. Si l'intégration HubSpot est cassée, connectez ${t.label} directement à Revold comme alternative — Revold récupérera les données via l'API ${t.label} sans dépendre de HubSpot.`,
+          category: "data_quality",
+        });
+      }
+    } else {
+      // Tool on BOTH HubSpot and Revold → check if communication is optimal
+      if (t.enrichmentRate < 20 && t.totalProperties > 0) {
+        insights.push({
+          id: `dm_audit_low_enrichment_${t.key}`,
+          severity: "warning",
+          title: `${t.label} : taux d'enrichissement faible (${t.enrichmentRate}%) malgré la double connexion`,
+          body: `${t.label} est connecté à HubSpot ET à Revold, mais seulement ${t.enrichmentRate}% des enregistrements ont des données ${t.label} renseignées. Les rapports et insights basés sur ${t.label} seront incomplets.`,
+          recommendation: `Vérifiez que les commerciaux utilisent activement ${t.label} et que la synchronisation HubSpot ↔ ${t.label} est bien bidirectionnelle. L'objectif est d'atteindre au moins 50% d'enrichissement pour que les insights soient fiables.`,
+          category: "data_quality",
+        });
+      } else if (t.enrichmentRate >= 50) {
+        insights.push({
+          id: `dm_audit_good_${t.key}`,
+          severity: "success",
+          title: `${t.label} communique bien : ${t.enrichmentRate}% d'enrichissement`,
+          body: `${t.label} (${catLabel}) est connecté aux deux niveaux (HubSpot + Revold) avec un bon taux d'enrichissement. Les données circulent correctement pour alimenter les rapports cross-source.`,
+          recommendation: `Maintenir cette intégration. Vérifiez régulièrement que le taux d'enrichissement reste au-dessus de 50%.`,
+          category: "data_quality",
+        });
+      }
+    }
+  }
+
+  // Category-level gaps — check if entire categories are missing from HubSpot
+  const hsCategories = new Set(Array.from(hsByCat.keys()));
+
+  if (!hsCategories.has("billing")) {
+    insights.push({
+      id: "dm_audit_no_billing_on_crm",
+      severity: "critical",
+      title: "Aucun outil de facturation détecté sur HubSpot ni sur Revold",
+      body: "Ni HubSpot ni Revold n'a de connexion avec un outil de facturation (Stripe, Pennylane, Sellsy, Axonaut, QuickBooks). Impossible de réconcilier le pipeline commercial avec le cash réellement encaissé. Le forecast restera théorique.",
+      recommendation: "Connectez votre outil de facturation à Revold (page Intégration). Même si HubSpot n'a pas d'intégration native avec votre ERP, Revold peut s'y connecter directement via API.",
+      category: "missing_tool",
+    });
+  }
+
+  if (!hsCategories.has("calling") && !hsCategories.has("prospection")) {
+    insights.push({
+      id: "dm_audit_no_outbound",
+      severity: "info",
+      title: "Aucun outil de téléphonie ou prospection détecté",
+      body: "Sans Aircall, Ringover, Kaspr, Lemlist ou Dropcontact connecté, Revold ne peut pas mesurer l'activité outbound ni le ROI des campagnes de prospection.",
+      recommendation: "Si votre équipe utilise un outil de téléphonie ou de prospection, connectez-le à HubSpot ou directement à Revold.",
+      category: "missing_tool",
+    });
+  }
+
+  // ── Phase 2 : Matching strategy recommendations ──
 
   if (ctx.hasHubSpot && hasBilling) {
     if (hasFrenchBilling) {

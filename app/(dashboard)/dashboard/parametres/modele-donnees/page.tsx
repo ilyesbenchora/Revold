@@ -1,7 +1,9 @@
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { generateDataModelInsights, type DataModelInsight } from "@/lib/insights/data-model-insights";
+import { generateDataModelInsights } from "@/lib/insights/data-model-insights";
+import { getCanonicalIntegrationData } from "@/lib/supabase/cached";
+import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 import Link from "next/link";
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
@@ -265,9 +267,22 @@ export default async function ParametresModeleDonneesPage() {
     connectedTools = (integ.data ?? []).map((i) => ({ provider: i.provider, isActive: i.is_active }));
   } catch {}
 
-  // ── Generate IA insights based on the actual connected tools ──
+  // ── Fetch HubSpot-detected tools for the CRM audit ──
+  const { integrations: hsIntegrations } = await getCanonicalIntegrationData();
+  const businessTools = filterBusinessIntegrations(hsIntegrations);
+  const hubSpotDetectedTools = businessTools.map((t) => ({
+    key: t.key,
+    label: t.label,
+    totalProperties: t.totalProperties,
+    enrichmentRate: t.enrichmentRate,
+    distinctUsers: t.distinctUsers,
+    enrichedRecords: t.enrichedRecords,
+  }));
+
+  // ── Generate IA insights: CRM audit + matching + data quality ──
   const dataModelInsights = generateDataModelInsights({
     connectedTools,
+    hubSpotDetectedTools,
     hasHubSpot: !!process.env.HUBSPOT_ACCESS_TOKEN,
     contactsCount,
     companiesCount,
