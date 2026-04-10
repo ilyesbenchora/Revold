@@ -395,20 +395,20 @@ export function generateDataModelInsights(ctx: DataModelContext): DataModelInsig
     reason: "Toujours garder la queue de réconciliation active — les cas non-matchés automatiquement (holding/filiale, changement de nom, rebranding) doivent être validés par un humain.",
   });
 
-  if (rules.length > 0) {
-    const activerRules = rules.filter((r) => r.status === "activer");
-    const configurerRules = rules.filter((r) => r.status === "configurer");
-    const desactiverRules = rules.filter((r) => r.status === "désactiver");
+  // Emit one insight per rule — much more readable than one mega-card.
+  for (const rule of rules) {
+    const statusConfig = {
+      activer: { severity: "success" as const, prefix: "✅ Activer", verb: "Activez" },
+      configurer: { severity: "warning" as const, prefix: "⚙️ Configurer", verb: "Configurez" },
+      désactiver: { severity: "info" as const, prefix: "❌ Désactiver", verb: "Désactivez" },
+    }[rule.status];
 
     insights.push({
-      id: "dm_resolution_rules_blueprint",
-      severity: "info",
-      title: `Plan de résolution recommandé : ${activerRules.length} règles à activer, ${configurerRules.length} à configurer, ${desactiverRules.length} à désactiver`,
-      body: `Basé sur votre stack (${Array.from(allToolKeys).filter((k) => getToolCategory(k)).length} outils détectés), voici la configuration optimale de vos règles de résolution d'entités :\n\n` +
-        (activerRules.length > 0 ? `✅ ACTIVER :\n${activerRules.map((r) => `• ${r.rule} — ${r.reason}`).join("\n")}\n\n` : "") +
-        (configurerRules.length > 0 ? `⚙️ CONFIGURER :\n${configurerRules.map((r) => `• ${r.rule} — ${r.reason}`).join("\n")}\n\n` : "") +
-        (desactiverRules.length > 0 ? `❌ DÉSACTIVER :\n${desactiverRules.map((r) => `• ${r.rule} — ${r.reason}`).join("\n")}` : ""),
-      recommendation: "Appliquez ces réglages dans Paramètres → Modèle de données → Règles de résolution d'entités. Chaque recommandation est spécifique à votre combinaison d'outils — elle changera automatiquement si vous ajoutez ou retirez un outil.",
+      id: `dm_rule_${rule.rule.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+      severity: statusConfig.severity,
+      title: `${statusConfig.prefix} — ${rule.rule}`,
+      body: rule.reason,
+      recommendation: `${statusConfig.verb} cette règle dans Paramètres → Modèle de données → Règles de résolution d'entités.`,
       category: "matching",
     });
   }
