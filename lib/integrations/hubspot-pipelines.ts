@@ -58,6 +58,8 @@ export type PipelineAnalytics = {
     score: number;              // 0-100
     avgActivities: number;
     closeDateFreshPct: number;  // % deals with closedate updated in last 30 days
+    lostCount: number;          // deals closed-lost in this pipeline
+    lostRate: number;           // lost / (lost + open) as %
     forecastReliable: boolean;
   };
 };
@@ -161,11 +163,52 @@ export async function fetchOpenDeals(token: string): Promise<HsDealRow[]> {
 }
 
 /**
+ * Fetch closed-lost deals grouped by pipeline (just the pipeline ID + count).
+ */
+export async function fetchLostDealsByPipeline(token: string): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  let after: string | undefined;
+  for (let batch = 0; batch < 3; batch++) {
+    const body: Record<string, unknown> = {
+      filterGroups: [{
+        filters: [
+          { propertyName: "hs_is_closed_won", operator: "EQ", value: "false" },
+          { propertyName: "hs_is_closed", operator: "EQ", value: "true" },
+        ],
+      }],
+      properties: ["pipeline"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+    try {
+      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) break;
+      const data = await res.json();
+      const results = (data.results ?? []) as Array<Record<string, unknown>>;
+      if (results.length === 0) break;
+      for (const r of results) {
+        const props = (r.properties as Record<string, string | null>) ?? {};
+        const pId = props.pipeline || "default";
+        counts[pId] = (counts[pId] || 0) + 1;
+      }
+      after = data.paging?.next?.after;
+      if (!after) break;
+    } catch { break; }
+  }
+  return counts;
+}
+
+/**
  * Build per-pipeline analytics from the raw data.
  */
 export function buildPipelineAnalytics(
   pipelines: HsPipeline[],
   deals: HsDealRow[],
+  lostByPipeline: Record<string, number> = {},
 ): PipelineAnalytics[] {
   const now = Date.now();
   const thirtyDaysAgo = now - 30 * 86_400_000;
@@ -227,12 +270,21 @@ export function buildPipelineAnalytics(
       ? Math.round((dealsWithFreshClose / totalDeals) * 100)
       : 0;
 
-    const forecastReliable = closeDateFreshPct >= 60 && avgActivities >= 2;
+    // Lost deals for this pipeline
+    const lostCount = lostByPipeline[pipeline.id] ?? 0;
+    const lostRate = (totalDeals + lostCount) > 0
+      ? Math.round((lostCount / (totalDeals + lostCount)) * 100)
+      : 0;
 
+    const forecastReliable = closeDateFreshPct >= 60 && avgActivities >= 2 && lostRate < 50;
+
+    // Attractiveness score — includes lost rate as a negative factor.
+    // A pipeline where >50% of deals end up lost is structurally weak.
     const attractivenessScore = Math.round(
-      Math.min(40, avgActivities * 10) +
-      Math.min(40, closeDateFreshPct * 0.4) +
-      (forecastReliable ? 20 : 0),
+      Math.min(30, avgActivities * 8) +
+      Math.min(30, closeDateFreshPct * 0.3) +
+      Math.max(0, 25 - lostRate * 0.5) +
+      (forecastReliable ? 15 : 0),
     );
 
     return {
@@ -247,6 +299,8 @@ export function buildPipelineAnalytics(
         score: attractivenessScore,
         avgActivities,
         closeDateFreshPct,
+        lostCount,
+        lostRate,
         forecastReliable,
       },
     };

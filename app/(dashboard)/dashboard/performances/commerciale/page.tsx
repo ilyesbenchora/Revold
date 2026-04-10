@@ -4,7 +4,7 @@ import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel } from "@/lib/score-utils";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
-import { fetchPipelines, fetchOpenDeals, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
+import { fetchPipelines, fetchOpenDeals, fetchLostDealsByPipeline, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 
 export default async function PerformanceCommercialePage() {
   const orgId = await getOrgId();
@@ -62,11 +62,12 @@ export default async function PerformanceCommercialePage() {
   let pipelineAnalytics: PipelineAnalytics[] = [];
   if (process.env.HUBSPOT_ACCESS_TOKEN) {
     try {
-      const [pipelines, openDealRows] = await Promise.all([
+      const [pipelines, openDealRows, lostByPipeline] = await Promise.all([
         fetchPipelines(process.env.HUBSPOT_ACCESS_TOKEN),
         fetchOpenDeals(process.env.HUBSPOT_ACCESS_TOKEN),
+        fetchLostDealsByPipeline(process.env.HUBSPOT_ACCESS_TOKEN),
       ]);
-      pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows);
+      pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows, lostByPipeline);
     } catch {}
   }
 
@@ -265,7 +266,7 @@ export default async function PerformanceCommercialePage() {
                       {pa.attractiveness.score}/100
                     </span>
                   </div>
-                  <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+                  <div className="mt-2 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
                     <div>
                       <p className="text-slate-500">Activités moy./deal</p>
                       <p className={`font-semibold ${pa.attractiveness.avgActivities >= 3 ? "text-emerald-700" : pa.attractiveness.avgActivities >= 1 ? "text-amber-700" : "text-red-600"}`}>
@@ -279,6 +280,12 @@ export default async function PerformanceCommercialePage() {
                       </p>
                     </div>
                     <div>
+                      <p className="text-slate-500">Deals perdus</p>
+                      <p className={`font-semibold ${pa.attractiveness.lostRate > 50 ? "text-red-600" : pa.attractiveness.lostRate > 30 ? "text-amber-700" : "text-emerald-700"}`}>
+                        {pa.attractiveness.lostCount} ({pa.attractiveness.lostRate}%)
+                      </p>
+                    </div>
+                    <div>
                       <p className="text-slate-500">Forecast</p>
                       <p className={`font-semibold ${pa.attractiveness.forecastReliable ? "text-emerald-700" : "text-red-600"}`}>
                         {pa.attractiveness.forecastReliable ? "Fiable" : "Non fiable"}
@@ -287,7 +294,10 @@ export default async function PerformanceCommercialePage() {
                   </div>
                   {!pa.attractiveness.forecastReliable && (
                     <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
-                      Ce pipeline a un forecast peu fiable : {pa.attractiveness.closeDateFreshPct < 60 ? "les dates de fermeture ne sont pas mises à jour régulièrement" : ""}
+                      Ce pipeline a un forecast peu fiable :{" "}
+                      {pa.attractiveness.lostRate > 50 ? `${pa.attractiveness.lostRate}% des deals finissent en perdu` : ""}
+                      {pa.attractiveness.lostRate > 50 && (pa.attractiveness.closeDateFreshPct < 60 || pa.attractiveness.avgActivities < 2) ? ", " : ""}
+                      {pa.attractiveness.closeDateFreshPct < 60 ? "les dates de fermeture ne sont pas mises à jour régulièrement" : ""}
                       {pa.attractiveness.closeDateFreshPct < 60 && pa.attractiveness.avgActivities < 2 ? " et " : ""}
                       {pa.attractiveness.avgActivities < 2 ? "les commerciaux ne logguent pas assez d'activités de vente" : ""}.
                     </p>
