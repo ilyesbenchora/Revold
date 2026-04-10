@@ -579,14 +579,14 @@ export default async function InsightsPage() {
         </CollapsibleBlock>
       )}
 
-      {/* Insights Data Model — CRM audit + matching recommendations */}
+      {/* Insights IA Modèle de données — CRM audit + matching recommendations */}
       {dataModelInsights.length > 0 && (
         <CollapsibleBlock
           title={
             <div className="flex w-full items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <span className="h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500" />
-                Insights Data Model
+                Insights IA Modèle de données
                 <span className="rounded-full bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
                   {dataModelInsights.length}
                 </span>
