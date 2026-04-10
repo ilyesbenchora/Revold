@@ -42,6 +42,10 @@ const RESOLUTION_RULES = [
       { label: "Activer le match SIREN", type: "select", options: ["Oui", "Non"], value: "Oui" },
       { label: "Source SIREN prioritaire", type: "select", options: ["Pennylane (natif)", "Sellsy (natif)", "Axonaut (natif)", "Stripe (customer.metadata.siren)", "HubSpot (champ custom)", "Import CSV"], value: "Pennylane (natif)" },
       { label: "Gestion multi-entités", type: "select", options: ["1 SIREN = 1 company (strict)", "Grouper par racine SIREN (même groupe)", "Demander confirmation"], value: "1 SIREN = 1 company (strict)" },
+      { label: "Combiner avec ID client externe", type: "select", options: [
+        "Oui — SIREN + customer_id pour double validation",
+        "Non — SIREN seul suffit (99% fiable)",
+      ], value: "Non — SIREN seul suffit (99% fiable)" },
     ],
   },
   {
@@ -83,7 +87,42 @@ const RESOLUTION_RULES = [
     configFields: [
       { label: "Normalisation", type: "select", options: ["Lowercase + trim", "Lowercase + trim + remove dots (Gmail)", "Aucune"], value: "Lowercase + trim" },
       { label: "Emails génériques", type: "select", options: ["Bloquer (info@, contact@, support@, facturation@, comptabilite@, admin@)", "Avertir seulement", "Autoriser"], value: "Bloquer (info@, contact@, support@, facturation@, comptabilite@, admin@)" },
-      { label: "Match CRM ↔ Billing", type: "select", options: ["Email + domaine obligatoire (recommandé)", "Email seul (risqué)", "Désactivé entre CRM et billing"], value: "Email + domaine obligatoire (recommandé)" },
+      { label: "Match CRM ↔ Billing", type: "select", options: [
+        "Email + SIREN obligatoire (le plus fiable)",
+        "Email + domaine obligatoire",
+        "Email + ID client externe obligatoire (customer_id)",
+        "Email seul (risqué — facturation@ ≠ signataire)",
+        "Désactivé entre CRM et billing",
+      ], value: "Email + SIREN obligatoire (le plus fiable)" },
+      { label: "Match CRM ↔ Support", type: "select", options: [
+        "Email exact (recommandé — le contact crée le ticket)",
+        "Email + domaine",
+        "Désactivé",
+      ], value: "Email exact (recommandé — le contact crée le ticket)" },
+    ],
+  },
+  {
+    id: "external_id_match",
+    rule: "Match par ID client externe (ERP / SaaS)",
+    entity: "Contact + Company",
+    description: "Chaque outil métier (Stripe, Pennylane, Sellsy, Axonaut, QuickBooks, Zendesk…) attribue un ID client unique (customer_id, client_id, account_id). Si cet ID est stocké dans le CRM (champ custom HubSpot), le rapprochement est 100% fiable car c'est l'identifiant technique de la relation.",
+    confidence: 99,
+    enabled: true,
+    warning: "L'ID client externe est le meilleur identifiant après le SIREN car il est stable et unique par outil. Mais il faut que le commercial ou un workflow ait renseigné l'ID dans le CRM — sinon le champ est vide et la règle ne match rien.",
+    configFields: [
+      { label: "Stripe → HubSpot", type: "input", value: "stripe_customer_id" },
+      { label: "Pennylane → HubSpot", type: "input", value: "pennylane_client_id" },
+      { label: "Sellsy → HubSpot", type: "input", value: "sellsy_client_id" },
+      { label: "Axonaut → HubSpot", type: "input", value: "axonaut_company_id" },
+      { label: "QuickBooks → HubSpot", type: "input", value: "qb_customer_id" },
+      { label: "Zendesk → HubSpot", type: "input", value: "zendesk_user_id" },
+      { label: "Intercom → HubSpot", type: "input", value: "intercom_contact_id" },
+      { label: "Pipedrive → HubSpot", type: "input", value: "pipedrive_person_id" },
+      { label: "Salesforce → HubSpot", type: "input", value: "salesforce_contact_id" },
+      { label: "Remplissage automatique", type: "select", options: [
+        "Oui — Revold écrit l'ID dans le CRM après le 1er match (recommandé)",
+        "Non — uniquement lecture (le commercial doit remplir manuellement)",
+      ], value: "Oui — Revold écrit l'ID dans le CRM après le 1er match (recommandé)" },
     ],
   },
   {
