@@ -1,8 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel } from "@/lib/score-utils";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 
 const fmt = (n: number) =>
@@ -108,18 +107,10 @@ export default async function PaiementFacturationPage() {
 
       <PerformancesTabs />
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Paiement" score={score} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{score}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(score).className}`}>
-              {getScoreLabel(score).label}
-            </span>
-          </div>
-        </div>
-      </div>
+      <InsightLockedBlock
+        previewTitle="Analyse IA de vos paiements et facturation"
+        previewBody="L'IA Revold détecte les risques de défaut de paiement, optimise le recouvrement et identifie les patterns de churn liés à la facturation."
+      />
 
       {/* Revenus récurrents */}
       <CollapsibleBlock title={

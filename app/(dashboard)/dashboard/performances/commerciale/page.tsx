@@ -1,8 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel } from "@/lib/score-utils";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { fetchPipelines, fetchOpenDeals, fetchLostDealsByPipeline, buildPipelineAnalytics, type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 
@@ -105,16 +104,10 @@ export default async function PerformanceCommercialePage() {
 
       <PerformancesTabs />
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Commercial" score={salesScore} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{salesScore}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(salesScore).className}`}>{getScoreLabel(salesScore).label}</span>
-          </div>
-        </div>
-      </div>
+      <InsightLockedBlock
+        previewTitle="Analyse IA de votre performance commerciale"
+        previewBody="L'IA Revold identifie les deals à risque, les patterns de closing gagnants et les optimisations de pipeline à fort impact sur votre taux de conversion."
+      />
 
       {/* Pipeline — analytics par pipeline HubSpot */}
       <CollapsibleBlock
