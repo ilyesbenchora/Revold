@@ -254,10 +254,12 @@ export function generateDataModelInsights(ctx: DataModelContext): DataModelInsig
   // the exact matching rules to enable/disable, with the right field
   // mappings and confidence thresholds.
 
+  // Build rules ONLY from tools that are actually detected — no generic rules.
   const allToolKeys = new Set([
     ...Array.from(activeProviders),
     ...hsTools.map((t) => t.key),
   ]);
+  const detectedNames = hsTools.map((t) => t.label);
   const hasCalling = CALLING_TOOLS.some((t) => allToolKeys.has(t));
   const hasProspection = PROSPECTION_TOOLS.some((t) => allToolKeys.has(t));
   const hasEsign = ESIGN_TOOLS.some((t) => allToolKeys.has(t));
@@ -265,150 +267,136 @@ export function generateDataModelInsights(ctx: DataModelContext): DataModelInsig
   const hasAnySupport = hasSupport || SUPPORT_TOOLS.some((t) => allToolKeys.has(t));
   const hasFrenchTool = FRENCH_BILLING.some((t) => allToolKeys.has(t));
 
-  // Build the recommended rule set
+  // Only generate rules tied to SPECIFIC tool combinations detected
   const rules: Array<{ rule: string; status: "activer" | "désactiver" | "configurer"; reason: string }> = [];
 
-  // SIREN
-  if (hasFrenchTool) {
-    rules.push({
-      rule: "Match par SIREN",
-      status: "activer",
-      reason: `Vous avez un outil FR (${FRENCH_BILLING.filter((t) => allToolKeys.has(t)).join(", ")}) qui possède le SIREN en natif. C'est le match le plus fiable (99%) pour les entreprises françaises — activez-le en priorité.`,
-    });
-  } else {
-    rules.push({
-      rule: "Match par SIREN",
-      status: "configurer",
-      reason: "Aucun outil FR avec SIREN natif détecté. Si votre entreprise opère en France, ajoutez manuellement le SIREN dans HubSpot (champ custom) pour débloquer ce match.",
-    });
-  }
-
-  // VAT
-  if (hasAnyBilling) {
-    rules.push({
-      rule: "Match par TVA intracommunautaire",
-      status: "activer",
-      reason: "Vous avez un outil de facturation connecté — le n° TVA est souvent disponible côté billing et permet un match 97% sur les entreprises UE.",
-    });
-  }
-
-  // External ID
-  if (hasAnyBilling || hasAnySupport) {
-    const toolsWithIds = [
-      ...BILLING_TOOLS.filter((t) => allToolKeys.has(t)),
-      ...SUPPORT_TOOLS.filter((t) => allToolKeys.has(t)),
-    ];
-    rules.push({
-      rule: "Match par ID client externe",
-      status: "activer",
-      reason: `${toolsWithIds.join(", ")} ont chacun un customer_id unique. Mappez-les dans HubSpot et activez le remplissage automatique — après le 1er match, tous les syncs suivants sont instantanés (0 faux positif).`,
-    });
-  }
-
-  // Email
-  if (hasAnyBilling) {
-    rules.push({
-      rule: "Match par email exact",
-      status: "configurer",
-      reason: hasFrenchTool
-        ? "Passez en mode \"Email + SIREN\" entre CRM et billing. L'email seul entre Pennylane/Sellsy et HubSpot génère des faux positifs (facturation@ ≠ jean.dupont@)."
-        : "Passez en mode \"Email + ID client externe\" entre CRM et billing. L'email seul ne suffit pas — le contact de facturation est rarement le signataire du devis.",
-    });
-  } else {
-    rules.push({
-      rule: "Match par email exact",
-      status: "activer",
-      reason: "Sans outil de billing, le match email exact est suffisant entre CRM et les autres outils (prospection, appels, support). Le risque facturation@ n'existe pas dans ce contexte.",
-    });
-  }
-
-  // Domain
-  rules.push({
-    rule: "Match par domaine web",
-    status: "configurer",
-    reason: hasAnyBilling
-      ? "Activez avec l'option \"Exiger un second identifiant (domaine + SIREN ou TVA)\" — le domaine seul est risqué entre holding et filiale, surtout côté facturation."
-      : "Activez avec exclusion des domaines personnels (gmail, hotmail…). Sans billing, le domaine est un bon signal secondaire.",
-  });
-
-  // Calling-specific
+  // Calling tools detected → email match is enough, phone is overkill
   if (hasCalling) {
-    const callingTools = CALLING_TOOLS.filter((t) => allToolKeys.has(t));
-    rules.push({
-      rule: "Match par email (CRM ↔ Calling)",
-      status: "activer",
-      reason: `${callingTools.join(", ")} log les appels avec le hubspot_owner_id du commercial. Le match email exact suffit ici car l'appel est toujours lié au contact CRM existant.`,
+    const names = CALLING_TOOLS.filter((t) => allToolKeys.has(t)).map((t) => {
+      const hs = hsTools.find((h) => h.key === t);
+      return hs ? `${hs.label} (${hs.enrichmentRate}% enrichi, ${hs.distinctUsers} user${hs.distinctUsers > 1 ? "s" : ""})` : t;
     });
-  }
-
-  // Prospection/enrichment
-  if (hasProspection) {
-    const prospTools = PROSPECTION_TOOLS.filter((t) => allToolKeys.has(t));
     rules.push({
-      rule: "Match par email + LinkedIn",
+      rule: "Email exact (CRM ↔ Téléphonie)",
       status: "activer",
-      reason: `${prospTools.join(", ")} enrichissent les contacts avec email + LinkedIn URL. Activez le match LinkedIn en mode combinaison (LinkedIn + email) pour maximiser la résolution sans risque de faux positif.`,
+      reason: `${names.join(", ")} est connecté à HubSpot. Les appels sont liés aux contacts via le hubspot_owner_id — le match email exact suffit.`,
     });
-  }
-
-  // E-signature
-  if (hasEsign) {
-    rules.push({
-      rule: "Match par email (CRM ↔ E-signature)",
-      status: "activer",
-      reason: "PandaDoc/Yousign envoie les contrats à l'email du signataire — qui est le même que dans le CRM. Le match email exact est fiable dans ce contexte.",
-    });
-  }
-
-  // Support
-  if (hasAnySupport) {
-    const sTools = SUPPORT_TOOLS.filter((t) => allToolKeys.has(t));
-    rules.push({
-      rule: "Match par email (CRM ↔ Support)",
-      status: "activer",
-      reason: `${sTools.join(", ")} : le contact qui ouvre un ticket utilise son email professionnel — le même que dans le CRM. Match email exact fiable, pas besoin de SIREN ici.`,
-    });
-  }
-
-  // Phone
-  if (hasCalling) {
     rules.push({
       rule: "Match par téléphone",
       status: "désactiver",
-      reason: "Même avec Aircall/Ringover connecté, le match téléphone seul est trop risqué (45% confiance). Les appels sont déjà liés au contact via l'owner_id — pas besoin de matcher par numéro.",
+      reason: `${CALLING_TOOLS.filter((t) => allToolKeys.has(t)).join("/")} lie déjà chaque appel au contact CRM via l'owner_id. Le match par numéro (45% confiance) ajouterait du bruit sans valeur.`,
     });
   }
 
-  // Fuzzy name
-  rules.push({
-    rule: "Match par nom entreprise (fuzzy)",
-    status: hasAnyBilling ? "désactiver" : "configurer",
-    reason: hasAnyBilling
-      ? "Avec un outil de facturation, vous avez le SIREN ou le customer_id — le fuzzy matching est inutile et source de faux positifs (Acme Inc ≠ Acme Conseil)."
-      : "Sans billing, le fuzzy matching peut être utile comme signal secondaire MAIS exigez toujours un second identifiant (nom + domaine minimum).",
+  // Prospection tools → email + LinkedIn combo
+  if (hasProspection) {
+    const names = PROSPECTION_TOOLS.filter((t) => allToolKeys.has(t)).map((t) => {
+      const hs = hsTools.find((h) => h.key === t);
+      return hs ? `${hs.label} (${hs.enrichmentRate}% enrichi)` : t;
+    });
+    rules.push({
+      rule: "Email + LinkedIn (CRM ↔ Prospection)",
+      status: "activer",
+      reason: `${names.join(", ")} enrichit vos contacts avec email + profil LinkedIn. Activez la combinaison LinkedIn + email pour fiabiliser le match sans faux positif.`,
+    });
+  }
+
+  // Billing tools → SIREN or external ID, email alone is dangerous
+  if (hasAnyBilling) {
+    const billingOnStack = BILLING_TOOLS.filter((t) => allToolKeys.has(t));
+    if (hasFrenchTool) {
+      const frNames = FRENCH_BILLING.filter((t) => allToolKeys.has(t));
+      rules.push({
+        rule: "SIREN (CRM ↔ Facturation FR)",
+        status: "activer",
+        reason: `${frNames.join(", ")} possède le SIREN en natif. Créez un champ custom "siren" dans HubSpot et activez le match — c'est le seul identifiant qui garantit 99% de fiabilité entre CRM et facturation.`,
+      });
+    }
+    rules.push({
+      rule: "ID client externe (CRM ↔ Billing)",
+      status: "activer",
+      reason: `Mappez le customer_id de ${billingOnStack.join("/")} dans un champ HubSpot custom. Après le 1er match, Revold écrit l'ID dans le CRM → tous les syncs suivants sont instantanés, 0 faux positif.`,
+    });
+    rules.push({
+      rule: "Email seul (CRM ↔ Billing)",
+      status: "désactiver",
+      reason: `L'email de facturation (comptabilite@, admin@) n'est pas celui du signataire (jean.dupont@). Entre HubSpot et ${billingOnStack.join("/")}, utilisez Email + SIREN ou Email + customer_id à la place.`,
+    });
+  }
+
+  // E-signature → email is reliable (signer = CRM contact)
+  if (hasEsign) {
+    rules.push({
+      rule: "Email exact (CRM ↔ E-signature)",
+      status: "activer",
+      reason: "PandaDoc envoie le contrat à l'email du signataire — c'est le même contact que dans le CRM. Le match email exact est fiable dans ce contexte précis.",
+    });
+  }
+
+  // Support → email is reliable (ticket creator = CRM contact)
+  if (hasAnySupport) {
+    const sNames = SUPPORT_TOOLS.filter((t) => allToolKeys.has(t)).map((t) => {
+      const hs = hsTools.find((h) => h.key === t);
+      return hs ? `${hs.label} (${hs.enrichmentRate}% enrichi)` : t;
+    });
+    rules.push({
+      rule: "Email exact (CRM ↔ Support)",
+      status: "activer",
+      reason: `${sNames.join(", ")} : le contact qui crée un ticket utilise son email pro — c'est le même que dans le CRM. Pas besoin de SIREN ici.`,
+    });
+  }
+
+  // Always recommend manual reconciliation if any tool is connected
+  if (allToolKeys.size > 0) {
+    rules.push({
+      rule: "Réconciliation manuelle",
+      status: "activer",
+      reason: "Gardez la queue de réconciliation active pour les cas que l'automatique ne résout pas (holding/filiale, rebranding, changement d'entité juridique).",
+    });
+  }
+
+  // Only emit rules that are RELEVANT to the actual tools connected.
+  // Don't show generic rules (SIREN, domain, fuzzy) when no tool justifies them.
+  const relevantRules = rules.filter((r) => {
+    // A rule is relevant if it's tied to a detected tool category, not just generic advice
+    if (r.status === "activer") return true; // active rules are always relevant
+    if (r.status === "désactiver") return true; // disable recommendations are relevant
+    // For "configurer": only show if there's a concrete tool context
+    return r.reason.length > 50; // heuristic: short generic reasons = skip
   });
 
-  // Manual reconciliation
-  rules.push({
-    rule: "Réconciliation manuelle",
-    status: "activer",
-    reason: "Toujours garder la queue de réconciliation active — les cas non-matchés automatiquement (holding/filiale, changement de nom, rebranding) doivent être validés par un humain.",
-  });
+  if (relevantRules.length > 0) {
+    const activerRules = relevantRules.filter((r) => r.status === "activer");
+    const configurerRules = relevantRules.filter((r) => r.status === "configurer");
+    const desactiverRules = relevantRules.filter((r) => r.status === "désactiver");
 
-  // Emit one insight per rule — much more readable than one mega-card.
-  for (const rule of rules) {
-    const statusConfig = {
-      activer: { severity: "success" as const, prefix: "✅ Activer", verb: "Activez" },
-      configurer: { severity: "warning" as const, prefix: "⚙️ Configurer", verb: "Configurez" },
-      désactiver: { severity: "info" as const, prefix: "❌ Désactiver", verb: "Désactivez" },
-    }[rule.status];
+    // Build structured body as a clean list
+    const sections: string[] = [];
+    if (activerRules.length > 0) {
+      sections.push(
+        "À ACTIVER :\n" +
+        activerRules.map((r) => `→ ${r.rule} : ${r.reason}`).join("\n"),
+      );
+    }
+    if (configurerRules.length > 0) {
+      sections.push(
+        "À CONFIGURER :\n" +
+        configurerRules.map((r) => `→ ${r.rule} : ${r.reason}`).join("\n"),
+      );
+    }
+    if (desactiverRules.length > 0) {
+      sections.push(
+        "À DÉSACTIVER :\n" +
+        desactiverRules.map((r) => `→ ${r.rule} : ${r.reason}`).join("\n"),
+      );
+    }
 
     insights.push({
-      id: `dm_rule_${rule.rule.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
-      severity: statusConfig.severity,
-      title: `${statusConfig.prefix} — ${rule.rule}`,
-      body: rule.reason,
-      recommendation: `${statusConfig.verb} cette règle dans Paramètres → Modèle de données → Règles de résolution d'entités.`,
+      id: "dm_resolution_blueprint",
+      severity: "info",
+      title: `Plan de résolution recommandé (${Array.from(allToolKeys).filter((k) => getToolCategory(k)).length} outils détectés)`,
+      body: sections.join("\n\n"),
+      recommendation: `Ce plan est basé sur les outils actuellement connectés à votre CRM et à Revold. Il se mettra à jour automatiquement si vous ajoutez ou retirez un outil. Appliquez les réglages dans Paramètres → Modèle de données.`,
       category: "matching",
     });
   }

@@ -609,6 +609,54 @@ export default async function InsightsPage() {
                 info: "info" as const,
                 success: "info" as const,
               };
+
+              // The blueprint insight has structured body with sections — render it as a custom card
+              if (insight.id === "dm_resolution_blueprint") {
+                const sections = insight.body.split("\n\n");
+                return (
+                  <article key={insight.id} className="card border-l-4 border-l-indigo-500 p-5">
+                    <h3 className="text-base font-semibold text-slate-900">{insight.title}</h3>
+                    <div className="mt-3 space-y-4">
+                      {sections.map((section, idx) => {
+                        const lines = section.split("\n");
+                        const header = lines[0];
+                        const items = lines.slice(1);
+                        const isActiver = header.includes("ACTIVER");
+                        const isDesactiver = header.includes("DÉSACTIVER");
+                        const badgeClass = isActiver
+                          ? "bg-emerald-100 text-emerald-700"
+                          : isDesactiver
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700";
+                        const icon = isActiver ? "✅" : isDesactiver ? "❌" : "⚙️";
+                        return (
+                          <div key={idx}>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${badgeClass}`}>
+                              {icon} {header.replace(":", "")}
+                            </span>
+                            <ul className="mt-2 space-y-1.5">
+                              {items.map((item, i) => (
+                                <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                                  <span className="mt-0.5 shrink-0 text-slate-400">→</span>
+                                  <span>{item.replace(/^→\s*/, "")}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-accent">
+                        <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+                        <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+                      </svg>
+                      <p className="text-xs font-medium text-slate-700">{insight.recommendation}</p>
+                    </div>
+                  </article>
+                );
+              }
+
               return (
                 <InsightCard
                   key={insight.id}
