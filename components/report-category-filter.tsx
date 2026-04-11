@@ -4,15 +4,13 @@ import { useState } from "react";
 
 export const REPORT_DISPLAY_CATEGORIES = [
   { id: "all", label: "Tous" },
-  { id: "prospection", label: "Prospection" },
-  { id: "appels", label: "Appels" },
-  { id: "cycle_ventes", label: "Cycle de ventes" },
-  { id: "facturation", label: "Facturation" },
-  { id: "paiement", label: "Paiement" },
+  { id: "attribution", label: "Attribution" },
+  { id: "chiffre_affaires", label: "Chiffre d'affaires" },
+  { id: "facturation_paiement", label: "Facturation & Paiement" },
+  { id: "service_client", label: "Service client" },
   { id: "qualite_donnees", label: "Qualité de données" },
   { id: "adoption_outils", label: "Adoption outils" },
-  { id: "service_client", label: "Service client" },
-  { id: "marketing", label: "Marketing" },
+  { id: "cycle_ventes", label: "Cycle de ventes" },
 ] as const;
 
 export type ReportDisplayCategory = (typeof REPORT_DISPLAY_CATEGORIES)[number]["id"];
