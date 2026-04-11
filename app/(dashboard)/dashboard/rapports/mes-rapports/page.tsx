@@ -8,6 +8,7 @@ import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
 import Link from "next/link";
+import { DeactivateReportButton } from "@/components/deactivate-report-button";
 
 type ActivatedReport = {
   id: string;
@@ -150,22 +151,7 @@ export default async function MesRapportsPage() {
                   <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                     En attente de synchronisation
                   </span>
-                  <form
-                    action={`/api/reports/activate?reportId=${encodeURIComponent(report.report_id)}`}
-                    method="DELETE"
-                  >
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-red-500 hover:text-red-700 hover:underline"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        await fetch(`/api/reports/activate?reportId=${encodeURIComponent(report.report_id)}`, { method: "DELETE" });
-                        window.location.reload();
-                      }}
-                    >
-                      Désactiver
-                    </button>
-                  </form>
+                  <DeactivateReportButton reportId={report.report_id} />
                 </div>
               </article>
             );
