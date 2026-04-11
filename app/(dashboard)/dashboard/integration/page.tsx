@@ -3,7 +3,7 @@ export const maxDuration = 60;
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel, getBarColor } from "@/lib/score-utils";
+import { getScoreLabel } from "@/lib/score-utils";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
@@ -19,7 +19,6 @@ import {
   getHubspotOwnersCount,
 } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
-import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -256,185 +255,44 @@ export default async function IntegrationPage({
         </CollapsibleBlock>
       )}
 
-      {/* Applications connectées */}
-      {businessIntegrations.length > 0 && (
+      {/* Already connected to Revold */}
+      {directlyConnectedKeys.length > 0 && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées à HubSpot
-              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">{totalIntegrations}</span>
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />Outils connectés à Revold
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                {directlyConnectedKeys.length}
+              </span>
             </h2>
           }
         >
-          <p className="text-sm text-slate-500">
-            Outils métiers (LinkedIn, PandaDoc, Kaspr, Aircall…) connectés à votre portail HubSpot,
-            détectés via les propriétés installées, les sources d&apos;enregistrement et l&apos;activité API du portail.
-          </p>
-          <ExpandableIntegrationsList totalCount={businessIntegrations.length} visibleByDefault={2}>
-            {businessIntegrations.map((int) => (
-              <article key={int.key} className="card p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{int.icon}</span>
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
-                      <p className="text-xs text-slate-400">{int.vendor} · {int.objectTypes.join(", ")}</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(int.detectionMethods.includes("property_group") || int.detectionMethods.includes("portal_app") || int.detectionMethods.includes("workflow_webhook") || int.detectionMethods.includes("audit_install")) && (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">✓ Connecté</span>
-                        )}
-                        {int.detectionMethods.includes("audit_install") && (
-                          <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700">
-                            Audit log{int.auditInstalledAt ? ` · ${new Date(int.auditInstalledAt).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}` : ""}
-                          </span>
-                        )}
-                        {int.detectionMethods.includes("property_group") && (
-                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">Groupe de propriétés</span>
-                        )}
-                        {int.detectionMethods.includes("workflow_webhook") && (
-                          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-medium text-fuchsia-700">
-                            Webhook workflow{int.workflowWebhookCount && int.workflowWebhookCount > 0 ? ` · ${int.workflowWebhookCount}` : ""}
-                          </span>
-                        )}
-                        {int.detectionMethods.includes("source_detail") && (
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">Source d&apos;enregistrement</span>
-                        )}
-                        {int.detectionMethods.includes("engagements") && (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Engagements</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Propriétés synchronisées</p>
-                    <p className="text-2xl font-bold text-slate-900">{int.totalProperties}</p>
-                  </div>
-                </div>
-
-                {/* Enrichment rate (only when detected via properties) */}
-                {int.totalProperties > 0 ? (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-600">Taux d&apos;enrichissement</span>
-                      <span className={`font-bold ${
-                        int.enrichmentRate >= 50 ? "text-emerald-600" :
-                        int.enrichmentRate >= 20 ? "text-yellow-600" :
-                        int.enrichmentRate >= 5 ? "text-orange-500" : "text-red-500"
-                      }`}>
-                        {int.enrichmentRate}% — {int.enrichedRecords.toLocaleString("fr-FR")} / {int.totalRecords.toLocaleString("fr-FR")} {int.objectTypes[0]}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-2 rounded-full ${getBarColor(int.enrichmentRate)}`}
-                        style={{ width: `${Math.min(100, int.enrichmentRate)}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : int.enrichedRecords > 0 ? (
-                  <div className="mt-4 rounded-lg bg-blue-50 p-3 text-xs text-blue-800">
-                    <span className="font-semibold">{int.enrichedRecords.toLocaleString("fr-FR")}</span> enregistrements détectés via les sources HubSpot ({int.objectTypes.join(", ")}). Aucune propriété personnalisée installée — connectez l&apos;app pour enrichir vos données.
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
-                    App connectée à HubSpot{int.portalAppMatches && int.portalAppMatches.length > 0 && (
-                      <> · {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0).toLocaleString("fr-FR")} appels API récents</>
-                    )}. Aucune propriété ni enregistrement encore synchronisé — l&apos;adoption viendra avec l&apos;usage.
-                  </div>
-                )}
-
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {/* Properties — always shown for visual consistency */}
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Propriétés synchronisées</p>
-                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">
-                        {int.totalProperties}
-                      </span>
-                    </div>
-                    {int.topProperties.length > 0 ? (
-                      <div className="mt-2 space-y-1.5">
-                        {int.topProperties.map((p) => (
-                          <div key={p.name} className="flex items-center justify-between text-xs">
-                            <span className="truncate text-slate-700">{p.label}</span>
-                            <span className="ml-2 shrink-0 font-medium text-slate-500">
-                              {p.enrichedCount.toLocaleString("fr-FR")}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">Aucune propriété personnalisée installée par cette app.</p>
-                    )}
-                  </div>
-
-                  {/* User adoption — always shown, with API activity fallback */}
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        {int.distinctUsers > 0 ? "Adoption utilisateurs" : "Activité de l'app"}
-                      </p>
-                      {int.distinctUsers > 0 ? (
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                          int.distinctUsers >= 5 ? "bg-emerald-100 text-emerald-700" :
-                          int.distinctUsers >= 2 ? "bg-yellow-100 text-yellow-700" :
-                          "bg-orange-100 text-orange-700"
-                        }`}>{int.distinctUsers} util.</span>
-                      ) : int.portalAppMatches && int.portalAppMatches.length > 0 ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                          ✓ Active
-                        </span>
-                      ) : null}
-                    </div>
-                    {int.topUsers.length > 0 ? (
-                      <div className="mt-2 space-y-1.5">
-                        {int.topUsers.slice(0, 5).map((u) => (
-                          <div key={u.ownerId} className="flex items-center justify-between text-xs">
-                            <span className="truncate text-slate-700">{u.name}</span>
-                            <span className="ml-2 shrink-0 font-medium text-slate-500">{u.count} connexions</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : int.portalAppMatches && int.portalAppMatches.length > 0 ? (
-                      <div className="mt-2 space-y-1.5 text-xs">
-                        {int.portalAppMatches[0].lastActivityAt && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700">Dernière activité</span>
-                            <span className="ml-2 shrink-0 font-medium text-slate-500">
-                              {new Date(int.portalAppMatches[0].lastActivityAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
-                            </span>
-                          </div>
-                        )}
-                        {int.portalAppMatches[0].installedAt && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700">Installée le</span>
-                            <span className="ml-2 shrink-0 font-medium text-slate-500">
-                              {new Date(int.portalAppMatches[0].installedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
-                            </span>
-                          </div>
-                        )}
-                        {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0) > 0 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700">Appels API récents</span>
-                            <span className="ml-2 shrink-0 font-medium text-slate-500">
-                              {int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0).toLocaleString("fr-FR")}
-                            </span>
-                          </div>
-                        )}
-                        {!int.portalAppMatches[0].lastActivityAt && !int.portalAppMatches[0].installedAt && int.portalAppMatches.reduce((s, a) => s + a.usageCount, 0) === 0 && (
-                          <p className="text-slate-400">App détectée comme connectée à HubSpot.</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">
-                        Adoption non mesurable — l&apos;app synchronise les données sans propriétaire utilisateur attribué.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </ExpandableIntegrationsList>
+          <div className="card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="px-5 py-2">Outil</th>
+                  <th className="px-5 py-2">Statut</th>
+                  <th className="px-5 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {directlyConnectedKeys.map((provider) => (
+                  <tr key={provider} className="border-b border-card-border last:border-0">
+                    <td className="px-5 py-2.5 font-medium capitalize text-slate-800">{provider}</td>
+                    <td className="px-5 py-2.5">
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">✓ Connecté</span>
+                    </td>
+                    <td className="px-5 py-2.5">
+                      <Link href={`/dashboard/integration/connect/${provider}`} className="text-xs font-medium text-accent hover:underline">
+                        Reconfigurer
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CollapsibleBlock>
       )}
 

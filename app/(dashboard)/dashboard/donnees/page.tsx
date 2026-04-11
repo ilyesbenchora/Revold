@@ -1,8 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
 import { ProgressScore } from "@/components/progress-score";
 import { getScoreLabel, getBarColor } from "@/lib/score-utils";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
+import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
 
 export default async function DonneesPage() {
   const orgId = await getOrgId();
@@ -11,6 +13,10 @@ export default async function DonneesPage() {
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // HubSpot-detected business integrations (for the connected apps block)
+  const { integrations: hsIntegrations } = await getCanonicalIntegrationData();
+  const businessIntegrations = filterBusinessIntegrations(hsIntegrations);
 
   // Contact data quality
   const [
@@ -202,6 +208,55 @@ export default async function DonneesPage() {
           ))}
         </div>
       </CollapsibleBlock>
+
+      {/* Applications connectées à HubSpot */}
+      {businessIntegrations.length > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées à HubSpot
+              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">{businessIntegrations.length}</span>
+            </h2>
+          }
+        >
+          <p className="text-sm text-slate-500">
+            Outils métiers connectés à votre portail HubSpot, détectés via les propriétés installées, les sources d&apos;enregistrement et l&apos;activité API.
+          </p>
+          <ExpandableIntegrationsList totalCount={businessIntegrations.length} visibleByDefault={4}>
+            {businessIntegrations.map((int) => (
+              <article key={int.key} className="card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{int.icon}</span>
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">{int.label}</h3>
+                      <p className="text-xs text-slate-400">{int.vendor}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Propriétés</p>
+                    <p className="text-2xl font-bold text-slate-900">{int.totalProperties}</p>
+                  </div>
+                </div>
+                {int.totalProperties > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-600">Taux d&apos;enrichissement</span>
+                      <span className={`font-bold ${
+                        int.enrichmentRate >= 50 ? "text-emerald-600" :
+                        int.enrichmentRate >= 20 ? "text-yellow-600" : "text-orange-500"
+                      }`}>{int.enrichmentRate}%</span>
+                    </div>
+                    <div className="mt-1.5 h-2 w-full rounded-full bg-slate-100">
+                      <div className={`h-2 rounded-full ${getBarColor(int.enrichmentRate)}`} style={{ width: `${Math.min(100, int.enrichmentRate)}%` }} />
+                    </div>
+                  </div>
+                )}
+              </article>
+            ))}
+          </ExpandableIntegrationsList>
+        </CollapsibleBlock>
+      )}
     </section>
   );
 }
