@@ -7,14 +7,13 @@
  */
 
 import type { DetectedIntegration } from "@/lib/integrations/detect-integrations";
-import { getToolCategory, type ToolCategory } from "./report-suggestions";
+import { getToolCategory, type ToolCategory, type ReportDisplayCategory } from "./report-suggestions";
 
 export type CrossSourceReport = {
   id: string;
   title: string;
   description: string;
-  // The categories that must all be present on the portal for this report
-  // to make sense. Order doesn't matter.
+  displayCategory: ReportDisplayCategory;
   requiredCategories: ToolCategory[];
   metrics: string[];
   expectedValue: string;
@@ -25,6 +24,7 @@ export type CrossSourceReport = {
 const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   {
     id: "outbound_to_revenue",
+    displayCategory: "prospection",
     title: "Outbound → Opportunités → Cash",
     description:
       "Reconstitue le funnel complet : campagnes outbound (Lemlist/Apollo) → meetings → opportunités HubSpot → factures encaissées (Stripe/Pennylane). Le ROI réel par séquence, pas un proxy.",
@@ -42,7 +42,8 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "calls_to_won",
-    title: "Activité téléphonique → Deals gagnés",
+    displayCategory: "appels",
+    title: "Activité d'appels → Deals gagnés",
     description:
       "Croise l'activité Aircall/Ringover (volume d'appels, durée, taux de connexion) avec les deals fermés gagnés dans HubSpot pour mesurer l'impact réel du téléphone sur le closing.",
     requiredCategories: ["calling"],
@@ -59,6 +60,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "deals_vs_invoices",
+    displayCategory: "facturation",
     title: "Réconciliation Deals gagnés ↔ Factures encaissées",
     description:
       "Croise systématiquement chaque deal HubSpot 'Closed Won' avec les factures Stripe/Pennylane/Sellsy associées. Fait remonter les fuites revenue : deals gagnés sans facture, écarts forecast vs réalisé.",
@@ -76,6 +78,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "esign_cycle_time",
+    displayCategory: "cycle_ventes",
     title: "Cycle de signature → Time-to-close",
     description:
       "Croise les contrats envoyés via PandaDoc/Yousign avec les deals HubSpot pour mesurer le délai exact entre l'envoi et la signature, et identifier les blocages systémiques.",
@@ -92,6 +95,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "support_to_churn",
+    displayCategory: "service_client",
     title: "Tickets support → Risque de churn",
     description:
       "Croise volume et sentiment des tickets Intercom/Zendesk avec les renouvellements et le MRR Stripe pour anticiper les comptes qui vont churner avant qu'ils n'annulent.",
@@ -109,6 +113,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "enrichment_roi",
+    displayCategory: "qualite_donnees",
     title: "ROI de l'enrichissement Kaspr / Dropcontact",
     description:
       "Compare la performance commerciale (taux de réponse, opportunités, deals gagnés) entre les contacts enrichis via Kaspr/Dropcontact/Lusha et les contacts non-enrichis. Quantifie le ROI exact du budget enrichissement.",
@@ -126,6 +131,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "marketing_to_mrr",
+    displayCategory: "marketing",
     title: "Marketing automation → MRR par lead source",
     description:
       "Croise les campagnes Mailchimp/Brevo avec le MRR Stripe par lead source pour identifier les canaux marketing qui génèrent le plus de revenue récurrent (pas juste des leads).",
@@ -143,6 +149,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "conv_intel_winning_patterns",
+    displayCategory: "cycle_ventes",
     title: "Conversational Intelligence → Patterns gagnants",
     description:
       "Compare les enregistrements Modjo/Gong (talk ratio, objections, mots-clés) entre les deals HubSpot gagnés et perdus pour extraire les patterns conversationnels qui closent.",
@@ -160,6 +167,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "sdr_full_funnel",
+    displayCategory: "prospection",
     title: "Performance full-funnel par SDR",
     description:
       "Pour chaque SDR : volume outbound (Lemlist/Apollo) → appels passés (Aircall) → meetings bookés (HubSpot) → opportunités créées → deals gagnés → CA encaissé (Stripe). La photo complète et juste de la performance.",
@@ -177,6 +185,7 @@ const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
   },
   {
     id: "stack_adoption",
+    displayCategory: "adoption_outils",
     title: "Adoption du stack par utilisateur",
     description:
       "Vue cross-tools de l'adoption : pour chaque commercial, voir quels outils il utilise vraiment (Aircall, Kaspr, PandaDoc, Mailchimp…) et lesquels sont sous-exploités. Pilote la conduite du changement.",
