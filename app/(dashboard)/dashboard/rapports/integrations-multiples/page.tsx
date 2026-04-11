@@ -53,6 +53,7 @@ export default async function RapportsIntegrationsMultiplesPage() {
             expectedValue: r.expectedValue,
             priority: r.priority,
             icon: r.icon,
+            reliabilityPct: r.reliabilityPct,
             requiredCategories: r.requiredCategories,
           }))}
           variant="multi"

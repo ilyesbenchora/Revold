@@ -41,6 +41,7 @@ export default async function RapportsIntegrationUniquePage() {
           expectedValue: r.expectedValue,
           priority: r.priority,
           icon: r.icon,
+          reliabilityPct: r.reliabilityPct,
           sourceIntegrations: r.sourceIntegrations,
         }))}
         variant="single"

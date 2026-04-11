@@ -25,12 +25,15 @@ export type CrossSourceReport = {
   expectedValue: string;
   priority: "high" | "medium" | "low";
   icon: string;
+  /** Reliability % = min enrichment rate across required tool categories
+   *  (weakest link in the cross-source chain). Computed dynamically. */
+  reliabilityPct: number;
 };
 
 // ---------------------------------------------------------------------------
 // CROSS-SOURCE TEMPLATES — 25+ reports across all 7 categories
 // ---------------------------------------------------------------------------
-const CROSS_SOURCE_TEMPLATES: CrossSourceReport[] = [
+const CROSS_SOURCE_TEMPLATES: Omit<CrossSourceReport, "reliabilityPct">[] = [
   // =====================================================================
   //  ATTRIBUTION (4 reports)
   // =====================================================================
@@ -577,27 +580,45 @@ export function getCrossSourceReports(
   integrations: DetectedIntegration[],
 ): Array<CrossSourceReport & { availableCategories: ToolCategory[] }> {
   const presentCategories = new Set<ToolCategory>();
+  // Compute enrichment per tool category for reliability
+  const enrichmentByCategory = new Map<ToolCategory, number>();
   for (const i of integrations) {
     const cat = getToolCategory(i.key);
-    if (cat !== "other") presentCategories.add(cat);
+    if (cat === "other") continue;
+    presentCategories.add(cat);
+    const current = enrichmentByCategory.get(cat);
+    // Keep the highest enrichment for each category (best tool wins)
+    if (current === undefined || i.enrichmentRate > current) {
+      enrichmentByCategory.set(cat, i.enrichmentRate);
+    }
   }
 
   return CROSS_SOURCE_TEMPLATES.filter((tpl) => {
     if (tpl.requiredCategories.length === 0) return true;
     return tpl.requiredCategories.every((c) => presentCategories.has(c));
   })
-    .map((tpl) => ({
-      ...tpl,
-      availableCategories: tpl.requiredCategories.filter((c) =>
-        presentCategories.has(c),
-      ),
-    }))
+    .map((tpl) => {
+      // Reliability = min enrichment across required categories (weakest link)
+      const enrichments = tpl.requiredCategories.map(
+        (c) => enrichmentByCategory.get(c) ?? 0,
+      );
+      const reliabilityPct = enrichments.length > 0
+        ? Math.min(...enrichments)
+        : 70; // default for reports with no required category
+      return {
+        ...tpl,
+        reliabilityPct,
+        availableCategories: tpl.requiredCategories.filter((c) =>
+          presentCategories.has(c),
+        ),
+      };
+    })
     .sort((a, b) => {
       const order = { high: 0, medium: 1, low: 2 };
       return order[a.priority] - order[b.priority];
     });
 }
 
-export function getAllCrossSourceTemplates(): CrossSourceReport[] {
+export function getAllCrossSourceTemplates(): Omit<CrossSourceReport, "reliabilityPct">[] {
   return CROSS_SOURCE_TEMPLATES;
 }

@@ -23,6 +23,7 @@ type Report = {
   expectedValue: string;
   priority: "high" | "medium" | "low";
   icon: string;
+  reliabilityPct: number;
   sourceIntegrations?: Array<{ key: string; label: string; icon: string }>;
   requiredCategories?: string[];
 };
@@ -115,6 +116,14 @@ export function ReportListWithFilter({ reports, variant }: Props) {
                         🔗 {report.requiredCategories.length} outils
                       </span>
                     )}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      report.reliabilityPct >= 70 ? "bg-emerald-100 text-emerald-700" :
+                      report.reliabilityPct >= 40 ? "bg-amber-100 text-amber-700" :
+                      report.reliabilityPct > 0 ? "bg-red-100 text-red-700" :
+                      "bg-slate-100 text-slate-500"
+                    }`}>
+                      {report.reliabilityPct > 0 ? `${report.reliabilityPct}% fiable` : "Données insuffisantes"}
+                    </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">{report.description}</p>
 

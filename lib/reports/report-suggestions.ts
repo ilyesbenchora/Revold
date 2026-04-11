@@ -98,9 +98,12 @@ export type ReportSuggestion = {
   sourceIntegrations: Array<{ key: string; label: string; icon: string }>;
   priority: "high" | "medium" | "low";
   icon: string;
+  /** Reliability % based on the enrichment rate of the source tools (0-100).
+   *  Computed dynamically from the actual CRM data, not hardcoded. */
+  reliabilityPct: number;
 };
 
-type ReportTemplate = Omit<ReportSuggestion, "id" | "sourceIntegrations">;
+type ReportTemplate = Omit<ReportSuggestion, "id" | "sourceIntegrations" | "reliabilityPct">;
 
 // ---------------------------------------------------------------------------
 // REPORT TEMPLATES — tool-specific reports (20+ across 7 categories)
@@ -1015,8 +1018,23 @@ export function getCategoryLabel(cat: ToolCategory): string {
   return DISPLAY_CATEGORY_LABELS[cat as unknown as DisplayCategory] ?? cat;
 }
 
+/**
+ * Build report suggestions with a dynamic reliability % based on the
+ * enrichment rate of the source tools detected on the CRM.
+ *
+ * @param fieldCompleteness — optional object with contact/deal field coverage
+ *   (e.g. { contactsWithOwner: 80, dealsWithAmount: 92 }) for CRM-native reports.
+ *   Values are percentages 0-100. If omitted, defaults to 70%.
+ */
 export function getReportSuggestions(
   integrations: DetectedIntegration[],
+  fieldCompleteness?: {
+    contactsWithOwner?: number;
+    contactsWithPhone?: number;
+    contactsWithCompany?: number;
+    dealsWithAmount?: number;
+    dealsWithCloseDate?: number;
+  },
 ): ReportSuggestion[] {
   const byCategory = new Map<ToolCategory, DetectedIntegration[]>();
   for (const int of integrations) {
@@ -1024,6 +1042,15 @@ export function getReportSuggestions(
     if (cat === "other") continue;
     if (!byCategory.has(cat)) byCategory.set(cat, []);
     byCategory.get(cat)!.push(int);
+  }
+
+  // Average enrichment rate per tool category (for reliability computation)
+  const enrichmentByCategory = new Map<ToolCategory, number>();
+  for (const [cat, ints] of byCategory.entries()) {
+    const avg = ints.length > 0
+      ? Math.round(ints.reduce((s, i) => s + i.enrichmentRate, 0) / ints.length)
+      : 0;
+    enrichmentByCategory.set(cat, avg);
   }
 
   const suggestions: ReportSuggestion[] = [];
@@ -1034,16 +1061,32 @@ export function getReportSuggestions(
       label: i.label,
       icon: i.icon,
     }));
+    const enrichment = enrichmentByCategory.get(cat) ?? 0;
+
     templates.forEach((tpl, idx) => {
       suggestions.push({
         ...tpl,
         id: `${cat}_${idx}`,
         sourceIntegrations: sources,
+        reliabilityPct: enrichment,
       });
     });
   }
 
-  // Always-available reports (CRM-native, no specific tool needed)
+  // Always-available reports — reliability from field completeness
+  const fc = fieldCompleteness ?? {};
+  const crmReliability: Record<DisplayCategory, number> = {
+    attribution: fc.contactsWithOwner ?? 70,
+    chiffre_affaires: fc.dealsWithAmount ?? 70,
+    facturation_paiement: 70,
+    service_client: 70,
+    qualite_donnees: Math.round(
+      ((fc.contactsWithPhone ?? 70) + (fc.contactsWithCompany ?? 70) + (fc.contactsWithOwner ?? 70)) / 3,
+    ),
+    adoption_outils: 70,
+    cycle_ventes: fc.dealsWithCloseDate ?? 70,
+  };
+
   for (const tpl of ALWAYS_AVAILABLE_REPORTS) {
     suggestions.push({
       ...tpl,
@@ -1051,6 +1094,7 @@ export function getReportSuggestions(
         .slice(0, 30)
         .replace(/\W/g, "_")}`,
       sourceIntegrations: [],
+      reliabilityPct: crmReliability[tpl.displayCategory] ?? 70,
     });
   }
 
