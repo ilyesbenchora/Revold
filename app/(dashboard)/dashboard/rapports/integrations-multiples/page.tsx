@@ -12,12 +12,14 @@ export default async function RapportsIntegrationsMultiplesPage() {
 
   let crossReports: ReturnType<typeof getCrossSourceReports> = [];
   let singleCount = 0;
+  let detectedTools: Array<{ key: string; label: string; icon: string }> = [];
 
   if (hubspotTokenConfigured) {
     try {
       const integrations = await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!);
       singleCount = getReportSuggestions(integrations).length;
       crossReports = getCrossSourceReports(integrations);
+      detectedTools = integrations.map((i) => ({ key: i.key, label: i.label, icon: i.icon }));
     } catch {}
   }
 
@@ -57,6 +59,7 @@ export default async function RapportsIntegrationsMultiplesPage() {
             requiredCategories: r.requiredCategories,
           }))}
           variant="multi"
+          availableTools={detectedTools}
         />
       )}
     </section>

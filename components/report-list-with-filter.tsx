@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const CATEGORIES = [
   { id: "all", label: "Tous" },
@@ -28,13 +28,60 @@ type Report = {
   requiredCategories?: string[];
 };
 
+type DetectedTool = {
+  key: string;
+  label: string;
+  icon: string;
+};
+
 type Props = {
   reports: Report[];
   variant: "single" | "multi";
+  /** For multi variant: detected tools the user can select to cross */
+  availableTools?: DetectedTool[];
 };
 
-export function ReportListWithFilter({ reports, variant }: Props) {
+export function ReportListWithFilter({ reports, variant, availableTools }: Props) {
   const [active, setActive] = useState("all");
+  const [activating, setActivating] = useState<string | null>(null);
+  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
+  const router = useRouter();
+
+  const isMulti = variant === "multi";
+
+  function toggleTool(key: string) {
+    setSelectedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleActivate(report: Report) {
+    setActivating(report.id);
+    try {
+      const res = await fetch("/api/reports/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportId: report.id,
+          reportType: variant,
+          title: report.title,
+          displayCategory: report.displayCategory,
+          metrics: report.metrics,
+          icon: report.icon,
+        }),
+      });
+      if (res.ok) {
+        router.push("/dashboard/rapports/mes-rapports");
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setActivating(null);
+    }
+  }
 
   // Count per category
   const counts: Record<string, number> = {};
@@ -42,8 +89,20 @@ export function ReportListWithFilter({ reports, variant }: Props) {
     counts[r.displayCategory] = (counts[r.displayCategory] || 0) + 1;
   }
 
-  const filtered = active === "all" ? reports : reports.filter((r) => r.displayCategory === active);
-  const isMulti = variant === "multi";
+  // If tools are selected in multi mode, further filter reports whose requiredCategories
+  // overlap with the selected tool categories
+  let visibleReports = reports;
+  if (isMulti && selectedTools.size > 0) {
+    visibleReports = reports.filter((r) => {
+      if (!r.requiredCategories || r.requiredCategories.length === 0) return true;
+      return r.requiredCategories.some((cat) => {
+        // Check if any selected tool belongs to this required category
+        return availableTools?.some((t) => selectedTools.has(t.key) && t.key === cat) ?? false;
+      }) || r.requiredCategories.length === 0;
+    });
+  }
+
+  const filtered = active === "all" ? visibleReports : visibleReports.filter((r) => r.displayCategory === active);
 
   const borderColor = isMulti ? "border-l-fuchsia-500" : "border-l-emerald-500";
   const accentGradient = isMulti
@@ -52,6 +111,52 @@ export function ReportListWithFilter({ reports, variant }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Tool selector (multi mode only) */}
+      {isMulti && availableTools && availableTools.length > 0 && (
+        <div className="rounded-xl border border-card-border bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Choisissez les outils à croiser
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Sélectionnez les outils pour filtrer les rapports cross-sources pertinents.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availableTools.map((tool) => {
+              const isSelected = selectedTools.has(tool.key);
+              return (
+                <button
+                  key={tool.key}
+                  type="button"
+                  onClick={() => toggleTool(tool.key)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    isSelected
+                      ? "bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white shadow-sm"
+                      : "border border-card-border bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{tool.icon}</span>
+                  {tool.label}
+                  {isSelected && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+            {selectedTools.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedTools(new Set())}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline px-2"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Category pills */}
       <div className="flex flex-wrap gap-2">
         {CATEGORIES.map((cat) => {
@@ -163,15 +268,23 @@ export function ReportListWithFilter({ reports, variant }: Props) {
               </div>
 
               <div className="mt-4 flex justify-end">
-                <Link
-                  href={`/dashboard/rapports/mes-rapports?activate=${encodeURIComponent(report.id)}&title=${encodeURIComponent(report.title)}`}
-                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition hover:opacity-90 ${accentGradient}`}
+                <button
+                  type="button"
+                  onClick={() => handleActivate(report)}
+                  disabled={activating === report.id}
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50 ${accentGradient}`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  {isMulti ? "Activer ce rapport croisé" : "Activer ce rapport"}
-                </Link>
+                  {activating === report.id ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  )}
+                  {activating === report.id
+                    ? "Activation..."
+                    : isMulti ? "Activer ce rapport croisé" : "Activer ce rapport"}
+                </button>
               </div>
             </article>
           ))}
