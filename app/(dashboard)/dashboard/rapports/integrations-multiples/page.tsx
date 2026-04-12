@@ -1,25 +1,103 @@
 export const maxDuration = 60;
 
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
-import { getReportSuggestions } from "@/lib/reports/report-suggestions";
+import type { DetectedIntegration } from "@/lib/integrations/detect-integrations";
+import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-suggestions";
 import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
+import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { ReportListWithFilter } from "@/components/report-list-with-filter";
 import Link from "next/link";
 
 export default async function RapportsIntegrationsMultiplesPage() {
-  const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  // ── Resolve auth context ─────────────────────────────────────────────────
+  const [supabase, orgId] = await Promise.all([
+    createSupabaseServerClient(),
+    getOrgId(),
+  ]);
 
-  let crossReports: ReturnType<typeof getCrossSourceReports> = [];
+  // Resolve HubSpot token from OAuth (stored in integrations table)
+  const hubspotToken = orgId ? await getHubSpotToken(supabase, orgId) : null;
+
+  // ── 1. HubSpot-detected integrations (for single-count + reliability) ────
+  let hubspotDetected: DetectedIntegration[] = [];
   let singleCount = 0;
-  let detectedTools: Array<{ key: string; label: string; icon: string }> = [];
-
-  if (hubspotTokenConfigured) {
+  if (hubspotToken) {
     try {
-      const integrations = await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!);
-      singleCount = getReportSuggestions(integrations).length;
-      crossReports = getCrossSourceReports(integrations);
-      detectedTools = integrations.map((i) => ({ key: i.key, label: i.label, icon: i.icon }));
+      hubspotDetected = await detectIntegrations(hubspotToken);
+      singleCount = getReportSuggestions(hubspotDetected).length;
+    } catch {}
+  }
+
+  // ── 2. Revold-connected tools (from Supabase `integrations` table) ───────
+  let revoldConnected: DetectedIntegration[] = [];
+  let availableTools: Array<{
+    key: string;
+    label: string;
+    icon: string;
+    toolCategory?: string;
+  }> = [];
+
+  if (orgId) {
+    try {
+      const { data } = await supabase
+        .from("integrations")
+        .select("provider")
+        .eq("organization_id", orgId)
+        .eq("is_active", true);
+
+      const mapped: (DetectedIntegration | null)[] = (data ?? []).map((row) => {
+          const catalog = CONNECTABLE_TOOLS[row.provider];
+          if (!catalog) return null;
+          // Build a minimal DetectedIntegration so getCrossSourceReports can
+          // recognise the tool category (billing / support / etc.)
+          return {
+            key: row.provider,
+            label: catalog.label,
+            vendor: catalog.vendor,
+            icon: catalog.icon,
+            objectTypes: [] as string[],
+            totalProperties: 0,
+            enrichedRecords: 0,
+            totalRecords: 0,
+            enrichmentRate: 70,
+            topProperties: [],
+            distinctUsers: 0,
+            topUsers: [],
+            detectionMethods: [] as DetectedIntegration["detectionMethods"],
+          } satisfies DetectedIntegration;
+        });
+      revoldConnected = mapped.filter((x): x is DetectedIntegration => x !== null);
+
+      // availableTools: all Revold-connected tools with their ToolCategory
+      availableTools = revoldConnected.map((i) => {
+        const cat = getToolCategory(i.key);
+        return {
+          key: i.key,
+          label: i.label,
+          icon: i.icon,
+          toolCategory: cat !== "other" ? cat : undefined,
+        };
+      });
+    } catch {}
+  }
+
+  // ── 3. Cross-source reports: union of HubSpot + Revold tools ────────────
+  //  - HubSpot detection covers outbound / calling / enrichment / etc.
+  //  - Revold connections cover billing / support / crm
+  const mergedIntegrations = [...hubspotDetected, ...revoldConnected];
+  const crossReports = getCrossSourceReports(mergedIntegrations);
+
+  // ── 4. KPI preview ───────────────────────────────────────────────────────
+  let kpiPreview: Record<string, string | null> = {};
+  if (hubspotToken && orgId) {
+    try {
+      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
+      kpiPreview = computeMetricValues(kpiData);
     } catch {}
   }
 
@@ -38,11 +116,17 @@ export default async function RapportsIntegrationsMultiplesPage() {
       {crossReports.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Aucun rapport croisé activable. Connectez au moins <strong>2 outils métiers de catégories différentes</strong> pour débloquer les rapports cross-sources.
+            Aucun rapport croisé activable. Connectez au moins{" "}
+            <strong>2 outils métiers de catégories différentes</strong> pour débloquer les rapports cross-sources.
           </p>
-          <Link href="/dashboard/integration" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500">
-            Voir les intégrations →
-          </Link>
+          <div className="mt-4 flex justify-center gap-3">
+            <Link
+              href="/dashboard/integration"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+            >
+              Connecter un outil →
+            </Link>
+          </div>
         </div>
       ) : (
         <ReportListWithFilter
@@ -59,7 +143,8 @@ export default async function RapportsIntegrationsMultiplesPage() {
             requiredCategories: r.requiredCategories,
           }))}
           variant="multi"
-          availableTools={detectedTools}
+          availableTools={availableTools}
+          kpiPreview={kpiPreview}
         />
       )}
     </section>

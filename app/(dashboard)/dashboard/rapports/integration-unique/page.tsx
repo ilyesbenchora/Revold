@@ -3,20 +3,39 @@ export const maxDuration = 60;
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, type ReportSuggestion } from "@/lib/reports/report-suggestions";
 import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
+import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { ReportListWithFilter } from "@/components/report-list-with-filter";
 
 export default async function RapportsIntegrationUniquePage() {
-  const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  const [supabase, orgId] = await Promise.all([
+    createSupabaseServerClient(),
+    getOrgId(),
+  ]);
+
+  // Resolve HubSpot token from OAuth (stored in integrations table)
+  const hubspotToken = orgId ? await getHubSpotToken(supabase, orgId) : null;
 
   let suggestions: ReportSuggestion[] = [];
   let multiCount = 0;
 
-  if (hubspotTokenConfigured) {
+  if (hubspotToken) {
     try {
-      const integrations = await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!);
+      const integrations = await detectIntegrations(hubspotToken);
       suggestions = getReportSuggestions(integrations);
       multiCount = getCrossSourceReports(integrations).length;
+    } catch {}
+  }
+
+  // Fetch & compute all KPIs
+  let kpiPreview: Record<string, string | null> = {};
+  if (hubspotToken && orgId) {
+    try {
+      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
+      kpiPreview = computeMetricValues(kpiData);
     } catch {}
   }
 
@@ -45,6 +64,7 @@ export default async function RapportsIntegrationUniquePage() {
           sourceIntegrations: r.sourceIntegrations,
         }))}
         variant="single"
+        kpiPreview={kpiPreview}
       />
     </section>
   );

@@ -2,9 +2,11 @@ export const maxDuration = 60;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions } from "@/lib/reports/report-suggestions";
 import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
+import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
 import Link from "next/link";
@@ -40,15 +42,25 @@ export default async function MesRapportsPage() {
     activatedReports = (data ?? []) as ActivatedReport[];
   } catch {}
 
+  // Resolve HubSpot token from OAuth (stored in integrations table)
+  const hubspotToken = await getHubSpotToken(supabase, orgId);
   // Tab counts
-  const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
   let singleCount = 0;
   let multiCount = 0;
-  if (hubspotTokenConfigured) {
+  if (hubspotToken) {
     try {
-      const integrations = await detectIntegrations(process.env.HUBSPOT_ACCESS_TOKEN!);
+      const integrations = await detectIntegrations(hubspotToken);
       singleCount = getReportSuggestions(integrations).length;
       multiCount = getCrossSourceReports(integrations).length;
+    } catch {}
+  }
+
+  // Compute KPIs for all categories
+  let kpiValues: Record<string, string | null> = {};
+  if (hubspotToken && activatedReports.length > 0) {
+    try {
+      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
+      kpiValues = computeMetricValues(kpiData);
     } catch {}
   }
 
@@ -96,6 +108,12 @@ export default async function MesRapportsPage() {
             const metrics = (report.metrics as string[]) ?? [];
             const isMulti = report.report_type === "multi";
 
+            // Resolve KPI value for each metric label from the universal map
+            const metricValues: (string | null)[] = metrics.map(
+              (m) => kpiValues[m] ?? null,
+            );
+            const hasRealData = metricValues.some((v) => v !== null);
+
             return (
               <article
                 key={report.id}
@@ -128,29 +146,42 @@ export default async function MesRapportsPage() {
                   </div>
                 </div>
 
-                {/* KPI Grid — visualization of what the report covers */}
+                {/* KPI Grid */}
                 {metrics.length > 0 && (
                   <div className="border-t border-card-border bg-slate-50/50 px-5 py-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                       KPIs du rapport
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                      {metrics.map((metric, idx) => (
-                        <div key={idx} className="rounded-lg bg-white p-3 shadow-sm">
-                          <p className="text-xs text-slate-500 line-clamp-2">{metric}</p>
-                          <p className="mt-1 text-2xl font-bold text-slate-300">—</p>
-                          <p className="mt-0.5 text-[10px] text-slate-400">Données en attente</p>
-                        </div>
-                      ))}
+                      {metrics.map((metric, idx) => {
+                        const val = metricValues[idx];
+                        return (
+                          <div key={idx} className="rounded-lg bg-white p-3 shadow-sm">
+                            <p className="text-xs text-slate-500 line-clamp-2">{metric}</p>
+                            <p className={`mt-1 text-2xl font-bold tabular-nums ${val !== null ? "text-slate-900" : "text-slate-300"}`}>
+                              {val ?? "—"}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-slate-400">
+                              {val !== null ? "CRM en direct" : "Données en attente"}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
                 {/* Footer */}
                 <div className="flex items-center justify-between border-t border-card-border px-5 py-3">
-                  <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                    En attente de synchronisation
-                  </span>
+                  {hasRealData ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                      ✓ Données CRM synchronisées
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                      En attente de synchronisation
+                    </span>
+                  )}
                   <DeactivateReportButton reportId={report.report_id} />
                 </div>
               </article>

@@ -32,6 +32,8 @@ type DetectedTool = {
   key: string;
   label: string;
   icon: string;
+  /** ToolCategory this tool maps to — used to match requiredCategories in cross-source reports */
+  toolCategory?: string;
 };
 
 type Props = {
@@ -39,9 +41,11 @@ type Props = {
   variant: "single" | "multi";
   /** For multi variant: detected tools the user can select to cross */
   availableTools?: DetectedTool[];
+  /** Pre-computed metric label → value map from fetchAllKpiData + computeMetricValues */
+  kpiPreview?: Record<string, string | null>;
 };
 
-export function ReportListWithFilter({ reports, variant, availableTools }: Props) {
+export function ReportListWithFilter({ reports, variant, availableTools, kpiPreview }: Props) {
   const [active, setActive] = useState("all");
   const [activating, setActivating] = useState<string | null>(null);
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
@@ -96,8 +100,10 @@ export function ReportListWithFilter({ reports, variant, availableTools }: Props
     visibleReports = reports.filter((r) => {
       if (!r.requiredCategories || r.requiredCategories.length === 0) return true;
       return r.requiredCategories.some((cat) => {
-        // Check if any selected tool belongs to this required category
-        return availableTools?.some((t) => selectedTools.has(t.key) && t.key === cat) ?? false;
+        // Match via toolCategory (Revold catalog → ToolCategory) or fall back to key
+        return availableTools?.some(
+          (t) => selectedTools.has(t.key) && (t.toolCategory ?? t.key) === cat,
+        ) ?? false;
       }) || r.requiredCategories.length === 0;
     });
   }
@@ -252,12 +258,22 @@ export function ReportListWithFilter({ reports, variant, availableTools }: Props
                       KPIs du rapport
                     </p>
                     <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-                      {report.metrics.map((m) => (
-                        <li key={m} className="flex items-start gap-1.5 text-xs text-slate-700">
-                          <span className={`mt-0.5 ${isMulti ? "text-fuchsia-500" : "text-emerald-500"}`}>✓</span>
-                          {m}
-                        </li>
-                      ))}
+                      {report.metrics.map((m) => {
+                        const val = kpiPreview?.[m] ?? null;
+                        return (
+                          <li key={m} className="flex items-start justify-between gap-2 text-xs text-slate-700">
+                            <span className="flex items-start gap-1.5 min-w-0">
+                              <span className={`mt-0.5 shrink-0 ${isMulti ? "text-fuchsia-500" : "text-emerald-500"}`}>✓</span>
+                              <span className="line-clamp-2">{m}</span>
+                            </span>
+                            {val !== null && (
+                              <span className="ml-1 shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 tabular-nums">
+                                {val}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
