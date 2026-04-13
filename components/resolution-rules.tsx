@@ -26,22 +26,32 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
   const [states, setStates] = useState<Record<string, boolean>>(
     Object.fromEntries(rules.map((r) => [r.id, r.enabled])),
   );
+  const [configs, setConfigs] = useState<Record<string, Record<string, string>>>(
+    Object.fromEntries(rules.map((r) => [r.id, Object.fromEntries(r.configFields.map((cf) => [cf.label, cf.value]))])),
+  );
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   function toggle(id: string) {
-    // external_id_match is always active — can't disable
     if (id === "external_id_match") return;
     setStates((prev) => ({ ...prev, [id]: !prev[id] }));
+    setSaved(false);
+  }
+
+  function updateConfig(ruleId: string, label: string, value: string) {
+    setConfigs((prev) => ({ ...prev, [ruleId]: { ...prev[ruleId], [label]: value } }));
+    setSaved(false);
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch("/api/settings/resolution-rules", {
+      const res = await fetch("/api/settings/resolution-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rules: states }),
+        body: JSON.stringify({ rules: states, configs }),
       });
+      if (res.ok) setSaved(true);
     } catch {}
     setSaving(false);
   }
@@ -72,7 +82,6 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
                     {rule.confidence} %
                   </span>
                 )}
-                {/* Toggle switch */}
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); toggle(rule.id); }}
@@ -80,7 +89,7 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
                   className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
                     isActive ? "bg-emerald-500" : "bg-slate-300"
                   } ${isLocked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
-                  title={isLocked ? "Toujours actif (automatique)" : isActive ? "Cliquez pour désactiver" : "Cliquez pour activer"}
+                  title={isLocked ? "Toujours actif (automatique)" : isActive ? "Désactiver" : "Activer"}
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
                     isActive ? "translate-x-5" : "translate-x-0.5"
@@ -101,13 +110,22 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
                     <div key={cf.label}>
                       <label className="text-xs font-medium text-slate-500">{cf.label}</label>
                       {cf.type === "select" ? (
-                        <select defaultValue={cf.value} className={`${inputClass} mt-1`}>
+                        <select
+                          value={configs[rule.id]?.[cf.label] ?? cf.value}
+                          onChange={(e) => updateConfig(rule.id, cf.label, e.target.value)}
+                          className={`${inputClass} mt-1`}
+                        >
                           {cf.options!.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </select>
                       ) : (
-                        <input type="text" defaultValue={cf.value} className={`${inputClass} mt-1`} />
+                        <input
+                          type="text"
+                          value={configs[rule.id]?.[cf.label] ?? cf.value}
+                          onChange={(e) => updateConfig(rule.id, cf.label, e.target.value)}
+                          className={`${inputClass} mt-1`}
+                        />
                       )}
                     </div>
                   ))}
@@ -117,7 +135,8 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
           </details>
         );
       })}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {saved && <span className="text-xs font-medium text-emerald-600">✓ Enregistré</span>}
         <button
           type="button"
           onClick={handleSave}
