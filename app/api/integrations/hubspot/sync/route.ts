@@ -47,11 +47,11 @@ export async function GET(request: Request) {
       error_message: errors.length > 0 ? errors.slice(0, 3).join("; ") : null,
     });
 
-    // Mark integration as active
-    await supabase.from("integrations").upsert(
-      { organization_id: orgId, provider: "hubspot", access_token: "private-app", is_active: true, updated_at: new Date().toISOString() },
-      { onConflict: "organization_id,provider" },
-    );
+    // Mark integration as active (preserve existing access_token)
+    await supabase.from("integrations")
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("organization_id", orgId)
+      .eq("provider", "hubspot");
 
     // After deals sync, auto-trigger KPI recomputation
     let kpiResult = null;
