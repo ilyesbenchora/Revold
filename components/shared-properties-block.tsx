@@ -14,6 +14,7 @@ type SharedProp = {
 
 type Filter = "all" | "hubspot" | "custom";
 type ObjFilter = "all" | "3" | "2";
+type ObjScope = "all" | "companies" | "deals";
 
 const PAGE_SIZE = 10;
 
@@ -34,6 +35,7 @@ type SortDir = "desc" | "asc";
 export function SharedPropertiesBlock({ properties }: { properties: SharedProp[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [objFilter, setObjFilter] = useState<ObjFilter>("all");
+  const [objScope, setObjScope] = useState<ObjScope>("all");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
 
@@ -43,10 +45,12 @@ export function SharedPropertiesBlock({ properties }: { properties: SharedProp[]
     else if (filter === "hubspot") list = list.filter((p) => !p.isCustom);
     if (objFilter === "3") list = list.filter((p) => p.objects.length >= 3);
     else if (objFilter === "2") list = list.filter((p) => p.objects.length === 2);
+    if (objScope === "companies") list = list.filter((p) => p.objects.includes("companies"));
+    else if (objScope === "deals") list = list.filter((p) => p.objects.includes("deals"));
     return sortDir === "desc"
       ? [...list].sort((a, b) => b.fillRate - a.fillRate)
       : [...list].sort((a, b) => a.fillRate - b.fillRate);
-  }, [properties, filter, objFilter, sortDir]);
+  }, [properties, filter, objFilter, objScope, sortDir]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -94,6 +98,21 @@ export function SharedPropertiesBlock({ properties }: { properties: SharedProp[]
             Custom ({customCount})
           </button>
         </div>
+      </div>
+
+      {/* Object scope dropdown */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-slate-500">Synchronisation</span>
+        <select
+          value={objScope}
+          onChange={(e) => { setObjScope(e.target.value as ObjScope); setPage(0); }}
+          className="rounded-md border border-card-border bg-white px-2 py-1 text-[11px] font-medium text-slate-700 focus:border-accent focus:outline-none"
+        >
+          <option value="all">Contacts ↔ Tous les objets</option>
+          <option value="companies">Contacts ↔ Entreprises</option>
+          <option value="deals">Contacts ↔ Transactions</option>
+        </select>
+        <span className="text-[10px] text-slate-400">{filtered.length} propriétés</span>
       </div>
 
       {/* Sort + pagination info */}
