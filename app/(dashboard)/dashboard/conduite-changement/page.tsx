@@ -1,6 +1,5 @@
 import { getOrgId } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel } from "@/lib/score-utils";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 
 const HUBSPOT_PORTAL = "48372600";
@@ -100,11 +99,6 @@ export default async function ConduiteChangementPage() {
   // Top users
   const topUsers = [...ownersWithActivity].sort((a, b) => b.totalRecords - a.totalRecords).slice(0, 10);
 
-  // Adoption score
-  const adoptionScore = owners.length > 0
-    ? Math.round((activeUsers.length / owners.length) * 100)
-    : 0;
-
   return (
     <section className="space-y-8">
       <header>
@@ -114,21 +108,7 @@ export default async function ConduiteChangementPage() {
         </p>
       </header>
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Adoption" score={adoptionScore} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{adoptionScore}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(adoptionScore).className}`}>
-              {getScoreLabel(adoptionScore).label}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-slate-500">
-            {activeUsers.length} utilisateurs actifs sur {owners.length} comptes du portail.
-          </p>
-        </div>
-      </div>
+      <InsightLockedBlock />
 
       {/* Vue d'ensemble */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

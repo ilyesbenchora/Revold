@@ -1,8 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
 import Link from "next/link";
 import { getScoreLabel } from "@/lib/score-utils";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -207,29 +207,41 @@ export default async function DashboardOverviewPage() {
         </div>
       </header>
 
-      {/* Scorecard Global */}
-      {k && (
-        <div className="card flex items-center gap-6 p-6">
-          <ProgressScore label="Score global" score={globalScore} />
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl font-bold text-slate-900">{globalScore}</span>
-              <span className="text-sm text-slate-400">/100</span>
-              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(globalScore).className}`}>
-                {getScoreLabel(globalScore).label}
-              </span>
+      {/* Hero — Revenue intelligence at a glance */}
+      <div className="card overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
+        <div className="p-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Contacts CRM</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{contactTotal.toLocaleString("fr-FR")}</p>
             </div>
-            <p className="text-xs text-slate-500">Score pondéré (Data 20%, Process 20%, Sales 25%, Mktg 20%, Intég. 15%)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map((cat) => (
-                <span key={cat.label} className={`rounded-full px-2 py-0.5 text-xs font-medium ${getScoreLabel(cat.score).className}`}>
-                  {cat.label} {cat.score}
-                </span>
-              ))}
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Deals ouverts</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{openDealsCount.toLocaleString("fr-FR")}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Pipeline en cours</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{openAmount > 0 ? `${Math.round(openAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">CA Closed Won</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">{wonAmount > 0 ? `${Math.round(wonAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Taux de closing</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(wonDealsCount + lostDealsCount) > 0 ? `${closingRateComputed}%` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Outils connectés</p>
+              <p className="mt-1 text-2xl font-bold text-accent tabular-nums">{activeIntegrations.length}</p>
             </div>
           </div>
+          {lastUpdated && (
+            <p className="mt-4 text-[10px] text-slate-400">Dernière synchronisation le {lastUpdated}</p>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Category Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -262,45 +274,10 @@ export default async function DashboardOverviewPage() {
       </div>
 
       {/* AI Insight — Locked / Upgrade required */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-6">
-        {/* Blurred preview content */}
-        <div className="pointer-events-none select-none blur-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Insight Revold IA
-          </p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-700">
-            {insight?.title || "Analyse stratégique de votre pipeline RevOps"}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {insight?.body || "L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."}
-          </p>
-          {insight?.recommendation && (
-            <p className="mt-3 text-sm font-medium text-slate-600">Recommandation : {insight.recommendation}</p>
-          )}
-        </div>
-
-        {/* Overlay with upgrade CTA */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-[2px]">
-          <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span className="text-xs font-semibold text-amber-700">Fonctionnalité Premium</span>
-          </div>
-          <p className="text-sm font-medium text-slate-700">Débloquez les insights stratégiques générés par l&apos;IA</p>
-          <Link
-            href="/dashboard/mon-compte#subscription"
-            className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90"
-            style={{ background: "linear-gradient(135deg, #f59e0b 0%, #d97706 35%, #b45309 70%, #f59e0b 100%)" }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-            Upgrade mon plan
-          </Link>
-        </div>
-      </section>
+      <InsightLockedBlock
+        previewTitle={insight?.title || "Analyse stratégique de votre pipeline RevOps"}
+        previewBody={insight?.body || "L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."}
+      />
 
 
       {!latestKpi && (

@@ -1,7 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel } from "@/lib/score-utils";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 
 export default async function ProcessPage() {
@@ -112,16 +111,6 @@ export default async function ProcessPage() {
   const hasReengagement = wfNames.some((n) => n.includes("reengage") || n.includes("re-engage") || n.includes("réengage") || n.includes("réveil"));
   const inactiveCreationWorkflows = workflows.filter((w) => !w.enabled && (w.name.toLowerCase().includes("création") || w.name.toLowerCase().includes("creation")));
 
-  // Score Process: workflow health + lifecycle
-  const workflowHealthScore = workflows.length > 0
-    ? Math.round((activeWorkflows.length / workflows.length) * 100)
-    : 0;
-  const processScore = Math.round(
-    workflowHealthScore * 0.4 +
-    Math.min(100, lifecycleRate * 3) * 0.3 +
-    (activeWorkflows.length > 5 ? 100 : activeWorkflows.length * 20) * 0.3
-  );
-
   return (
     <section className="space-y-8">
       <header>
@@ -131,21 +120,7 @@ export default async function ProcessPage() {
         </p>
       </header>
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Process & Alignement" score={processScore} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{processScore}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(processScore).className}`}>
-              {getScoreLabel(processScore).label}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Basé sur la santé des workflows et la conversion lifecycle.
-          </p>
-        </div>
-      </div>
+      <InsightLockedBlock />
 
       {/* Workflows */}
       <CollapsibleBlock

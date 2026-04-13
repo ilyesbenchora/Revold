@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel, getBarColor } from "@/lib/score-utils";
+import { getBarColor } from "@/lib/score-utils";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
@@ -92,10 +92,6 @@ export default async function DonneesPage() {
     { label: "Contact associé", filled: rate(dealsWithContact, td) },
   ];
 
-  // Global data quality score
-  const allRates = [...contactMetrics, ...companyMetrics, ...dealMetrics].map((m) => m.filled);
-  const dataScore = allRates.length > 0 ? Math.round(allRates.reduce((s, r) => s + r, 0) / allRates.length) : 0;
-
   return (
     <section className="space-y-8">
       <header>
@@ -105,21 +101,7 @@ export default async function DonneesPage() {
         </p>
       </header>
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Data Quality" score={dataScore} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{dataScore}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(dataScore).className}`}>
-              {getScoreLabel(dataScore).label}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Moyenne du taux de remplissage des champs clés sur les contacts, entreprises et transactions.
-          </p>
-        </div>
-      </div>
+      <InsightLockedBlock />
 
       {/* Vue d'ensemble */}
       <div className="grid grid-cols-3 gap-4">

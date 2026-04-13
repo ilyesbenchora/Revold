@@ -2,8 +2,7 @@ export const maxDuration = 60;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { ProgressScore } from "@/components/progress-score";
-import { getScoreLabel } from "@/lib/score-utils";
+import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
@@ -12,11 +11,9 @@ import { type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
 import {
   filterBusinessIntegrations,
-  computeIntegrationScore,
 } from "@/lib/integrations/integration-score";
 import {
   getCanonicalIntegrationData,
-  getHubspotOwnersCount,
 } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
 import { Suspense } from "react";
@@ -47,17 +44,11 @@ export default async function IntegrationPage({
     publicApps: [],
     totalApps: 0,
   };
-  let ownersCount = 0;
-
   if (hubspotTokenConfigured) {
     // Same canonical helper as the header → guaranteed identical inputs.
-    const [data, count] = await Promise.all([
-      getCanonicalIntegrationData(),
-      getHubspotOwnersCount(),
-    ]);
+    const data = await getCanonicalIntegrationData();
     detectedIntegrations = data.integrations;
     portalApps = data.portalApps;
-    ownersCount = count;
   }
 
   // DB counts for sync logs
@@ -98,12 +89,6 @@ export default async function IntegrationPage({
     ...directlyConnectedKeys,
   ]);
 
-  // Canonical Integration Score — same function as the header so the two
-  // numbers are always identical and deterministic across refreshes.
-  const integrationScore = hubspotTokenConfigured
-    ? computeIntegrationScore(businessIntegrations, ownersCount).score
-    : 0;
-
   return (
     <section className="space-y-8">
       <Suspense><HubSpotSyncOrchestrator /></Suspense>
@@ -127,21 +112,7 @@ export default async function IntegrationPage({
         </p>
       </header>
 
-      <div className="card flex flex-col items-center gap-6 p-6 md:flex-row">
-        <ProgressScore label="Score Intégration" score={integrationScore} />
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-slate-900">{integrationScore}</span>
-            <span className="text-sm text-slate-400">/100</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getScoreLabel(integrationScore).className}`}>
-              {getScoreLabel(integrationScore).label}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Basé sur le nombre d&apos;outils connectés, le taux d&apos;enrichissement et l&apos;équipe.
-          </p>
-        </div>
-      </div>
+      <InsightLockedBlock />
 
       {/* Sync button */}
       {hubspotTokenConfigured && (
