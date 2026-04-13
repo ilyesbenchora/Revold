@@ -113,58 +113,86 @@ async function fetchContactAssociations(token: string): Promise<AssociationStat[
  * No sampling, no approximation.
  */
 type SourceStat = { source: string; label: string; count: number; pct: number };
+type DrillDown = { value: string; count: number; pct: number };
+type TrackingResult = {
+  sources: SourceStat[];
+  drillDown1: DrillDown[];
+  drillDown2: DrillDown[];
+  total: number;
+};
 
-const ANALYTICS_SOURCES = [
-  { value: "ORGANIC_SEARCH", label: "Recherche organique" },
-  { value: "PAID_SEARCH", label: "Recherche payante" },
-  { value: "EMAIL_MARKETING", label: "Email marketing" },
-  { value: "SOCIAL_MEDIA", label: "Réseaux sociaux" },
-  { value: "ORGANIC_SOCIAL", label: "Social organique" },
-  { value: "PAID_SOCIAL", label: "Social payant" },
-  { value: "REFERRALS", label: "Referrals" },
-  { value: "DIRECT_TRAFFIC", label: "Trafic direct" },
-  { value: "OTHER_CAMPAIGNS", label: "Autres campagnes" },
-  { value: "OFFLINE", label: "Offline / Import" },
-];
+const SOURCE_LABELS: Record<string, string> = {
+  ORGANIC_SEARCH: "Recherche organique",
+  PAID_SEARCH: "Recherche payante",
+  EMAIL_MARKETING: "Email marketing",
+  SOCIAL_MEDIA: "Réseaux sociaux",
+  ORGANIC_SOCIAL: "Social organique",
+  PAID_SOCIAL: "Social payant",
+  REFERRALS: "Referrals",
+  DIRECT_TRAFFIC: "Trafic direct",
+  OTHER_CAMPAIGNS: "Autres campagnes",
+  OFFLINE: "Offline / Import",
+};
 
-async function fetchTrackingSources(token: string): Promise<{ sources: SourceStat[]; total: number }> {
-  // Total contacts with a source
-  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "hs_analytics_source", operator: "HAS_PROPERTY" }] }], limit: 1 }),
-  });
-  const totalWithSource = totalRes.ok ? ((await totalRes.json()).total ?? 0) : 0;
-  if (totalWithSource === 0) return { sources: [], total: 0 };
+/**
+ * Fetch tracking sources by paginating contacts with source properties
+ * and counting server-side. No parallel search calls → no rate limit issues.
+ */
+async function fetchTrackingSources(token: string): Promise<TrackingResult> {
+  const sourceCounts = new Map<string, number>();
+  const dd1Counts = new Map<string, number>();
+  const dd2Counts = new Map<string, number>();
+  let totalFetched = 0;
+  let after: string | undefined;
+  let pages = 0;
 
-  // Count per source (parallel batches of 10)
-  const counts = await Promise.all(
-    ANALYTICS_SOURCES.map(async (s) => {
-      try {
-        const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filterGroups: [{ filters: [{ propertyName: "hs_analytics_source", operator: "EQ", value: s.value }] }],
-            limit: 1,
-          }),
-        });
-        if (!res.ok) return 0;
-        return (await res.json()).total ?? 0;
-      } catch { return 0; }
-    }),
-  );
+  // Paginate all contacts with source properties
+  while (pages < 100) {
+    const url = new URL(`${HS}/crm/v3/objects/contacts`);
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("properties", "hs_analytics_source,hs_analytics_source_data_1,hs_analytics_source_data_2");
+    if (after) url.searchParams.set("after", after);
 
-  const sources: SourceStat[] = ANALYTICS_SOURCES
-    .map((s, i) => ({
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!res.ok) break;
+    const data = await res.json();
+    const results = data.results ?? [];
+    if (results.length === 0) break;
+
+    for (const item of results) {
+      const p = item.properties ?? {};
+      const src = p.hs_analytics_source;
+      const d1 = p.hs_analytics_source_data_1;
+      const d2 = p.hs_analytics_source_data_2;
+      if (src) sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
+      if (d1) dd1Counts.set(d1, (dd1Counts.get(d1) ?? 0) + 1);
+      if (d2) dd2Counts.set(d2, (dd2Counts.get(d2) ?? 0) + 1);
+      totalFetched++;
+    }
+
+    after = data.paging?.next?.after;
+    pages++;
+    if (!after) break;
+  }
+
+  if (totalFetched === 0) return { sources: [], drillDown1: [], drillDown2: [], total: 0 };
+
+  const toSorted = (map: Map<string, number>, labelFn?: (k: string) => string) =>
+    [...map.entries()]
+      .map(([k, v]) => ({ value: k, label: labelFn ? labelFn(k) : k, count: v, pct: Math.round((v / totalFetched) * 100) }))
+      .sort((a, b) => b.count - a.count);
+
+  return {
+    sources: toSorted(sourceCounts, (k) => SOURCE_LABELS[k] ?? k).map((s) => ({
       source: s.value,
       label: s.label,
-      count: counts[i],
-      pct: totalWithSource > 0 ? Math.round((counts[i] / totalWithSource) * 100) : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  return { sources, total: totalWithSource };
+      count: s.count,
+      pct: s.pct,
+    })),
+    drillDown1: toSorted(dd1Counts).slice(0, 15),
+    drillDown2: toSorted(dd2Counts).slice(0, 15),
+    total: totalFetched,
+  };
 }
 
 async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
@@ -259,7 +287,7 @@ export default async function DonneesContactsPage() {
   let allPropertyStats: PropStat[] = [];
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
-  let trackingData: { sources: SourceStat[]; total: number } = { sources: [], total: 0 };
+  let trackingData: TrackingResult = { sources: [], drillDown1: [], drillDown2: [], total: 0 };
   if (hubspotToken) {
     [allPropertyStats, propertyUsage, associationStats, trackingData] = await Promise.all([
       fetchAllPropertyFillRates(hubspotToken),
@@ -328,7 +356,12 @@ export default async function DonneesContactsPage() {
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Propriétés de tracking</h2>
           <p className="text-[11px] text-slate-500 mb-3">Répartition des contacts par source analytique HubSpot</p>
           <div className="card p-4">
-            <TrackingSourcesBlock sources={trackingData.sources} total={trackingData.total} />
+            <TrackingSourcesBlock
+              sources={trackingData.sources}
+              drillDown1={trackingData.drillDown1}
+              drillDown2={trackingData.drillDown2}
+              total={trackingData.total}
+            />
           </div>
         </div>
       )}
