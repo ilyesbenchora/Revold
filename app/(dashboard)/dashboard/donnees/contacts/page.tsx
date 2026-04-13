@@ -8,11 +8,46 @@ import { PropertyCarousel } from "@/components/property-carousel";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
 import { ContactAssociationsBlock } from "@/components/contact-associations-block";
 import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
+import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
+type SharedProp = { name: string; label: string; objects: string[]; type: string; sameLabel: boolean; isCustom: boolean };
 
 const HS = "https://api.hubapi.com";
+
+/** Find properties that exist on multiple objects (contacts, companies, deals) */
+async function fetchSharedProperties(token: string): Promise<SharedProp[]> {
+  const objectTypes = ["contacts", "companies", "deals"];
+  const byName = new Map<string, Array<{ object: string; label: string; type: string; hubspotDefined: boolean }>>();
+
+  await Promise.all(objectTypes.map(async (obj) => {
+    try {
+      const res = await fetch(`${HS}/crm/v3/properties/${obj}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const p of data.results ?? []) {
+        if (!byName.has(p.name)) byName.set(p.name, []);
+        byName.get(p.name)!.push({ object: obj, label: p.label, type: p.type, hubspotDefined: !!p.hubspotDefined });
+      }
+    } catch {}
+  }));
+
+  return [...byName.entries()]
+    .filter(([, entries]) => entries.length > 1 && entries.some((e) => e.object === "contacts"))
+    .map(([name, entries]) => ({
+      name,
+      label: entries[0].label,
+      objects: entries.map((e) => e.object),
+      type: entries[0].type,
+      sameLabel: new Set(entries.map((e) => e.label)).size === 1,
+      isCustom: entries.some((e) => !e.hubspotDefined),
+    }))
+    .sort((a, b) => b.objects.length - a.objects.length || a.name.localeCompare(b.name));
+}
 
 type AssocTarget = {
   objectType: string;
@@ -287,12 +322,14 @@ export default async function DonneesContactsPage() {
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
   let trackingData: TrackingResult = { sources: [], drillDown1: [], drillDown2: [], total: 0 };
+  let sharedProps: SharedProp[] = [];
   if (hubspotToken) {
-    [allPropertyStats, propertyUsage, associationStats, trackingData] = await Promise.all([
+    [allPropertyStats, propertyUsage, associationStats, trackingData, sharedProps] = await Promise.all([
       fetchAllPropertyFillRates(hubspotToken),
       fetchPropertyUsage(hubspotToken),
       fetchContactAssociations(hubspotToken),
       fetchTrackingSources(hubspotToken),
+      fetchSharedProperties(hubspotToken),
     ]);
   }
 
@@ -345,6 +382,17 @@ export default async function DonneesContactsPage() {
           <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet et par type d&apos;association</p>
           <div className="card p-4">
             <ContactAssociationsBlock stats={associationStats} />
+          </div>
+        </div>
+      )}
+
+      {/* Shared properties across objects */}
+      {sharedProps.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Propriétés multi-objets</h2>
+          <p className="text-[11px] text-slate-500 mb-3">Propriétés de contact présentes sur plusieurs objets CRM</p>
+          <div className="card p-4">
+            <SharedPropertiesBlock properties={sharedProps} />
           </div>
         </div>
       )}
