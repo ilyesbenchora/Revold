@@ -6,9 +6,120 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getBarColor } from "@/lib/score-utils";
 import { PropertyCarousel } from "@/components/property-carousel";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
+import { ContactAssociationsBlock } from "@/components/contact-associations-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
+
+const HS = "https://api.hubapi.com";
+
+type AssocTarget = {
+  objectType: string;
+  label: string;
+  icon: string;
+};
+
+const ASSOC_TARGETS: AssocTarget[] = [
+  { objectType: "companies", label: "Entreprises", icon: "🏢" },
+  { objectType: "deals", label: "Transactions", icon: "💰" },
+  { objectType: "tickets", label: "Tickets", icon: "🎫" },
+];
+
+type AssociationStat = {
+  targetObject: string;
+  targetLabel: string;
+  icon: string;
+  totalContacts: number;
+  withAssociation: number;
+  rate: number;
+  labels: Array<{ label: string; count: number }>;
+};
+
+async function fetchContactAssociations(token: string): Promise<AssociationStat[]> {
+  // 1. Get a sample of 500 contact IDs
+  const contactIds: string[] = [];
+  let after: string | undefined;
+  let pages = 0;
+  while (pages < 5) {
+    const url = new URL(`${HS}/crm/v3/objects/contacts`);
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("properties", "email");
+    if (after) url.searchParams.set("after", after);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!res.ok) break;
+    const data = await res.json();
+    for (const item of data.results ?? []) contactIds.push(item.id);
+    after = data.paging?.next?.after;
+    pages++;
+    if (!after) break;
+  }
+
+  if (contactIds.length === 0) return [];
+
+  // 2. For each target object type, batch read associations
+  const results: AssociationStat[] = [];
+
+  for (const target of ASSOC_TARGETS) {
+    // Get association labels first
+    let assocLabels: Array<{ typeId: number; label: string | null; category: string }> = [];
+    try {
+      const labelsRes = await fetch(`${HS}/crm/v4/associations/contacts/${target.objectType}/labels`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (labelsRes.ok) {
+        const labelsData = await labelsRes.json();
+        assocLabels = labelsData.results ?? [];
+      }
+    } catch {}
+
+    // Batch read associations (chunks of 500)
+    let withAssoc = 0;
+    const labelCounts = new Map<string, number>();
+
+    for (let i = 0; i < contactIds.length; i += 500) {
+      const chunk = contactIds.slice(i, i + 500);
+      try {
+        const res = await fetch(`${HS}/crm/v4/associations/contacts/${target.objectType}/batch/read`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        for (const result of data.results ?? []) {
+          const toList = result.to ?? [];
+          if (toList.length > 0) {
+            withAssoc++;
+            // Count by association type label
+            for (const to of toList) {
+              for (const at of to.associationTypes ?? []) {
+                const labelDef = assocLabels.find((l) => l.typeId === at.typeId);
+                const name = at.label || labelDef?.label || (labelDef?.category === "HUBSPOT_DEFINED" ? "Standard" : `Type ${at.typeId}`);
+                if (name) labelCounts.set(name, (labelCounts.get(name) ?? 0) + 1);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const total = contactIds.length;
+    results.push({
+      targetObject: target.objectType,
+      targetLabel: target.label,
+      icon: target.icon,
+      totalContacts: total,
+      withAssociation: withAssoc,
+      rate: total > 0 ? Math.round((withAssoc / total) * 100) : 0,
+      labels: [...labelCounts.entries()]
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count),
+    });
+  }
+
+  return results;
+}
 
 /** Fetch ALL contact properties and compute fill rates by chunking the properties param */
 async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
@@ -113,10 +224,12 @@ export default async function DonneesContactsPage() {
 
   let allPropertyStats: PropStat[] = [];
   let propertyUsage: PropertyUsage[] = [];
+  let associationStats: AssociationStat[] = [];
   if (hubspotToken) {
-    [allPropertyStats, propertyUsage] = await Promise.all([
+    [allPropertyStats, propertyUsage, associationStats] = await Promise.all([
       fetchAllPropertyFillRates(hubspotToken),
       fetchPropertyUsage(hubspotToken),
+      fetchContactAssociations(hubspotToken),
     ]);
   }
 
@@ -158,6 +271,17 @@ export default async function DonneesContactsPage() {
           </p>
           <div className="card p-4">
             <PropertyCarousel properties={allPropertyStats} />
+          </div>
+        </div>
+      )}
+
+      {/* Associations */}
+      {associationStats.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Associations des contacts</h2>
+          <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet et par type d&apos;association</p>
+          <div className="card p-4">
+            <ContactAssociationsBlock stats={associationStats} />
           </div>
         </div>
       )}
