@@ -18,6 +18,16 @@ export default async function RapportsIntegrationUniquePage() {
 
   const hubspotToken = orgId ? await getHubSpotToken(supabase, orgId) : null;
 
+  // Fetch activated report IDs to exclude them
+  let activatedIds = new Set<string>();
+  if (orgId) {
+    const { data } = await supabase
+      .from("activated_reports")
+      .select("report_id")
+      .eq("organization_id", orgId);
+    activatedIds = new Set((data ?? []).map((r) => r.report_id));
+  }
+
   let suggestions: ReportSuggestion[] = [];
   if (hubspotToken) {
     try {
@@ -25,6 +35,9 @@ export default async function RapportsIntegrationUniquePage() {
       suggestions = getReportSuggestions(integrations);
     } catch {}
   }
+
+  // Filter out already activated reports
+  const available = suggestions.filter((r) => !activatedIds.has(r.id));
 
   let kpiPreview: Record<string, string | null> = {};
   if (hubspotToken && orgId) {
@@ -34,8 +47,8 @@ export default async function RapportsIntegrationUniquePage() {
     } catch {}
   }
 
-  const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: suggestions.length, multiCount: 0 };
-  tabCounts.singleCount = suggestions.length; // use fresh count from this page
+  const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: 0, multiCount: 0 };
+  tabCounts.singleCount = available.length;
 
   return (
     <section className="space-y-8">
@@ -49,7 +62,7 @@ export default async function RapportsIntegrationUniquePage() {
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
 
       <ReportListWithFilter
-        reports={suggestions.map((r) => ({
+        reports={available.map((r) => ({
           id: r.id,
           displayCategory: r.displayCategory,
           title: r.title,

@@ -88,10 +88,19 @@ export default async function RapportsIntegrationsMultiplesPage() {
   }
 
   // ── 3. Cross-source reports: union of HubSpot + Revold tools ────────────
-  //  - HubSpot detection covers outbound / calling / enrichment / etc.
-  //  - Revold connections cover billing / support / crm
   const mergedIntegrations = [...hubspotDetected, ...revoldConnected];
-  const crossReports = getCrossSourceReports(mergedIntegrations);
+  const allCrossReports = getCrossSourceReports(mergedIntegrations);
+
+  // ── 3b. Exclude already activated reports ─────────────────────────────
+  let activatedIds = new Set<string>();
+  if (orgId) {
+    const { data } = await supabase
+      .from("activated_reports")
+      .select("report_id")
+      .eq("organization_id", orgId);
+    activatedIds = new Set((data ?? []).map((r) => r.report_id));
+  }
+  const crossReports = allCrossReports.filter((r) => !activatedIds.has(r.id));
 
   // ── 4. KPI preview ───────────────────────────────────────────────────────
   let kpiPreview: Record<string, string | null> = {};

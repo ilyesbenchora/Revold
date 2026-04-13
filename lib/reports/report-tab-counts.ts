@@ -1,6 +1,6 @@
 /**
  * Shared tab counts for the 3 rapport sub-pages.
- * Loads all counts in parallel so each page shows correct numbers.
+ * Excludes already-activated reports from single/multi counts.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,14 +19,17 @@ export async function getTabCounts(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<TabCounts> {
-  // Count activated reports (fast — just a count query)
-  const myCountPromise = supabase
+  // Fetch activated report IDs + count in one query
+  const { data: activatedData } = await supabase
     .from("activated_reports")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId)
-    .then(({ count }) => count ?? 0);
+    .select("report_id")
+    .eq("organization_id", orgId);
 
-  // Count single + multi from HubSpot detection
+  const activatedReports = activatedData ?? [];
+  const myCount = activatedReports.length;
+  const activatedIds = new Set(activatedReports.map((r) => r.report_id));
+
+  // Count single + multi from HubSpot detection, excluding activated
   const hubspotToken = await getHubSpotToken(supabase, orgId);
 
   let singleCount = 0;
@@ -35,12 +38,12 @@ export async function getTabCounts(
   if (hubspotToken) {
     try {
       const integrations = await detectIntegrations(hubspotToken);
-      singleCount = getReportSuggestions(integrations).length;
-      multiCount = getCrossSourceReports(integrations).length;
+      const allSingle = getReportSuggestions(integrations);
+      const allMulti = getCrossSourceReports(integrations);
+      singleCount = allSingle.filter((r) => !activatedIds.has(r.id)).length;
+      multiCount = allMulti.filter((r) => !activatedIds.has(r.id)).length;
     } catch {}
   }
-
-  const myCount = await myCountPromise;
 
   return { myCount, singleCount, multiCount };
 }
