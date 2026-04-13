@@ -35,86 +35,69 @@ type AssociationStat = {
   labels: Array<{ label: string; count: number }>;
 };
 
+/**
+ * Count contacts by association type using EXACT counts from Search API.
+ * Uses HubSpot native properties (associatedcompanyid, num_associated_deals)
+ * for precise counts, plus association labels from the Associations API.
+ */
 async function fetchContactAssociations(token: string): Promise<AssociationStat[]> {
-  // 1. Get a sample of 500 contact IDs
-  const contactIds: string[] = [];
-  let after: string | undefined;
-  let pages = 0;
-  while (pages < 5) {
-    const url = new URL(`${HS}/crm/v3/objects/contacts`);
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", "email");
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) break;
-    const data = await res.json();
-    for (const item of data.results ?? []) contactIds.push(item.id);
-    after = data.paging?.next?.after;
-    pages++;
-    if (!after) break;
-  }
+  // 1. Total contacts (exact)
+  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filterGroups: [], limit: 1 }),
+  });
+  if (!totalRes.ok) return [];
+  const totalContacts = (await totalRes.json()).total ?? 0;
+  if (totalContacts === 0) return [];
 
-  if (contactIds.length === 0) return [];
+  // 2. Exact counts per association type via Search API
+  const searchCount = async (filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> => {
+    try {
+      const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
+      });
+      if (!res.ok) return 0;
+      return (await res.json()).total ?? 0;
+    } catch { return 0; }
+  };
 
-  // 2. For each target object type, batch read associations
+  const [withCompany, withDeal] = await Promise.all([
+    searchCount([{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }]),
+    searchCount([{ propertyName: "num_associated_deals", operator: "GT", value: "0" }]),
+  ]);
+
+  // 3. Association labels (for detail breakdown)
   const results: AssociationStat[] = [];
 
-  for (const target of ASSOC_TARGETS) {
-    // Get association labels first
+  for (const { objectType, label: targetLabel, icon, count } of [
+    { objectType: "companies", label: "Entreprises", icon: "🏢", count: withCompany },
+    { objectType: "deals", label: "Transactions", icon: "💰", count: withDeal },
+  ]) {
+    // Get association type labels
     let assocLabels: Array<{ typeId: number; label: string | null; category: string }> = [];
     try {
-      const labelsRes = await fetch(`${HS}/crm/v4/associations/contacts/${target.objectType}/labels`, {
+      const res = await fetch(`${HS}/crm/v4/associations/contacts/${objectType}/labels`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
-      if (labelsRes.ok) {
-        const labelsData = await labelsRes.json();
-        assocLabels = labelsData.results ?? [];
-      }
+      if (res.ok) assocLabels = (await res.json()).results ?? [];
     } catch {}
 
-    // Batch read associations (chunks of 500)
-    let withAssoc = 0;
-    const labelCounts = new Map<string, number>();
+    const labels = assocLabels
+      .filter((l) => l.label)
+      .map((l) => ({ label: l.label!, count: 0 }));
 
-    for (let i = 0; i < contactIds.length; i += 500) {
-      const chunk = contactIds.slice(i, i + 500);
-      try {
-        const res = await fetch(`${HS}/crm/v4/associations/contacts/${target.objectType}/batch/read`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
-        });
-        if (!res.ok) continue;
-        const data = await res.json();
-        for (const result of data.results ?? []) {
-          const toList = result.to ?? [];
-          if (toList.length > 0) {
-            withAssoc++;
-            // Count by association type label
-            for (const to of toList) {
-              for (const at of to.associationTypes ?? []) {
-                const labelDef = assocLabels.find((l) => l.typeId === at.typeId);
-                const name = at.label || labelDef?.label || (labelDef?.category === "HUBSPOT_DEFINED" ? "Standard" : `Type ${at.typeId}`);
-                if (name) labelCounts.set(name, (labelCounts.get(name) ?? 0) + 1);
-              }
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const total = contactIds.length;
     results.push({
-      targetObject: target.objectType,
-      targetLabel: target.label,
-      icon: target.icon,
-      totalContacts: total,
-      withAssociation: withAssoc,
-      rate: total > 0 ? Math.round((withAssoc / total) * 100) : 0,
-      labels: [...labelCounts.entries()]
-        .map(([label, count]) => ({ label, count }))
-        .sort((a, b) => b.count - a.count),
+      targetObject: objectType,
+      targetLabel,
+      icon,
+      totalContacts: totalContacts,
+      withAssociation: count,
+      rate: Math.round((count / totalContacts) * 100),
+      labels,
     });
   }
 
