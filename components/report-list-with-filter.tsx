@@ -75,6 +75,8 @@ export function ReportListWithFilter({ reports, variant, availableTools, kpiPrev
           displayCategory: report.displayCategory,
           metrics: report.metrics,
           icon: report.icon,
+          description: report.description,
+          expectedValue: report.expectedValue,
         }),
       });
       if (res.ok) {

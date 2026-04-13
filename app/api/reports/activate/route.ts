@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { reportId, reportType, title, displayCategory, metrics, icon } = body;
+  const { reportId, reportType, title, displayCategory, metrics, icon, description, expectedValue } = body;
   if (!reportId || !title) {
     return NextResponse.json({ error: "reportId et title requis" }, { status: 400 });
   }
@@ -25,6 +25,8 @@ export async function POST(req: Request) {
       display_category: displayCategory || "",
       metrics: metrics || [],
       icon: icon || "📊",
+      description: description || "",
+      expected_value: expectedValue || "",
       activated_by: user.id,
       activated_at: new Date().toISOString(),
     },
