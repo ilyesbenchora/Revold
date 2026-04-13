@@ -24,6 +24,22 @@ type ActivatedReport = {
   activated_at: string;
 };
 
+/** Clean raw metric values: remove "Won:", "Lost:", "Out:", "In:" prefixes,
+ *  split compound values into separate lines, remove colons. */
+function cleanValue(raw: string): string {
+  return raw
+    .replace(/\bWon\s*:\s*/gi, "")
+    .replace(/\bLost\s*:\s*/gi, "")
+    .replace(/\bOut\s*:\s*/gi, "")
+    .replace(/\bIn\s*:\s*/gi, "")
+    .replace(/\bAvec\s*:\s*/gi, "")
+    .replace(/\bSans\s*:\s*/gi, "")
+    .replace(/\bTop\s*:\s*/gi, "")
+    .replace(/\s*\/\s*/g, "  ·  ")
+    .replace(/\s*,\s*/g, "  ·  ")
+    .trim();
+}
+
 export default async function MesRapportsPage() {
   const orgId = await getOrgId();
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
@@ -53,20 +69,21 @@ export default async function MesRapportsPage() {
     }
   }
 
-  // Auto-fix orphaned metrics
-  const computedKeys = new Set(Object.entries(kpiValues).filter(([, v]) => v !== null).map(([k]) => k));
+  // Auto-fix: update metrics in DB if they reference keys that don't exist in kpiValues
+  const computedKeys = new Set(Object.keys(kpiValues));
   for (const report of activatedReports) {
     const metrics = (report.metrics as string[]) ?? [];
-    const fixed = metrics.filter((m) => computedKeys.has(m));
-    if (fixed.length !== metrics.length && fixed.length > 0) {
-      report.metrics = fixed;
-      supabase.from("activated_reports").update({ metrics: fixed }).eq("id", report.id).then(() => {});
+    if (computedKeys.size > 0 && metrics.some((m) => !computedKeys.has(m))) {
+      const fixed = metrics.filter((m) => computedKeys.has(m));
+      if (fixed.length > 0 && fixed.length !== metrics.length) {
+        report.metrics = fixed;
+        supabase.from("activated_reports").update({ metrics: fixed }).eq("id", report.id).then(() => {});
+      }
     }
   }
 
-  // Tab counts (shared across all rapport pages)
   const tabCounts = await getTabCounts(supabase, orgId);
-  tabCounts.myCount = activatedReports.length; // use fresh count
+  tabCounts.myCount = activatedReports.length;
 
   const noToken = !hubspotToken;
   const catLabels = DISPLAY_CATEGORY_LABELS as Record<string, string>;
@@ -75,9 +92,7 @@ export default async function MesRapportsPage() {
     <section className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Mes rapports</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          KPIs en temps réel depuis votre CRM.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">KPIs en temps réel depuis votre CRM.</p>
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
@@ -110,7 +125,7 @@ export default async function MesRapportsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {activatedReports.map((report) => {
             const catLabel = catLabels[report.display_category] ?? report.display_category;
             const metrics = (report.metrics as string[]) ?? [];
@@ -122,49 +137,65 @@ export default async function MesRapportsPage() {
             return (
               <article
                 key={report.id}
-                className={`card overflow-hidden transition hover:shadow-md ${
-                  isMulti ? "border-t-2 border-t-fuchsia-500" : "border-t-2 border-t-accent"
-                }`}
+                className="card overflow-hidden transition hover:shadow-md"
               >
-                {/* Header — compact */}
-                <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-lg shrink-0">{report.icon || "📊"}</span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-slate-900 truncate">{report.title}</h3>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`rounded-full px-1.5 py-px text-[9px] font-bold ${
+                {/* Color bar */}
+                <div className={`h-1 ${isMulti ? "bg-gradient-to-r from-fuchsia-500 to-indigo-500" : "bg-accent"}`} />
+
+                {/* Header */}
+                <div className="px-5 pt-4 pb-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl shrink-0 mt-0.5">{report.icon || "📊"}</span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-[13px] font-semibold text-slate-900 leading-snug">{report.title}</h3>
+                      {report.description && (
+                        <p className="mt-1 text-[11px] text-slate-500 leading-relaxed line-clamp-2">{report.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
                           isMulti ? "bg-fuchsia-50 text-fuchsia-600" : "bg-indigo-50 text-indigo-600"
                         }`}>
                           {catLabel}
                         </span>
                         <span className="text-[9px] text-slate-400">
-                          {new Date(report.activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          {new Date(report.activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* KPI Grid — compact cards */}
+                {/* KPIs */}
                 {metrics.length > 0 && (
-                  <div className="px-4 pb-4">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="px-5 pb-4">
+                    <div className="space-y-2">
                       {metrics.map((metric, idx) => {
                         const val = metricValues[idx];
+                        const isAvailable = val !== null;
                         return (
                           <div
                             key={idx}
-                            className={`rounded-lg p-2.5 ${
-                              val !== null ? "bg-slate-50" : "bg-slate-50/50"
+                            className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 ${
+                              isAvailable ? "bg-slate-50" : "bg-slate-50/40"
                             }`}
                           >
-                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">{metric}</p>
-                            <p className={`mt-0.5 text-xs tabular-nums leading-snug ${
-                              val !== null ? "text-slate-800" : "text-slate-300"
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isAvailable ? (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              ) : (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+                              )}
+                              <span className={`text-[11px] leading-tight truncate ${
+                                isAvailable ? "text-slate-600" : "text-slate-400"
+                              }`}>
+                                {metric}
+                              </span>
+                            </div>
+                            <span className={`text-[11px] tabular-nums shrink-0 text-right max-w-[45%] truncate ${
+                              isAvailable ? "font-medium text-slate-900" : "text-slate-300"
                             }`}>
-                              {val ?? "—"}
-                            </p>
+                              {isAvailable ? cleanValue(val) : "—"}
+                            </span>
                           </div>
                         );
                       })}
@@ -172,21 +203,23 @@ export default async function MesRapportsPage() {
                   </div>
                 )}
 
-                {/* Footer — minimal */}
-                <div className="flex items-center justify-between border-t border-card-border px-4 py-2">
-                  <div className="flex items-center gap-1.5">
-                    {allReady ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    ) : nonNullCount > 0 ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    ) : (
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    )}
-                    <span className="text-[10px] text-slate-400">
-                      {allReady
-                        ? "Synchronisé"
+                {/* Footer */}
+                <div className="flex items-center justify-between border-t border-card-border px-5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium ${
+                      allReady
+                        ? "bg-emerald-50 text-emerald-700"
                         : nonNullCount > 0
-                          ? `${nonNullCount}/${metrics.length} KPIs`
+                          ? "bg-blue-50 text-blue-700"
+                          : "bg-amber-50 text-amber-700"
+                    }`}>
+                      <span className={`h-1 w-1 rounded-full ${
+                        allReady ? "bg-emerald-500" : nonNullCount > 0 ? "bg-blue-500" : "bg-amber-500"
+                      }`} />
+                      {allReady
+                        ? `${metrics.length} KPIs synchronisés`
+                        : nonNullCount > 0
+                          ? `${nonNullCount} sur ${metrics.length} KPIs`
                           : "En attente"}
                     </span>
                   </div>

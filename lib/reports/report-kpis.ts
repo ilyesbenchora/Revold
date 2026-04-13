@@ -712,7 +712,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   const V: Record<string, string | null> = {};
 
   // ATTRIBUTION — CONTACTS
-  V["Nb de contacts par owner"] = has(contacts.total) ? `${fmt(avgContactsPerOwner)} / owner` : null;
+  V["Nb de contacts par owner"] = has(contacts.total) ? `${fmt(avgContactsPerOwner)}  par owner` : null;
   V["% de la base par owner"] = has(contacts.total) ? pct(topOwnerPct) : null;
   V["Contacts sans owner (non attribués)"] = has(contacts.total) ? fmt(contacts.orphans) : null;
   V["Évolution mensuelle de l'attribution"] = contacts.perMonth.size >= 2
@@ -729,7 +729,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Complétude par champ clé (%)"] = has(contacts.total) ? pct(fieldCompleteness) : null;
 
   // ATTRIBUTION — DEALS
-  V["Nb de deals par owner"] = has(deals.totalActive) ? `${fmt(avgDealsPerOwner)} / owner` : null;
+  V["Nb de deals par owner"] = has(deals.totalActive) ? `${fmt(avgDealsPerOwner)}  par owner` : null;
   V["Montant total du pipeline par owner (€)"] = has(deals.caActive) ? eur(avgAmountPerOwner) : null;
   V["Nb de deals sans owner"] = has(deals.total) ? fmt(deals.orphans) : null;
   V["Deals par owner par pipeline"] = deals.perPipeline.size > 0
@@ -746,7 +746,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Évolution mensuelle des taux de conversion"] = monthEvolution !== null ? `${monthEvolution > 0 ? "+" : ""}${Math.round(monthEvolution)} %` : null;
 
   // ATTRIBUTION — COMPANIES
-  V["Nb de companies par owner"] = has(companies.total) ? `${fmt(avgCompaniesPerOwner)} / owner` : null;
+  V["Nb de companies par owner"] = has(companies.total) ? `${fmt(avgCompaniesPerOwner)}  par owner` : null;
   V["Revenue annuel total des companies par owner (€)"] = has(companies.totalRevenue) ? eur(avgRevenuePerOwner) : null;
   V["Companies sans owner"] = has(companies.total) ? fmt(companies.orphans) : null;
   V["Répartition par industrie par owner"] = topIndustry ? `${topIndustry[0]} (${fmt(topIndustry[1])})` : null;
@@ -761,8 +761,8 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Deal moyen par pipeline (€)"] = topPipeline && has(topPipeline[1].won) ? eur(topPipeline[1].caWon / topPipeline[1].won) : null;
   V["Taux de conversion par pipeline (%)"] = topPipeline && (topPipeline[1].won + topPipeline[1].lost) > 0
     ? pct(topPipeline[1].won / (topPipeline[1].won + topPipeline[1].lost) * 100) : null;
-  V["CA Closed Won par owner (€)"] = has(deals.totalClosedWon) ? `${eur(avgWonAmountPerOwner)} / owner` : null;
-  V["Nb de deals Won par owner"] = has(deals.totalClosedWon) ? `${fmt(avgWonPerOwner)} / owner` : null;
+  V["CA Closed Won par owner (€)"] = has(deals.totalClosedWon) ? `${eur(avgWonAmountPerOwner)}  par owner` : null;
+  V["Nb de deals Won par owner"] = has(deals.totalClosedWon) ? `${fmt(avgWonPerOwner)}  par owner` : null;
   V["Deal moyen par owner (€)"] = has(deals.totalClosedWon) ? eur(deals.avgDealWon) : null;
   V["% d'atteinte de quota par owner"] = null; // needs quota data
   V["CA réalisé Closed Won (€)"] = has(deals.caClosedWon) ? eur(deals.caClosedWon) : null;
@@ -770,7 +770,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Précision du forecast par owner"] = null; // needs per-owner forecast targets
   V["Pipeline weighted total (€)"] = has(deals.caWeighted) ? eur(deals.caWeighted) : null;
   V["Pipeline weighted par mois de closing attendu"] = null; // needs hs_date_closed_expected
-  V["Pipeline weighted par owner"] = has(deals.caWeighted) ? `${eur(weightedPerOwner)} / owner` : null;
+  V["Pipeline weighted par owner"] = has(deals.caWeighted) ? `${eur(weightedPerOwner)}  par owner` : null;
   V["Couverture pipeline vs objectif (%)"] = null; // needs objective data
 
   // OUTBOUND
@@ -784,36 +784,36 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Temps par étape (hs_time_in_latest_deal_stage)"] = has(deals.timeInStageMs)
     ? `${fmtDec(deals.timeInStageMs / Math.max(1, deals.total) / 86_400_000)} j/étape` : null;
   V["Comparaison outbound vs inbound"] = (has(outbound.total) || has(socialSource.total))
-    ? `Out: ${fmt(outbound.won)} won / In: ${fmt(socialSource.won)} won` : null;
+    ? `${fmt(outbound.won)} outbound · ${fmt(socialSource.won)} inbound` : null;
 
   // CALLING
-  V["Nb d'appels par owner / jour"] = has(calls.total) ? `${fmtDec(avgCallsPerOwnerPerDay)} / j` : null;
+  V["Nb d'appels par owner / jour"] = has(calls.total) ? `${fmtDec(avgCallsPerOwnerPerDay)} par jour` : null;
   V["Durée totale d'appels par owner (h)"] = has(calls.total) ? `${fmtDec(avgCallHoursPerOwner)} h` : null;
   V["Taux de connexion (décrochés / tentés)"] = has(calls.total) ? pct(callConnectionRate) : null;
-  V["Nb de deals touchés par les appels par owner"] = has(deals.dealsWithCalls) ? `${fmt(deals.dealsWithCalls / calls.ownerCount)} / owner` : null;
+  V["Nb de deals touchés par les appels par owner"] = has(deals.dealsWithCalls) ? `${fmt(deals.dealsWithCalls / calls.ownerCount)}  par owner` : null;
   V["Nb moyen d'appels par deal gagné vs perdu"] = has(deals.wonWithCalls)
-    ? `Won: ${fmtDec(avgCallsPerWonDeal)} / Lost: ${fmtDec(avgCallsPerLostDeal)}` : null;
+    ? `${fmtDec(avgCallsPerWonDeal)} gagnés · ${fmtDec(avgCallsPerLostDeal)} perdus` : null;
   V["Durée moyenne des appels sur deals won"] = has(calls.total) ? `${fmtDec(avgCallDurationMin)} min` : null;
   V["Conversion call → avancement de stage"] = null; // needs call timestamp + deal stage history
   V["Délai moyen entre appel et changement de stage"] = null; // needs timestamps
   V["CA total des deals avec appels (€)"] = has(deals.caWonWithCalls) ? eur(deals.caWonWithCalls) : null;
   V["CA moyen par deal avec appels vs sans appels"] = has(deals.wonWithCalls) && has(deals.totalClosedWon)
-    ? `Avec: ${eur(deals.caWonWithCalls / deals.wonWithCalls)} / Sans: ${eur(deals.totalClosedWon > deals.wonWithCalls ? (deals.caClosedWon - deals.caWonWithCalls) / (deals.totalClosedWon - deals.wonWithCalls) : 0)}` : null;
+    ? `${eur(deals.caWonWithCalls / deals.wonWithCalls)} avec · ${eur(deals.totalClosedWon > deals.wonWithCalls ? (deals.caClosedWon - deals.caWonWithCalls) / (deals.totalClosedWon - deals.wonWithCalls) : 0)} sans` : null;
   V["% des deals won ayant eu un appel"] = has(deals.totalClosedWon) ? pct(pctWonWithCall) : null;
   V["Top 5 commerciaux par CA influencé via appels"] = topCallOwner ? `Top: ${topCallOwner[0]} (${fmt(topCallOwner[1].count)} appels)` : null;
 
   // CONV INTEL
   V["Nb moyen de calls/meetings sur deals Won vs Lost"] = has(deals.totalClosedWon) && (has(deals.callsOnWonDeals) || has(deals.meetingsOnWonDeals))
-    ? `Won: ${fmtDec((deals.callsOnWonDeals + deals.meetingsOnWonDeals) / deals.totalClosedWon)} / Lost: ${fmtDec((deals.callsOnLostDeals + deals.meetingsOnLostDeals) / Math.max(1, deals.totalClosedLost))}` : null;
+    ? `${fmtDec((deals.callsOnWonDeals + deals.meetingsOnWonDeals) / deals.totalClosedWon)} gagnés · ${fmtDec((deals.callsOnLostDeals + deals.meetingsOnLostDeals) / Math.max(1, deals.totalClosedLost))} perdus` : null;
   V["Durée moyenne des calls sur deals Won"] = has(calls.total) ? `${fmtDec(avgCallDurationMin)} min` : null;
   V["Nb de notes logées (num_notes) sur deals gagnés"] = has(deals.dealsWithNotes) ? fmt(deals.dealsWithNotes) : null;
   V["Ratio emails envoyés / réponses reçues (hs_sales_email_last_replied)"] = has(emails.totalSent) ? pct(replyRate) : null;
   V["Nb moyen de meetings par deal Won vs Lost"] = has(deals.wonWithMeetings)
-    ? `Won: ${fmtDec(avgMeetingsPerWonDeal)} / Lost: ${fmtDec(deals.meetingsOnLostDeals / Math.max(1, deals.totalClosedLost))}` : null;
+    ? `${fmtDec(avgMeetingsPerWonDeal)} gagnés · ${fmtDec(deals.meetingsOnLostDeals / Math.max(1, deals.totalClosedLost))} perdus` : null;
   V["CA moyen des deals avec 3+ meetings (€)"] = has(deals.dealsWonWith3PlusMeetings)
     ? eur(deals.caWonWith3PlusMeetings / deals.dealsWonWith3PlusMeetings) : null;
   V["Taux de conversion avec meeting vs sans"] = has(deals.wonWithMeetings) && has(deals.totalClosedWon)
-    ? `Avec: ${pct(deals.wonWithMeetings / Math.max(1, deals.dealsWithMeetings) * 100)}` : null;
+    ? pct(deals.wonWithMeetings / Math.max(1, deals.dealsWithMeetings) * 100) : null;
   V["Top commerciaux par CA influencé via meetings"] = meetings.perOwner.size > 0
     ? `${meetings.perOwner.size} owners, ${fmt(meetings.totalCompleted)} meetings` : null;
 
@@ -855,7 +855,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
     ? fmtDec(deals.totalMeetingsOnDeals / totalClosed) : null;
 
   // EMAIL & CALENDAR
-  V["Nb d'emails envoyés par owner / semaine"] = has(emails.totalSent) ? `${fmtDec(avgEmailsSentPerOwnerPerWeek)} / sem.` : null;
+  V["Nb d'emails envoyés par owner / semaine"] = has(emails.totalSent) ? `${fmtDec(avgEmailsSentPerOwnerPerWeek)} par semaine` : null;
   V["Nb d'emails reçus (réponses) par owner"] = has(emails.totalReceived) ? fmt(avgEmailsReceivedPerOwner) : null;
   V["Taux de réponse par owner (%)"] = has(emails.totalSent) ? pct(replyRate) : null;
   V["Top 5 commerciaux les plus actifs par email"] = topEmailOwner ? `Top: ${topEmailOwner[0]} (${fmt(topEmailOwner[1].sent)})` : null;
@@ -874,8 +874,8 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Cycle moyen des deals SOCIAL (jours)"] = has(socialSource.daysCount) ? `${fmt(socialSource.totalDays / socialSource.daysCount)} j` : null;
 
   // SUPPORT / TICKETS
-  V["Nb de tickets ouverts / fermés par période"] = has(tickets.total) ? `${fmt(tickets.open)} ouv. / ${fmt(tickets.closed)} ferm.` : null;
-  V["Nb de tickets ouverts / fermés par mois"] = has(tickets.total) ? `${fmt(tickets.open)} ouv. / ${fmt(tickets.closed)} ferm.` : null;
+  V["Nb de tickets ouverts / fermés par période"] = has(tickets.total) ? `${fmt(tickets.open)} ouverts · ${fmt(tickets.closed)} fermés` : null;
+  V["Nb de tickets ouverts / fermés par mois"] = has(tickets.total) ? `${fmt(tickets.open)} ouverts · ${fmt(tickets.closed)} fermés` : null;
   V["% de tickets haute priorité"] = has(tickets.total) ? pct(tickets.highPriority / tickets.total * 100) : null;
   V["Tickets haute priorité ouverts"] = has(tickets.total) ? fmt(tickets.highPriority) : null;
   V["Score CSAT proxy global (%)"] = has(tickets.total) ? pct(csatProxy) : null;
@@ -883,8 +883,8 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Temps de résolution moyen (h)"] = null; // needs ticket close timestamps
   V["Taux de résolution au 1er contact (%)"] = has(tickets.closed) ? pct((tickets.closed - tickets.reopened) / tickets.closed * 100) : null;
   V["Temps moyen de résolution (jours)"] = null; // needs ticket timestamps
-  V["Tickets par pipeline support"] = tickets.perPipeline.size > 0 ? [...tickets.perPipeline.entries()].map(([k, v]) => `${plName(k)}: ${v}`).join(", ") : null;
-  V["Nb de tickets par canal"] = tickets.perChannel.size > 0 ? [...tickets.perChannel.entries()].map(([k, v]) => `${k}: ${v}`).join(", ") : null;
+  V["Tickets par pipeline support"] = tickets.perPipeline.size > 0 ? [...tickets.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${v}`).join(" · ") : null;
+  V["Nb de tickets par canal"] = tickets.perChannel.size > 0 ? [...tickets.perChannel.entries()].map(([k, v]) => `${k} ${v}`).join(" · ") : null;
   V["Temps de résolution par canal (h)"] = null; // needs ticket timestamps
   V["Évolution du volume par canal (tendance)"] = null; // needs time-series
   V["Nb de tickets ouverts par company (30 derniers jours)"] = null; // needs ticket→company + date filter
@@ -959,7 +959,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Étapes les plus lentes (>21 jours)"] = topStagnantStage ? `${stName(topStagnantStage[0])} (${fmt(topStagnantStage[1])} deals)` : null;
   V["Vélocité totale du pipeline (jours)"] = has(deals.avgDaysToClose) ? `${fmt(deals.avgDaysToClose)} j` : null;
   V["Comparaison par pipeline"] = deals.perPipeline.size > 1
-    ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)}: ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : "?"} j`).join(", ") : null;
+    ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : "?"} j`).join(" · ") : null;
 
   return V;
 }
