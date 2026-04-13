@@ -119,8 +119,10 @@ async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
   });
   if (!propsRes.ok) return [];
   const propsData = await propsRes.json();
-  const allProps: Array<{ name: string; label: string; hubspotDefined: boolean; calculated: boolean }> = propsData.results ?? [];
-  const relevantProps = allProps.filter((p) => !p.calculated);
+  const allProps: Array<{ name: string; label: string; hubspotDefined: boolean; calculated: boolean; groupName: string }> = propsData.results ?? [];
+  // Only keep contact-relevant groups — exclude system/analytics/email/social/conversion
+  const CONTACT_GROUPS = new Set(["contactinformation", "contact_activity", "sales_properties", "contactlcs"]);
+  const relevantProps = allProps.filter((p) => !p.calculated && (CONTACT_GROUPS.has(p.groupName) || !p.hubspotDefined));
 
   // 2. Get total contacts count
   const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
