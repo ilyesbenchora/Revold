@@ -144,7 +144,6 @@ export default async function MesRapportsPage() {
                       </div>
                     </div>
                   </div>
-                  <DeactivateReportButton reportId={report.report_id} />
                 </div>
 
                 {/* KPI Grid — compact cards */}
@@ -174,21 +173,24 @@ export default async function MesRapportsPage() {
                 )}
 
                 {/* Footer — minimal */}
-                <div className="flex items-center gap-2 border-t border-card-border px-4 py-2">
-                  {allReady ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  ) : nonNullCount > 0 ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                  ) : (
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  )}
-                  <span className="text-[10px] text-slate-400">
-                    {allReady
-                      ? "Synchronisé"
-                      : nonNullCount > 0
-                        ? `${nonNullCount}/${metrics.length} KPIs`
-                        : "En attente"}
-                  </span>
+                <div className="flex items-center justify-between border-t border-card-border px-4 py-2">
+                  <div className="flex items-center gap-1.5">
+                    {allReady ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    ) : nonNullCount > 0 ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    ) : (
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    )}
+                    <span className="text-[10px] text-slate-400">
+                      {allReady
+                        ? "Synchronisé"
+                        : nonNullCount > 0
+                          ? `${nonNullCount}/${metrics.length} KPIs`
+                          : "En attente"}
+                    </span>
+                  </div>
+                  <DeactivateReportButton reportId={report.report_id} />
                 </div>
               </article>
             );

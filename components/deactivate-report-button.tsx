@@ -20,7 +20,7 @@ export function DeactivateReportButton({ reportId }: { reportId: string }) {
       type="button"
       disabled={busy}
       onClick={handleDeactivate}
-      className="text-xs font-medium text-red-500 hover:text-red-700 hover:underline disabled:opacity-50"
+      className="text-[9px] text-slate-400 hover:text-red-500 disabled:opacity-50"
     >
       {busy ? "Désactivation..." : "Désactiver"}
     </button>
