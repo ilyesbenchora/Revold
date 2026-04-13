@@ -10,6 +10,7 @@ import { RapportsTabs } from "@/components/rapports-tabs";
 import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
 import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
+import { KpiVisual } from "@/components/kpi-visual";
 
 type ActivatedReport = {
   id: string;
@@ -168,37 +169,10 @@ export default async function MesRapportsPage() {
                 {/* KPIs */}
                 {metrics.length > 0 && (
                   <div className="px-5 pb-4">
-                    <div className="space-y-2">
-                      {metrics.map((metric, idx) => {
-                        const val = metricValues[idx];
-                        const isAvailable = val !== null;
-                        return (
-                          <div
-                            key={idx}
-                            className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 ${
-                              isAvailable ? "bg-slate-50" : "bg-slate-50/40"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {isAvailable ? (
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                              ) : (
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
-                              )}
-                              <span className={`text-[11px] leading-tight truncate ${
-                                isAvailable ? "text-slate-600" : "text-slate-400"
-                              }`}>
-                                {metric}
-                              </span>
-                            </div>
-                            <span className={`text-[11px] tabular-nums shrink-0 text-right max-w-[45%] truncate ${
-                              isAvailable ? "font-medium text-slate-900" : "text-slate-300"
-                            }`}>
-                              {isAvailable ? cleanValue(val) : "—"}
-                            </span>
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-1.5">
+                      {metrics.map((metric, idx) => (
+                        <KpiVisual key={idx} label={metric} value={metricValues[idx]} />
+                      ))}
                     </div>
                   </div>
                 )}

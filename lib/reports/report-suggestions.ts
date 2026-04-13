@@ -116,7 +116,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "attribution",
       title: "Attribution des contacts par source outbound",
       description:
-        "Répartition des contacts créés via les campagnes outbound par owner HubSpot. Croisement hs_analytics_source = OFFLINE / DIRECT_TRAFFIC avec les séquences outbound.",
+        "Quels commerciaux génèrent le plus de contacts qualifiés via vos campagnes outbound ? Ce rapport révèle la performance de chaque SDR.",
       metrics: [
         "Nb de contacts créés par source outbound",
         "% de contacts attribués par owner",
@@ -133,7 +133,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "chiffre_affaires",
       title: "CA généré par campagne outbound",
       description:
-        "Revenue des deals Closed Won (amount) dont le contact source provient d'une séquence outbound. Croisement deal → contact → source.",
+        "Combien de revenus vos campagnes outbound génèrent-elles réellement ? Mesurez le CA signé par canal d'acquisition.",
       metrics: [
         "CA total Closed Won issu de l'outbound (€)",
         "Nb de deals Closed Won par campagne",
@@ -150,7 +150,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "cycle_ventes",
       title: "Cycle de vente des leads outbound",
       description:
-        "Temps moyen entre le premier contact outbound et le Closed Won. Utilise closedate et createdate des deals associés.",
+        "L'outbound raccourcit-il ou allonge-t-il votre cycle de vente ? Comparez les délais par canal d'acquisition.",
       metrics: [
         "Durée moyenne first-touch → Closed Won (jours)",
         "Durée médiane par pipeline",
@@ -171,7 +171,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "cycle_ventes",
       title: "Impact des appels sur la progression des deals",
       description:
-        "Corrélation entre le nb d'appels logués (/crm/v3/objects/calls) par deal et la vélocité de progression dans le pipeline.",
+        "Combien d'appels faut-il pour closer un deal ? Identifiez le nombre optimal de touches téléphoniques.",
       metrics: [
         "Nb moyen d'appels par deal gagné vs perdu",
         "Durée moyenne des appels sur deals won",
@@ -188,7 +188,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "attribution",
       title: "Volume d'appels par commercial",
       description:
-        "Classement des commerciaux par nombre d'appels passés, durée totale et taux de connexion. Données /crm/v3/objects/calls groupées par hubspot_owner_id.",
+        "Classement de vos commerciaux par activité téléphonique : volume, durée et taux de décroché.",
       metrics: [
         "Nb d'appels par owner / jour",
         "Durée totale d'appels par owner (h)",
@@ -205,7 +205,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "chiffre_affaires",
       title: "CA influencé par les appels téléphoniques",
       description:
-        "Revenue des deals Closed Won ayant eu au moins un appel logué dans les 30 jours précédant le closing.",
+        "Quel CA est directement influencé par les appels téléphoniques ? Quantifiez l'impact business du canal téléphonique.",
       metrics: [
         "CA total des deals avec appels (€)",
         "CA moyen par deal avec appels vs sans appels",
@@ -226,7 +226,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "qualite_donnees",
       title: "ROI de l'enrichissement de données",
       description:
-        "Compare la conversion et le CA des contacts enrichis vs non-enrichis. Identifie les champs enrichis (email, téléphone, titre) qui impactent le plus le taux de conversion.",
+        "Quel est le taux de complétude de votre base contacts ? Identifiez les champs à enrichir en priorité.",
       metrics: [
         "% de contacts enrichis dans la base",
         "% de contacts enrichis par owner",
@@ -243,7 +243,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "qualite_donnees",
       title: "Contacts orphelins sans entreprise",
       description:
-        "Contacts HubSpot sans association company (/crm/v3/objects/contacts → associations). Impact sur le scoring et la segmentation.",
+        "Combien de contacts n'ont aucune entreprise rattachée ? Ces orphelins faussent votre segmentation et votre scoring ABM.",
       metrics: [
         "Nb de contacts sans company associée",
         "% de contacts orphelins",
@@ -260,7 +260,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "attribution",
       title: "Couverture d'enrichissement par owner",
       description:
-        "Pour chaque commercial, quel % de ses contacts sont enrichis (email pro, téléphone direct, titre de poste remplis).",
+        "Quel commercial a le portefeuille le mieux renseigné ? Ciblez l'enrichissement là où il aura le plus d'impact.",
       metrics: [
         "% de contacts enrichis par owner",
         "Champs manquants les plus fréquents par owner",
@@ -284,7 +284,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "facturation_paiement",
       title: "Réconciliation Deals gagnés vs Factures émises",
       description:
-        "Croise les deals HubSpot Closed Won (amount, closedate) avec la table invoices (Supabase) pour identifier les écarts entre forecast et facturation réelle.",
+        "Vos deals signés sont-ils tous facturés ? Identifiez les écarts entre le pipeline CRM et la facturation réelle.",
       metrics: [
         "CA forecast HubSpot vs facturé réel (€)",
         "Écart moyen forecast vs facturé (%)",
@@ -301,7 +301,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "facturation_paiement",
       title: "MRR & ARR — suivi du revenu récurrent",
       description:
-        "Calcul du MRR/ARR à partir de la table subscriptions (Supabase). Ventilation par plan, par cohorte et évolution mensuelle.",
+        "Suivez votre revenu récurrent mensuel et annuel. Pilotez la croissance avec des métriques SaaS fiables.",
       metrics: [
         "MRR total actuel (€)",
         "ARR extrapolé (€)",
@@ -318,7 +318,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "facturation_paiement",
       title: "Taux de succès des paiements",
       description:
-        "Volume de paiements traités via la table payments (Supabase). Taux de succès, échecs, montants en souffrance et relances.",
+        "Quel pourcentage de vos paiements échouent ? Réduisez le churn involontaire en surveillant les échecs.",
       metrics: [
         "Nb de paiements réussis vs échoués",
         "Taux de succès global (%)",
@@ -335,7 +335,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "facturation_paiement",
       title: "Factures impayées et encours client",
       description:
-        "Factures émises mais non réglées, classées par ancienneté (30j, 60j, 90j+). Croisement invoices × payments (Supabase).",
+        "Combien de factures restent impayées et depuis combien de temps ? Priorisez le recouvrement.",
       metrics: [
         "Montant total impayé (€)",
         "Nb de factures en attente de paiement",
@@ -352,7 +352,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "chiffre_affaires",
       title: "Churn et contraction du MRR",
       description:
-        "Suivi du churn MRR (annulations) et de la contraction (downgrades) à partir de subscriptions (Supabase). Ventilation par cohorte.",
+        "Quel est votre taux de churn et combien de revenus perdez-vous chaque mois ? Agissez avant l'hémorragie.",
       metrics: [
         "Taux de churn gross (%)",
         "MRR total actuel (€)",
@@ -373,7 +373,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "service_client",
       title: "Volume et résolution des tickets support",
       description:
-        "Analyse des tickets (/crm/v3/objects/tickets ou table tickets Supabase) : volume, temps de première réponse, temps de résolution, statut.",
+        "Combien de tickets ouverts vs fermés ? Surveillez la charge support et le taux de résolution.",
       metrics: [
         "Nb de tickets ouverts / fermés par période",
         "% de tickets haute priorité",
@@ -390,7 +390,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "service_client",
       title: "Tickets par canal et par priorité",
       description:
-        "Répartition des tickets par canal d'entrée (email, chat, téléphone) et par niveau de priorité.",
+        "Par quel canal arrivent vos tickets et combien sont critiques ? Allouez vos agents efficacement.",
       metrics: [
         "Nb de tickets par canal",
         "% de tickets haute priorité",
@@ -407,7 +407,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "service_client",
       title: "CSAT proxy — satisfaction client estimée",
       description:
-        "Score de satisfaction estimé à partir du ratio tickets résolus / tickets totaux, temps de résolution et volume de réouvertures.",
+        "Estimez la satisfaction client à partir de vos données support : résolution, réouvertures et performance par agent.",
       metrics: [
         "Score CSAT proxy global (%)",
         "CSAT proxy par agent support",
@@ -428,7 +428,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "cycle_ventes",
       title: "Patterns conversationnels gagnants vs perdants",
       description:
-        "Compare les engagements (calls, meetings) sur deals Won vs Lost. Corrélation entre nb de touchpoints et issue du deal.",
+        "Qu'est-ce qui différencie un deal gagné d'un deal perdu ? Analysez les patterns de communication gagnants.",
       metrics: [
         "Nb moyen de calls/meetings sur deals Won vs Lost",
         "Durée moyenne des calls sur deals Won",
@@ -445,7 +445,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "chiffre_affaires",
       title: "Impact des meetings sur le Closed Won",
       description:
-        "Corrélation entre le nb de meetings logués (/crm/v3/objects/meetings) et le taux de Closed Won + montant moyen.",
+        "Combien de meetings faut-il pour signer ? Identifiez le seuil optimal pour maximiser le CA.",
       metrics: [
         "Nb moyen de meetings par deal Won vs Lost",
         "CA moyen des deals avec 3+ meetings (€)",
@@ -466,7 +466,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "cycle_ventes",
       title: "Activité email et impact sur la vélocité du pipeline",
       description:
-        "Nb d'emails logués par deal (/crm/v3/objects/emails) et corrélation avec la durée du cycle de vente.",
+        "Vos emails accélèrent-ils le cycle de vente ? Analysez la cadence optimale et le taux de réponse.",
       metrics: [
         "Nb moyen d'emails par deal",
         "Taux de réponse email par deal (hs_sales_email_last_replied)",
@@ -483,7 +483,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "attribution",
       title: "Activité email par commercial",
       description:
-        "Volume d'emails envoyés/reçus par hubspot_owner_id. Classement des commerciaux par activité email.",
+        "Classement de vos commerciaux par volume d'emails et taux de réponse obtenu.",
       metrics: [
         "Nb d'emails envoyés par owner / semaine",
         "Nb d'emails reçus (réponses) par owner",
@@ -504,7 +504,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "cycle_ventes",
       title: "Conversion meetings → Opportunités",
       description:
-        "Impact des meetings logués (/crm/v3/objects/meetings) sur la création et la progression des deals dans le pipeline.",
+        "Vos meetings se transforment-ils en opportunités ? Mesurez le taux de conversion meeting → deal.",
       metrics: [
         "Nb de meetings tenus par période",
         "Taux de conversion meeting → deal créé",
@@ -525,7 +525,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "attribution",
       title: "Contacts créés via Social Selling",
       description:
-        "Contacts HubSpot dont la source (hs_analytics_source) est SOCIAL ou associés à des engagements LinkedIn.",
+        "Combien de contacts proviennent de LinkedIn et des réseaux sociaux ? Mesurez l'apport réel du social selling.",
       metrics: [
         "Nb de contacts source SOCIAL",
         "% des contacts totaux issus du social",
@@ -542,7 +542,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       displayCategory: "chiffre_affaires",
       title: "CA issu du canal Social Selling",
       description:
-        "Revenue des deals Closed Won dont le contact d'origine a une source SOCIAL. Croisement deal → contact → hs_analytics_source.",
+        "Quel CA est généré par le canal social selling ? Justifiez votre investissement LinkedIn avec des données.",
       metrics: [
         "CA total Closed Won source SOCIAL (€)",
         "Nb de deals Won source SOCIAL",
@@ -571,7 +571,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "attribution",
     title: "Répartition des contacts par owner",
     description:
-      "Distribution des contacts CRM par hubspot_owner_id (/crm/v3/objects/contacts). Détecte les déséquilibres dans l'attribution.",
+      "Comment vos contacts sont-ils répartis entre commerciaux ? Détectez les déséquilibres et les contacts non attribués.",
     metrics: [
       "Nb de contacts par owner",
       "% de la base par owner",
@@ -588,7 +588,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "attribution",
     title: "Répartition des deals par owner",
     description:
-      "Distribution des deals actifs par hubspot_owner_id (/crm/v3/objects/deals). Vue par pipeline et par montant.",
+      "Quel commercial porte le plus de pipeline ? Assurez une répartition équitable des opportunités.",
     metrics: [
       "Nb de deals par owner",
       "Montant total du pipeline par owner (€)",
@@ -605,7 +605,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "attribution",
     title: "Répartition des entreprises par owner",
     description:
-      "Distribution des companies par hubspot_owner_id (/crm/v3/objects/companies). Vue par industrie et par annual_revenue.",
+      "Comment vos comptes sont-ils répartis entre commerciaux ? Identifiez les portefeuilles stratégiques.",
     metrics: [
       "Nb de companies par owner",
       "Revenue annuel total des companies par owner (€)",
@@ -624,7 +624,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "chiffre_affaires",
     title: "Deals Closed Won — volume et montant par période",
     description:
-      "Nombre et montant (amount) des deals en is_closed_won par mois. Données /crm/v3/objects/deals filtrées sur dealstage = closedwon.",
+      "Combien de deals sont closés chaque mois et pour quel montant ? Suivez la trajectoire du CA.",
     metrics: [
       "Nb de deals Closed Won par mois",
       "CA total Closed Won par mois (€)",
@@ -641,7 +641,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "chiffre_affaires",
     title: "CA par pipeline",
     description:
-      "Répartition du CA Closed Won par pipeline HubSpot (/crm/v3/pipelines/deals). Identifie les pipelines les plus rentables.",
+      "Quel pipeline génère le plus de CA ? Comparez la performance et le deal moyen de chaque pipeline.",
     metrics: [
       "CA Closed Won par pipeline (€)",
       "Nb de deals Won par pipeline",
@@ -658,7 +658,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "chiffre_affaires",
     title: "CA par commercial (leaderboard)",
     description:
-      "Classement des commerciaux par CA Closed Won (amount × hubspot_owner_id). Vue mensuelle et cumulative.",
+      "Leaderboard des commerciaux par CA signé. Identifiez les top performers et ceux à coacher.",
     metrics: [
       "CA Closed Won par owner (€)",
       "Nb de deals Won par owner",
@@ -675,7 +675,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "chiffre_affaires",
     title: "Forecast vs Réalisé — précision du pipeline",
     description:
-      "Compare le pipeline weighted (dealstage × amount × probability) au CA réellement closé. Mesure la fiabilité du forecast.",
+      "Vos prévisions de CA sont-elles fiables ? Comparez le forecast pondéré au CA réellement signé.",
     metrics: [
       "Pipeline weighted total (€)",
       "CA réalisé Closed Won (€)",
@@ -694,7 +694,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "facturation_paiement",
     title: "Vue d'ensemble facturation mensuelle",
     description:
-      "Synthèse des factures émises, payées et en attente par mois. Données table invoices (Supabase).",
+      "Vue consolidée de votre facturation : émises, encaissées et en attente de paiement.",
     metrics: [
       "Nb de factures émises par mois",
       "Montant total facturé (€)",
@@ -713,7 +713,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "service_client",
     title: "Volume de tickets CRM natifs",
     description:
-      "Tickets créés dans HubSpot (/crm/v3/objects/tickets) : volume, statut, pipeline support.",
+      "Volume et statut de vos tickets support. Surveillez la charge et les priorités.",
     metrics: [
       "Nb de tickets ouverts / fermés par mois",
       "% de tickets haute priorité",
@@ -732,7 +732,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "qualite_donnees",
     title: "Audit de complétude des champs CRM",
     description:
-      "Pour chaque champ critique (email, phone, company, jobtitle, lifecyclestage), quel % est rempli dans /crm/v3/objects/contacts.",
+      "Quel est le taux de complétude de votre CRM ? Identifiez les champs les moins renseignés pour prioriser l'enrichissement.",
     metrics: [
       "Complétude par champ clé (%)",
       "Champs les moins remplis (bottom 5)",
@@ -749,7 +749,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "qualite_donnees",
     title: "Deals sans contact ou sans company associés",
     description:
-      "Deals HubSpot sans association contact ou company. Données /crm/v3/objects/deals → associations.",
+      "Combien de deals n'ont ni contact ni entreprise rattachés ? Ces orphelins faussent votre reporting.",
     metrics: [
       "Nb de deals sans contact associé",
       "Nb de deals sans company associée",
@@ -770,7 +770,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "cycle_ventes",
     title: "Vélocité du cycle de vente par pipeline",
     description:
-      "Temps moyen par étape de pipeline (/crm/v3/pipelines/deals + hs_time_in_latest_deal_stage). Identification des goulots d'étranglement.",
+      "Où vos deals passent-ils le plus de temps ? Identifiez les goulots d'étranglement dans votre pipeline.",
     metrics: [
       "Durée moyenne par étape (jours)",
       "Étapes les plus lentes (>21 jours)",
@@ -787,7 +787,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "cycle_ventes",
     title: "Taux de conversion par stage",
     description:
-      "Taux de passage d'une étape à la suivante dans chaque pipeline. Données /crm/v3/objects/deals groupées par dealstage.",
+      "À quelle étape perdez-vous le plus de deals ? Analysez le taux de conversion entre chaque stage.",
     metrics: [
       "Taux de conversion entre chaque stage (%)",
       "Stage avec le plus de déperdition",
@@ -804,7 +804,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "cycle_ventes",
     title: "Pipeline stagnant — deals bloqués",
     description:
-      "Deals ouverts depuis plus de N jours sans changement de stage (hs_time_in_latest_deal_stage). Montant à risque.",
+      "Quels deals sont bloqués depuis trop longtemps ? Identifiez le pipeline à risque avant qu'il soit perdu.",
     metrics: [
       "Nb de deals stagnants (>30j même stage)",
       "Montant total des deals stagnants (€)",
@@ -821,7 +821,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     displayCategory: "cycle_ventes",
     title: "Forecast par weighted pipeline",
     description:
-      "Prévision du CA basée sur le montant pondéré par la probabilité de chaque stage. Données deals × pipeline stages.",
+      "Forecast data-driven basé sur la probabilité de chaque étape. Prévision de CA pour le comité de direction.",
     metrics: [
       "Pipeline weighted total (€)",
       "Pipeline weighted par owner",

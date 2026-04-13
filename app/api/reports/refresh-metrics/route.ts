@@ -1,9 +1,8 @@
 /**
  * POST /api/reports/refresh-metrics
  *
- * Updates the metrics[] array of all activated reports to match
- * the current report-suggestions templates. This fixes reports
- * activated before a template change (orphaned null metrics).
+ * Updates metrics[], description, and expected_value of all activated
+ * reports to match the current report-suggestions templates.
  */
 import { NextResponse } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -13,6 +12,8 @@ import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 
+type TemplateData = { metrics: string[]; description: string; expectedValue: string };
+
 export async function POST() {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -20,36 +21,47 @@ export async function POST() {
   const supabase = await createSupabaseServerClient();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
 
-  // Build a map of reportId → current metrics from templates
-  const metricsMap = new Map<string, string[]>();
+  const templateMap = new Map<string, TemplateData>();
 
   if (hubspotToken) {
     try {
       const integrations = await detectIntegrations(hubspotToken);
-      for (const r of getReportSuggestions(integrations)) metricsMap.set(r.id, r.metrics);
-      for (const r of getCrossSourceReports(integrations)) metricsMap.set(r.id, r.metrics);
+      for (const r of getReportSuggestions(integrations)) {
+        templateMap.set(r.id, { metrics: r.metrics, description: r.description, expectedValue: r.expectedValue });
+      }
+      for (const r of getCrossSourceReports(integrations)) {
+        templateMap.set(r.id, { metrics: r.metrics, description: r.description, expectedValue: r.expectedValue });
+      }
     } catch {}
   }
 
-  // Fetch activated reports
   const { data: activated } = await supabase
     .from("activated_reports")
-    .select("id, report_id, metrics")
+    .select("id, report_id, metrics, description, expected_value")
     .eq("organization_id", orgId);
 
   let updated = 0;
   for (const report of activated ?? []) {
-    const currentMetrics = metricsMap.get(report.report_id);
-    if (!currentMetrics) continue;
+    const tpl = templateMap.get(report.report_id);
+    if (!tpl) continue;
 
-    // Check if metrics differ
-    const oldMetrics = (report.metrics as string[]) ?? [];
-    const needsUpdate = JSON.stringify(oldMetrics) !== JSON.stringify(currentMetrics);
+    const oldMetrics = JSON.stringify((report.metrics as string[]) ?? []);
+    const oldDesc = report.description ?? "";
+    const oldExpected = report.expected_value ?? "";
+    const needsUpdate =
+      oldMetrics !== JSON.stringify(tpl.metrics) ||
+      oldDesc !== tpl.description ||
+      oldExpected !== tpl.expectedValue;
+
     if (!needsUpdate) continue;
 
     await supabase
       .from("activated_reports")
-      .update({ metrics: currentMetrics })
+      .update({
+        metrics: tpl.metrics,
+        description: tpl.description,
+        expected_value: tpl.expectedValue,
+      })
       .eq("id", report.id);
     updated++;
   }
