@@ -13,15 +13,21 @@ type Filter = "all" | "hubspot" | "custom";
 
 const PAGE_SIZE = 10;
 
+type SortDir = "desc" | "asc";
+
 export function PropertyCarousel({ properties }: { properties: Property[] }) {
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const filtered = useMemo(() => {
-    if (filter === "all") return properties;
-    if (filter === "custom") return properties.filter((p) => p.isCustom);
-    return properties.filter((p) => !p.isCustom);
-  }, [properties, filter]);
+    let list = properties;
+    if (filter === "custom") list = list.filter((p) => p.isCustom);
+    else if (filter === "hubspot") list = list.filter((p) => !p.isCustom);
+    return sortDir === "desc"
+      ? [...list].sort((a, b) => b.fillRate - a.fillRate)
+      : [...list].sort((a, b) => a.fillRate - b.fillRate);
+  }, [properties, filter, sortDir]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -67,9 +73,18 @@ export function PropertyCarousel({ properties }: { properties: Property[] }) {
             Personnalisées ({customCount})
           </button>
         </div>
-        <p className="text-[10px] text-slate-400">
-          {filtered.length > 0 ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} sur ${filtered.length}` : "0 résultats"}
-        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setSortDir(sortDir === "desc" ? "asc" : "desc"); setPage(0); }}
+            className="flex items-center gap-1 rounded-md border border-card-border px-2 py-1 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            {sortDir === "desc" ? "▼" : "▲"} {sortDir === "desc" ? "haut → bas" : "bas → haut"}
+          </button>
+          <p className="text-[10px] text-slate-400">
+            {filtered.length > 0 ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} sur ${filtered.length}` : "0 résultats"}
+          </p>
+        </div>
       </div>
 
       {/* Property list */}

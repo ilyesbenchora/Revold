@@ -29,9 +29,12 @@ const OBJ_COLORS: Record<string, string> = {
   deals: "bg-orange-100 text-orange-700",
 };
 
+type SortDir = "desc" | "asc";
+
 export function SharedPropertiesBlock({ properties }: { properties: SharedProp[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [objFilter, setObjFilter] = useState<ObjFilter>("all");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
@@ -40,8 +43,10 @@ export function SharedPropertiesBlock({ properties }: { properties: SharedProp[]
     else if (filter === "hubspot") list = list.filter((p) => !p.isCustom);
     if (objFilter === "3") list = list.filter((p) => p.objects.length >= 3);
     else if (objFilter === "2") list = list.filter((p) => p.objects.length === 2);
-    return list;
-  }, [properties, filter, objFilter]);
+    return sortDir === "desc"
+      ? [...list].sort((a, b) => b.fillRate - a.fillRate)
+      : [...list].sort((a, b) => a.fillRate - b.fillRate);
+  }, [properties, filter, objFilter, sortDir]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -91,8 +96,15 @@ export function SharedPropertiesBlock({ properties }: { properties: SharedProp[]
         </div>
       </div>
 
-      {/* Count + pagination info */}
+      {/* Sort + pagination info */}
       <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => { setSortDir(sortDir === "desc" ? "asc" : "desc"); setPage(0); }}
+          className="flex items-center gap-1 rounded-md border border-card-border px-2 py-1 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50"
+        >
+          {sortDir === "desc" ? "▼" : "▲"} Enrichissement {sortDir === "desc" ? "haut → bas" : "bas → haut"}
+        </button>
         <p className="text-[10px] text-slate-400">
           {filtered.length > 0 ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} sur ${filtered.length}` : "0 résultats"}
         </p>
