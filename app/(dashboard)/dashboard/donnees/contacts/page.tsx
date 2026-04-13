@@ -3,6 +3,8 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getBarColor } from "@/lib/score-utils";
 import { PropertyCarousel } from "@/components/property-carousel";
+import { PropertyUsageBlock } from "@/components/property-usage-block";
+import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 
 type HsProp = {
   name: string;
@@ -95,10 +97,14 @@ export default async function DonneesContactsPage() {
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("hubspot_owner_id", "is", null),
   ]);
 
-  // Fetch HubSpot property fill rates
+  // Fetch HubSpot property fill rates + usage/dependencies
   let allPropertyStats: Array<{ name: string; label: string; fillRate: number; isCustom: boolean }> = [];
+  let propertyUsage: PropertyUsage[] = [];
   if (hubspotToken) {
-    allPropertyStats = await fetchPropertyFillRates(hubspotToken);
+    [allPropertyStats, propertyUsage] = await Promise.all([
+      fetchPropertyFillRates(hubspotToken),
+      fetchPropertyUsage(hubspotToken),
+    ]);
   }
 
   const t = total ?? 0;
@@ -175,6 +181,17 @@ export default async function DonneesContactsPage() {
           <p className="text-[11px] text-slate-500 mb-3">Top 50 propriétés triées du plus au moins enrichi</p>
           <div className="card p-4">
             <PropertyCarousel properties={carouselProps} />
+          </div>
+        </div>
+      )}
+
+      {/* Property usage / dependencies */}
+      {propertyUsage.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Utilisation des propriétés</h2>
+          <p className="text-[11px] text-slate-500 mb-3">Dépendances de chaque propriété aux assets HubSpot (workflows, formulaires, segments)</p>
+          <div className="card p-4">
+            <PropertyUsageBlock properties={propertyUsage} />
           </div>
         </div>
       )}
