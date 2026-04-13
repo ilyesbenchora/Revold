@@ -158,12 +158,14 @@ export default async function DonneesContactsPage() {
     .eq("object_type", "contacts")
     .order("fill_rate", { ascending: false });
 
-  const allPropertyStats: PropStat[] = (fillRateRows ?? []).map((r) => ({
-    name: r.property_name,
-    label: r.label,
-    fillRate: r.fill_rate,
-    isCustom: r.is_custom,
-  }));
+  const allPropertyStats: PropStat[] = (fillRateRows ?? [])
+    .map((r) => ({
+      name: r.property_name,
+      label: r.label,
+      fillRate: r.fill_rate,
+      isCustom: r.is_custom,
+    }))
+    .filter((p) => p.fillRate > 0 || p.isCustom); // Retirer les propriétés HubSpot à 0%
 
   const totalContacts = fillRateRows?.[0]?.total_count ?? 0;
 
@@ -182,6 +184,12 @@ export default async function DonneesContactsPage() {
     ]);
   }
 
+  // Filter out HubSpot properties at 0% from property usage
+  const zeroHubspotNames = new Set(
+    (fillRateRows ?? []).filter((r) => r.fill_rate === 0 && !r.is_custom).map((r) => r.property_name),
+  );
+  propertyUsage = propertyUsage.filter((p) => !zeroHubspotNames.has(p.name) || p.isCustom);
+
   const t = totalContacts;
   const globalCompleteness = allPropertyStats.length > 0
     ? Math.round(allPropertyStats.reduce((s, p) => s + p.fillRate, 0) / allPropertyStats.length * 10) / 10
@@ -190,8 +198,10 @@ export default async function DonneesContactsPage() {
   const hubspotCount = allPropertyStats.filter((p) => !p.isCustom).length;
 
   // Enrich shared props with fill rates
+  // Enrich shared props with fill rates and filter out HubSpot 0%
   const fillRateMap = new Map(allPropertyStats.map((p) => [p.name, p.fillRate]));
   for (const sp of sharedProps) sp.fillRate = fillRateMap.get(sp.name) ?? -1;
+  sharedProps = sharedProps.filter((p) => p.fillRate > 0 || p.isCustom);
 
   const hasData = allPropertyStats.length > 0;
 
