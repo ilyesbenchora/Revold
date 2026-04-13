@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
+import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
 import Link from "next/link";
@@ -63,6 +64,10 @@ export default async function MesRapportsPage() {
     }
   }
 
+  // Tab counts (shared across all rapport pages)
+  const tabCounts = await getTabCounts(supabase, orgId);
+  tabCounts.myCount = activatedReports.length; // use fresh count
+
   const noToken = !hubspotToken;
   const catLabels = DISPLAY_CATEGORY_LABELS as Record<string, string>;
 
@@ -75,7 +80,7 @@ export default async function MesRapportsPage() {
         </p>
       </header>
 
-      <RapportsTabs myCount={activatedReports.length} singleCount={0} multiCount={0} />
+      <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
 
       {noToken && activatedReports.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">

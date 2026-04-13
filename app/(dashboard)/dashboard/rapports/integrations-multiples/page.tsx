@@ -9,6 +9,7 @@ import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis"
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { ReportListWithFilter } from "@/components/report-list-with-filter";
 import Link from "next/link";
@@ -101,6 +102,10 @@ export default async function RapportsIntegrationsMultiplesPage() {
     } catch {}
   }
 
+  // ── 5. Tab counts ──────────────────────────────────────────────────────
+  const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: singleCount, multiCount: crossReports.length };
+  tabCounts.multiCount = crossReports.length; // use fresh count from this page
+
   return (
     <section className="space-y-8">
       <header>
@@ -111,7 +116,7 @@ export default async function RapportsIntegrationsMultiplesPage() {
         </p>
       </header>
 
-      <RapportsTabs myCount={0} singleCount={singleCount} multiCount={crossReports.length} />
+      <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
 
       {crossReports.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center">

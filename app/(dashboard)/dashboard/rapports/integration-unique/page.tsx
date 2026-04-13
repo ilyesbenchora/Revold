@@ -2,11 +2,11 @@ export const maxDuration = 60;
 
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, type ReportSuggestion } from "@/lib/reports/report-suggestions";
-import { getCrossSourceReports } from "@/lib/reports/cross-source-reports";
 import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { ReportListWithFilter } from "@/components/report-list-with-filter";
 
@@ -16,21 +16,16 @@ export default async function RapportsIntegrationUniquePage() {
     getOrgId(),
   ]);
 
-  // Resolve HubSpot token from OAuth (stored in integrations table)
   const hubspotToken = orgId ? await getHubSpotToken(supabase, orgId) : null;
 
   let suggestions: ReportSuggestion[] = [];
-  let multiCount = 0;
-
   if (hubspotToken) {
     try {
       const integrations = await detectIntegrations(hubspotToken);
       suggestions = getReportSuggestions(integrations);
-      multiCount = getCrossSourceReports(integrations).length;
     } catch {}
   }
 
-  // Fetch & compute all KPIs
   let kpiPreview: Record<string, string | null> = {};
   if (hubspotToken && orgId) {
     try {
@@ -39,16 +34,19 @@ export default async function RapportsIntegrationUniquePage() {
     } catch {}
   }
 
+  const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: suggestions.length, multiCount: 0 };
+  tabCounts.singleCount = suggestions.length; // use fresh count from this page
+
   return (
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Rapports suggérés</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Rapports tirés d&apos;un seul outil métier connecté. Filtrez par catégorie pour trouver le rapport qui correspond à votre besoin.
+          Rapports tirés d&apos;un seul outil métier connecté. Filtrez par catégorie.
         </p>
       </header>
 
-      <RapportsTabs myCount={0} singleCount={suggestions.length} multiCount={multiCount} />
+      <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
 
       <ReportListWithFilter
         reports={suggestions.map((r) => ({
