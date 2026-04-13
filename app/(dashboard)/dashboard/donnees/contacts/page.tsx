@@ -12,7 +12,7 @@ import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
-type SharedProp = { name: string; label: string; objects: string[]; type: string; sameLabel: boolean; isCustom: boolean };
+type SharedProp = { name: string; label: string; objects: string[]; type: string; sameLabel: boolean; isCustom: boolean; fillRate: number };
 
 const HS = "https://api.hubapi.com";
 
@@ -45,6 +45,7 @@ async function fetchSharedProperties(token: string): Promise<SharedProp[]> {
       type: entries[0].type,
       sameLabel: new Set(entries.map((e) => e.label)).size === 1,
       isCustom: entries.some((e) => !e.hubspotDefined),
+      fillRate: -1, // enriched later from allPropertyStats
     }))
     .sort((a, b) => b.objects.length - a.objects.length || a.name.localeCompare(b.name));
 }
@@ -340,6 +341,12 @@ export default async function DonneesContactsPage() {
 
   const customCount = allPropertyStats.filter((p) => p.isCustom).length;
   const hubspotCount = allPropertyStats.filter((p) => !p.isCustom).length;
+
+  // Enrich shared props with fill rates from allPropertyStats
+  const fillRateMap = new Map(allPropertyStats.map((p) => [p.name, p.fillRate]));
+  for (const sp of sharedProps) {
+    sp.fillRate = fillRateMap.get(sp.name) ?? -1;
+  }
 
   return (
     <div className="space-y-6">
