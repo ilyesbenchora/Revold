@@ -117,20 +117,6 @@ const RESOLUTION_RULES = [
       { label: "Exiger un second identifiant", type: "select", options: ["Oui (domaine + SIREN ou TVA)", "Non (domaine seul)"], value: "Oui (domaine + SIREN ou TVA)" },
     ],
   },
-  {
-    id: "manual_reconciliation",
-    rule: "Réconciliation manuelle (queue)",
-    entity: "Tous",
-    description: "Les enregistrements non-matchés sont placés dans une queue pour validation humaine.",
-    confidence: null,
-    enabled: true,
-    warning: null,
-    configFields: [
-      { label: "Seuil auto-match minimum", type: "input", value: "80%" },
-      { label: "Alerter si queue > N items", type: "input", value: "50 items" },
-      { label: "Notifier par email", type: "select", options: ["Oui (1x/jour)", "Non"], value: "Oui (1x/jour)" },
-    ],
-  },
 ];
 
 // ── Dedup rules ──
