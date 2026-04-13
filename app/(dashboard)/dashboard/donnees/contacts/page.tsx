@@ -192,30 +192,39 @@ async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
   if (totalContacts === 0) return [];
 
   // 3. For each property, get exact count via HAS_PROPERTY search
-  // Batch 10 at a time to respect rate limits
+  // Sequential batches of 4 with 200ms delay to avoid 429 rate limits
+  // (HubSpot private app: 100 calls / 10s = ~10/s, 4 parallel is safe)
   const results: PropStat[] = [];
 
-  for (let i = 0; i < relevantProps.length; i += 10) {
-    const batch = relevantProps.slice(i, i + 10);
-    const counts = await Promise.all(
-      batch.map(async (p) => {
-        try {
-          const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              filterGroups: [{ filters: [{ propertyName: p.name, operator: "HAS_PROPERTY" }] }],
-              limit: 1,
-            }),
-          });
-          if (!res.ok) return 0;
-          const data = await res.json();
-          return data.total ?? 0;
-        } catch {
-          return 0;
+  async function searchCount(propName: string): Promise<number> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: propName, operator: "HAS_PROPERTY" }] }],
+            limit: 1,
+          }),
+        });
+        if (res.status === 429) {
+          // Rate limited — wait and retry
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
         }
-      }),
-    );
+        if (!res.ok) return 0;
+        const data = await res.json();
+        return data.total ?? 0;
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  }
+
+  for (let i = 0; i < relevantProps.length; i += 4) {
+    const batch = relevantProps.slice(i, i + 4);
+    const counts = await Promise.all(batch.map((p) => searchCount(p.name)));
 
     for (let j = 0; j < batch.length; j++) {
       results.push({
@@ -224,6 +233,11 @@ async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
         fillRate: Math.round((counts[j] / totalContacts) * 100),
         isCustom: !batch[j].hubspotDefined,
       });
+    }
+
+    // Small delay between batches to stay under rate limit
+    if (i + 4 < relevantProps.length) {
+      await new Promise((r) => setTimeout(r, 150));
     }
   }
 
