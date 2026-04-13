@@ -121,93 +121,72 @@ async function fetchContactAssociations(token: string): Promise<AssociationStat[
   return results;
 }
 
-/** Fetch ALL contact properties and compute fill rates by chunking the properties param */
+/**
+ * Fetch ALL contact properties with EXACT fill rates using the Search API.
+ *
+ * For each property, POST /crm/v3/objects/contacts/search with HAS_PROPERTY
+ * returns the exact count of contacts that have this property filled.
+ * No sampling, no approximation.
+ */
 async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
   // 1. Get all contact properties
-  const propsRes = await fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
+  const propsRes = await fetch(`${HS}/crm/v3/properties/contacts`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
   if (!propsRes.ok) return [];
   const propsData = await propsRes.json();
   const allProps: Array<{ name: string; label: string; hubspotDefined: boolean; calculated: boolean }> = propsData.results ?? [];
-
-  // Filter out calculated/read-only system props that are never user-facing
   const relevantProps = allProps.filter((p) => !p.calculated);
 
-  // 2. Fetch a sample of 500 contacts in chunks of properties (HubSpot limits ~50 props per request)
-  // First pass: get contact IDs + first chunk of props
-  const propChunks: string[][] = [];
-  const propNames = relevantProps.map((p) => p.name);
-  for (let i = 0; i < propNames.length; i += 50) {
-    propChunks.push(propNames.slice(i, i + 50));
-  }
+  // 2. Get total contacts count
+  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filterGroups: [], limit: 1 }),
+  });
+  if (!totalRes.ok) return [];
+  const totalData = await totalRes.json();
+  const totalContacts = totalData.total ?? 0;
+  if (totalContacts === 0) return [];
 
-  // Fetch contacts with first chunk to get IDs
-  const contactRows: Map<string, Record<string, string | null>> = new Map();
-  let after: string | undefined;
-  let pages = 0;
-  while (pages < 5) {
-    const url = new URL("https://api.hubapi.com/crm/v3/objects/contacts");
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", propChunks[0]?.join(",") ?? "email");
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) break;
-    const data = await res.json();
-    for (const item of data.results ?? []) {
-      contactRows.set(item.id, { ...(item.properties ?? {}) });
-    }
-    after = data.paging?.next?.after;
-    pages++;
-    if (!after) break;
-  }
+  // 3. For each property, get exact count via HAS_PROPERTY search
+  // Batch 10 at a time to respect rate limits
+  const results: PropStat[] = [];
 
-  if (contactRows.size === 0) return [];
-
-  // Fetch remaining property chunks for the same contacts
-  const contactIds = [...contactRows.keys()];
-  for (let c = 1; c < propChunks.length; c++) {
-    // Use batch read to get additional properties for existing contacts
-    try {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/batch/read", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inputs: contactIds.map((id) => ({ id })),
-          properties: propChunks[c],
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        for (const item of data.results ?? []) {
-          const existing = contactRows.get(item.id);
-          if (existing && item.properties) {
-            Object.assign(existing, item.properties);
-          }
+  for (let i = 0; i < relevantProps.length; i += 10) {
+    const batch = relevantProps.slice(i, i + 10);
+    const counts = await Promise.all(
+      batch.map(async (p) => {
+        try {
+          const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filterGroups: [{ filters: [{ propertyName: p.name, operator: "HAS_PROPERTY" }] }],
+              limit: 1,
+            }),
+          });
+          if (!res.ok) return 0;
+          const data = await res.json();
+          return data.total ?? 0;
+        } catch {
+          return 0;
         }
-      }
-    } catch {}
+      }),
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      results.push({
+        name: batch[j].name,
+        label: batch[j].label || batch[j].name,
+        fillRate: Math.round((counts[j] / totalContacts) * 100),
+        isCustom: !batch[j].hubspotDefined,
+      });
+    }
   }
 
-  // 3. Compute fill rate per property
-  const total = contactRows.size;
-  const contacts = [...contactRows.values()];
-
-  return relevantProps
-    .map((p) => {
-      const filled = contacts.filter((c) => {
-        const val = c[p.name];
-        return val !== null && val !== undefined && val !== "";
-      }).length;
-      return {
-        name: p.name,
-        label: p.label || p.name,
-        fillRate: Math.round((filled / total) * 100),
-        isCustom: !p.hubspotDefined,
-      };
-    })
-    .sort((a, b) => b.fillRate - a.fillRate);
+  return results.sort((a, b) => b.fillRate - a.fillRate);
 }
 
 export default async function DonneesContactsPage() {
