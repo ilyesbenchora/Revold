@@ -26,6 +26,10 @@
       "schedule": "20 */6 * * *"
     },
     {
+      "path": "/api/cron/compute-fill-rates",
+      "schedule": "30 */6 * * *"
+    },
+    {
       "path": "/api/cron/generate-insights",
       "schedule": "30 6 * * 1"
     }

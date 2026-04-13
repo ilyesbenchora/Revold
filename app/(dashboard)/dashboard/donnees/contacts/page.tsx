@@ -1,4 +1,4 @@
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -13,20 +13,111 @@ import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/prope
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
 type SharedProp = { name: string; label: string; objects: string[]; type: string; sameLabel: boolean; isCustom: boolean; fillRate: number };
+type SourceStat = { source: string; label: string; count: number; pct: number };
+type DrillDown = { value: string; count: number; pct: number };
+type TrackingResult = { sources: SourceStat[]; drillDown1: DrillDown[]; drillDown2: DrillDown[]; total: number };
+type AssociationStat = { targetObject: string; targetLabel: string; icon: string; totalContacts: number; withAssociation: number; rate: number; labels: Array<{ label: string; count: number }> };
 
 const HS = "https://api.hubapi.com";
 
-/** Find properties that exist on multiple objects (contacts, companies, deals) */
+const SOURCE_LABELS: Record<string, string> = {
+  ORGANIC_SEARCH: "Recherche organique",
+  PAID_SEARCH: "Recherche payante",
+  EMAIL_MARKETING: "Email marketing",
+  SOCIAL_MEDIA: "Réseaux sociaux",
+  ORGANIC_SOCIAL: "Social organique",
+  PAID_SOCIAL: "Social payant",
+  REFERRALS: "Referrals",
+  DIRECT_TRAFFIC: "Trafic direct",
+  OTHER_CAMPAIGNS: "Autres campagnes",
+  OFFLINE: "Offline / Import",
+};
+
+// ── Tracking: paginate contacts with source properties (fast, no search API) ──
+
+async function fetchTrackingSources(token: string): Promise<TrackingResult> {
+  const sourceCounts = new Map<string, number>();
+  const dd1Counts = new Map<string, number>();
+  const dd2Counts = new Map<string, number>();
+  let totalFetched = 0;
+  let after: string | undefined;
+  let pages = 0;
+
+  while (pages < 100) {
+    const url = new URL(`${HS}/crm/v3/objects/contacts`);
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("properties", "hs_analytics_source,hs_analytics_source_data_1,hs_analytics_source_data_2");
+    if (after) url.searchParams.set("after", after);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!res.ok) break;
+    const data = await res.json();
+    if ((data.results ?? []).length === 0) break;
+    for (const item of data.results) {
+      const p = item.properties ?? {};
+      if (p.hs_analytics_source) sourceCounts.set(p.hs_analytics_source, (sourceCounts.get(p.hs_analytics_source) ?? 0) + 1);
+      if (p.hs_analytics_source_data_1) dd1Counts.set(p.hs_analytics_source_data_1, (dd1Counts.get(p.hs_analytics_source_data_1) ?? 0) + 1);
+      if (p.hs_analytics_source_data_2) dd2Counts.set(p.hs_analytics_source_data_2, (dd2Counts.get(p.hs_analytics_source_data_2) ?? 0) + 1);
+      totalFetched++;
+    }
+    after = data.paging?.next?.after;
+    pages++;
+    if (!after) break;
+  }
+
+  if (totalFetched === 0) return { sources: [], drillDown1: [], drillDown2: [], total: 0 };
+  const toSorted = (map: Map<string, number>) =>
+    [...map.entries()].map(([k, v]) => ({ value: k, count: v, pct: Math.round((v / totalFetched) * 1000) / 10 })).sort((a, b) => b.count - a.count);
+
+  return {
+    sources: toSorted(sourceCounts).map((s) => ({ source: s.value, label: SOURCE_LABELS[s.value] ?? s.value, count: s.count, pct: s.pct })),
+    drillDown1: toSorted(dd1Counts).slice(0, 15),
+    drillDown2: toSorted(dd2Counts).slice(0, 15),
+    total: totalFetched,
+  };
+}
+
+// ── Associations: exact counts via Search API (only 2 calls) ──
+
+async function fetchContactAssociations(token: string): Promise<AssociationStat[]> {
+  const searchCount = async (filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> => {
+    try {
+      const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
+      });
+      if (!res.ok) return 0;
+      return (await res.json()).total ?? 0;
+    } catch { return 0; }
+  };
+  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filterGroups: [], limit: 1 }),
+  });
+  const totalContacts = totalRes.ok ? ((await totalRes.json()).total ?? 0) : 0;
+  if (totalContacts === 0) return [];
+
+  const [withCompany, withDeal] = await Promise.all([
+    searchCount([{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }]),
+    searchCount([{ propertyName: "num_associated_deals", operator: "GT", value: "0" }]),
+  ]);
+
+  return [
+    { targetObject: "companies", targetLabel: "Entreprises", icon: "🏢", totalContacts, withAssociation: withCompany, rate: Math.round((withCompany / totalContacts) * 100), labels: [] },
+    { targetObject: "deals", targetLabel: "Transactions", icon: "💰", totalContacts, withAssociation: withDeal, rate: Math.round((withDeal / totalContacts) * 100), labels: [] },
+  ];
+}
+
+// ── Shared properties: cross-object check (3 API calls, fast) ──
+
 async function fetchSharedProperties(token: string): Promise<SharedProp[]> {
   const objectTypes = ["contacts", "companies", "deals"];
   const byName = new Map<string, Array<{ object: string; label: string; type: string; hubspotDefined: boolean }>>();
 
   await Promise.all(objectTypes.map(async (obj) => {
     try {
-      const res = await fetch(`${HS}/crm/v3/properties/${obj}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+      const res = await fetch(`${HS}/crm/v3/properties/${obj}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       for (const p of data.results ?? []) {
@@ -45,267 +136,12 @@ async function fetchSharedProperties(token: string): Promise<SharedProp[]> {
       type: entries[0].type,
       sameLabel: new Set(entries.map((e) => e.label)).size === 1,
       isCustom: entries.some((e) => !e.hubspotDefined),
-      fillRate: -1, // enriched later from allPropertyStats
+      fillRate: -1,
     }))
     .sort((a, b) => b.objects.length - a.objects.length || a.name.localeCompare(b.name));
 }
 
-type AssocTarget = {
-  objectType: string;
-  label: string;
-  icon: string;
-};
-
-const ASSOC_TARGETS: AssocTarget[] = [
-  { objectType: "companies", label: "Entreprises", icon: "🏢" },
-  { objectType: "deals", label: "Transactions", icon: "💰" },
-  { objectType: "tickets", label: "Tickets", icon: "🎫" },
-];
-
-type AssociationStat = {
-  targetObject: string;
-  targetLabel: string;
-  icon: string;
-  totalContacts: number;
-  withAssociation: number;
-  rate: number;
-  labels: Array<{ label: string; count: number }>;
-};
-
-/**
- * Count contacts by association type using EXACT counts from Search API.
- * Uses HubSpot native properties (associatedcompanyid, num_associated_deals)
- * for precise counts, plus association labels from the Associations API.
- */
-async function fetchContactAssociations(token: string): Promise<AssociationStat[]> {
-  // 1. Total contacts (exact)
-  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ filterGroups: [], limit: 1 }),
-  });
-  if (!totalRes.ok) return [];
-  const totalContacts = (await totalRes.json()).total ?? 0;
-  if (totalContacts === 0) return [];
-
-  // 2. Exact counts per association type via Search API
-  const searchCount = async (filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> => {
-    try {
-      const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
-      });
-      if (!res.ok) return 0;
-      return (await res.json()).total ?? 0;
-    } catch { return 0; }
-  };
-
-  const [withCompany, withDeal] = await Promise.all([
-    searchCount([{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }]),
-    searchCount([{ propertyName: "num_associated_deals", operator: "GT", value: "0" }]),
-  ]);
-
-  // 3. Association labels (for detail breakdown)
-  const results: AssociationStat[] = [];
-
-  for (const { objectType, label: targetLabel, icon, count } of [
-    { objectType: "companies", label: "Entreprises", icon: "🏢", count: withCompany },
-    { objectType: "deals", label: "Transactions", icon: "💰", count: withDeal },
-  ]) {
-    // Get association type labels
-    let assocLabels: Array<{ typeId: number; label: string | null; category: string }> = [];
-    try {
-      const res = await fetch(`${HS}/crm/v4/associations/contacts/${objectType}/labels`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      if (res.ok) assocLabels = (await res.json()).results ?? [];
-    } catch {}
-
-    const labels = assocLabels
-      .filter((l) => l.label)
-      .map((l) => ({ label: l.label!, count: 0 }));
-
-    results.push({
-      targetObject: objectType,
-      targetLabel,
-      icon,
-      totalContacts: totalContacts,
-      withAssociation: count,
-      rate: Math.round((count / totalContacts) * 100),
-      labels,
-    });
-  }
-
-  return results;
-}
-
-/**
- * Fetch ALL contact properties with EXACT fill rates using the Search API.
- *
- * For each property, POST /crm/v3/objects/contacts/search with HAS_PROPERTY
- * returns the exact count of contacts that have this property filled.
- * No sampling, no approximation.
- */
-type SourceStat = { source: string; label: string; count: number; pct: number };
-type DrillDown = { value: string; count: number; pct: number };
-type TrackingResult = {
-  sources: SourceStat[];
-  drillDown1: DrillDown[];
-  drillDown2: DrillDown[];
-  total: number;
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  ORGANIC_SEARCH: "Recherche organique",
-  PAID_SEARCH: "Recherche payante",
-  EMAIL_MARKETING: "Email marketing",
-  SOCIAL_MEDIA: "Réseaux sociaux",
-  ORGANIC_SOCIAL: "Social organique",
-  PAID_SOCIAL: "Social payant",
-  REFERRALS: "Referrals",
-  DIRECT_TRAFFIC: "Trafic direct",
-  OTHER_CAMPAIGNS: "Autres campagnes",
-  OFFLINE: "Offline / Import",
-};
-
-/**
- * Fetch tracking sources by paginating contacts with source properties
- * and counting server-side. No parallel search calls → no rate limit issues.
- */
-async function fetchTrackingSources(token: string): Promise<TrackingResult> {
-  const sourceCounts = new Map<string, number>();
-  const dd1Counts = new Map<string, number>();
-  const dd2Counts = new Map<string, number>();
-  let totalFetched = 0;
-  let after: string | undefined;
-  let pages = 0;
-
-  // Paginate all contacts with source properties
-  while (pages < 100) {
-    const url = new URL(`${HS}/crm/v3/objects/contacts`);
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", "hs_analytics_source,hs_analytics_source_data_1,hs_analytics_source_data_2");
-    if (after) url.searchParams.set("after", after);
-
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) break;
-    const data = await res.json();
-    const results = data.results ?? [];
-    if (results.length === 0) break;
-
-    for (const item of results) {
-      const p = item.properties ?? {};
-      const src = p.hs_analytics_source;
-      const d1 = p.hs_analytics_source_data_1;
-      const d2 = p.hs_analytics_source_data_2;
-      if (src) sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
-      if (d1) dd1Counts.set(d1, (dd1Counts.get(d1) ?? 0) + 1);
-      if (d2) dd2Counts.set(d2, (dd2Counts.get(d2) ?? 0) + 1);
-      totalFetched++;
-    }
-
-    after = data.paging?.next?.after;
-    pages++;
-    if (!after) break;
-  }
-
-  if (totalFetched === 0) return { sources: [], drillDown1: [], drillDown2: [], total: 0 };
-
-  const toSorted = (map: Map<string, number>, labelFn?: (k: string) => string) =>
-    [...map.entries()]
-      .map(([k, v]) => ({ value: k, label: labelFn ? labelFn(k) : k, count: v, pct: Math.round((v / totalFetched) * 1000) / 10 }))
-      .sort((a, b) => b.count - a.count);
-
-  return {
-    sources: toSorted(sourceCounts, (k) => SOURCE_LABELS[k] ?? k).map((s) => ({
-      source: s.value,
-      label: s.label,
-      count: s.count,
-      pct: s.pct,
-    })),
-    drillDown1: toSorted(dd1Counts).slice(0, 15),
-    drillDown2: toSorted(dd2Counts).slice(0, 15),
-    total: totalFetched,
-  };
-}
-
-/**
- * Fetch fill rates using Search API HAS_PROPERTY for exact counts.
- * Sequential calls (3 parallel max) with retry on 429 rate limits.
- * ~260 properties × ~0.3s each = ~80s total — fits in 300s timeout.
- */
-async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
-  // 1. Get all contact properties
-  const propsRes = await fetch(`${HS}/crm/v3/properties/contacts`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!propsRes.ok) return [];
-  const propsData = await propsRes.json();
-  const allProps: Array<{ name: string; label: string; hubspotDefined: boolean; calculated: boolean; groupName: string }> = propsData.results ?? [];
-  const CONTACT_GROUPS = new Set(["contactinformation", "contact_activity", "sales_properties", "contactlcs"]);
-  const relevantProps = allProps.filter((p) => !p.calculated && (CONTACT_GROUPS.has(p.groupName) || !p.hubspotDefined));
-
-  if (relevantProps.length === 0) return [];
-
-  // 2. Get total contacts count
-  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ filterGroups: [], limit: 1 }),
-  });
-  if (!totalRes.ok) return [];
-  const totalContacts = (await totalRes.json()).total ?? 0;
-  if (totalContacts === 0) return [];
-
-  // 3. Search HAS_PROPERTY for each property — 3 parallel with retry on 429
-  async function searchCount(propName: string): Promise<number> {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filterGroups: [{ filters: [{ propertyName: propName, operator: "HAS_PROPERTY" }] }],
-            limit: 1,
-          }),
-        });
-        if (res.status === 429) {
-          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-          continue;
-        }
-        if (!res.ok) return 0;
-        return (await res.json()).total ?? 0;
-      } catch { return 0; }
-    }
-    return 0;
-  }
-
-  const results: PropStat[] = [];
-
-  // Batches of 3 with 250ms delay between batches
-  for (let i = 0; i < relevantProps.length; i += 3) {
-    const batch = relevantProps.slice(i, i + 3);
-    const counts = await Promise.all(batch.map((p) => searchCount(p.name)));
-
-    for (let j = 0; j < batch.length; j++) {
-      results.push({
-        name: batch[j].name,
-        label: batch[j].label || batch[j].name,
-        fillRate: Math.round((counts[j] / totalContacts) * 100),
-        isCustom: !batch[j].hubspotDefined,
-      });
-    }
-
-    if (i + 3 < relevantProps.length) {
-      await new Promise((r) => setTimeout(r, 250));
-    }
-  }
-
-  return results.sort((a, b) => b.fillRate - a.fillRate);
-}
+// ── PAGE ──
 
 export default async function DonneesContactsPage() {
   const orgId = await getOrgId();
@@ -314,19 +150,31 @@ export default async function DonneesContactsPage() {
   const supabase = await createSupabaseServerClient();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
 
-  const { count: total } = await supabase
-    .from("contacts")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId);
+  // Fill rates from pre-computed Supabase table (instant)
+  const { data: fillRateRows } = await supabase
+    .from("property_fill_rates")
+    .select("property_name, label, is_custom, fill_rate, fill_count, total_count")
+    .eq("organization_id", orgId)
+    .eq("object_type", "contacts")
+    .order("fill_rate", { ascending: false });
 
-  let allPropertyStats: PropStat[] = [];
+  const allPropertyStats: PropStat[] = (fillRateRows ?? []).map((r) => ({
+    name: r.property_name,
+    label: r.label,
+    fillRate: r.fill_rate,
+    isCustom: r.is_custom,
+  }));
+
+  const totalContacts = fillRateRows?.[0]?.total_count ?? 0;
+
+  // Fast API calls (tracking, associations, shared props, property usage)
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
   let trackingData: TrackingResult = { sources: [], drillDown1: [], drillDown2: [], total: 0 };
   let sharedProps: SharedProp[] = [];
+
   if (hubspotToken) {
-    [allPropertyStats, propertyUsage, associationStats, trackingData, sharedProps] = await Promise.all([
-      fetchAllPropertyFillRates(hubspotToken),
+    [propertyUsage, associationStats, trackingData, sharedProps] = await Promise.all([
       fetchPropertyUsage(hubspotToken),
       fetchContactAssociations(hubspotToken),
       fetchTrackingSources(hubspotToken),
@@ -334,19 +182,18 @@ export default async function DonneesContactsPage() {
     ]);
   }
 
-  const t = total ?? 0;
+  const t = totalContacts;
   const globalCompleteness = allPropertyStats.length > 0
-    ? Math.round(allPropertyStats.reduce((s, p) => s + p.fillRate, 0) / allPropertyStats.length)
+    ? Math.round(allPropertyStats.reduce((s, p) => s + p.fillRate, 0) / allPropertyStats.length * 10) / 10
     : 0;
-
   const customCount = allPropertyStats.filter((p) => p.isCustom).length;
   const hubspotCount = allPropertyStats.filter((p) => !p.isCustom).length;
 
-  // Enrich shared props with fill rates from allPropertyStats
+  // Enrich shared props with fill rates
   const fillRateMap = new Map(allPropertyStats.map((p) => [p.name, p.fillRate]));
-  for (const sp of sharedProps) {
-    sp.fillRate = fillRateMap.get(sp.name) ?? -1;
-  }
+  for (const sp of sharedProps) sp.fillRate = fillRateMap.get(sp.name) ?? -1;
+
+  const hasData = allPropertyStats.length > 0;
 
   return (
     <div className="space-y-6">
@@ -365,17 +212,23 @@ export default async function DonneesContactsPage() {
           </div>
         </div>
         <div className="mt-3 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div className={`h-full rounded-full ${getBarColor(globalCompleteness)} transition-all`} style={{ width: `${globalCompleteness}%` }} />
+          <div className={`h-full rounded-full ${getBarColor(Math.round(globalCompleteness))} transition-all`} style={{ width: `${globalCompleteness}%` }} />
         </div>
       </div>
 
-      {/* All properties with filter */}
-      {allPropertyStats.length > 0 && (
+      {!hasData && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-medium text-amber-800">
+            Les taux d&apos;enrichissement sont en cours de calcul. Ils seront disponibles dans quelques minutes.
+          </p>
+        </div>
+      )}
+
+      {/* All properties */}
+      {hasData && (
         <div>
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Toutes les propriétés</h2>
-          <p className="text-[11px] text-slate-500 mb-3">
-            {allPropertyStats.length} propriétés triées par taux d&apos;enrichissement
-          </p>
+          <p className="text-[11px] text-slate-500 mb-3">{allPropertyStats.length} propriétés triées par taux d&apos;enrichissement</p>
           <div className="card p-4">
             <PropertyCarousel properties={allPropertyStats} />
           </div>
@@ -386,14 +239,14 @@ export default async function DonneesContactsPage() {
       {associationStats.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Associations des contacts</h2>
-          <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet et par type d&apos;association</p>
+          <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet</p>
           <div className="card p-4">
             <ContactAssociationsBlock stats={associationStats} />
           </div>
         </div>
       )}
 
-      {/* Shared properties across objects */}
+      {/* Shared properties */}
       {sharedProps.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Propriétés multi-objets</h2>
@@ -410,12 +263,7 @@ export default async function DonneesContactsPage() {
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Propriétés de tracking</h2>
           <p className="text-[11px] text-slate-500 mb-3">Répartition des contacts par source analytique HubSpot</p>
           <div className="card p-4">
-            <TrackingSourcesBlock
-              sources={trackingData.sources}
-              drillDown1={trackingData.drillDown1}
-              drillDown2={trackingData.drillDown2}
-              total={trackingData.total}
-            />
+            <TrackingSourcesBlock sources={trackingData.sources} drillDown1={trackingData.drillDown1} drillDown2={trackingData.drillDown2} total={trackingData.total} />
           </div>
         </div>
       )}
