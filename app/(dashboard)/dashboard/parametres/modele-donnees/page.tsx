@@ -35,7 +35,7 @@ const RESOLUTION_RULES = [
     entity: "Company",
     description: "Le SIREN (9 chiffres INSEE) identifie une personne morale française de manière unique et permanente. C'est l'ID le plus fiable dans un contexte multi-outils B2B FR.",
     confidence: 99,
-    enabled: true,
+    enabled: false,
     warning: "Un même groupe peut avoir plusieurs SIRENs (1 par entité juridique : holding, filiale, SCI…).",
     configFields: [
       { label: "Source SIREN prioritaire", type: "select", options: ["Pennylane (natif)", "Sellsy (natif)", "Axonaut (natif)", "Stripe (customer.metadata.siren)", "HubSpot (champ custom)", "Import CSV"], value: "Pennylane (natif)" },
@@ -48,7 +48,7 @@ const RESOLUTION_RULES = [
     entity: "Company",
     description: "Le n° TVA (FR + 11 chiffres) est attribué par l'administration fiscale. Fiable sauf micro-entreprises (pas de TVA) et restructurations.",
     confidence: 97,
-    enabled: true,
+    enabled: false,
     warning: "Les micro-entreprises et associations n'ont pas de TVA. Formats incohérents entre outils (avec/sans espaces).",
     configFields: [
       { label: "Validation du format", type: "select", options: ["Stricte (regex FR/DE/BE/ES/IT/NL)", "Souple (juste présence)"], value: "Stricte (regex FR/DE/BE/ES/IT/NL)" },
@@ -61,7 +61,7 @@ const RESOLUTION_RULES = [
     entity: "Company",
     description: "SIRET (14 chiffres = SIREN + NIC). Moins stable que le SIREN car change au déménagement. Utilisé en complément.",
     confidence: 90,
-    enabled: true,
+    enabled: false,
     warning: "Préférer le SIREN. Le SIRET sert de fallback (on peut en extraire le SIREN = 9 premiers chiffres).",
     configFields: [
       { label: "Fallback si SIREN absent", type: "select", options: ["Extraire le SIREN du SIRET (9 premiers chiffres)", "Ignorer"], value: "Extraire le SIREN du SIRET (9 premiers chiffres)" },
@@ -73,7 +73,7 @@ const RESOLUTION_RULES = [
     entity: "Contact",
     description: "Match sur email lowercase normalisé. Fiable entre CRM et support (le contact crée le ticket). Entre CRM et billing, l'email facturé ≠ email commercial — il faut croiser avec SIREN.",
     confidence: 85,
-    enabled: true,
+    enabled: false,
     warning: "facturation@acme.com (Stripe) ≠ jean@acme.com (HubSpot). Ne PAS matcher ces deux emails entre CRM et billing.",
     configFields: [
       { label: "Emails génériques", type: "select", options: ["Bloquer (info@, contact@, support@, facturation@, comptabilite@, admin@)", "Avertir seulement", "Autoriser"], value: "Bloquer (info@, contact@, support@, facturation@, comptabilite@, admin@)" },
@@ -110,7 +110,7 @@ const RESOLUTION_RULES = [
     entity: "Company",
     description: "Companies avec le même domaine web normalisé. Fiable à 75% seulement car holding et filiale peuvent avoir des domaines différents.",
     confidence: 75,
-    enabled: true,
+    enabled: false,
     warning: "Un rebranding change le domaine dans le CRM mais pas dans l'outil comptable → le match échoue. Combiner avec SIREN.",
     configFields: [
       { label: "Exclure domaines personnels", type: "select", options: ["Oui (gmail, hotmail, yahoo, outlook, orange, free…)", "Non"], value: "Oui (gmail, hotmail, yahoo, outlook, orange, free…)" },
