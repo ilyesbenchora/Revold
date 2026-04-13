@@ -12,23 +12,120 @@ import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
 
-/** Generate a short summary sentence from the report's KPI values */
-function generateSummary(metrics: string[], values: (string | null)[]): string | null {
+/** Generate a readable summary sentence from the report's KPI values */
+function generateSummary(title: string, metrics: string[], values: (string | null)[]): string | null {
   const filled = metrics
-    .map((m, i) => ({ label: m, value: values[i] }))
+    .map((m, i) => ({ label: m.toLowerCase(), value: values[i] }))
     .filter((kv): kv is { label: string; value: string } => kv.value !== null);
   if (filled.length === 0) return null;
-  // Pick the most impactful KPI (first one with a real value)
-  const parts = filled.slice(0, 3).map((kv) => {
-    // Shorten the label
-    const short = kv.label
-      .replace(/^Nb de |^Nb d'|^Nombre de /i, "")
-      .replace(/ par owner.*| par période.*| par mois.*/i, "")
-      .replace(/\(.*\)/g, "")
-      .trim();
-    return `${short} ${kv.value}`;
-  });
-  return parts.join(" · ");
+
+  const v = (idx: number) => filled[idx]?.value ?? null;
+  const n = filled.length;
+  const t = title.toLowerCase();
+
+  // Attribution / contacts par owner
+  if (t.includes("contacts par owner") || t.includes("répartition des contacts")) {
+    return `Vos contacts sont répartis en moyenne à ${v(0)} avec ${v(2) ?? v(1)} sans attribution.`;
+  }
+  // Deals par owner
+  if (t.includes("deals par owner") || t.includes("répartition des deals")) {
+    return `Chaque commercial gère en moyenne ${v(0)} de deals actifs pour un pipeline de ${v(1)}.`;
+  }
+  // Entreprises par owner
+  if (t.includes("entreprises par owner") || t.includes("répartition des entreprises")) {
+    return `Vos comptes sont répartis à ${v(0)} avec ${v(2)} entreprises non attribuées.`;
+  }
+  // CA / Closed Won
+  if (t.includes("closed won") || t.includes("volume et montant")) {
+    return `Votre CRM affiche ${v(0)} deals closés pour un CA total de ${v(1)} et un deal moyen de ${v(2)}.`;
+  }
+  // CA par pipeline
+  if (t.includes("par pipeline") && t.includes("ca")) {
+    return `Le pipeline principal génère ${v(0)} de CA avec ${v(1)} deals gagnés et un taux de conversion de ${v(3) ?? v(2)}.`;
+  }
+  // CA par commercial / leaderboard
+  if (t.includes("leaderboard") || t.includes("ca par commercial")) {
+    return `En moyenne, chaque commercial a signé ${v(0)} pour ${v(1)} deals gagnés avec un deal moyen de ${v(2)}.`;
+  }
+  // Forecast
+  if (t.includes("forecast")) {
+    return `Le pipeline weighted s'élève à ${v(0)} contre un CA réalisé de ${v(1)}, soit un écart de ${v(2)}.`;
+  }
+  // Pipeline stagnant
+  if (t.includes("stagnant") || t.includes("bloqué")) {
+    return `${v(0)} deals sont bloqués depuis plus de 30 jours, représentant ${v(1)} de pipeline à risque.`;
+  }
+  // Conversion par stage
+  if (t.includes("conversion par stage") || t.includes("taux de conversion")) {
+    return `Le taux de conversion global est de ${v(2) ?? v(0)} avec la plus forte déperdition sur ${v(1) ?? "les premières étapes"}.`;
+  }
+  // Vélocité / cycle de vente
+  if (t.includes("vélocité") || t.includes("cycle de vente")) {
+    return `Le cycle de vente moyen est de ${v(2) ?? v(0)} avec les étapes les plus lentes identifiées sur ${v(1) ?? "le pipeline"}.`;
+  }
+  // Appels
+  if (t.includes("appels") || t.includes("téléphonique")) {
+    return n >= 3
+      ? `Vos commerciaux passent en moyenne ${v(0)} avec un taux de connexion de ${v(2)} et ${v(1)} par owner.`
+      : `Les appels génèrent ${v(0)} de CA influencé avec ${v(2) ?? v(1)} des deals won impliquant un appel.`;
+  }
+  // Meetings
+  if (t.includes("meeting")) {
+    return `${v(0)} meetings réalisés avec un taux de show-up de ${v(2) ?? v(1)}.`;
+  }
+  // Email
+  if (t.includes("email")) {
+    return `Vos commerciaux envoient en moyenne ${v(0)} avec un taux de réponse de ${v(2) ?? v(1)}.`;
+  }
+  // Social selling
+  if (t.includes("social")) {
+    return `Le canal social a généré ${v(0)} contacts avec un taux de conversion de ${v(2) ?? v(1)} vers les deals.`;
+  }
+  // Enrichissement / complétude
+  if (t.includes("enrichissement") || t.includes("complétude") || t.includes("qualité")) {
+    return `La complétude de votre base est de ${v(0)} avec les champs les moins remplis identifiés sur ${v(1) ?? "le téléphone et le poste"}.`;
+  }
+  // Deals orphelins
+  if (t.includes("orphelin") || t.includes("sans contact")) {
+    return `${v(0)} deals n'ont aucun contact associé et ${v(1)} n'ont pas d'entreprise, soit ${v(2)} de pipeline non rattaché.`;
+  }
+  // Outbound
+  if (t.includes("outbound")) {
+    return `Les campagnes outbound ont généré ${v(0)} avec ${v(1)} deals closés sur ce canal.`;
+  }
+  // Support / tickets
+  if (t.includes("ticket") || t.includes("support")) {
+    return `Votre support affiche ${v(0)} avec ${v(1) ?? v(2)} des tickets en priorité haute.`;
+  }
+  // CSAT
+  if (t.includes("csat") || t.includes("satisfaction")) {
+    return `Le score CSAT proxy est de ${v(0)} avec un taux de réouverture de ${v(2) ?? v(1)}.`;
+  }
+  // Billing / facturation
+  if (t.includes("facturation") || t.includes("facture")) {
+    return `${v(0)} factures émises pour un total de ${v(1)} dont ${v(2)} encaissés.`;
+  }
+  // MRR
+  if (t.includes("mrr") || t.includes("récurrent")) {
+    return `Votre MRR s'élève à ${v(0)} soit un ARR de ${v(1)} avec un taux de churn de ${v(2)}.`;
+  }
+  // Paiements
+  if (t.includes("paiement") || t.includes("succès")) {
+    return `${v(0)} paiements traités avec un taux de succès de ${v(1)} et ${v(2)} en échec.`;
+  }
+  // Conv intel
+  if (t.includes("pattern") || t.includes("conversationnel")) {
+    return `Les deals gagnés impliquent en moyenne ${v(0)} touchpoints avec un taux de réponse email de ${v(3) ?? v(1)}.`;
+  }
+
+  // Fallback — phrase générique mais lisible
+  if (n >= 3) {
+    return `Ce rapport montre ${v(0)} sur le premier indicateur, ${v(1)} sur le second et ${v(2)} sur le troisième.`;
+  }
+  if (n >= 1) {
+    return `Le principal indicateur de ce rapport affiche ${v(0)}.`;
+  }
+  return null;
 }
 
 type ActivatedReport = {
@@ -220,7 +317,7 @@ export default async function MesRapportsPage() {
                     <DeactivateReportButton reportId={report.report_id} />
                   </div>
                   {(() => {
-                    const summary = generateSummary(metrics, metricValues);
+                    const summary = generateSummary(report.title, metrics, metricValues);
                     return summary ? (
                       <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">{summary}</p>
                     ) : null;
