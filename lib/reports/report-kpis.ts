@@ -117,6 +117,9 @@ export type AllKpiData = {
   invoices: InvoiceKpis;
   subscriptions: SubscriptionKpis;
   payments: PaymentKpis;
+  /** Pipeline ID → name, Stage ID → name */
+  pipelineNames: Map<string, string>;
+  stageNames: Map<string, string>;
 };
 
 // ── HubSpot list fetch ────────────────────────────────────────────────────
@@ -153,6 +156,23 @@ async function fetchOwnerCount(token: string): Promise<number> {
     const data = await res.json();
     return Math.max(1, (data.results ?? []).length);
   } catch { return 1; }
+}
+
+async function fetchPipelineNames(token: string): Promise<{ pipelines: Map<string, string>; stages: Map<string, string> }> {
+  const pipelines = new Map<string, string>();
+  const stages = new Map<string, string>();
+  try {
+    const res = await fetch(`${HS}/crm/v3/pipelines/deals`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!res.ok) return { pipelines, stages };
+    const data = await res.json();
+    for (const p of data.results ?? []) {
+      pipelines.set(p.id, p.label);
+      for (const s of p.stages ?? []) {
+        stages.set(s.id, s.label);
+      }
+    }
+  } catch {}
+  return { pipelines, stages };
 }
 
 // ── HubSpot Associations batch read ──────────────────────────────────────
@@ -519,8 +539,9 @@ function aggregatePayments(rows: RawPayment[]): PaymentKpis {
 // ── Public: fetch all data ─────────────────────────────────────────────────
 
 export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string): Promise<AllKpiData> {
-  const [ownerCount, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
+  const [ownerCount, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
     fetchOwnerCount(token).catch(() => 1),
+    fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>() })),
     hsList(token, "contacts", [
       "hubspot_owner_id", "hs_analytics_source", "phone", "jobtitle", "email",
       "lifecyclestage", "associatedcompanyid", "createdate",
@@ -569,6 +590,8 @@ export async function fetchAllKpiData(token: string, supabase: SupabaseClient, o
     invoices: aggregateInvoices(rawInvoices),
     subscriptions: aggregateSubscriptions(rawSubs),
     payments: aggregatePayments(rawPayments),
+    pipelineNames: pipelineData.pipelines,
+    stageNames: pipelineData.stages,
   };
 }
 
@@ -590,13 +613,16 @@ function latestMonth(map: Map<string, unknown>): string | null {
 // ── Public: compute metric values ─────────────────────────────────────────
 
 export function computeMetricValues(data: AllKpiData): Record<string, string | null> {
-  const { ownerCount, contacts, deals, calls, meetings, emails, tickets, companies, invoices, subscriptions, payments } = data;
+  const { ownerCount, contacts, deals, calls, meetings, emails, tickets, companies, invoices, subscriptions, payments, pipelineNames, stageNames } = data;
 
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n));
   const fmtDec = (n: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(n);
   const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
   const pct = (n: number) => `${Math.round(n)} %`;
   const has = (n: number) => n > 0;
+  // Resolve pipeline/stage IDs to names
+  const plName = (id: string) => pipelineNames.get(id) ?? id;
+  const stName = (id: string) => stageNames.get(id) ?? id;
 
   const oc = ownerCount || 1;
   const contactTotal = contacts.total || 1;
@@ -713,10 +739,10 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Montant total des deals stagnants (€)"] = has(deals.stagnantAmount) ? eur(deals.stagnantAmount) : null;
   V["Top 10 deals bloqués par montant"] = deals.stagnantDeals.length > 0
     ? `${fmt(Math.min(10, deals.stagnantDeals.length))} deals, ${eur(deals.stagnantDeals.sort((a, b) => b.amount - a.amount).slice(0, 10).reduce((s, d) => s + d.amount, 0))}` : null;
-  V["Stage où les deals bloquent le plus"] = topStagnantStage ? `${topStagnantStage[0]} (${fmt(topStagnantStage[1])})` : (mostBlockedStage ? `${mostBlockedStage[0]} (${fmt(mostBlockedStage[1].active)})` : null);
+  V["Stage où les deals bloquent le plus"] = topStagnantStage ? `${stName(topStagnantStage[0])} (${fmt(topStagnantStage[1])})` : (mostBlockedStage ? `${stName(mostBlockedStage[0])} (${fmt(mostBlockedStage[1].active)})` : null);
   V["Taux de conversion entre chaque stage (%)"] = deals.perStage.size > 0
     ? `${deals.perStage.size} stages, global: ${pct(convRate)}` : null;
-  V["Stage avec le plus de déperdition"] = worstStage && worstStage[1].lost > 0 ? `${worstStage[0]} (${fmt(worstStage[1].lost)} perdus)` : null;
+  V["Stage avec le plus de déperdition"] = worstStage && worstStage[1].lost > 0 ? `${stName(worstStage[0])} (${fmt(worstStage[1].lost)} perdus)` : null;
   V["Évolution mensuelle des taux de conversion"] = monthEvolution !== null ? `${monthEvolution > 0 ? "+" : ""}${Math.round(monthEvolution)} %` : null;
 
   // ATTRIBUTION — COMPANIES
@@ -857,7 +883,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Temps de résolution moyen (h)"] = null; // needs ticket close timestamps
   V["Taux de résolution au 1er contact (%)"] = has(tickets.closed) ? pct((tickets.closed - tickets.reopened) / tickets.closed * 100) : null;
   V["Temps moyen de résolution (jours)"] = null; // needs ticket timestamps
-  V["Tickets par pipeline support"] = tickets.perPipeline.size > 0 ? [...tickets.perPipeline.entries()].map(([k, v]) => `${k}: ${v}`).join(", ") : null;
+  V["Tickets par pipeline support"] = tickets.perPipeline.size > 0 ? [...tickets.perPipeline.entries()].map(([k, v]) => `${plName(k)}: ${v}`).join(", ") : null;
   V["Nb de tickets par canal"] = tickets.perChannel.size > 0 ? [...tickets.perChannel.entries()].map(([k, v]) => `${k}: ${v}`).join(", ") : null;
   V["Temps de résolution par canal (h)"] = null; // needs ticket timestamps
   V["Évolution du volume par canal (tendance)"] = null; // needs time-series
@@ -930,10 +956,10 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
 
   // CYCLE DE VENTES
   V["Durée moyenne par étape (jours)"] = has(deals.timeInStageMs) ? `${fmtDec(deals.timeInStageMs / Math.max(1, deals.total) / 86_400_000)} j` : null;
-  V["Étapes les plus lentes (>21 jours)"] = topStagnantStage ? `${topStagnantStage[0]} (${fmt(topStagnantStage[1])} deals)` : null;
+  V["Étapes les plus lentes (>21 jours)"] = topStagnantStage ? `${stName(topStagnantStage[0])} (${fmt(topStagnantStage[1])} deals)` : null;
   V["Vélocité totale du pipeline (jours)"] = has(deals.avgDaysToClose) ? `${fmt(deals.avgDaysToClose)} j` : null;
   V["Comparaison par pipeline"] = deals.perPipeline.size > 1
-    ? [...deals.perPipeline.entries()].map(([k, v]) => `${k}: ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : "?"} j`).join(", ") : null;
+    ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)}: ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : "?"} j`).join(", ") : null;
 
   return V;
 }

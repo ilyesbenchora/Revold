@@ -263,16 +263,9 @@ export function ReportListWithFilter({ reports, variant, availableTools, kpiPrev
                       {report.metrics.map((m) => {
                         const val = kpiPreview?.[m] ?? null;
                         return (
-                          <li key={m} className="flex items-start justify-between gap-2 text-xs text-slate-700">
-                            <span className="flex items-start gap-1.5 min-w-0">
-                              <span className={`mt-0.5 shrink-0 ${isMulti ? "text-fuchsia-500" : "text-emerald-500"}`}>✓</span>
-                              <span className="line-clamp-2">{m}</span>
-                            </span>
-                            {val !== null && (
-                              <span className="ml-1 shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 tabular-nums">
-                                {val}
-                              </span>
-                            )}
+                          <li key={m} className="flex items-start gap-1.5 text-xs text-slate-700">
+                            <span className={`mt-0.5 shrink-0 ${isMulti ? "text-fuchsia-500" : "text-emerald-500"}`}>✓</span>
+                            <span className="line-clamp-2">{m}</span>
                           </li>
                         );
                       })}
