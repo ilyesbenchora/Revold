@@ -12,6 +12,25 @@ import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
 
+/** Generate a short summary sentence from the report's KPI values */
+function generateSummary(metrics: string[], values: (string | null)[]): string | null {
+  const filled = metrics
+    .map((m, i) => ({ label: m, value: values[i] }))
+    .filter((kv): kv is { label: string; value: string } => kv.value !== null);
+  if (filled.length === 0) return null;
+  // Pick the most impactful KPI (first one with a real value)
+  const parts = filled.slice(0, 3).map((kv) => {
+    // Shorten the label
+    const short = kv.label
+      .replace(/^Nb de |^Nb d'|^Nombre de /i, "")
+      .replace(/ par owner.*| par période.*| par mois.*/i, "")
+      .replace(/\(.*\)/g, "")
+      .trim();
+    return `${short} ${kv.value}`;
+  });
+  return parts.join(" · ");
+}
+
 type ActivatedReport = {
   id: string;
   report_id: string;
@@ -180,8 +199,8 @@ export default async function MesRapportsPage() {
                 )}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between border-t border-card-border px-5 py-2.5">
-                  <div className="flex items-center gap-2">
+                <div className="border-t border-card-border px-5 py-2.5">
+                  <div className="flex items-center justify-between">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium ${
                       allReady
                         ? "bg-emerald-50 text-emerald-700"
@@ -198,8 +217,14 @@ export default async function MesRapportsPage() {
                           ? `${nonNullCount} sur ${metrics.length} KPIs`
                           : "En attente"}
                     </span>
+                    <DeactivateReportButton reportId={report.report_id} />
                   </div>
-                  <DeactivateReportButton reportId={report.report_id} />
+                  {(() => {
+                    const summary = generateSummary(metrics, metricValues);
+                    return summary ? (
+                      <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">{summary}</p>
+                    ) : null;
+                  })()}
                 </div>
               </article>
             );
