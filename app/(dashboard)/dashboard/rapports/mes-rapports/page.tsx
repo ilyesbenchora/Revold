@@ -11,121 +11,196 @@ import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
 import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
+import { ReportInsight } from "@/components/report-insight";
 
-/** Generate a readable summary sentence from the report's KPI values */
-function generateSummary(title: string, metrics: string[], values: (string | null)[]): string | null {
+type ReportInsight = { headline: string; detail: string | null };
+
+/** Generate a percutant analysis from the report's KPI values */
+function generateInsight(title: string, metrics: string[], values: (string | null)[]): ReportInsight | null {
   const filled = metrics
-    .map((m, i) => ({ label: m.toLowerCase(), value: values[i] }))
+    .map((m, i) => ({ label: m, value: values[i] }))
     .filter((kv): kv is { label: string; value: string } => kv.value !== null);
   if (filled.length === 0) return null;
 
   const v = (idx: number) => filled[idx]?.value ?? null;
-  const n = filled.length;
+  const l = (idx: number) => filled[idx]?.label ?? "";
   const t = title.toLowerCase();
 
-  // Attribution / contacts par owner
+  // ── Attribution contacts ──
   if (t.includes("contacts par owner") || t.includes("répartition des contacts")) {
-    return `Vos contacts sont répartis en moyenne à ${v(0)} avec ${v(2) ?? v(1)} sans attribution.`;
+    return {
+      headline: `En moyenne ${v(0)} par commercial — ${v(2) ?? v(1)} contacts ne sont attribués à personne.`,
+      detail: v(3) ? `L'évolution mensuelle montre ${v(3)}. Les contacts non attribués représentent un risque de perte d'opportunités car aucun commercial ne les suit activement.` : null,
+    };
   }
-  // Deals par owner
+  // ── Deals par owner ──
   if (t.includes("deals par owner") || t.includes("répartition des deals")) {
-    return `Chaque commercial gère en moyenne ${v(0)} de deals actifs pour un pipeline de ${v(1)}.`;
+    return {
+      headline: `Chaque commercial gère ${v(0)} de deals actifs pour un pipeline moyen de ${v(1)}.`,
+      detail: v(2) ? `${v(2)} deals ne sont attribués à aucun commercial. ${v(3) ? `La répartition par pipeline montre : ${v(3)}.` : ""} Un rééquilibrage pourrait améliorer le taux de closing.` : null,
+    };
   }
-  // Entreprises par owner
-  if (t.includes("entreprises par owner") || t.includes("répartition des entreprises")) {
-    return `Vos comptes sont répartis à ${v(0)} avec ${v(2)} entreprises non attribuées.`;
+  // ── Entreprises par owner ──
+  if (t.includes("entreprises") && t.includes("owner")) {
+    return {
+      headline: `Vos comptes sont répartis à ${v(0)} avec ${v(2)} entreprises sans owner.`,
+      detail: v(3) ? `Le secteur dominant est ${v(3)}. Le revenu annuel moyen par owner est de ${v(1)}. Les entreprises non attribuées risquent d'être négligées dans le suivi commercial.` : null,
+    };
   }
-  // CA / Closed Won
+  // ── Closed Won ──
   if (t.includes("closed won") || t.includes("volume et montant")) {
-    return `Votre CRM affiche ${v(0)} deals closés pour un CA total de ${v(1)} et un deal moyen de ${v(2)}.`;
+    return {
+      headline: `${v(0)} deals signés ce mois pour ${v(1)} de CA — deal moyen à ${v(2)}.`,
+      detail: v(3) ? `L'évolution par rapport au mois précédent est de ${v(3)}. Surveillez la tendance pour anticiper les variations de revenus et ajuster les objectifs commerciaux.` : null,
+    };
   }
-  // CA par pipeline
+  // ── CA par pipeline ──
   if (t.includes("par pipeline") && t.includes("ca")) {
-    return `Le pipeline principal génère ${v(0)} de CA avec ${v(1)} deals gagnés et un taux de conversion de ${v(3) ?? v(2)}.`;
+    return {
+      headline: `Le top pipeline génère ${v(0)} de CA avec un taux de conversion de ${v(3) ?? v(2)}.`,
+      detail: `${v(1)} deals ont été gagnés sur ce pipeline avec un deal moyen de ${v(2)}. Comparez les performances entre pipelines pour identifier les circuits de vente les plus rentables.`,
+    };
   }
-  // CA par commercial / leaderboard
+  // ── Leaderboard ──
   if (t.includes("leaderboard") || t.includes("ca par commercial")) {
-    return `En moyenne, chaque commercial a signé ${v(0)} pour ${v(1)} deals gagnés avec un deal moyen de ${v(2)}.`;
+    return {
+      headline: `En moyenne ${v(0)} de CA signé par commercial pour ${v(1)} deals gagnés.`,
+      detail: `Le deal moyen s'élève à ${v(2)}. ${v(3) ? `CA total réalisé : ${v(3)}.` : ""} Identifiez les top performers pour répliquer leurs méthodes et accompagnez ceux en dessous de la moyenne.`,
+    };
   }
-  // Forecast
+  // ── Forecast ──
   if (t.includes("forecast")) {
-    return `Le pipeline weighted s'élève à ${v(0)} contre un CA réalisé de ${v(1)}, soit un écart de ${v(2)}.`;
+    return {
+      headline: `Pipeline weighted de ${v(0)} contre ${v(1)} réalisé — écart de ${v(2)}.`,
+      detail: v(3) ? `Le pipeline pondéré par owner est de ${v(3)}. Un écart important entre forecast et réalisé indique un problème de qualification des opportunités ou de surestimation des montants.` : null,
+    };
   }
-  // Pipeline stagnant
+  // ── Pipeline stagnant ──
   if (t.includes("stagnant") || t.includes("bloqué")) {
-    return `${v(0)} deals sont bloqués depuis plus de 30 jours, représentant ${v(1)} de pipeline à risque.`;
+    return {
+      headline: `${v(0)} deals bloqués depuis plus de 30 jours — ${v(1)} de pipeline en danger.`,
+      detail: v(2) ? `Les deals les plus importants bloqués représentent ${v(2)}. ${v(3) ? `L'étape où les deals stagnent le plus : ${v(3)}.` : ""} Chaque jour de stagnation réduit la probabilité de closing.` : null,
+    };
   }
-  // Conversion par stage
+  // ── Conversion par stage ──
   if (t.includes("conversion par stage") || t.includes("taux de conversion")) {
-    return `Le taux de conversion global est de ${v(2) ?? v(0)} avec la plus forte déperdition sur ${v(1) ?? "les premières étapes"}.`;
+    return {
+      headline: `Taux de conversion global de ${v(2) ?? v(0)} — principale perte sur ${v(1) ?? "les premières étapes"}.`,
+      detail: v(3) ? `L'évolution mensuelle des conversions montre ${v(3)}. Concentrez vos efforts de coaching sur les étapes où la déperdition est la plus forte pour maximiser le passage en closing.` : null,
+    };
   }
-  // Vélocité / cycle de vente
+  // ── Vélocité ──
   if (t.includes("vélocité") || t.includes("cycle de vente")) {
-    return `Le cycle de vente moyen est de ${v(2) ?? v(0)} avec les étapes les plus lentes identifiées sur ${v(1) ?? "le pipeline"}.`;
+    return {
+      headline: `Cycle de vente moyen de ${v(2) ?? v(0)} — les deals ralentissent sur ${v(1) ?? "certaines étapes"}.`,
+      detail: v(3) ? `Comparaison par pipeline : ${v(3)}. Chaque jour gagné sur le cycle de vente accélère la génération de CA et libère de la capacité commerciale.` : null,
+    };
   }
-  // Appels
+  // ── Appels volume ──
+  if (t.includes("volume d'appels")) {
+    return {
+      headline: `${v(0)} d'appels par jour et par commercial avec ${v(2)} de taux de connexion.`,
+      detail: `Durée moyenne de ${v(1)} par owner. ${v(3) ? `Deals touchés par les appels : ${v(3)}.` : ""} Un taux de connexion bas peut indiquer des horaires d'appels à optimiser.`,
+    };
+  }
+  // ── Appels CA ──
   if (t.includes("appels") || t.includes("téléphonique")) {
-    return n >= 3
-      ? `Vos commerciaux passent en moyenne ${v(0)} avec un taux de connexion de ${v(2)} et ${v(1)} par owner.`
-      : `Les appels génèrent ${v(0)} de CA influencé avec ${v(2) ?? v(1)} des deals won impliquant un appel.`;
+    return {
+      headline: `${v(2) ?? v(0)} des deals gagnés ont impliqué au moins un appel téléphonique.`,
+      detail: `CA influencé par les appels : ${v(0)}. ${v(1) ? `Le CA moyen avec appels vs sans : ${v(1)}.` : ""} ${v(3) ? `Top commercial par CA influencé : ${v(3)}.` : ""} Le téléphone reste un levier de closing majeur.`,
+    };
   }
-  // Meetings
+  // ── Meetings ──
   if (t.includes("meeting")) {
-    return `${v(0)} meetings réalisés avec un taux de show-up de ${v(2) ?? v(1)}.`;
+    return {
+      headline: `${v(0)} meetings réalisés avec un taux de show-up de ${v(2) ?? v(1)}.`,
+      detail: v(3) ? `En moyenne ${v(3)} meetings par deal fermé. ${v(1) ? `Taux de conversion meeting → deal : ${v(1)}.` : ""} Optimisez le nombre de meetings par deal pour ne pas sur-investir en temps commercial.` : null,
+    };
   }
-  // Email
+  // ── Email ──
   if (t.includes("email")) {
-    return `Vos commerciaux envoient en moyenne ${v(0)} avec un taux de réponse de ${v(2) ?? v(1)}.`;
+    return {
+      headline: `${v(0)} d'emails envoyés par semaine avec un taux de réponse de ${v(2) ?? v(1)}.`,
+      detail: v(3) ? `Les commerciaux les plus actifs : ${v(3)}. ${v(1) ? `Emails reçus en retour : ${v(1)}.` : ""} Un taux de réponse élevé corrèle avec un cycle de vente plus court.` : null,
+    };
   }
-  // Social selling
+  // ── Social ──
   if (t.includes("social")) {
-    return `Le canal social a généré ${v(0)} contacts avec un taux de conversion de ${v(2) ?? v(1)} vers les deals.`;
+    return {
+      headline: `Le social selling a généré ${v(0)} contacts et ${v(2) ?? v(1)} de taux de conversion.`,
+      detail: v(3) ? `CA total issu du social : ${v(3)}. ${v(1) ? `Nombre de contacts source social : ${v(1)}.` : ""} Le social selling est un canal à fort potentiel de développement.` : null,
+    };
   }
-  // Enrichissement / complétude
+  // ── Enrichissement ──
   if (t.includes("enrichissement") || t.includes("complétude") || t.includes("qualité")) {
-    return `La complétude de votre base est de ${v(0)} avec les champs les moins remplis identifiés sur ${v(1) ?? "le téléphone et le poste"}.`;
+    return {
+      headline: `Complétude de votre base à ${v(0)} — les champs critiques manquent sur ${v(1) ?? "plusieurs propriétés"}.`,
+      detail: v(2) ? `Score de qualité moyen : ${v(2)}. ${v(3) ? `${v(3)} contacts à enrichir en priorité.` : ""} Une base incomplète dégrade le scoring, le routing et la personnalisation des séquences.` : null,
+    };
   }
-  // Deals orphelins
+  // ── Orphelins ──
   if (t.includes("orphelin") || t.includes("sans contact")) {
-    return `${v(0)} deals n'ont aucun contact associé et ${v(1)} n'ont pas d'entreprise, soit ${v(2)} de pipeline non rattaché.`;
+    return {
+      headline: `${v(0)} deals sans contact et ${v(1)} sans entreprise — ${v(2)} de CA non rattaché.`,
+      detail: v(3) ? `${v(3)} de deals orphelins par pipeline. Les deals sans association faussent le reporting et empêchent le suivi client post-signature.` : null,
+    };
   }
-  // Outbound
+  // ── Outbound ──
   if (t.includes("outbound")) {
-    return `Les campagnes outbound ont généré ${v(0)} avec ${v(1)} deals closés sur ce canal.`;
+    return {
+      headline: `L'outbound a généré ${v(0)} de CA avec ${v(1)} deals signés.`,
+      detail: v(2) ? `Deal moyen outbound : ${v(2)}. ${v(3) ? `Comparaison outbound vs inbound : ${v(3)}.` : ""} Mesurez le ROI par campagne pour concentrer le budget sur les séquences les plus performantes.` : null,
+    };
   }
-  // Support / tickets
+  // ── Support ──
   if (t.includes("ticket") || t.includes("support")) {
-    return `Votre support affiche ${v(0)} avec ${v(1) ?? v(2)} des tickets en priorité haute.`;
+    return {
+      headline: `${v(0)} avec ${v(1) ?? v(2)} de tickets haute priorité.`,
+      detail: v(2) ? `Taux de résolution au 1er contact : ${v(2)}. ${v(3) ? `Réouvertures : ${v(3)}.` : ""} Un volume élevé de tickets critiques est un signal d'alerte pour la rétention client.` : null,
+    };
   }
-  // CSAT
+  // ── CSAT ──
   if (t.includes("csat") || t.includes("satisfaction")) {
-    return `Le score CSAT proxy est de ${v(0)} avec un taux de réouverture de ${v(2) ?? v(1)}.`;
+    return {
+      headline: `Score CSAT proxy à ${v(0)} — satisfaction estimée à partir des résolutions et réouvertures.`,
+      detail: v(1) ? `Performance par agent : ${v(1)}. Taux de réouverture : ${v(2) ?? "non mesuré"}. ${v(3) ? `Évolution : ${v(3)}.` : ""} Le CSAT proxy permet de suivre la satisfaction sans sondage explicite.` : null,
+    };
   }
-  // Billing / facturation
+  // ── Facturation ──
   if (t.includes("facturation") || t.includes("facture")) {
-    return `${v(0)} factures émises pour un total de ${v(1)} dont ${v(2)} encaissés.`;
+    return {
+      headline: `${v(0)} factures émises pour ${v(1)} facturé dont ${v(2)} encaissé.`,
+      detail: v(3) ? `Factures en attente : ${v(3)}. Surveillez les écarts entre CA CRM et facturation réelle pour détecter les deals signés mais non facturés.` : null,
+    };
   }
-  // MRR
+  // ── MRR ──
   if (t.includes("mrr") || t.includes("récurrent")) {
-    return `Votre MRR s'élève à ${v(0)} soit un ARR de ${v(1)} avec un taux de churn de ${v(2)}.`;
+    return {
+      headline: `MRR à ${v(0)} soit un ARR de ${v(1)} — churn à ${v(2)}.`,
+      detail: v(3) ? `Paiements : ${v(3)}. Le MRR est l'indicateur clé de la santé SaaS. Un churn supérieur à 5% mensuel signale un problème de rétention à adresser d'urgence.` : null,
+    };
   }
-  // Paiements
+  // ── Paiements ──
   if (t.includes("paiement") || t.includes("succès")) {
-    return `${v(0)} paiements traités avec un taux de succès de ${v(1)} et ${v(2)} en échec.`;
+    return {
+      headline: `${v(0)} paiements traités — taux de succès à ${v(1)} avec ${v(2)} en échec.`,
+      detail: v(3) ? `Impayés : ${v(3)}. Les paiements échoués génèrent du churn involontaire. Mettez en place des relances automatiques pour récupérer le CA perdu.` : null,
+    };
   }
-  // Conv intel
+  // ── Conv intel ──
   if (t.includes("pattern") || t.includes("conversationnel")) {
-    return `Les deals gagnés impliquent en moyenne ${v(0)} touchpoints avec un taux de réponse email de ${v(3) ?? v(1)}.`;
+    return {
+      headline: `Les deals gagnés impliquent ${v(0)} touchpoints en moyenne — le ratio de réponse est de ${v(3) ?? v(1)}.`,
+      detail: v(2) ? `Notes logées : ${v(2)}. ${v(1) ? `Meetings par deal won vs lost : ${v(1)}.` : ""} Les deals avec plus de touchpoints ont significativement plus de chances de closer.` : null,
+    };
   }
 
-  // Fallback — phrase générique mais lisible
-  if (n >= 3) {
-    return `Ce rapport montre ${v(0)} sur le premier indicateur, ${v(1)} sur le second et ${v(2)} sur le troisième.`;
-  }
-  if (n >= 1) {
-    return `Le principal indicateur de ce rapport affiche ${v(0)}.`;
-  }
-  return null;
+  // ── Fallback ──
+  const headline = filled.slice(0, 2).map((kv) => `${kv.label} à ${kv.value}`).join(" et ");
+  return {
+    headline: headline + ".",
+    detail: filled.length > 2 ? filled.slice(2).map((kv) => `${kv.label} : ${kv.value}`).join(". ") + "." : null,
+  };
 }
 
 type ActivatedReport = {
@@ -317,10 +392,8 @@ export default async function MesRapportsPage() {
                     <DeactivateReportButton reportId={report.report_id} />
                   </div>
                   {(() => {
-                    const summary = generateSummary(report.title, metrics, metricValues);
-                    return summary ? (
-                      <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">{summary}</p>
-                    ) : null;
+                    const insight = generateInsight(report.title, metrics, metricValues);
+                    return insight ? <ReportInsight headline={insight.headline} detail={insight.detail} /> : null;
                   })()}
                 </div>
               </article>
