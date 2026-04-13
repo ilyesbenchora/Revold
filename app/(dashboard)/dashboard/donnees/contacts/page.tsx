@@ -3,7 +3,7 @@ export const maxDuration = 60;
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { getBarColor } from "@/lib/score-utils";
+// getBarColor removed — no longer used after removing summary block
 import { PropertyCarousel } from "@/components/property-carousel";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
 import { ContactAssociationsBlock } from "@/components/contact-associations-block";
@@ -191,11 +191,6 @@ export default async function DonneesContactsPage() {
   propertyUsage = propertyUsage.filter((p) => !zeroHubspotNames.has(p.name) || p.isCustom);
 
   const t = totalContacts;
-  const globalCompleteness = allPropertyStats.length > 0
-    ? Math.round(allPropertyStats.reduce((s, p) => s + p.fillRate, 0) / allPropertyStats.length * 10) / 10
-    : 0;
-  const customCount = allPropertyStats.filter((p) => p.isCustom).length;
-  const hubspotCount = allPropertyStats.filter((p) => !p.isCustom).length;
 
   // Enrich shared props with fill rates
   // Enrich shared props with fill rates and filter out HubSpot 0%
@@ -207,25 +202,6 @@ export default async function DonneesContactsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Complétude globale des contacts</p>
-            <p className="text-xs text-slate-500">
-              {t.toLocaleString("fr-FR")} contacts · {allPropertyStats.length} propriétés ({customCount} custom · {hubspotCount} HubSpot)
-            </p>
-          </div>
-          <div className="text-right">
-            <p className={`text-3xl font-bold tabular-nums ${globalCompleteness >= 80 ? "text-emerald-600" : globalCompleteness >= 50 ? "text-amber-600" : "text-red-500"}`}>{globalCompleteness} %</p>
-            <p className="text-[10px] text-slate-400">complétude moyenne</p>
-          </div>
-        </div>
-        <div className="mt-3 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div className={`h-full rounded-full ${getBarColor(Math.round(globalCompleteness))} transition-all`} style={{ width: `${globalCompleteness}%` }} />
-        </div>
-      </div>
-
       {!hasData && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-xs font-medium text-amber-800">
