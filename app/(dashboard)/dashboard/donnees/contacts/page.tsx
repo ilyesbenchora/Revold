@@ -79,23 +79,10 @@ export default async function DonneesContactsPage() {
   const supabase = await createSupabaseServerClient();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
 
-  const [
-    { count: total },
-    { count: withEmail },
-    { count: withPhone },
-    { count: withTitle },
-    { count: withCompany },
-    { count: withLifecycle },
-    { count: withOwner },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("email", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("phone", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("title", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("lifecycle_stage", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("hubspot_owner_id", "is", null),
-  ]);
+  const { count: total } = await supabase
+    .from("contacts")
+    .select("*", { count: "exact", head: true })
+    .eq("organization_id", orgId);
 
   // Fetch HubSpot property fill rates + usage/dependencies
   let allPropertyStats: Array<{ name: string; label: string; fillRate: number; isCustom: boolean }> = [];
@@ -108,23 +95,14 @@ export default async function DonneesContactsPage() {
   }
 
   const t = total ?? 0;
-  const pct = (n: number | null) => t > 0 ? Math.round(((n ?? 0) / t) * 100) : 0;
 
-  // 6 KPIs fixes with HubSpot/Custom badge
-  const fixedFields = [
-    { label: "Email", filled: pct(withEmail), icon: "📧", isHubspot: true },
-    { label: "Téléphone", filled: pct(withPhone), icon: "📱", isHubspot: true },
-    { label: "Poste / Titre", filled: pct(withTitle), icon: "💼", isHubspot: true },
-    { label: "Entreprise associée", filled: pct(withCompany), icon: "🏢", isHubspot: true },
-    { label: "Lifecycle stage", filled: pct(withLifecycle), icon: "🔄", isHubspot: true },
-    { label: "Owner attribué", filled: pct(withOwner), icon: "👤", isHubspot: true },
-  ];
+  // Global completeness from all property fill rates
+  const globalCompleteness = allPropertyStats.length > 0
+    ? Math.round(allPropertyStats.reduce((s, p) => s + p.fillRate, 0) / allPropertyStats.length)
+    : 0;
 
-  const globalCompleteness = fixedFields.length > 0 ? Math.round(fixedFields.reduce((s, f) => s + f.filled, 0) / fixedFields.length) : 0;
-
-  // Top 50 properties for carousel (exclude the fixed ones to avoid duplicates)
-  const fixedNames = new Set(["email", "phone", "jobtitle", "company", "lifecyclestage", "hubspot_owner_id"]);
-  const carouselProps = allPropertyStats.filter((p) => !fixedNames.has(p.name)).slice(0, 50);
+  // Top 50 properties for carousel
+  const carouselProps = allPropertyStats.slice(0, 50);
 
   return (
     <div className="space-y-6">
@@ -142,35 +120,6 @@ export default async function DonneesContactsPage() {
         </div>
         <div className="mt-3 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
           <div className={`h-full rounded-full ${getBarColor(globalCompleteness)} transition-all`} style={{ width: `${globalCompleteness}%` }} />
-        </div>
-      </div>
-
-      {/* 6 fixed KPIs */}
-      <div>
-        <h2 className="text-sm font-semibold text-slate-900 mb-3">Champs clés</h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {fixedFields.map((f) => (
-            <div key={f.label} className="card p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{f.icon}</span>
-                  <span className="text-sm text-slate-700">{f.label}</span>
-                  <span className={`rounded px-1 py-px text-[8px] font-bold ${
-                    f.isHubspot ? "bg-orange-50 text-orange-500" : "bg-amber-50 text-amber-600"
-                  }`}>
-                    {f.isHubspot ? "HUBSPOT" : "CUSTOM"}
-                  </span>
-                </div>
-                <span className={`text-sm font-bold tabular-nums ${f.filled >= 80 ? "text-emerald-600" : f.filled >= 50 ? "text-amber-600" : "text-red-500"}`}>{f.filled} %</span>
-              </div>
-              <div className="mt-2 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                <div className={`h-full rounded-full ${getBarColor(f.filled)} transition-all`} style={{ width: `${f.filled}%` }} />
-              </div>
-              <p className="mt-1.5 text-[10px] text-slate-400">
-                {Math.round((f.filled / 100) * t).toLocaleString("fr-FR")} renseignés sur {t.toLocaleString("fr-FR")}
-              </p>
-            </div>
-          ))}
         </div>
       </div>
 
