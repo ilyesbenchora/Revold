@@ -61,32 +61,7 @@ export default async function MesRapportsPage() {
     try {
       const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
       kpiValues = computeMetricValues(kpiData);
-      // Debug: log data counts and metric matching
-      console.log("[mes-rapports] HubSpot data:", {
-        contacts: kpiData.contacts.total,
-        deals: kpiData.deals.total,
-        calls: kpiData.calls.total,
-        meetings: kpiData.meetings.total,
-        emails: kpiData.emails.totalSent,
-        tickets: kpiData.tickets.total,
-        companies: kpiData.companies.total,
-        dealsWithCalls: kpiData.deals.dealsWithCalls,
-        dealsWithMeetings: kpiData.deals.dealsWithMeetings,
-      });
-      console.log("[mes-rapports] kpiValues computed:", Object.keys(kpiValues).length, "keys,", Object.values(kpiValues).filter(v => v !== null).length, "non-null");
-      // Check first report metric matching
-      const firstReport = activatedReports[0];
-      if (firstReport) {
-        const metrics = (firstReport.metrics as string[]) ?? [];
-        const matches = metrics.map(m => ({ metric: m, value: kpiValues[m] ?? "NO_MATCH" }));
-        console.log("[mes-rapports] Report:", firstReport.title);
-        console.log("[mes-rapports] Metric matches:", JSON.stringify(matches));
-      }
-    } catch (err) {
-      console.error("[mes-rapports] KPI ERROR:", err);
-    }
-  } else {
-    console.log("[mes-rapports] SKIPPED — token:", !!hubspotToken, "reports:", activatedReports.length);
+    } catch {}
   }
 
   const myCount = activatedReports.length;

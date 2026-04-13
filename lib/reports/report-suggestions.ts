@@ -136,9 +136,9 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Revenue des deals Closed Won (amount) dont le contact source provient d'une séquence outbound. Croisement deal → contact → source.",
       metrics: [
         "CA total Closed Won issu de l'outbound (€)",
-        "CA moyen par séquence",
         "Nb de deals Closed Won par campagne",
-        "ROI par campagne (CA / coût outil)",
+        "Deal moyen Closed Won (€)",
+        "Comparaison outbound vs inbound",
       ],
       expectedValue:
         "Mesurez le ROI réel de chaque séquence outbound en euros.",
@@ -175,8 +175,8 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       metrics: [
         "Nb moyen d'appels par deal gagné vs perdu",
         "Durée moyenne des appels sur deals won",
-        "Conversion call → avancement de stage",
-        "Délai moyen entre appel et changement de stage",
+        "% des deals won ayant eu un appel",
+        "CA total des deals avec appels (€)",
       ],
       expectedValue:
         "Identifiez le nombre optimal d'appels pour closer un deal.",
@@ -229,31 +229,14 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Compare la conversion et le CA des contacts enrichis vs non-enrichis. Identifie les champs enrichis (email, téléphone, titre) qui impactent le plus le taux de conversion.",
       metrics: [
         "% de contacts enrichis dans la base",
-        "Taux de conversion enrichi vs non-enrichi",
-        "CA moyen sur deals avec contacts enrichis (€)",
-        "Champs les plus impactants sur la conversion",
+        "% de contacts enrichis par owner",
+        "Complétude par champ clé (%)",
+        "Nb de contacts à enrichir en priorité par owner",
       ],
       expectedValue:
         "Justifiez ou optimisez l'investissement en enrichissement.",
       priority: "high",
       icon: "💎",
-    },
-    {
-      category: "enrichment",
-      displayCategory: "qualite_donnees",
-      title: "Taux de doublons dans la base contacts",
-      description:
-        "Détection des contacts en doublon par email, nom+prénom ou téléphone. Croisement /crm/v3/objects/contacts avec déduplication.",
-      metrics: [
-        "Nb total de doublons détectés",
-        "% de doublons dans la base",
-        "Top 10 doublons par volume",
-        "Doublons avec des deals actifs associés",
-      ],
-      expectedValue:
-        "Nettoyez la base CRM pour fiabiliser les métriques et le routing.",
-      priority: "medium",
-      icon: "🧹",
     },
     {
       category: "enrichment",
@@ -264,7 +247,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       metrics: [
         "Nb de contacts sans company associée",
         "% de contacts orphelins",
-        "Contacts orphelins avec deals actifs",
+        "Nb de contacts orphelins (sans owner)",
         "Lifecycle stage des contacts orphelins",
       ],
       expectedValue:
@@ -291,43 +274,8 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
     },
   ],
 
-  // ===== E-SIGN =====
-  esign: [
-    {
-      category: "esign",
-      displayCategory: "cycle_ventes",
-      title: "Délai de signature et impact sur le time-to-close",
-      description:
-        "Temps entre l'envoi du contrat et la signature effective. Croisement avec closedate du deal HubSpot pour mesurer le poids de la signature dans le cycle.",
-      metrics: [
-        "Temps moyen envoi → signature (jours)",
-        "Taux de signature au 1er envoi",
-        "Nb de relances nécessaires avant signature",
-        "% du cycle total passé en phase signature",
-      ],
-      expectedValue:
-        "Réduisez le cycle de vente en optimisant la phase de signature.",
-      priority: "high",
-      icon: "✍️",
-    },
-    {
-      category: "esign",
-      displayCategory: "chiffre_affaires",
-      title: "Contrats abandonnés et revenue perdu",
-      description:
-        "Deals passés en 'Contract Sent' mais jamais signés. Montant total du pipeline perdu en phase de signature.",
-      metrics: [
-        "Nb de contrats non signés (>30j)",
-        "Montant total des contrats abandonnés (€)",
-        "Taux d'abandon par segment / taille de deal",
-        "Top commerciaux par taux d'abandon contrat",
-      ],
-      expectedValue:
-        "Récupérez du CA bloqué en phase de signature.",
-      priority: "high",
-      icon: "📉",
-    },
-  ],
+  // E-SIGN: requires PandaDoc/Yousign/DocuSign integration — no reports without it
+  esign: [],
 
   // ===== BILLING =====
   billing: [
@@ -339,9 +287,9 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Croise les deals HubSpot Closed Won (amount, closedate) avec la table invoices (Supabase) pour identifier les écarts entre forecast et facturation réelle.",
       metrics: [
         "CA forecast HubSpot vs facturé réel (€)",
-        "Nb de deals Won sans facture associée",
         "Écart moyen forecast vs facturé (%)",
-        "Délai moyen Closed Won → 1re facture émise (jours)",
+        "Montant total facturé (€)",
+        "Montant total encaissé (€)",
       ],
       expectedValue:
         "Fiabilisez le forecast et récupérez le CA signé non facturé.",
@@ -357,8 +305,8 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       metrics: [
         "MRR total actuel (€)",
         "ARR extrapolé (€)",
-        "MRR par plan / offre",
-        "Évolution MRR mois par mois (%, €)",
+        "Taux de churn gross (%)",
+        "Nb de paiements réussis vs échoués",
       ],
       expectedValue:
         "Pilotez la croissance du revenu récurrent avec des chiffres fiables.",
@@ -375,7 +323,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Nb de paiements réussis vs échoués",
         "Taux de succès global (%)",
         "Montant total en échec (€)",
-        "Taux de récupération après relance (dunning)",
+        "Montant total impayé (€)",
       ],
       expectedValue:
         "Réduisez les échecs de paiement et le churn involontaire.",
@@ -390,9 +338,9 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Factures émises mais non réglées, classées par ancienneté (30j, 60j, 90j+). Croisement invoices × payments (Supabase).",
       metrics: [
         "Montant total impayé (€)",
-        "Ventilation par tranche d'ancienneté",
-        "Top 10 clients par encours",
+        "Nb de factures en attente de paiement",
         "Nb de factures impayées > 90 jours",
+        "Montant total facturé (€)",
       ],
       expectedValue:
         "Priorisez le recouvrement et améliorez le DSO.",
@@ -406,32 +354,15 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       description:
         "Suivi du churn MRR (annulations) et de la contraction (downgrades) à partir de subscriptions (Supabase). Ventilation par cohorte.",
       metrics: [
-        "Churn MRR mensuel (€)",
         "Taux de churn gross (%)",
-        "Contraction MRR (downgrades, €)",
-        "Net Revenue Retention (%)",
+        "MRR total actuel (€)",
+        "ARR extrapolé (€)",
+        "Nb de paiements réussis vs échoués",
       ],
       expectedValue:
         "Identifiez les cohortes à risque et agissez avant le churn massif.",
       priority: "high",
       icon: "📉",
-    },
-    {
-      category: "billing",
-      displayCategory: "chiffre_affaires",
-      title: "Expansion revenue — upsells & cross-sells",
-      description:
-        "Revenue additionnel généré par les clients existants : upgrades de plan, ajout de licences. Données subscriptions (Supabase).",
-      metrics: [
-        "Expansion MRR mensuel (€)",
-        "Nb de clients ayant upgradé",
-        "Revenu moyen par upgrade (€)",
-        "% de clients en expansion vs stables",
-      ],
-      expectedValue:
-        "Maximisez le revenu sur la base client installée.",
-      priority: "medium",
-      icon: "🚀",
     },
   ],
 
@@ -445,9 +376,9 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Analyse des tickets (/crm/v3/objects/tickets ou table tickets Supabase) : volume, temps de première réponse, temps de résolution, statut.",
       metrics: [
         "Nb de tickets ouverts / fermés par période",
-        "Temps de première réponse moyen (h)",
-        "Temps de résolution moyen (h)",
+        "% de tickets haute priorité",
         "Taux de résolution au 1er contact (%)",
+        "Taux de réouverture de tickets (%)",
       ],
       expectedValue:
         "Améliorez la satisfaction client en réduisant les temps de réponse.",
@@ -462,31 +393,14 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Répartition des tickets par canal d'entrée (email, chat, téléphone) et par niveau de priorité.",
       metrics: [
         "Nb de tickets par canal",
-        "Temps de résolution par canal (h)",
         "% de tickets haute priorité",
-        "Évolution du volume par canal (tendance)",
+        "Tickets par pipeline support",
+        "Tickets haute priorité ouverts",
       ],
       expectedValue:
         "Optimisez l'allocation des agents support par canal.",
       priority: "medium",
       icon: "📊",
-    },
-    {
-      category: "support",
-      displayCategory: "service_client",
-      title: "Corrélation tickets ouverts → risque de churn",
-      description:
-        "Croise le nb de tickets récents par company avec les données de subscription pour identifier les comptes à risque.",
-      metrics: [
-        "Nb de tickets ouverts par company (30 derniers jours)",
-        "Tickets ouverts à 30j du renouvellement",
-        "MRR des comptes avec tickets critiques (€)",
-        "Score de risque churn par company",
-      ],
-      expectedValue:
-        "Détection précoce du churn via les signaux support.",
-      priority: "high",
-      icon: "🚨",
     },
     {
       category: "support",
@@ -498,7 +412,7 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
         "Score CSAT proxy global (%)",
         "CSAT proxy par agent support",
         "Taux de réouverture de tickets (%)",
-        "Évolution mensuelle du CSAT proxy",
+        "Nb de tickets ouverts / fermés par mois",
       ],
       expectedValue:
         "Suivez la satisfaction client sans sondage explicite.",
@@ -556,8 +470,8 @@ const REPORT_TEMPLATES: Record<ToolCategory, ReportTemplate[]> = {
       metrics: [
         "Nb moyen d'emails par deal",
         "Taux de réponse email par deal (hs_sales_email_last_replied)",
-        "Durée du cycle pour deals avec réponse email rapide vs lente",
         "Nb de touchpoints email avant Closed Won",
+        "Taux de réponse par owner (%)",
       ],
       expectedValue:
         "Optimisez la cadence email pour accélérer le cycle.",
@@ -749,7 +663,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
       "CA Closed Won par owner (€)",
       "Nb de deals Won par owner",
       "Deal moyen par owner (€)",
-      "% d'atteinte de quota par owner",
+      "CA réalisé Closed Won (€)",
     ],
     expectedValue:
       "Identifiez les top performers et ceux qui ont besoin de coaching.",
@@ -766,7 +680,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
       "Pipeline weighted total (€)",
       "CA réalisé Closed Won (€)",
       "Écart forecast vs réalisé (%)",
-      "Précision du forecast par owner",
+      "Pipeline weighted par owner",
     ],
     expectedValue:
       "Améliorez la fiabilité de vos prévisions de CA.",
@@ -802,7 +716,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
       "Tickets créés dans HubSpot (/crm/v3/objects/tickets) : volume, statut, pipeline support.",
     metrics: [
       "Nb de tickets ouverts / fermés par mois",
-      "Temps moyen de résolution (jours)",
+      "% de tickets haute priorité",
       "Tickets par pipeline support",
       "Tickets haute priorité ouverts",
     ],
@@ -822,8 +736,8 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     metrics: [
       "Complétude par champ clé (%)",
       "Champs les moins remplis (bottom 5)",
-      "Complétude par lifecycle stage",
-      "Évolution de la complétude mois par mois",
+      "Champs manquants les plus fréquents par owner",
+      "Score de qualité moyen par portefeuille",
     ],
     expectedValue:
       "Priorisez l'enrichissement sur les champs qui impactent le plus le business.",
@@ -847,76 +761,8 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     priority: "high",
     icon: "⚠️",
   },
-  {
-    category: "other",
-    displayCategory: "qualite_donnees",
-    title: "Contacts avec lifecycle stage incohérent",
-    description:
-      "Contacts dont le lifecyclestage ne correspond pas à leur situation réelle (ex: 'Lead' avec un deal Closed Won).",
-    metrics: [
-      "Nb de contacts avec lifecycle incohérent",
-      "Types d'incohérences les plus fréquents",
-      "Contacts 'Lead' avec deal Won",
-      "Contacts 'Customer' sans deal Won",
-    ],
-    expectedValue:
-      "Nettoyez les lifecycle stages pour un scoring et un routing fiables.",
-    priority: "medium",
-    icon: "🔄",
-  },
 
-  // --- ADOPTION OUTILS ---
-  {
-    category: "other",
-    displayCategory: "adoption_outils",
-    title: "Adoption du stack par utilisateur",
-    description:
-      "Pour chaque owner HubSpot, quels outils connectés il utilise réellement (source_links Supabase). Détecte les outils sous-exploités.",
-    metrics: [
-      "% d'adoption par outil et par user",
-      "Top 3 outils sous-utilisés",
-      "Users à former en priorité",
-      "Score d'adoption global de l'équipe",
-    ],
-    expectedValue:
-      "Maximisez le ROI de la stack en adressant la conduite du changement.",
-    priority: "medium",
-    icon: "👥",
-  },
-  {
-    category: "other",
-    displayCategory: "adoption_outils",
-    title: "Évolution de l'adoption dans le temps",
-    description:
-      "Courbe d'adoption de chaque outil connecté semaine par semaine. Détecte les outils en déclin (source_links Supabase).",
-    metrics: [
-      "Adoption semaine N vs N-1 par outil",
-      "Outils en croissance d'adoption",
-      "Outils en déclin d'adoption",
-      "Taux d'adoption global (%)",
-    ],
-    expectedValue:
-      "Anticipez le désengagement et agissez avant la perte du ROI.",
-    priority: "medium",
-    icon: "📈",
-  },
-  {
-    category: "other",
-    displayCategory: "adoption_outils",
-    title: "Connexions CRM par utilisateur",
-    description:
-      "Fréquence de connexion au CRM HubSpot par owner. Identifie les utilisateurs qui n'utilisent pas le CRM.",
-    metrics: [
-      "Nb de connexions par user / semaine",
-      "Dernière connexion par user",
-      "Users inactifs depuis 7+ jours",
-      "Corrélation adoption CRM ↔ performance commerciale",
-    ],
-    expectedValue:
-      "Détectez les commerciaux qui ne logent pas leur activité.",
-    priority: "low",
-    icon: "🔑",
-  },
+  // ADOPTION OUTILS: requires usage tracking — no reports without it
 
   // --- CYCLE DE VENTES ---
   {
@@ -978,9 +824,9 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
       "Prévision du CA basée sur le montant pondéré par la probabilité de chaque stage. Données deals × pipeline stages.",
     metrics: [
       "Pipeline weighted total (€)",
-      "Pipeline weighted par mois de closing attendu",
       "Pipeline weighted par owner",
-      "Couverture pipeline vs objectif (%)",
+      "CA réalisé Closed Won (€)",
+      "Écart forecast vs réalisé (%)",
     ],
     expectedValue:
       "Prévision de CA data-driven pour le comité de direction.",
