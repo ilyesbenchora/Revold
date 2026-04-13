@@ -149,9 +149,11 @@ export default async function MesRapportsPage() {
                     <span className="text-xl shrink-0 mt-0.5">{report.icon || "📊"}</span>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-[13px] font-semibold text-slate-900 leading-snug">{report.title}</h3>
-                      {report.description && (
-                        <p className="mt-1 text-[11px] text-slate-500 leading-relaxed line-clamp-2">{report.description}</p>
-                      )}
+                      {report.expected_value ? (
+                        <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">{report.expected_value}</p>
+                      ) : report.description ? (
+                        <p className="mt-1 text-[11px] text-slate-500 leading-relaxed line-clamp-1">{report.description}</p>
+                      ) : null}
                       <div className="flex items-center gap-2 mt-2">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
                           isMulti ? "bg-fuchsia-50 text-fuchsia-600" : "bg-indigo-50 text-indigo-600"

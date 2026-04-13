@@ -716,7 +716,8 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["% de la base par owner"] = has(contacts.total) ? pct(topOwnerPct) : null;
   V["Contacts sans owner (non attribués)"] = has(contacts.total) ? fmt(contacts.orphans) : null;
   V["Évolution mensuelle de l'attribution"] = contacts.perMonth.size >= 2
-    ? `${contacts.perMonth.size} mois, dernier: ${fmt(contacts.perMonth.get(latestMonth(contacts.perMonth) ?? "") ?? 0)}` : null;
+    ? [...contacts.perMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-4).map(([k, v]) => `${k.slice(5)}/${k.slice(2, 4)} ${fmt(v)}`).join(" → ")
+    : null;
   V["% de contacts attribués par owner"] = has(contacts.total) ? pct((contacts.total - contacts.orphans) / contacts.total * 100) : null;
   V["Nb de contacts orphelins (sans owner)"] = has(contacts.total) ? fmt(contacts.orphans) : null;
   V["Nb de contacts créés par source outbound"] = has(contacts.total) ? fmt(contacts.sourceOFFLINE) : null;
@@ -733,15 +734,14 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Montant total du pipeline par owner (€)"] = has(deals.caActive) ? eur(avgAmountPerOwner) : null;
   V["Nb de deals sans owner"] = has(deals.total) ? fmt(deals.orphans) : null;
   V["Deals par owner par pipeline"] = deals.perPipeline.size > 0
-    ? `${deals.perPipeline.size} pipeline(s), ${fmt(avgDealsPerOwner)} deals/owner` : null;
+    ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${fmt(v.active)}`).join(" · ") : null;
   V["Taux de conversion global pipeline → Won"] = has(totalClosed) ? pct(convRate) : null;
   V["Nb de deals stagnants (>30j même stage)"] = has(deals.total) ? fmt(deals.stagnantCount) : null;
   V["Montant total des deals stagnants (€)"] = has(deals.stagnantAmount) ? eur(deals.stagnantAmount) : null;
   V["Top 10 deals bloqués par montant"] = deals.stagnantDeals.length > 0
-    ? `${fmt(Math.min(10, deals.stagnantDeals.length))} deals, ${eur(deals.stagnantDeals.sort((a, b) => b.amount - a.amount).slice(0, 10).reduce((s, d) => s + d.amount, 0))}` : null;
-  V["Stage où les deals bloquent le plus"] = topStagnantStage ? `${stName(topStagnantStage[0])} (${fmt(topStagnantStage[1])})` : (mostBlockedStage ? `${stName(mostBlockedStage[0])} (${fmt(mostBlockedStage[1].active)})` : null);
-  V["Taux de conversion entre chaque stage (%)"] = deals.perStage.size > 0
-    ? `${deals.perStage.size} stages, global: ${pct(convRate)}` : null;
+    ? `${fmt(Math.min(10, deals.stagnantDeals.length))} deals · ${eur(deals.stagnantDeals.sort((a, b) => b.amount - a.amount).slice(0, 10).reduce((s, d) => s + d.amount, 0))}` : null;
+  V["Stage où les deals bloquent le plus"] = topStagnantStage ? `${stName(topStagnantStage[0])} · ${fmt(topStagnantStage[1])} deals` : (mostBlockedStage ? `${stName(mostBlockedStage[0])} · ${fmt(mostBlockedStage[1].active)} deals` : null);
+  V["Taux de conversion entre chaque stage (%)"] = has(totalClosed) ? pct(convRate) : null;
   V["Stage avec le plus de déperdition"] = worstStage && worstStage[1].lost > 0 ? `${stName(worstStage[0])} (${fmt(worstStage[1].lost)} perdus)` : null;
   V["Évolution mensuelle des taux de conversion"] = monthEvolution !== null ? `${monthEvolution > 0 ? "+" : ""}${Math.round(monthEvolution)} %` : null;
 
@@ -828,13 +828,13 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Nb de contacts sans company associée"] = has(contacts.total) ? fmt(contacts.withoutCompany) : null;
   V["Contacts orphelins avec deals actifs"] = null; // needs contact→deal association
   V["Lifecycle stage des contacts orphelins"] = contacts.lifecycleCounts.size > 0
-    ? [...contacts.lifecycleCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(", ") : null;
+    ? [...contacts.lifecycleCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${v}`).join(" · ") : null;
   V["Champs manquants les plus fréquents par owner"] = has(contacts.total)
-    ? `Tel: ${pct((1 - contacts.withPhone / contactTotal) * 100)}, Poste: ${pct((1 - contacts.withJobtitle / contactTotal) * 100)}` : null;
+    ? `Téléphone ${pct((1 - contacts.withPhone / contactTotal) * 100)} · Poste ${pct((1 - contacts.withJobtitle / contactTotal) * 100)} · Email ${pct((1 - contacts.withEmail / contactTotal) * 100)}` : null;
   V["Score de qualité moyen par portefeuille"] = has(contacts.total) ? pct(fieldCompleteness) : null;
   V["Nb de contacts à enrichir en priorité par owner"] = has(contacts.total) ? fmt(contacts.total - contacts.withPhone) : null;
   V["Champs les moins remplis (bottom 5)"] = has(contacts.total)
-    ? `Tel: ${pct(contacts.withPhone / contactTotal * 100)}, Poste: ${pct(contacts.withJobtitle / contactTotal * 100)}` : null;
+    ? `Téléphone ${pct(contacts.withPhone / contactTotal * 100)} · Poste ${pct(contacts.withJobtitle / contactTotal * 100)} · Email ${pct(contacts.withEmail / contactTotal * 100)}` : null;
   V["Complétude par lifecycle stage"] = null; // needs per-lifecycle completeness
   V["Évolution de la complétude mois par mois"] = null; // needs time-series
   V["Nb de deals sans contact associé"] = has(deals.total) ? fmt(deals.withoutContact) : null;
