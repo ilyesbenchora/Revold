@@ -159,9 +159,9 @@ export default async function MesRapportsPage() {
                               val !== null ? "bg-slate-50" : "bg-slate-50/50"
                             }`}
                           >
-                            <p className="text-[10px] font-medium text-slate-500 leading-tight line-clamp-1">{metric}</p>
-                            <p className={`mt-1 text-lg font-bold tabular-nums leading-none ${
-                              val !== null ? "text-slate-900" : "text-slate-300"
+                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">{metric}</p>
+                            <p className={`mt-0.5 text-xs tabular-nums leading-snug ${
+                              val !== null ? "text-slate-800" : "text-slate-300"
                             }`}>
                               {val ?? "—"}
                             </p>
