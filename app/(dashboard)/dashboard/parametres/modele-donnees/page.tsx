@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS, CANONICAL_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import { BrandLogo } from "@/components/brand-logo";
+import { ResolutionRules, type Rule } from "@/components/resolution-rules";
 import Link from "next/link";
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
@@ -28,7 +29,7 @@ const FIELD_AUTHORITY = [
 ];
 
 // ── Resolution rules (only Tier 1 + Tier 2 = fiable) ──
-const RESOLUTION_RULES = [
+const RESOLUTION_RULES: Rule[] = [
   {
     id: "siren_match",
     rule: "Match par SIREN",
@@ -335,66 +336,7 @@ export default async function ParametresModeleDonneesPage() {
           Comment Revold rapproche une entité entre deux outils.
           Les règles s&apos;exécutent par ordre de priorité décroissante — la première qui matche gagne.
         </p>
-        <div className="space-y-3">
-          {RESOLUTION_RULES.map((rule, idx) => (
-            <details key={rule.id} className="card overflow-hidden group" open={idx < 2}>
-              <summary className="flex cursor-pointer items-center justify-between p-5">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">{idx + 1}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{rule.rule}</p>
-                    <p className="text-xs text-slate-500">{rule.entity}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {rule.confidence !== null && (
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      rule.confidence >= 95 ? "bg-emerald-100 text-emerald-700" :
-                      rule.confidence >= 80 ? "bg-blue-100 text-blue-700" :
-                      "bg-amber-100 text-amber-700"
-                    }`}>
-                      {rule.confidence} %
-                    </span>
-                  )}
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    rule.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {rule.enabled ? "Actif" : "Inactif"}
-                  </span>
-                </div>
-              </summary>
-              <div className="border-t border-card-border bg-slate-50/50 p-5 space-y-4">
-                <p className="text-sm text-slate-600">{rule.description}</p>
-                {rule.warning && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
-                    <p className="text-xs font-medium text-amber-800">⚠ {rule.warning}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {rule.configFields.map((cf) => (
-                    <div key={cf.label}>
-                      <label className="text-xs font-medium text-slate-500">{cf.label}</label>
-                      {cf.type === "select" ? (
-                        <select defaultValue={cf.value} className={`${selectClass} mt-1`}>
-                          {cf.options!.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input type="text" defaultValue={cf.value} className={`${inputClass} mt-1`} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </details>
-          ))}
-        </div>
-        <div className="flex justify-end">
-          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
-            Enregistrer les règles
-          </button>
-        </div>
+        <ResolutionRules rules={RESOLUTION_RULES} />
       </div>
 
       {/* ── Matrice d'autorité des champs ── */}
