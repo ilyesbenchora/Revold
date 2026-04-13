@@ -131,7 +131,7 @@ async function hsList(token: string, objectType: string, properties: string[], m
       url.searchParams.set("limit", "100");
       url.searchParams.set("properties", properties.join(","));
       if (after) url.searchParams.set("after", after);
-      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, next: { revalidate: 300 } });
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       if (!res.ok) break;
       const data = await res.json();
       for (const item of data.results ?? []) {
@@ -148,7 +148,7 @@ async function hsList(token: string, objectType: string, properties: string[], m
 
 async function fetchOwnerCount(token: string): Promise<number> {
   try {
-    const res = await fetch(`${HS}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` }, next: { revalidate: 300 } });
+    const res = await fetch(`${HS}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     if (!res.ok) return 1;
     const data = await res.json();
     return Math.max(1, (data.results ?? []).length);
