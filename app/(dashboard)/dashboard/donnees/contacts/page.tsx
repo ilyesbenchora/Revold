@@ -196,9 +196,9 @@ async function fetchTrackingSources(token: string): Promise<TrackingResult> {
 }
 
 /**
- * Fetch fill rates by paginating contacts with all properties and counting server-side.
- * Uses batch read in chunks of 50 properties to cover all of them.
- * No Search API calls → no rate limit issues.
+ * Fetch fill rates using Search API HAS_PROPERTY for exact counts.
+ * Sequential calls (3 parallel max) with retry on 429 rate limits.
+ * ~260 properties × ~0.3s each = ~80s total — fits in 300s timeout.
  */
 async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
   // 1. Get all contact properties
@@ -214,71 +214,61 @@ async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
 
   if (relevantProps.length === 0) return [];
 
-  // 2. Paginate contacts (max 2000) with first 50 properties to get IDs + partial data
-  const propNames = relevantProps.map((p) => p.name);
-  const firstChunk = propNames.slice(0, 50);
-  const contactData = new Map<string, Record<string, string | null>>();
-  let after: string | undefined;
-  let pages = 0;
+  // 2. Get total contacts count
+  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filterGroups: [], limit: 1 }),
+  });
+  if (!totalRes.ok) return [];
+  const totalContacts = (await totalRes.json()).total ?? 0;
+  if (totalContacts === 0) return [];
 
-  while (pages < 100) {
-    const url = new URL(`${HS}/crm/v3/objects/contacts`);
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", firstChunk.join(","));
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) break;
-    const data = await res.json();
-    for (const item of data.results ?? []) contactData.set(item.id, { ...(item.properties ?? {}) });
-    after = data.paging?.next?.after;
-    pages++;
-    if (!after) break;
-  }
-
-  if (contactData.size === 0) return [];
-
-  // 3. Batch read remaining property chunks (50 at a time, max 100 contacts per batch read)
-  const contactIds = [...contactData.keys()];
-  for (let c = 1; c * 50 < propNames.length; c++) {
-    const chunk = propNames.slice(c * 50, (c + 1) * 50);
-    // Batch read in sub-batches of 100 IDs (HubSpot limit)
-    for (let i = 0; i < contactIds.length; i += 100) {
-      const idBatch = contactIds.slice(i, i + 100);
+  // 3. Search HAS_PROPERTY for each property — 3 parallel with retry on 429
+  async function searchCount(propName: string): Promise<number> {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(`${HS}/crm/v3/objects/contacts/batch/read`, {
+        const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ inputs: idBatch.map((id) => ({ id })), properties: chunk }),
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: propName, operator: "HAS_PROPERTY" }] }],
+            limit: 1,
+          }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          for (const item of data.results ?? []) {
-            const existing = contactData.get(item.id);
-            if (existing && item.properties) Object.assign(existing, item.properties);
-          }
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
         }
-      } catch {}
+        if (!res.ok) return 0;
+        return (await res.json()).total ?? 0;
+      } catch { return 0; }
+    }
+    return 0;
+  }
+
+  const results: PropStat[] = [];
+
+  // Batches of 3 with 250ms delay between batches
+  for (let i = 0; i < relevantProps.length; i += 3) {
+    const batch = relevantProps.slice(i, i + 3);
+    const counts = await Promise.all(batch.map((p) => searchCount(p.name)));
+
+    for (let j = 0; j < batch.length; j++) {
+      results.push({
+        name: batch[j].name,
+        label: batch[j].label || batch[j].name,
+        fillRate: Math.round((counts[j] / totalContacts) * 100),
+        isCustom: !batch[j].hubspotDefined,
+      });
+    }
+
+    if (i + 3 < relevantProps.length) {
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
 
-  // 4. Count fill rate per property
-  const total = contactData.size;
-  const contacts = [...contactData.values()];
-
-  return relevantProps
-    .map((p) => {
-      const filled = contacts.filter((c) => {
-        const val = c[p.name];
-        return val !== null && val !== undefined && val !== "";
-      }).length;
-      return {
-        name: p.name,
-        label: p.label || p.name,
-        fillRate: Math.round((filled / total) * 100),
-        isCustom: !p.hubspotDefined,
-      };
-    })
-    .sort((a, b) => b.fillRate - a.fillRate);
+  return results.sort((a, b) => b.fillRate - a.fillRate);
 }
 
 export default async function DonneesContactsPage() {
