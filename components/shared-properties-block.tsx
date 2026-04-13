@@ -28,37 +28,55 @@ const OBJ_COLORS: Record<string, string> = {
   tickets: "bg-emerald-100 text-emerald-700",
 };
 
+type ObjFilter = "all" | "3" | "2";
+
 export function SharedPropertiesBlock({ properties }: { properties: SharedProp[] }) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [objFilter, setObjFilter] = useState<ObjFilter>("all");
 
   const filtered = useMemo(() => {
-    if (filter === "all") return properties;
-    if (filter === "custom") return properties.filter((p) => p.isCustom);
-    return properties.filter((p) => !p.isCustom);
-  }, [properties, filter]);
+    let list = properties;
+    if (filter === "custom") list = list.filter((p) => p.isCustom);
+    else if (filter === "hubspot") list = list.filter((p) => !p.isCustom);
+    if (objFilter === "3") list = list.filter((p) => p.objects.length >= 3);
+    else if (objFilter === "2") list = list.filter((p) => p.objects.length === 2);
+    return list;
+  }, [properties, filter, objFilter]);
 
   const customCount = properties.filter((p) => p.isCustom).length;
   const hubspotCount = properties.filter((p) => !p.isCustom).length;
-  const onAll3 = filtered.filter((p) => p.objects.length === 3).length;
-  const on2 = filtered.filter((p) => p.objects.length === 2).length;
+  const onAll3 = properties.filter((p) => p.objects.length >= 3).length;
+  const on2 = properties.filter((p) => p.objects.length === 2).length;
 
   return (
     <div className="space-y-4">
       {/* KPIs + filter */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-indigo-50 px-3 py-2 text-center">
-            <p className="text-lg font-bold text-indigo-600 tabular-nums">{filtered.length}</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setObjFilter("all")}
+            className={`rounded-lg px-3 py-2 text-center transition ${objFilter === "all" ? "bg-indigo-100 ring-2 ring-indigo-400" : "bg-indigo-50 hover:bg-indigo-100"}`}
+          >
+            <p className="text-lg font-bold text-indigo-600 tabular-nums">{properties.length}</p>
             <p className="text-[9px] text-indigo-500">Partagées</p>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-center">
+          </button>
+          <button
+            type="button"
+            onClick={() => setObjFilter(objFilter === "3" ? "all" : "3")}
+            className={`rounded-lg px-3 py-2 text-center transition ${objFilter === "3" ? "bg-slate-200 ring-2 ring-slate-400" : "bg-slate-50 hover:bg-slate-100"}`}
+          >
             <p className="text-lg font-bold text-slate-800 tabular-nums">{onAll3}</p>
             <p className="text-[9px] text-slate-500">3 objets</p>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-center">
+          </button>
+          <button
+            type="button"
+            onClick={() => setObjFilter(objFilter === "2" ? "all" : "2")}
+            className={`rounded-lg px-3 py-2 text-center transition ${objFilter === "2" ? "bg-slate-200 ring-2 ring-slate-400" : "bg-slate-50 hover:bg-slate-100"}`}
+          >
             <p className="text-lg font-bold text-slate-800 tabular-nums">{on2}</p>
             <p className="text-[9px] text-slate-500">2 objets</p>
-          </div>
+          </button>
         </div>
         <div className="flex items-center gap-1.5">
           <button
