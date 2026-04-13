@@ -7,6 +7,7 @@ import { getBarColor } from "@/lib/score-utils";
 import { PropertyCarousel } from "@/components/property-carousel";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
 import { ContactAssociationsBlock } from "@/components/contact-associations-block";
+import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
@@ -111,6 +112,61 @@ async function fetchContactAssociations(token: string): Promise<AssociationStat[
  * returns the exact count of contacts that have this property filled.
  * No sampling, no approximation.
  */
+type SourceStat = { source: string; label: string; count: number; pct: number };
+
+const ANALYTICS_SOURCES = [
+  { value: "ORGANIC_SEARCH", label: "Recherche organique" },
+  { value: "PAID_SEARCH", label: "Recherche payante" },
+  { value: "EMAIL_MARKETING", label: "Email marketing" },
+  { value: "SOCIAL_MEDIA", label: "Réseaux sociaux" },
+  { value: "ORGANIC_SOCIAL", label: "Social organique" },
+  { value: "PAID_SOCIAL", label: "Social payant" },
+  { value: "REFERRALS", label: "Referrals" },
+  { value: "DIRECT_TRAFFIC", label: "Trafic direct" },
+  { value: "OTHER_CAMPAIGNS", label: "Autres campagnes" },
+  { value: "OFFLINE", label: "Offline / Import" },
+];
+
+async function fetchTrackingSources(token: string): Promise<{ sources: SourceStat[]; total: number }> {
+  // Total contacts with a source
+  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "hs_analytics_source", operator: "HAS_PROPERTY" }] }], limit: 1 }),
+  });
+  const totalWithSource = totalRes.ok ? ((await totalRes.json()).total ?? 0) : 0;
+  if (totalWithSource === 0) return { sources: [], total: 0 };
+
+  // Count per source (parallel batches of 10)
+  const counts = await Promise.all(
+    ANALYTICS_SOURCES.map(async (s) => {
+      try {
+        const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: "hs_analytics_source", operator: "EQ", value: s.value }] }],
+            limit: 1,
+          }),
+        });
+        if (!res.ok) return 0;
+        return (await res.json()).total ?? 0;
+      } catch { return 0; }
+    }),
+  );
+
+  const sources: SourceStat[] = ANALYTICS_SOURCES
+    .map((s, i) => ({
+      source: s.value,
+      label: s.label,
+      count: counts[i],
+      pct: totalWithSource > 0 ? Math.round((counts[i] / totalWithSource) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return { sources, total: totalWithSource };
+}
+
 async function fetchAllPropertyFillRates(token: string): Promise<PropStat[]> {
   // 1. Get all contact properties
   const propsRes = await fetch(`${HS}/crm/v3/properties/contacts`, {
@@ -189,11 +245,13 @@ export default async function DonneesContactsPage() {
   let allPropertyStats: PropStat[] = [];
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
+  let trackingData: { sources: SourceStat[]; total: number } = { sources: [], total: 0 };
   if (hubspotToken) {
-    [allPropertyStats, propertyUsage, associationStats] = await Promise.all([
+    [allPropertyStats, propertyUsage, associationStats, trackingData] = await Promise.all([
       fetchAllPropertyFillRates(hubspotToken),
       fetchPropertyUsage(hubspotToken),
       fetchContactAssociations(hubspotToken),
+      fetchTrackingSources(hubspotToken),
     ]);
   }
 
@@ -246,6 +304,17 @@ export default async function DonneesContactsPage() {
           <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet et par type d&apos;association</p>
           <div className="card p-4">
             <ContactAssociationsBlock stats={associationStats} />
+          </div>
+        </div>
+      )}
+
+      {/* Tracking sources */}
+      {trackingData.sources.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Propriétés de tracking</h2>
+          <p className="text-[11px] text-slate-500 mb-3">Répartition des contacts par source analytique HubSpot</p>
+          <div className="card p-4">
+            <TrackingSourcesBlock sources={trackingData.sources} total={trackingData.total} />
           </div>
         </div>
       )}
