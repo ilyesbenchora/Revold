@@ -76,37 +76,83 @@ async function fetchTrackingSources(token: string): Promise<TrackingResult> {
   };
 }
 
-// ── Associations: exact counts via Search API (only 2 calls) ──
+// ── Associations: % d'objets qui ont un contact associé ──
 
 async function fetchContactAssociations(token: string): Promise<AssociationStat[]> {
-  const searchCount = async (filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> => {
+  async function searchTotal(objectType: string): Promise<number> {
     try {
-      const res = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
+      const res = await fetch(`${HS}/crm/v3/objects/${objectType}/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
+        body: JSON.stringify({ filterGroups: [], limit: 1 }),
       });
-      if (!res.ok) return 0;
-      return (await res.json()).total ?? 0;
+      return res.ok ? ((await res.json()).total ?? 0) : 0;
     } catch { return 0; }
-  };
-  const totalRes = await fetch(`${HS}/crm/v3/objects/contacts/search`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ filterGroups: [], limit: 1 }),
-  });
-  const totalContacts = totalRes.ok ? ((await totalRes.json()).total ?? 0) : 0;
-  if (totalContacts === 0) return [];
+  }
 
-  const [withCompany, withDeal] = await Promise.all([
-    searchCount([{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }]),
-    searchCount([{ propertyName: "num_associated_deals", operator: "GT", value: "0" }]),
+  async function searchWithContacts(objectType: string): Promise<number> {
+    try {
+      const res = await fetch(`${HS}/crm/v3/objects/${objectType}/search`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [{ propertyName: "num_associated_contacts", operator: "GT", value: "0" }] }],
+          limit: 1,
+        }),
+      });
+      return res.ok ? ((await res.json()).total ?? 0) : 0;
+    } catch { return 0; }
+  }
+
+  async function fetchLabels(fromType: string): Promise<Array<{ label: string }>> {
+    try {
+      const res = await fetch(`${HS}/crm/v4/associations/${fromType}/contacts/labels`, {
+        headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.results ?? [])
+        .filter((l: { label: string | null }) => l.label)
+        .map((l: { label: string }) => ({ label: l.label }));
+    } catch { return []; }
+  }
+
+  const [totalCompanies, companiesWithContacts, companyLabels, totalDeals, dealsWithContacts, dealLabels] = await Promise.all([
+    searchTotal("companies"),
+    searchWithContacts("companies"),
+    fetchLabels("companies"),
+    searchTotal("deals"),
+    searchWithContacts("deals"),
+    fetchLabels("deals"),
   ]);
 
-  return [
-    { targetObject: "companies", targetLabel: "Entreprises", icon: "🏢", totalContacts, withAssociation: withCompany, rate: Math.round((withCompany / totalContacts) * 100), labels: [] },
-    { targetObject: "deals", targetLabel: "Transactions", icon: "💰", totalContacts, withAssociation: withDeal, rate: Math.round((withDeal / totalContacts) * 100), labels: [] },
-  ];
+  const results: AssociationStat[] = [];
+
+  if (totalCompanies > 0) {
+    results.push({
+      targetObject: "companies",
+      targetLabel: "Entreprises avec contacts",
+      icon: "🏢",
+      totalContacts: totalCompanies,
+      withAssociation: companiesWithContacts,
+      rate: Math.round((companiesWithContacts / totalCompanies) * 100),
+      labels: companyLabels.map((l) => ({ label: l.label, count: 0 })),
+    });
+  }
+
+  if (totalDeals > 0) {
+    results.push({
+      targetObject: "deals",
+      targetLabel: "Transactions avec contacts",
+      icon: "💰",
+      totalContacts: totalDeals,
+      withAssociation: dealsWithContacts,
+      rate: Math.round((dealsWithContacts / totalDeals) * 100),
+      labels: dealLabels.map((l) => ({ label: l.label, count: 0 })),
+    });
+  }
+
+  return results;
 }
 
 // ── Shared properties: cross-object check (3 API calls, fast) ──
