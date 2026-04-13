@@ -179,7 +179,7 @@ async function fetchTrackingSources(token: string): Promise<TrackingResult> {
 
   const toSorted = (map: Map<string, number>, labelFn?: (k: string) => string) =>
     [...map.entries()]
-      .map(([k, v]) => ({ value: k, label: labelFn ? labelFn(k) : k, count: v, pct: Math.round((v / totalFetched) * 100) }))
+      .map(([k, v]) => ({ value: k, label: labelFn ? labelFn(k) : k, count: v, pct: Math.round((v / totalFetched) * 1000) / 10 }))
       .sort((a, b) => b.count - a.count);
 
   return {

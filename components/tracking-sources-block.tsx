@@ -14,57 +14,24 @@ type Props = {
 
 type Tab = "source" | "dd1" | "dd2";
 
-/** Translate drill-down 1 technical values to French */
-const DD1_LABELS: Record<string, string> = {
-  INTEGRATION: "Intégration tierce",
-  API: "Import via API",
-  IMPORT: "Import fichier",
-  CRM_UI: "Saisie manuelle CRM",
-  FORM: "Formulaire",
-  MEETING: "Prise de rendez-vous",
-  SEQUENCE: "Séquence email",
-  WORKFLOW: "Workflow automatisé",
-  SALESFORCE: "Synchronisation Salesforce",
-  MIGRATION: "Migration de données",
-  CONTACTS_WEB: "Formulaire web",
-  SOCIAL: "Réseaux sociaux",
-  EMAIL: "Email marketing",
-  PAID: "Publicité payante",
-  ORGANIC: "Recherche organique",
-};
-
-/** Resolve drill-down 2 values: replace numeric IDs with readable labels */
-function resolveDd2Label(value: string): string {
-  // Numeric IDs are HubSpot app/integration IDs — show as "App #ID"
-  if (/^\d+$/.test(value)) return `Application #${value}`;
-  // Known technical values
-  const DD2_LABELS: Record<string, string> = {
-    "sample-contact": "Contact exemple HubSpot",
-    "leadin-bot": "Bot conversationnel",
-    "CRM_UI": "Interface CRM",
-  };
-  return DD2_LABELS[value] ?? value;
-}
-
 function BarList({ items }: { items: Array<{ label: string; count: number; pct: number }> }) {
   const maxCount = Math.max(...items.map((s) => s.count), 1);
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {items.map((s) => (
-        <div key={s.label} className="flex items-center gap-3">
-          <span className="w-36 shrink-0 text-[11px] font-medium text-slate-700 truncate" title={s.label}>{s.label}</span>
-          <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden relative">
-            <div
-              className="h-full rounded bg-indigo-500 transition-all"
-              style={{ width: `${Math.max(1, (s.count / maxCount) * 100)}%` }}
-            />
-            {s.count > 0 && (
-              <span className="absolute inset-y-0 right-2 flex items-center text-[10px] font-semibold text-slate-600 tabular-nums">
-                {s.count.toLocaleString("fr-FR")}
-              </span>
-            )}
+        <div key={s.label}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-medium text-slate-700 truncate" title={s.label}>{s.label}</span>
+            <span className="shrink-0 ml-2 text-[11px] text-slate-600 tabular-nums">
+              {s.count.toLocaleString("fr-FR")} <span className="text-slate-400">({s.pct} %)</span>
+            </span>
           </div>
-          <span className="w-10 shrink-0 text-right text-[10px] font-medium text-slate-500 tabular-nums">{s.pct} %</span>
+          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-indigo-500 transition-all"
+              style={{ width: `${Math.max(0.5, (s.count / maxCount) * 100)}%` }}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -94,7 +61,7 @@ export function TrackingSourcesBlock({ sources, drillDown1, drillDown2, total }:
               tab === "dd1" ? "bg-accent text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            Type de source
+            Source d&apos;origine 1
           </button>
           <button
             type="button"
@@ -103,7 +70,7 @@ export function TrackingSourcesBlock({ sources, drillDown1, drillDown2, total }:
               tab === "dd2" ? "bg-accent text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            Détail de la source
+            Source d&apos;origine 2
           </button>
         </div>
         <p className="text-[10px] text-slate-400">{total.toLocaleString("fr-FR")} contacts</p>
@@ -114,12 +81,12 @@ export function TrackingSourcesBlock({ sources, drillDown1, drillDown2, total }:
       )}
       {tab === "dd1" && (
         drillDown1.length > 0
-          ? <BarList items={drillDown1.map((d) => ({ label: DD1_LABELS[d.value] ?? d.value, count: d.count, pct: d.pct }))} />
+          ? <BarList items={drillDown1.map((d) => ({ label: d.value, count: d.count, pct: d.pct }))} />
           : <p className="py-4 text-center text-xs text-slate-400">Aucune donnée</p>
       )}
       {tab === "dd2" && (
         drillDown2.length > 0
-          ? <BarList items={drillDown2.map((d) => ({ label: resolveDd2Label(d.value), count: d.count, pct: d.pct }))} />
+          ? <BarList items={drillDown2.map((d) => ({ label: d.value, count: d.count, pct: d.pct }))} />
           : <p className="py-4 text-center text-xs text-slate-400">Aucune donnée</p>
       )}
     </div>
