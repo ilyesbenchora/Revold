@@ -2,7 +2,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
 import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, hubspotLinks } from "../context";
-import Link from "next/link";
 
 export default async function CommercialCoachingPage() {
   const orgId = await getOrgId();
@@ -24,18 +23,7 @@ export default async function CommercialCoachingPage() {
   const insights = insightsByCategory.commercial;
 
   return (
-    <section className="space-y-6">
-      <header>
-        <Link href="/dashboard/insights-ia" className="text-xs text-slate-400 hover:text-accent transition">
-          &larr; Mes coaching IA
-        </Link>
-        <h1 className="mt-2 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-          <span className="h-3 w-3 rounded-full bg-blue-500" />
-          Coaching Commercial
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">Recommandations sur vos deals, pipeline et closing rate.</p>
-      </header>
-
+    <div className="space-y-4">
       {insights.length === 0 ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-sm text-emerald-700">Toutes les recommandations commerciales ont été traitées.</p>
@@ -56,6 +44,6 @@ export default async function CommercialCoachingPage() {
           ))}
         </div>
       )}
-    </section>
+    </div>
   );
 }
