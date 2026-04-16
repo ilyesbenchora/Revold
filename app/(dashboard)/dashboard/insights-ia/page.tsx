@@ -115,17 +115,32 @@ export default async function MesCoachingPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {doneInsights.slice(0, 5).map((d) => (
-              <article key={d.id} className="card border-l-4 border-l-emerald-400 p-4">
-                <div className="flex items-start justify-between">
-                  <h3 className="text-sm font-medium text-slate-900">{d.title || d.template_key}</h3>
-                  <span className="text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
-                </div>
-                {d.body && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{d.body}</p>}
-              </article>
-            ))}
-            {doneInsights.length > 5 && (
-              <p className="text-center text-xs text-slate-400">+ {doneInsights.length - 5} autres coaching réalisés</p>
+            {doneInsights.slice(0, 8).map((d) => {
+              const sevColor = d.severity === "critical" ? "bg-red-50 text-red-700" : d.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
+              const sevLabel = d.severity === "critical" ? "Critique" : d.severity === "warning" ? "Attention" : "Info";
+              const catLabel = d.category === "commercial" ? "Commercial" : d.category === "marketing" ? "Marketing" : d.category === "data" ? "Data" : d.category === "automation" ? "Workflow" : d.category === "integration" ? "Intégration" : d.category ?? "";
+              return (
+                <article key={d.id} className="card border-l-4 border-l-emerald-400 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {d.severity && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sevColor}`}>{sevLabel}</span>
+                        )}
+                        {catLabel && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{catLabel}</span>
+                        )}
+                      </div>
+                      <h3 className="mt-1.5 text-sm font-medium text-slate-900">{d.title || d.template_key}</h3>
+                      {d.body && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{d.body}</p>}
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
+                  </div>
+                </article>
+              );
+            })}
+            {doneInsights.length > 8 && (
+              <p className="text-center text-xs text-slate-400">+ {doneInsights.length - 8} autres coaching réalisés</p>
             )}
           </div>
         )}
@@ -144,17 +159,25 @@ export default async function MesCoachingPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {removedInsights.slice(0, 5).map((d) => (
-              <article key={d.id} className="card border-l-4 border-l-slate-300 p-4 opacity-70">
-                <div className="flex items-start justify-between">
-                  <h3 className="text-sm font-medium text-slate-700">{d.title || d.template_key}</h3>
-                  <span className="text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
-                </div>
-                {d.body && <p className="mt-1 text-xs text-slate-500 line-clamp-1">{d.body}</p>}
-              </article>
-            ))}
-            {removedInsights.length > 5 && (
-              <p className="text-center text-xs text-slate-400">+ {removedInsights.length - 5} autres coaching retirés</p>
+            {removedInsights.slice(0, 8).map((d) => {
+              const catLabel = d.category === "commercial" ? "Commercial" : d.category === "marketing" ? "Marketing" : d.category === "data" ? "Data" : d.category === "automation" ? "Workflow" : d.category === "integration" ? "Intégration" : d.category ?? "";
+              return (
+                <article key={d.id} className="card border-l-4 border-l-slate-300 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      {catLabel && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{catLabel}</span>
+                      )}
+                      <h3 className="mt-1.5 text-sm font-medium text-slate-600">{d.title || d.template_key}</h3>
+                      {d.body && <p className="mt-1 text-xs text-slate-400 line-clamp-1">{d.body}</p>}
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
+                  </div>
+                </article>
+              );
+            })}
+            {removedInsights.length > 8 && (
+              <p className="text-center text-xs text-slate-400">+ {removedInsights.length - 8} autres coaching retirés</p>
             )}
           </div>
         )}
