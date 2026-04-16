@@ -2,15 +2,12 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 
-const HUBSPOT_PORTAL = "48372600";
-
 type Owner = {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
   userId: number | null;
-  updatedAt: string;
   teams: string[];
 };
 
@@ -19,19 +16,41 @@ type AssetStats = {
   propertiesContact: number;
   propertiesCompany: number;
   propertiesDeal: number;
+  propertiesLineItem: number;
+  propertiesProduct: number;
+  propertiesTicket: number;
 };
 
-type RecordStats = {
-  contacts: number;
-  companies: number;
-  deals: number;
+type ActivityByType = {
+  CALL: number;
+  EMAIL: number;
+  MEETING: number;
+  NOTE: number;
+  TASK: number;
+  total: number;
 };
+
+const ACTIVITY_TYPES = ["CALL", "EMAIL", "MEETING", "NOTE", "TASK"] as const;
+const ACTIVITY_LABELS: Record<string, { label: string; color: string }> = {
+  CALL: { label: "Appels", color: "bg-blue-500" },
+  EMAIL: { label: "Emails", color: "bg-indigo-500" },
+  MEETING: { label: "RDV", color: "bg-violet-500" },
+  NOTE: { label: "Notes", color: "bg-amber-500" },
+  TASK: { label: "Tâches", color: "bg-emerald-500" },
+};
+
+const PROPERTY_OBJECTS = [
+  { key: "contacts", label: "Contacts", field: "propertiesContact" as const },
+  { key: "companies", label: "Entreprises", field: "propertiesCompany" as const },
+  { key: "deals", label: "Transactions", field: "propertiesDeal" as const },
+  { key: "line_items", label: "Lignes de produit", field: "propertiesLineItem" as const },
+  { key: "products", label: "Produits", field: "propertiesProduct" as const },
+  { key: "tickets", label: "Tickets", field: "propertiesTicket" as const },
+];
 
 export default async function AdoptionPage() {
   const orgId = await getOrgId();
-  if (!orgId) {
-    return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
-  }
+  if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const token = process.env.HUBSPOT_ACCESS_TOKEN;
   if (!token) {
@@ -39,52 +58,49 @@ export default async function AdoptionPage() {
       <section className="space-y-8">
         <header>
           <h1 className="text-2xl font-semibold text-slate-900">Adoption</h1>
-          <p className="mt-1 text-sm text-slate-500">Connectez votre CRM HubSpot pour analyser l&apos;adoption.</p>
+          <p className="mt-1 text-sm text-slate-500">Connectez votre CRM pour analyser l&apos;adoption.</p>
         </header>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Connectez votre token HubSpot pour voir l&apos;activité des utilisateurs.</p>
-        </div>
       </section>
     );
   }
 
   let owners: Owner[] = [];
   const assetsPerUser: Record<number, AssetStats> = {};
-  const recordsPerOwner: Record<string, RecordStats> = {};
+  const activitiesPerOwner: Record<string, ActivityByType> = {};
 
   try {
-    // ── 1. Get all owners ──
-    const ownerRes = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // ── 1. Owners ──
+    const ownerRes = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", { headers: { Authorization: `Bearer ${token}` } });
     if (ownerRes.ok) {
-      const ownerData = await ownerRes.json();
-      owners = (ownerData.results ?? []).map((o: Record<string, unknown>) => ({
+      const d = await ownerRes.json();
+      owners = (d.results ?? []).map((o: Record<string, unknown>) => ({
         id: o.id as string,
         email: o.email as string,
         firstName: (o.firstName as string) || "",
         lastName: (o.lastName as string) || "",
         userId: (o.userId as number) || null,
-        updatedAt: (o.updatedAt as string) || (o.createdAt as string) || "",
         teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
       }));
     }
 
-    // ── 2. Fetch assets created by users (workflows via v3, properties) ──
-    const [wfRes, propsContact, propsCompany, propsDeal] = await Promise.all([
+    // ── 2. Assets: workflows (v3) + properties on ALL object types ──
+    const propFetches = PROPERTY_OBJECTS.map((ot) =>
+      fetch(`https://api.hubapi.com/crm/v3/properties/${ot.key}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.ok ? r.json() : { results: [] })
+        .then((data) => ({ field: ot.field, results: (data.results ?? []) as Array<{ hubspotDefined: boolean; createdUserId?: number }> }))
+    );
+
+    const [wfRes, ...propResults] = await Promise.all([
       fetch("https://api.hubapi.com/automation/v3/workflows?limit=250", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("https://api.hubapi.com/crm/v3/properties/contacts", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("https://api.hubapi.com/crm/v3/properties/companies", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("https://api.hubapi.com/crm/v3/properties/deals", { headers: { Authorization: `Bearer ${token}` } }),
+      ...propFetches,
     ]);
 
-    const emptyAssets = (): AssetStats => ({ workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 });
+    const emptyAssets = (): AssetStats => ({ workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0, propertiesLineItem: 0, propertiesProduct: 0, propertiesTicket: 0 });
 
-    // Count workflows per creator (v3 API uses originalAuthorUserId)
     if (wfRes.ok) {
       const wfData = await wfRes.json();
       for (const wf of (wfData.workflows ?? [])) {
-        const uid = wf.originalAuthorUserId ?? null;
+        const uid = wf.originalAuthorUserId;
         if (uid) {
           if (!assetsPerUser[uid]) assetsPerUser[uid] = emptyAssets();
           assetsPerUser[uid].workflows++;
@@ -92,143 +108,195 @@ export default async function AdoptionPage() {
       }
     }
 
-    // Count custom properties per creator per object type (createdUserId)
-    const propSources: Array<{ res: Response; field: "propertiesContact" | "propertiesCompany" | "propertiesDeal" }> = [
-      { res: propsContact, field: "propertiesContact" },
-      { res: propsCompany, field: "propertiesCompany" },
-      { res: propsDeal, field: "propertiesDeal" },
-    ];
-    for (const { res, field } of propSources) {
-      if (res.ok) {
-        const data = await res.json();
-        for (const p of (data.results ?? [])) {
-          if (p.hubspotDefined) continue;
-          const uid = p.createdUserId ?? null;
-          if (uid) {
-            if (!assetsPerUser[uid]) assetsPerUser[uid] = emptyAssets();
-            assetsPerUser[uid][field]++;
-          }
+    for (const pr of propResults) {
+      for (const p of pr.results) {
+        if (p.hubspotDefined) continue;
+        const uid = p.createdUserId;
+        if (uid) {
+          if (!assetsPerUser[uid]) assetsPerUser[uid] = emptyAssets();
+          assetsPerUser[uid][pr.field]++;
         }
       }
     }
 
-    // ── 3. Records per owner (contacts, companies, deals) ──
-    const searchPromises = owners.flatMap((o) => [
-      fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+    // ── 3. Activities per owner (engagements by type) ──
+    // First get total per owner, then breakdown by type for top owners
+    const totalPromises = owners.map((o) =>
+      fetch("https://api.hubapi.com/crm/v3/objects/engagements/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "EQ", value: o.id }] }], limit: 1 }),
-      }).then((r) => r.ok ? r.json() : { total: 0 }).then((d) => ({ ownerId: o.id, type: "contacts" as const, count: d.total ?? 0 })),
-      fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "EQ", value: o.id }] }], limit: 1 }),
-      }).then((r) => r.ok ? r.json() : { total: 0 }).then((d) => ({ ownerId: o.id, type: "companies" as const, count: d.total ?? 0 })),
-      fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "EQ", value: o.id }] }], limit: 1 }),
-      }).then((r) => r.ok ? r.json() : { total: 0 }).then((d) => ({ ownerId: o.id, type: "deals" as const, count: d.total ?? 0 })),
-    ]);
+      }).then((r) => r.ok ? r.json() : { total: 0 }).then((d) => ({ ownerId: o.id, total: d.total ?? 0 }))
+    );
+    const totals = await Promise.all(totalPromises);
+    for (const t of totals) {
+      activitiesPerOwner[t.ownerId] = { CALL: 0, EMAIL: 0, MEETING: 0, NOTE: 0, TASK: 0, total: t.total };
+    }
 
-    const results = await Promise.all(searchPromises);
-    for (const r of results) {
-      if (!recordsPerOwner[r.ownerId]) recordsPerOwner[r.ownerId] = { contacts: 0, companies: 0, deals: 0 };
-      recordsPerOwner[r.ownerId][r.type] = r.count;
+    // Get type breakdown for owners with activity
+    const activeOwnerIds = totals.filter((t) => t.total > 0).sort((a, b) => b.total - a.total).slice(0, 15).map((t) => t.ownerId);
+    const typePromises = activeOwnerIds.flatMap((oid) =>
+      ACTIVITY_TYPES.map((type) =>
+        fetch("https://api.hubapi.com/crm/v3/objects/engagements/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [
+              { propertyName: "hubspot_owner_id", operator: "EQ", value: oid },
+              { propertyName: "hs_engagement_type", operator: "EQ", value: type },
+            ] }],
+            limit: 1,
+          }),
+        }).then((r) => r.ok ? r.json() : { total: 0 }).then((d) => ({ ownerId: oid, type, count: d.total ?? 0 }))
+      )
+    );
+    const typeResults = await Promise.all(typePromises);
+    for (const r of typeResults) {
+      if (activitiesPerOwner[r.ownerId]) {
+        activitiesPerOwner[r.ownerId][r.type as keyof Omit<ActivityByType, "total">] = r.count;
+      }
     }
   } catch {}
 
-  // ── Compute metrics ──
-  const now = Date.now();
+  // ── Build view data ──
   const ownersEnriched = owners.map((o) => {
-    const lastUpdate = o.updatedAt ? new Date(o.updatedAt).getTime() : 0;
-    const daysSince = Math.round((now - lastUpdate) / 86400000);
-    const records = recordsPerOwner[o.id] ?? { contacts: 0, companies: 0, deals: 0 };
-    const assets = o.userId ? (assetsPerUser[o.userId] ?? { workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 }) : { workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
-    const totalRecords = records.contacts + records.companies + records.deals;
-    const totalAssets = assets.workflows + assets.propertiesContact + assets.propertiesCompany + assets.propertiesDeal;
-    return { ...o, daysSinceUpdate: daysSince, records, assets, totalRecords, totalAssets };
+    const assets = o.userId ? (assetsPerUser[o.userId] ?? null) : null;
+    const totalAssets = assets ? Object.values(assets).reduce((s, v) => s + v, 0) : 0;
+    const activity = activitiesPerOwner[o.id] ?? { CALL: 0, EMAIL: 0, MEETING: 0, NOTE: 0, TASK: 0, total: 0 };
+    return { ...o, assets, totalAssets, activity };
   });
 
-  const teamDistribution: Record<string, number> = {};
-  owners.forEach((o) => {
-    o.teams.forEach((t) => { teamDistribution[t] = (teamDistribution[t] || 0) + 1; });
-    if (o.teams.length === 0) teamDistribution["Sans équipe"] = (teamDistribution["Sans équipe"] || 0) + 1;
+  const topAssetCreators = [...ownersEnriched].filter((o) => o.totalAssets > 0).sort((a, b) => b.totalAssets - a.totalAssets).slice(0, 15);
+  const topActivityUsers = [...ownersEnriched].filter((o) => o.activity.total > 0).sort((a, b) => b.activity.total - a.activity.total).slice(0, 15);
+
+  // Team activity ranking
+  const teamActivity: Record<string, { total: number; members: number; calls: number; emails: number; meetings: number }> = {};
+  ownersEnriched.forEach((o) => {
+    const teamList = o.teams.length > 0 ? o.teams : ["Sans équipe"];
+    teamList.forEach((t) => {
+      if (!teamActivity[t]) teamActivity[t] = { total: 0, members: 0, calls: 0, emails: 0, meetings: 0 };
+      teamActivity[t].total += o.activity.total;
+      teamActivity[t].members++;
+      teamActivity[t].calls += o.activity.CALL;
+      teamActivity[t].emails += o.activity.EMAIL;
+      teamActivity[t].meetings += o.activity.MEETING;
+    });
   });
-  const sortedTeams = Object.entries(teamDistribution).sort((a, b) => b[1] - a[1]);
-
-  const activeUsers = ownersEnriched.filter((o) => o.daysSinceUpdate < 60 && o.totalRecords > 0);
-  const ghostUsers = ownersEnriched.filter((o) => o.totalRecords === 0 && o.totalAssets === 0);
-
-  const topAssetCreators = [...ownersEnriched].filter((o) => o.totalAssets > 0).sort((a, b) => b.totalAssets - a.totalAssets).slice(0, 10);
-  const topRecordCreators = [...ownersEnriched].filter((o) => o.totalRecords > 0).sort((a, b) => b.totalRecords - a.totalRecords).slice(0, 10);
+  const sortedTeamActivity = Object.entries(teamActivity).filter(([, v]) => v.total > 0).sort((a, b) => b[1].total - a[1].total);
+  const maxTeamActivity = sortedTeamActivity[0]?.[1]?.total ?? 1;
 
   return (
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Adoption</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Adoption du CRM par les équipes : assets créés, données saisies et activité par utilisateur.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Mesure de l&apos;adoption du CRM : assets créés, activités de vente et engagement par équipe.</p>
       </header>
 
       <InsightLockedBlock />
 
-      {/* Vue d'ensemble */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Utilisateurs CRM</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{owners.length}</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Utilisateurs actifs</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-600">{activeUsers.length}</p>
-          <p className="mt-1 text-xs text-slate-400">Activité &lt; 60 jours</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Créateurs d&apos;assets</p>
-          <p className="mt-1 text-3xl font-bold text-indigo-600">{topAssetCreators.length}</p>
-          <p className="mt-1 text-xs text-slate-400">Workflows, formulaires, propriétés</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Comptes fantômes</p>
-          <p className={`mt-1 text-3xl font-bold ${ghostUsers.length > 0 ? "text-red-500" : "text-emerald-600"}`}>{ghostUsers.length}</p>
-          <p className="mt-1 text-xs text-slate-400">Aucune donnée ni asset</p>
-        </article>
-      </div>
-
-      {/* Utilisateurs par équipe */}
-      {sortedTeams.length > 0 && (
+      {/* ── Équipes les plus actives ── */}
+      {sortedTeamActivity.length > 0 && (
         <CollapsibleBlock
-          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-violet-500" />Utilisateurs par équipe</h2>}
+          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-blue-500" />Activité commerciale par équipe</h2>}
         >
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            {sortedTeams.map(([team, count]) => (
-              <article key={team} className="card p-4">
-                <p className="text-sm font-medium text-slate-800">{team}</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{count}</p>
-                <p className="text-xs text-slate-400">utilisateur{count > 1 ? "s" : ""}</p>
-              </article>
-            ))}
+          <div className="space-y-3">
+            {sortedTeamActivity.map(([team, stats]) => {
+              const pct = Math.round((stats.total / maxTeamActivity) * 100);
+              return (
+                <div key={team} className="card p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{team}</p>
+                      <p className="text-xs text-slate-400">{stats.members} membre{stats.members > 1 ? "s" : ""}</p>
+                    </div>
+                    <p className="text-xl font-bold text-slate-900 tabular-nums">{stats.total.toLocaleString("fr-FR")}</p>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  {/* Type breakdown */}
+                  <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
+                    <span>{stats.calls.toLocaleString("fr-FR")} appels</span>
+                    <span className="text-slate-300">|</span>
+                    <span>{stats.emails.toLocaleString("fr-FR")} emails</span>
+                    <span className="text-slate-300">|</span>
+                    <span>{stats.meetings.toLocaleString("fr-FR")} RDV</span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-400">{Math.round(stats.total / stats.members).toLocaleString("fr-FR")} moy./user</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CollapsibleBlock>
       )}
 
-      {/* Top créateurs d'assets */}
+      {/* ── Activité de vente par utilisateur ── */}
+      {topActivityUsers.length > 0 && (
+        <CollapsibleBlock
+          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-emerald-500" />Activité de vente par utilisateur</h2>}
+        >
+          <p className="text-sm text-slate-500">Volume d&apos;activités commerciales par utilisateur : appels, emails, RDV, notes, tâches.</p>
+          <div className="space-y-2">
+            {topActivityUsers.map((o) => {
+              const maxAct = topActivityUsers[0].activity.total || 1;
+              const pct = Math.round((o.activity.total / maxAct) * 100);
+              // Breakdown bars
+              const types = ACTIVITY_TYPES.filter((t) => o.activity[t] > 0);
+              return (
+                <div key={o.id} className="card p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{o.firstName} {o.lastName}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {o.teams.slice(0, 2).map((t) => (
+                          <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="shrink-0 text-lg font-bold text-slate-900 tabular-nums">{o.activity.total.toLocaleString("fr-FR")}</p>
+                  </div>
+                  {/* Stacked bar */}
+                  <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                    {types.map((t) => {
+                      const typePct = (o.activity[t] / o.activity.total) * pct;
+                      return (
+                        <div key={t} className={`h-full ${ACTIVITY_LABELS[t].color}`} style={{ width: `${typePct}%` }} title={`${ACTIVITY_LABELS[t].label}: ${o.activity[t]}`} />
+                      );
+                    })}
+                  </div>
+                  {/* Legend */}
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {types.map((t) => (
+                      <span key={t} className="flex items-center gap-1 text-[10px] text-slate-500">
+                        <span className={`h-1.5 w-1.5 rounded-full ${ACTIVITY_LABELS[t].color}`} />
+                        {ACTIVITY_LABELS[t].label} {o.activity[t].toLocaleString("fr-FR")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleBlock>
+      )}
+
+      {/* ── Assets créés par utilisateur ── */}
       {topAssetCreators.length > 0 && (
         <CollapsibleBlock
           title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-indigo-500" />Assets créés par utilisateur</h2>}
         >
-          <p className="text-sm text-slate-500">Workflows et propriétés personnalisées créés par chaque utilisateur.</p>
-          <div className="card overflow-hidden">
+          <p className="text-sm text-slate-500">Workflows et propriétés personnalisées créés par chaque utilisateur sur tous les objets CRM.</p>
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+                <tr className="border-b border-card-border bg-slate-50 text-left text-[11px] font-medium uppercase text-slate-500">
                   <th className="px-4 py-2">Utilisateur</th>
                   <th className="px-4 py-2 text-right">Workflows</th>
-                  <th className="px-4 py-2 text-right">Prop. Contacts</th>
-                  <th className="px-4 py-2 text-right">Prop. Entreprises</th>
-                  <th className="px-4 py-2 text-right">Prop. Transactions</th>
+                  {PROPERTY_OBJECTS.map((ot) => (
+                    <th key={ot.key} className="px-3 py-2 text-right">{ot.label}</th>
+                  ))}
                   <th className="px-4 py-2 text-right">Total</th>
                 </tr>
               </thead>
@@ -239,100 +307,18 @@ export default async function AdoptionPage() {
                       <p className="font-medium text-slate-800">{o.firstName} {o.lastName}</p>
                       <p className="text-xs text-slate-400">{o.email}</p>
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.workflows || <span className="text-slate-300">—</span>}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesContact || <span className="text-slate-300">—</span>}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesCompany || <span className="text-slate-300">—</span>}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesDeal || <span className="text-slate-300">—</span>}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets?.workflows || <span className="text-slate-300">—</span>}</td>
+                    {PROPERTY_OBJECTS.map((ot) => (
+                      <td key={ot.key} className="px-3 py-2.5 text-right text-slate-700">
+                        {(o.assets?.[ot.field] || 0) > 0 ? o.assets![ot.field] : <span className="text-slate-300">—</span>}
+                      </td>
+                    ))}
                     <td className="px-4 py-2.5 text-right font-bold text-slate-900">{o.totalAssets}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </CollapsibleBlock>
-      )}
-
-      {/* Top créateurs de données */}
-      {topRecordCreators.length > 0 && (
-        <CollapsibleBlock
-          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-emerald-500" />Données par utilisateur</h2>}
-        >
-          <p className="text-sm text-slate-500">Nombre de contacts, entreprises et transactions associés à chaque utilisateur.</p>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="px-4 py-2">Utilisateur</th>
-                  <th className="px-4 py-2">Équipes</th>
-                  <th className="px-4 py-2 text-right">Contacts</th>
-                  <th className="px-4 py-2 text-right">Entreprises</th>
-                  <th className="px-4 py-2 text-right">Transactions</th>
-                  <th className="px-4 py-2 text-right">Total</th>
-                  <th className="px-4 py-2 text-right">Dernière activité</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topRecordCreators.map((o) => (
-                  <tr key={o.id} className="border-b border-card-border last:border-0">
-                    <td className="px-4 py-2.5">
-                      <p className="font-medium text-slate-800">{o.firstName} {o.lastName}</p>
-                      <p className="text-xs text-slate-400">{o.email}</p>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap gap-1">
-                        {o.teams.length > 0 ? o.teams.slice(0, 2).map((t) => (
-                          <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{t}</span>
-                        )) : <span className="text-xs text-slate-400">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.records.contacts.toLocaleString("fr-FR")}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.records.companies.toLocaleString("fr-FR")}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.records.deals.toLocaleString("fr-FR")}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-900">{o.totalRecords.toLocaleString("fr-FR")}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className={`text-xs ${o.daysSinceUpdate < 30 ? "text-emerald-600" : o.daysSinceUpdate < 90 ? "text-yellow-600" : "text-red-500"}`}>
-                        Il y a {o.daysSinceUpdate}j
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CollapsibleBlock>
-      )}
-
-      {/* Comptes fantômes */}
-      {ghostUsers.length > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-red-500" />Comptes sans activité
-              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">{ghostUsers.length}</span>
-            </h2>
-          }
-        >
-          <p className="text-sm text-slate-500">Utilisateurs sans aucun contact, entreprise, transaction, workflow ou propriété créé. Candidats pour désactivation.</p>
-          <div className="card overflow-hidden">
-            <div className="divide-y divide-card-border">
-              {ghostUsers.map((o) => (
-                <div key={o.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{o.firstName} {o.lastName}</p>
-                    <p className="text-xs text-slate-400">{o.email}</p>
-                  </div>
-                  <span className="text-xs text-red-600">Aucune donnée ni asset</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <a href={`https://app.hubspot.com/settings/${HUBSPOT_PORTAL}/users`} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500">
-            Gérer les utilisateurs dans HubSpot
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
         </CollapsibleBlock>
       )}
     </section>
