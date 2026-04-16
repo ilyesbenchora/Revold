@@ -111,7 +111,7 @@ export function InsightCard({ templateKey, severity, title, body, recommendation
       <h3 className="mt-3 text-base font-semibold text-slate-900">{title}</h3>
       <p className="mt-1.5 text-sm text-slate-700">{body}</p>
       <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recommandation</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Action à faire</p>
         <p className="mt-1 text-sm font-medium text-slate-800">{recommendation}</p>
       </div>
       {error && (

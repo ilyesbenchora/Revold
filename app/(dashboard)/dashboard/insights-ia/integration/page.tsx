@@ -32,7 +32,8 @@ export default async function IntegrationCoachingPage() {
           <p className="text-sm text-emerald-700">Aucune recommandation d&apos;intégration pour le moment.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className={`space-y-3 ${visibleInsights.length > 4 ? "max-h-[600px] overflow-y-auto scroll-smooth pr-1" : ""}`}
+          style={visibleInsights.length > 4 ? { scrollbarWidth: "thin" } : undefined}>
           {visibleInsights.map((insight) => (
             <InsightCard
               key={insight.key}

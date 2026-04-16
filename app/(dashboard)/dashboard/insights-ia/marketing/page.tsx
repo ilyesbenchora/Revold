@@ -78,7 +78,8 @@ export default async function MarketingCoachingPage() {
       ) : (
         <>
           {insights.length > 0 && (
-            <div className="space-y-3">
+            <div className={`space-y-3 ${insights.length > 4 ? "max-h-[600px] overflow-y-auto scroll-smooth pr-1" : ""}`}
+              style={insights.length > 4 ? { scrollbarWidth: "thin" } : undefined}>
               {insights.map((insight) => (
                 <InsightCard
                   key={insight.key}
