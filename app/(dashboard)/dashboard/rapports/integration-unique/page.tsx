@@ -29,23 +29,35 @@ export default async function RapportsIntegrationUniquePage() {
   }
 
   let suggestions: ReportSuggestion[] = [];
+  let kpiPreview: Record<string, string | null> = {};
   if (hubspotToken) {
     try {
       const integrations = await detectIntegrations(hubspotToken);
-      suggestions = getReportSuggestions(integrations);
+
+      // Compute real field completeness for accurate reliability %
+      let fieldCompleteness: Record<string, number> | undefined;
+      if (orgId) {
+        try {
+          const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
+          kpiPreview = computeMetricValues(kpiData);
+          const tc = kpiData.contacts.total || 1;
+          const td = kpiData.deals.total || 1;
+          fieldCompleteness = {
+            contactsWithOwner: Math.round(((tc - kpiData.contacts.orphans) / tc) * 100),
+            contactsWithPhone: Math.round((kpiData.contacts.withPhone / tc) * 100),
+            contactsWithCompany: Math.round(((tc - kpiData.contacts.withoutCompany) / tc) * 100),
+            dealsWithAmount: td > 0 ? Math.round(((td - kpiData.deals.orphans) / td) * 100) : 70,
+            dealsWithCloseDate: 70, // Not tracked separately — default
+          };
+        } catch {}
+      }
+
+      suggestions = getReportSuggestions(integrations, fieldCompleteness);
     } catch {}
   }
 
   // Filter out already activated reports
   const available = suggestions.filter((r) => !activatedIds.has(r.id));
-
-  let kpiPreview: Record<string, string | null> = {};
-  if (hubspotToken && orgId) {
-    try {
-      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
-      kpiPreview = computeMetricValues(kpiData);
-    } catch {}
-  }
 
   const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: 0, multiCount: 0 };
   tabCounts.singleCount = available.length;

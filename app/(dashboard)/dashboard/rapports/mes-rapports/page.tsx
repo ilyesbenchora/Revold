@@ -12,6 +12,7 @@ import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
 import { ReportInsight } from "@/components/report-insight";
+import { ReportDateRange } from "@/components/report-date-range";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -360,17 +361,26 @@ export default async function MesRapportsPage() {
                       ) : report.description ? (
                         <p className="mt-1 text-[11px] text-slate-500 leading-relaxed line-clamp-1">{report.description}</p>
                       ) : null}
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
                           isMulti ? "bg-fuchsia-50 text-fuchsia-600" : "bg-indigo-50 text-indigo-600"
                         }`}>
                           {catLabel}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                          allReady ? "bg-emerald-50 text-emerald-700" : nonNullCount > 0 ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                        }`}>
+                          {allReady ? `${Math.round((nonNullCount / metrics.length) * 100)}% fiable` : nonNullCount > 0 ? `${Math.round((nonNullCount / metrics.length) * 100)}% fiable` : "En attente"}
                         </span>
                         <span className="text-[9px] text-slate-400">
                           {new Date(report.activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       </div>
                     </div>
+                  </div>
+                  {/* Date range */}
+                  <div className="mt-3">
+                    <ReportDateRange />
                   </div>
                 </div>
 
