@@ -1,5 +1,6 @@
 import { getOrgId } from "@/lib/supabase/cached";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { TeamActivityCarousel } from "@/components/team-activity-carousel";
 import {
   ACTIVITY_TYPES, ACTIVITY_LABELS,
   fetchOwners, searchCount, batchedFetch,
@@ -63,28 +64,18 @@ export default async function ActivitesPage() {
         <CollapsibleBlock
           title={<h2 className="text-lg font-semibold text-slate-900">Activité commerciale par équipe</h2>}
         >
-          <div className="space-y-3">
-            {sortedTeamActivity.map(([team, stats]) => (
-              <div key={team} className="card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{team}</p>
-                    <p className="text-xs text-slate-400">{stats.members} membre{stats.members > 1 ? "s" : ""} — {Math.round(stats.total / stats.members).toLocaleString("fr-FR")} act. moy./user</p>
-                  </div>
-                  <p className="text-sm font-semibold text-slate-600">{stats.total.toLocaleString("fr-FR")} activités</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                  {ACTIVITY_TYPES.map((t) => (
-                    <div key={t} className="rounded-lg bg-slate-50 p-2 text-center">
-                      <p className="text-base">{ACTIVITY_LABELS[t].icon}</p>
-                      <p className="mt-0.5 text-sm font-bold text-slate-900 tabular-nums">{stats[t].toLocaleString("fr-FR")}</p>
-                      <p className="text-[9px] text-slate-500">{ACTIVITY_LABELS[t].label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <TeamActivityCarousel
+            teams={sortedTeamActivity.map(([team, stats]) => ({
+              team,
+              members: stats.members,
+              total: stats.total,
+              types: ACTIVITY_TYPES.map((t) => ({
+                icon: ACTIVITY_LABELS[t].icon,
+                label: ACTIVITY_LABELS[t].label,
+                count: stats[t],
+              })),
+            }))}
+          />
         </CollapsibleBlock>
       )}
 
