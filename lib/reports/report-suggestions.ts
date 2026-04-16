@@ -131,7 +131,7 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     category: "other", displayCategory: "pipeline_analyse",
     title: "Santé du pipeline par pipeline",
     description: "Comparez vos pipelines : volume, montant, deals actifs et probabilité pondérée.",
-    metrics: ["Deals actifs par pipeline", "Montant actif par pipeline (€)", "Pipeline weighted par pipeline (€)", "Nb d'owners actifs par pipeline"],
+    metrics: ["Deals actifs par pipeline", "Montant actif par pipeline (€)", "Pipeline pondéré par pipeline (€)", "Nb d'owners actifs par pipeline"],
     expectedValue: "Pilotez la santé de chaque pipeline.", priority: "high", icon: "🔬",
   },
 
@@ -145,9 +145,9 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
   },
   {
     category: "other", displayCategory: "cycle_ventes",
-    title: "Forecast par weighted pipeline",
+    title: "Forecast par pipeline pondéré",
     description: "Forecast basé sur la probabilité de chaque étape.",
-    metrics: ["Pipeline weighted total (€)", "Pipeline weighted par owner", "CA réalisé Closed Won (€)", "Écart forecast vs réalisé (%)"],
+    metrics: ["Pipeline pondéré total (€)", "Pipeline pondéré par owner", "CA réalisé Closed Won (€)", "Écart forecast vs réalisé (%)"],
     expectedValue: "Prévision de CA data-driven pour le COMEX.", priority: "high", icon: "🔮",
   },
 

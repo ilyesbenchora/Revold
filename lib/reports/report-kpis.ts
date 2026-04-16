@@ -807,9 +807,9 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["CA réalisé Closed Won (€)"] = has(deals.caClosedWon) ? eur(deals.caClosedWon) : null;
   V["Écart forecast vs réalisé (%)"] = has(deals.caWeighted) && has(deals.caClosedWon) ? pct(Math.abs(deals.caClosedWon - deals.caWeighted) / deals.caWeighted * 100) : null;
   V["Précision du forecast par owner"] = null; // needs per-owner forecast targets
-  V["Pipeline weighted total (€)"] = has(deals.caWeighted) ? eur(deals.caWeighted) : null;
-  V["Pipeline weighted par mois de closing attendu"] = null; // needs hs_date_closed_expected
-  V["Pipeline weighted par owner"] = has(deals.caWeighted) ? `${eur(weightedPerOwner)}  par owner` : null;
+  V["Pipeline pondéré total (€)"] = has(deals.caWeighted) ? eur(deals.caWeighted) : null;
+  V["Pipeline pondéré par mois de closing attendu"] = null; // needs hs_date_closed_expected
+  V["Pipeline pondéré par owner"] = has(deals.caWeighted) ? `${eur(weightedPerOwner)}  par owner` : null;
   V["Couverture pipeline vs objectif (%)"] = null; // needs objective data
 
   // OUTBOUND
@@ -1053,7 +1053,7 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
     ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${fmt(v.active)}`).join(" · ") : null;
   V["Montant actif par pipeline (€)"] = deals.perPipeline.size > 0
     ? [...deals.perPipeline.entries()].filter(([, v]) => v.caActive > 0).map(([k, v]) => `${plName(k)} ${eur(v.caActive)}`).join(" · ") : null;
-  V["Pipeline weighted par pipeline (€)"] = deals.perPipeline.size > 0
+  V["Pipeline pondéré par pipeline (€)"] = deals.perPipeline.size > 0
     ? [...deals.perPipeline.entries()].map(([k, v]) => {
         const weighted = v.caActive * 0.3; // Approximate weighted — real calc would need per-deal probs
         return `${plName(k)} ${eur(weighted)}`;
