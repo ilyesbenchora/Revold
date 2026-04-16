@@ -53,20 +53,6 @@ export default async function ConnexionsPage({ searchParams }: Props) {
       {/* Days selector */}
       <StaleDaysSelector />
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-4">
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Contacts inactifs (&gt;{days}j)</p>
-          <p className="mt-1 text-3xl font-bold text-orange-500">{totalStaleContacts.toLocaleString("fr-FR")}</p>
-          <p className="mt-1 text-xs text-slate-400">Dernière activité il y a plus de {days} jours</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Deals ouverts inactifs (&gt;{days}j)</p>
-          <p className="mt-1 text-3xl font-bold text-red-500">{totalStaleDeals.toLocaleString("fr-FR")}</p>
-          <p className="mt-1 text-xs text-slate-400">Deals en cours sans activité récente</p>
-        </article>
-      </div>
-
       {/* Detail per owner */}
       {ownersWithStale.length > 0 ? (
         <CollapsibleBlock
