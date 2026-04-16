@@ -107,6 +107,7 @@ type PaymentKpis = { total: number; succeeded: number; failed: number; totalFail
 
 export type AllKpiData = {
   ownerCount: number;
+  ownerNames: Map<string, string>;
   contacts: ContactKpis;
   deals: DealKpis;
   calls: CallKpis;
@@ -149,30 +150,37 @@ async function hsList(token: string, objectType: string, properties: string[], m
   return rows;
 }
 
-async function fetchOwnerCount(token: string): Promise<number> {
+async function fetchOwners(token: string): Promise<{ count: number; names: Map<string, string> }> {
   try {
     const res = await fetch(`${HS}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) return 1;
+    if (!res.ok) return { count: 1, names: new Map() };
     const data = await res.json();
-    return Math.max(1, (data.results ?? []).length);
-  } catch { return 1; }
+    const names = new Map<string, string>();
+    for (const o of data.results ?? []) {
+      const name = [o.firstName, o.lastName].filter(Boolean).join(" ") || (o.email as string) || String(o.id);
+      names.set(String(o.id), name);
+    }
+    return { count: Math.max(1, names.size), names };
+  } catch { return { count: 1, names: new Map() }; }
 }
 
-async function fetchPipelineNames(token: string): Promise<{ pipelines: Map<string, string>; stages: Map<string, string> }> {
+async function fetchPipelineNames(token: string): Promise<{ pipelines: Map<string, string>; stages: Map<string, string>; stageProbs: Map<string, number> }> {
   const pipelines = new Map<string, string>();
   const stages = new Map<string, string>();
+  const stageProbs = new Map<string, number>();
   try {
     const res = await fetch(`${HS}/crm/v3/pipelines/deals`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) return { pipelines, stages };
+    if (!res.ok) return { pipelines, stages, stageProbs };
     const data = await res.json();
     for (const p of data.results ?? []) {
       pipelines.set(p.id, p.label);
       for (const s of p.stages ?? []) {
         stages.set(s.id, s.label);
+        stageProbs.set(s.id, parseFloat(s.metadata?.probability ?? "0"));
       }
     }
   } catch {}
-  return { pipelines, stages };
+  return { pipelines, stages, stageProbs };
 }
 
 // ── HubSpot Associations batch read ──────────────────────────────────────
@@ -256,7 +264,7 @@ function aggregateContacts(rows: HSRow[]): ContactKpis {
   return { total: rows.length, orphans, withPhone, withJobtitle, withEmail, sourceSOCIAL, sourceOFFLINE, perOwner, withoutCompany, lifecycleCounts, perMonth };
 }
 
-function aggregateDeals(rows: HSRow[]): DealKpis {
+function aggregateDeals(rows: HSRow[], stageProbs?: Map<string, number>): DealKpis {
   const perOwnerActive = new Map<string, { count: number; amount: number }>();
   const perOwnerWon = new Map<string, { count: number; amount: number }>();
   const perPipeline = new Map<string, PipelineStat>();
@@ -272,14 +280,20 @@ function aggregateDeals(rows: HSRow[]): DealKpis {
   let timeInStageMs = 0, dealsWithNotes = 0;
 
   for (const d of rows) {
-    const isClosed = d.hs_is_closed === "true";
-    const isWon = d.hs_is_closed_won === "true";
+    // Detect won/lost: use hs_is_closed_won if available, otherwise fallback to stage probability
+    const stage = d.dealstage ?? "unknown";
+    const stageProb = stageProbs?.get(stage) ?? null;
+    const hsClosed = d.hs_is_closed === "true";
+    const hsWon = d.hs_is_closed_won === "true";
+    // A deal is "won" if HubSpot says so, OR if the stage probability is >= 0.9
+    const isWon = hsWon || (!hsClosed && stageProb !== null && stageProb >= 0.9);
+    // A deal is "closed lost" if HubSpot says closed but not won, OR if stage probability is 0
+    const isClosed = hsClosed || isWon || (stageProb !== null && stageProb === 0);
     const amount = Number(d.amount ?? 0);
     const prob = Number(d.hs_deal_stage_probability ?? 0);
     const days = Number(d.days_to_close ?? 0);
     const owner = d.hubspot_owner_id ?? null;
     const pipeline = d.pipeline ?? "default";
-    const stage = d.dealstage ?? "unknown";
     const source = (d.hs_analytics_source ?? "").toUpperCase();
     const closedate = d.closedate ?? null;
     const stageTime = Number(d.hs_time_in_latest_deal_stage ?? 0);
@@ -331,7 +345,9 @@ function aggregateDeals(rows: HSRow[]): DealKpis {
     } else {
       totalActive++;
       caActive += amount;
-      caWeighted += amount * prob / 100;
+      // prob is 0-1 from HubSpot (e.g. 0.1 = 10%), use stageProb as more reliable
+      const effectiveProb = stageProb ?? prob;
+      caWeighted += amount * (effectiveProb > 1 ? effectiveProb / 100 : effectiveProb);
       pp.active++; pp.caActive += amount;
       // Per stage active
       const ss = perStage.get(stage) ?? { active: 0, lost: 0 };
@@ -539,9 +555,9 @@ function aggregatePayments(rows: RawPayment[]): PaymentKpis {
 // ── Public: fetch all data ─────────────────────────────────────────────────
 
 export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string): Promise<AllKpiData> {
-  const [ownerCount, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
-    fetchOwnerCount(token).catch(() => 1),
-    fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>() })),
+  const [ownerData, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
+    fetchOwners(token).catch(() => ({ count: 1, names: new Map<string, string>() })),
+    fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>(), stageProbs: new Map<string, number>() })),
     hsList(token, "contacts", [
       "hubspot_owner_id", "hs_analytics_source", "phone", "jobtitle", "email",
       "lifecyclestage", "associatedcompanyid", "createdate",
@@ -565,7 +581,7 @@ export async function fetchAllKpiData(token: string, supabase: SupabaseClient, o
     sbPayments(supabase, orgId).catch(() => []),
   ]);
 
-  const dealData = aggregateDeals(rawDeals);
+  const dealData = aggregateDeals(rawDeals, pipelineData.stageProbs);
 
   // Fetch engagement associations for deals (calls, meetings, emails)
   const dealIds = rawDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id);
@@ -579,7 +595,8 @@ export async function fetchAllKpiData(token: string, supabase: SupabaseClient, o
   }
 
   return {
-    ownerCount,
+    ownerCount: ownerData.count,
+    ownerNames: ownerData.names,
     contacts: aggregateContacts(rawContacts),
     deals: dealData,
     calls: aggregateCalls(rawCalls),
@@ -613,16 +630,17 @@ function latestMonth(map: Map<string, unknown>): string | null {
 // ── Public: compute metric values ─────────────────────────────────────────
 
 export function computeMetricValues(data: AllKpiData): Record<string, string | null> {
-  const { ownerCount, contacts, deals, calls, meetings, emails, tickets, companies, invoices, subscriptions, payments, pipelineNames, stageNames } = data;
+  const { ownerCount, ownerNames, contacts, deals, calls, meetings, emails, tickets, companies, invoices, subscriptions, payments, pipelineNames, stageNames } = data;
 
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n));
   const fmtDec = (n: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(n);
   const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
   const pct = (n: number) => `${Math.round(n)} %`;
   const has = (n: number) => n > 0;
-  // Resolve pipeline/stage IDs to names
+  // Resolve pipeline/stage/owner IDs to names
   const plName = (id: string) => pipelineNames.get(id) ?? id;
   const stName = (id: string) => stageNames.get(id) ?? id;
+  const owName = (id: string) => ownerNames.get(id) ?? id;
 
   const oc = ownerCount || 1;
   const contactTotal = contacts.total || 1;
@@ -747,15 +765,15 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Deals par owner par pipeline"] = deals.perPipeline.size > 0
     ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${fmt(v.active)}`).join(" · ") : null;
 
-  // Top owners — deals actifs (sorted by count, show names)
+  // Top owners — deals actifs (sorted by count, show real names)
   V["Top owners — deals actifs"] = deals.perOwnerActive.size > 0
-    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5).map(([k, v]) => `${k} ${fmt(v.count)}`).join(" · ") : null;
+    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5).map(([k, v]) => `${owName(k)} ${fmt(v.count)}`).join(" · ") : null;
   // Top owners — montant pipeline
   V["Top owners — montant pipeline (€)"] = deals.perOwnerActive.size > 0
-    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 5).map(([k, v]) => `${k} ${eur(v.amount)}`).join(" · ") : null;
+    ? [...deals.perOwnerActive.entries()].filter(([, v]) => v.amount > 0).sort((a, b) => b[1].amount - a[1].amount).slice(0, 5).map(([k, v]) => `${owName(k)} ${eur(v.amount)}`).join(" · ") : null;
   // Répartition pipeline par owner
   V["Répartition pipeline par owner (€)"] = deals.perOwnerActive.size > 0
-    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 6).map(([k, v]) => `${k} ${eur(v.amount)}`).join(" · ") : null;
+    ? [...deals.perOwnerActive.entries()].filter(([, v]) => v.amount > 0).sort((a, b) => b[1].amount - a[1].amount).slice(0, 6).map(([k, v]) => `${owName(k)} ${eur(v.amount)}`).join(" · ") : null;
   V["Taux de conversion global pipeline → Won"] = has(totalClosed) ? pct(convRate) : null;
   V["Nb de deals stagnants (>30j même stage)"] = has(deals.total) ? fmt(deals.stagnantCount) : null;
   V["Montant total des deals stagnants (€)"] = has(deals.stagnantAmount) ? eur(deals.stagnantAmount) : null;
