@@ -18,6 +18,8 @@ type KpiDef = {
   defaultDirection: "above" | "below";
   category: string;
   dealRelated: boolean;
+  contactRelated?: boolean;
+  sourceRelated?: boolean;
 };
 
 const kpisByTeam: Record<string, KpiDef[]> = {
@@ -33,11 +35,17 @@ const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "deals_at_risk", label: "Deals à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
   ],
   marketing: [
-    { id: "conversion_rate", label: "Taux de conversion", description: "% de contacts convertis en opportunités", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée", defaultUnit: "percent", defaultDirection: "below", category: "marketing", dealRelated: false },
-    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
-    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois", defaultUnit: "count", defaultDirection: "below", category: "marketing", dealRelated: false },
+    { id: "conversion_rate", label: "Taux de conversion", description: "% de contacts convertis en opportunités", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée", defaultUnit: "percent", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois", defaultUnit: "count", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
     { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
+    { id: "contacts_by_source", label: "Contacts par source", description: "Nombre de contacts acquis via une source d'origine spécifique", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_lead_rate", label: "Source → Lead", description: "% de contacts d'une source convertis en Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_mql_rate", label: "Source → MQL", description: "% de contacts d'une source devenus Marketing Qualified Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_sql_rate", label: "Source → SQL", description: "% de contacts d'une source devenus Sales Qualified Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_opportunity_rate", label: "Source → Opportunité", description: "% de contacts d'une source devenus Opportunité", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_customer_rate", label: "Source → Client", description: "% de contacts d'une source devenus Client", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
   ],
   cs: [
     { id: "deals_at_risk", label: "Comptes à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
@@ -78,6 +86,9 @@ export function CreateAlertModal() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [hsTeams, setHsTeams] = useState<string[]>([]);
+  const [lifecycleStages, setLifecycleStages] = useState<Array<{ value: string; label: string }>>([]);
+  const [sources, setSources] = useState<Array<{ value: string; label: string }>>([]);
+  const [customContactProps, setCustomContactProps] = useState<Array<{ name: string; label: string; type: string }>>([]);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   // Step 1
@@ -90,6 +101,9 @@ export function CreateAlertModal() {
   const [unitMode, setUnitMode] = useState<"percent" | "currency" | "count">("percent");
   const [datePreset, setDatePreset] = useState("all_time");
   const [selectedPipelines, setSelectedPipelines] = useState<string[]>([]);
+  // Step 3 — marketing
+  const [lifecycleStage, setLifecycleStage] = useState("");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
   // Step 3 — advanced
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [severity, setSeverity] = useState("info");
@@ -98,6 +112,8 @@ export function CreateAlertModal() {
   const [expiresIn, setExpiresIn] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
   const [hsTeamFilter, setHsTeamFilter] = useState("");
+  const [customProp, setCustomProp] = useState("");
+  const [customPropValue, setCustomPropValue] = useState("");
 
   const kpiList = kpisByTeam[team] ?? [];
   const kpi = kpiList.find((k) => k.id === kpiId);
@@ -106,11 +122,14 @@ export function CreateAlertModal() {
   useEffect(() => {
     if (open && !optionsLoaded) {
       fetch("/api/alerts/options")
-        .then((r) => r.ok ? r.json() : { pipelines: [], owners: [], teams: [] })
+        .then((r) => r.ok ? r.json() : { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] })
         .then((data) => {
           setPipelines(data.pipelines ?? []);
           setOwners(data.owners ?? []);
           setHsTeams(data.teams ?? []);
+          setLifecycleStages(data.lifecycleStages ?? []);
+          setSources(data.sources ?? []);
+          setCustomContactProps(data.customContactProps ?? []);
           setOptionsLoaded(true);
         })
         .catch(() => setOptionsLoaded(true));
@@ -120,8 +139,10 @@ export function CreateAlertModal() {
   function reset() {
     setStep(1); setTeam(""); setKpiId(""); setThreshold(""); setDirection("above");
     setUnitMode("percent"); setDatePreset("all_time"); setSelectedPipelines([]);
+    setLifecycleStage(""); setSelectedSources([]);
     setShowAdvanced(false); setSeverity("info"); setFrequency("every_check");
     setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
+    setCustomProp(""); setCustomPropValue("");
     setState("idle"); setResult(null);
   }
 
@@ -130,6 +151,9 @@ export function CreateAlertModal() {
 
   function togglePipeline(id: string) {
     setSelectedPipelines((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
+  }
+  function toggleSource(val: string) {
+    setSelectedSources((prev) => prev.includes(val) ? prev.filter((s) => s !== val) : [...prev, val]);
   }
 
   // Filter owners by HS team if selected
@@ -162,6 +186,18 @@ export function CreateAlertModal() {
     } else if (hsTeamFilter) {
       parts.push(`Équipe HubSpot : ${hsTeamFilter}`);
     }
+    if (lifecycleStage) {
+      const lcLabel = lifecycleStages.find((l) => l.value === lifecycleStage)?.label ?? lifecycleStage;
+      parts.push(`Phase du cycle de vie : ${lcLabel}`);
+    }
+    if (selectedSources.length > 0) {
+      const srcNames = selectedSources.map((s) => sources.find((src) => src.value === s)?.label ?? s);
+      parts.push(`Source${srcNames.length > 1 ? "s" : ""} : ${srcNames.join(", ")}`);
+    }
+    if (customProp && customPropValue) {
+      const propLabel = customContactProps.find((p) => p.name === customProp)?.label ?? customProp;
+      parts.push(`Propriété custom : ${propLabel} = ${customPropValue}`);
+    }
     const periodLabel = datePresets.find((d) => d.id === datePreset)?.label ?? "Toujours";
     parts.push(`Période : ${periodLabel}`);
 
@@ -186,6 +222,10 @@ export function CreateAlertModal() {
           frequency,
           min_deal_amount: minDealAmount ? Number(minDealAmount) : null,
           expires_at: expiresAt,
+          lifecycle_stage: lifecycleStage || null,
+          source_filters: selectedSources.length > 0 ? selectedSources : null,
+          custom_property: customProp || null,
+          custom_prop_value: customPropValue || null,
         }),
       });
       if (res.ok) {
@@ -360,6 +400,45 @@ export function CreateAlertModal() {
                         </div>
                       )}
 
+                      {/* Lifecycle stage — for contact/marketing KPIs */}
+                      {kpi.contactRelated && lifecycleStages.length > 0 && (
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Phase du cycle de vie</label>
+                          <select value={lifecycleStage} onChange={(e) => setLifecycleStage(e.target.value)}
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent">
+                            <option value="">Toutes les phases</option>
+                            {lifecycleStages.map((lc) => (
+                              <option key={lc.value} value={lc.value}>{lc.label}</option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-[10px] text-slate-400">Filtrer les contacts par leur phase dans le cycle de vie HubSpot</p>
+                        </div>
+                      )}
+
+                      {/* Source selection — for source-related KPIs */}
+                      {kpi.sourceRelated && sources.length > 0 && (
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Source(s) d&apos;origine à tracker</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {sources.map((s) => {
+                              const selected = selectedSources.includes(s.value);
+                              return (
+                                <button key={s.value} type="button" onClick={() => toggleSource(s.value)}
+                                  className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                                    selected ? "border-accent bg-accent/10 text-accent" : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                  }`}>
+                                  {selected && <span className="mr-1">✓</span>}
+                                  {s.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {selectedSources.length === 0 && (
+                            <p className="mt-1 text-[10px] text-slate-400">Aucune sélection = toutes les sources confondues</p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Date range */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">Période d&apos;analyse</label>
@@ -411,6 +490,31 @@ export function CreateAlertModal() {
                                   ))}
                                 </select>
                                 <p className="mt-1 text-[10px] text-slate-400">Tracker l&apos;objectif sur un utilisateur ou une équipe HubSpot spécifique</p>
+                              </div>
+                            )}
+
+                            {/* Custom contact property filter — user-created properties only */}
+                            {kpi.contactRelated && customContactProps.length > 0 && (
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Propriété de contact personnalisée</label>
+                                <p className="mb-2 text-[10px] text-slate-400">Filtrer par une propriété créée par votre équipe (non native HubSpot)</p>
+                                <select value={customProp}
+                                  onChange={(e) => { setCustomProp(e.target.value); setCustomPropValue(""); }}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
+                                  <option value="">Aucune propriété custom</option>
+                                  {customContactProps.map((p) => (
+                                    <option key={p.name} value={p.name}>{p.label}</option>
+                                  ))}
+                                </select>
+                                {customProp && (
+                                  <input
+                                    type="text"
+                                    value={customPropValue}
+                                    onChange={(e) => setCustomPropValue(e.target.value)}
+                                    placeholder="Valeur attendue"
+                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-accent focus:outline-none"
+                                  />
+                                )}
                               </div>
                             )}
 

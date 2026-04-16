@@ -70,6 +70,10 @@ export async function GET(request: Request) {
       segment_filter: alert.segment_filter,
       min_deal_amount: alert.min_deal_amount,
       deal_stage_filter: alert.deal_stage_filter,
+      lifecycle_stage: alert.lifecycle_stage,
+      source_filters: alert.source_filters,
+      custom_property: alert.custom_property,
+      custom_prop_value: alert.custom_prop_value,
     };
     const currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type, filters);
     if (currentValue === null) continue;

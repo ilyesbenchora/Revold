@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     date_from, date_to, date_preset,
     unit_mode, segment_filter, severity, frequency,
     expires_at, min_deal_amount, deal_stage_filter,
+    // Marketing filters
+    lifecycle_stage, source_filters, custom_property, custom_prop_value,
   } = body;
 
   if (!title || !description || !impact) {
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
     currentValue = await resolveKpiValue(supabase, profile.organization_id, forecast_type, {
       pipeline_id, owner_filter, date_from, date_to, date_preset,
       segment_filter, min_deal_amount, deal_stage_filter,
+      lifecycle_stage, source_filters, custom_property, custom_prop_value,
     });
   }
 
@@ -66,6 +69,10 @@ export async function POST(request: Request) {
     expires_at: expires_at || null,
     min_deal_amount: min_deal_amount != null ? Number(min_deal_amount) : null,
     deal_stage_filter: deal_stage_filter || null,
+    lifecycle_stage: lifecycle_stage || null,
+    source_filters: source_filters?.length ? source_filters : null,
+    custom_property: custom_property || null,
+    custom_prop_value: custom_prop_value || null,
   }).select("id").single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
