@@ -45,15 +45,15 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Attribution contacts ──
   if (t.includes("contacts par owner") || t.includes("répartition des contacts")) {
     return addCaveat({
-      headline: `En moyenne ${v(0)} par commercial — ${v(2) ?? v(1)} contacts ne sont attribués à personne.`,
-      detail: v(3) ? `L'évolution mensuelle montre ${v(3)}. Les contacts non attribués représentent un risque de perte d'opportunités car aucun commercial ne les suit activement.` : null,
+      headline: `${v(0)} par commercial. ${v(2) ?? v(1)} contacts non attribués.`,
+      detail: `**Décision** : ${v(2) && parseInt((v(2) ?? "0").replace(/\s/g, "")) > 100 ? "Lancer un workflow d'attribution automatique — chaque contact non attribué est une opportunité perdue." : "Le volume de contacts non attribués est maîtrisé."} ${v(3) ? `\n\n**Tendance** : ${v(3)}. Un pic d'import non suivi d'attribution crée une dette de suivi commercial.` : ""}\n\n**Action immédiate** : filtrer les contacts sans owner dans HubSpot, les attribuer par segment ou round-robin, puis créer un workflow qui empêche toute future création sans attribution.`,
     });
   }
   // ── Deals par owner ──
   if (t.includes("deals par owner") || t.includes("répartition des deals")) {
     return addCaveat({
-      headline: `Top commerciaux par deals actifs : ${v(0) ?? "N/A"}. ${v(2) ? `${v(2)} deals sans propriétaire.` : ""}`,
-      detail: v(1) ? `Répartition par montant pipeline : ${v(1)}. ${v(3) ? `Détail par owner : ${v(3)}.` : ""} Un déséquilibre > 2x entre commerciaux signale un risque de surcharge ou de sous-exploitation.` : null,
+      headline: `Top deals actifs : ${v(0) ?? "N/A"}. ${v(2) ? `${v(2)} deals orphelins.` : ""}`,
+      detail: `**Analyse de charge** : ${v(1) ?? "N/A"}. ${v(3) ? `\n\n**Détail par montant** : ${v(3)}.` : ""}\n\n**Décision** : un commercial avec 3× plus de deals que la moyenne est en surcharge — son closing rate va baisser. Inversement, un commercial avec peu de deals sous-utilise sa capacité. Rééquilibrez la charge pour maximiser le taux de closing global. Les deals sans owner doivent être attribués sous 24h.`,
     });
   }
   // ── Entreprises par owner ──
@@ -108,106 +108,57 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Vélocité ──
   if (t.includes("vélocité") || t.includes("cycle de vente")) {
     return addCaveat({
-      headline: `Cycle de vente moyen : ${v(0) ?? "N/A"}. ${v(2) ? `Goulot d'étranglement : ${v(2)}.` : ""}`,
-      detail: v(1) ? `Détail par pipeline : ${v(1)}. ${v(3) ? `Deals won : ${v(3)}.` : ""} Chaque jour gagné sur le cycle accélère le CA et libère de la capacité commerciale.` : null,
+      headline: `Cycle moyen : ${v(0) ?? "N/A"}. Goulot : ${v(2) ?? "non identifié"}.`,
+      detail: `**Par pipeline** : ${v(1) ?? "N/A"}. ${v(3) ? `**Won** : ${v(3)}.` : ""}\n\n**Décision** : concentrez vos efforts de coaching sur le stage bloquant — c'est là que le pipeline stagne et que les deals meurent silencieusement. Chaque jour gagné sur ce stage se traduit directement en CA anticipé. Si un pipeline a un cycle 2× plus long qu'un autre, auditez les étapes intermédiaires : trop de validation interne, manque de relance, ou décideur non identifié.`,
     });
   }
   // ── Appels volume ──
-  if (t.includes("volume d'appels")) {
+  if (t.includes("volume d'appels") || (t.includes("activité") && t.includes("owner"))) {
     return addCaveat({
-      headline: `${v(0)} d'appels par jour et par commercial avec ${v(2)} de taux de connexion.`,
-      detail: `Durée moyenne de ${v(1)} par owner. ${v(3) ? `Deals touchés par les appels : ${v(3)}.` : ""} Un taux de connexion bas peut indiquer des horaires d'appels à optimiser.`,
+      headline: `Appels : ${v(0) ?? "N/A"}. Emails : ${v(1) ?? "N/A"}. Meetings : ${v(2) ?? "N/A"}.`,
+      detail: `${v(3) ? `**Communication** : ${v(3)}.` : ""}\n\n**Décision** : les commerciaux avec un volume d'activité < 50% de la moyenne de l'équipe nécessitent un plan d'action immédiat. Croisez ce rapport avec le closing rate par owner — un faible volume d'activité corrélé à un bon closing indique un commercial efficient, tandis qu'un faible volume + faible closing signale un problème de motivation ou de compétence à adresser en coaching.`,
     });
   }
   // ── Appels CA ──
-  if (t.includes("appels") || t.includes("téléphonique")) {
+  if (t.includes("appels") && t.includes("closing")) {
     return addCaveat({
-      headline: `${v(2) ?? v(0)} des deals gagnés ont impliqué au moins un appel téléphonique.`,
-      detail: `CA influencé par les appels : ${v(0)}. ${v(1) ? `Le CA moyen avec appels vs sans : ${v(1)}.` : ""} ${v(3) ? `Top commercial par CA influencé : ${v(3)}.` : ""} Le téléphone reste un levier de closing majeur.`,
+      headline: `Deals won avec appels : ${v(0) ?? "N/A"} appels/deal vs ${v(1) ?? "N/A"} sur deals lost.`,
+      detail: `**CA influencé** : ${v(2) ?? "N/A"}. ${v(3) ? `Closing avec appels : ${v(3)}.` : ""}\n\n**Décision** : si le delta appels/deal entre won et lost est > 2, le téléphone est votre levier de closing N°1 — imposez un minimum de 3 appels par deal avant le stage 030%. Si le delta est faible, le problème de closing est ailleurs (qualification, pricing, timing).`,
     });
   }
-  // ── Meetings ──
-  if (t.includes("meeting")) {
+  // ── Impact meetings ──
+  if (t.includes("impact") && t.includes("meeting")) {
     return addCaveat({
-      headline: `${v(0)} meetings réalisés avec un taux de show-up de ${v(2) ?? v(1)}.`,
-      detail: v(3) ? `En moyenne ${v(3)} meetings par deal fermé. ${v(1) ? `Taux de conversion meeting → deal : ${v(1)}.` : ""} Optimisez le nombre de meetings par deal pour ne pas sur-investir en temps commercial.` : null,
-    });
-  }
-  // ── Email ──
-  if (t.includes("email")) {
-    return addCaveat({
-      headline: `${v(0)} d'emails envoyés par semaine avec un taux de réponse de ${v(2) ?? v(1)}.`,
-      detail: v(3) ? `Les commerciaux les plus actifs : ${v(3)}. ${v(1) ? `Emails reçus en retour : ${v(1)}.` : ""} Un taux de réponse élevé corrèle avec un cycle de vente plus court.` : null,
-    });
-  }
-  // ── Social ──
-  if (t.includes("social")) {
-    return addCaveat({
-      headline: `Le social selling a généré ${v(0)} contacts et ${v(2) ?? v(1)} de taux de conversion.`,
-      detail: v(3) ? `CA total issu du social : ${v(3)}. ${v(1) ? `Nombre de contacts source social : ${v(1)}.` : ""} Le social selling est un canal à fort potentiel de développement.` : null,
+      headline: `${v(0) ?? "N/A"}. ${v(3) ? `${v(3)} deals won avec 3+ meetings.` : ""}`,
+      detail: `**Pipeline avec meetings** : ${v(1) ?? "N/A"}. Moyenne : ${v(2) ?? "N/A"}.\n\n**Décision** : les deals avec 3+ meetings closent 2.5× mieux. Si vos commerciaux font en moyenne < 2 meetings par deal, le plan d'action est clair : imposer un RDV de qualification + un RDV de présentation technique avant toute proposition commerciale. Le coût d'un meeting est négligeable vs le CA d'un deal gagné.`,
     });
   }
   // ── Enrichissement ──
   if (t.includes("enrichissement") || t.includes("complétude") || t.includes("qualité")) {
     return addCaveat({
-      headline: `Score global CRM : ${v(3) ?? v(0)}. Contacts ${v(0) ?? "?"}, Entreprises ${v(1) ?? "?"}, Transactions ${v(2) ?? "?"}.`,
-      detail: `Un enrichissement < 60% sur un objet impacte directement le forecast, le scoring et la segmentation. Priorisez l'objet avec le taux le plus bas pour un ROI immédiat sur la qualité de vos rapports.`,
+      headline: `Contacts ${v(0) ?? "?"} · Entreprises ${v(1) ?? "?"} · Transactions ${v(2) ?? "?"}. Score global : ${v(3) ?? "?"}.`,
+      detail: `**Décision** : l'objet avec le taux le plus bas est votre priorité N°1 d'enrichissement. En dessous de 50%, le scoring, la segmentation et le forecast sont compromis. **Plan d'action** : (1) identifiez les 5 champs les plus impactants par objet, (2) lancez une campagne d'enrichissement progressive ciblée sur les contacts/deals actifs uniquement, (3) mettez en place des champs obligatoires sur les formulaires de création pour empêcher la dégradation future.`,
     });
   }
   // ── Orphelins ──
   if (t.includes("orphelin") || t.includes("sans contact")) {
     return addCaveat({
-      headline: `${v(0)} deals sans contact et ${v(1)} sans entreprise — ${v(2)} de CA non rattaché.`,
-      detail: v(3) ? `${v(3)} de deals orphelins par pipeline. Les deals sans association faussent le reporting et empêchent le suivi client post-signature.` : null,
+      headline: `${v(0) ?? "?"} deals sans contact · ${v(1) ?? "?"} sans entreprise · ${v(2) ?? "?"} de CA non rattaché.`,
+      detail: `${v(3) ? `**Par pipeline** : ${v(3)}.` : ""}\n\n**Décision** : chaque deal orphelin est invisible dans vos rapports par segment, par industrie et par account. Le CA non rattaché fausse votre forecast par vertical. **Action** : créez un workflow HubSpot qui bloque le passage au stage 020% si aucun contact n'est associé au deal. Pour les deals existants, lancez un audit de rattrapage ciblé sur les deals > 10K€.`,
     });
   }
   // ── Outbound ──
   if (t.includes("outbound")) {
     return addCaveat({
-      headline: `L'outbound a généré ${v(0)} de CA avec ${v(1)} deals signés.`,
-      detail: v(2) ? `Deal moyen outbound : ${v(2)}. ${v(3) ? `Comparaison outbound vs inbound : ${v(3)}.` : ""} Mesurez le ROI par campagne pour concentrer le budget sur les séquences les plus performantes.` : null,
-    });
-  }
-  // ── Support ──
-  if (t.includes("ticket") || t.includes("support")) {
-    return addCaveat({
-      headline: `${v(0)} avec ${v(1) ?? v(2)} de tickets haute priorité.`,
-      detail: v(2) ? `Taux de résolution au 1er contact : ${v(2)}. ${v(3) ? `Réouvertures : ${v(3)}.` : ""} Un volume élevé de tickets critiques est un signal d'alerte pour la rétention client.` : null,
-    });
-  }
-  // ── CSAT ──
-  if (t.includes("csat") || t.includes("satisfaction")) {
-    return addCaveat({
-      headline: `Score CSAT proxy à ${v(0)} — satisfaction estimée à partir des résolutions et réouvertures.`,
-      detail: v(1) ? `Performance par agent : ${v(1)}. Taux de réouverture : ${v(2) ?? "non mesuré"}. ${v(3) ? `Évolution : ${v(3)}.` : ""} Le CSAT proxy permet de suivre la satisfaction sans sondage explicite.` : null,
+      headline: `Outbound : ${v(0) ?? "N/A"} contacts prospectés. Conversion : ${v(1) ?? "N/A"}.`,
+      detail: `**CA outbound** : ${v(2) ?? "N/A"}. ${v(3) ? `Séquences : ${v(3)}.` : ""}\n\n**Décision** : calculez le coût par lead outbound (licence outil + temps commercial / leads générés) et comparez-le au CAC inbound. Si le CAC outbound est > 2× l'inbound, concentrez le budget sur les séquences top 20% par taux de conversion. Un taux de conversion outbound < 2% signale un problème de ciblage ICP.`,
     });
   }
   // ── Facturation ──
-  if (t.includes("facturation") || t.includes("facture")) {
+  if (t.includes("facturation") || t.includes("facture") || t.includes("réconciliation")) {
     return addCaveat({
-      headline: `${v(0)} factures émises pour ${v(1)} facturé dont ${v(2)} encaissé.`,
-      detail: v(3) ? `Factures en attente : ${v(3)}. Surveillez les écarts entre CA CRM et facturation réelle pour détecter les deals signés mais non facturés.` : null,
-    });
-  }
-  // ── MRR ──
-  if (t.includes("mrr") || t.includes("récurrent")) {
-    return addCaveat({
-      headline: `MRR à ${v(0)} soit un ARR de ${v(1)} — churn à ${v(2)}.`,
-      detail: v(3) ? `Paiements : ${v(3)}. Le MRR est l'indicateur clé de la santé SaaS. Un churn supérieur à 5% mensuel signale un problème de rétention à adresser d'urgence.` : null,
-    });
-  }
-  // ── Paiements ──
-  if (t.includes("paiement") || t.includes("succès")) {
-    return addCaveat({
-      headline: `${v(0)} paiements traités — taux de succès à ${v(1)} avec ${v(2)} en échec.`,
-      detail: v(3) ? `Impayés : ${v(3)}. Les paiements échoués génèrent du churn involontaire. Mettez en place des relances automatiques pour récupérer le CA perdu.` : null,
-    });
-  }
-  // ── Conv intel ──
-  if (t.includes("pattern") || t.includes("conversationnel")) {
-    return addCaveat({
-      headline: `Les deals gagnés impliquent ${v(0)} touchpoints en moyenne — le ratio de réponse est de ${v(3) ?? v(1)}.`,
-      detail: v(2) ? `Notes logées : ${v(2)}. ${v(1) ? `Meetings par deal won vs lost : ${v(1)}.` : ""} Les deals avec plus de touchpoints ont significativement plus de chances de closer.` : null,
+      headline: `${v(0) ?? "N/A"} facturé. Écart CRM : ${v(1) ?? "N/A"}. En attente : ${v(2) ?? "N/A"}.`,
+      detail: `${v(3) ? `**MRR** : ${v(3)}.` : ""}\n\n**Décision** : un écart > 10% entre CA CRM et CA facturé signale des deals marqués Won mais non facturés — risque de reporting gonflé au board. Les factures en attente > 30 jours sont un signal de churn ou de litige. **Action** : automatisez la création de facture au passage en stage Won, et créez une alerte pour toute facture impayée > 15 jours.`,
     });
   }
 
@@ -250,50 +201,50 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Acquisition / source ──
   if (t.includes("acquisition") && t.includes("source")) {
     return addCaveat({
-      headline: `Source principale : ${v(0) ?? "Offline"}. ${v(3) ? `Autres canaux : ${v(3)}.` : ""}`,
-      detail: `Organic search : ${v(1) ?? "N/A"}, direct : ${v(2) ?? "N/A"}. Une base à 90%+ OFFLINE signale une dépendance aux imports manuels. Diversifiez les sources d'acquisition (SEO, formulaires web, social) pour réduire le coût d'acquisition et améliorer la qualité des leads entrants. Les contacts OFFLINE convertissent en moyenne 3× moins que les contacts inbound.`,
+      headline: `Source principale : ${v(0) ?? "Offline"}. Autres : ${v(3) ?? "N/A"}.`,
+      detail: `**Organic** : ${v(1) ?? "N/A"} · **Direct** : ${v(2) ?? "N/A"}.\n\n**Décision** : une base à 90%+ OFFLINE est un signal d'alerte stratégique — vous dépendez des imports manuels (fichiers, salons, partenaires). Les contacts OFFLINE convertissent en moyenne 3× moins car ils n'ont jamais exprimé d'intérêt spontané. **Plan d'action** : (1) lancer un site web avec formulaires de contact/démo pour capter l'inbound, (2) investir en SEO sur vos mots-clés métier, (3) tracker les sources en créant une propriété "canal d'acquisition" obligatoire. Objectif : passer sous 70% OFFLINE en 6 mois.`,
     });
   }
   // ── Vélocité acquisition ──
   if (t.includes("vélocité") && t.includes("acquisition")) {
     return addCaveat({
-      headline: `${v(1) ?? "?"} contacts créés ce mois (${v(3) ?? "N/A"} vs mois dernier). Tendance : ${v(0) ?? "N/A"}.`,
-      detail: `Mois précédent : ${v(2) ?? "?"}. Un volume d'acquisition en baisse > 2 mois consécutifs signale un tarissement des sources. Inversement, un pic soudain (import) ne reflète pas une vraie croissance. Surveillez la tendance hors imports pour mesurer l'acquisition organique réelle.`,
+      headline: `Ce mois : ${v(1) ?? "?"} contacts (${v(3) ?? "N/A"} vs mois dernier).`,
+      detail: `**Tendance** : ${v(0) ?? "N/A"}. Mois précédent : ${v(2) ?? "?"}.\n\n**Décision** : une baisse > 2 mois consécutifs signale un tarissement des sources — urgence marketing. Un pic isolé (import) ne reflète pas une vraie croissance. **Action** : séparez le volume d'import du volume organique dans vos dashboards. Fixez un objectif mensuel de contacts organiques (hors import) et mesurez-le séparément. La vélocité organique est votre vrai indicateur de santé marketing.`,
     });
   }
   // ── Funnel ──
   if (t.includes("funnel") && (t.includes("lead") || t.includes("opportunity"))) {
     return addCaveat({
-      headline: `${v(0) ?? "?"} leads et ${v(1) ?? "?"} opportunités — conversion à ${v(2) ?? "N/A"}.`,
-      detail: `Deals créés/mois : ${v(3) ?? "N/A"}. Un ratio Lead/Opportunity > 5:1 signale un problème de qualification — soit les leads ne sont pas travaillés, soit les critères MQL sont trop permissifs. Mettez en place un scoring basé sur l'engagement (ouvertures email, visites, formulaires) pour accélérer la conversion. Chaque point de conversion gagné représente ${v(0) ? Math.round(parseInt(v(0)!.replace(/\s/g, "")) * 0.01) : "~"} opportunités supplémentaires.`,
+      headline: `${v(0) ?? "?"} leads · ${v(1) ?? "?"} opportunités · Conversion : ${v(2) ?? "N/A"}.`,
+      detail: `**Deals/mois** : ${v(3) ?? "N/A"}.\n\n**Décision** : un ratio Lead/Opportunity > 5:1 = problème de qualification. Vos leads stagnent sans être travaillés ou vos critères MQL sont trop larges. **Plan d'action** : (1) implémenter un lead scoring basé sur l'engagement (ouvertures email + visites web + formulaires), (2) définir un SLA de premier contact < 24h entre marketing et sales, (3) purger les leads > 6 mois sans activité. Chaque point de conversion gagné = ~${v(0) ? Math.round(parseInt((v(0) ?? "0").replace(/\s/g, "")) * 0.01) : "?"} opportunités supplémentaires.`,
     });
   }
   // ── Base marketing santé ──
   if (t.includes("base marketing") || t.includes("exploitabilité")) {
     return addCaveat({
-      headline: `Email ${v(0) ?? "?"}, Téléphone ${v(1) ?? "?"}, Poste ${v(2) ?? "?"}, Entreprise ${v(3) ?? "?"}.`,
-      detail: `Une base exploitable nécessite au minimum 80% d'emails valides, 40% de téléphones et 50% d'entreprises rattachées. Les contacts sans entreprise ne peuvent pas être segmentés par ABM. Les contacts sans téléphone limitent l'outbound multicanal. Priorisez l'enrichissement du champ avec le taux le plus bas — c'est le maillon faible de votre capacité marketing.`,
+      headline: `Email ${v(0) ?? "?"} · Tél ${v(1) ?? "?"} · Poste ${v(2) ?? "?"} · Entreprise ${v(3) ?? "?"}.`,
+      detail: `**Seuils d'exploitabilité** : Email ≥ 80% (OK pour emailing), Téléphone ≥ 40% (outbound possible), Poste ≥ 50% (segmentation ABM), Entreprise ≥ 60% (reporting par compte).\n\n**Décision** : le champ avec le taux le plus bas est votre maillon faible. Les contacts sans entreprise sont invisibles dans tout rapport ABM. Les contacts sans téléphone bloquent l'outbound multicanal. **Action immédiate** : identifiez le champ critique, lancez un enrichissement ciblé sur les 500 contacts les plus récents, puis rendez ce champ obligatoire à la création.`,
     });
   }
   // ── Pipeline montant ──
   if (t.includes("montant") && t.includes("projection")) {
     return addCaveat({
-      headline: `Pipeline ouvert : ${v(0) ?? "N/A"}. ${v(1) ? `${v(1)} des deals ont un montant renseigné.` : ""} ${v(3) ? `Pipeline pondéré : ${v(3)}.` : ""}`,
-      detail: `Deal moyen : ${v(2) ?? "N/A"}. Les deals sans montant renseigné rendent le forecast impossible — chaque deal sans montant est un trou dans votre projection trimestrielle. En dessous de 50% de complétude montant, le pipeline pondéré n'est pas fiable. Exigez le montant dès le stage 020% pour fiabiliser le forecast COMEX.`,
+      headline: `Pipeline : ${v(0) ?? "N/A"}. Deals avec montant : ${v(1) ?? "?"}. Pondéré : ${v(3) ?? "N/A"}.`,
+      detail: `**Deal moyen** : ${v(2) ?? "N/A"}.\n\n**Décision** : en dessous de 50% de complétude montant, votre forecast est aveugle — le pipeline pondéré n'a aucune valeur pour le COMEX. **Plan d'action** : (1) rendez le montant obligatoire dès le stage 020%, (2) pour les deals existants sans montant, lancez un sprint de rattrapage avec les commerciaux, (3) créez un rapport hebdomadaire "deals sans montant" envoyé aux managers. Objectif : 80% de complétude montant en 30 jours.`,
     });
   }
   // ── Revenue par pipeline ──
   if (t.includes("revenue") && t.includes("pipeline") && t.includes("contribution")) {
     return addCaveat({
-      headline: `${v(0) ?? "N/A"}. ${v(2) ? `Deal moyen par pipeline : ${v(2)}.` : ""}`,
-      detail: `Deals actifs : ${v(1) ?? "N/A"}. ${v(3) ? `Pipeline pondéré : ${v(3)}.` : ""} Comparez le ratio CA/deals entre pipelines — un pipeline avec un deal moyen 3× supérieur mérite plus de ressources commerciales. Le pipeline avec le deal moyen le plus élevé est votre meilleur levier de croissance.`,
+      headline: `${v(0) ?? "N/A"}. Deal moyen : ${v(2) ?? "N/A"}.`,
+      detail: `**Deals actifs** : ${v(1) ?? "N/A"}. ${v(3) ? `**Pondéré** : ${v(3)}.` : ""}\n\n**Décision** : le pipeline avec le deal moyen le plus élevé est votre meilleur levier de croissance — concentrez-y vos meilleurs commerciaux. Un pipeline avec beaucoup de deals mais un faible deal moyen est un pipeline de volume — adaptez le process (automatisation, self-service). **Action** : pour chaque pipeline, calculez le ratio CA/temps commercial investi. Le pipeline avec le meilleur ratio mérite une augmentation de 20% des ressources au prochain trimestre.`,
     });
   }
   // ── Deals créés vs closés ──
   if (t.includes("créés vs closés") || t.includes("ratio d'efficacité")) {
     return addCaveat({
-      headline: `Création : ${v(0) ?? "N/A"}. Won : ${v(1) ?? "N/A"}. Ratio : ${v(2) ?? "N/A"}.`,
-      detail: `Pipeline net : ${v(3) ?? "N/A"}. Un ratio créés/closés > 3 signifie que votre pipeline grossit plus vite qu'il ne se ferme — risque de pipeline zombie. Un ratio < 1 signifie que vous consommez votre pipeline sans le renouveler. L'idéal est entre 1.5 et 2.5 : assez de création pour alimenter le funnel, sans accumulation de deals morts.`,
+      headline: `Créés : ${v(0) ?? "N/A"} · Won : ${v(1) ?? "N/A"} · Ratio : ${v(2) ?? "N/A"}.`,
+      detail: `**Pipeline net** : ${v(3) ?? "N/A"}.\n\n**Décision** : ratio optimal entre 1.5 et 2.5. Au-dessus de 3 = pipeline zombie — vos deals s'accumulent sans se fermer, ce qui fausse le forecast et démotive les commerciaux. En dessous de 1 = vous consommez votre pipeline sans le renouveler, alerte pour le Q+1. **Action** : si ratio > 3, lancez un audit des deals > 60 jours dans le même stage — marquez-les à risque ou perdus. Si ratio < 1.5, augmentez l'effort de prospection immédiatement.`,
     });
   }
 
@@ -334,7 +285,11 @@ function cleanValue(raw: string): string {
     .trim();
 }
 
-export default async function MesRapportsPage() {
+type PageProps = { searchParams: Promise<{ period?: string }> };
+
+export default async function MesRapportsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const _period = params.period || "all_time";
   const orgId = await getOrgId();
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 

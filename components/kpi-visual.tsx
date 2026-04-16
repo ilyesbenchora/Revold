@@ -2,21 +2,18 @@
 
 type Props = { label: string; value: string | null; format?: "auto" | "gauge" | "bar_v" | "bar_h" | "sparkline" | "evaluation" };
 
-type KpiType = "gauge" | "bar_v" | "bar_h" | "sparkline" | "evaluation" | "currency" | "count" | "text";
+type KpiType = "gauge" | "bar_h" | "sparkline" | "evaluation" | "currency" | "count" | "text";
 
 function detectType(label: string, value: string): KpiType {
   const l = label.toLowerCase();
-  // Sparkline for evolution/trend data with arrows
   if (value.includes("→")) return "sparkline";
-  // Gauge for single percentages
-  if ((l.includes("%") || l.includes("taux") || l.includes("score") || l.includes("complétude") || l.includes("connexion")) && !value.includes("·")) return "gauge";
-  // Evaluation for single score-like values
-  if (l.includes("durée") || l.includes("moyenne") || l.includes("cycle") || l.includes("délai")) return "evaluation";
-  // Horizontal bars for multi-values
+  if ((l.includes("%") || l.includes("taux") || l.includes("score") || l.includes("complétude") || l.includes("connexion") || l.includes("enrichissement")) && !value.includes("·")) return "gauge";
+  if (l.includes("durée") || l.includes("cycle") || l.includes("délai") || l.includes("moyenne")) {
+    if (value.includes("·")) return "bar_h";
+    return "evaluation";
+  }
   if (value.includes("·")) return "bar_h";
-  // Currency
-  if (value.includes("€") || l.includes("(€)") || l.includes("ca ") || l.includes("mrr") || l.includes("arr") || l.includes("montant") || l.includes("revenue") || l.includes("chiffre")) return "currency";
-  // Count
+  if (value.includes("€") || l.includes("(€)") || l.includes("ca ") || l.includes("mrr") || l.includes("arr") || l.includes("montant") || l.includes("revenue") || l.includes("chiffre") || l.includes("pipeline")) return "currency";
   if (/^\d/.test(value)) return "count";
   return "text";
 }
@@ -26,7 +23,13 @@ function extractPercent(value: string): number {
   return match ? Math.min(100, parseFloat(match[1].replace(",", "."))) : 0;
 }
 
-// ── Gauge (circular-feel progress) ──
+function extractNumber(str: string): number {
+  // Extract numeric value from strings like "1 000 000 €", "37 500€", "375", "25 000€"
+  const cleaned = str.replace(/[^\d,.]/g, "").replace(/\s/g, "").replace(",", ".");
+  return parseFloat(cleaned) || 0;
+}
+
+// ── Gauge ──
 function Gauge({ value, pct }: { value: string; pct: number }) {
   const gradientId = `gauge-${Math.random().toString(36).slice(2, 8)}`;
   const fromColor = pct >= 70 ? "#10b981" : pct >= 40 ? "#3b82f6" : pct >= 20 ? "#f59e0b" : "#ef4444";
@@ -51,36 +54,45 @@ function Gauge({ value, pct }: { value: string; pct: number }) {
   );
 }
 
-// ── Horizontal Bars (multi-value comparison) ──
+// ── Horizontal Bars ──
 function BarsHorizontal({ value }: { value: string }) {
   const parts = value.split("·").map((s) => s.trim()).filter(Boolean);
-  const nums = parts.map((p) => {
-    const m = p.match(/([\d\s,.]+)/);
-    return m ? parseFloat(m[1].replace(/\s/g, "").replace(",", ".")) : 0;
+
+  // Parse each part: "Pipeline AXMA 25 000 €" → { label: "Pipeline AXMA", num: 25000, display: "25 000 €" }
+  const parsed = parts.map((part) => {
+    // Try to extract a numeric value (possibly with € or % or "j")
+    const numMatch = part.match(/([\d\s,.]+)\s*(€|%|j|deals|won|contacts|par owner)?$/i);
+    const num = numMatch ? extractNumber(numMatch[1]) : 0;
+    const displayValue = numMatch ? numMatch[0].trim() : "";
+    const label = numMatch ? part.slice(0, part.length - numMatch[0].length).trim() : part;
+    return { label: label || part, num, displayValue: displayValue || String(num) };
   });
-  const max = Math.max(...nums, 1);
-  const gradients = [
-    ["#6366f1", "#818cf8"], // indigo
-    ["#8b5cf6", "#a78bfa"], // violet
+
+  const max = Math.max(...parsed.map((p) => p.num), 1);
+
+  // Fuchsia/indigo gradient palette
+  const gradients: [string, string][] = [
+    ["#d946ef", "#a855f7"], // fuchsia→purple
+    ["#8b5cf6", "#6366f1"], // violet→indigo
     ["#ec4899", "#f472b6"], // pink
-    ["#06b6d4", "#22d3ee"], // cyan
+    ["#06b6d4", "#0ea5e9"], // cyan→sky
     ["#10b981", "#34d399"], // emerald
     ["#f59e0b", "#fbbf24"], // amber
   ];
 
   return (
-    <div className="space-y-2">
-      {parts.map((part, i) => {
-        const pct = Math.max(8, (nums[i] / max) * 100);
+    <div className="space-y-2.5">
+      {parsed.map((p, i) => {
+        const pct = Math.max(6, (p.num / max) * 100);
         const [from, to] = gradients[i % gradients.length];
         const gId = `bh-${i}-${Math.random().toString(36).slice(2, 6)}`;
         return (
           <div key={i}>
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] text-slate-600 truncate max-w-[70%]">{part.replace(/([\d\s,.€%]+)$/, "").trim() || part}</span>
-              <span className="text-[10px] font-semibold text-slate-800 tabular-nums">{part.match(/([\d\s,.€%]+)$/)?.[1]?.trim() || ""}</span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-medium text-slate-700 truncate max-w-[60%]">{p.label}</span>
+              <span className="text-[11px] font-bold text-slate-900 tabular-nums">{p.displayValue}</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
               <svg width="100%" height="100%">
                 <defs>
                   <linearGradient id={gId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -88,7 +100,7 @@ function BarsHorizontal({ value }: { value: string }) {
                     <stop offset="100%" stopColor={to} />
                   </linearGradient>
                 </defs>
-                <rect width={`${pct}%`} height="100%" rx="4" fill={`url(#${gId})`} />
+                <rect width={`${pct}%`} height="100%" rx="6" fill={`url(#${gId})`} />
               </svg>
             </div>
           </div>
@@ -98,34 +110,26 @@ function BarsHorizontal({ value }: { value: string }) {
   );
 }
 
-// ── Sparkline (trend over time) ──
+// ── Sparkline ──
 function Sparkline({ value }: { value: string }) {
   const points = value.split("→").map((s) => s.trim());
-  const nums = points.map((p) => {
-    const m = p.match(/([\d\s,.]+)$/);
-    return m ? parseFloat(m[1].replace(/\s/g, "").replace(",", ".")) : 0;
-  });
+  const nums = points.map((p) => extractNumber(p));
   const labels = points.map((p) => p.replace(/([\d\s,.]+)$/, "").trim());
   const max = Math.max(...nums, 1);
   const min = Math.min(...nums);
   const range = max - min || 1;
 
-  const w = 200;
-  const h = 36;
-  const pad = 4;
-  const pathPoints = nums.map((n, i) => {
-    const x = pad + (i / Math.max(1, nums.length - 1)) * (w - 2 * pad);
-    const y = pad + (1 - (n - min) / range) * (h - 2 * pad);
-    return { x, y };
-  });
+  const w = 200, h = 36, pad = 4;
+  const pathPoints = nums.map((n, i) => ({
+    x: pad + (i / Math.max(1, nums.length - 1)) * (w - 2 * pad),
+    y: pad + (1 - (n - min) / range) * (h - 2 * pad),
+  }));
   const pathD = pathPoints.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join(" ");
-  // Area fill
   const areaD = pathD + ` L${pathPoints[pathPoints.length - 1].x},${h} L${pathPoints[0].x},${h} Z`;
-
   const isUp = nums[nums.length - 1] >= nums[0];
-  const strokeColor = isUp ? "#10b981" : "#ef4444";
-  const fillFrom = isUp ? "#10b98120" : "#ef444420";
-  const fillTo = isUp ? "#10b98105" : "#ef444405";
+  const stroke = isUp ? "#d946ef" : "#ef4444";
+  const fillFrom = isUp ? "#d946ef25" : "#ef444425";
+  const fillTo = isUp ? "#d946ef05" : "#ef444405";
   const gId = `sp-${Math.random().toString(36).slice(2, 6)}`;
 
   return (
@@ -138,9 +142,9 @@ function Sparkline({ value }: { value: string }) {
           </linearGradient>
         </defs>
         <path d={areaD} fill={`url(#${gId})`} />
-        <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={pathD} fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         {pathPoints.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill={strokeColor} />
+          <circle key={i} cx={p.x} cy={p.y} r="3" fill={stroke} />
         ))}
       </svg>
       <div className="flex justify-between mt-1">
@@ -152,11 +156,10 @@ function Sparkline({ value }: { value: string }) {
   );
 }
 
-// ── Evaluation (single value with contextual color) ──
+// ── Evaluation ──
 function Evaluation({ value, label }: { value: string; label: string }) {
-  const num = parseFloat(value.replace(/[^\d,.]/g, "").replace(",", "."));
+  const num = extractNumber(value);
   const l = label.toLowerCase();
-  // Determine if lower is better (cycle, durée, délai)
   const lowerIsBetter = l.includes("cycle") || l.includes("durée") || l.includes("délai") || l.includes("jours");
   const color = lowerIsBetter
     ? (num <= 30 ? "text-emerald-600" : num <= 60 ? "text-blue-600" : num <= 90 ? "text-amber-600" : "text-red-500")
@@ -172,12 +175,10 @@ function Evaluation({ value, label }: { value: string; label: string }) {
   );
 }
 
-// ── Currency (large formatted) ──
 function Currency({ value }: { value: string }) {
   return <span className="text-base font-bold text-slate-900 tabular-nums">{value}</span>;
 }
 
-// ── Count ──
 function Count({ value }: { value: string }) {
   return <span className="text-base font-semibold text-slate-800 tabular-nums">{value}</span>;
 }
@@ -202,7 +203,7 @@ export function KpiVisual({ label, value, format }: Props) {
   return (
     <div className="rounded-lg px-3 py-2.5 bg-slate-50">
       <div className="flex items-center gap-2 mb-2">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-fuchsia-500" />
         <span className="text-[10px] text-slate-500 leading-tight">{label}</span>
       </div>
       {type === "gauge" && <Gauge value={value} pct={extractPercent(value)} />}
