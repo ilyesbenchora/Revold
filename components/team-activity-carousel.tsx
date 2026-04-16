@@ -14,13 +14,9 @@ type Props = {
 };
 
 export function TeamActivityCarousel({ teams }: Props) {
-  const visibleCount = 2;
-  const visible = teams.slice(0, visibleCount);
-  const overflow = teams.slice(visibleCount);
-
   const ref = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(overflow.length > 0);
+  const [canScrollRight, setCanScrollRight] = useState(teams.length > 1);
 
   function updateScroll() {
     if (!ref.current) return;
@@ -37,39 +33,31 @@ export function TeamActivityCarousel({ teams }: Props) {
   }
 
   return (
-    <div className="space-y-3">
-      {/* First 2 teams stacked */}
-      {visible.map((t) => (
-        <TeamCard key={t.team} team={t} />
-      ))}
-
-      {/* Overflow teams in horizontal carousel */}
-      {overflow.length > 0 && (
-        <div className="relative">
-          {canScrollLeft && (
-            <button onClick={() => scroll("left")} aria-label="Précédent"
-              className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-card-border bg-white text-slate-600 shadow-md transition hover:bg-slate-50">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-            </button>
-          )}
-          {canScrollRight && (
-            <button onClick={() => scroll("right")} aria-label="Suivant"
-              className="absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-card-border bg-white text-slate-600 shadow-md transition hover:bg-slate-50">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-            </button>
+    <div>
+      <div className="relative">
+        {canScrollLeft && (
+          <button onClick={() => scroll("left")} aria-label="Précédent"
+            className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-card-border bg-white text-slate-600 shadow-md transition hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+        )}
+        {canScrollRight && (
+          <button onClick={() => scroll("right")} aria-label="Suivant"
+            className="absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-card-border bg-white text-slate-600 shadow-md transition hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
           )}
 
-          <div ref={ref} onScroll={updateScroll}
-            className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 px-1"
-            style={{ scrollbarWidth: "none" }}>
-            {overflow.map((t) => (
-              <div key={t.team} className="shrink-0 snap-start" style={{ width: "min(420px, 85vw)" }}>
-                <TeamCard team={t} />
-              </div>
-            ))}
-          </div>
+        <div ref={ref} onScroll={updateScroll}
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 px-1"
+          style={{ scrollbarWidth: "none" }}>
+          {teams.map((t) => (
+            <div key={t.team} className="shrink-0 snap-start" style={{ width: "min(420px, 85vw)" }}>
+              <TeamCard team={t} />
+            </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
