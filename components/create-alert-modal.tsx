@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // ── Team definitions ──
 const teams = [
@@ -10,7 +10,6 @@ const teams = [
   { id: "revops", label: "RevOps / Finance", icon: "📊", description: "Revenue, données, process" },
 ];
 
-// ── KPIs per team ──
 type KpiDef = {
   id: string;
   label: string;
@@ -18,39 +17,40 @@ type KpiDef = {
   defaultUnit: "percent" | "currency" | "count";
   defaultDirection: "above" | "below";
   category: string;
+  dealRelated: boolean;
 };
 
 const kpisByTeam: Record<string, KpiDef[]> = {
   sales: [
-    { id: "closing_rate", label: "Closing rate", description: "% de deals gagnés sur les deals clôturés", defaultUnit: "percent", defaultDirection: "above", category: "sales" },
-    { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une prochaine activité planifiée", defaultUnit: "percent", defaultDirection: "above", category: "sales" },
-    { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité", defaultUnit: "percent", defaultDirection: "above", category: "sales" },
-    { id: "pipeline_value", label: "Valeur pipeline", description: "Montant total des deals ouverts", defaultUnit: "currency", defaultDirection: "above", category: "sales" },
-    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales" },
-    { id: "deals_won_count", label: "Deals gagnés", description: "Nombre de deals remportés sur la période", defaultUnit: "count", defaultDirection: "above", category: "sales" },
-    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales" },
-    { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales" },
-    { id: "deals_at_risk", label: "Deals à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales" },
+    { id: "closing_rate", label: "Closing rate", description: "% de deals gagnés sur les deals clôturés", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une prochaine activité planifiée", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_value", label: "Valeur pipeline", description: "Montant total des deals ouverts", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deals_won_count", label: "Deals gagnés", description: "Nombre de deals remportés sur la période", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "deals_at_risk", label: "Deals à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
   ],
   marketing: [
-    { id: "conversion_rate", label: "Taux de conversion", description: "% de contacts convertis en opportunités", defaultUnit: "percent", defaultDirection: "above", category: "marketing" },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée", defaultUnit: "percent", defaultDirection: "below", category: "marketing" },
-    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone", defaultUnit: "percent", defaultDirection: "above", category: "marketing" },
-    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois", defaultUnit: "count", defaultDirection: "below", category: "marketing" },
-    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période", defaultUnit: "count", defaultDirection: "above", category: "marketing" },
+    { id: "conversion_rate", label: "Taux de conversion", description: "% de contacts convertis en opportunités", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
+    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée", defaultUnit: "percent", defaultDirection: "below", category: "marketing", dealRelated: false },
+    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
+    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois", defaultUnit: "count", defaultDirection: "below", category: "marketing", dealRelated: false },
+    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
   ],
   cs: [
-    { id: "deals_at_risk", label: "Comptes à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales" },
-    { id: "stagnant_deals", label: "Deals sans suivi", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales" },
-    { id: "orphan_rate", label: "Contacts non rattachés", description: "% de contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data" },
+    { id: "deals_at_risk", label: "Comptes à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "stagnant_deals", label: "Deals sans suivi", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "orphan_rate", label: "Contacts non rattachés", description: "% de contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false },
   ],
   revops: [
-    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines confondus", defaultUnit: "percent", defaultDirection: "above", category: "sales" },
-    { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé sur la période", defaultUnit: "currency", defaultDirection: "above", category: "sales" },
-    { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert", defaultUnit: "currency", defaultDirection: "above", category: "sales" },
-    { id: "conversion_rate", label: "Conversion globale", description: "Taux Lead→Opportunité", defaultUnit: "percent", defaultDirection: "above", category: "marketing" },
-    { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone", defaultUnit: "percent", defaultDirection: "above", category: "data" },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data" },
+    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines confondus", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé sur la période", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "conversion_rate", label: "Conversion globale", description: "Taux Lead→Opportunité", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
+    { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false },
+    { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false },
   ],
 };
 
@@ -63,17 +63,22 @@ const datePresets = [
   { id: "all_time", label: "Depuis toujours" },
 ];
 
-const unitLabels: Record<string, string> = {
-  percent: "%",
-  currency: "€",
-  count: "",
-};
+const unitLabels: Record<string, string> = { percent: "%", currency: "€", count: "" };
+
+type Pipeline = { id: string; label: string };
+type Owner = { id: string; name: string; email: string; team: string | null };
 
 export function CreateAlertModal() {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState(1); // 1: team, 2: kpi, 3: config
+  const [step, setStep] = useState(1);
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const [result, setResult] = useState<{ currentValue: number | null } | null>(null);
+
+  // Options from HubSpot
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [owners, setOwners] = useState<Owner[]>([]);
+  const [hsTeams, setHsTeams] = useState<string[]>([]);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   // Step 1
   const [team, setTeam] = useState("");
@@ -84,45 +89,51 @@ export function CreateAlertModal() {
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [unitMode, setUnitMode] = useState<"percent" | "currency" | "count">("percent");
   const [datePreset, setDatePreset] = useState("all_time");
+  const [selectedPipelines, setSelectedPipelines] = useState<string[]>([]);
   // Step 3 — advanced
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [severity, setSeverity] = useState("info");
   const [frequency, setFrequency] = useState("every_check");
   const [minDealAmount, setMinDealAmount] = useState("");
   const [expiresIn, setExpiresIn] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [hsTeamFilter, setHsTeamFilter] = useState("");
 
   const kpiList = kpisByTeam[team] ?? [];
   const kpi = kpiList.find((k) => k.id === kpiId);
 
+  // Load pipelines/owners on first open
+  useEffect(() => {
+    if (open && !optionsLoaded) {
+      fetch("/api/alerts/options")
+        .then((r) => r.ok ? r.json() : { pipelines: [], owners: [], teams: [] })
+        .then((data) => {
+          setPipelines(data.pipelines ?? []);
+          setOwners(data.owners ?? []);
+          setHsTeams(data.teams ?? []);
+          setOptionsLoaded(true);
+        })
+        .catch(() => setOptionsLoaded(true));
+    }
+  }, [open, optionsLoaded]);
+
   function reset() {
-    setStep(1);
-    setTeam("");
-    setKpiId("");
-    setThreshold("");
-    setDirection("above");
-    setUnitMode("percent");
-    setDatePreset("all_time");
-    setShowAdvanced(false);
-    setSeverity("info");
-    setFrequency("every_check");
-    setMinDealAmount("");
-    setExpiresIn("");
-    setState("idle");
-    setResult(null);
+    setStep(1); setTeam(""); setKpiId(""); setThreshold(""); setDirection("above");
+    setUnitMode("percent"); setDatePreset("all_time"); setSelectedPipelines([]);
+    setShowAdvanced(false); setSeverity("info"); setFrequency("every_check");
+    setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
+    setState("idle"); setResult(null);
   }
 
-  function selectTeam(t: string) {
-    setTeam(t);
-    setKpiId("");
-    setStep(2);
+  function selectTeam(t: string) { setTeam(t); setKpiId(""); setStep(2); }
+  function selectKpi(k: KpiDef) { setKpiId(k.id); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setStep(3); }
+
+  function togglePipeline(id: string) {
+    setSelectedPipelines((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
   }
 
-  function selectKpi(k: KpiDef) {
-    setKpiId(k.id);
-    setDirection(k.defaultDirection);
-    setUnitMode(k.defaultUnit);
-    setStep(3);
-  }
+  // Filter owners by HS team if selected
+  const filteredOwners = hsTeamFilter ? owners.filter((o) => o.team === hsTeamFilter) : owners;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -139,19 +150,36 @@ export function CreateAlertModal() {
       if (days > 0) expiresAt = new Date(Date.now() + days * 86400000).toISOString();
     }
 
+    // Build description with context
+    const parts = [`[${teamLabel}] "${kpi.label}" ${dirLabel} ${threshold}${unit}`];
+    if (selectedPipelines.length > 0) {
+      const names = selectedPipelines.map((id) => pipelines.find((p) => p.id === id)?.label ?? id);
+      parts.push(`Pipeline${names.length > 1 ? "s" : ""} : ${names.join(", ")}`);
+    }
+    if (ownerFilter) {
+      const owner = owners.find((o) => o.id === ownerFilter);
+      parts.push(`Propriétaire : ${owner?.name ?? ownerFilter}`);
+    } else if (hsTeamFilter) {
+      parts.push(`Équipe HubSpot : ${hsTeamFilter}`);
+    }
+    const periodLabel = datePresets.find((d) => d.id === datePreset)?.label ?? "Toujours";
+    parts.push(`Période : ${periodLabel}`);
+
     try {
       const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: `${kpi.label} : objectif ${threshold}${unit}`,
-          description: `[${teamLabel}] Alerte quand "${kpi.label}" va ${dirLabel} ${threshold}${unit}. ${kpi.description}. Période : ${datePresets.find((d) => d.id === datePreset)?.label ?? "Toujours"}.`,
-          impact: `Notification automatique quand l'objectif de ${threshold}${unit} sera atteint`,
+          description: parts.join(". ") + ".",
+          impact: `Notification quand l'objectif de ${threshold}${unit} sera atteint`,
           category: kpi.category,
           forecast_type: kpi.id,
           threshold: Number(threshold),
           direction,
           team,
+          pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
+          owner_filter: ownerFilter || null,
           date_preset: datePreset === "all_time" ? null : datePreset,
           unit_mode: unitMode,
           severity,
@@ -175,15 +203,10 @@ export function CreateAlertModal() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => { reset(); setOpen(true); }}
-        className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90"
-      >
+      <button type="button" onClick={() => { reset(); setOpen(true); }}
+        className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v8" />
-          <path d="M8 12h8" />
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" />
         </svg>
         Créer une alerte
       </button>
@@ -210,20 +233,14 @@ export function CreateAlertModal() {
               </div>
             ) : (
               <>
-                {/* ── Steps indicator ── */}
+                {/* Steps indicator */}
                 <div className="flex items-center gap-2 mb-6">
                   {[1, 2, 3].map((s) => (
                     <div key={s} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { if (s < step) setStep(s); }}
-                        disabled={s > step}
+                      <button type="button" onClick={() => { if (s < step) setStep(s); }} disabled={s > step}
                         className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
                           s === step ? "bg-accent text-white" : s < step ? "bg-accent/20 text-accent cursor-pointer" : "bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        {s}
-                      </button>
+                        }`}>{s}</button>
                       <span className={`text-xs font-medium ${s === step ? "text-slate-900" : "text-slate-400"}`}>
                         {s === 1 ? "Équipe" : s === 2 ? "KPI" : "Objectif"}
                       </span>
@@ -239,14 +256,8 @@ export function CreateAlertModal() {
                     <p className="mt-1 text-sm text-slate-500">Sélectionnez le département concerné par cette alerte.</p>
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       {teams.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => selectTeam(t.id)}
-                          className={`rounded-xl border p-4 text-left transition hover:border-accent/30 hover:shadow-sm ${
-                            team === t.id ? "border-accent bg-accent/5" : "border-slate-200"
-                          }`}
-                        >
+                        <button key={t.id} type="button" onClick={() => selectTeam(t.id)}
+                          className={`rounded-xl border p-4 text-left transition hover:border-accent/30 hover:shadow-sm ${team === t.id ? "border-accent bg-accent/5" : "border-slate-200"}`}>
                           <span className="text-2xl">{t.icon}</span>
                           <p className="mt-2 text-sm font-semibold text-slate-900">{t.label}</p>
                           <p className="mt-0.5 text-[11px] text-slate-500">{t.description}</p>
@@ -263,14 +274,8 @@ export function CreateAlertModal() {
                     <p className="mt-1 text-sm text-slate-500">KPIs disponibles pour l&apos;équipe {teams.find((t) => t.id === team)?.label}.</p>
                     <div className="mt-4 space-y-2">
                       {kpiList.map((k) => (
-                        <button
-                          key={k.id}
-                          type="button"
-                          onClick={() => selectKpi(k)}
-                          className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition hover:border-accent/30 ${
-                            kpiId === k.id ? "border-accent bg-accent/5" : "border-slate-200"
-                          }`}
-                        >
+                        <button key={k.id} type="button" onClick={() => selectKpi(k)}
+                          className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition hover:border-accent/30 ${kpiId === k.id ? "border-accent bg-accent/5" : "border-slate-200"}`}>
                           <div>
                             <p className={`text-sm font-medium ${kpiId === k.id ? "text-accent" : "text-slate-900"}`}>{k.label}</p>
                             <p className="mt-0.5 text-[11px] text-slate-500">{k.description}</p>
@@ -281,9 +286,7 @@ export function CreateAlertModal() {
                         </button>
                       ))}
                     </div>
-                    <button type="button" onClick={() => setStep(1)} className="mt-4 text-xs text-slate-400 hover:text-accent">
-                      ← Changer d&apos;équipe
-                    </button>
+                    <button type="button" onClick={() => setStep(1)} className="mt-4 text-xs text-slate-400 hover:text-accent">← Changer d&apos;équipe</button>
                   </div>
                 )}
 
@@ -294,19 +297,15 @@ export function CreateAlertModal() {
                     <p className="mt-1 text-sm text-slate-500">{kpi.label} — {kpi.description}</p>
 
                     <div className="mt-5 space-y-4">
-                      {/* Direction + Threshold */}
+                      {/* Direction + Unit */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="mb-1.5 block text-xs font-medium text-slate-600">Direction</label>
                           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
                             <button type="button" onClick={() => setDirection("above")}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "above" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                              Atteindre ↑
-                            </button>
+                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "above" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>Atteindre ↑</button>
                             <button type="button" onClick={() => setDirection("below")}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "below" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                              Descendre ↓
-                            </button>
+                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "below" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>Descendre ↓</button>
                           </div>
                         </div>
                         <div>
@@ -322,23 +321,44 @@ export function CreateAlertModal() {
                         </div>
                       </div>
 
-                      {/* Threshold input */}
+                      {/* Threshold */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">
                           Objectif à {direction === "below" ? "descendre sous" : "atteindre"}
                         </label>
                         <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            step="any"
-                            value={threshold}
-                            onChange={(e) => setThreshold(e.target.value)}
+                          <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)}
                             placeholder={unitMode === "currency" ? "50000" : unitMode === "percent" ? "35" : "10"}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                          />
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                           <span className="text-sm font-semibold text-slate-500">{unitLabels[unitMode]}</span>
                         </div>
                       </div>
+
+                      {/* Pipeline selection — only for deal-related KPIs */}
+                      {kpi.dealRelated && pipelines.length > 0 && (
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                            Pipeline{pipelines.length > 1 ? "s" : ""} à surveiller
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {pipelines.map((p) => {
+                              const selected = selectedPipelines.includes(p.id);
+                              return (
+                                <button key={p.id} type="button" onClick={() => togglePipeline(p.id)}
+                                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                                    selected ? "border-accent bg-accent/10 text-accent" : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                  }`}>
+                                  {selected && <span className="mr-1">✓</span>}
+                                  {p.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {selectedPipelines.length === 0 && (
+                            <p className="mt-1 text-[10px] text-slate-400">Aucune sélection = tous les pipelines</p>
+                          )}
+                        </div>
+                      )}
 
                       {/* Date range */}
                       <div>
@@ -348,29 +368,52 @@ export function CreateAlertModal() {
                             <button key={d.id} type="button" onClick={() => setDatePreset(d.id)}
                               className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                                 datePreset === d.id ? "bg-accent text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}>
-                              {d.label}
-                            </button>
+                              }`}>{d.label}</button>
                           ))}
                         </div>
                       </div>
 
-                      {/* ── Advanced section ── */}
+                      {/* ── Advanced ── */}
                       <div className="border-t border-slate-100 pt-3">
-                        <button
-                          type="button"
-                          onClick={() => setShowAdvanced(!showAdvanced)}
-                          className="flex w-full items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700"
-                        >
+                        <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
+                          className="flex w-full items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700">
                           <span>Paramètres avancés</span>
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                            className={`transition-transform ${showAdvanced ? "" : "-rotate-90"}`}>
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
+                            className={`transition-transform ${showAdvanced ? "" : "-rotate-90"}`}><polyline points="6 9 12 15 18 9" /></svg>
                         </button>
 
                         {showAdvanced && (
-                          <div className="mt-3 space-y-3 rounded-lg bg-slate-50 p-4">
+                          <div className="mt-3 space-y-4 rounded-lg bg-slate-50 p-4">
+                            {/* Owner / HubSpot team filter */}
+                            {kpi.dealRelated && (owners.length > 0 || hsTeams.length > 0) && (
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Filtrer par propriétaire ou équipe HubSpot</label>
+                                {hsTeams.length > 0 && (
+                                  <div className="mb-2">
+                                    <select value={hsTeamFilter}
+                                      onChange={(e) => { setHsTeamFilter(e.target.value); setOwnerFilter(""); }}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
+                                      <option value="">Toutes les équipes</option>
+                                      {hsTeams.map((t) => (
+                                        <option key={t} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                                <select value={ownerFilter}
+                                  onChange={(e) => setOwnerFilter(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
+                                  <option value="">Tous les propriétaires{hsTeamFilter ? ` (${hsTeamFilter})` : ""}</option>
+                                  {filteredOwners.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.name}{o.team ? ` — ${o.team}` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="mt-1 text-[10px] text-slate-400">Tracker l&apos;objectif sur un commercial ou une équipe spécifique</p>
+                              </div>
+                            )}
+
                             {/* Severity */}
                             <div>
                               <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Sévérité de l&apos;alerte</label>
@@ -383,9 +426,7 @@ export function CreateAlertModal() {
                                   <button key={s.id} type="button" onClick={() => setSeverity(s.id)}
                                     className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                                       severity === s.id ? s.color : "bg-white border border-slate-200 text-slate-500"
-                                    }`}>
-                                    {s.label}
-                                  </button>
+                                    }`}>{s.label}</button>
                                 ))}
                               </div>
                             </div>
@@ -393,29 +434,21 @@ export function CreateAlertModal() {
                             {/* Frequency */}
                             <div>
                               <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Fréquence de vérification</label>
-                              <select
-                                value={frequency}
-                                onChange={(e) => setFrequency(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none"
-                              >
+                              <select value={frequency} onChange={(e) => setFrequency(e.target.value)}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
                                 <option value="every_check">À chaque sync (toutes les 6h)</option>
                                 <option value="daily">Quotidien (1x/jour)</option>
                                 <option value="weekly">Hebdomadaire (1x/semaine)</option>
                               </select>
                             </div>
 
-                            {/* Min deal amount filter */}
-                            {["sales", "revops"].includes(team) && (
+                            {/* Min deal amount */}
+                            {kpi.dealRelated && (
                               <div>
                                 <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Montant minimum par deal</label>
                                 <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    value={minDealAmount}
-                                    onChange={(e) => setMinDealAmount(e.target.value)}
-                                    placeholder="Ex: 5000"
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-accent focus:outline-none"
-                                  />
+                                  <input type="number" value={minDealAmount} onChange={(e) => setMinDealAmount(e.target.value)} placeholder="Ex: 5000"
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-accent focus:outline-none" />
                                   <span className="text-xs text-slate-400">€</span>
                                 </div>
                                 <p className="mt-1 text-[10px] text-slate-400">Exclure les petits deals du calcul du KPI</p>
@@ -425,19 +458,15 @@ export function CreateAlertModal() {
                             {/* Expiration */}
                             <div>
                               <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Expiration automatique</label>
-                              <select
-                                value={expiresIn}
-                                onChange={(e) => setExpiresIn(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none"
-                              >
+                              <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
                                 <option value="">Jamais (jusqu&apos;à objectif atteint)</option>
                                 <option value="30">Dans 30 jours</option>
                                 <option value="60">Dans 60 jours</option>
-                                <option value="90">Dans 90 jours (fin de trimestre)</option>
+                                <option value="90">Dans 90 jours</option>
                                 <option value="180">Dans 6 mois</option>
                                 <option value="365">Dans 1 an</option>
                               </select>
-                              <p className="mt-1 text-[10px] text-slate-400">L&apos;alerte sera automatiquement retirée après cette date si l&apos;objectif n&apos;est pas atteint</p>
                             </div>
                           </div>
                         )}
@@ -446,14 +475,10 @@ export function CreateAlertModal() {
 
                     {/* Actions */}
                     <div className="mt-6 flex items-center justify-between">
-                      <button type="button" onClick={() => setStep(2)} className="text-xs text-slate-400 hover:text-accent">
-                        ← Changer de KPI
-                      </button>
+                      <button type="button" onClick={() => setStep(2)} className="text-xs text-slate-400 hover:text-accent">← Changer de KPI</button>
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
-                          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
-                          Annuler
-                        </button>
+                          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
                         <button type="submit" disabled={!threshold || state === "loading"}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           {state === "loading" ? "Création..." : "Créer l'alerte"}
