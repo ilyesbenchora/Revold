@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 const CATEGORIES = [
   { id: "all", label: "Tous" },
   { id: "attribution", label: "Attribution" },
+  { id: "activite_commerciale", label: "Activité commerciale" },
+  { id: "pipeline_analyse", label: "Analyse pipeline" },
   { id: "chiffre_affaires", label: "Chiffre d'affaires" },
-  { id: "facturation_paiement", label: "Facturation & Paiement" },
-  { id: "service_client", label: "Service client" },
-  { id: "qualite_donnees", label: "Qualité de données" },
-  { id: "adoption_outils", label: "Adoption outils" },
   { id: "cycle_ventes", label: "Cycle de ventes" },
+  { id: "qualite_donnees", label: "Qualité de données" },
+  { id: "facturation_paiement", label: "Facturation & Paiement" },
 ] as const;
 
 type Report = {

@@ -12,14 +12,14 @@ import type { DetectedIntegration } from "@/lib/integrations/detect-integrations
 import {
   getToolCategory,
   type ToolCategory,
-  type ReportDisplayCategory,
+  type DisplayCategory,
 } from "./report-suggestions";
 
 export type CrossSourceReport = {
   id: string;
   title: string;
   description: string;
-  displayCategory: ReportDisplayCategory;
+  displayCategory: DisplayCategory;
   requiredCategories: ToolCategory[];
   metrics: string[];
   expectedValue: string;

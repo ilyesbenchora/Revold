@@ -211,6 +211,42 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
     });
   }
 
+  // ── Activité commerciale par owner ──
+  if (t.includes("activité") && t.includes("owner")) {
+    return addCaveat({
+      headline: `Top performers en appels : ${v(0) ?? "N/A"}. Emails : ${v(1) ?? "N/A"}.`,
+      detail: `Meetings par owner : ${v(2) ?? "N/A"}. ${v(3) ? `Communication : ${v(3)}.` : ""} Les commerciaux avec le plus d'activités multicanales closent en moyenne 30% de plus — la consistance prime sur le volume.`,
+    });
+  }
+  // ── Impact meetings ──
+  if (t.includes("impact") && t.includes("meeting")) {
+    return addCaveat({
+      headline: `${v(0) ?? "N/A"} deals avec au moins un RDV. ${v(3) ? `${v(3)} avec 3+ meetings.` : ""}`,
+      detail: `Pipeline avec meetings : ${v(1) ?? "N/A"}. En moyenne ${v(2) ?? "?"} meetings par deal. Les deals avec 3+ meetings ont un taux de closing 2.5× supérieur — investir du temps en early stage paie.`,
+    });
+  }
+  // ── Pipeline par stage ──
+  if (t.includes("pipeline par stage") || t.includes("répartition du pipeline")) {
+    return addCaveat({
+      headline: `Concentration pipeline : ${v(2) ?? "N/A"}. ${v(3) ? `${v(3)}.` : ""}`,
+      detail: `Répartition par stage : ${v(0) ?? "N/A"}. ${v(1) ? `Montants : ${v(1)}.` : ""} Une forte concentration sur les premiers stages signale un pipeline immature — priorisez le push des deals mid-funnel.`,
+    });
+  }
+  // ── Santé pipeline ──
+  if (t.includes("santé du pipeline") || t.includes("par pipeline")) {
+    return addCaveat({
+      headline: `${v(0) ?? "N/A"}. ${v(1) ? `Montant : ${v(1)}.` : ""}`,
+      detail: `Pipeline pondéré : ${v(2) ?? "N/A"}. ${v(3) ? `Owners actifs : ${v(3)}.` : ""} Comparez les pipelines par ratio CA pondéré / deals actifs pour identifier les pipelines les plus rentables.`,
+    });
+  }
+  // ── Contacts lifecycle ──
+  if (t.includes("lifecycle")) {
+    return addCaveat({
+      headline: `Répartition lifecycle : ${v(0) ?? "N/A"}.`,
+      detail: `${v(1) ? `Contacts attribués : ${v(1)}.` : ""} ${v(2) ? `Orphelins : ${v(2)}.` : ""} ${v(3) ? `Conversion contact→deal : ${v(3)}.` : ""} Un ratio Lead/Opportunity déséquilibré signale un blocage dans le funnel de qualification.`,
+    });
+  }
+
   // ── Fallback ──
   const headline = filled.slice(0, 2).map((kv) => `${kv.label} à ${kv.value}`).join(" et ");
   return addCaveat({

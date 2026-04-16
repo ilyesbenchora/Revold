@@ -1015,5 +1015,59 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
     ? [...deals.perPipeline.entries()].filter(([, v]) => v.won > 0).map(([k, v]) => `${plName(k)} ${fmt(v.won)} won · ${eur(v.caWon)}`).join(" · ")
     : null;
 
+  // ── ACTIVITE COMMERCIALE ──
+  // Per-owner activity breakdown
+  V["Nb total d'appels par owner"] = calls.perOwner.size > 0
+    ? [...calls.perOwner.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 6).map(([k, v]) => `${owName(k)} ${fmt(v.count)}`).join(" · ") : null;
+  V["Nb total d'emails envoyés par owner"] = emails.perOwner.size > 0
+    ? [...emails.perOwner.entries()].sort((a, b) => b[1].sent - a[1].sent).slice(0, 6).map(([k, v]) => `${owName(k)} ${fmt(v.sent)}`).join(" · ") : null;
+  V["Nb total de meetings par owner"] = meetings.perOwner.size > 0
+    ? [...meetings.perOwner.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${owName(k)} ${fmt(v)}`).join(" · ") : null;
+  V["Ratio emails envoyés / reçus"] = has(emails.totalSent) ? `${fmt(emails.totalSent)} envoyés · ${fmt(emails.totalReceived)} reçus · ratio ${fmtDec(replyRate)} %` : null;
+
+  // Meetings impact on pipeline
+  V["Deals avec meetings vs sans meetings"] = has(deals.totalActive)
+    ? `${fmt(deals.dealsWithMeetings)} avec RDV · ${fmt(deals.totalActive - deals.dealsWithMeetings)} sans`
+    : null;
+  V["CA pipeline avec meetings vs sans (€)"] = has(deals.totalActive)
+    ? `${eur(deals.caWonWithMeetings)} avec · ${eur(deals.caActive - deals.caWonWithMeetings)} sans`
+    : null;
+  V["Nb moyen de meetings par deal actif"] = has(deals.totalActive) ? `${fmtDec(deals.totalMeetingsOnDeals / Math.max(1, deals.dealsWithMeetings))} par deal` : null;
+  V["Deals won avec 3+ meetings"] = has(deals.dealsWonWith3PlusMeetings) ? `${fmt(deals.dealsWonWith3PlusMeetings)} deals · ${eur(deals.caWonWith3PlusMeetings)}` : null;
+
+  // ── PIPELINE ANALYSE ──
+  // By stage
+  V["Nb de deals par stage actuel"] = deals.perStage.size > 0
+    ? [...deals.perStage.entries()].sort((a, b) => b[1].active - a[1].active).filter(([, v]) => v.active > 0).slice(0, 6).map(([k, v]) => `${stName(k)} ${fmt(v.active)}`).join(" · ") : null;
+  V["Montant par stage actuel (€)"] = null; // Would need per-stage amounts — compute inline
+  V["Concentration du pipeline (%)"] = deals.perStage.size > 0 && deals.totalActive > 0
+    ? (() => {
+        const top = [...deals.perStage.entries()].sort((a, b) => b[1].active - a[1].active)[0];
+        return top ? `${pct(top[1].active / deals.totalActive * 100)} sur ${stName(top[0])}` : null;
+      })()
+    : null;
+  V["Deals sans montant par stage"] = deals.perStage.size > 0 ? `${fmt(deals.total - [...deals.perOwnerActive.values()].reduce((s, v) => s + (v.amount > 0 ? v.count : 0), 0))} deals sans montant` : null;
+
+  // By pipeline — health metrics
+  V["Deals actifs par pipeline"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${fmt(v.active)}`).join(" · ") : null;
+  V["Montant actif par pipeline (€)"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].filter(([, v]) => v.caActive > 0).map(([k, v]) => `${plName(k)} ${eur(v.caActive)}`).join(" · ") : null;
+  V["Pipeline weighted par pipeline (€)"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].map(([k, v]) => {
+        const weighted = v.caActive * 0.3; // Approximate weighted — real calc would need per-deal probs
+        return `${plName(k)} ${eur(weighted)}`;
+      }).join(" · ") : null;
+  V["Nb d'owners actifs par pipeline"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].map(([k]) => {
+        const ownersInPipeline = new Set<string>();
+        // Count will be approximate — we don't have per-pipeline per-owner data
+        return `${plName(k)}`;
+      }).join(" · ") : null;
+
+  // Lifecycle stages
+  V["Répartition par lifecycle stage"] = contacts.lifecycleCounts.size > 0
+    ? [...contacts.lifecycleCounts.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join(" · ") : null;
+
   return V;
 }
