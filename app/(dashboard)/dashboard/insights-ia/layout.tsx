@@ -65,7 +65,6 @@ export default async function CoachingLayout({ children }: { children: ReactNode
 
       <CoachingTabs
         counts={{
-          actions: 8,
           commercial: insightsByCategory.commercial.length,
           marketing: insightsByCategory.marketing.length,
           data: insightsByCategory.data.length,

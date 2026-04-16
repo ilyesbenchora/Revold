@@ -36,8 +36,7 @@ export default async function CoachingOverviewPage() {
   const dataModelInsights = await fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys);
 
   const categories = [
-    { id: "actions", label: "Mes actions coaching IA", description: "Workflows manquants ou sous-exploités", count: 8, dot: "bg-violet-500" },
-    { id: "commercial", label: "Coaching Commercial", description: "Deals, pipeline, closing rate", count: insightsByCategory.commercial.length, dot: "bg-blue-500" },
+    { id: "commercial", label: "Coaching Commercial", description: "Deals, pipeline, closing, workflows", count: insightsByCategory.commercial.length, dot: "bg-blue-500" },
     { id: "marketing", label: "Coaching Marketing", description: "Leads, conversion, acquisition", count: insightsByCategory.marketing.length, dot: "bg-amber-500" },
     { id: "data", label: "Coaching Data", description: "Qualité et enrichissement des données", count: insightsByCategory.data.length, dot: "bg-emerald-500" },
     { id: "integration", label: "Coaching Intégration", description: "Adoption outils et rapports suggérés", count: visibleIntegrationInsights.length, dot: "bg-indigo-500" },

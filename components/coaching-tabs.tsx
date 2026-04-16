@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type CategoryCount = {
-  actions: number;
   commercial: number;
   marketing: number;
   data: number;
@@ -20,8 +19,7 @@ type Props = {
 export function CoachingTabs({ counts }: Props) {
   const pathname = usePathname();
   const tabs = [
-    { href: "/dashboard/insights-ia", label: "Vue d'ensemble", count: null },
-    { href: "/dashboard/insights-ia/actions", label: "Actions", count: counts.actions },
+    { href: "/dashboard/insights-ia", label: "Mes coaching IA", count: null },
     { href: "/dashboard/insights-ia/commercial", label: "Commercial", count: counts.commercial },
     { href: "/dashboard/insights-ia/marketing", label: "Marketing", count: counts.marketing },
     { href: "/dashboard/insights-ia/data", label: "Data", count: counts.data },
