@@ -9,6 +9,9 @@ type Scenario = {
   impact: string;
   category: string;
   color: string;
+  forecastType?: string;
+  threshold?: number;
+  direction?: "above" | "below";
 };
 
 const VISIBLE = 4;
@@ -49,7 +52,7 @@ export function ScenarioCarousel({ scenarios }: { scenarios: Scenario[] }) {
               <p className="text-sm font-semibold text-slate-900">{s.impact}</p>
             </div>
             <div className="mt-auto pt-4">
-              <AlertButton title={s.title} description={s.description} impact={s.impact} category={s.category} />
+              <AlertButton title={s.title} description={s.description} impact={s.impact} category={s.category} forecastType={s.forecastType} threshold={s.threshold} direction={s.direction} />
             </div>
           </article>
         ))}

@@ -1,0 +1,111 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
+
+export const maxDuration = 300;
+
+const FORECAST_LABELS: Record<string, string> = {
+  closing_rate: "Closing rate",
+  conversion_rate: "Taux de conversion Lead→Opp",
+  pipeline_coverage: "Suivi pipeline",
+  orphan_rate: "Taux d'orphelins",
+  deal_activation: "Activation des deals",
+  phone_enrichment: "Enrichissement téléphone",
+  pipeline_value: "Pipeline en valeur",
+  dormant_reactivation: "Réactivation contacts dormants",
+};
+
+const FORECAST_UNITS: Record<string, string> = {
+  closing_rate: "%",
+  conversion_rate: "%",
+  pipeline_coverage: "%",
+  orphan_rate: "%",
+  deal_activation: "%",
+  phone_enrichment: "%",
+  pipeline_value: "€",
+  dormant_reactivation: "contacts",
+};
+
+export async function GET(request: Request) {
+  // Verify cron secret in production
+  const authHeader = request.headers.get("authorization");
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Use service role to bypass RLS
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+
+  // Fetch all active alerts with a forecast_type
+  const { data: activeAlerts, error } = await supabase
+    .from("alerts")
+    .select("*")
+    .eq("status", "active")
+    .not("forecast_type", "is", null);
+
+  if (error || !activeAlerts) {
+    return NextResponse.json({ error: error?.message ?? "No alerts" }, { status: 500 });
+  }
+
+  let resolved = 0;
+  let checked = 0;
+  let notificationsCreated = 0;
+
+  for (const alert of activeAlerts) {
+    const currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type);
+    if (currentValue === null) continue;
+
+    checked++;
+
+    // Update current_value and last_checked
+    await supabase
+      .from("alerts")
+      .update({
+        current_value: currentValue,
+        last_checked: new Date().toISOString(),
+      })
+      .eq("id", alert.id);
+
+    // Check if threshold is met
+    const direction = alert.direction || "above";
+    if (isThresholdMet(currentValue, alert.threshold, direction)) {
+      // Mark alert as resolved
+      await supabase
+        .from("alerts")
+        .update({
+          status: "resolved",
+          resolved_at: new Date().toISOString(),
+          current_value: currentValue,
+        })
+        .eq("id", alert.id);
+
+      resolved++;
+
+      // Create notification
+      const unit = FORECAST_UNITS[alert.forecast_type] || "";
+      const label = FORECAST_LABELS[alert.forecast_type] || alert.forecast_type;
+
+      const { error: notifError } = await supabase.from("notifications").insert({
+        organization_id: alert.organization_id,
+        user_id: alert.created_by,
+        type: "alert_resolved",
+        title: `Objectif atteint : ${label}`,
+        body: `Votre objectif de ${alert.threshold}${unit} a été atteint ! Valeur actuelle : ${currentValue}${unit}.`,
+        link: "/dashboard/alertes",
+        alert_id: alert.id,
+      });
+
+      if (!notifError) notificationsCreated++;
+    }
+  }
+
+  return NextResponse.json({
+    checked,
+    resolved,
+    notificationsCreated,
+    total: activeAlerts.length,
+  });
+}

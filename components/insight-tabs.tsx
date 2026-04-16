@@ -11,14 +11,14 @@ type Props = {
 export function InsightTabs({ doneCount, removedCount }: Props) {
   const pathname = usePathname();
   const tabs = [
-    { href: "/dashboard/insights-ia", label: "Insights actifs" },
+    { href: "/dashboard/insights-ia", label: "Coaching actif" },
     {
       href: "/dashboard/insights-ia/realisees",
-      label: doneCount != null ? `Insights réalisés (${doneCount})` : "Insights réalisés",
+      label: doneCount != null ? `Coaching réalisé (${doneCount})` : "Coaching réalisé",
     },
     {
       href: "/dashboard/insights-ia/retirees",
-      label: removedCount != null ? `Insights retirés (${removedCount})` : "Insights retirés",
+      label: removedCount != null ? `Coaching retiré (${removedCount})` : "Coaching retiré",
     },
   ];
 
