@@ -590,10 +590,10 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     description:
       "Quel commercial porte le plus de pipeline ? Assurez une répartition équitable des opportunités.",
     metrics: [
-      "Nb de deals par owner",
-      "Montant total du pipeline par owner (€)",
+      "Top owners — deals actifs",
+      "Top owners — montant pipeline (€)",
       "Nb de deals sans owner",
-      "Deals par owner par pipeline",
+      "Répartition pipeline par owner (€)",
     ],
     expectedValue:
       "Assurez une répartition équitable du pipeline entre commerciaux.",
@@ -730,17 +730,17 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
   {
     category: "other",
     displayCategory: "qualite_donnees",
-    title: "Audit de complétude des champs CRM",
+    title: "Taux d'enrichissement par objet CRM",
     description:
-      "Quel est le taux de complétude de votre CRM ? Identifiez les champs les moins renseignés pour prioriser l'enrichissement.",
+      "Quel est le taux d'enrichissement réel de chaque objet ? Identifiez les objets sous-renseignés pour prioriser l'effort data.",
     metrics: [
-      "Complétude par champ clé (%)",
-      "Champs les moins remplis (bottom 5)",
-      "Champs manquants les plus fréquents par owner",
-      "Score de qualité moyen par portefeuille",
+      "Enrichissement Contacts (%)",
+      "Enrichissement Entreprises (%)",
+      "Enrichissement Transactions (%)",
+      "Score global de qualité CRM (%)",
     ],
     expectedValue:
-      "Priorisez l'enrichissement sur les champs qui impactent le plus le business.",
+      "Priorisez l'enrichissement sur les objets qui impactent le plus le forecast et le pipeline.",
     priority: "high",
     icon: "🔍",
   },
@@ -772,10 +772,10 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     description:
       "Où vos deals passent-ils le plus de temps ? Identifiez les goulots d'étranglement dans votre pipeline.",
     metrics: [
-      "Durée moyenne par étape (jours)",
-      "Étapes les plus lentes (>21 jours)",
-      "Vélocité totale du pipeline (jours)",
-      "Comparaison par pipeline",
+      "Cycle moyen global (jours)",
+      "Cycle moyen par pipeline",
+      "Stage le plus bloquant",
+      "Deals won par pipeline",
     ],
     expectedValue:
       "Raccourcissez le cycle en supprimant les goulots d'étranglement.",

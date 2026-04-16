@@ -52,8 +52,8 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Deals par owner ──
   if (t.includes("deals par owner") || t.includes("répartition des deals")) {
     return addCaveat({
-      headline: `Chaque commercial gère ${v(0)} de deals actifs pour un pipeline moyen de ${v(1)}.`,
-      detail: v(2) ? `${v(2)} deals ne sont attribués à aucun commercial. ${v(3) ? `La répartition par pipeline montre : ${v(3)}.` : ""} Un rééquilibrage pourrait améliorer le taux de closing.` : null,
+      headline: `Top commerciaux par deals actifs : ${v(0) ?? "N/A"}. ${v(2) ? `${v(2)} deals sans propriétaire.` : ""}`,
+      detail: v(1) ? `Répartition par montant pipeline : ${v(1)}. ${v(3) ? `Détail par owner : ${v(3)}.` : ""} Un déséquilibre > 2x entre commerciaux signale un risque de surcharge ou de sous-exploitation.` : null,
     });
   }
   // ── Entreprises par owner ──
@@ -108,8 +108,8 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Vélocité ──
   if (t.includes("vélocité") || t.includes("cycle de vente")) {
     return addCaveat({
-      headline: `Cycle de vente moyen de ${v(2) ?? v(0)} — les deals ralentissent sur ${v(1) ?? "certaines étapes"}.`,
-      detail: v(3) ? `Comparaison par pipeline : ${v(3)}. Chaque jour gagné sur le cycle de vente accélère la génération de CA et libère de la capacité commerciale.` : null,
+      headline: `Cycle de vente moyen : ${v(0) ?? "N/A"}. ${v(2) ? `Goulot d'étranglement : ${v(2)}.` : ""}`,
+      detail: v(1) ? `Détail par pipeline : ${v(1)}. ${v(3) ? `Deals won : ${v(3)}.` : ""} Chaque jour gagné sur le cycle accélère le CA et libère de la capacité commerciale.` : null,
     });
   }
   // ── Appels volume ──
@@ -150,8 +150,8 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   // ── Enrichissement ──
   if (t.includes("enrichissement") || t.includes("complétude") || t.includes("qualité")) {
     return addCaveat({
-      headline: `Complétude de votre base à ${v(0)} — les champs critiques manquent sur ${v(1) ?? "plusieurs propriétés"}.`,
-      detail: v(2) ? `Score de qualité moyen : ${v(2)}. ${v(3) ? `${v(3)} contacts à enrichir en priorité.` : ""} Une base incomplète dégrade le scoring, le routing et la personnalisation des séquences.` : null,
+      headline: `Score global CRM : ${v(3) ?? v(0)}. Contacts ${v(0) ?? "?"}, Entreprises ${v(1) ?? "?"}, Transactions ${v(2) ?? "?"}.`,
+      detail: `Un enrichissement < 60% sur un objet impacte directement le forecast, le scoring et la segmentation. Priorisez l'objet avec le taux le plus bas pour un ROI immédiat sur la qualité de vos rapports.`,
     });
   }
   // ── Orphelins ──

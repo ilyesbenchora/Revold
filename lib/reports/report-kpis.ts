@@ -729,12 +729,33 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["% de contacts enrichis par owner"] = has(contacts.total) ? pct(enrichmentRate) : null;
   V["Complétude par champ clé (%)"] = has(contacts.total) ? pct(fieldCompleteness) : null;
 
+  // ENRICHISSEMENT PAR OBJET
+  const contactEnrichment = contacts.total > 0 ? Math.round(((contacts.withEmail + contacts.withPhone + contacts.withJobtitle) / (3 * contacts.total)) * 100) : 0;
+  const companyEnrichment = companies.total > 0 ? Math.round(((companies.total - companies.orphans + (companies.totalRevenue > 0 ? companies.total : 0)) / (2 * companies.total)) * 100) : 0;
+  const dealEnrichment = deals.total > 0 ? Math.round((((deals.total - deals.orphans) + (deals.caClosedWon > 0 || deals.caActive > 0 ? deals.total : 0)) / (2 * deals.total)) * 100) : 0;
+  const globalQuality = Math.round((contactEnrichment + companyEnrichment + dealEnrichment) / 3);
+
+  V["Enrichissement Contacts (%)"] = has(contacts.total) ? pct(contactEnrichment) : null;
+  V["Enrichissement Entreprises (%)"] = has(companies.total) ? pct(companyEnrichment) : null;
+  V["Enrichissement Transactions (%)"] = has(deals.total) ? pct(dealEnrichment) : null;
+  V["Score global de qualité CRM (%)"] = has(contacts.total) ? pct(globalQuality) : null;
+
   // ATTRIBUTION — DEALS
   V["Nb de deals par owner"] = has(deals.totalActive) ? `${fmt(avgDealsPerOwner)}  par owner` : null;
   V["Montant total du pipeline par owner (€)"] = has(deals.caActive) ? eur(avgAmountPerOwner) : null;
   V["Nb de deals sans owner"] = has(deals.total) ? fmt(deals.orphans) : null;
   V["Deals par owner par pipeline"] = deals.perPipeline.size > 0
     ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${fmt(v.active)}`).join(" · ") : null;
+
+  // Top owners — deals actifs (sorted by count, show names)
+  V["Top owners — deals actifs"] = deals.perOwnerActive.size > 0
+    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5).map(([k, v]) => `${k} ${fmt(v.count)}`).join(" · ") : null;
+  // Top owners — montant pipeline
+  V["Top owners — montant pipeline (€)"] = deals.perOwnerActive.size > 0
+    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 5).map(([k, v]) => `${k} ${eur(v.amount)}`).join(" · ") : null;
+  // Répartition pipeline par owner
+  V["Répartition pipeline par owner (€)"] = deals.perOwnerActive.size > 0
+    ? [...deals.perOwnerActive.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 6).map(([k, v]) => `${k} ${eur(v.amount)}`).join(" · ") : null;
   V["Taux de conversion global pipeline → Won"] = has(totalClosed) ? pct(convRate) : null;
   V["Nb de deals stagnants (>30j même stage)"] = has(deals.total) ? fmt(deals.stagnantCount) : null;
   V["Montant total des deals stagnants (€)"] = has(deals.stagnantAmount) ? eur(deals.stagnantAmount) : null;
@@ -960,6 +981,21 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Vélocité totale du pipeline (jours)"] = has(deals.avgDaysToClose) ? `${fmt(deals.avgDaysToClose)} j` : null;
   V["Comparaison par pipeline"] = deals.perPipeline.size > 1
     ? [...deals.perPipeline.entries()].map(([k, v]) => `${plName(k)} ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : "?"} j`).join(" · ") : null;
+
+  // New velocity KPIs
+  V["Cycle moyen global (jours)"] = has(deals.avgDaysToClose) ? `${fmt(deals.avgDaysToClose)} j` : null;
+  V["Cycle moyen par pipeline"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()]
+        .filter(([, v]) => v.won > 0)
+        .map(([k, v]) => `${plName(k)} ${v.daysCount > 0 ? Math.round(v.totalDays / v.daysCount) : Math.round(v.totalDays / Math.max(1, v.won))} j`)
+        .join(" · ")
+    : null;
+  V["Stage le plus bloquant"] = mostBlockedStage
+    ? `${stName(mostBlockedStage[0])} · ${fmt(mostBlockedStage[1].active)} deals actifs`
+    : topStagnantStage ? `${stName(topStagnantStage[0])} · ${fmt(topStagnantStage[1])} deals` : null;
+  V["Deals won par pipeline"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].filter(([, v]) => v.won > 0).map(([k, v]) => `${plName(k)} ${fmt(v.won)} won · ${eur(v.caWon)}`).join(" · ")
+    : null;
 
   return V;
 }
