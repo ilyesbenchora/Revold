@@ -59,7 +59,7 @@ export default async function AssetsPage() {
     <div className="space-y-6">
       {topAssetCreators.length > 0 ? (
         <CollapsibleBlock
-          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-indigo-500" />Assets créés par utilisateur</h2>}
+          title={<h2 className="text-lg font-semibold text-slate-900">Assets créés par utilisateur</h2>}
         >
           <p className="text-sm text-slate-500">Workflows et propriétés personnalisées créés sur tous les objets CRM.</p>
           <div className="card overflow-x-auto">

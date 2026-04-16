@@ -124,7 +124,7 @@ export default async function ConnexionsPage({ searchParams }: Props) {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-orange-500" />Records sans activité depuis {days}+ jours
+              Records sans activité depuis {days}+ jours
               <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">{ownersWithStale.length} propriétaires</span>
             </h2>
           }

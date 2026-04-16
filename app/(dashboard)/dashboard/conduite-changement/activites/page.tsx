@@ -61,7 +61,7 @@ export default async function ActivitesPage() {
       {/* Équipes */}
       {sortedTeamActivity.length > 0 && (
         <CollapsibleBlock
-          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-blue-500" />Activité commerciale par équipe</h2>}
+          title={<h2 className="text-lg font-semibold text-slate-900">Activité commerciale par équipe</h2>}
         >
           <div className="space-y-3">
             {sortedTeamActivity.map(([team, stats]) => (
@@ -91,7 +91,7 @@ export default async function ActivitesPage() {
       {/* Utilisateurs */}
       {topActivityUsers.length > 0 && (
         <CollapsibleBlock
-          title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-emerald-500" />Activité de vente par utilisateur</h2>}
+          title={<h2 className="text-lg font-semibold text-slate-900">Activité de vente par utilisateur</h2>}
         >
           <div className="card overflow-x-auto">
             <table className="w-full text-sm">

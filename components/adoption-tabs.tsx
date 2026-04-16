@@ -7,7 +7,7 @@ export function AdoptionTabs() {
   const pathname = usePathname();
   const tabs = [
     { href: "/dashboard/conduite-changement", label: "Vue d'ensemble" },
-    { href: "/dashboard/conduite-changement/activites", label: "Activités" },
+    { href: "/dashboard/conduite-changement/activites", label: "Équipes" },
     { href: "/dashboard/conduite-changement/assets", label: "Assets" },
     { href: "/dashboard/conduite-changement/connexions", label: "Connexions" },
   ];
