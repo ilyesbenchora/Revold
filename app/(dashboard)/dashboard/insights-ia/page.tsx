@@ -85,7 +85,7 @@ export default async function MesCoachingPage() {
     .from("insight_dismissals")
     .select("*")
     .eq("organization_id", orgId)
-    .order("created_at", { ascending: false });
+    .order("dismissed_at", { ascending: false });
 
   const dismissalsList = (allDismissals ?? []) as Array<{
     id: string;
@@ -95,7 +95,7 @@ export default async function MesCoachingPage() {
     body?: string;
     severity?: string;
     category?: string;
-    created_at: string;
+    dismissed_at: string;
   }>;
   const doneInsights = dismissalsList.filter((d) => !d.status || d.status === "done");
   const removedInsights = dismissalsList.filter((d) => d.status === "removed");
@@ -134,7 +134,7 @@ export default async function MesCoachingPage() {
                       <h3 className="mt-1.5 text-sm font-medium text-slate-900">{d.title || d.template_key}</h3>
                       {d.body && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{d.body}</p>}
                     </div>
-                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.dismissed_at).toLocaleDateString("fr-FR")}</span>
                   </div>
                 </article>
               );
@@ -171,7 +171,7 @@ export default async function MesCoachingPage() {
                       <h3 className="mt-1.5 text-sm font-medium text-slate-600">{d.title || d.template_key}</h3>
                       {d.body && <p className="mt-1 text-xs text-slate-400 line-clamp-1">{d.body}</p>}
                     </div>
-                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.created_at).toLocaleDateString("fr-FR")}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{new Date(d.dismissed_at).toLocaleDateString("fr-FR")}</span>
                   </div>
                 </article>
               );
