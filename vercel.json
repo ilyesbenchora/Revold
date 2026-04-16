@@ -7,35 +7,35 @@
   "crons": [
     {
       "path": "/api/integrations/hubspot/sync?type=companies",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/integrations/hubspot/sync?type=contacts",
-      "schedule": "5 */6 * * *"
+      "schedule": "5 6 * * *"
     },
     {
       "path": "/api/integrations/hubspot/sync?type=deals",
-      "schedule": "10 */6 * * *"
+      "schedule": "10 6 * * *"
     },
     {
       "path": "/api/cron/compute-kpis",
-      "schedule": "15 */6 * * *"
+      "schedule": "15 6 * * *"
     },
     {
       "path": "/api/cron/detect-risks",
-      "schedule": "20 */6 * * *"
+      "schedule": "20 6 * * *"
     },
     {
       "path": "/api/cron/compute-fill-rates",
-      "schedule": "30 */6 * * *"
+      "schedule": "30 6 * * *"
     },
     {
       "path": "/api/cron/generate-insights",
-      "schedule": "30 6 * * 1"
+      "schedule": "35 6 * * *"
     },
     {
       "path": "/api/cron/check-alerts",
-      "schedule": "35 */6 * * *"
+      "schedule": "40 6 * * *"
     }
   ]
 }
