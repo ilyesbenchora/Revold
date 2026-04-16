@@ -554,7 +554,7 @@ function aggregatePayments(rows: RawPayment[]): PaymentKpis {
 
 // ── Public: fetch all data ─────────────────────────────────────────────────
 
-export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string): Promise<AllKpiData> {
+export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string, dateFilter?: { from: string | null; to: string | null }): Promise<AllKpiData> {
   const [ownerData, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
     fetchOwners(token).catch(() => ({ count: 1, names: new Map<string, string>() })),
     fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>(), stageProbs: new Map<string, number>() })),
@@ -581,27 +581,46 @@ export async function fetchAllKpiData(token: string, supabase: SupabaseClient, o
     sbPayments(supabase, orgId).catch(() => []),
   ]);
 
-  const dealData = aggregateDeals(rawDeals, pipelineData.stageProbs);
+  // Apply date filter if provided (filter by createdate)
+  function filterByDate(rows: HSRow[]): HSRow[] {
+    if (!dateFilter || (!dateFilter.from && !dateFilter.to)) return rows;
+    return rows.filter((r) => {
+      const created = r.createdate || r.hs_createdate;
+      if (!created) return true; // Keep rows without dates
+      const d = new Date(created).getTime();
+      if (dateFilter.from && d < new Date(dateFilter.from).getTime()) return false;
+      if (dateFilter.to && d > new Date(dateFilter.to).getTime()) return false;
+      return true;
+    });
+  }
+
+  const filteredContacts = filterByDate(rawContacts);
+  const filteredDeals = filterByDate(rawDeals);
+  const filteredCalls = filterByDate(rawCalls);
+  const filteredMeetings = filterByDate(rawMeetings);
+  const filteredEmails = filterByDate(rawEmails);
+
+  const dealData = aggregateDeals(filteredDeals, pipelineData.stageProbs);
 
   // Fetch engagement associations for deals (calls, meetings, emails)
-  const dealIds = rawDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id);
+  const dealIds = filteredDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id);
   if (dealIds.length > 0) {
     const [callAssoc, meetingAssoc, emailAssoc] = await Promise.all([
       fetchAssociations(token, "deals", "calls", dealIds).catch(() => new Map()),
       fetchAssociations(token, "deals", "meetings", dealIds).catch(() => new Map()),
       fetchAssociations(token, "deals", "emails", dealIds).catch(() => new Map()),
     ]);
-    enrichDealEngagements(dealData, rawDeals, callAssoc, meetingAssoc, emailAssoc);
+    enrichDealEngagements(dealData, filteredDeals, callAssoc, meetingAssoc, emailAssoc);
   }
 
   return {
     ownerCount: ownerData.count,
     ownerNames: ownerData.names,
-    contacts: aggregateContacts(rawContacts),
+    contacts: aggregateContacts(filteredContacts),
     deals: dealData,
-    calls: aggregateCalls(rawCalls),
-    meetings: aggregateMeetings(rawMeetings),
-    emails: aggregateEmails(rawEmails),
+    calls: aggregateCalls(filteredCalls),
+    meetings: aggregateMeetings(filteredMeetings),
+    emails: aggregateEmails(filteredEmails),
     tickets: aggregateTickets(rawTickets),
     companies: aggregateCompanies(rawCompanies),
     invoices: aggregateInvoices(rawInvoices),

@@ -12,7 +12,7 @@ import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
 import { ReportInsight } from "@/components/report-insight";
-import { ReportDateRange } from "@/components/report-date-range";
+import { ReportDateRange, resolvePresetDates } from "@/components/report-date-range";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -311,7 +311,8 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
   let kpiError: string | null = null;
   if (hubspotToken && activatedReports.length > 0) {
     try {
-      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId);
+      const dateFilter = resolvePresetDates(_period);
+      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId, dateFilter);
       kpiValues = computeMetricValues(kpiData);
     } catch (err) {
       kpiError = String(err).slice(0, 200);
