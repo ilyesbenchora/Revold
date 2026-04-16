@@ -55,7 +55,23 @@ export async function GET(request: Request) {
   let notificationsCreated = 0;
 
   for (const alert of activeAlerts) {
-    const currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type);
+    // Check expiration
+    if (alert.expires_at && new Date(alert.expires_at) < new Date()) {
+      await supabase.from("alerts").update({ status: "expired" }).eq("id", alert.id);
+      continue;
+    }
+
+    const filters = {
+      pipeline_id: alert.pipeline_id,
+      owner_filter: alert.owner_filter,
+      date_from: alert.date_from,
+      date_to: alert.date_to,
+      date_preset: alert.date_preset,
+      segment_filter: alert.segment_filter,
+      min_deal_amount: alert.min_deal_amount,
+      deal_stage_filter: alert.deal_stage_filter,
+    };
+    const currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type, filters);
     if (currentValue === null) continue;
 
     checked++;
