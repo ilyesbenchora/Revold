@@ -277,60 +277,87 @@ export async function resolveKpiValue(
       return count ?? 0;
     }
 
+    // ── New deal KPIs ──
+    case "weighted_pipeline": {
+      let q = supabase.from("deals").select("amount, win_probability").eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("amount", 0);
+      q = applyDealFilters(q, filters);
+      const { data } = await q;
+      return Math.round((data ?? []).reduce((s, d) => s + (d.amount ?? 0) * (d.win_probability ?? 0.5), 0));
+    }
+
+    case "sales_cycle_days": {
+      let q = supabase.from("deals").select("created_at, close_date").eq("organization_id", orgId).eq("is_closed_won", true).not("close_date", "is", null);
+      q = applyDealFilters(q, filters);
+      const { data } = await q;
+      if (!data || data.length === 0) return 0;
+      const totalDays = data.reduce((s, d) => {
+        const created = new Date(d.created_at).getTime();
+        const closed = new Date(d.close_date).getTime();
+        return s + Math.max(0, Math.round((closed - created) / 86400000));
+      }, 0);
+      return Math.round(totalDays / data.length);
+    }
+
+    case "deals_no_amount": {
+      let q = supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).lte("amount", 0);
+      q = applyDealFilters(q, filters);
+      const { count } = await q;
+      return count ?? 0;
+    }
+
+    case "data_completeness": {
+      let qTotal = supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false);
+      let qComplete = supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("amount", 0).not("close_date", "is", null).not("owner_id", "is", null);
+      qTotal = applyDealFilters(qTotal, filters);
+      qComplete = applyDealFilters(qComplete, filters);
+      const [{ count: total }, { count: complete }] = await Promise.all([qTotal, qComplete]);
+      if (!total || total === 0) return 0;
+      return Math.round(((complete ?? 0) / total) * 100);
+    }
+
+    // ── Marketing contact KPIs ──
+    case "mql_to_sql_rate": {
+      if (!token) return 0;
+      const [mqls, sqls] = await Promise.all([
+        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "marketingqualifiedlead" }]),
+        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "salesqualifiedlead" }]),
+      ]);
+      const totalMqlSql = mqls + sqls;
+      if (totalMqlSql === 0) return 0;
+      return Math.round((sqls / totalMqlSql) * 100);
+    }
+
     // ── Source tracking KPIs (HubSpot API) ──
     case "contacts_by_source": {
       if (!token) return 0;
       return await queryHubSpotContacts(token, filters);
     }
 
-    case "source_to_lead_rate": {
-      if (!token) return 0;
-      const [total, leads] = await Promise.all([
+    case "source_to_lifecycle": {
+      // Consolidated: user picks the target lifecycle_stage in filters
+      if (!token || !filters.lifecycle_stage) return 0;
+      const [total, reached] = await Promise.all([
+        queryHubSpotContacts(token, { ...filters, lifecycle_stage: undefined }),
         queryHubSpotContacts(token, filters),
-        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "lead" }]),
       ]);
       if (total === 0) return 0;
-      return Math.round((leads / total) * 100);
+      return Math.round((reached / total) * 100);
     }
 
-    case "source_to_mql_rate": {
+    case "source_to_deal_created": {
       if (!token) return 0;
-      const [total, mqls] = await Promise.all([
-        queryHubSpotContacts(token, filters),
-        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "marketingqualifiedlead" }]),
+      // Contacts from source that have associated deals
+      return await queryHubSpotContacts(token, filters, [
+        { propertyName: "num_associated_deals", operator: "GT", value: "0" },
       ]);
-      if (total === 0) return 0;
-      return Math.round((mqls / total) * 100);
     }
 
-    case "source_to_sql_rate": {
+    case "source_to_deal_won": {
       if (!token) return 0;
-      const [total, sqls] = await Promise.all([
-        queryHubSpotContacts(token, filters),
-        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "salesqualifiedlead" }]),
+      // Contacts from source that became customers (deal won)
+      return await queryHubSpotContacts(token, filters, [
+        { propertyName: "lifecyclestage", operator: "EQ", value: "customer" },
       ]);
-      if (total === 0) return 0;
-      return Math.round((sqls / total) * 100);
-    }
-
-    case "source_to_opportunity_rate": {
-      if (!token) return 0;
-      const [total, opps] = await Promise.all([
-        queryHubSpotContacts(token, filters),
-        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "opportunity" }]),
-      ]);
-      if (total === 0) return 0;
-      return Math.round((opps / total) * 100);
-    }
-
-    case "source_to_customer_rate": {
-      if (!token) return 0;
-      const [total, customers] = await Promise.all([
-        queryHubSpotContacts(token, filters),
-        queryHubSpotContacts(token, filters, [{ propertyName: "lifecyclestage", operator: "EQ", value: "customer" }]),
-      ]);
-      if (total === 0) return 0;
-      return Math.round((customers / total) * 100);
     }
 
     default:
@@ -344,6 +371,8 @@ export function getDefaultDirection(forecastType: string): "above" | "below" {
     case "deals_at_risk":
     case "stagnant_deals":
     case "dormant_reactivation":
+    case "deals_no_amount":
+    case "sales_cycle_days":
       return "below";
     default:
       return "above";

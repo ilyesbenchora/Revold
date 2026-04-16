@@ -24,41 +24,60 @@ type KpiDef = {
 
 const kpisByTeam: Record<string, KpiDef[]> = {
   sales: [
-    { id: "closing_rate", label: "Closing rate", description: "% de deals gagnés sur les deals clôturés", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une prochaine activité planifiée", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "pipeline_value", label: "Valeur pipeline", description: "Montant total des deals ouverts", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "deals_won_count", label: "Deals gagnés", description: "Nombre de deals remportés sur la période", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    { id: "deals_at_risk", label: "Deals à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    // ── Performance closing ──
+    { id: "closing_rate", label: "Closing rate", description: "% de deals gagnés sur les deals clôturés — le KPI roi de la performance commerciale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés sur la période", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deals_won_count", label: "Deals gagnés", description: "Nombre de deals remportés — volume de closing", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés — levier de croissance", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    // ── Santé du pipeline ──
+    { id: "pipeline_value", label: "Valeur pipeline", description: "Montant total des deals ouverts — capacité de projection revenue", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "weighted_pipeline", label: "Pipeline pondéré", description: "Somme des montants × probabilité de gain — forecast réaliste", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une activité planifiée — discipline commerciale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité — pipeline réellement travaillé", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    // ── Vélocité & risque ──
+    { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Nombre de jours moyen entre création et closing — indicateur de vélocité", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours — risque de perte silencieuse", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "deals_at_risk", label: "Deals à risque", description: "Deals flagués à risque — nécessitent une action immédiate", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "deals_no_amount", label: "Deals sans montant", description: "Deals sans montant renseigné — forecast aveugle", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
   ],
   marketing: [
-    { id: "conversion_rate", label: "Taux de conversion", description: "% de contacts convertis en opportunités", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée", defaultUnit: "percent", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois", defaultUnit: "count", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
-    { id: "contacts_by_source", label: "Contacts par source", description: "Nombre de contacts acquis via une source d'origine spécifique", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
-    { id: "source_to_lead_rate", label: "Source → Lead", description: "% de contacts d'une source convertis en Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
-    { id: "source_to_mql_rate", label: "Source → MQL", description: "% de contacts d'une source devenus Marketing Qualified Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
-    { id: "source_to_sql_rate", label: "Source → SQL", description: "% de contacts d'une source devenus Sales Qualified Lead", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
-    { id: "source_to_opportunity_rate", label: "Source → Opportunité", description: "% de contacts d'une source devenus Opportunité", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
-    { id: "source_to_customer_rate", label: "Source → Client", description: "% de contacts d'une source devenus Client", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    // ── Conversion funnel ──
+    { id: "conversion_rate", label: "Taux de conversion Lead→Opp", description: "% de contacts convertis en opportunités — efficacité du funnel", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "mql_to_sql_rate", label: "Conversion MQL→SQL", description: "% de MQL acceptés par les sales — alignement marketing-ventes", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période — contribution marketing au pipeline", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
+    // ── Sources d'acquisition ──
+    { id: "contacts_by_source", label: "Contacts par source", description: "Volume de contacts acquis via une ou plusieurs sources d'origine", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_lifecycle", label: "Source → Lifecycle", description: "% de contacts d'une source qui atteignent une phase du cycle de vie — ROI par canal", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_deal_created", label: "Source → Deal créé", description: "Contacts d'une source ayant généré un deal — contribution au pipeline par canal", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "source_to_deal_won", label: "Source → Deal gagné", description: "Contacts d'une source dont le deal a été gagné — ROI revenue par canal", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    // ── Qualité base contacts ──
+    { id: "orphan_rate", label: "Taux d'orphelins", description: "% de contacts sans entreprise associée — risque de segmentation ABM", defaultUnit: "percent", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "phone_enrichment", label: "Enrichissement tél.", description: "% de contacts avec numéro de téléphone — capacité outbound multicanal", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois — base à réactiver", defaultUnit: "count", defaultDirection: "below", category: "marketing", dealRelated: false, contactRelated: true },
   ],
   cs: [
-    { id: "deals_at_risk", label: "Comptes à risque", description: "Nombre de deals flagués à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    { id: "stagnant_deals", label: "Deals sans suivi", description: "Deals sans activité depuis 7 jours", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    { id: "orphan_rate", label: "Contacts non rattachés", description: "% de contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false },
+    // ── Rétention & risque ──
+    { id: "deals_at_risk", label: "Comptes à risque", description: "Deals flagués à risque — action proactive CSM requise", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "stagnant_deals", label: "Deals sans suivi", description: "Deals sans activité depuis 7 jours — engagement client à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "orphan_rate", label: "Contacts non rattachés", description: "% de contacts sans entreprise — visibilité compte incomplète", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
+    // ── Expansion ──
+    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals — suivi de l'upsell/cross-sell", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deals_won_count", label: "Renouvellements gagnés", description: "Nombre de deals gagnés — volume de rétention", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
   ],
   revops: [
-    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines confondus", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé sur la période", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "conversion_rate", label: "Conversion globale", description: "Taux Lead→Opportunité", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false },
-    { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false },
+    // ── Revenue metrics ──
+    { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé — KPI de pilotage N°1 pour le board", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines — efficacité commerciale globale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "weighted_pipeline", label: "Forecast pondéré", description: "Pipeline × probabilité — prévision revenue la plus fiable", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert — capacité de croissance", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    // ── Efficacité process ──
+    { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Jours entre création et closing — vélocité du process", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
+    { id: "conversion_rate", label: "Conversion Lead→Opp", description: "Taux de conversion global — santé du funnel", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    { id: "mql_to_sql_rate", label: "MQL→SQL", description: "Taux de handoff marketing→sales — alignement des équipes", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
+    // ── Data quality ──
+    { id: "data_completeness", label: "Complétude deals", description: "% de deals avec montant + date de closing + propriétaire — fiabilité du forecast", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: true },
+    { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise — intégrité de la donnée", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
+    { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone — capacité opérationnelle", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false, contactRelated: true },
   ],
 };
 
@@ -400,18 +419,27 @@ export function CreateAlertModal() {
                         </div>
                       )}
 
-                      {/* Lifecycle stage — for contact/marketing KPIs */}
+                      {/* Lifecycle stage — required for source_to_lifecycle, optional for other contact KPIs */}
                       {kpi.contactRelated && lifecycleStages.length > 0 && (
                         <div>
-                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Phase du cycle de vie</label>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                            {kpiId === "source_to_lifecycle" ? "Phase cible à atteindre" : "Phase du cycle de vie"}
+                            {kpiId === "source_to_lifecycle" && <span className="ml-1 text-red-500">*</span>}
+                          </label>
                           <select value={lifecycleStage} onChange={(e) => setLifecycleStage(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent">
-                            <option value="">Toutes les phases</option>
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm text-slate-700 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ${
+                              kpiId === "source_to_lifecycle" && !lifecycleStage ? "border-amber-300 bg-amber-50/50" : "border-slate-200"
+                            }`}>
+                            <option value="">{kpiId === "source_to_lifecycle" ? "Sélectionner la phase cible" : "Toutes les phases"}</option>
                             {lifecycleStages.map((lc) => (
                               <option key={lc.value} value={lc.value}>{lc.label}</option>
                             ))}
                           </select>
-                          <p className="mt-1 text-[10px] text-slate-400">Filtrer les contacts par leur phase dans le cycle de vie HubSpot</p>
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {kpiId === "source_to_lifecycle"
+                              ? "Quelle phase du lifecycle voulez-vous que vos contacts atteignent ?"
+                              : "Filtrer les contacts par leur phase dans le cycle de vie HubSpot"}
+                          </p>
                         </div>
                       )}
 
@@ -583,7 +611,7 @@ export function CreateAlertModal() {
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={!threshold || state === "loading"}
+                        <button type="submit" disabled={!threshold || state === "loading" || (kpiId === "source_to_lifecycle" && !lifecycleStage)}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           {state === "loading" ? "Création..." : "Créer l'alerte"}
                         </button>
