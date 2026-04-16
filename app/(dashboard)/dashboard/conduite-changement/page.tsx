@@ -16,7 +16,6 @@ type Owner = {
 
 type AssetStats = {
   workflows: number;
-  forms: number;
   propertiesContact: number;
   propertiesCompany: number;
   propertiesDeal: number;
@@ -71,40 +70,29 @@ export default async function AdoptionPage() {
       }));
     }
 
-    // ── 2. Fetch assets created by users (workflows, forms, properties) ──
-    const [wfRes, formRes, propsContact, propsCompany, propsDeal] = await Promise.all([
-      fetch("https://api.hubapi.com/automation/v4/flows?limit=100", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("https://api.hubapi.com/marketing/v3/forms?limit=100", { headers: { Authorization: `Bearer ${token}` } }),
+    // ── 2. Fetch assets created by users (workflows via v3, properties) ──
+    const [wfRes, propsContact, propsCompany, propsDeal] = await Promise.all([
+      fetch("https://api.hubapi.com/automation/v3/workflows?limit=250", { headers: { Authorization: `Bearer ${token}` } }),
       fetch("https://api.hubapi.com/crm/v3/properties/contacts", { headers: { Authorization: `Bearer ${token}` } }),
       fetch("https://api.hubapi.com/crm/v3/properties/companies", { headers: { Authorization: `Bearer ${token}` } }),
       fetch("https://api.hubapi.com/crm/v3/properties/deals", { headers: { Authorization: `Bearer ${token}` } }),
     ]);
 
-    // Count workflows per creator
+    const emptyAssets = (): AssetStats => ({ workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 });
+
+    // Count workflows per creator (v3 API uses originalAuthorUserId)
     if (wfRes.ok) {
       const wfData = await wfRes.json();
-      for (const wf of (wfData.results ?? [])) {
-        const uid = wf.createdById ?? wf.userId ?? null;
+      for (const wf of (wfData.workflows ?? [])) {
+        const uid = wf.originalAuthorUserId ?? null;
         if (uid) {
-          if (!assetsPerUser[uid]) assetsPerUser[uid] = { workflows: 0, forms: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
+          if (!assetsPerUser[uid]) assetsPerUser[uid] = emptyAssets();
           assetsPerUser[uid].workflows++;
         }
       }
     }
 
-    // Count forms per creator
-    if (formRes.ok) {
-      const formData = await formRes.json();
-      for (const f of (formData.results ?? [])) {
-        const uid = f.createdById ?? f.userId ?? null;
-        if (uid) {
-          if (!assetsPerUser[uid]) assetsPerUser[uid] = { workflows: 0, forms: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
-          assetsPerUser[uid].forms++;
-        }
-      }
-    }
-
-    // Count custom properties per creator per object type
+    // Count custom properties per creator per object type (createdUserId)
     const propSources: Array<{ res: Response; field: "propertiesContact" | "propertiesCompany" | "propertiesDeal" }> = [
       { res: propsContact, field: "propertiesContact" },
       { res: propsCompany, field: "propertiesCompany" },
@@ -114,10 +102,10 @@ export default async function AdoptionPage() {
       if (res.ok) {
         const data = await res.json();
         for (const p of (data.results ?? [])) {
-          if (p.hubspotDefined) continue; // Only user-created properties
+          if (p.hubspotDefined) continue;
           const uid = p.createdUserId ?? null;
           if (uid) {
-            if (!assetsPerUser[uid]) assetsPerUser[uid] = { workflows: 0, forms: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
+            if (!assetsPerUser[uid]) assetsPerUser[uid] = emptyAssets();
             assetsPerUser[uid][field]++;
           }
         }
@@ -156,9 +144,9 @@ export default async function AdoptionPage() {
     const lastUpdate = o.updatedAt ? new Date(o.updatedAt).getTime() : 0;
     const daysSince = Math.round((now - lastUpdate) / 86400000);
     const records = recordsPerOwner[o.id] ?? { contacts: 0, companies: 0, deals: 0 };
-    const assets = o.userId ? (assetsPerUser[o.userId] ?? { workflows: 0, forms: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 }) : { workflows: 0, forms: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
+    const assets = o.userId ? (assetsPerUser[o.userId] ?? { workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 }) : { workflows: 0, propertiesContact: 0, propertiesCompany: 0, propertiesDeal: 0 };
     const totalRecords = records.contacts + records.companies + records.deals;
-    const totalAssets = assets.workflows + assets.forms + assets.propertiesContact + assets.propertiesCompany + assets.propertiesDeal;
+    const totalAssets = assets.workflows + assets.propertiesContact + assets.propertiesCompany + assets.propertiesDeal;
     return { ...o, daysSinceUpdate: daysSince, records, assets, totalRecords, totalAssets };
   });
 
@@ -231,14 +219,13 @@ export default async function AdoptionPage() {
         <CollapsibleBlock
           title={<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><span className="h-2 w-2 rounded-full bg-indigo-500" />Assets créés par utilisateur</h2>}
         >
-          <p className="text-sm text-slate-500">Formulaires, workflows et propriétés personnalisées créés par chaque utilisateur.</p>
+          <p className="text-sm text-slate-500">Workflows et propriétés personnalisées créés par chaque utilisateur.</p>
           <div className="card overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
                   <th className="px-4 py-2">Utilisateur</th>
                   <th className="px-4 py-2 text-right">Workflows</th>
-                  <th className="px-4 py-2 text-right">Formulaires</th>
                   <th className="px-4 py-2 text-right">Prop. Contacts</th>
                   <th className="px-4 py-2 text-right">Prop. Entreprises</th>
                   <th className="px-4 py-2 text-right">Prop. Transactions</th>
@@ -253,7 +240,6 @@ export default async function AdoptionPage() {
                       <p className="text-xs text-slate-400">{o.email}</p>
                     </td>
                     <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.workflows || <span className="text-slate-300">—</span>}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.forms || <span className="text-slate-300">—</span>}</td>
                     <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesContact || <span className="text-slate-300">—</span>}</td>
                     <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesCompany || <span className="text-slate-300">—</span>}</td>
                     <td className="px-4 py-2.5 text-right text-slate-700">{o.assets.propertiesDeal || <span className="text-slate-300">—</span>}</td>
