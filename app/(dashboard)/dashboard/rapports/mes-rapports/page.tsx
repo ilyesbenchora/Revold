@@ -12,7 +12,8 @@ import Link from "next/link";
 import { DeactivateReportButton } from "@/components/deactivate-report-button";
 import { KpiVisual } from "@/components/kpi-visual";
 import { ReportInsight } from "@/components/report-insight";
-import { ReportDateRange, resolvePresetDates } from "@/components/report-date-range";
+import { ReportDateRange } from "@/components/report-date-range";
+import { resolvePresetDates } from "@/lib/reports/date-utils";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
