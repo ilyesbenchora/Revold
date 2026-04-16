@@ -247,6 +247,56 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
     });
   }
 
+  // ── Acquisition / source ──
+  if (t.includes("acquisition") && t.includes("source")) {
+    return addCaveat({
+      headline: `Source principale : ${v(0) ?? "Offline"}. ${v(3) ? `Autres canaux : ${v(3)}.` : ""}`,
+      detail: `Organic search : ${v(1) ?? "N/A"}, direct : ${v(2) ?? "N/A"}. Une base à 90%+ OFFLINE signale une dépendance aux imports manuels. Diversifiez les sources d'acquisition (SEO, formulaires web, social) pour réduire le coût d'acquisition et améliorer la qualité des leads entrants. Les contacts OFFLINE convertissent en moyenne 3× moins que les contacts inbound.`,
+    });
+  }
+  // ── Vélocité acquisition ──
+  if (t.includes("vélocité") && t.includes("acquisition")) {
+    return addCaveat({
+      headline: `${v(1) ?? "?"} contacts créés ce mois (${v(3) ?? "N/A"} vs mois dernier). Tendance : ${v(0) ?? "N/A"}.`,
+      detail: `Mois précédent : ${v(2) ?? "?"}. Un volume d'acquisition en baisse > 2 mois consécutifs signale un tarissement des sources. Inversement, un pic soudain (import) ne reflète pas une vraie croissance. Surveillez la tendance hors imports pour mesurer l'acquisition organique réelle.`,
+    });
+  }
+  // ── Funnel ──
+  if (t.includes("funnel") && (t.includes("lead") || t.includes("opportunity"))) {
+    return addCaveat({
+      headline: `${v(0) ?? "?"} leads et ${v(1) ?? "?"} opportunités — conversion à ${v(2) ?? "N/A"}.`,
+      detail: `Deals créés/mois : ${v(3) ?? "N/A"}. Un ratio Lead/Opportunity > 5:1 signale un problème de qualification — soit les leads ne sont pas travaillés, soit les critères MQL sont trop permissifs. Mettez en place un scoring basé sur l'engagement (ouvertures email, visites, formulaires) pour accélérer la conversion. Chaque point de conversion gagné représente ${v(0) ? Math.round(parseInt(v(0)!.replace(/\s/g, "")) * 0.01) : "~"} opportunités supplémentaires.`,
+    });
+  }
+  // ── Base marketing santé ──
+  if (t.includes("base marketing") || t.includes("exploitabilité")) {
+    return addCaveat({
+      headline: `Email ${v(0) ?? "?"}, Téléphone ${v(1) ?? "?"}, Poste ${v(2) ?? "?"}, Entreprise ${v(3) ?? "?"}.`,
+      detail: `Une base exploitable nécessite au minimum 80% d'emails valides, 40% de téléphones et 50% d'entreprises rattachées. Les contacts sans entreprise ne peuvent pas être segmentés par ABM. Les contacts sans téléphone limitent l'outbound multicanal. Priorisez l'enrichissement du champ avec le taux le plus bas — c'est le maillon faible de votre capacité marketing.`,
+    });
+  }
+  // ── Pipeline montant ──
+  if (t.includes("montant") && t.includes("projection")) {
+    return addCaveat({
+      headline: `Pipeline ouvert : ${v(0) ?? "N/A"}. ${v(1) ? `${v(1)} des deals ont un montant renseigné.` : ""} ${v(3) ? `Pipeline pondéré : ${v(3)}.` : ""}`,
+      detail: `Deal moyen : ${v(2) ?? "N/A"}. Les deals sans montant renseigné rendent le forecast impossible — chaque deal sans montant est un trou dans votre projection trimestrielle. En dessous de 50% de complétude montant, le pipeline pondéré n'est pas fiable. Exigez le montant dès le stage 020% pour fiabiliser le forecast COMEX.`,
+    });
+  }
+  // ── Revenue par pipeline ──
+  if (t.includes("revenue") && t.includes("pipeline") && t.includes("contribution")) {
+    return addCaveat({
+      headline: `${v(0) ?? "N/A"}. ${v(2) ? `Deal moyen par pipeline : ${v(2)}.` : ""}`,
+      detail: `Deals actifs : ${v(1) ?? "N/A"}. ${v(3) ? `Pipeline pondéré : ${v(3)}.` : ""} Comparez le ratio CA/deals entre pipelines — un pipeline avec un deal moyen 3× supérieur mérite plus de ressources commerciales. Le pipeline avec le deal moyen le plus élevé est votre meilleur levier de croissance.`,
+    });
+  }
+  // ── Deals créés vs closés ──
+  if (t.includes("créés vs closés") || t.includes("ratio d'efficacité")) {
+    return addCaveat({
+      headline: `Création : ${v(0) ?? "N/A"}. Won : ${v(1) ?? "N/A"}. Ratio : ${v(2) ?? "N/A"}.`,
+      detail: `Pipeline net : ${v(3) ?? "N/A"}. Un ratio créés/closés > 3 signifie que votre pipeline grossit plus vite qu'il ne se ferme — risque de pipeline zombie. Un ratio < 1 signifie que vous consommez votre pipeline sans le renouveler. L'idéal est entre 1.5 et 2.5 : assez de création pour alimenter le funnel, sans accumulation de deals morts.`,
+    });
+  }
+
   // ── Fallback ──
   const headline = filled.slice(0, 2).map((kv) => `${kv.label} à ${kv.value}`).join(" et ");
   return addCaveat({

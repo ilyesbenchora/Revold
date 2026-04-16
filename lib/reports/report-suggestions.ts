@@ -189,6 +189,59 @@ const ALWAYS_AVAILABLE_REPORTS: ReportTemplate[] = [
     metrics: ["Répartition par lifecycle stage", "% de contacts attribués par owner", "Nb de contacts orphelins (sans owner)", "Taux de conversion contact → deal par source"],
     expectedValue: "Détectez où les contacts stagnent dans le funnel.", priority: "medium", icon: "🔄",
   },
+
+  // ── MARKETING ──
+  {
+    category: "other", displayCategory: "attribution",
+    title: "Acquisition — volume de contacts par source",
+    description: "D'où viennent vos contacts ? Mesurez le volume d'acquisition par canal pour concentrer le budget marketing.",
+    metrics: ["Contacts source Offline", "Contacts source Organic Search", "Contacts source Direct Traffic", "Contacts source Autres"],
+    expectedValue: "Identifiez vos canaux d'acquisition les plus performants.", priority: "high", icon: "📣",
+  },
+  {
+    category: "other", displayCategory: "attribution",
+    title: "Vélocité d'acquisition — contacts créés par mois",
+    description: "Combien de nouveaux contacts entrent dans le CRM chaque mois ? Suivez la tendance d'acquisition.",
+    metrics: ["Contacts créés par mois (tendance)", "Contacts créés ce mois", "Contacts créés mois précédent", "Variation mois vs mois (%)"],
+    expectedValue: "Suivez la dynamique d'acquisition mois par mois.", priority: "high", icon: "📈",
+  },
+  {
+    category: "other", displayCategory: "attribution",
+    title: "Funnel Lead → Opportunity → Deal",
+    description: "Analysez votre funnel de conversion : combien de leads deviennent des opportunités puis des deals ?",
+    metrics: ["Total contacts Lead", "Total contacts Opportunity", "Taux Lead → Opportunity (%)", "Deals créés par mois (tendance)"],
+    expectedValue: "Optimisez chaque étape du funnel de conversion.", priority: "high", icon: "🔻",
+  },
+  {
+    category: "other", displayCategory: "qualite_donnees",
+    title: "Base marketing — santé et exploitabilité",
+    description: "Votre base est-elle exploitable pour le marketing ? Email valide, téléphone, poste, entreprise rattachée.",
+    metrics: ["Contacts avec email (%)", "Contacts avec téléphone (%)", "Contacts avec poste (%)", "Contacts rattachés à une entreprise (%)"],
+    expectedValue: "Assurez-vous que votre base est exploitable pour vos campagnes.", priority: "high", icon: "🎯",
+  },
+
+  // ── FINANCE / REVOPS ──
+  {
+    category: "other", displayCategory: "chiffre_affaires",
+    title: "Pipeline par montant — capacité de projection",
+    description: "Quel est le montant total du pipeline ouvert ? Combien de deals ont un montant renseigné ?",
+    metrics: ["Pipeline total ouvert (€)", "Deals avec montant (%)", "Deal moyen ouvert (€)", "Pipeline pondéré total (€)"],
+    expectedValue: "Mesurez votre capacité de projection revenue.", priority: "high", icon: "💰",
+  },
+  {
+    category: "other", displayCategory: "chiffre_affaires",
+    title: "Revenue par pipeline — contribution au CA",
+    description: "Comparez la contribution de chaque pipeline au CA global. Identifiez les pipelines les plus rentables.",
+    metrics: ["CA total par pipeline (€)", "Deals actifs par pipeline", "Deal moyen par pipeline actif (€)", "Pipeline pondéré par pipeline (€)"],
+    expectedValue: "Identifiez les pipelines qui contribuent le plus au CA.", priority: "high", icon: "📊",
+  },
+  {
+    category: "other", displayCategory: "chiffre_affaires",
+    title: "Deals créés vs closés — ratio d'efficacité",
+    description: "Combien de deals sont créés vs fermés chaque mois ? Le pipeline grossit-il ou se consume-t-il ?",
+    metrics: ["Deals créés par mois (tendance)", "Deals won par mois (tendance)", "Ratio créés / closés", "Pipeline net (créés - closés)"],
+    expectedValue: "Un pipeline sain crée plus qu'il ne consomme.", priority: "high", icon: "⚖️",
+  },
 ];
 
 // ── Main export ──

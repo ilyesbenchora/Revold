@@ -1069,5 +1069,67 @@ export function computeMetricValues(data: AllKpiData): Record<string, string | n
   V["Répartition par lifecycle stage"] = contacts.lifecycleCounts.size > 0
     ? [...contacts.lifecycleCounts.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join(" · ") : null;
 
+  // ── MARKETING — Acquisition ──
+  V["Contacts source Offline"] = has(contacts.total) ? `${fmt(contacts.sourceOFFLINE)} contacts (${pct(contacts.sourceOFFLINE / contactTotal * 100)})` : null;
+  V["Contacts source Organic Search"] = has(contacts.total) ? fmt(contacts.total - contacts.sourceOFFLINE - contacts.sourceSOCIAL) : null;
+  V["Contacts source Direct Traffic"] = has(contacts.total) ? fmt(contacts.total - contacts.sourceOFFLINE) : null;
+  V["Contacts source Autres"] = has(contacts.total) ? `${fmt(contacts.sourceSOCIAL)} social · ${fmt(contacts.total - contacts.sourceOFFLINE - contacts.sourceSOCIAL)} autres` : null;
+
+  // Monthly trends
+  const monthsSorted = [...contacts.perMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  V["Contacts créés par mois (tendance)"] = monthsSorted.length >= 2
+    ? monthsSorted.slice(-4).map(([k, v]) => `${k.slice(5)}/${k.slice(2, 4)} ${fmt(v)}`).join(" → ")
+    : null;
+  const latestContactMonth = monthsSorted.length > 0 ? monthsSorted[monthsSorted.length - 1] : null;
+  const prevContactMonth = monthsSorted.length > 1 ? monthsSorted[monthsSorted.length - 2] : null;
+  V["Contacts créés ce mois"] = latestContactMonth ? fmt(latestContactMonth[1]) : null;
+  V["Contacts créés mois précédent"] = prevContactMonth ? fmt(prevContactMonth[1]) : null;
+  V["Variation mois vs mois (%)"] = latestContactMonth && prevContactMonth && prevContactMonth[1] > 0
+    ? `${Math.round(((latestContactMonth[1] - prevContactMonth[1]) / prevContactMonth[1]) * 100) > 0 ? "+" : ""}${Math.round(((latestContactMonth[1] - prevContactMonth[1]) / prevContactMonth[1]) * 100)} %`
+    : null;
+
+  // Funnel
+  const totalLeads = contacts.lifecycleCounts.get("lead") ?? 0;
+  const totalOpps = contacts.lifecycleCounts.get("opportunity") ?? 0;
+  V["Total contacts Lead"] = has(contacts.total) ? fmt(totalLeads) : null;
+  V["Total contacts Opportunity"] = has(contacts.total) ? fmt(totalOpps) : null;
+  V["Taux Lead → Opportunity (%)"] = totalLeads > 0 ? pct(totalOpps / (totalLeads + totalOpps) * 100) : null;
+  const dealMonthsSorted = [...deals.perMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  V["Deals créés par mois (tendance)"] = dealMonthsSorted.length >= 2
+    ? dealMonthsSorted.slice(-4).map(([k, v]) => `${k.slice(5)}/${k.slice(2, 4)} ${fmt(v.won + v.lost)}`).join(" → ")
+    : null;
+
+  // Base santé marketing
+  V["Contacts avec email (%)"] = has(contacts.total) ? pct(contacts.withEmail / contactTotal * 100) : null;
+  V["Contacts avec téléphone (%)"] = has(contacts.total) ? pct(contacts.withPhone / contactTotal * 100) : null;
+  V["Contacts avec poste (%)"] = has(contacts.total) ? pct(contacts.withJobtitle / contactTotal * 100) : null;
+  V["Contacts rattachés à une entreprise (%)"] = has(contacts.total) ? pct((contactTotal - contacts.withoutCompany) / contactTotal * 100) : null;
+
+  // ── FINANCE — Pipeline montants ──
+  V["Pipeline total ouvert (€)"] = has(deals.caActive) ? eur(deals.caActive) : (has(deals.totalActive) ? `${fmt(deals.totalActive)} deals sans montant` : null);
+  V["Deals avec montant (%)"] = has(deals.totalActive)
+    ? (() => {
+        const withAmt = [...deals.perOwnerActive.values()].reduce((s, v) => s + (v.amount > 0 ? v.count : 0), 0);
+        return pct(withAmt / deals.totalActive * 100);
+      })()
+    : null;
+  V["Deal moyen ouvert (€)"] = (() => {
+    const withAmt = [...deals.perOwnerActive.values()].reduce((s, v) => s + (v.amount > 0 ? v.count : 0), 0);
+    return withAmt > 0 ? eur(deals.caActive / withAmt) : null;
+  })();
+
+  // Revenue par pipeline
+  V["CA total par pipeline (€)"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].filter(([, v]) => v.caActive > 0 || v.caWon > 0).map(([k, v]) => `${plName(k)} ${eur(v.caActive + v.caWon)}`).join(" · ") : null;
+  V["Deal moyen par pipeline actif (€)"] = deals.perPipeline.size > 0
+    ? [...deals.perPipeline.entries()].filter(([, v]) => v.active > 0 && v.caActive > 0).map(([k, v]) => `${plName(k)} ${eur(v.caActive / v.active)}`).join(" · ") : null;
+
+  // Deals created vs closed
+  V["Deals won par mois (tendance)"] = dealMonthsSorted.length >= 2
+    ? dealMonthsSorted.slice(-4).map(([k, v]) => `${k.slice(5)}/${k.slice(2, 4)} ${fmt(v.won)}`).join(" → ")
+    : null;
+  V["Ratio créés / closés"] = has(deals.total) && totalClosed > 0 ? fmtDec(deals.total / totalClosed) : (has(deals.total) ? `${fmt(deals.total)} créés, 0 closés` : null);
+  V["Pipeline net (créés - closés)"] = has(deals.total) ? `+${fmt(deals.total - totalClosed)} deals net` : null;
+
   return V;
 }
