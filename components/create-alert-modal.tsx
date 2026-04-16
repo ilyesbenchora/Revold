@@ -384,8 +384,8 @@ export function CreateAlertModal() {
 
                         {showAdvanced && (
                           <div className="mt-3 space-y-4 rounded-lg bg-slate-50 p-4">
-                            {/* Owner / HubSpot team filter */}
-                            {kpi.dealRelated && (owners.length > 0 || hsTeams.length > 0) && (
+                            {/* Owner / HubSpot team filter — available for all teams */}
+                            {(owners.length > 0 || hsTeams.length > 0) && (
                               <div>
                                 <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Filtrer par propriétaire ou équipe HubSpot</label>
                                 {hsTeams.length > 0 && (
@@ -410,7 +410,7 @@ export function CreateAlertModal() {
                                     </option>
                                   ))}
                                 </select>
-                                <p className="mt-1 text-[10px] text-slate-400">Tracker l&apos;objectif sur un commercial ou une équipe spécifique</p>
+                                <p className="mt-1 text-[10px] text-slate-400">Tracker l&apos;objectif sur un utilisateur ou une équipe HubSpot spécifique</p>
                               </div>
                             )}
 
