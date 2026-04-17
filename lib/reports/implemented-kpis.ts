@@ -233,10 +233,14 @@ export const MAX_KPIS_PER_REPORT = 1;
 /** Formats de visualisation supportés par <KpiVisual>. */
 export const KPI_FORMATS = [
   { id: "auto", label: "Auto (recommandé)", hint: "Le format optimal est détecté à partir du KPI" },
-  { id: "gauge", label: "Jauge", hint: "Idéal pour les pourcentages, taux, scores" },
+  { id: "gauge", label: "Jauge", hint: "Barre horizontale colorée pour les pourcentages, taux, scores" },
+  { id: "donut", label: "Anneau (donut)", hint: "Anneau circulaire avec % au centre — pour taux, scores, complétude" },
   { id: "bar_h", label: "Barres horizontales", hint: "Comparaison de plusieurs entités (owners, pipelines)" },
-  { id: "sparkline", label: "Sparkline (évolution)", hint: "Tendance sur plusieurs mois" },
-  { id: "evaluation", label: "Évaluation textuelle", hint: "Durée, cycle, délai — texte qualitatif" },
+  { id: "bar_chart", label: "Histogramme", hint: "Barres verticales par période — comparaison temporelle" },
+  { id: "line_chart", label: "Courbe d'évolution", hint: "Ligne avec grille pour tendances multi-mois" },
+  { id: "area_chart", label: "Aire de tendance", hint: "Courbe avec aire remplie — volumes cumulés" },
+  { id: "sparkline", label: "Sparkline (compact)", hint: "Mini-courbe condensée — tendance rapide" },
+  { id: "evaluation", label: "Évaluation textuelle", hint: "Durée, cycle, délai — texte qualitatif coloré" },
 ] as const;
 
 export type KpiFormat = (typeof KPI_FORMATS)[number]["id"];

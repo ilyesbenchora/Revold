@@ -1,8 +1,23 @@
 "use client";
 
-type Props = { label: string; value: string | null; format?: "auto" | "gauge" | "bar_h" | "sparkline" | "evaluation" };
+type Props = {
+  label: string;
+  value: string | null;
+  format?: "auto" | "gauge" | "donut" | "bar_h" | "bar_chart" | "line_chart" | "area_chart" | "sparkline" | "evaluation";
+};
 
-type KpiType = "gauge" | "bar_h" | "sparkline" | "evaluation" | "currency" | "count" | "text";
+type KpiType =
+  | "gauge"
+  | "donut"
+  | "bar_h"
+  | "bar_chart"
+  | "line_chart"
+  | "area_chart"
+  | "sparkline"
+  | "evaluation"
+  | "currency"
+  | "count"
+  | "text";
 
 function detectType(label: string, value: string): KpiType {
   const l = label.toLowerCase();
@@ -156,6 +171,160 @@ function Sparkline({ value }: { value: string }) {
   );
 }
 
+// ── Shared time-series parser (for line/area/bar charts) ──
+type TimePoint = { label: string; num: number };
+function parseTimeSeries(value: string): TimePoint[] {
+  // Accepts "01/26 348 → 02/26 412 → 03/26 503" style strings.
+  // Falls back to "·"-separated list if no arrows are present.
+  const sep = value.includes("→") ? "→" : "·";
+  return value
+    .split(sep)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const numMatch = part.match(/([\d\s,.]+)\s*(€|%|j|deals|won|contacts|par owner)?$/i);
+      const num = numMatch ? extractNumber(numMatch[1]) : 0;
+      const label = numMatch ? part.slice(0, part.length - numMatch[0].length).trim() : part;
+      return { label: label || part, num };
+    });
+}
+
+// ── Line Chart (bigger, with grid & axis values) ──
+function LineChartViz({ value, fill = false }: { value: string; fill?: boolean }) {
+  const points = parseTimeSeries(value);
+  if (points.length < 2) return <span className="text-xs text-slate-700">{value}</span>;
+
+  const w = 320, h = 100, padX = 8, padY = 16;
+  const nums = points.map((p) => p.num);
+  const max = Math.max(...nums, 1);
+  const min = Math.min(...nums, 0);
+  const range = max - min || 1;
+  const isUp = nums[nums.length - 1] >= nums[0];
+  const stroke = isUp ? "#a855f7" : "#ef4444";
+
+  const pathPoints = nums.map((n, i) => ({
+    x: padX + (i / (nums.length - 1)) * (w - 2 * padX),
+    y: padY + (1 - (n - min) / range) * (h - 2 * padY),
+  }));
+  const pathD = pathPoints
+    .map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`))
+    .join(" ");
+  const areaD = fill
+    ? pathD + ` L${pathPoints[pathPoints.length - 1].x},${h - padY / 2} L${pathPoints[0].x},${h - padY / 2} Z`
+    : null;
+  const gId = `lc-${Math.random().toString(36).slice(2, 6)}`;
+
+  // Y-axis grid lines (3 horizontal lines)
+  const gridY = [0.25, 0.5, 0.75].map((r) => padY + r * (h - 2 * padY));
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-24">
+        <defs>
+          <linearGradient id={gId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={`${stroke}40`} />
+            <stop offset="100%" stopColor={`${stroke}05`} />
+          </linearGradient>
+        </defs>
+        {gridY.map((y, i) => (
+          <line key={i} x1={padX} y1={y} x2={w - padX} y2={y} stroke="#e2e8f0" strokeDasharray="2 3" strokeWidth="0.5" />
+        ))}
+        {fill && areaD && <path d={areaD} fill={`url(#${gId})`} />}
+        <path d={pathD} fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {pathPoints.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="4" fill="white" stroke={stroke} strokeWidth="2" />
+            <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fill="#475569" fontWeight="600">
+              {nums[i].toLocaleString("fr-FR")}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="flex justify-between mt-1 px-1">
+        {points.map((p, i) => (
+          <span key={i} className="text-[9px] text-slate-500 tabular-nums">{p.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Bar Chart (vertical bars from time-series) ──
+function BarChartViz({ value }: { value: string }) {
+  const points = parseTimeSeries(value);
+  if (points.length === 0) return <span className="text-xs text-slate-700">{value}</span>;
+
+  const max = Math.max(...points.map((p) => p.num), 1);
+  return (
+    <div>
+      <div className="flex items-end gap-2 h-20">
+        {points.map((p, i) => {
+          const pct = Math.max(6, (p.num / max) * 100);
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
+              <span className="text-[9px] font-semibold text-slate-700 tabular-nums">
+                {p.num.toLocaleString("fr-FR")}
+              </span>
+              <div
+                className="w-full rounded-t bg-gradient-to-t from-indigo-500 to-fuchsia-500"
+                style={{ height: `${pct}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-2 mt-1">
+        {points.map((p, i) => (
+          <span key={i} className="flex-1 text-center text-[9px] text-slate-500 tabular-nums">{p.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Donut (circular gauge) ──
+function Donut({ value, pct }: { value: string; pct: number }) {
+  const size = 88;
+  const stroke = 10;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - pct / 100);
+  const fromColor = pct >= 70 ? "#10b981" : pct >= 40 ? "#6366f1" : pct >= 20 ? "#f59e0b" : "#ef4444";
+  const toColor = pct >= 70 ? "#34d399" : pct >= 40 ? "#a855f7" : pct >= 20 ? "#fbbf24" : "#fb7185";
+  const textColor = pct >= 70 ? "text-emerald-600" : pct >= 40 ? "text-indigo-600" : pct >= 20 ? "text-amber-600" : "text-red-500";
+  const gId = `dn-${Math.random().toString(36).slice(2, 6)}`;
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg width={size} height={size} className="shrink-0 -rotate-90">
+        <defs>
+          <linearGradient id={gId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={fromColor} />
+            <stop offset="100%" stopColor={toColor} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#f1f5f9" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={`url(#${gId})`}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+        />
+      </svg>
+      <div>
+        <div className={`text-2xl font-bold tabular-nums ${textColor}`}>{Math.round(pct)} %</div>
+        <div className="text-[10px] text-slate-500 mt-0.5">{value}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Evaluation ──
 function Evaluation({ value, label }: { value: string; label: string }) {
   const num = extractNumber(value);
@@ -209,7 +378,11 @@ export function KpiVisual({ label, value, format }: Props) {
         <span className="text-[10px] text-slate-500 leading-tight">{label}</span>
       </div>
       {type === "gauge" && <Gauge value={value} pct={extractPercent(value)} />}
+      {type === "donut" && <Donut value={value} pct={extractPercent(value)} />}
       {type === "bar_h" && <BarsHorizontal value={value} />}
+      {type === "bar_chart" && <BarChartViz value={value} />}
+      {type === "line_chart" && <LineChartViz value={value} fill={false} />}
+      {type === "area_chart" && <LineChartViz value={value} fill={true} />}
       {type === "sparkline" && <Sparkline value={value} />}
       {type === "evaluation" && <Evaluation value={value} label={label} />}
       {type === "currency" && <Currency value={value} />}
