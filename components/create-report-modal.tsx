@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TEAMS, CATEGORIES_BY_TEAM, type TeamId } from "@/lib/reports/report-catalog";
+import { IMPLEMENTED_KPIS, MAX_KPIS_PER_REPORT } from "@/lib/reports/implemented-kpis";
 
 const DATE_PRESETS = [
   { id: "this_month", label: "Ce mois" },
@@ -25,6 +26,7 @@ export function CreateReportModal() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Options
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -56,6 +58,17 @@ export function CreateReportModal() {
   const categories = team ? CATEGORIES_BY_TEAM[team] : [];
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
 
+  // Split category metrics into available (implemented in the engine) and "soon"
+  const availableMetrics = useMemo(
+    () => (category?.metrics ?? []).filter((m) => IMPLEMENTED_KPIS.has(m)),
+    [category],
+  );
+  const upcomingMetrics = useMemo(
+    () => (category?.metrics ?? []).filter((m) => !IMPLEMENTED_KPIS.has(m)),
+    [category],
+  );
+  const reachedLimit = selectedMetrics.length >= MAX_KPIS_PER_REPORT;
+
   useEffect(() => {
     if (open && !optionsLoaded) {
       fetch("/api/alerts/options")
@@ -79,7 +92,7 @@ export function CreateReportModal() {
     setLifecycleStage(""); setSelectedSources([]);
     setCustomProp(""); setCustomPropValue("");
     setDatePreset("all_time"); setTitle(""); setIcon("📊");
-    setState("idle");
+    setState("idle"); setErrorMsg(null);
   }
 
   function selectTeam(t: TeamId) {
@@ -88,13 +101,21 @@ export function CreateReportModal() {
   function selectCategory(cid: string) {
     const cat = categories.find((c) => c.id === cid);
     setCategoryId(cid);
-    setSelectedMetrics(cat?.metrics.slice(0, 4) ?? []);
+    // Pre-select up to 4 KPIs, but only those actually implemented
+    const preselect = (cat?.metrics ?? [])
+      .filter((m) => IMPLEMENTED_KPIS.has(m))
+      .slice(0, 4);
+    setSelectedMetrics(preselect);
     setIcon(cat?.icon ?? "📊");
     setTitle(cat?.label ?? "");
     setStep(3);
   }
   function toggleMetric(m: string) {
-    setSelectedMetrics((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+    setSelectedMetrics((prev) => {
+      if (prev.includes(m)) return prev.filter((x) => x !== m);
+      if (prev.length >= MAX_KPIS_PER_REPORT) return prev; // hard cap
+      return [...prev, m];
+    });
   }
   function togglePipeline(id: string) {
     setSelectedPipelines((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
@@ -107,6 +128,7 @@ export function CreateReportModal() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setErrorMsg(null);
     if (!team || !category || selectedMetrics.length === 0 || !title.trim()) return;
     setState("loading");
 
@@ -145,11 +167,15 @@ export function CreateReportModal() {
           setOpen(false);
           reset();
           router.refresh();
-        }, 1500);
+          router.push("/dashboard/rapports/mes-rapports");
+        }, 1200);
       } else {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErrorMsg(payload?.error ?? `Échec de la création (${res.status}).`);
         setState("idle");
       }
-    } catch {
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Erreur réseau. Réessayez.");
       setState("idle");
     }
   }
@@ -268,32 +294,68 @@ export function CreateReportModal() {
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">Quels KPIs suivre ?</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Sélectionnez les indicateurs clés pour votre rapport « {category.label} ».
+                      Sélectionnez jusqu&apos;à {MAX_KPIS_PER_REPORT} indicateurs pour votre rapport « {category.label} ».
                     </p>
                     <div className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-700">
                       <span className="font-semibold">Objectif métier :</span> {category.objectiveMetier}
                     </div>
                     <div className="mt-4 space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
-                      {category.metrics.map((m) => {
+                      {availableMetrics.length === 0 && (
+                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                          Aucun KPI calculable pour cette catégorie avec les intégrations branchées.
+                        </p>
+                      )}
+                      {availableMetrics.map((m) => {
                         const selected = selectedMetrics.includes(m);
+                        const disabled = !selected && reachedLimit;
                         return (
                           <label
                             key={m}
-                            className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition hover:border-accent/30 ${selected ? "border-accent bg-accent/5" : "border-slate-200"}`}
+                            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                              selected
+                                ? "cursor-pointer border-accent bg-accent/5"
+                                : disabled
+                                  ? "cursor-not-allowed border-slate-200 opacity-50"
+                                  : "cursor-pointer border-slate-200 hover:border-accent/30"
+                            }`}
                           >
                             <input
                               type="checkbox"
                               checked={selected}
+                              disabled={disabled}
                               onChange={() => toggleMetric(m)}
-                              className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent"
+                              className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent disabled:cursor-not-allowed"
                             />
-                            <span className={`text-xs font-medium ${selected ? "text-accent" : "text-slate-700"}`}>{m}</span>
+                            <span className={`flex-1 text-xs font-medium ${selected ? "text-accent" : "text-slate-700"}`}>{m}</span>
                           </label>
                         );
                       })}
+                      {upcomingMetrics.length > 0 && (
+                        <div className="mt-3 border-t border-slate-100 pt-2">
+                          <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            À venir — nécessite intégration supplémentaire
+                          </p>
+                          {upcomingMetrics.map((m) => (
+                            <div
+                              key={m}
+                              className="flex items-center gap-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-left opacity-60"
+                              title="Indicateur non encore branché — Stripe / Pennylane / historique souscriptions requis"
+                            >
+                              <span className="h-4 w-4 shrink-0 rounded border border-slate-300 bg-slate-100" />
+                              <span className="flex-1 text-xs font-medium text-slate-500">{m}</span>
+                              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-400">Bientôt</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-3 text-[11px] text-slate-500">
-                      {selectedMetrics.length} KPI{selectedMetrics.length > 1 ? "s" : ""} sélectionné{selectedMetrics.length > 1 ? "s" : ""}
+                    <div className="mt-3 flex items-center justify-between text-[11px]">
+                      <span className={selectedMetrics.length > 0 ? "text-slate-600" : "text-slate-400"}>
+                        {selectedMetrics.length} / {MAX_KPIS_PER_REPORT} KPI{selectedMetrics.length > 1 ? "s" : ""} sélectionné{selectedMetrics.length > 1 ? "s" : ""}
+                      </span>
+                      {reachedLimit && (
+                        <span className="text-amber-600">Limite atteinte — désélectionnez pour en ajouter d&apos;autres</span>
+                      )}
                     </div>
                     <div className="mt-5 flex items-center justify-between">
                       <button type="button" onClick={() => setStep(2)} className="text-xs text-slate-400 hover:text-accent">← Changer de catégorie</button>
@@ -477,6 +539,12 @@ export function CreateReportModal() {
                         </div>
                       )}
                     </div>
+
+                    {errorMsg && (
+                      <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
+                        <span className="font-semibold">Erreur :</span> {errorMsg}
+                      </div>
+                    )}
 
                     <div className="mt-6 flex items-center justify-between">
                       <button type="button" onClick={() => setStep(3)} className="text-xs text-slate-400 hover:text-accent">← Changer de KPIs</button>

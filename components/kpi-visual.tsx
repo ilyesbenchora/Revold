@@ -186,13 +186,15 @@ function Count({ value }: { value: string }) {
 export function KpiVisual({ label, value, format }: Props) {
   if (value === null) {
     return (
-      <div className="rounded-lg px-3 py-2.5 bg-slate-50/40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-200" />
-            <span className="text-[11px] text-slate-400">{label}</span>
+      <div className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+            <span className="text-[11px] text-slate-600 truncate">{label}</span>
           </div>
-          <span className="text-[11px] text-slate-300">—</span>
+          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+            Données absentes
+          </span>
         </div>
       </div>
     );
