@@ -226,8 +226,20 @@ export const IMPLEMENTED_KPIS = new Set<string>([
   "Pipeline net (créés - closés)",
 ]);
 
-/** Limite UX : au-delà de 10 KPIs, le rapport devient illisible. */
-export const MAX_KPIS_PER_REPORT = 10;
+/** Limite produit : 1 KPI par rapport pour garantir la cohérence analytique
+ *  et permettre un format de visualisation adapté à l'indicateur. */
+export const MAX_KPIS_PER_REPORT = 1;
+
+/** Formats de visualisation supportés par <KpiVisual>. */
+export const KPI_FORMATS = [
+  { id: "auto", label: "Auto (recommandé)", hint: "Le format optimal est détecté à partir du KPI" },
+  { id: "gauge", label: "Jauge", hint: "Idéal pour les pourcentages, taux, scores" },
+  { id: "bar_h", label: "Barres horizontales", hint: "Comparaison de plusieurs entités (owners, pipelines)" },
+  { id: "sparkline", label: "Sparkline (évolution)", hint: "Tendance sur plusieurs mois" },
+  { id: "evaluation", label: "Évaluation textuelle", hint: "Durée, cycle, délai — texte qualitatif" },
+] as const;
+
+export type KpiFormat = (typeof KPI_FORMATS)[number]["id"];
 
 /** Vérifie qu'un nom de KPI est calculable par l'engine. */
 export function isKpiImplemented(name: string): boolean {

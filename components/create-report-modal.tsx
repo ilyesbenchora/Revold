@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TEAMS, CATEGORIES_BY_TEAM, type TeamId } from "@/lib/reports/report-catalog";
-import { IMPLEMENTED_KPIS, MAX_KPIS_PER_REPORT } from "@/lib/reports/implemented-kpis";
+import { IMPLEMENTED_KPIS, MAX_KPIS_PER_REPORT, KPI_FORMATS, type KpiFormat } from "@/lib/reports/implemented-kpis";
 
 const DATE_PRESETS = [
   { id: "this_month", label: "Ce mois" },
@@ -59,6 +59,7 @@ export function CreateReportModal() {
   const [datePreset, setDatePreset] = useState("all_time");
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("📊");
+  const [format, setFormat] = useState<KpiFormat>("auto");
 
   const categories = team ? CATEGORIES_BY_TEAM[team] : [];
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
@@ -87,7 +88,6 @@ export function CreateReportModal() {
     return { withDataMetrics: withD, noDataMetrics: without, upcomingMetrics: soon };
   }, [category, withDataSet]);
 
-  const reachedLimit = selectedMetrics.length >= MAX_KPIS_PER_REPORT;
 
   useEffect(() => {
     if (open && !optionsLoaded) {
@@ -131,6 +131,7 @@ export function CreateReportModal() {
     setLifecycleStage(""); setSelectedSources([]);
     setCustomProp(""); setCustomPropValue("");
     setDatePreset("all_time"); setTitle(""); setIcon("📊");
+    setFormat("auto");
     setState("idle"); setErrorMsg(null);
   }
 
@@ -140,20 +141,26 @@ export function CreateReportModal() {
   function selectCategory(cid: string) {
     const cat = categories.find((c) => c.id === cid);
     setCategoryId(cid);
-    // Pre-select up to 4 KPIs : implemented AND with data in the CRM
+    // 1 KPI per report : pre-select the first available with data
     const preselect = (cat?.metrics ?? [])
       .filter((m) => IMPLEMENTED_KPIS.has(m))
       .filter((m) => (withDataSet ? withDataSet.has(m) : true))
-      .slice(0, 4);
+      .slice(0, MAX_KPIS_PER_REPORT);
     setSelectedMetrics(preselect);
     setIcon(cat?.icon ?? "📊");
     setTitle(cat?.label ?? "");
+    setFormat("auto");
     setStep(3);
   }
   function toggleMetric(m: string) {
+    // With MAX_KPIS_PER_REPORT = 1, behave as a radio: clicking selects only m
+    // (clicking the already-selected one keeps it — user must pick another)
     setSelectedMetrics((prev) => {
+      if (MAX_KPIS_PER_REPORT === 1) {
+        return prev[0] === m ? prev : [m];
+      }
       if (prev.includes(m)) return prev.filter((x) => x !== m);
-      if (prev.length >= MAX_KPIS_PER_REPORT) return prev; // hard cap
+      if (prev.length >= MAX_KPIS_PER_REPORT) return prev;
       return [...prev, m];
     });
   }
@@ -183,6 +190,7 @@ export function CreateReportModal() {
       lifecycleStage: lifecycleStage || null,
       sources: selectedSources.length > 0 ? selectedSources : null,
       customProperty: customProp && customPropValue ? { name: customProp, value: customPropValue } : null,
+      format,
     };
 
     try {
@@ -332,15 +340,15 @@ export function CreateReportModal() {
                 {/* ── Step 3 : KPIs ── */}
                 {step === 3 && category && (
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Quels KPIs suivre ?</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">Quel KPI suivre ?</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Sélectionnez jusqu&apos;à {MAX_KPIS_PER_REPORT} indicateurs pour votre rapport « {category.label} ».
+                      Choisissez l&apos;indicateur principal de votre rapport « {category.label} ».
                     </p>
                     <div className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-700">
                       <span className="font-semibold">Objectif métier :</span> {category.objectiveMetier}
                     </div>
                     <p className="mt-2 text-[10px] italic text-slate-500">
-                      💡 Pour une analyse CRO exploitable, privilégiez 3 à 5 KPIs cohérents (un par dimension : volume, taux, vélocité, montant).
+                      💡 Un seul KPI par rapport — vous garantissez une lecture nette, un format de visualisation adapté et une décision actionnable. Créez plusieurs rapports pour suivre plusieurs angles.
                     </p>
 
                     {availabilityLoading && (
@@ -378,24 +386,19 @@ export function CreateReportModal() {
                           <div className="space-y-1.5">
                             {withDataMetrics.map((m) => {
                               const selected = selectedMetrics.includes(m);
-                              const disabled = !selected && reachedLimit;
                               return (
                                 <label
                                   key={m}
-                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                                    selected
-                                      ? "cursor-pointer border-accent bg-accent/5"
-                                      : disabled
-                                        ? "cursor-not-allowed border-slate-200 opacity-50"
-                                        : "cursor-pointer border-slate-200 hover:border-accent/30"
+                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition cursor-pointer ${
+                                    selected ? "border-accent bg-accent/5" : "border-slate-200 hover:border-accent/30"
                                   }`}
                                 >
                                   <input
-                                    type="checkbox"
+                                    type="radio"
+                                    name="kpi-pick"
                                     checked={selected}
-                                    disabled={disabled}
                                     onChange={() => toggleMetric(m)}
-                                    className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent disabled:cursor-not-allowed"
+                                    className="h-4 w-4 border-slate-300 text-accent focus:ring-accent"
                                   />
                                   <span className={`flex-1 text-xs font-medium ${selected ? "text-accent" : "text-slate-700"}`}>{m}</span>
                                   <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-emerald-500" title="Données présentes dans votre CRM" />
@@ -415,25 +418,22 @@ export function CreateReportModal() {
                           <div className="space-y-1.5">
                             {noDataMetrics.map((m) => {
                               const selected = selectedMetrics.includes(m);
-                              const disabled = !selected && reachedLimit;
                               return (
                                 <label
                                   key={m}
-                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition cursor-pointer ${
                                     selected
-                                      ? "cursor-pointer border-amber-400 bg-amber-50"
-                                      : disabled
-                                        ? "cursor-not-allowed border-amber-100 opacity-50"
-                                        : "cursor-pointer border-amber-100 bg-amber-50/30 hover:border-amber-300"
+                                      ? "border-amber-400 bg-amber-50"
+                                      : "border-amber-100 bg-amber-50/30 hover:border-amber-300"
                                   }`}
                                   title="Aucune donnée chez vous pour ce KPI — il s'affichera 'Données absentes' tant que votre CRM n'a rien."
                                 >
                                   <input
-                                    type="checkbox"
+                                    type="radio"
+                                    name="kpi-pick"
                                     checked={selected}
-                                    disabled={disabled}
                                     onChange={() => toggleMetric(m)}
-                                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:cursor-not-allowed"
+                                    className="h-4 w-4 border-slate-300 text-amber-600 focus:ring-amber-500"
                                   />
                                   <span className={`flex-1 text-xs font-medium ${selected ? "text-amber-900" : "text-slate-600"}`}>{m}</span>
                                   <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">Vide</span>
@@ -466,12 +466,13 @@ export function CreateReportModal() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-[11px]">
-                      <span className={selectedMetrics.length > 0 ? "text-slate-600" : "text-slate-400"}>
-                        {selectedMetrics.length} / {MAX_KPIS_PER_REPORT} KPI{selectedMetrics.length > 1 ? "s" : ""} sélectionné{selectedMetrics.length > 1 ? "s" : ""}
-                      </span>
-                      {reachedLimit && (
-                        <span className="text-amber-600">Limite atteinte — désélectionnez pour en ajouter d&apos;autres</span>
+                    <div className="mt-3 text-[11px]">
+                      {selectedMetrics.length === 0 ? (
+                        <span className="text-slate-400">Aucun KPI sélectionné</span>
+                      ) : (
+                        <span className="text-slate-600">
+                          KPI sélectionné : <span className="font-semibold text-accent">{selectedMetrics[0]}</span>
+                        </span>
                       )}
                     </div>
                     <div className="mt-5 flex items-center justify-between">
@@ -531,6 +532,31 @@ export function CreateReportModal() {
                             >{d.label}</button>
                           ))}
                         </div>
+                      </div>
+
+                      {/* Format de visualisation */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                          Format de visualisation
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {KPI_FORMATS.map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setFormat(f.id)}
+                              title={f.hint}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                format === f.id
+                                  ? "bg-accent text-white"
+                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
+                            >{f.label}</button>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          {KPI_FORMATS.find((f) => f.id === format)?.hint}
+                        </p>
                       </div>
 
                       {/* Pipelines */}

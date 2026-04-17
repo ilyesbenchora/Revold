@@ -1,6 +1,6 @@
 "use client";
 
-type Props = { label: string; value: string | null; format?: "auto" | "gauge" | "bar_v" | "bar_h" | "sparkline" | "evaluation" };
+type Props = { label: string; value: string | null; format?: "auto" | "gauge" | "bar_h" | "sparkline" | "evaluation" };
 
 type KpiType = "gauge" | "bar_h" | "sparkline" | "evaluation" | "currency" | "count" | "text";
 

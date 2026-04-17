@@ -262,6 +262,8 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   });
 }
 
+type KpiFormatStored = "auto" | "gauge" | "bar_h" | "sparkline" | "evaluation";
+
 type StoredFilters = {
   dateFilter?: string | null;
   pipelineIds?: string[] | null;
@@ -269,6 +271,7 @@ type StoredFilters = {
   lifecycleStage?: string | null;
   sources?: string[] | null;
   customProperty?: { name: string; value: string } | null;
+  format?: KpiFormatStored | null;
 };
 
 type ActivatedReport = {
@@ -527,7 +530,12 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
                   <div className="px-5 pb-4">
                     <div className="space-y-1.5">
                       {metrics.map((metric, idx) => (
-                        <KpiVisual key={idx} label={metric} value={metricValues[idx]} />
+                        <KpiVisual
+                          key={idx}
+                          label={metric}
+                          value={metricValues[idx]}
+                          format={isCustom && filters?.format ? filters.format : undefined}
+                        />
                       ))}
                     </div>
                   </div>
