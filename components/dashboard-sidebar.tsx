@@ -2,8 +2,76 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
-const sidebarLinks = [
+type LeafLink = { href: string; label: string; icon: React.ReactNode };
+type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[] };
+type SidebarItem = LeafLink | GroupLink;
+
+function isGroup(item: SidebarItem): item is GroupLink {
+  return "children" in item;
+}
+
+const auditChildren: LeafLink[] = [
+  {
+    href: "/dashboard/audit",
+    label: "Vue d’ensemble",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/donnees",
+    label: "Données",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/process",
+    label: "Process & Alignement",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v4" /><path d="M12 18v4" />
+        <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+        <path d="M2 12h4" /><path d="M18 12h4" />
+        <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/performances",
+    label: "Performances",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/conduite-changement",
+    label: "Adoption",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+];
+
+const sidebarLinks: SidebarItem[] = [
   {
     href: "/dashboard",
     label: "Vue d’ensemble",
@@ -17,40 +85,17 @@ const sidebarLinks = [
     ),
   },
   {
-    href: "/dashboard/donnees",
-    label: "Données",
+    id: "audit",
+    label: "Audit",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
-        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <line x1="11" y1="8" x2="11" y2="14" />
+        <line x1="8" y1="11" x2="14" y2="11" />
       </svg>
     ),
-  },
-  {
-    href: "/dashboard/process",
-    label: "Process & Alignement",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2v4" />
-        <path d="M12 18v4" />
-        <path d="M4.93 4.93l2.83 2.83" />
-        <path d="M16.24 16.24l2.83 2.83" />
-        <path d="M2 12h4" />
-        <path d="M18 12h4" />
-        <path d="M4.93 19.07l2.83-2.83" />
-        <path d="M16.24 7.76l2.83-2.83" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/performances",
-    label: "Performances",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-      </svg>
-    ),
+    children: auditChildren,
   },
   {
     href: "/dashboard/insights-ia",
@@ -72,18 +117,6 @@ const sidebarLinks = [
         <line x1="8" y1="13" x2="16" y2="13" />
         <line x1="8" y1="17" x2="16" y2="17" />
         <line x1="10" y1="9" x2="12" y2="9" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/conduite-changement",
-    label: "Adoption",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
   },
@@ -131,32 +164,117 @@ const accountLink = {
   ),
 };
 
+function isChildActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard/audit") return pathname === "/dashboard/audit";
+  return pathname.startsWith(href);
+}
+
 export function DashboardSidebar() {
   const pathname = usePathname();
   const isAccountActive = pathname.startsWith(accountLink.href);
 
+  // Groups open state (default: auto-open if any child is active)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const item of sidebarLinks) {
+      if (isGroup(item)) {
+        const anyActive = item.children.some((c) => isChildActive(pathname, c.href));
+        if (anyActive) next[item.id] = true;
+      }
+    }
+    setOpenGroups((prev) => ({ ...next, ...prev }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  function toggleGroup(id: string) {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
   return (
     <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 flex-col self-start overflow-y-auto border-r border-card-border bg-white px-4 py-6 md:flex">
       <nav className="flex-1 space-y-1">
-        {sidebarLinks.map((link) => {
+        {sidebarLinks.map((item) => {
+          if (isGroup(item)) {
+            const open = !!openGroups[item.id];
+            const groupActive = item.children.some((c) => isChildActive(pathname, c.href));
+            return (
+              <div key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(item.id)}
+                  aria-expanded={open}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    groupActive
+                      ? "bg-accent-soft text-accent"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <span className={groupActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`shrink-0 transition-transform ${open ? "rotate-180" : ""} ${
+                      groupActive ? "text-accent" : "text-slate-400"
+                    }`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                <div
+                  className={`overflow-hidden transition-[max-height,opacity] duration-200 ${
+                    open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                  }`}
+                >
+                  <div className="mt-1 ml-3 border-l border-slate-200 pl-3 space-y-0.5">
+                    {item.children.map((child) => {
+                      const active = isChildActive(pathname, child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
+                            active
+                              ? "bg-accent-soft text-accent"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                        >
+                          <span className={active ? "text-accent" : "text-slate-400"}>{child.icon}</span>
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
           const isActive =
-            link.href === "/dashboard"
+            item.href === "/dashboard"
               ? pathname === "/dashboard"
-              : pathname.startsWith(link.href);
+              : pathname.startsWith(item.href);
           return (
             <Link
-              key={link.href}
-              href={link.href}
+              key={item.href}
+              href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 isActive
                   ? "bg-accent-soft text-accent"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
-              <span className={isActive ? "text-accent" : "text-slate-400"}>
-                {link.icon}
-              </span>
-              {link.label}
+              <span className={isActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
+              {item.label}
             </Link>
           );
         })}

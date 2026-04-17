@@ -1,0 +1,105 @@
+import Link from "next/link";
+
+const modules = [
+  {
+    href: "/dashboard/donnees",
+    title: "Données",
+    description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
+    objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+      </svg>
+    ),
+    color: "from-sky-500 to-indigo-500",
+  },
+  {
+    href: "/dashboard/process",
+    title: "Process & Alignement",
+    description: "Cohérence des cycles, handoffs, règles de qualification, alignement sales-marketing.",
+    objective: "Supprimer les frictions entre équipes pour fluidifier le parcours prospect → client.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v4" /><path d="M12 18v4" />
+        <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+        <path d="M2 12h4" /><path d="M18 12h4" />
+        <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+      </svg>
+    ),
+    color: "from-amber-500 to-rose-500",
+  },
+  {
+    href: "/dashboard/performances",
+    title: "Performances",
+    description: "Closing rate, cycle de vente, vélocité pipeline, pilotage commercial & marketing.",
+    objective: "Identifier les leviers de croissance et les goulots d'étranglement business.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+    color: "from-emerald-500 to-teal-500",
+  },
+  {
+    href: "/dashboard/conduite-changement",
+    title: "Adoption",
+    description: "Usage de la stack, connexions utilisateurs, activités loguées, discipline CRM.",
+    objective: "Mesurer l'adoption réelle des outils pour maximiser le ROI de la stack.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+    color: "from-fuchsia-500 to-purple-500",
+  },
+];
+
+export default function AuditPage() {
+  return (
+    <section className="space-y-8">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Audit</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Diagnostic complet de votre stack revenue : données, process, performances et adoption.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {modules.map((m) => (
+          <Link
+            key={m.href}
+            href={m.href}
+            className="group card overflow-hidden transition hover:shadow-lg hover:-translate-y-0.5"
+          >
+            <div className={`h-1 bg-gradient-to-r ${m.color}`} />
+            <div className="p-5">
+              <div className="flex items-start gap-3">
+                <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${m.color} text-white`}>
+                  {m.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-semibold text-slate-900 group-hover:text-accent transition">
+                    {m.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">{m.description}</p>
+                  <p className="mt-3 text-[11px] italic text-slate-500">
+                    <span className="font-medium text-slate-600">Objectif :</span> {m.objective}
+                  </p>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300 group-hover:text-accent transition">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
