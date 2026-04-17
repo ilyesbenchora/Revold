@@ -66,6 +66,8 @@ export function CreateReportModal() {
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("📊");
   const [format, setFormat] = useState<KpiFormat>("auto");
+  // Step 4 sub-tab : "principal" (titre / période / format) | "options" (filtres CRM avancés)
+  const [step4Tab, setStep4Tab] = useState<"principal" | "options">("principal");
 
   const categories = team ? CATEGORIES_BY_TEAM[team] : [];
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
@@ -138,6 +140,7 @@ export function CreateReportModal() {
     setCustomProp(""); setCustomPropValue("");
     setDatePreset("all_time"); setTitle(""); setIcon("📊");
     setFormat("auto");
+    setStep4Tab("principal");
     setState("idle"); setErrorMsg(null);
   }
 
@@ -497,13 +500,60 @@ export function CreateReportModal() {
                 )}
 
                 {/* ── Step 4 : Filters + title ── */}
-                {step === 4 && category && (
+                {step === 4 && category && (() => {
+                  const optionsCount =
+                    selectedPipelines.length +
+                    (hsTeamFilter ? 1 : 0) +
+                    (ownerFilter ? 1 : 0) +
+                    (lifecycleStage ? 1 : 0) +
+                    selectedSources.length +
+                    (customProp && customPropValue ? 1 : 0);
+                  const hasOptionsBlocks =
+                    pipelines.length > 0 ||
+                    owners.length > 0 ||
+                    hsTeams.length > 0 ||
+                    (lifecycleStages.length > 0 && (team === "marketing" || team === "cs" || team === "revops")) ||
+                    (sources.length > 0 && (team === "marketing" || team === "sales")) ||
+                    (customProps.length > 0 && (team === "marketing" || team === "cs"));
+                  return (
                   <form onSubmit={handleSubmit}>
                     <h2 className="text-lg font-semibold text-slate-900">Filtres de précision</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       Affinez le calcul des KPIs. Laissez vide pour inclure toutes les données.
                     </p>
 
+                    {/* Sub-tabs */}
+                    {hasOptionsBlocks && (
+                      <div className="mt-4 flex gap-1 rounded-lg bg-slate-100 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setStep4Tab("principal")}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                            step4Tab === "principal"
+                              ? "bg-white text-accent shadow-sm"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >Principal</button>
+                        <button
+                          type="button"
+                          onClick={() => setStep4Tab("options")}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition flex items-center justify-center gap-2 ${
+                            step4Tab === "options"
+                              ? "bg-white text-accent shadow-sm"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Options
+                          {optionsCount > 0 && (
+                            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                              step4Tab === "options" ? "bg-accent text-white" : "bg-accent/15 text-accent"
+                            }`}>{optionsCount}</span>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {step4Tab === "principal" && (
                     <div className="mt-4 space-y-4">
                       {/* Titre + icône */}
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -584,6 +634,14 @@ export function CreateReportModal() {
                           {KPI_FORMATS.find((f) => f.id === format)?.hint}
                         </p>
                       </div>
+                    </div>
+                    )}
+
+                    {step4Tab === "options" && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-[11px] text-slate-500">
+                        Filtres CRM avancés. Tout vide = aucun filtre, calcul sur l&apos;ensemble des données.
+                      </p>
 
                       {/* Pipelines */}
                       {pipelines.length > 0 && (
@@ -708,6 +766,7 @@ export function CreateReportModal() {
                         </div>
                       )}
                     </div>
+                    )}
 
                     {errorMsg && (
                       <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
@@ -733,7 +792,8 @@ export function CreateReportModal() {
                       </div>
                     </div>
                   </form>
-                )}
+                  );
+                })()}
               </>
             )}
           </div>
