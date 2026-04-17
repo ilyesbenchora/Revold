@@ -30,3 +30,55 @@ body {
   border: 1px solid var(--card-border);
   border-radius: 0.875rem;
 }
+
+/* Blog & legal prose styling */
+.prose-revold h2 {
+  margin-top: 2.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.prose-revold h3 {
+  margin-top: 1.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.prose-revold p {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: #475569;
+}
+.prose-revold ul {
+  margin-top: 0.75rem;
+  padding-left: 1.5rem;
+  list-style: disc;
+}
+.prose-revold ul li {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #475569;
+}
+.prose-revold strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.prose-revold em {
+  color: #64748b;
+  font-style: italic;
+}
+.prose-revold a {
+  color: var(--accent);
+  font-weight: 500;
+}
+.prose-revold a:hover {
+  text-decoration: underline;
+}
+.prose-revold code {
+  background: #f1f5f9;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}

@@ -8,8 +8,52 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Revold",
-  description: "Revold - plateforme d'intelligence revenue",
+  title: {
+    default: "Revold — Plateforme de Revenue Intelligence B2B",
+    template: "%s — Revold",
+  },
+  description: "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
+  metadataBase: new URL("https://revold.io"),
+  alternates: {
+    canonical: "/",
+    types: {
+      "application/rss+xml": "/blog/rss.xml",
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    siteName: "Revold",
+    url: "https://revold.io",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Revold — Plateforme de Revenue Intelligence B2B",
+    description: "Pilotez vos revenus avec des insights propulsés par l'IA. CRM, facturation et support connectés.",
+  },
+  keywords: [
+    "revenue intelligence",
+    "RevOps",
+    "plateforme RevOps",
+    "CRM intelligence",
+    "HubSpot analytics",
+    "Salesforce analytics",
+    "insights IA",
+    "pilotage revenue",
+    "B2B France",
+    "Revold",
+  ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

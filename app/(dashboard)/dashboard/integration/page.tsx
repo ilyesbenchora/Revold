@@ -281,7 +281,7 @@ export default async function IntegrationPage({
         >
           <p className="text-sm text-slate-500">
             Synchronisez ces outils <strong>directement à Revold</strong>, sans passer par HubSpot.
-            C&apos;est ça la puissance de Revold : centraliser <strong>toutes les données revenue de votre entreprise</strong> en un seul endroit
+            C&apos;est ça la puissance de Revold : centraliser <strong>toutes les données revenus de votre entreprise</strong> en un seul endroit
             — CRM, facturation, service client — pour piloter le business à 360°.
           </p>
           <div className="space-y-4">

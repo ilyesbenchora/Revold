@@ -25,7 +25,7 @@ export function InsightLockedBlock({
         </h2>
         <p className="mt-2 text-sm text-slate-500">{previewBody}</p>
         <p className="mt-3 text-sm font-medium text-slate-600">
-          Recommandation : optimiser les processus identifiés pour un impact mesurable sur le revenue.
+          Recommandation : optimiser les processus identifiés pour un impact mesurable sur les revenus.
         </p>
       </div>
 

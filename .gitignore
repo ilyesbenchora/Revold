@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude code
+.claude
+.mcp.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
