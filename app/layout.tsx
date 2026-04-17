@@ -56,6 +56,38 @@ export const metadata: Metadata = {
   },
 };
 
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Revold",
+  alternateName: "Revold — Revenue Intelligence",
+  url: "https://revold.io",
+  logo: "https://revold.io/icon.svg",
+  description:
+    "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
+  foundingDate: "2025",
+  areaServed: "FR",
+  sameAs: [
+    "https://www.linkedin.com/company/revold",
+  ],
+};
+
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Revold",
+  url: "https://revold.io",
+  inLanguage: "fr-FR",
+  publisher: {
+    "@type": "Organization",
+    name: "Revold",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://revold.io/icon.svg",
+    },
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -63,6 +95,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className={`${dmSans.variable} h-full antialiased`}>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
