@@ -26,6 +26,12 @@ export function resolvePresetDates(preset: string): { from: string | null; to: s
     case "last_6m":
       from = new Date(Date.now() - 180 * 86400000).toISOString();
       break;
+    case "last_30d":
+      from = new Date(Date.now() - 30 * 86400000).toISOString();
+      break;
+    case "last_90d":
+      from = new Date(Date.now() - 90 * 86400000).toISOString();
+      break;
     default:
       return { from: null, to: null };
   }

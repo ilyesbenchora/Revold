@@ -4,7 +4,11 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
+import {
+  fetchRawKpiData,
+  computeMetricsForFilters,
+  type ReportFilters,
+} from "@/lib/reports/report-kpis";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { DISPLAY_CATEGORY_LABELS } from "@/lib/reports/report-suggestions";
@@ -14,6 +18,7 @@ import { KpiVisual } from "@/components/kpi-visual";
 import { ReportInsight } from "@/components/report-insight";
 import { ReportDateRange } from "@/components/report-date-range";
 import { resolvePresetDates } from "@/lib/reports/date-utils";
+import { CreateReportModal } from "@/components/create-report-modal";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -257,6 +262,15 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   });
 }
 
+type StoredFilters = {
+  dateFilter?: string | null;
+  pipelineIds?: string[] | null;
+  ownerIds?: string[] | null;
+  lifecycleStage?: string | null;
+  sources?: string[] | null;
+  customProperty?: { name: string; value: string } | null;
+};
+
 type ActivatedReport = {
   id: string;
   report_id: string;
@@ -268,6 +282,34 @@ type ActivatedReport = {
   metrics: string[];
   icon: string;
   activated_at: string;
+  is_custom?: boolean;
+  team?: string | null;
+  filters?: StoredFilters | null;
+};
+
+function resolveFilters(stored: StoredFilters | null | undefined): ReportFilters | undefined {
+  if (!stored) return undefined;
+  const out: ReportFilters = {};
+  if (stored.dateFilter) {
+    const d = resolvePresetDates(stored.dateFilter);
+    if (d.from || d.to) out.dateFilter = d;
+  }
+  if (stored.pipelineIds && stored.pipelineIds.length > 0) out.pipelineIds = stored.pipelineIds;
+  if (stored.ownerIds && stored.ownerIds.length > 0) out.ownerIds = stored.ownerIds;
+  if (stored.lifecycleStage) out.lifecycleStage = stored.lifecycleStage;
+  if (stored.sources && stored.sources.length > 0) out.sources = stored.sources;
+  if (stored.customProperty) out.customProperty = stored.customProperty;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const DATE_LABELS: Record<string, string> = {
+  this_month: "Ce mois",
+  this_quarter: "Ce trimestre",
+  this_year: "Cette année",
+  last_30d: "30 derniers jours",
+  last_90d: "90 derniers jours",
+  last_6m: "6 derniers mois",
+  all_time: "Depuis toujours",
 };
 
 /** Clean raw metric values: remove "Won:", "Lost:", "Out:", "In:" prefixes,
@@ -308,20 +350,37 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
 
   const hubspotToken = await getHubSpotToken(supabase, orgId);
 
-  let kpiValues: Record<string, string | null> = {};
+  // Default metric values (period from URL), used for non-custom reports
+  let defaultKpiValues: Record<string, string | null> = {};
+  // Per-report metric values (custom reports with their own filters)
+  const perReportKpis: Record<string, Record<string, string | null>> = {};
   let kpiError: string | null = null;
+
   if (hubspotToken && activatedReports.length > 0) {
     try {
-      const dateFilter = resolvePresetDates(_period);
-      const kpiData = await fetchAllKpiData(hubspotToken, supabase, orgId, dateFilter);
-      kpiValues = computeMetricValues(kpiData);
+      const raw = await fetchRawKpiData(hubspotToken, supabase, orgId);
+      const pageDateFilter = resolvePresetDates(_period);
+      const pageFilters: ReportFilters | undefined = (pageDateFilter.from || pageDateFilter.to)
+        ? { dateFilter: pageDateFilter }
+        : undefined;
+      defaultKpiValues = computeMetricsForFilters(raw, pageFilters);
+      for (const r of activatedReports) {
+        if (r.is_custom && r.filters) {
+          const rf = resolveFilters(r.filters);
+          perReportKpis[r.id] = rf ? computeMetricsForFilters(raw, rf) : defaultKpiValues;
+        }
+      }
     } catch (err) {
       kpiError = String(err).slice(0, 200);
     }
   }
 
+  function kpisFor(r: ActivatedReport): Record<string, string | null> {
+    return perReportKpis[r.id] ?? defaultKpiValues;
+  }
+
   // Auto-fix: update metrics in DB if they reference keys that don't exist in kpiValues
-  const computedKeys = new Set(Object.keys(kpiValues));
+  const computedKeys = new Set(Object.keys(defaultKpiValues));
   for (const report of activatedReports) {
     const metrics = (report.metrics as string[]) ?? [];
     if (computedKeys.size > 0 && metrics.some((m) => !computedKeys.has(m))) {
@@ -341,9 +400,12 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
 
   return (
     <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Mes rapports</h1>
-        <p className="mt-1 text-sm text-slate-500">KPIs en temps réel depuis votre CRM.</p>
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Mes rapports</h1>
+          <p className="mt-1 text-sm text-slate-500">KPIs en temps réel depuis votre CRM.</p>
+        </div>
+        <CreateReportModal />
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
@@ -381,9 +443,27 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
             const catLabel = catLabels[report.display_category] ?? report.display_category;
             const metrics = (report.metrics as string[]) ?? [];
             const isMulti = report.report_type === "multi";
-            const metricValues = metrics.map((m) => kpiValues[m] ?? null);
+            const isCustom = !!report.is_custom;
+            const values = kpisFor(report);
+            const metricValues = metrics.map((m) => values[m] ?? null);
             const nonNullCount = metricValues.filter((v) => v !== null).length;
             const allReady = nonNullCount === metrics.length && metrics.length > 0;
+            const filters = report.filters ?? null;
+            const filterBadges: string[] = [];
+            if (filters?.dateFilter) filterBadges.push(DATE_LABELS[filters.dateFilter] ?? filters.dateFilter);
+            if (filters?.pipelineIds && filters.pipelineIds.length > 0) {
+              filterBadges.push(`${filters.pipelineIds.length} pipeline${filters.pipelineIds.length > 1 ? "s" : ""}`);
+            }
+            if (filters?.ownerIds && filters.ownerIds.length > 0) {
+              filterBadges.push(`${filters.ownerIds.length} owner${filters.ownerIds.length > 1 ? "s" : ""}`);
+            }
+            if (filters?.lifecycleStage) filterBadges.push(`Lifecycle: ${filters.lifecycleStage}`);
+            if (filters?.sources && filters.sources.length > 0) {
+              filterBadges.push(`${filters.sources.length} source${filters.sources.length > 1 ? "s" : ""}`);
+            }
+            if (filters?.customProperty) {
+              filterBadges.push(`${filters.customProperty.name}=${filters.customProperty.value}`);
+            }
 
             return (
               <article
@@ -391,7 +471,7 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
                 className="card overflow-hidden transition hover:shadow-md"
               >
                 {/* Color bar */}
-                <div className={`h-1 ${isMulti ? "bg-gradient-to-r from-fuchsia-500 to-indigo-500" : "bg-accent"}`} />
+                <div className={`h-1 ${isCustom ? "bg-gradient-to-r from-emerald-500 to-accent" : isMulti ? "bg-gradient-to-r from-fuchsia-500 to-indigo-500" : "bg-accent"}`} />
 
                 {/* Header */}
                 <div className="px-5 pt-4 pb-3">
@@ -406,10 +486,15 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
                       ) : null}
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-                          isMulti ? "bg-fuchsia-50 text-fuchsia-600" : "bg-indigo-50 text-indigo-600"
+                          isCustom ? "bg-emerald-50 text-emerald-700" : isMulti ? "bg-fuchsia-50 text-fuchsia-600" : "bg-indigo-50 text-indigo-600"
                         }`}>
                           {catLabel}
                         </span>
+                        {isCustom && (
+                          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[9px] font-semibold text-accent">
+                            Rapport sur mesure
+                          </span>
+                        )}
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
                           allReady ? "bg-emerald-50 text-emerald-700" : nonNullCount > 0 ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
                         }`}>
@@ -419,6 +504,16 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
                           {new Date(report.activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       </div>
+                      {isCustom && filterBadges.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {filterBadges.map((b, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {/* Date range */}

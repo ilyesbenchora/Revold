@@ -552,9 +552,88 @@ function aggregatePayments(rows: RawPayment[]): PaymentKpis {
   return { total, succeeded, failed, totalFailedAmount, successRate: total > 0 ? succeeded / total * 100 : 0 };
 }
 
-// ── Public: fetch all data ─────────────────────────────────────────────────
+// ── Public filter types ────────────────────────────────────────────────────
 
-export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string, dateFilter?: { from: string | null; to: string | null }): Promise<AllKpiData> {
+export type ReportFilters = {
+  dateFilter?: { from: string | null; to: string | null };
+  pipelineIds?: string[];
+  ownerIds?: string[];
+  lifecycleStage?: string;
+  sources?: string[];
+  customProperty?: { name: string; value: string } | null;
+};
+
+export type RawKpiData = {
+  rawContacts: HSRow[];
+  rawDeals: HSRow[];
+  rawCalls: HSRow[];
+  rawMeetings: HSRow[];
+  rawEmails: HSRow[];
+  rawTickets: HSRow[];
+  rawCompanies: HSRow[];
+  rawInvoices: RawInvoice[];
+  rawSubs: RawSubscription[];
+  rawPayments: RawPayment[];
+  ownerData: { count: number; names: Map<string, string> };
+  pipelineData: { pipelines: Map<string, string>; stages: Map<string, string>; stageProbs: Map<string, number> };
+  callAssoc: AssocMap;
+  meetingAssoc: AssocMap;
+  emailAssoc: AssocMap;
+};
+
+// ── Filter helpers ────────────────────────────────────────────────────────
+
+function applyFilters(rows: HSRow[], f: ReportFilters, objectType: "contacts" | "deals" | "calls" | "meetings" | "emails" | "tickets" | "companies"): HSRow[] {
+  if (!f || Object.keys(f).length === 0) return rows;
+  return rows.filter((r) => {
+    // Date filter on createdate
+    if (f.dateFilter && (f.dateFilter.from || f.dateFilter.to)) {
+      const created = r.createdate || r.hs_createdate;
+      if (created) {
+        const d = new Date(created).getTime();
+        if (f.dateFilter.from && d < new Date(f.dateFilter.from).getTime()) return false;
+        if (f.dateFilter.to && d > new Date(f.dateFilter.to).getTime()) return false;
+      }
+    }
+    // Owner filter (all object types with hubspot_owner_id)
+    if (f.ownerIds && f.ownerIds.length > 0) {
+      const owner = r.hubspot_owner_id;
+      if (!owner || !f.ownerIds.includes(owner)) return false;
+    }
+    // Pipeline filter (deals only)
+    if (objectType === "deals" && f.pipelineIds && f.pipelineIds.length > 0) {
+      const pip = r.pipeline ?? "default";
+      if (!f.pipelineIds.includes(pip)) return false;
+    }
+    // Lifecycle stage (contacts only)
+    if (objectType === "contacts" && f.lifecycleStage) {
+      const lc = (r.lifecyclestage ?? "").toLowerCase();
+      if (lc !== f.lifecycleStage.toLowerCase()) return false;
+    }
+    // Sources (contacts/deals)
+    if ((objectType === "contacts" || objectType === "deals") && f.sources && f.sources.length > 0) {
+      const src = (r.hs_analytics_source ?? "").toUpperCase();
+      const wanted = f.sources.map((s) => s.toUpperCase());
+      if (!wanted.some((w) => src === w || src.includes(w))) return false;
+    }
+    // Custom contact property equality
+    if (objectType === "contacts" && f.customProperty && f.customProperty.name && f.customProperty.value) {
+      const v = r[f.customProperty.name];
+      if ((v ?? "") !== f.customProperty.value) return false;
+    }
+    return true;
+  });
+}
+
+function filterAssoc(assoc: AssocMap, keptDealIds: Set<string>): AssocMap {
+  const out: AssocMap = new Map();
+  for (const [k, v] of assoc.entries()) if (keptDealIds.has(k)) out.set(k, v);
+  return out;
+}
+
+// ── Public: raw fetch (no filtering) ──────────────────────────────────────
+
+export async function fetchRawKpiData(token: string, supabase: SupabaseClient, orgId: string): Promise<RawKpiData> {
   const [ownerData, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
     fetchOwners(token).catch(() => ({ count: 1, names: new Map<string, string>() })),
     fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>(), stageProbs: new Map<string, number>() })),
@@ -581,54 +660,77 @@ export async function fetchAllKpiData(token: string, supabase: SupabaseClient, o
     sbPayments(supabase, orgId).catch(() => []),
   ]);
 
-  // Apply date filter if provided (filter by createdate)
-  function filterByDate(rows: HSRow[]): HSRow[] {
-    if (!dateFilter || (!dateFilter.from && !dateFilter.to)) return rows;
-    return rows.filter((r) => {
-      const created = r.createdate || r.hs_createdate;
-      if (!created) return true; // Keep rows without dates
-      const d = new Date(created).getTime();
-      if (dateFilter.from && d < new Date(dateFilter.from).getTime()) return false;
-      if (dateFilter.to && d > new Date(dateFilter.to).getTime()) return false;
-      return true;
-    });
-  }
-
-  const filteredContacts = filterByDate(rawContacts);
-  const filteredDeals = filterByDate(rawDeals);
-  const filteredCalls = filterByDate(rawCalls);
-  const filteredMeetings = filterByDate(rawMeetings);
-  const filteredEmails = filterByDate(rawEmails);
-
-  const dealData = aggregateDeals(filteredDeals, pipelineData.stageProbs);
-
-  // Fetch engagement associations for deals (calls, meetings, emails)
-  const dealIds = filteredDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id);
-  if (dealIds.length > 0) {
-    const [callAssoc, meetingAssoc, emailAssoc] = await Promise.all([
-      fetchAssociations(token, "deals", "calls", dealIds).catch(() => new Map()),
-      fetchAssociations(token, "deals", "meetings", dealIds).catch(() => new Map()),
-      fetchAssociations(token, "deals", "emails", dealIds).catch(() => new Map()),
+  // Fetch engagement associations once (for all deals)
+  const allDealIds = rawDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id);
+  let callAssoc: AssocMap = new Map();
+  let meetingAssoc: AssocMap = new Map();
+  let emailAssoc: AssocMap = new Map();
+  if (allDealIds.length > 0) {
+    const [c, m, e] = await Promise.all([
+      fetchAssociations(token, "deals", "calls", allDealIds).catch(() => new Map<string, string[]>()),
+      fetchAssociations(token, "deals", "meetings", allDealIds).catch(() => new Map<string, string[]>()),
+      fetchAssociations(token, "deals", "emails", allDealIds).catch(() => new Map<string, string[]>()),
     ]);
-    enrichDealEngagements(dealData, filteredDeals, callAssoc, meetingAssoc, emailAssoc);
+    callAssoc = c; meetingAssoc = m; emailAssoc = e;
   }
 
   return {
-    ownerCount: ownerData.count,
-    ownerNames: ownerData.names,
+    rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies,
+    rawInvoices, rawSubs, rawPayments,
+    ownerData, pipelineData,
+    callAssoc, meetingAssoc, emailAssoc,
+  };
+}
+
+// ── Public: aggregate with filters ─────────────────────────────────────────
+
+export function aggregateKpiData(raw: RawKpiData, filters?: ReportFilters): AllKpiData {
+  const f = filters ?? {};
+  const filteredContacts = applyFilters(raw.rawContacts, f, "contacts");
+  const filteredDeals = applyFilters(raw.rawDeals, f, "deals");
+  const filteredCalls = applyFilters(raw.rawCalls, f, "calls");
+  const filteredMeetings = applyFilters(raw.rawMeetings, f, "meetings");
+  const filteredEmails = applyFilters(raw.rawEmails, f, "emails");
+  const filteredTickets = applyFilters(raw.rawTickets, f, "tickets");
+  const filteredCompanies = applyFilters(raw.rawCompanies, f, "companies");
+
+  const dealData = aggregateDeals(filteredDeals, raw.pipelineData.stageProbs);
+
+  const keptDealIds = new Set(filteredDeals.map((d) => d._hs_object_id).filter((id): id is string => !!id));
+  if (keptDealIds.size > 0) {
+    const callA = filterAssoc(raw.callAssoc, keptDealIds);
+    const meetA = filterAssoc(raw.meetingAssoc, keptDealIds);
+    const emailA = filterAssoc(raw.emailAssoc, keptDealIds);
+    enrichDealEngagements(dealData, filteredDeals, callA, meetA, emailA);
+  }
+
+  return {
+    ownerCount: raw.ownerData.count,
+    ownerNames: raw.ownerData.names,
     contacts: aggregateContacts(filteredContacts),
     deals: dealData,
     calls: aggregateCalls(filteredCalls),
     meetings: aggregateMeetings(filteredMeetings),
     emails: aggregateEmails(filteredEmails),
-    tickets: aggregateTickets(rawTickets),
-    companies: aggregateCompanies(rawCompanies),
-    invoices: aggregateInvoices(rawInvoices),
-    subscriptions: aggregateSubscriptions(rawSubs),
-    payments: aggregatePayments(rawPayments),
-    pipelineNames: pipelineData.pipelines,
-    stageNames: pipelineData.stages,
+    tickets: aggregateTickets(filteredTickets),
+    companies: aggregateCompanies(filteredCompanies),
+    invoices: aggregateInvoices(raw.rawInvoices),
+    subscriptions: aggregateSubscriptions(raw.rawSubs),
+    payments: aggregatePayments(raw.rawPayments),
+    pipelineNames: raw.pipelineData.pipelines,
+    stageNames: raw.pipelineData.stages,
   };
+}
+
+export function computeMetricsForFilters(raw: RawKpiData, filters?: ReportFilters): Record<string, string | null> {
+  return computeMetricValues(aggregateKpiData(raw, filters));
+}
+
+// ── Public: fetch all data (backwards compat) ─────────────────────────────
+
+export async function fetchAllKpiData(token: string, supabase: SupabaseClient, orgId: string, dateFilter?: { from: string | null; to: string | null }): Promise<AllKpiData> {
+  const raw = await fetchRawKpiData(token, supabase, orgId);
+  return aggregateKpiData(raw, dateFilter ? { dateFilter } : undefined);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
