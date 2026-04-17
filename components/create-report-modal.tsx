@@ -37,6 +37,11 @@ export function CreateReportModal() {
   const [customProps, setCustomProps] = useState<CustomProp[]>([]);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
 
+  // KPI availability — pre-computed per CRM (which implemented KPIs actually have data)
+  const [withDataSet, setWithDataSet] = useState<Set<string> | null>(null);
+  const [hasHubspotToken, setHasHubspotToken] = useState<boolean>(true);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
   // Step 1: team
   const [team, setTeam] = useState<TeamId | "">("");
   // Step 2: category
@@ -58,15 +63,30 @@ export function CreateReportModal() {
   const categories = team ? CATEGORIES_BY_TEAM[team] : [];
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
 
-  // Split category metrics into available (implemented in the engine) and "soon"
-  const availableMetrics = useMemo(
-    () => (category?.metrics ?? []).filter((m) => IMPLEMENTED_KPIS.has(m)),
-    [category],
-  );
-  const upcomingMetrics = useMemo(
-    () => (category?.metrics ?? []).filter((m) => !IMPLEMENTED_KPIS.has(m)),
-    [category],
-  );
+  // Three buckets per category:
+  //   withDataMetrics    → ✅ implemented + your CRM has the data
+  //   noDataMetrics      → 🟠 implemented but your CRM has 0 records
+  //   upcomingMetrics    → 🔒 not yet implemented (Stripe / Pennylane / etc.)
+  const { withDataMetrics, noDataMetrics, upcomingMetrics } = useMemo(() => {
+    const all = category?.metrics ?? [];
+    const withD: string[] = [];
+    const without: string[] = [];
+    const soon: string[] = [];
+    for (const m of all) {
+      if (!IMPLEMENTED_KPIS.has(m)) {
+        soon.push(m);
+      } else if (withDataSet === null) {
+        // availability not yet loaded → treat all implemented as potentially available
+        withD.push(m);
+      } else if (withDataSet.has(m)) {
+        withD.push(m);
+      } else {
+        without.push(m);
+      }
+    }
+    return { withDataMetrics: withD, noDataMetrics: without, upcomingMetrics: soon };
+  }, [category, withDataSet]);
+
   const reachedLimit = selectedMetrics.length >= MAX_KPIS_PER_REPORT;
 
   useEffect(() => {
@@ -86,6 +106,25 @@ export function CreateReportModal() {
     }
   }, [open, optionsLoaded]);
 
+  // Load KPI availability (which implemented KPIs actually return data for this CRM)
+  useEffect(() => {
+    if (!open || withDataSet !== null || availabilityLoading) return;
+    setAvailabilityLoading(true);
+    fetch("/api/reports/kpi-availability")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { withData?: string[]; hasToken?: boolean } | null) => {
+        if (data && Array.isArray(data.withData)) {
+          setWithDataSet(new Set(data.withData));
+          setHasHubspotToken(data.hasToken !== false);
+        } else {
+          // Fallback : treat all implemented as available so the user is never blocked
+          setWithDataSet(new Set(IMPLEMENTED_KPIS));
+        }
+      })
+      .catch(() => setWithDataSet(new Set(IMPLEMENTED_KPIS)))
+      .finally(() => setAvailabilityLoading(false));
+  }, [open, withDataSet, availabilityLoading]);
+
   function reset() {
     setStep(1); setTeam(""); setCategoryId(""); setSelectedMetrics([]);
     setSelectedPipelines([]); setHsTeamFilter(""); setOwnerFilter("");
@@ -101,9 +140,10 @@ export function CreateReportModal() {
   function selectCategory(cid: string) {
     const cat = categories.find((c) => c.id === cid);
     setCategoryId(cid);
-    // Pre-select up to 4 KPIs, but only those actually implemented
+    // Pre-select up to 4 KPIs : implemented AND with data in the CRM
     const preselect = (cat?.metrics ?? [])
       .filter((m) => IMPLEMENTED_KPIS.has(m))
+      .filter((m) => (withDataSet ? withDataSet.has(m) : true))
       .slice(0, 4);
     setSelectedMetrics(preselect);
     setIcon(cat?.icon ?? "📊");
@@ -299,53 +339,130 @@ export function CreateReportModal() {
                     <div className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-700">
                       <span className="font-semibold">Objectif métier :</span> {category.objectiveMetier}
                     </div>
-                    <div className="mt-4 space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
-                      {availableMetrics.length === 0 && (
-                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                          Aucun KPI calculable pour cette catégorie avec les intégrations branchées.
-                        </p>
-                      )}
-                      {availableMetrics.map((m) => {
-                        const selected = selectedMetrics.includes(m);
-                        const disabled = !selected && reachedLimit;
-                        return (
-                          <label
-                            key={m}
-                            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                              selected
-                                ? "cursor-pointer border-accent bg-accent/5"
-                                : disabled
-                                  ? "cursor-not-allowed border-slate-200 opacity-50"
-                                  : "cursor-pointer border-slate-200 hover:border-accent/30"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              disabled={disabled}
-                              onChange={() => toggleMetric(m)}
-                              className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent disabled:cursor-not-allowed"
-                            />
-                            <span className={`flex-1 text-xs font-medium ${selected ? "text-accent" : "text-slate-700"}`}>{m}</span>
-                          </label>
-                        );
-                      })}
-                      {upcomingMetrics.length > 0 && (
-                        <div className="mt-3 border-t border-slate-100 pt-2">
-                          <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            À venir — nécessite intégration supplémentaire
+                    <p className="mt-2 text-[10px] italic text-slate-500">
+                      💡 Pour une analyse CRO exploitable, privilégiez 3 à 5 KPIs cohérents (un par dimension : volume, taux, vélocité, montant).
+                    </p>
+
+                    {availabilityLoading && (
+                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-accent" />
+                        Analyse de la disponibilité dans votre CRM...
+                      </div>
+                    )}
+
+                    {!hasHubspotToken && !availabilityLoading && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                        Token HubSpot manquant : impossible de vérifier les données disponibles. Tous les KPIs implémentés sont proposés mais peuvent retourner « Données absentes ».
+                      </div>
+                    )}
+
+                    {!availabilityLoading && withDataMetrics.length === 0 && noDataMetrics.length === 0 && upcomingMetrics.length === 0 && (
+                      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                        Aucun KPI dans cette catégorie.
+                      </p>
+                    )}
+
+                    {!availabilityLoading && withDataMetrics.length === 0 && noDataMetrics.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                        Cette catégorie n&apos;a aucune donnée dans votre CRM actuellement. Vous pouvez quand même créer le rapport — il s&apos;activera dès l&apos;arrivée de données.
+                      </div>
+                    )}
+
+                    <div className="mt-4 space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                      {/* Bucket 1 : ✅ With data */}
+                      {withDataMetrics.length > 0 && (
+                        <div>
+                          <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            ✅ Disponible — données présentes ({withDataMetrics.length})
                           </p>
-                          {upcomingMetrics.map((m) => (
-                            <div
-                              key={m}
-                              className="flex items-center gap-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-left opacity-60"
-                              title="Indicateur non encore branché — Stripe / Pennylane / historique souscriptions requis"
-                            >
-                              <span className="h-4 w-4 shrink-0 rounded border border-slate-300 bg-slate-100" />
-                              <span className="flex-1 text-xs font-medium text-slate-500">{m}</span>
-                              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-400">Bientôt</span>
-                            </div>
-                          ))}
+                          <div className="space-y-1.5">
+                            {withDataMetrics.map((m) => {
+                              const selected = selectedMetrics.includes(m);
+                              const disabled = !selected && reachedLimit;
+                              return (
+                                <label
+                                  key={m}
+                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                                    selected
+                                      ? "cursor-pointer border-accent bg-accent/5"
+                                      : disabled
+                                        ? "cursor-not-allowed border-slate-200 opacity-50"
+                                        : "cursor-pointer border-slate-200 hover:border-accent/30"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    disabled={disabled}
+                                    onChange={() => toggleMetric(m)}
+                                    className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent disabled:cursor-not-allowed"
+                                  />
+                                  <span className={`flex-1 text-xs font-medium ${selected ? "text-accent" : "text-slate-700"}`}>{m}</span>
+                                  <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-emerald-500" title="Données présentes dans votre CRM" />
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bucket 2 : 🟠 Implemented but no data */}
+                      {noDataMetrics.length > 0 && (
+                        <div>
+                          <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            🟠 Implémenté — votre CRM n&apos;a pas encore les données ({noDataMetrics.length})
+                          </p>
+                          <div className="space-y-1.5">
+                            {noDataMetrics.map((m) => {
+                              const selected = selectedMetrics.includes(m);
+                              const disabled = !selected && reachedLimit;
+                              return (
+                                <label
+                                  key={m}
+                                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                                    selected
+                                      ? "cursor-pointer border-amber-400 bg-amber-50"
+                                      : disabled
+                                        ? "cursor-not-allowed border-amber-100 opacity-50"
+                                        : "cursor-pointer border-amber-100 bg-amber-50/30 hover:border-amber-300"
+                                  }`}
+                                  title="Aucune donnée chez vous pour ce KPI — il s'affichera 'Données absentes' tant que votre CRM n'a rien."
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    disabled={disabled}
+                                    onChange={() => toggleMetric(m)}
+                                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:cursor-not-allowed"
+                                  />
+                                  <span className={`flex-1 text-xs font-medium ${selected ? "text-amber-900" : "text-slate-600"}`}>{m}</span>
+                                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">Vide</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bucket 3 : 🔒 Coming soon */}
+                      {upcomingMetrics.length > 0 && (
+                        <div>
+                          <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            🔒 Bientôt — nécessite intégration supplémentaire ({upcomingMetrics.length})
+                          </p>
+                          <div className="space-y-1">
+                            {upcomingMetrics.map((m) => (
+                              <div
+                                key={m}
+                                className="flex items-center gap-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-left opacity-60"
+                                title="Indicateur non encore branché — Stripe / Pennylane / historique souscriptions requis"
+                              >
+                                <span className="h-4 w-4 shrink-0 rounded border border-slate-300 bg-slate-100" />
+                                <span className="flex-1 text-xs font-medium text-slate-500">{m}</span>
+                                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-400">Bientôt</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
