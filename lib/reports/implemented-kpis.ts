@@ -254,3 +254,76 @@ export function isKpiImplemented(name: string): boolean {
 export function filterImplementedKpis(names: string[]): string[] {
   return names.filter((n) => IMPLEMENTED_KPIS.has(n));
 }
+
+/**
+ * Recommande le format de visualisation optimal pour un KPI à partir de son
+ * label. Logique alignée sur les sorties de `computeMetricValues()` :
+ *
+ *   - Tendances mensuelles ("→" en runtime) → line_chart
+ *   - Pourcentages, taux, scores, complétude → donut
+ *   - Comparaison d'entités (par owner / par pipeline / top X) → bar_h
+ *   - Durée, cycle, délai, jours → evaluation
+ *   - Montant simple (€) → currency (résolu par "auto")
+ *   - Sinon → "auto" (laisse le renderer décider)
+ */
+export function recommendFormat(kpiLabel: string): KpiFormat {
+  const l = kpiLabel.toLowerCase();
+
+  // Time-series (produit "12/26 348 → 01/27 412 → ...")
+  if (
+    l.includes("(tendance)") ||
+    l.includes("par mois") ||
+    l.includes("évolution mensuelle") ||
+    l.includes("évolution du") ||
+    l.includes("variation mois")
+  ) {
+    return "line_chart";
+  }
+
+  // Pourcentages / scores / complétude → donut (plus visuel qu'une jauge)
+  if (
+    l.includes("(%)") ||
+    l.includes(" % ") ||
+    l.endsWith(" %") ||
+    l.includes("taux ") ||
+    l.includes("taux de ") ||
+    l.includes("score ") ||
+    l.includes("complétude") ||
+    l.includes("enrichissement") ||
+    l.includes("csat") ||
+    l.includes("connexion")
+  ) {
+    return "donut";
+  }
+
+  // Cycles / durées / délais → évaluation textuelle colorée
+  if (
+    l.includes("cycle") ||
+    l.includes("durée") ||
+    l.includes("délai") ||
+    l.includes("vélocité") ||
+    l.includes("(jours)") ||
+    l.includes("(h)") ||
+    l.includes("temps ")
+  ) {
+    return "evaluation";
+  }
+
+  // Comparaison multi-entités → barres horizontales
+  if (
+    l.includes("par owner") ||
+    l.includes("par pipeline") ||
+    l.includes("par stage") ||
+    l.includes("par canal") ||
+    l.includes("par campagne") ||
+    l.startsWith("top ") ||
+    l.includes("répartition ") ||
+    l.includes("comparaison ") ||
+    l.includes("classement")
+  ) {
+    return "bar_h";
+  }
+
+  // Sinon : auto (resolveType à l'affichage selon la valeur)
+  return "auto";
+}

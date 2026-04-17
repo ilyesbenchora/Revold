@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TEAMS, CATEGORIES_BY_TEAM, type TeamId } from "@/lib/reports/report-catalog";
-import { IMPLEMENTED_KPIS, MAX_KPIS_PER_REPORT, KPI_FORMATS, type KpiFormat } from "@/lib/reports/implemented-kpis";
+import {
+  IMPLEMENTED_KPIS,
+  MAX_KPIS_PER_REPORT,
+  KPI_FORMATS,
+  recommendFormat,
+  type KpiFormat,
+} from "@/lib/reports/implemented-kpis";
 
 const DATE_PRESETS = [
   { id: "this_month", label: "Ce mois" },
@@ -149,15 +155,18 @@ export function CreateReportModal() {
     setSelectedMetrics(preselect);
     setIcon(cat?.icon ?? "📊");
     setTitle(cat?.label ?? "");
-    setFormat("auto");
+    // Auto-pick recommended format for the pre-selected KPI
+    setFormat(preselect[0] ? recommendFormat(preselect[0]) : "auto");
     setStep(3);
   }
   function toggleMetric(m: string) {
     // With MAX_KPIS_PER_REPORT = 1, behave as a radio: clicking selects only m
-    // (clicking the already-selected one keeps it — user must pick another)
     setSelectedMetrics((prev) => {
       if (MAX_KPIS_PER_REPORT === 1) {
-        return prev[0] === m ? prev : [m];
+        if (prev[0] === m) return prev;
+        // Switching KPI → re-recommend the format for the new one
+        setFormat(recommendFormat(m));
+        return [m];
       }
       if (prev.includes(m)) return prev.filter((x) => x !== m);
       if (prev.length >= MAX_KPIS_PER_REPORT) return prev;
@@ -538,21 +547,38 @@ export function CreateReportModal() {
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">
                           Format de visualisation
+                          {selectedMetrics[0] && (
+                            <span className="ml-2 text-[10px] font-normal text-emerald-600">
+                              ✨ Recommandation auto pour « {selectedMetrics[0]} »
+                            </span>
+                          )}
                         </label>
                         <div className="flex flex-wrap gap-1.5">
-                          {KPI_FORMATS.map((f) => (
-                            <button
-                              key={f.id}
-                              type="button"
-                              onClick={() => setFormat(f.id)}
-                              title={f.hint}
-                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                                format === f.id
-                                  ? "bg-accent text-white"
-                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}
-                            >{f.label}</button>
-                          ))}
+                          {KPI_FORMATS.map((f) => {
+                            const recommended = selectedMetrics[0]
+                              ? recommendFormat(selectedMetrics[0]) === f.id
+                              : false;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => setFormat(f.id)}
+                                title={f.hint}
+                                className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                  format === f.id
+                                    ? "bg-accent text-white"
+                                    : recommended
+                                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                              >
+                                {recommended && (
+                                  <span className="mr-1" aria-hidden>★</span>
+                                )}
+                                {f.label}
+                              </button>
+                            );
+                          })}
                         </div>
                         <p className="mt-1 text-[10px] text-slate-400">
                           {KPI_FORMATS.find((f) => f.id === format)?.hint}
