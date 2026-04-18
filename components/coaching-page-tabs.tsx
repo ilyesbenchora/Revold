@@ -36,11 +36,216 @@ type Props = {
   categoryLabel: string;
 };
 
+type CardState = "idle" | "busy" | "hidden";
+
+function CoachingCard({
+  item,
+  category,
+  onChange,
+}: {
+  item: UnifiedCoaching;
+  category: string;
+  onChange: () => void;
+}) {
+  const [state, setState] = useState<CardState>("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  const sev = SEV_STYLE[item.severity];
+  const status = item.status ?? "active";
+  const statusInfo = STATUS_STYLE[status];
+  const isManual = item.source === "manual";
+  const isActive = status === "active";
+  const dimmed = status === "removed" || status === "done";
+
+  if (state === "hidden") return null;
+
+  /** Dismiss / restore unifié — route automatique selon source. */
+  async function changeStatus(target: "done" | "removed" | "active") {
+    if (state === "busy") return;
+    setState("busy");
+    setError(null);
+
+    try {
+      let res: Response;
+      if (isManual && item.reportCoachingId) {
+        // Manuel : PATCH report_coachings
+        res = await fetch(`/api/reports/coachings/${item.reportCoachingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: target }),
+        });
+      } else if (target === "active") {
+        // Auto-insight : restore
+        res = await fetch("/api/insights/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateKey: item.templateKey }),
+        });
+      } else {
+        // Auto-insight : dismiss done/removed
+        res = await fetch("/api/insights/dismiss", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templateKey: item.templateKey,
+            status: target,
+            title: item.title,
+            body: item.body,
+            recommendation: item.recommendation,
+            severity: item.severity,
+            category,
+            hubspotUrl: item.hubspotUrl,
+          }),
+        });
+      }
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && (data?.success || data?.ok)) {
+        setState("hidden");
+        onChange();
+      } else {
+        setError((data?.error as string) || `Erreur ${res.status}`);
+        setState("idle");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur réseau");
+      setState("idle");
+    }
+  }
+
+  const isInternal = !!item.hubspotUrl?.startsWith("/");
+  const ctaLabel =
+    item.actionLabel ?? (item.hubspotUrl
+      ? isInternal
+        ? "Voir dans Revold"
+        : "À faire dans HubSpot"
+      : null);
+
+  return (
+    <article
+      className={`relative rounded-xl border p-5 transition ${sev.border} ${sev.bg} ${state === "busy" ? "opacity-50" : ""} ${dimmed ? "opacity-70" : ""}`}
+    >
+      {/* Cross retirer (top-right) — uniquement sur les actifs */}
+      {isActive && (
+        <button
+          onClick={() => changeStatus("removed")}
+          disabled={state === "busy"}
+          aria-label="Retirer ce coaching"
+          title="Retirer ce coaching"
+          className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-100 disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+
+      {/* Badges header */}
+      <div className="flex items-center gap-2 pr-6 flex-wrap">
+        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${sev.badge}`}>{sev.label}</span>
+        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+          {ACTION_TYPE_LABELS[item.actionType]}
+        </span>
+        {isManual && (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusInfo.cls}`}>
+            {statusInfo.label}
+          </span>
+        )}
+        {item.kpiLabel && (
+          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+            KPI : {item.kpiLabel}
+          </span>
+        )}
+        {item.sourceReportTitle && (
+          <span className="text-[11px] text-slate-500">issu de « {item.sourceReportTitle} »</span>
+        )}
+      </div>
+
+      {/* Titre + body */}
+      <h3 className="mt-3 text-base font-semibold text-slate-900">{item.title}</h3>
+      <p className="mt-1.5 text-sm text-slate-700 leading-relaxed">{item.body}</p>
+
+      {/* Bloc Coaching à faire (anciennement "Action à faire"/"Recommandation") */}
+      {item.recommendation && item.recommendation !== item.body && (
+        <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-fuchsia-700">
+            ✨ Coaching à faire
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-800 leading-relaxed">{item.recommendation}</p>
+        </div>
+      )}
+
+      {/* Erreur API */}
+      {error && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Footer CTAs */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {/* CTA principal : ouvrir HubSpot ou page interne Revold */}
+        {item.hubspotUrl && ctaLabel && (
+          <a
+            href={item.hubspotUrl}
+            target={isInternal ? undefined : "_blank"}
+            rel={isInternal ? undefined : "noopener noreferrer"}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500"
+          >
+            {ctaLabel}
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        )}
+
+        {/* Marquer comme fait (vert) — pour tous les actifs */}
+        {isActive && (
+          <button
+            onClick={() => changeStatus("done")}
+            disabled={state === "busy"}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+            Marquer comme fait
+          </button>
+        )}
+
+        {/* Restaurer — pour done / removed */}
+        {!isActive && (
+          <button
+            onClick={() => changeStatus("active")}
+            disabled={state === "busy"}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-card-border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9" />
+              <polyline points="3 4 3 12 11 12" />
+            </svg>
+            Restaurer
+          </button>
+        )}
+
+        {/* Date d'activation pour les manuels */}
+        {item.createdAt && (
+          <span className="ml-auto text-[10px] text-slate-400">
+            Activé le {new Date(item.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("mine");
   const [actionFilter, setActionFilter] = useState<CoachingActionType | "all">("all");
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Items affichables selon l'onglet courant
   const tabItems = useMemo(() => {
@@ -48,7 +253,6 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
     return allItems.filter((i) => i.severity === tab && (i.status ?? "active") === "active");
   }, [allItems, tab]);
 
-  // Action types présents dans l'onglet courant (pour les chips)
   const availableActionTypes = useMemo(() => {
     const set = new Set<CoachingActionType>();
     for (const i of tabItems) set.add(i.actionType);
@@ -60,7 +264,6 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
     [tabItems, actionFilter],
   );
 
-  // Compteurs pour les onglets
   const counts = useMemo(() => {
     const mine = allItems.filter((i) => i.source === "manual").length;
     const crit = allItems.filter((i) => i.severity === "critical" && (i.status ?? "active") === "active").length;
@@ -69,25 +272,13 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
     return { mine, critical: crit, warning: warn, info };
   }, [allItems]);
 
-  async function patchManual(id: string, status: "active" | "done" | "removed") {
-    if (busyId) return;
-    setBusyId(id);
-    try {
-      const res = await fetch(`/api/reports/coachings/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) router.refresh();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   function onTabChange(t: TabId) {
     setTab(t);
     setActionFilter("all");
   }
+
+  // Catégorie applicative pour les routes API insights/dismiss (commercial/marketing/...)
+  const apiCategory = filteredItems[0]?.category ?? "commercial";
 
   return (
     <div className="space-y-4">
@@ -168,114 +359,14 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredItems.map((c) => {
-            const sev = SEV_STYLE[c.severity];
-            const status = c.status ?? "active";
-            const statusInfo = STATUS_STYLE[status];
-            const isManual = c.source === "manual";
-            const dimmed = status === "removed" || status === "done";
-            return (
-              <div
-                key={c.id}
-                className={`rounded-xl border ${sev.border} ${sev.bg} p-4 space-y-3 ${dimmed ? "opacity-60" : ""}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${sev.badge}`}>
-                        {sev.label}
-                      </span>
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                        {ACTION_TYPE_LABELS[c.actionType]}
-                      </span>
-                      {isManual && (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusInfo.cls}`}>
-                          {statusInfo.label}
-                        </span>
-                      )}
-                      {c.kpiLabel && (
-                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                          KPI : {c.kpiLabel}
-                        </span>
-                      )}
-                      {c.sourceReportTitle && (
-                        <span className="text-[10px] text-slate-500">
-                          issu de « {c.sourceReportTitle} »
-                        </span>
-                      )}
-                    </div>
-                    <h4 className="text-sm font-semibold text-slate-900">{c.title}</h4>
-                  </div>
-                </div>
-
-                <p className="text-[12px] text-slate-700 leading-relaxed">{c.body}</p>
-
-                {c.recommendation && c.recommendation !== c.body && (
-                  <div className="rounded-lg bg-white/60 px-3 py-2">
-                    <p className="text-[11px] font-semibold text-fuchsia-700 mb-0.5">
-                      ✨ Recommandation
-                    </p>
-                    <p className="text-[11px] text-slate-700 leading-relaxed">{c.recommendation}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                  <span className="text-[10px] text-slate-400">
-                    {c.createdAt && (
-                      <>Activé le {new Date(c.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</>
-                    )}
-                  </span>
-
-                  <div className="flex items-center gap-3">
-                    {c.hubspotUrl && (
-                      <a
-                        href={c.hubspotUrl}
-                        target={c.hubspotUrl.startsWith("/") ? undefined : "_blank"}
-                        rel={c.hubspotUrl.startsWith("/") ? undefined : "noopener noreferrer"}
-                        className="text-[10px] font-medium text-accent underline hover:text-accent/80"
-                      >
-                        {c.actionLabel ?? "Ouvrir"} →
-                      </a>
-                    )}
-                    {isManual && c.reportCoachingId && (
-                      <>
-                        {status === "active" && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busyId === c.reportCoachingId}
-                              onClick={() => patchManual(c.reportCoachingId!, "done")}
-                              className="text-[10px] font-medium text-emerald-700 underline hover:text-emerald-800 disabled:opacity-50"
-                            >
-                              Marquer fait
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyId === c.reportCoachingId}
-                              onClick={() => patchManual(c.reportCoachingId!, "removed")}
-                              className="text-[10px] font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50"
-                            >
-                              Retirer
-                            </button>
-                          </>
-                        )}
-                        {(status === "done" || status === "removed") && (
-                          <button
-                            type="button"
-                            disabled={busyId === c.reportCoachingId}
-                            onClick={() => patchManual(c.reportCoachingId!, "active")}
-                            className="text-[10px] font-medium text-fuchsia-700 underline hover:text-fuchsia-800 disabled:opacity-50"
-                          >
-                            Restaurer
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredItems.map((c) => (
+            <CoachingCard
+              key={c.id}
+              item={c}
+              category={apiCategory}
+              onChange={() => router.refresh()}
+            />
+          ))}
         </div>
       )}
     </div>
