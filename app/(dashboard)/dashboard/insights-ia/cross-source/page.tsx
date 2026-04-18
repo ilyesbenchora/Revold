@@ -1,8 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { InsightCard } from "@/components/insight-card";
-import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
+import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { fetchDismissals, fetchCrossSourceInsights } from "../context";
 
 export default async function CrossSourceCoachingPage() {
@@ -13,35 +13,42 @@ export default async function CrossSourceCoachingPage() {
 
   const supabase = await createSupabaseServerClient();
   const { dismissedKeys } = await fetchDismissals(supabase, orgId);
-  const [crossSourceInsights, reportCoachings] = await Promise.all([
+  const [crossSourceInsights, manualCoachings] = await Promise.all([
     fetchCrossSourceInsights(supabase, orgId, dismissedKeys),
-    fetchReportCoachings(supabase, orgId, "cross-source"),
+    fetchReportCoachings(supabase, orgId, "cross-source", ["active", "done", "removed"]),
   ]);
 
-  return (
-    <div className="space-y-6">
-      <ReportCoachingsSection coachings={reportCoachings} category="cross-source" />
-      {crossSourceInsights.length === 0 && reportCoachings.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-          <p className="text-sm text-slate-500">Connectez plusieurs sources de données pour débloquer les insights cross-source.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {crossSourceInsights.map((insight) => (
-            <InsightCard
-              key={insight.key}
-              templateKey={insight.key}
-              severity={insight.severity}
-              title={insight.title}
-              body={insight.body}
-              recommendation={insight.recommendation}
-              hubspotUrl="/dashboard/rapports"
-              actionLabel="Voir le rapport associé"
-              category="cross_source"
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const allItems: UnifiedCoaching[] = [
+    ...crossSourceInsights.map((i): UnifiedCoaching => ({
+      id: `auto-${i.key}`,
+      source: "auto",
+      templateKey: i.key,
+      severity: i.severity,
+      title: i.title,
+      body: i.body,
+      recommendation: i.recommendation,
+      hubspotUrl: "/dashboard/rapports",
+      actionLabel: "Voir le rapport associé",
+      category: "cross-source",
+      actionType: inferActionType({ templateKey: i.key, hubspotUrl: "/dashboard/rapports", title: i.title, body: i.body, recommendation: i.recommendation, category: "cross-source" }),
+    })),
+    ...manualCoachings.map((m): UnifiedCoaching => ({
+      id: `manual-${m.id}`,
+      source: "manual",
+      reportCoachingId: m.id,
+      severity: m.severity,
+      title: m.title,
+      body: m.body,
+      recommendation: m.recommendation ?? m.body,
+      hubspotUrl: undefined,
+      category: "cross-source",
+      actionType: inferActionType({ title: m.title, body: m.body, recommendation: m.recommendation ?? "", category: "cross-source" }),
+      status: m.status,
+      createdAt: m.created_at,
+      sourceReportTitle: m.source_report_title,
+      kpiLabel: m.kpi_label,
+    })),
+  ];
+
+  return <CoachingPageTabs allItems={allItems} categoryLabel="cross-sources" />;
 }

@@ -20,13 +20,14 @@ export async function fetchReportCoachings(
   supabase: SupabaseClient,
   orgId: string,
   category: string,
+  statuses: ReportCoaching["status"][] = ["active"],
 ): Promise<ReportCoaching[]> {
   const { data, error } = await supabase
     .from("report_coachings")
     .select("*")
     .eq("organization_id", orgId)
     .eq("category", category)
-    .eq("status", "active")
+    .in("status", statuses)
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[fetchReportCoachings]", { category, error: error.message });

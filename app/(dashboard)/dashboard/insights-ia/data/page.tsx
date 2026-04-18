@@ -1,8 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { InsightCard } from "@/components/insight-card";
-import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
+import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, hubspotLinks } from "../context";
 
 export default async function DataCoachingPage() {
@@ -12,10 +12,10 @@ export default async function DataCoachingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const [ctx, { dismissedKeys }, reportCoachings] = await Promise.all([
+  const [ctx, { dismissedKeys }, manualCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
-    fetchReportCoachings(supabase, orgId, "data"),
+    fetchReportCoachings(supabase, orgId, "data", ["active", "done", "removed"]),
   ]);
 
   const tracking = await fetchTrackingStats();
@@ -25,29 +25,36 @@ export default async function DataCoachingPage() {
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
   const insights = insightsByCategory.data;
 
-  return (
-    <div className="space-y-6">
-      <ReportCoachingsSection coachings={reportCoachings} category="data" />
-      {insights.length === 0 && reportCoachings.length === 0 ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-          <p className="text-sm text-emerald-700">Toutes les recommandations data ont été traitées.</p>
-        </div>
-      ) : insights.length > 0 ? (
-        <div className="space-y-3">
-          {insights.map((insight) => (
-            <InsightCard
-              key={insight.key}
-              templateKey={insight.key}
-              severity={insight.severity}
-              title={insight.title}
-              body={insight.body}
-              recommendation={insight.recommendation}
-              hubspotUrl={hubspotLinks.data}
-              category="data"
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  const allItems: UnifiedCoaching[] = [
+    ...insights.map((i): UnifiedCoaching => ({
+      id: `auto-${i.key}`,
+      source: "auto",
+      templateKey: i.key,
+      severity: i.severity,
+      title: i.title,
+      body: i.body,
+      recommendation: i.recommendation,
+      hubspotUrl: hubspotLinks.data,
+      category: "data",
+      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.data, title: i.title, body: i.body, recommendation: i.recommendation, category: "data" }),
+    })),
+    ...manualCoachings.map((m): UnifiedCoaching => ({
+      id: `manual-${m.id}`,
+      source: "manual",
+      reportCoachingId: m.id,
+      severity: m.severity,
+      title: m.title,
+      body: m.body,
+      recommendation: m.recommendation ?? m.body,
+      hubspotUrl: undefined,
+      category: "data",
+      actionType: inferActionType({ title: m.title, body: m.body, recommendation: m.recommendation ?? "", category: "data" }),
+      status: m.status,
+      createdAt: m.created_at,
+      sourceReportTitle: m.source_report_title,
+      kpiLabel: m.kpi_label,
+    })),
+  ];
+
+  return <CoachingPageTabs allItems={allItems} categoryLabel="data" />;
 }
