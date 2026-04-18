@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type AlertButtonProps = {
   title: string;
@@ -13,6 +14,7 @@ type AlertButtonProps = {
 };
 
 export function AlertButton({ title, description, impact, category, forecastType, threshold, direction }: AlertButtonProps) {
+  const router = useRouter();
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
 
   async function handleClick() {
@@ -31,8 +33,13 @@ export function AlertButton({ title, description, impact, category, forecastType
           direction: direction || "above",
         }),
       });
-      if (res.ok) setState("done");
-      else setState("idle");
+      if (res.ok) {
+        setState("done");
+        // Refresh la page : le nouvel objectif apparait dans l'onglet "Mes alertes"
+        router.refresh();
+      } else {
+        setState("idle");
+      }
     } catch {
       setState("idle");
     }

@@ -424,6 +424,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `Actuellement ${won} transactions gagnées sur ${won + lost} clôturées. Améliorer la qualification.`,
       impact: `+${Math.min(100, closingRate + 15) - closingRate} pts, ~${Math.round(won * 0.5)} deals supplémentaires`,
       category: "sales",
+      simulationCategory: "pipeline" as const,
       color: "border-blue-200 bg-blue-50",
       forecastType: "closing_rate",
       threshold: Math.min(100, closingRate + 15),
@@ -434,6 +435,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `${dealsNoNextActivity ?? 0} deals sans activité planifiée. Chaque deal doit avoir un prochain RDV.`,
       impact: `+${Math.round((dealsNoNextActivity ?? 0) * 0.7)} deals suivis activement`,
       category: "sales",
+      simulationCategory: "pipeline" as const,
       color: "border-indigo-200 bg-indigo-50",
       forecastType: "pipeline_coverage",
       threshold: 80,
@@ -444,6 +446,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, ${opps.toLocaleString("fr-FR")} sont en phase Opportunité.`,
       impact: `+${Math.round(tContacts * 0.1).toLocaleString("fr-FR")} opportunités potentielles`,
       category: "marketing",
+      simulationCategory: "lifecycle" as const,
       color: "border-amber-200 bg-amber-50",
       forecastType: "conversion_rate",
       threshold: Math.min(100, conversionRate + 10),
@@ -454,6 +457,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise associée.`,
       impact: `Segmentation ABM, fiabilité des rapports par compte`,
       category: "data",
+      simulationCategory: "data_quality" as const,
       color: "border-emerald-200 bg-emerald-50",
       forecastType: "orphan_rate",
       threshold: Math.max(0, orphanRate - 20),
@@ -464,6 +468,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `${dealsNoActivity ?? 0} deals en cours sans aucune activité commerciale enregistrée.`,
       impact: `Pipeline réellement travaillé, ~${Math.round((dealsNoActivity ?? 0) * 0.4)} deals à transformer`,
       category: "sales",
+      simulationCategory: "pipeline" as const,
       color: "border-blue-200 bg-blue-50",
       forecastType: "deal_activation",
       threshold: 100,
@@ -474,6 +479,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `${contactsNoPhone ?? 0} contacts sans numéro de téléphone. Outbound téléphone impossible.`,
       impact: `Multicanal débloqué, ${Math.round((contactsNoPhone ?? 0) * 0.6).toLocaleString("fr-FR")} contacts joignables`,
       category: "data",
+      simulationCategory: "data_quality" as const,
       color: "border-emerald-200 bg-emerald-50",
       forecastType: "phone_enrichment",
       threshold: 80,
@@ -484,9 +490,10 @@ export function buildScenarios(ctx: InsightContext) {
       description: `Renseigner les montants sur tous les deals permet de construire un forecast fiable.`,
       impact: `Visibilité revenus trimestriels, prévisions data-driven`,
       category: "sales",
+      simulationCategory: "pipeline" as const,
       color: "border-indigo-200 bg-indigo-50",
       forecastType: "pipeline_value",
-      threshold: 0, // User should set their own target
+      threshold: 0,
       direction: "above" as const,
     },
     {
@@ -494,6 +501,7 @@ export function buildScenarios(ctx: InsightContext) {
       description: `Lancer une campagne sur les contacts sans engagement depuis 6 mois pour identifier les opportunités latentes.`,
       impact: `~${Math.round(tContacts * 0.05).toLocaleString("fr-FR")} contacts potentiellement réactivables`,
       category: "marketing",
+      simulationCategory: "lifecycle" as const,
       color: "border-amber-200 bg-amber-50",
       forecastType: "dormant_reactivation",
       threshold: Math.round(tContacts * 0.05),
@@ -501,3 +509,11 @@ export function buildScenarios(ctx: InsightContext) {
     },
   ];
 }
+
+export type SimulationCategory = "pipeline" | "lifecycle" | "data_quality";
+
+export const SIMULATION_CATEGORY_LABELS: Record<SimulationCategory, { label: string; emoji: string }> = {
+  pipeline: { label: "Pipeline", emoji: "🚀" },
+  lifecycle: { label: "Lifecycle", emoji: "🔄" },
+  data_quality: { label: "Données", emoji: "🛡️" },
+};
