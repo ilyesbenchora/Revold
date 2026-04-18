@@ -28,7 +28,7 @@ export default async function ScenariosPage() {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Scénarios de simulation</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Simulations IA</h1>
           <p className="mt-1 text-sm text-slate-500">
             Simulez l&apos;impact d&apos;améliorations sur vos KPIs et activez des objectifs pour les suivre dans « Mes alertes ».
           </p>

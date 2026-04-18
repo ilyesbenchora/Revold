@@ -4,9 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-type LeafLink = { href: string; label: string; icon: React.ReactNode };
-type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[] };
+type LeafLink = { href: string; label: string; icon: React.ReactNode; ai?: boolean };
+type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[]; ai?: boolean };
 type SidebarItem = LeafLink | GroupLink;
+
+/** Hover background gradient for AI pages (Coaching IA / Simulations IA).
+ *  Discreet gold->fuchsia tones, en harmonie avec le bouton Upgrade.        */
+const AI_HOVER_GRADIENT =
+  "hover:bg-gradient-to-r hover:from-amber-100/70 hover:via-fuchsia-100/70 hover:to-amber-100/70";
 
 function isGroup(item: SidebarItem): item is GroupLink {
   return "children" in item;
@@ -181,6 +186,7 @@ const sidebarLinks: SidebarItem[] = [
   {
     id: "coaching",
     label: "Coaching IA",
+    ai: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
@@ -204,7 +210,8 @@ const sidebarLinks: SidebarItem[] = [
   },
   {
     href: "/dashboard/alertes",
-    label: "Scénarios",
+    label: "Simulations IA",
+    ai: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -292,7 +299,7 @@ export function DashboardSidebar() {
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                     groupActive
                       ? "bg-accent-soft text-accent"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      : `text-slate-600 hover:text-slate-900 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
                   }`}
                 >
                   <span className={groupActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
@@ -354,7 +361,7 @@ export function DashboardSidebar() {
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 isActive
                   ? "bg-accent-soft text-accent"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  : `text-slate-600 hover:text-slate-900 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
               }`}
             >
               <span className={isActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
