@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { generateCoachingAction } from "@/lib/reports/generate-coaching-action";
+import { ACTION_TYPE_LABELS } from "@/lib/reports/coaching-types";
 
 type Props = {
   headline: string;
@@ -15,13 +17,8 @@ type Props = {
 
 const COACHING_LABEL = "Coaching IA à faire";
 
-type ParsedSection = {
-  label: string;
-  content: string;
-  isCoaching: boolean;
-};
+type ParsedSection = { label: string; content: string; isCoaching: boolean };
 
-/** Split a detail blob into sections (paragraphs). Returns parsed structure. */
 function splitSections(text: string): ParsedSection[] {
   const paragraphs = text.split("\n\n").filter((p) => p.trim().length > 0);
   return paragraphs.map((para) => {
@@ -41,13 +38,6 @@ function splitSections(text: string): ParsedSection[] {
     }
     return { label: "", content: trimmed, isCoaching: false };
   });
-}
-
-/** Synthesise a coaching action from the headline when none is provided. */
-function synthesiseCoaching(headline: string, kpiLabel?: string): string {
-  const cleaned = headline.replace(/\*\*([^*]+)\*\*/g, "$1").trim();
-  const kpi = kpiLabel ? ` sur « ${kpiLabel} »` : "";
-  return `Identifier le levier principal d'amélioration${kpi}, définir une action mesurable sous 7 jours, puis valider l'impact en relisant ce rapport au prochain cycle. Données observées : ${cleaned}`;
 }
 
 function renderBold(text: string): React.ReactNode[] {
@@ -72,13 +62,28 @@ function renderBold(text: string): React.ReactNode[] {
 
 function styleForLabel(label: string): { labelColor: string; borderColor: string } {
   const ll = label.toLowerCase();
-  if (ll.includes(COACHING_LABEL.toLowerCase()) || ll.includes("décision") || ll.includes("plan d'action") || ll.startsWith("action")) {
-    return { labelColor: "text-fuchsia-700 bg-fuchsia-50", borderColor: "border-l-fuchsia-400" };
-  }
   if (ll.includes("objectif")) return { labelColor: "text-emerald-700 bg-emerald-50", borderColor: "border-l-emerald-400" };
   if (ll.includes("tendance")) return { labelColor: "text-blue-700 bg-blue-50", borderColor: "border-l-blue-400" };
   if (ll.includes("seuil")) return { labelColor: "text-amber-700 bg-amber-50", borderColor: "border-l-amber-400" };
   return { labelColor: "text-slate-700 bg-slate-100", borderColor: "border-l-slate-300" };
+}
+
+function formatRecommendation(text: string): React.ReactNode {
+  // Si la reco contient "1) ... 2) ... 3) ..." on découpe en liste numérotée pour la lisibilité
+  const steps = text.split(/\s(?=\d\))/).map((s) => s.trim()).filter(Boolean);
+  if (steps.length >= 2 && /^\d\)/.test(steps[0])) {
+    return (
+      <ol className="space-y-1.5 mt-1">
+        {steps.map((s, i) => (
+          <li key={i} className="text-[11px] text-slate-700 leading-relaxed">
+            <span className="font-semibold text-fuchsia-700">{s.match(/^\d\)/)?.[0] ?? `${i + 1})`}</span>{" "}
+            {s.replace(/^\d\)\s*/, "")}
+          </li>
+        ))}
+      </ol>
+    );
+  }
+  return <p className="text-[11px] text-slate-700 leading-relaxed">{text}</p>;
 }
 
 export function ReportInsight({
@@ -87,7 +92,6 @@ export function ReportInsight({
   caveat,
   reportId,
   reportTitle,
-  team,
   kpiLabel,
 }: Props) {
   const router = useRouter();
@@ -96,19 +100,21 @@ export function ReportInsight({
   const [activationError, setActivationError] = useState<string | null>(null);
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
 
-  // Parse the detail and detect whether a coaching/decision section already exists
-  const sections = detail ? splitSections(detail) : [];
-  const hasCoachingSection = sections.some((s) => s.isCoaching);
+  // Sections parsées (Tendance, Objectif, etc.) — sans la section Décision/coaching
+  // car on la génère désormais via generateCoachingAction()
+  const otherSections = useMemo(
+    () => (detail ? splitSections(detail).filter((s) => !s.isCoaching) : []),
+    [detail],
+  );
 
-  // If none, synthesise one so every report has its "Coaching IA à faire" block
-  const coachingContent = hasCoachingSection
-    ? sections.find((s) => s.isCoaching)!.content
-    : synthesiseCoaching(headline, kpiLabel);
+  // Action coaching générée par notre moteur CRO/RevOps
+  const action = useMemo(
+    () => generateCoachingAction(kpiLabel ?? "", headline, reportTitle),
+    [kpiLabel, headline, reportTitle],
+  );
 
-  // Other sections (everything not the coaching one) for display
-  const otherSections = sections.filter((s) => !s.isCoaching);
-
-  const canActivate = !!reportId && !!team;
+  // L'activation requiert uniquement reportId — le serveur fallback la team si absente
+  const canActivate = !!reportId;
 
   async function handleActivate() {
     if (!reportId || activationState === "loading") return;
@@ -121,10 +127,10 @@ export function ReportInsight({
         body: JSON.stringify({
           reportId,
           kpiLabel,
-          title: reportTitle ?? kpiLabel ?? "Coaching IA",
-          body: coachingContent,
-          recommendation: coachingContent,
-          severity: "info",
+          title: action.title,
+          body: action.body,
+          recommendation: action.recommendation,
+          severity: action.actionType === "workflow" || action.actionType === "integration" ? "warning" : "info",
         }),
       });
       const payload = (await res.json().catch(() => null)) as
@@ -154,7 +160,7 @@ export function ReportInsight({
 
       {expanded && (
         <div className="mt-2 space-y-2.5 px-1">
-          {/* Other sections (Tendance, Objectif, Seuil, etc.) */}
+          {/* Sections d'analyse (Tendance, Objectif, Seuil) */}
           {otherSections.map((s, i) => {
             if (!s.label) {
               return (
@@ -174,18 +180,32 @@ export function ReportInsight({
             );
           })}
 
-          {/* Coaching IA à faire — TOUJOURS présent (synthétisé si absent) */}
-          <div className="rounded-lg border border-fuchsia-100 bg-fuchsia-50/40 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <span className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-fuchsia-700 bg-fuchsia-100 mb-1.5">
-                  ✨ {COACHING_LABEL}
-                </span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">{renderBold(coachingContent)}</p>
-              </div>
+          {/* Coaching IA à faire — TOUJOURS présent, TOUJOURS actionnable */}
+          <div className="rounded-lg border border-fuchsia-200 bg-fuchsia-50/50 p-3">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-fuchsia-700 bg-fuchsia-100">
+                ✨ {COACHING_LABEL}
+              </span>
+              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-slate-600">
+                {ACTION_TYPE_LABELS[action.actionType]}
+              </span>
             </div>
 
-            {/* Activation button + state */}
+            {/* Titre de l'action */}
+            <h5 className="text-[12px] font-semibold text-slate-900 mb-1.5">{action.title}</h5>
+
+            {/* Contexte */}
+            <p className="text-[11px] text-slate-700 leading-relaxed mb-2">{action.body}</p>
+
+            {/* Plan d'action numéroté */}
+            <div className="rounded-md bg-white/70 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-fuchsia-700 mb-1">
+                Plan d&apos;action
+              </p>
+              {formatRecommendation(action.recommendation)}
+            </div>
+
+            {/* Activation */}
             {canActivate && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {activationState === "idle" && (
@@ -227,21 +247,12 @@ export function ReportInsight({
                 {activationState === "error" && (
                   <div className="text-[10px] text-red-700">
                     Erreur : {activationError ?? "inconnue"}{" "}
-                    <button
-                      type="button"
-                      onClick={handleActivate}
-                      className="underline hover:no-underline"
-                    >
+                    <button type="button" onClick={handleActivate} className="underline hover:no-underline">
                       Réessayer
                     </button>
                   </div>
                 )}
               </div>
-            )}
-            {!canActivate && (
-              <p className="mt-2 text-[10px] italic text-slate-400">
-                Activation indisponible pour ce rapport.
-              </p>
             )}
           </div>
 
