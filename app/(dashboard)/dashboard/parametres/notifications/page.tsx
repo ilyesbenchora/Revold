@@ -29,7 +29,7 @@ const CATEGORY_BADGE: Record<string, string> = {
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  commercial: "Commercial",
+  commercial: "Ventes",
   billing: "Facturation",
   support: "Support",
   data: "Data",

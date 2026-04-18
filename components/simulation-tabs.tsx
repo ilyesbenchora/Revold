@@ -50,7 +50,7 @@ const CATEGORY_COLORS: Record<string, { dot: string; badge: string }> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  sales: "Commercial",
+  sales: "Ventes",
   marketing: "Marketing",
   data: "Data",
   process: "Process",

@@ -23,7 +23,7 @@ type Notification = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  sales: "Commercial",
+  sales: "Ventes",
   marketing: "Marketing",
   data: "Data",
   process: "Process",

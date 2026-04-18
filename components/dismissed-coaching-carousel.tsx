@@ -20,7 +20,7 @@ const sevConfig: Record<string, { bg: string; border: string; badge: string; lab
 };
 
 const catLabels: Record<string, string> = {
-  commercial: "Commercial",
+  commercial: "Ventes",
   marketing: "Marketing",
   data: "Data",
   automation: "Workflow",

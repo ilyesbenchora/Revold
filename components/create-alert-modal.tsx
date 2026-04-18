@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 // ── Team definitions ──
 const teams = [
-  { id: "sales", label: "Commercial", icon: "💼", description: "Pipeline, deals, closing" },
+  { id: "sales", label: "Ventes", icon: "💼", description: "Pipeline, deals, closing" },
   { id: "marketing", label: "Marketing", icon: "📣", description: "Leads, conversion, acquisition" },
   { id: "cs", label: "Customer Success", icon: "🤝", description: "Rétention, churn, satisfaction" },
   { id: "revops", label: "Revenue / Finance", icon: "📊", description: "Revenue, données, process" },
