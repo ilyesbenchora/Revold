@@ -71,6 +71,87 @@ const auditChildren: LeafLink[] = [
   },
 ];
 
+const coachingChildren: LeafLink[] = [
+  {
+    href: "/dashboard/insights-ia",
+    label: "Vue d’ensemble",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/commercial",
+    label: "Ventes",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+        <polyline points="16 7 22 7 22 13" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/marketing",
+    label: "Marketing",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 11l18-5v12L3 14v-3z" />
+        <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/data",
+    label: "Data",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/integration",
+    label: "Intégration",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 11a9 9 0 0 1 9 9" />
+        <path d="M4 4a16 16 0 0 1 16 16" />
+        <circle cx="5" cy="19" r="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/cross-source",
+    label: "Cross sources",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="M8.59 13.51l6.83 3.98" />
+        <path d="M15.41 6.51l-6.82 3.98" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/insights-ia/data-model",
+    label: "Modèles de données",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    ),
+  },
+];
+
 const sidebarLinks: SidebarItem[] = [
   {
     href: "/dashboard",
@@ -98,7 +179,7 @@ const sidebarLinks: SidebarItem[] = [
     children: auditChildren,
   },
   {
-    href: "/dashboard/insights-ia",
+    id: "coaching",
     label: "Coaching IA",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -106,6 +187,7 @@ const sidebarLinks: SidebarItem[] = [
         <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
       </svg>
     ),
+    children: coachingChildren,
   },
   {
     href: "/dashboard/rapports",
@@ -165,7 +247,9 @@ const accountLink = {
 };
 
 function isChildActive(pathname: string, href: string): boolean {
+  // "Vue d’ensemble" entries must match exactly so they don't light up on sub-pages
   if (href === "/dashboard/audit") return pathname === "/dashboard/audit";
+  if (href === "/dashboard/insights-ia") return pathname === "/dashboard/insights-ia";
   return pathname.startsWith(href);
 }
 
