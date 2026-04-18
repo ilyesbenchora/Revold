@@ -564,7 +564,18 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
                   </div>
                   {(() => {
                     const insight = generateInsight(report.title, metrics, metricValues);
-                    return insight ? <ReportInsight headline={insight.headline} detail={insight.detail} caveat={insight.caveat} /> : null;
+                    if (!insight) return null;
+                    return (
+                      <ReportInsight
+                        headline={insight.headline}
+                        detail={insight.detail}
+                        caveat={insight.caveat}
+                        reportId={report.id}
+                        reportTitle={report.title}
+                        team={report.team ?? null}
+                        kpiLabel={metrics[0]}
+                      />
+                    );
                   })()}
                 </div>
               </article>

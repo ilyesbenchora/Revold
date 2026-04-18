@@ -1,6 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
+import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, hubspotLinks } from "../context";
 
 const HUBSPOT_PORTAL = "48372600";
@@ -16,10 +18,11 @@ export default async function CommercialCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = process.env.HUBSPOT_ACCESS_TOKEN;
 
-  const [ctx, { dismissedKeys }, { workflows, dealsNoOwner }] = await Promise.all([
+  const [ctx, { dismissedKeys }, { workflows, dealsNoOwner }, reportCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchWorkflows(token),
+    fetchReportCoachings(supabase, orgId, "commercial"),
   ]);
 
   const tracking = await fetchTrackingStats();
@@ -89,10 +92,11 @@ export default async function CommercialCoachingPage() {
   ];
   const visibleAutomation = automationItems.filter((i) => i.show && !dismissedKeys.has(i.key));
 
-  const allEmpty = insights.length === 0 && visibleAutomation.length === 0;
+  const allEmpty = insights.length === 0 && visibleAutomation.length === 0 && reportCoachings.length === 0;
 
   return (
     <div className="space-y-6">
+      <ReportCoachingsSection coachings={reportCoachings} category="commercial" />
       {allEmpty ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-sm text-emerald-700">Toutes les recommandations commerciales ont été traitées.</p>

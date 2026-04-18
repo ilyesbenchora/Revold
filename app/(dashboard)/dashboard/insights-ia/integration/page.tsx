@@ -1,6 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
+import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { fetchDismissals, fetchIntegrationInsights } from "../context";
 
 export default async function IntegrationCoachingPage() {
@@ -12,22 +14,24 @@ export default async function IntegrationCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = process.env.HUBSPOT_ACCESS_TOKEN;
 
-  const [{ dismissedKeys }, { integrationInsights, totalReportSuggestions }] = await Promise.all([
+  const [{ dismissedKeys }, { integrationInsights, totalReportSuggestions }, reportCoachings] = await Promise.all([
     fetchDismissals(supabase, orgId),
     fetchIntegrationInsights(token),
+    fetchReportCoachings(supabase, orgId, "integration"),
   ]);
 
   const visibleInsights = integrationInsights.filter((i) => !dismissedKeys.has(i.key));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <ReportCoachingsSection coachings={reportCoachings} category="integration" />
       {totalReportSuggestions > 0 && (
         <p className="text-sm text-indigo-600">
           {totalReportSuggestions} rapport{totalReportSuggestions > 1 ? "s" : ""} suggéré{totalReportSuggestions > 1 ? "s" : ""}
         </p>
       )}
 
-      {visibleInsights.length === 0 ? (
+      {visibleInsights.length === 0 && reportCoachings.length === 0 ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-sm text-emerald-700">Aucune recommandation d&apos;intégration pour le moment.</p>
         </div>

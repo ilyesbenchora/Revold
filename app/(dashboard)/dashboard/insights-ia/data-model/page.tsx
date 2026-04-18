@@ -1,6 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
+import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { buildContext, fetchDismissals, fetchIntegrationInsights, fetchDataModelInsights } from "../context";
 
 export default async function DataModelCoachingPage() {
@@ -12,17 +14,19 @@ export default async function DataModelCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = process.env.HUBSPOT_ACCESS_TOKEN;
 
-  const [ctx, { dismissedKeys }, { detectedIntegrations }] = await Promise.all([
+  const [ctx, { dismissedKeys }, { detectedIntegrations }, reportCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchIntegrationInsights(token),
+    fetchReportCoachings(supabase, orgId, "data-model"),
   ]);
 
   const dataModelInsights = await fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys);
 
   return (
-    <div className="space-y-4">
-      {dataModelInsights.length === 0 ? (
+    <div className="space-y-6">
+      <ReportCoachingsSection coachings={reportCoachings} category="data-model" />
+      {dataModelInsights.length === 0 && reportCoachings.length === 0 ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-sm text-emerald-700">Aucune recommandation de modèle de données pour le moment.</p>
         </div>

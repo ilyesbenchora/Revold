@@ -9,7 +9,7 @@ export const TEAMS: { id: TeamId; label: string; icon: string; description: stri
   { id: "sales", label: "Commercial", icon: "💼", description: "Pipeline, deals, closing" },
   { id: "marketing", label: "Marketing", icon: "📣", description: "Attribution, acquisition, lifecycle" },
   { id: "cs", label: "Customer Success", icon: "🤝", description: "Rétention, tickets, expansion" },
-  { id: "revops", label: "RevOps / Finance", icon: "📊", description: "Revenue, forecast, data quality" },
+  { id: "revops", label: "Revenue / Finance", icon: "📊", description: "Revenue, forecast, data quality" },
 ];
 
 export type CategoryDef = {

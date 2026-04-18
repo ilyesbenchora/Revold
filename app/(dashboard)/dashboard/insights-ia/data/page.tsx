@@ -1,6 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { InsightCard } from "@/components/insight-card";
+import { ReportCoachingsSection } from "@/components/report-coachings-section";
+import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, hubspotLinks } from "../context";
 
 export default async function DataCoachingPage() {
@@ -10,9 +12,10 @@ export default async function DataCoachingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const [ctx, { dismissedKeys }] = await Promise.all([
+  const [ctx, { dismissedKeys }, reportCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
+    fetchReportCoachings(supabase, orgId, "data"),
   ]);
 
   const tracking = await fetchTrackingStats();
@@ -23,12 +26,13 @@ export default async function DataCoachingPage() {
   const insights = insightsByCategory.data;
 
   return (
-    <div className="space-y-4">
-      {insights.length === 0 ? (
+    <div className="space-y-6">
+      <ReportCoachingsSection coachings={reportCoachings} category="data" />
+      {insights.length === 0 && reportCoachings.length === 0 ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-sm text-emerald-700">Toutes les recommandations data ont été traitées.</p>
         </div>
-      ) : (
+      ) : insights.length > 0 ? (
         <div className="space-y-3">
           {insights.map((insight) => (
             <InsightCard
@@ -43,7 +47,7 @@ export default async function DataCoachingPage() {
             />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
