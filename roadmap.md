@@ -1,7 +1,7 @@
 # Roadmap Revold
 
-> **Dernière mise à jour** : 2026-04-10
-> **Statut global** : Phase 6 — Revenue Intelligence Platform (multi-source canonical model live, 13 connecteurs, insights cross-source)
+> **Dernière mise à jour** : 2026-04-19
+> **Statut global** : Phase 6 finalisée (Reports / Coaching IA / Simulations IA refonte complète) — Phase 7 amorcée — Phase 8 (GTM-critical foundations) à attaquer pour atteindre le PMF face à Clari
 > Ce fichier est mis à jour après chaque session de travail.
 
 ---
@@ -119,6 +119,17 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 | 6.8 | Logo Revold redesign (gradient fuchsia→indigo + accent croissance) | [x] |
 | 6.9 | Sidebar sticky + logo cliquable | [x] |
 | 6.10 | Insight IA locked block (Premium upgrade CTA) sur les sous-pages Performances | [x] |
+| 6.11 | Site marketing complet (produits, solutions, équipes, tarifs, blog, légal, demo, contact, intégrations) + navbar + SEO (robots, sitemap, JSON-LD Organization, icon 48x48 + apple-icon) | [x] |
+| 6.12 | Builder de rapport sur mesure : 4 étapes (Équipe → Catégorie → KPI → Filtres), 175 KPIs implémentés référencés dans IMPLEMENTED_KPIS, validation API stricte | [x] |
+| 6.13 | Disponibilité KPI par CRM (`/api/reports/kpi-availability` 5min cache) — 3 buckets dans le picker (✅ avec données / 🟠 vide / 🔒 bientôt) | [x] |
+| 6.14 | 1 KPI par rapport (radio) + sélecteur de format de visualisation (auto / gauge / donut / bar_h / bar_chart / line_chart / area_chart / sparkline / evaluation) avec recommandation auto par KPI | [x] |
+| 6.15 | Étape Filtres en 2 onglets internes (Principal / Options) — options regroupant pipeline, owner, équipe HS, lifecycle, sources, propriété custom | [x] |
+| 6.16 | Section "Coaching IA à faire" toujours présente dans chaque rapport, générateur CRO/RevOps mappé par famille de KPI (workflow / property / integration / data_model / process), bouton Activer ce coaching | [x] |
+| 6.17 | Table report_coachings + API POST /api/reports/activate-coaching + PATCH /api/reports/coachings/[id] (active/done/removed) | [x] |
+| 6.18 | Refonte des 6 pages Coaching IA en 4 onglets internes (Mes coachings IA / Critiques / Vigilance / Infos) + chips filtre par type d'action + suppression de l'ancienne navbar top redondante | [x] |
+| 6.19 | Renommage UI Commercial → Ventes (libellés équipe), RevOps/Finance → Revenue/Finance | [x] |
+| 6.20 | Refonte Simulations IA (ex-Scénarios) en 4 onglets (Mes alertes / Pipeline / Lifecycle / Données) + filtre par équipe + activation → refresh auto | [x] |
+| 6.21 | Sidebar : Audit en dropdown groupé, Coaching IA en dropdown groupé (7 sous-pages), hover gradient amber→fuchsia sur les pages IA | [x] |
 
 ---
 
@@ -132,9 +143,75 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 | 7.4 | Webhooks sortants (alert.created, sync.completed, score.changed...) | [ ] |
 | 7.5 | Onboarding guidé (wizard de première connexion CRM) | [ ] |
 | 7.6 | Persistance des paramètres (server actions pour sauver org settings, rules, thresholds) | [ ] |
-| 7.7 | Table activated_reports + persistance des rapports activés | [ ] |
+| 7.7 | Table activated_reports + persistance des rapports activés | [x] |
 | 7.8 | Webhooks Stripe entrants (ingestion temps réel invoice.paid, subscription.deleted) | [ ] |
 | 7.9 | OAuth2 flow complet pour Salesforce/Zoho/QuickBooks (refresh token rotation) | [ ] |
+
+---
+
+## Phase 8 : GTM-critical foundations (à attaquer pour shipper en prod)
+
+> Diagnostic 2026-04-19 : le produit a 80 % de l'iceberg manquant pour concurrencer Clari. Voici ce qui doit être en place AVANT de pouvoir vendre, pas après. Priorisé par impact business.
+
+| # | Tâche | Effort | Statut |
+|---|---|---|---|
+| 8.1 | **OAuth HubSpot multi-tenant** — remplacer `HUBSPOT_ACCESS_TOKEN` env var par OAuth flow + token chiffré stocké par org dans `integrations`. **Bloquant pour onboarder un 2e client.** | M | [ ] |
+| 8.2 | **Stripe billing + 3 plans (Starter / Growth / Scale)** + trial 14j + paywall sur features lourdes (cross-source, AI coaching premium, > X users). | L | [ ] |
+| 8.3 | **Sync engine robuste** — refactor des crons en jobs Inngest ou Trigger.dev avec retries, DLQ, observabilité. Sync incrémental basé sur `updated_at` HubSpot. | L | [ ] |
+| 8.4 | **Notifications email (Resend) + Slack/Teams** — daily digest des coachings IA + alertes objectifs atteints + nouveaux insights critiques. **Sans ça, plateforme invisible côté commerciaux.** | M | [ ] |
+| 8.5 | **Auth équipe + invitations + RBAC** — Supabase magic link invite, 3 rôles (admin / manager / rep), audit log. **Bloquant pour vendre à toute boîte > 20 personnes.** | M | [ ] |
+| 8.6 | **Performance scaling** — pagination des fetches HubSpot, materialized views Supabase, cache pré-calculé via cron pour les CRMs > 50k contacts. | M | [ ] |
+| 8.7 | **Activity capture** — extension Chrome ou intégration Aircall/Ringover pour auto-logger les calls. Pain point #1 que Clari/Gong résolvent. | XL | [ ] |
+| 8.8 | **Tests + monitoring** — Vitest sur le moteur KPI critique (lib/reports/), Sentry pour les erreurs runtime, Vercel Analytics pour usage produit. | M | [ ] |
+| 8.9 | **Page Sécurité publique + DPA + hébergement EU explicite** — pour adresser RSSI/DSI européens dès le pitch. SOC 2 Type 1 visé à 6 mois. | S | [ ] |
+| 8.10 | **Self-serve onboarding wizard** — connexion HubSpot one-click + tour guidé en 5 min jusqu'au premier insight visible. Time-to-value < 1h vs Clari à 3 mois. | L | [ ] |
+
+---
+
+## Avantages concurrentiels à durcir vs Clari
+
+> Clari = leader US Revenue Intelligence ($60k/an typical, 3 mois de mise en place, Salesforce-first). Voici les angles où Revold peut gagner sur le marché européen.
+
+| # | Angle | Description | Action |
+|---|---|---|---|
+| C.1 | **Cross-source natif HubSpot + Stripe + Pennylane + Sellsy + Qonto** ⭐ | Clari est CRM-centric. En Europe, le stack est fragmenté HubSpot + outils de billing FR. Revold a déjà le modèle canonique (`source_links`, `invoices`, `subscriptions`, `payments`). | Finir Stripe + Pennylane branchés en prod, en faire le positioning #1 sur la home. |
+| C.2 | **AI coaching action-oriented (vs analytics passive)** | Clari montre la donnée, Gong analyse les calls. Aucun ne **transforme la donnée en plan d'action persistant** par catégorie d'équipe. Le flow rapport → analyse → coaching activable existe déjà. | Couche LLM (Claude/GPT) pour générer des plans contextualisés au CRM réel du client, pas juste des templates. |
+| C.3 | **PME-friendly pricing + setup < 1h** | Clari = enterprise-only. Marché PME français/européen 30-200 personnes ignoré. | Self-serve onboarding (8.10) + free trial 14j (8.2) + 3 plans clairs €99-499/mois. |
+| C.4 | **RGPD-native + hébergement EU + UI française** | Clari est US, pitch européen difficile à cause de RSSI / souveraineté data. | Page Sécurité publique (8.9) + DPA template + hébergement Frankfurt explicite + SOC 2. |
+| C.5 | **Verticalisation B2B SaaS européen** | Clari sert tout. Revold pourrait dominer 1 vertical : B2B SaaS / agences SaaS françaises 20-200 personnes (stack HubSpot + Stripe/Pennylane). | ICP serré + features sur-mesure (MRR/ARR par cohorte, churn prediction, expansion revenue). |
+
+---
+
+## Stratégie GTM (3-12 mois pour atteindre PMF)
+
+### Phase GTM-1 : Trouver le PMF (T+0 → T+6 mois)
+
+- [ ] **Définir l'ICP exact** : DAF / Head of RevOps en B2B SaaS français 30-150 personnes, stack HubSpot + Stripe ou Pennylane
+- [ ] **20 clients early adopter** en hand-rolled — pricing 99 €/mois pour valider, pas pour gagner du cash
+- [ ] **Mesurer en continu** : NPS, retention 90j, % features utilisées par client, time-to-first-coaching-activated
+- [ ] **Itérer** sur les 1-2 cas d'usage les plus stickys qui ressortent
+- [ ] **Page Sécurité + DPA + EU hosting** publique (préparation pitch DSI)
+- [ ] **OAuth HubSpot + Stripe billing live** (sans ça, impossible d'onboarder le 2e client)
+
+### Phase GTM-2 : Scaler le PLG (T+6 → T+12 mois)
+
+- [ ] **Self-serve onboarding** OAuth HubSpot one-click → premier insight en < 5 min
+- [ ] **Content SEO français** — niche peu travaillée par les concurrents : "comment forecaster en HubSpot", "pourquoi votre CA CRM ≠ CA facturé", "audit gratuit qualité données HubSpot"
+- [ ] **Partenariats** : intégrateurs HubSpot Solutions Partners FR, agences RevOps françaises
+- [ ] **Free tier** : 1 user / 1000 contacts pour entrer dans les bases CRM des PME
+- [ ] **Premier hire** : 1 SDR + 1 CSM, pas de marketing massif tant que la rétention n'est pas > 80 % à 90j
+- [ ] **Slack/Teams + email digest** quotidien (8.4) — invisible sans ça pour les commerciaux
+- [ ] **Activity capture** (8.7) — débloque des KPIs activité fiables
+
+### Quick wins prioritaires cette semaine
+
+1. **OAuth HubSpot multi-tenant** (8.1) — 1 sprint
+2. **Stripe + 3 plans + trial 14j** (8.2) — 1 sprint
+3. **Page Sécurité publique** (8.9) — 3 jours
+4. **Slack/Email digest quotidien** (8.4) — 1 sprint
+
+Cela fait passer Revold de "demo qui impressionne" à "produit qu'on signe".
+Le reste (cross-source full, LLM coaching, verticalisation SaaS) = ce qui fait gagner contre Clari sur le long terme.
 
 ---
 
@@ -166,3 +243,11 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 | 2026-04-08 | Phase 6 | 6.1-6.4 | Performances 4 sous-pages, Rapports 3 sous-pages, Paramètres 5 sous-pages, pipeline analytics |
 | 2026-04-09 | Phase 6 | 6.5-6.10 | SIREN/SIRET/TVA, entity resolution avancée, alertes dropdown, logo redesign |
 | 2026-04-10 | Phase 6 | 6.6 enrichi | Audit CRM complet dans insights IA, blueprint règles de résolution par stack, email+SIREN combo, external ID mapping |
+| 2026-04-11 | Phase 6 | 6.11 (partiel) | Site marketing initié (pages produits, solutions, blog, légal, demo) |
+| 2026-04-13 | Phase 6 | 6.11 finalisé | Navbar marketing + SEO (robots, sitemap, JSON-LD Organization, icon 48x48 + apple-icon) |
+| 2026-04-16 | Phase 6 | 6.12 (partiel) | Builder de rapport custom — étapes Équipe / Catégorie / KPI / Filtres |
+| 2026-04-17 | Phase 6 | 6.12-6.13 | IMPLEMENTED_KPIS (175 KPIs) + validation API + endpoint kpi-availability avec 3 buckets |
+| 2026-04-18 | Phase 6 | 6.14-6.18 | 1 KPI/rapport + 9 formats de viz + recommandation auto, étape Filtres en 2 onglets, générateur CRO d'actions par famille de KPI, table report_coachings + APIs activate/PATCH, refonte 6 pages Coaching IA en 4 onglets (Mes coachings IA / Critiques / Vigilance / Infos) + chips action type |
+| 2026-04-18 | DB | Migration manquante | Découverte tracking schema_migrations désynchronisé sur 16 migrations — colonnes is_custom/team/filters de activated_reports manquaient en réalité, ajoutées à la volée + audit complet 0 colonne manquante restante |
+| 2026-04-19 | Phase 6 | 6.19-6.21 | Renames UI Commercial → Ventes / RevOps → Revenue, Simulations IA (ex-Scénarios) en 4 onglets avec activation → refresh, sidebar Coaching IA en dropdown groupé, hover gradient amber→fuchsia sur les pages IA |
+| 2026-04-19 | GTM | Diagnostic concurrentiel | Analyse honnête vs Clari : 80 % de l'iceberg manquant pour shipper en prod. Phase 8 (10 fondations critiques) + 5 angles concurrentiels + plan GTM 3-12 mois ajoutés à la roadmap |
