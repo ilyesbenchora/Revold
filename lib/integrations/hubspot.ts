@@ -70,6 +70,7 @@ export const HUBSPOT_OAUTH_SCOPES = [
   // ── Settings (structure équipes pour rollups) ─────────
   "settings.users.read",
   "settings.users.teams.read",
+  "crm.objects.users.read",
 
   // ── Méta-données portail ──────────────────────────────
   "account-info.security.read",
