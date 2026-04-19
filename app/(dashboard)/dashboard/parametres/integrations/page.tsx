@@ -29,7 +29,14 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   const hsRow = (integrations ?? []).find(
     (i) => i.provider === "hubspot" && i.is_active && i.refresh_token && i.portal_id,
   );
-  const hsMeta = (hsRow?.metadata as { hub_domain?: string; scopes?: string[]; connected_at?: string } | null) ?? null;
+  type HsMeta = {
+    hub_domain?: string;
+    scopes?: string[];
+    connected_at?: string;
+    custom_objects?: Array<{ objectTypeId: string; name: string; labelSingular: string; labelPlural: string; propertyCount: number; createdAt: string | null }>;
+    custom_objects_count?: number;
+  };
+  const hsMeta = (hsRow?.metadata as HsMeta | null) ?? null;
   const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
   const hsState: "oauth" | "env" | "none" = hsRow ? "oauth" : hasEnvFallback ? "env" : "none";
 
@@ -101,22 +108,63 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
           </div>
 
           {hsState === "oauth" && hsMeta && (
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Portal ID</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
+            <>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4 text-xs">
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Portal ID</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Scopes accordés</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{(hsMeta.scopes ?? []).length}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Custom objects</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.custom_objects_count ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Connecté le</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">
+                    {hsMeta.connected_at ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Scopes accordés</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{(hsMeta.scopes ?? []).length}</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Connecté le</p>
-                <p className="mt-0.5 font-semibold text-slate-800">
-                  {hsMeta.connected_at ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                </p>
-              </div>
-            </div>
+
+              {hsMeta.custom_objects && hsMeta.custom_objects.length > 0 && (
+                <div className="mt-4 rounded-lg border border-fuchsia-100 bg-fuchsia-50/40 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-fuchsia-700">
+                      ✨ Custom objects détectés ({hsMeta.custom_objects.length})
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {hsMeta.custom_objects.map((co) => (
+                      <div
+                        key={co.objectTypeId}
+                        className="flex items-center justify-between gap-3 rounded-md bg-white/70 px-3 py-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900">{co.labelPlural}</p>
+                          <p className="text-[10px] text-slate-500">
+                            <code className="rounded bg-slate-100 px-1">{co.name}</code>
+                            <span className="ml-1.5">·</span>
+                            <span className="ml-1.5">{co.propertyCount} propriétés</span>
+                            <span className="ml-1.5">·</span>
+                            <code className="ml-1.5 rounded bg-slate-100 px-1">{co.objectTypeId}</code>
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-fuchsia-100 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-700">
+                          custom
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[10px] italic text-slate-500">
+                    Revold détecte automatiquement vos custom objects pour les exploiter dans les rapports et le coaching IA.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {hsState === "env" && (

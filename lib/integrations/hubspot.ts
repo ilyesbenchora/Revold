@@ -40,11 +40,13 @@ export const HUBSPOT_OAUTH_SCOPES = [
   "crm.objects.owners.read",
   "crm.objects.line_items.read",
   "crm.objects.leads.read",
+  "crm.objects.custom.read",        // accès lecture aux DONNÉES des custom objects
+  "crm.objects.listings.read",      // built-in HubSpot Listings + alias pour custom "Listings"
   "crm.lists.read",
   "crm.schemas.deals.read",
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
-  "crm.schemas.custom.read",
+  "crm.schemas.custom.read",        // SCHÉMAS des custom objects (pour les détecter à la connexion)
 
   // ── Engagements & activité ────────────────────────────
   "crm.objects.appointments.read",
@@ -106,6 +108,62 @@ export async function fetchHubSpotAccountInfo(accessToken: string): Promise<HubS
   const res = await fetch(`${HUBSPOT_API}/oauth/v1/access-tokens/${accessToken}`);
   if (!res.ok) throw new Error(`HubSpot account info failed: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Liste les CUSTOM objects créés dans le portail HubSpot du client (via
+ * /crm/v3/schemas). Filtre les standard objects (contacts, companies,
+ * deals, etc.) — ne garde que les objectTypeId qui ne commencent pas par
+ * "0-" (les standards) et qui ne sont pas archivés.
+ *
+ * Usage : appelé après l'OAuth callback pour stocker la liste dans
+ * integrations.metadata.custom_objects → ensuite affichée dans la page
+ * paramètres pour que l'utilisateur voie tout de suite ce qu'on a détecté.
+ */
+export type HubSpotCustomObject = {
+  /** ID interne, ex "2-12345678" */
+  objectTypeId: string;
+  /** nom interne, ex "listings" ou "p_rentals" */
+  name: string;
+  /** label singulier, ex "Listing" */
+  labelSingular: string;
+  /** label pluriel, ex "Listings" */
+  labelPlural: string;
+  /** propriétés disponibles (count) */
+  propertyCount: number;
+  /** date de création de l'objet */
+  createdAt: string | null;
+};
+
+export async function fetchHubSpotCustomObjects(accessToken: string): Promise<HubSpotCustomObject[]> {
+  const res = await fetch(`${HUBSPOT_API}/crm/v3/schemas`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    // Pas une erreur fatale (accès custom objects peut être refusé selon plan)
+    return [];
+  }
+  const data = (await res.json()) as {
+    results: Array<{
+      objectTypeId: string;
+      name: string;
+      labels: { singular: string; plural: string };
+      properties?: unknown[];
+      createdAt?: string;
+      archived?: boolean;
+    }>;
+  };
+
+  return (data.results ?? [])
+    .filter((s) => !s.archived && !s.objectTypeId.startsWith("0-")) // exclut les standards
+    .map((s) => ({
+      objectTypeId: s.objectTypeId,
+      name: s.name,
+      labelSingular: s.labels?.singular ?? s.name,
+      labelPlural: s.labels?.plural ?? s.name,
+      propertyCount: Array.isArray(s.properties) ? s.properties.length : 0,
+      createdAt: s.createdAt ?? null,
+    }));
 }
 
 export async function exchangeHubSpotCode(code: string): Promise<HubSpotTokens> {
