@@ -62,61 +62,70 @@ export const HUBSPOT_OAUTH_REQUIRED_SCOPES = [
  *   redéploiement de code, en parfait alignement avec le dev portal.
  */
 const HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT = [
-  // ── CRM objects étendus (universellement disponibles) ──
-  "crm.objects.users.read",
-  "crm.objects.line_items.read",
+  // ── Account / Analytics ──────────────────────────────
+  "account-info.security.read",
+  "business-intelligence",
+  "business_units_view.read",
+
+  // ── Automation / Sequences ──────────────────────────
+  "automation",
+  "automation.sequences.read",
+
+  // ── Conversations ────────────────────────────────────
+  "conversations.read",
+
+  // ── CRM extensions / imports / lists ────────────────
+  "crm.dealsplits.read_write",
+  "crm.extensions_calling_transcripts.read",
+  "crm.import",
+  "crm.lists.read",
+
+  // ── CRM objects étendus ──────────────────────────────
   "crm.objects.appointments.read",
-  "crm.objects.quotes.read",
-  "crm.objects.invoices.read",
-  "crm.objects.subscriptions.read",
-  "crm.objects.marketing_events.read",
-
-  // ── CRM objects Pro+ ─────────────────────────────────
-  "crm.objects.goals.read",
-  "crm.objects.leads.read",
   "crm.objects.feedback_submissions.read",
-
-  // ── CRM objects custom (Enterprise) ─────────────────
-  "crm.objects.custom.read",
+  "crm.objects.forecasts.read",
+  "crm.objects.goals.read",
+  "crm.objects.invoices.read",
+  "crm.objects.leads.read",
+  "crm.objects.line_items.read",
+  "crm.objects.listings.read",
+  "crm.objects.marketing_events.read",
+  "crm.objects.projects.read",
+  "crm.objects.quotes.read",
+  "crm.objects.subscriptions.read",
+  "crm.objects.users.read",
 
   // ── CRM Schemas ──────────────────────────────────────
-  "crm.schemas.contacts.read",
+  "crm.schemas.appointments.read",
   "crm.schemas.companies.read",
-  "crm.schemas.deals.read",
-  "crm.schemas.line_items.read",
-  "crm.schemas.quotes.read",
+  "crm.schemas.contacts.read",
   "crm.schemas.custom.read",
+  "crm.schemas.deals.read",
+  "crm.schemas.invoices.read",
+  "crm.schemas.listings.read",
 
-  // ── Lists ────────────────────────────────────────────
-  "crm.lists.read",
+  // ── Forms ────────────────────────────────────────────
+  "external_integrations.forms.access",
+  "forms",
+
+  // ── Integration sync ─────────────────────────────────
+  "integration-sync",
+
+  // ── Marketing Hub ────────────────────────────────────
+  "marketing.campaigns.read",
+  "marketing.campaigns.revenue.read",
 
   // ── Sales Hub ────────────────────────────────────────
   "sales-email-read",
-  "automation.sequences.read",
-
-  // ── Service Hub ──────────────────────────────────────
-  "tickets",
-  "conversations.read",
-
-  // ── Marketing Hub ────────────────────────────────────
-  "forms",
-  "automation",
-  "marketing-email",
-  "marketing.campaigns.revenue.read",
-  "communication_preferences.read",
-
-  // ── CMS / Content ────────────────────────────────────
-  "content",
-
-  // ── Files ────────────────────────────────────────────
-  "files",
 
   // ── Settings ─────────────────────────────────────────
+  "settings.billing.write",
+  "settings.currencies.read",
   "settings.users.read",
   "settings.users.teams.read",
 
-  // ── Account ──────────────────────────────────────────
-  "account-info.security.read",
+  // ── Service Hub ──────────────────────────────────────
+  "tickets",
 ];
 
 /**
