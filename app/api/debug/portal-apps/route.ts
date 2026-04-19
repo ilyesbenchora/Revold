@@ -12,6 +12,8 @@
 
 import { NextResponse } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 const HS_API = "https://api.hubapi.com";
 
@@ -35,9 +37,10 @@ export async function GET() {
     return NextResponse.json({ error: "Aucune organisation" }, { status: 401 });
   }
 
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
   if (!token) {
-    return NextResponse.json({ error: "HUBSPOT_ACCESS_TOKEN absent" }, { status: 400 });
+    return NextResponse.json({ error: "Aucun token HubSpot — connectez via OAuth ou définissez HUBSPOT_ACCESS_TOKEN" }, { status: 400 });
   }
 
   // Get portal id first (needed by integrators-public endpoints)

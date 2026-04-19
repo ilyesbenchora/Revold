@@ -1,6 +1,7 @@
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS, CANONICAL_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import { ResolutionRules, type Rule } from "@/components/resolution-rules";
@@ -142,7 +143,8 @@ export default async function ParametresModeleDonneesPage() {
   } catch {}
 
   // ── Merge saved state into defaults ──
-  const hasHubSpot = connectedProviders.includes("hubspot") || !!process.env.HUBSPOT_ACCESS_TOKEN;
+  const hsToken = await getHubSpotToken(supabase, orgId);
+  const hasHubSpot = connectedProviders.includes("hubspot") || !!hsToken;
   const allProviders = hasHubSpot ? ["hubspot", ...connectedProviders.filter((p) => p !== "hubspot")] : connectedProviders;
 
   // Resolution rules: merge saved enabled/config into defaults

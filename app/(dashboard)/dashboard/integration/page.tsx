@@ -2,6 +2,7 @@ export const maxDuration = 60;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
@@ -36,7 +37,8 @@ export default async function IntegrationPage({
   }
 
   const supabase = await createSupabaseServerClient();
-  const hubspotTokenConfigured = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  const hsToken = await getHubSpotToken(supabase, orgId);
+  const hubspotTokenConfigured = !!hsToken;
 
   let detectedIntegrations: DetectedIntegration[] = [];
   let portalApps: { privateApps: PortalApp[]; publicApps: PortalApp[]; totalApps: number } = {

@@ -150,7 +150,8 @@ export async function resolveKpiValue(
   forecastType: string,
   filters: AlertFilters = {},
 ): Promise<number | null> {
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  const { getHubSpotToken } = await import("@/lib/integrations/get-hubspot-token");
+  const token = await getHubSpotToken(supabase, orgId);
 
   switch (forecastType) {
     // ── Deal KPIs ──

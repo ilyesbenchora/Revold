@@ -102,12 +102,12 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
   };
 }
 
-export async function fetchTrackingStats(): Promise<{ trackingSample: number; onlineContacts: number }> {
-  if (!process.env.HUBSPOT_ACCESS_TOKEN) return { trackingSample: 0, onlineContacts: 0 };
+export async function fetchTrackingStats(token?: string | null): Promise<{ trackingSample: number; onlineContacts: number }> {
+  if (!token) return { trackingSample: 0, onlineContacts: 0 };
   try {
     const res = await fetch(
       "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=hs_analytics_source",
-      { headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` } },
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     if (!res.ok) return { trackingSample: 0, onlineContacts: 0 };
     const data = await res.json();
@@ -146,7 +146,7 @@ export async function fetchDismissals(
 // ── Integration Insights ──
 
 export async function fetchIntegrationInsights(
-  token?: string,
+  token?: string | null,
 ): Promise<{
   detectedIntegrations: DetectedIntegration[];
   integrationInsights: IntInsight[];
@@ -291,7 +291,7 @@ export async function fetchIntegrationInsights(
 // ── Workflows ──
 
 export async function fetchWorkflows(
-  token?: string,
+  token?: string | null,
 ): Promise<{
   workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }>;
   dealsNoOwner: number;
@@ -378,6 +378,9 @@ export async function fetchDataModelInsights(
     revoldIntegrations = (integ.data ?? []).map((i) => ({ provider: i.provider, isActive: i.is_active }));
   } catch {}
 
+  // hasHubSpot : OAuth (présent dans integrations + actif) OU env legacy
+  const hasHubSpotOAuth = revoldIntegrations.some((i) => i.provider === "hubspot" && i.isActive);
+
   return generateDataModelInsights({
     connectedTools: revoldIntegrations,
     hubSpotDetectedTools: businessTools.map((t) => ({
@@ -388,7 +391,7 @@ export async function fetchDataModelInsights(
       distinctUsers: t.distinctUsers,
       enrichedRecords: t.enrichedRecords,
     })),
-    hasHubSpot: !!process.env.HUBSPOT_ACCESS_TOKEN,
+    hasHubSpot: hasHubSpotOAuth || !!process.env.HUBSPOT_ACCESS_TOKEN,
     contactsCount: ctx.totalContacts,
     companiesCount: ctx.totalCompanies,
     sourceLinksCount: 0,

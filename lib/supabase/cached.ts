@@ -6,6 +6,7 @@ import {
   filterBusinessIntegrations,
   computeIntegrationScore,
 } from "@/lib/integrations/integration-score";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 /**
  * Request-scoped cached helpers.
@@ -87,14 +88,15 @@ export const getCanonicalIntegrationData = cache(
       integrations: [],
       portalApps: { privateApps: [], publicApps: [], totalApps: 0 },
     };
-    if (!process.env.HUBSPOT_ACCESS_TOKEN) return empty;
+    const orgId = await getOrgId();
+    if (!orgId) return empty;
+    const supabase = await createSupabaseServerClient();
+    const token = await getHubSpotToken(supabase, orgId);
+    if (!token) return empty;
     try {
-      const portalApps = await detectPortalApps(process.env.HUBSPOT_ACCESS_TOKEN);
+      const portalApps = await detectPortalApps(token);
       const allPortalApps = [...portalApps.privateApps, ...portalApps.publicApps];
-      const integrations = await detectIntegrations(
-        process.env.HUBSPOT_ACCESS_TOKEN,
-        allPortalApps,
-      );
+      const integrations = await detectIntegrations(token, allPortalApps);
       return { integrations, portalApps };
     } catch {
       return empty;
@@ -111,10 +113,14 @@ export const getDetectedIntegrations = cache(async (): Promise<DetectedIntegrati
  * HubSpot owners count — cached per request.
  */
 export const getHubspotOwnersCount = cache(async (): Promise<number> => {
-  if (!process.env.HUBSPOT_ACCESS_TOKEN) return 0;
+  const orgId = await getOrgId();
+  if (!orgId) return 0;
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
+  if (!token) return 0;
   try {
     const res = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-      headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return 0;
     const data = await res.json();
@@ -130,7 +136,11 @@ export const getHubspotOwnersCount = cache(async (): Promise<number> => {
  * and the page always agree.
  */
 export const getHubspotIntegrationScore = cache(async (): Promise<number | null> => {
-  if (!process.env.HUBSPOT_ACCESS_TOKEN) return null;
+  const orgId = await getOrgId();
+  if (!orgId) return null;
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
+  if (!token) return null;
   const [{ integrations }, ownersCount] = await Promise.all([
     getCanonicalIntegrationData(),
     getHubspotOwnersCount(),

@@ -3,6 +3,7 @@ export const maxDuration = 60;
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { syncHubSpotDataByType, recomputeKpis } from "@/lib/integrations/hubspot-sync";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { env } from "@/lib/env";
 
 const supabase = createClient(
@@ -11,16 +12,17 @@ const supabase = createClient(
 );
 
 export async function GET(request: Request) {
-  const accessToken = process.env.HUBSPOT_ACCESS_TOKEN;
-  if (!accessToken) {
-    return NextResponse.json({ error: "HUBSPOT_ACCESS_TOKEN not configured" }, { status: 400 });
-  }
-
   const { data: orgs } = await supabase.from("organizations").select("id").limit(1);
   if (!orgs || orgs.length === 0) {
     return NextResponse.json({ error: "No organization found" }, { status: 400 });
   }
   const orgId = orgs[0].id;
+
+  // Token : OAuth (table integrations) > env var (legacy)
+  const accessToken = await getHubSpotToken(supabase, orgId);
+  if (!accessToken) {
+    return NextResponse.json({ error: "Aucun token HubSpot — connectez via OAuth ou définissez HUBSPOT_ACCESS_TOKEN" }, { status: 400 });
+  }
 
   const url = new URL(request.url);
   const syncType = url.searchParams.get("type") as "companies" | "contacts" | "deals" | "kpi" | null;

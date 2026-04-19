@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
@@ -12,7 +13,7 @@ export default async function IntegrationCoachingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  const token = await getHubSpotToken(supabase, orgId);
 
   const [{ dismissedKeys }, { integrationInsights }, manualCoachings] = await Promise.all([
     fetchDismissals(supabase, orgId),

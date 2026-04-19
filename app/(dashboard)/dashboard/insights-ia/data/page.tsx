@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
@@ -12,13 +13,14 @@ export default async function DataCoachingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
   const [ctx, { dismissedKeys }, manualCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchReportCoachings(supabase, orgId, "data", ["active", "done", "removed"]),
   ]);
 
-  const tracking = await fetchTrackingStats();
+  const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
   ctx.onlineContacts = tracking.onlineContacts;
 

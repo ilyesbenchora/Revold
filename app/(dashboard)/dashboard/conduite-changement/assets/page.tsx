@@ -1,4 +1,6 @@
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PROPERTY_OBJECTS, fetchOwners, type AssetStats } from "../context";
 
@@ -6,7 +8,8 @@ export default async function AssetsPage() {
   const orgId = await getOrgId();
   if (!orgId) return null;
 
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
   if (!token) return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
 
   const owners = await fetchOwners(token);

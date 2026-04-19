@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 
@@ -10,6 +11,7 @@ export default async function ProcessPage() {
   }
 
   const supabase = await createSupabaseServerClient();
+  const hsToken = await getHubSpotToken(supabase, orgId);
 
   // Lifecycle + insights data
   const [
@@ -33,11 +35,11 @@ export default async function ProcessPage() {
   // Deals sans owner via HubSpot Search API (the DB doesn't store owner)
   let dealsNoOwner = 0;
   let dealsNoOwnerPct = 0;
-  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+  if (hsToken) {
     try {
       const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${hsToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] }],
           limit: 1,
@@ -55,10 +57,10 @@ export default async function ProcessPage() {
   // Workflows from HubSpot API
   let workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }> = [];
   let workflowError: string | null = null;
-  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+  if (hsToken) {
     try {
       const res = await fetch("https://api.hubapi.com/automation/v4/flows?limit=100", {
-        headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}` },
+        headers: { Authorization: `Bearer ${hsToken}` },
       });
       if (res.ok) {
         const data = await res.json();

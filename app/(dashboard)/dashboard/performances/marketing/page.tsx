@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
@@ -26,14 +27,15 @@ export default async function PerformanceMarketingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
+  const hsToken = await getHubSpotToken(supabase, orgId);
 
   // Helper: count contacts by HubSpot search filter (real global count, no sample)
   async function countContactsBy(filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> {
-    if (!process.env.HUBSPOT_ACCESS_TOKEN) return 0;
+    if (!hsToken) return 0;
     try {
       const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${hsToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ filterGroups: [{ filters }], limit: 1 }),
       });
       if (!res.ok) return 0;
@@ -54,7 +56,7 @@ export default async function PerformanceMarketingPage() {
   let withFormsTotal = 0;
   let withMarketingEmailsTotal = 0;
 
-  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+  if (hsToken) {
     const sourcesToCheck = ["INTEGRATION", "EMAIL_INTEGRATION", "IMPORT", "CRM_UI", "FORM", "API", "MOBILE_IOS", "INTERNAL_PROCESSING", "MARKETING_EMAIL", "WORKFLOW", "CONTACTS_WEB"];
     const onlineSources = ["ORGANIC_SEARCH", "PAID_SEARCH", "PAID_SOCIAL", "SOCIAL_MEDIA", "EMAIL_MARKETING", "REFERRALS", "DIRECT_TRAFFIC"];
 

@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { getOrgId } from "@/lib/supabase/cached";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 type HsProperty = {
   name: string;
@@ -10,10 +13,13 @@ type HsProperty = {
 };
 
 export async function GET() {
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
-  if (!token) {
-    return NextResponse.json({ pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] });
-  }
+  const orgId = await getOrgId();
+  const empty = { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] };
+  if (!orgId) return NextResponse.json(empty);
+
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
+  if (!token) return NextResponse.json(empty);
 
   try {
     const [pipelinesRes, ownersRes, contactPropsRes] = await Promise.all([

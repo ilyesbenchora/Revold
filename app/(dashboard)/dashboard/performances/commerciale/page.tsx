@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
@@ -59,12 +60,13 @@ export default async function PerformanceCommercialePage() {
 
   // ── HubSpot Pipeline analytics (direct API call for pipeline/stage names + velocity) ──
   let pipelineAnalytics: PipelineAnalytics[] = [];
-  if (process.env.HUBSPOT_ACCESS_TOKEN) {
+  const hsToken = await getHubSpotToken(supabase, orgId);
+  if (hsToken) {
     try {
       const [pipelines, openDealRows, closedByPipeline] = await Promise.all([
-        fetchPipelines(process.env.HUBSPOT_ACCESS_TOKEN),
-        fetchOpenDeals(process.env.HUBSPOT_ACCESS_TOKEN),
-        fetchClosedDealsByPipeline(process.env.HUBSPOT_ACCESS_TOKEN),
+        fetchPipelines(hsToken),
+        fetchOpenDeals(hsToken),
+        fetchClosedDealsByPipeline(hsToken),
       ]);
       pipelineAnalytics = buildPipelineAnalytics(pipelines, openDealRows, closedByPipeline);
     } catch {}

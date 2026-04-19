@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import {
   buildContext,
@@ -31,7 +32,7 @@ export default async function MesCoachingPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  const token = await getHubSpotToken(supabase, orgId);
 
   const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }] = await Promise.all([
     buildContext(supabase, orgId),
@@ -39,7 +40,7 @@ export default async function MesCoachingPage() {
     fetchIntegrationInsights(token),
   ]);
 
-  const tracking = await fetchTrackingStats();
+  const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
   ctx.onlineContacts = tracking.onlineContacts;
 
