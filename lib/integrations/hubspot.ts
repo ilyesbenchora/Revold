@@ -32,7 +32,12 @@ type HubSpotTokens = {
  *   - Enterprise only    : custom objects (RETIRÉ de la liste pour Pro)
  */
 export const HUBSPOT_OAUTH_SCOPES = [
-  // ── CRM core (any account) ────────────────────────────
+  // ⚠ Liste alignée à 100% avec les scopes accordés à la dernière connexion
+  // OAuth réussie (DB integrations.metadata.scopes). Ne PAS modifier sans
+  // d'abord mettre à jour la config Required dans le dev portal HubSpot
+  // — toute différence URL ↔ portal = erreur "incohérence des domaines".
+
+  // ── CRM Objects ────────────────────────────────────────
   "crm.objects.contacts.read",
   "crm.objects.companies.read",
   "crm.objects.deals.read",
@@ -40,51 +45,39 @@ export const HUBSPOT_OAUTH_SCOPES = [
   "crm.objects.users.read",
   "crm.objects.line_items.read",
   "crm.objects.appointments.read",
+  "crm.objects.quotes.read",
+  "crm.objects.invoices.read",
+  "crm.objects.marketing_events.read",
+  "crm.objects.custom.read",
 
-  // ── CRM Schemas (any account) ─────────────────────────
+  // ── CRM Schemas ────────────────────────────────────────
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
   "crm.schemas.deals.read",
   "crm.schemas.appointments.read",
-  "crm.schemas.invoices.read",
+  "crm.schemas.custom.read",
 
-  // ── Lists ─────────────────────────────────────────────
+  // ── Lists ──────────────────────────────────────────────
   "crm.lists.read",
 
-  // ── Sales Hub (Pro+) ──────────────────────────────────
-  "crm.objects.leads.read",       // Sales Hub Pro+
-  "crm.objects.quotes.read",      // any account
-  "crm.objects.goals.read",       // Sales Hub Starter+
-  "sales-email-read",             // Sales Hub Pro+ — engagement email counters
-  "automation.sequences.read",    // Sales/Service Hub Pro+
+  // ── Sales Hub ──────────────────────────────────────────
+  "sales-email-read",
+  "automation.sequences.read",
 
-  // ── Revenue / Facturation HubSpot ────────────────────
-  "crm.objects.invoices.read",
-  "crm.objects.subscriptions.read",
-
-  // ── Service Hub ──────────────────────────────────────
+  // ── Service Hub ────────────────────────────────────────
   "tickets",
-  "conversations.read",
-  // Note: feedback_submission scope retiré (variante singular/plural non
-  // disponible dans le dev portal HubSpot Pro standard). Les données NPS/
-  // CSAT restent accessibles via tickets + custom properties.
 
-  // ── Marketing Hub Pro+ ───────────────────────────────
+  // ── Marketing Hub ──────────────────────────────────────
   "forms",
   "automation",
   "marketing.campaigns.revenue.read",
-  "crm.objects.marketing_events.read",
 
-  // ── Settings & Admin (any account) ───────────────────
+  // ── Settings & Admin ───────────────────────────────────
   "settings.users.read",
   "settings.users.teams.read",
-  "settings.currencies.read",
 
-  // ── Account meta ─────────────────────────────────────
+  // ── Account meta ───────────────────────────────────────
   "account-info.security.read",
-
-  // ── Analytics ────────────────────────────────────────
-  "business-intelligence",        // any account — analytics general
 ];
 
 /**
