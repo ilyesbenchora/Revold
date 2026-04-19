@@ -31,66 +31,115 @@ type HubSpotTokens = {
  *   - Marketing Hub Pro+ : automation, forms, campaigns
  *   - Enterprise only    : custom objects (RETIRÉ de la liste pour Pro)
  */
-export const HUBSPOT_OAUTH_SCOPES = [
-  // ⚠ Liste alignée à 100% avec les scopes accordés à la dernière connexion
-  // OAuth réussie (DB integrations.metadata.scopes). Ne PAS modifier sans
-  // d'abord mettre à jour la config Required dans le dev portal HubSpot
-  // — toute différence URL ↔ portal = erreur "incohérence des domaines".
-
-  // ── CRM Objects ────────────────────────────────────────
+/**
+ * SCOPES REQUIRED — strict minimum dispo SUR TOUS LES PLANS HubSpot (Free → Enterprise).
+ *
+ * Doivent être marqués "Required" dans le dev portal HubSpot.
+ * Si l'utilisateur ne peut pas les accorder → l'OAuth échoue (rare car ce
+ * sont les 4 objets CRM de base, présents dès le tier Free).
+ */
+export const HUBSPOT_OAUTH_REQUIRED_SCOPES = [
   "crm.objects.contacts.read",
   "crm.objects.companies.read",
   "crm.objects.deals.read",
   "crm.objects.owners.read",
+];
+
+/**
+ * SCOPES OPTIONAL — tout ce qui dépend du plan ou des add-ons.
+ *
+ * Doivent être marqués "Optional" (champs d'application facultatifs) dans le
+ * dev portal HubSpot. HubSpot accorde silencieusement ceux que le plan
+ * permet et ignore les autres SANS erreur.
+ *
+ * Le code Revold check ensuite `metadata.scopes` (granted_scopes) pour savoir
+ * quelles features activer (gracefully degrade si scope manquant).
+ *
+ * AJOUT D'UN NOUVEAU SCOPE : il suffit de l'ajouter dans cette liste +
+ * le cocher "Optional" dans le dev portal HubSpot. Aucun risque d'erreur.
+ */
+export const HUBSPOT_OAUTH_OPTIONAL_SCOPES = [
+  // CRM objects étendus
   "crm.objects.users.read",
   "crm.objects.line_items.read",
   "crm.objects.appointments.read",
   "crm.objects.quotes.read",
   "crm.objects.invoices.read",
   "crm.objects.marketing_events.read",
-  "crm.objects.custom.read",
+  "crm.objects.custom.read",        // Enterprise
+  "crm.objects.subscriptions.read",
+  "crm.objects.goals.read",         // Sales Hub Starter+
+  "crm.objects.leads.read",         // Sales Hub Pro+
+  "crm.objects.feedback_submissions.read", // Service Hub
+  "crm.objects.partner-clients.read",
 
-  // ── CRM Schemas ────────────────────────────────────────
+  // CRM Schemas
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
   "crm.schemas.deals.read",
   "crm.schemas.appointments.read",
-  "crm.schemas.custom.read",
+  "crm.schemas.invoices.read",
+  "crm.schemas.custom.read",        // Enterprise
 
-  // ── Lists ──────────────────────────────────────────────
+  // Lists
   "crm.lists.read",
 
-  // ── Sales Hub ──────────────────────────────────────────
+  // Sales Hub
   "sales-email-read",
-  "automation.sequences.read",
+  "automation.sequences.read",      // Sales/Service Hub Pro+
 
-  // ── Service Hub ────────────────────────────────────────
+  // Service Hub
   "tickets",
+  "conversations.read",
 
-  // ── Marketing Hub ──────────────────────────────────────
+  // Marketing Hub
   "forms",
   "automation",
   "marketing.campaigns.revenue.read",
 
-  // ── Settings & Admin ───────────────────────────────────
+  // Settings & Admin
   "settings.users.read",
   "settings.users.teams.read",
+  "settings.currencies.read",
 
-  // ── Account meta ───────────────────────────────────────
+  // Account meta + analytics
   "account-info.security.read",
+  "business-intelligence",
+];
+
+/** Tous les scopes (required + optional) pour la liste totale. */
+export const HUBSPOT_OAUTH_SCOPES = [
+  ...HUBSPOT_OAUTH_REQUIRED_SCOPES,
+  ...HUBSPOT_OAUTH_OPTIONAL_SCOPES,
 ];
 
 /**
- * Construit l'URL d'autorisation HubSpot.
- * `state` doit être un nonce signé côté serveur (CSRF) — on ne met PAS l'orgId
- * en clair dedans, l'orgId est résolu côté serveur depuis la session.
+ * Construit l'URL d'autorisation HubSpot avec scopes split en
+ * required (`scope=`) + optional (`optional_scope=`).
+ *
+ * Pattern multi-tenant SaaS standard : Required = strict minimum dispo
+ * sur tous les plans → garantit que l'OAuth ne plante jamais. Optional =
+ * tout ce qui dépend du plan/add-ons → HubSpot accorde silencieusement
+ * ceux dispo, ignore les autres sans erreur.
+ *
+ * `state` doit être un nonce signé côté serveur (CSRF). L'orgId est résolu
+ * côté serveur depuis la session, jamais en clair dans l'URL.
  */
 export function getHubSpotAuthUrl(state: string): string {
   const clientId = process.env.HUBSPOT_CLIENT_ID!;
   const redirectUri = process.env.HUBSPOT_REDIRECT_URI!;
-  const scopes = HUBSPOT_OAUTH_SCOPES.join(" ");
+  const required = HUBSPOT_OAUTH_REQUIRED_SCOPES.join(" ");
+  const optional = HUBSPOT_OAUTH_OPTIONAL_SCOPES.join(" ");
 
-  return `${HUBSPOT_AUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: required,
+    optional_scope: optional,
+    state,
+  });
+
+  return `${HUBSPOT_AUTH_URL}?${params.toString()}`;
 }
 
 /**
