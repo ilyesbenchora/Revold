@@ -1,4 +1,7 @@
 export const maxDuration = 60;
+// Toujours frais : l'état de la connexion HubSpot change après connect/disconnect
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -7,6 +10,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { HubspotConnectionCard } from "@/components/hubspot-connection-card";
 import { type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
@@ -19,8 +23,6 @@ import {
 import { BrandLogo } from "@/components/brand-logo";
 import { Suspense } from "react";
 import Link from "next/link";
-
-const HUBSPOT_PORTAL = "48372600";
 
 export default async function IntegrationPage({
   searchParams,
@@ -53,32 +55,19 @@ export default async function IntegrationPage({
     portalApps = data.portalApps;
   }
 
-  // DB counts for sync logs
-  const [{ data: syncLogs }, { data: integrationsRecords }] = await Promise.all([
-    supabase.from("sync_logs").select("*").eq("organization_id", orgId).order("started_at", { ascending: false }).limit(5),
-    supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId),
-  ]);
+  // DB integrations row (full HubSpot row pour le HubspotConnectionCard)
+  const { data: integrationsRecords } = await supabase
+    .from("integrations")
+    .select("*")
+    .eq("organization_id", orgId);
 
   const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
+  const hsRow = (integrationsRecords ?? []).find((i) => i.provider === "hubspot") ?? null;
+  const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
 
   // Same canonical filter used by the header score so KPI numbers and
   // displayed cards always match.
   const businessIntegrations = filterBusinessIntegrations(detectedIntegrations);
-
-  // Aggregate stats — based on the filtered business-integration list
-  const totalIntegrations = businessIntegrations.length;
-  const totalSyncedProperties = businessIntegrations.reduce((s, i) => s + i.totalProperties, 0);
-  const integrationsWithProperties = businessIntegrations.filter((i) => i.totalProperties > 0);
-  const avgEnrichmentRate = integrationsWithProperties.length > 0
-    ? Math.round(
-        integrationsWithProperties.reduce((s, i) => s + i.enrichmentRate, 0) /
-          integrationsWithProperties.length,
-      )
-    : 0;
-  // Distinct users across all integrations
-  const allActiveUsers = new Set<string>();
-  businessIntegrations.forEach((i) => i.topUsers.forEach((u) => allActiveUsers.add(u.ownerId)));
-  const totalActiveUsers = allActiveUsers.size;
 
   // Tools already connected directly to Revold (via the connect/[tool] flow)
   const directlyConnectedKeys = activeIntegrations
@@ -110,55 +99,14 @@ export default async function IntegrationPage({
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Intégration</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Outils tiers connectés à votre CRM, propriétés synchronisées et taux d&apos;enrichissement.
+          Connectez votre CRM HubSpot et vos outils tiers à Revold.
         </p>
       </header>
 
+      {/* Card de connexion HubSpot — source unique de vérité */}
+      <HubspotConnectionCard hsRow={hsRow} hasEnvFallback={hasEnvFallback} />
+
       <InsightLockedBlock />
-
-      {/* Sync button */}
-      {hubspotTokenConfigured && (
-        <Link href="/dashboard/integration?sync=true"
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-          </svg>
-          Synchroniser maintenant
-        </Link>
-      )}
-
-      {/* Vue d'ensemble */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Outils connectés</p>
-          <p className="mt-1 text-3xl font-bold text-violet-600">{totalIntegrations}</p>
-          <p className="mt-1 text-xs text-slate-400">Détectés via les propriétés CRM</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Apps portail</p>
-          <p className="mt-1 text-3xl font-bold text-blue-600">{portalApps.totalApps}</p>
-          <p className="mt-1 text-xs text-slate-400">
-            {portalApps.privateApps.length} privée{portalApps.privateApps.length > 1 ? "s" : ""} · {portalApps.publicApps.length} publique{portalApps.publicApps.length > 1 ? "s" : ""}
-          </p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Propriétés synchronisées</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{totalSyncedProperties}</p>
-          <p className="mt-1 text-xs text-slate-400">Tous outils confondus</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Taux d&apos;enrichissement moyen</p>
-          <p className={`mt-1 text-3xl font-bold ${avgEnrichmentRate >= 50 ? "text-emerald-600" : avgEnrichmentRate >= 20 ? "text-yellow-600" : "text-orange-500"}`}>
-            {avgEnrichmentRate}%
-          </p>
-          <p className="mt-1 text-xs text-slate-400">Données effectivement remplies</p>
-        </article>
-        <article className="card p-5 text-center">
-          <p className="text-xs text-slate-500">Utilisateurs actifs</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-600">{totalActiveUsers}</p>
-          <p className="mt-1 text-xs text-slate-400">Au moins 1 outil utilisé</p>
-        </article>
-      </div>
 
       {/* Apps connectées au portail HubSpot */}
       {portalApps.totalApps > 0 && (
@@ -316,52 +264,6 @@ export default async function IntegrationPage({
         </CollapsibleBlock>
       )}
 
-      {/* Sync logs */}
-      {syncLogs && syncLogs.length > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-slate-400" />Dernières synchronisations Revold
-            </h2>
-          }
-        >
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="px-5 py-2">Type</th>
-                  <th className="px-5 py-2">Statut</th>
-                  <th className="px-5 py-2">Entités</th>
-                  <th className="px-5 py-2">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {syncLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-card-border last:border-0">
-                    <td className="px-5 py-2.5 font-medium capitalize text-slate-800">{log.entity_type || log.source}</td>
-                    <td className="px-5 py-2.5">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        log.status === "completed" ? "bg-emerald-50 text-emerald-700" :
-                        log.status === "failed" || log.status === "partial" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
-                      }`}>
-                        {log.status === "completed" ? "Terminé" : log.status === "failed" ? "Erreur" : log.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-2.5 text-slate-600">{log.entity_count}</td>
-                    <td className="px-5 py-2.5 text-slate-500">{new Date(log.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CollapsibleBlock>
-      )}
-
-      {!hubspotTokenConfigured && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">Aucune intégration configurée. Ajoutez votre token HubSpot dans les variables d&apos;environnement.</p>
-        </div>
-      )}
     </section>
   );
 }

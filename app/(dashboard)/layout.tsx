@@ -6,6 +6,10 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 
+// Le badge "CRM HubSpot Connecté/Non connecté" du header doit refléter l'état
+// réel après chaque connect/disconnect → pas de cache.
+export const dynamic = "force-dynamic";
+
 type DashboardLayoutProps = {
   children: ReactNode;
 };
