@@ -28,6 +28,11 @@ type HsMeta = {
     createdAt: string | null;
   }>;
   lists_count?: number;
+  initial_sync_status?: "pending" | "running" | "completed" | "failed";
+  initial_sync_started_at?: string | null;
+  initial_sync_completed_at?: string | null;
+  syncing_type?: string;
+  error?: string;
 };
 
 type IntegrationRow = {
@@ -173,6 +178,50 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
                   </div>
                 )}
               </div>
+
+              {/* Bandeau sync initial */}
+              {hsMeta.initial_sync_status && hsMeta.initial_sync_status !== "completed" && (
+                <div className={`mt-4 rounded-lg border p-3 ${
+                  hsMeta.initial_sync_status === "failed"
+                    ? "border-red-200 bg-red-50"
+                    : "border-blue-200 bg-blue-50"
+                }`}>
+                  <div className="flex items-center gap-3">
+                    {hsMeta.initial_sync_status === "running" || hsMeta.initial_sync_status === "pending" ? (
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600 shrink-0" />
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600 shrink-0">
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-semibold ${
+                        hsMeta.initial_sync_status === "failed" ? "text-red-800" : "text-blue-800"
+                      }`}>
+                        {hsMeta.initial_sync_status === "failed"
+                          ? "Sync initial échoué"
+                          : `Synchronisation initiale ${hsMeta.syncing_type ? `(${hsMeta.syncing_type})` : ""} en cours...`}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-600">
+                        {hsMeta.initial_sync_status === "failed"
+                          ? hsMeta.error ?? "Une erreur est survenue."
+                          : "Vos données HubSpot s'importent en arrière-plan. Vous pouvez naviguer dans l'app pendant ce temps. Les graphiques se rempliront automatiquement."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {hsMeta.initial_sync_status === "completed" && hsMeta.initial_sync_completed_at && (
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-sm font-semibold text-emerald-800">
+                    ✓ Synchronisation initiale terminée
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-emerald-700">
+                    Toutes vos données HubSpot sont maintenant exploitées par Revold.
+                    Sync auto toutes les 6h via cron.
+                  </p>
+                </div>
+              )}
 
               {/* Stats détail */}
               <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5 text-xs">

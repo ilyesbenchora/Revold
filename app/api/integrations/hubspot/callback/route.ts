@@ -115,6 +115,9 @@ export async function GET(req: NextRequest) {
           custom_objects_count: customObjects.length,
           lists,
           lists_count: lists.length,
+          initial_sync_status: "pending",
+          initial_sync_started_at: null,
+          initial_sync_completed_at: null,
         },
         updated_at: new Date().toISOString(),
       },
@@ -130,6 +133,25 @@ export async function GET(req: NextRequest) {
     return redirectTo("/dashboard/parametres/integrations", {
       hs_error: `Erreur enregistrement : ${error.message}`,
     });
+  }
+
+  // ── Trigger sync initial automatique (fire-and-forget) ──
+  // Le user n'a RIEN à faire : ses données HubSpot s'importent en arrière-plan
+  // dès la fin de l'OAuth. Visible via initial_sync_status sur la page.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const cronSecret = process.env.CRON_SECRET || "";
+  if (cronSecret) {
+    // Chaîne séquentielle (companies → contacts → deals) en background.
+    // Timeout 1s sur le 1er fetch pour ne pas bloquer le redirect.
+    fetch(`${appUrl}/api/integrations/hubspot/sync?orgId=${orgId}&type=companies`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cronSecret}` },
+      signal: AbortSignal.timeout(1000),
+    }).catch(() => {
+      // Timeout attendu — Vercel continue l'exécution côté serveur
+    });
+  } else {
+    console.warn("[hubspot oauth callback] CRON_SECRET not set, skipping auto-sync");
   }
 
   // Cleanup cookie
