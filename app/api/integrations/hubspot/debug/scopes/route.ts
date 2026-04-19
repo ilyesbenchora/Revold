@@ -10,17 +10,21 @@
  * est public côté HubSpot oauth dialog de toute façon.
  */
 import { NextResponse } from "next/server";
-import { HUBSPOT_OAUTH_SCOPES, getHubSpotAuthUrl } from "@/lib/integrations/hubspot";
+import { getEffectiveOAuthScopes, getHubSpotAuthUrl } from "@/lib/integrations/hubspot";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const scopes = HUBSPOT_OAUTH_SCOPES;
+  const { required, optional, optionalSource } = getEffectiveOAuthScopes();
   const sampleUrl = getHubSpotAuthUrl("DEBUG_STATE.NONCE.SIG");
   return NextResponse.json({
-    count: scopes.length,
-    scopes,
+    required: { count: required.length, scopes: required },
+    optional: { count: optional.length, scopes: optional, source: optionalSource },
+    total: required.length + optional.length,
     sampleAuthUrl: sampleUrl,
+    note: optionalSource === "env"
+      ? "Optional scopes are loaded from HUBSPOT_OAUTH_OPTIONAL_SCOPES env var (override active)."
+      : "Optional scopes use the default conservative list. Set HUBSPOT_OAUTH_OPTIONAL_SCOPES env var to override.",
     deployedAt: new Date().toISOString(),
   });
 }

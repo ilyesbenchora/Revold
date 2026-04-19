@@ -31,9 +31,13 @@ export async function GET(req: NextRequest) {
   const errParam = searchParams.get("error");
 
   if (errParam) {
-    return redirectTo("/dashboard/parametres/integrations", {
-      hs_error: `HubSpot a refusé l'autorisation : ${errParam}`,
-    });
+    const description = searchParams.get("error_description") || "";
+    const isScopeMismatch = /scope|domain|domaine|incohérence/i.test(`${errParam} ${description}`);
+    const message = isScopeMismatch
+      ? "Configuration de scopes désynchronisée — voir /api/integrations/hubspot/debug/scopes pour la liste exacte envoyée. Cocher chaque scope dans le dev portal HubSpot ou utiliser HUBSPOT_OAUTH_OPTIONAL_SCOPES env var."
+      : `HubSpot a refusé l'autorisation : ${errParam}${description ? ` — ${description}` : ""}`;
+    console.error("[hubspot oauth callback] error param", { errParam, description });
+    return redirectTo("/dashboard/parametres/integrations", { hs_error: message });
   }
   if (!code || !state) {
     return redirectTo("/dashboard/parametres/integrations", {

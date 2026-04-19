@@ -46,133 +46,100 @@ export const HUBSPOT_OAUTH_REQUIRED_SCOPES = [
 ];
 
 /**
- * SCOPES OPTIONAL — tout ce qui dépend du plan ou des add-ons.
+ * SCOPES OPTIONAL DEFAULT — liste de scopes connus pour exister dans le catalogue
+ * HubSpot ET disponibles sur la majorité des plans. Conservatrice par design :
+ * ne contient AUCUN scope rare (sensitive/highly_sensitive, partner, dealsplits,
+ * cms.functions, behavioral_events, etc.) qui causerait une "incohérence de
+ * domaines" si non coché dans le dev portal.
  *
- * Doivent être marqués "Optional" (champs d'application facultatifs) dans le
- * dev portal HubSpot. HubSpot accorde silencieusement ceux que le plan
- * permet et ignore les autres SANS erreur.
+ * SI TU AJOUTES UN SCOPE ICI, il faut OBLIGATOIREMENT :
+ *   1) Vérifier qu'il existe dans le catalogue HubSpot (doc officielle)
+ *   2) Le cocher en "Optional" dans le dev portal HubSpot
  *
- * Le code Revold check ensuite `metadata.scopes` (granted_scopes) pour savoir
- * quelles features activer (gracefully degrade si scope manquant).
- *
- * AJOUT D'UN NOUVEAU SCOPE : il suffit de l'ajouter dans cette liste +
- * le cocher "Optional" dans le dev portal HubSpot. Aucun risque d'erreur.
+ * SOLUTION DÉFINITIVE pour éviter l'erreur "incohérence des domaines" :
+ *   Définis l'env var `HUBSPOT_OAUTH_OPTIONAL_SCOPES` (séparée par espace ou
+ *   virgule) qui REMPLACE complètement cette liste. Permet d'ajuster sans
+ *   redéploiement de code, en parfait alignement avec le dev portal.
  */
-export const HUBSPOT_OAUTH_OPTIONAL_SCOPES = [
-  // ── CRM objects étendus (any account) ────────────────
+const HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT = [
+  // ── CRM objects étendus (universellement disponibles) ──
   "crm.objects.users.read",
   "crm.objects.line_items.read",
   "crm.objects.appointments.read",
   "crm.objects.quotes.read",
   "crm.objects.invoices.read",
-  "crm.objects.marketing_events.read",
   "crm.objects.subscriptions.read",
-  "crm.objects.partner-clients.read",
-  "crm.objects.partner-services.read",
-  "crm.objects.orders.read",
-  "crm.objects.services.read",
-  "crm.objects.carts.read",
-  "crm.objects.courses.read",
+  "crm.objects.marketing_events.read",
 
   // ── CRM objects Pro+ ─────────────────────────────────
-  "crm.objects.goals.read",         // Sales Hub Starter+
-  "crm.objects.leads.read",         // Sales Hub Pro+
-  "crm.objects.feedback_submissions.read", // Service Hub Pro+
-  "crm.objects.commercepayments.read", // Starter+
+  "crm.objects.goals.read",
+  "crm.objects.leads.read",
+  "crm.objects.feedback_submissions.read",
 
-  // ── CRM objects Enterprise (sensitive + highly_sensitive) ──
+  // ── CRM objects custom (Enterprise) ─────────────────
   "crm.objects.custom.read",
-  "crm.objects.contacts.sensitive.read",
-  "crm.objects.companies.sensitive.read",
-  "crm.objects.deals.sensitive.read",
-  "crm.objects.appointments.sensitive.read",
-  "crm.objects.custom.sensitive.read",
-  "crm.objects.contacts.highly_sensitive.read",
-  "crm.objects.companies.highly_sensitive.read",
-  "crm.objects.deals.highly_sensitive.read",
-  "crm.objects.custom.highly_sensitive.read",
-  "crm.objects.projects.read",       // Pro+
-  "crm.objects.projects.sensitive.read", // Enterprise
 
-  // ── CRM Schemas (any) ────────────────────────────────
+  // ── CRM Schemas ──────────────────────────────────────
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
   "crm.schemas.deals.read",
-  "crm.schemas.appointments.read",
-  "crm.schemas.invoices.read",
   "crm.schemas.line_items.read",
   "crm.schemas.quotes.read",
-  "crm.schemas.subscriptions.read",
-  "crm.schemas.orders.read",
-  "crm.schemas.services.read",
-  "crm.schemas.carts.read",
-
-  // ── CRM Schemas Enterprise / Pro+ ────────────────────
   "crm.schemas.custom.read",
-  "crm.schemas.projects.read",        // Pro+
 
-  // ── CRM Pipelines / Lists / Imports ──────────────────
+  // ── Lists ────────────────────────────────────────────
   "crm.lists.read",
-  "crm.pipelines.orders.read",
-  "crm.import",
-  "crm.export",
 
   // ── Sales Hub ────────────────────────────────────────
-  "sales-email-read",                // Sales Hub Pro+
-  "automation.sequences.read",       // Sales/Service Hub Pro+
-  "automation.sequences.enrollments.write", // Sales/Service Hub Pro+
-  "crm.dealsplits.read_write",       // Sales Hub Enterprise
+  "sales-email-read",
+  "automation.sequences.read",
 
   // ── Service Hub ──────────────────────────────────────
   "tickets",
   "conversations.read",
-  "conversations.visitor_identification.tokens.create", // Pro+
-  "conversations.custom_channels.read",  // Enterprise
-  "cms.knowledge_base.articles.read",    // Service Hub Pro+
-  "cms.knowledge_base.settings.read",    // Service Hub Pro+
 
   // ── Marketing Hub ────────────────────────────────────
   "forms",
-  "forms-uploaded-files",
-  "automation",                      // Marketing Hub Pro+
+  "automation",
+  "marketing-email",
   "marketing.campaigns.revenue.read",
-  "marketing-email",                 // Pro+
   "communication_preferences.read",
-  "ctas.read",                       // Marketing/CMS Hub Starter+
-
-  // ── Marketing Hub Enterprise ─────────────────────────
-  "communication_preferences.read_write",
-  "communication_preferences.statuses.batch.read",
-  "analytics.behavioral_events.send",
-  "behavioral_events.event_definitions.read_write",
 
   // ── CMS / Content ────────────────────────────────────
-  "content",                         // CMS Hub Pro+
-  "cms.functions.read",              // CMS Hub Enterprise
-  "cms.performance.read",            // CMS Hub Pro+
-  "cms.membership.access_groups.read", // Service/Content Pro+
+  "content",
 
-  // ── Files & Media ────────────────────────────────────
+  // ── Files ────────────────────────────────────────────
   "files",
 
-  // ── Settings & Admin ─────────────────────────────────
+  // ── Settings ─────────────────────────────────────────
   "settings.users.read",
   "settings.users.teams.read",
-  "settings.currencies.read",
 
-  // ── Account / Analytics / Integrations ───────────────
+  // ── Account ──────────────────────────────────────────
   "account-info.security.read",
-  "business-intelligence",
-  "accounting",
-  "e-commerce",
-  "actions",
-  "external_integrations.forms.access",
 ];
+
+/**
+ * Liste effective des scopes optional, env var override possible.
+ * L'env var permet de coller PARFAITEMENT au dev portal sans redéployer le code.
+ */
+function getOptionalScopes(): string[] {
+  const envVar = process.env.HUBSPOT_OAUTH_OPTIONAL_SCOPES;
+  if (envVar && envVar.trim()) {
+    return envVar
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT;
+}
+
+export const HUBSPOT_OAUTH_OPTIONAL_SCOPES = HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT;
 
 /** Tous les scopes (required + optional) pour la liste totale. */
 export const HUBSPOT_OAUTH_SCOPES = [
   ...HUBSPOT_OAUTH_REQUIRED_SCOPES,
-  ...HUBSPOT_OAUTH_OPTIONAL_SCOPES,
+  ...HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT,
 ];
 
 /**
@@ -191,7 +158,7 @@ export function getHubSpotAuthUrl(state: string): string {
   const clientId = process.env.HUBSPOT_CLIENT_ID!;
   const redirectUri = process.env.HUBSPOT_REDIRECT_URI!;
   const required = HUBSPOT_OAUTH_REQUIRED_SCOPES.join(" ");
-  const optional = HUBSPOT_OAUTH_OPTIONAL_SCOPES.join(" ");
+  const optional = getOptionalScopes().join(" ");
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -202,6 +169,20 @@ export function getHubSpotAuthUrl(state: string): string {
   });
 
   return `${HUBSPOT_AUTH_URL}?${params.toString()}`;
+}
+
+/** Snapshot runtime des scopes effectivement envoyés (pour debug endpoint). */
+export function getEffectiveOAuthScopes(): {
+  required: string[];
+  optional: string[];
+  optionalSource: "env" | "default";
+} {
+  const envVar = process.env.HUBSPOT_OAUTH_OPTIONAL_SCOPES;
+  return {
+    required: HUBSPOT_OAUTH_REQUIRED_SCOPES,
+    optional: getOptionalScopes(),
+    optionalSource: envVar && envVar.trim() ? "env" : "default",
+  };
 }
 
 /**
