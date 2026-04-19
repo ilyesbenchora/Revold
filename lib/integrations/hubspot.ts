@@ -15,77 +15,74 @@ type HubSpotTokens = {
   expires_in: number;
 };
 
-/** Scopes nécessaires pour l'analyse Revold complète + roadmap 6 mois.
- *  Doivent EXACTEMENT matcher la liste "Required" dans l'app HubSpot du portail développeur.
+/**
+ * Scopes OAuth HubSpot — vérifiés contre la doc officielle
+ * (https://developers.hubspot.com/docs/guides/apps/authentication/scopes)
  *
- *  Logique de sélection : chaque scope a un cas d'usage concret côté Revold.
- *  On ne prend PAS les scopes esotériques (carts, listings, forecasts HubSpot,
- *  transcripts) qui (a) effraient les prospects à l'écran de consent et
- *  (b) rajoutent une responsabilité RGPD inutile.
+ * Compatible plan Pro. Engagements (calls/emails/meetings/notes/tasks) ne sont
+ * PAS des scopes OAuth dédiés — ils sont lus via les associations sur deals
+ * (couverts par crm.objects.deals.read + crm.objects.contacts.read).
  *
- *  Plan dependencies :
- *   - Free / Starter            : tous les crm.objects.* + schemas + lists OK
- *   - Sales Hub Pro+            : sales-email-read, sequences, dealsplits, quotes
- *   - Sales Hub Enterprise      : crm.objects.leads.read, dealsplits
- *   - Service Hub               : tickets
- *   - Marketing Hub Pro+ / Ops  : automation, forms, marketing.campaigns.revenue
- *   - HubSpot Invoices add-on   : crm.objects.invoices.read
- *   - HubSpot Meetings (built-in): crm.objects.appointments.read
+ * Plan dependencies (chaque scope a été vérifié) :
+ *   - Any account        : la majorité des crm.objects.* read + schemas + lists
+ *   - Sales Hub Pro+     : sales-email-read, leads, sequences
+ *   - Sales Hub Starter+ : goals
+ *   - Service Hub Pro+   : feedback_submission, knowledge_base
+ *   - Marketing Hub Pro+ : automation, forms, campaigns
+ *   - Enterprise only    : custom objects (RETIRÉ de la liste pour Pro)
  */
 export const HUBSPOT_OAUTH_SCOPES = [
-  // ── CRM core (tous plans) ─────────────────────────────
-  "crm.objects.deals.read",
+  // ── CRM core (any account) ────────────────────────────
   "crm.objects.contacts.read",
   "crm.objects.companies.read",
+  "crm.objects.deals.read",
   "crm.objects.owners.read",
+  "crm.objects.users.read",
   "crm.objects.line_items.read",
-  "crm.objects.custom.read",        // accès lecture aux DONNÉES des custom objects
-  "crm.lists.read",
-  "crm.schemas.deals.read",
+  "crm.objects.appointments.read",
+
+  // ── CRM Schemas (any account) ─────────────────────────
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
-  "crm.schemas.custom.read",        // SCHÉMAS des custom objects (pour les détecter à la connexion)
-
-  // ── Engagements & activité (analyse deep CRM) ────────
-  "crm.objects.appointments.read",
+  "crm.schemas.deals.read",
   "crm.schemas.appointments.read",
-  "sales-email-read",
-  // Engagements en tant qu'objets : nécessaires pour accéder aux DÉTAILS
-  // (durée appel, contenu email, status meeting). Sans ça on n'a que les
-  // associations (IDs liés aux deals). Pour aller vraiment deep dans
-  // l'analyse activité commerciale, ces scopes sont indispensables.
-  "crm.objects.calls.read",
-  "crm.objects.emails.read",
-  "crm.objects.meetings.read",
-  "crm.objects.notes.read",
-  "crm.objects.tasks.read",
-  "crm.objects.feedback_submissions.read", // CSAT / NPS HubSpot Service
-  "crm.objects.products.read",              // catalogue produits (line_items)
-  "conversations.read",                      // Service Hub conversations inbox
+  "crm.schemas.invoices.read",
 
-  // ── Workflows & automation (Marketing/Ops Pro+) ───────
-  "automation",
-  "automation.sequences.read",
+  // ── Lists ─────────────────────────────────────────────
+  "crm.lists.read",
 
-  // ── Service Hub ───────────────────────────────────────
-  "tickets",
+  // ── Sales Hub (Pro+) ──────────────────────────────────
+  "crm.objects.leads.read",       // Sales Hub Pro+
+  "crm.objects.quotes.read",      // any account
+  "crm.objects.goals.read",       // Sales Hub Starter+
+  "sales-email-read",             // Sales Hub Pro+ — engagement email counters
+  "automation.sequences.read",    // Sales/Service Hub Pro+
 
-  // ── Marketing & attribution ───────────────────────────
-  "forms",
-  "crm.objects.marketing_events.read",
-  "marketing.campaigns.revenue.read",
-
-  // ── Revenue / facturation HubSpot ─────────────────────
+  // ── Revenue / Facturation HubSpot ────────────────────
   "crm.objects.invoices.read",
-  "crm.objects.quotes.read",
+  "crm.objects.subscriptions.read",
 
-  // ── Settings (structure équipes pour rollups) ─────────
+  // ── Service Hub ──────────────────────────────────────
+  "tickets",
+  "conversations.read",
+  "crm.objects.feedback_submission.read", // attention: SINGULIER (pas submissionS)
+
+  // ── Marketing Hub Pro+ ───────────────────────────────
+  "forms",
+  "automation",
+  "marketing.campaigns.revenue.read",
+  "crm.objects.marketing_events.read",
+
+  // ── Settings & Admin (any account) ───────────────────
   "settings.users.read",
   "settings.users.teams.read",
-  "crm.objects.users.read",
+  "settings.currencies.read",
 
-  // ── Méta-données portail ──────────────────────────────
+  // ── Account meta ─────────────────────────────────────
   "account-info.security.read",
+
+  // ── Analytics ────────────────────────────────────────
+  "business-intelligence",        // any account — analytics general
 ];
 
 /**
