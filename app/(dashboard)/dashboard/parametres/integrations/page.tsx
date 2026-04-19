@@ -23,8 +23,12 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   const inactive = (integrations ?? []).filter((i) => !i.is_active);
   const logs = syncLogs ?? [];
 
-  // État HubSpot : OAuth (table integrations) > env var (legacy) > non configuré
-  const hsRow = (integrations ?? []).find((i) => i.provider === "hubspot" && i.is_active);
+  // État HubSpot : OAuth réel (refresh_token + portal_id) > env var (legacy) > non configuré.
+  // Une ligne avec is_active=true mais sans refresh_token/portal_id est un seed/legacy
+  // qu'on ignore pour la détection — sinon faux positif "Connecté (OAuth)".
+  const hsRow = (integrations ?? []).find(
+    (i) => i.provider === "hubspot" && i.is_active && i.refresh_token && i.portal_id,
+  );
   const hsMeta = (hsRow?.metadata as { hub_domain?: string; scopes?: string[]; connected_at?: string } | null) ?? null;
   const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
   const hsState: "oauth" | "env" | "none" = hsRow ? "oauth" : hasEnvFallback ? "env" : "none";

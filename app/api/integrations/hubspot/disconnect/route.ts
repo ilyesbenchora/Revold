@@ -1,10 +1,10 @@
 /**
  * POST /api/integrations/hubspot/disconnect
  *
- * Désactive l'intégration HubSpot pour l'org courante.
- * Soft delete : on garde la ligne (pour audit) mais is_active=false +
- * tokens vidés. Sync engine et getHubSpotToken() retomberont sur le fallback
- * (env var) ou rien.
+ * Supprime la ligne HubSpot de `integrations` (hard delete).
+ * On ne garde pas de soft-delete : les lignes orphelines pollueraient la
+ * détection OAuth et empêcheraient un fresh re-connect.
+ * L'historique de sync reste dans `sync_logs`.
  */
 import { NextResponse } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -15,15 +15,9 @@ export async function POST() {
   if (!orgId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from("integrations")
-    .update({
-      is_active: false,
-      access_token: null,
-      refresh_token: null,
-      token_expires_at: null,
-      updated_at: new Date().toISOString(),
-    })
+    .delete({ count: "exact" })
     .eq("organization_id", orgId)
     .eq("provider", "hubspot");
 
@@ -32,5 +26,5 @@ export async function POST() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, deleted: count ?? 0 });
 }
