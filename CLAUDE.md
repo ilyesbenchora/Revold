@@ -49,9 +49,20 @@ Tailwind v4 with CSS variables in `globals.css` (`--background`, `--card`, `--ac
 
 ## Environment variables
 
-Required:
+**Required (toutes envs) :**
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — utilisée aussi comme fallback de signature OAuth state si `OAUTH_STATE_SECRET` absent
+
+**HubSpot OAuth (Phase 8.1 — multi-tenant) :**
+- `HUBSPOT_CLIENT_ID` — client ID de l'app publique HubSpot (portail développeur)
+- `HUBSPOT_CLIENT_SECRET` — secret de l'app publique HubSpot
+- `HUBSPOT_REDIRECT_URI` — doit matcher exactement la valeur configurée dans l'app HubSpot, ex : `https://revold.io/api/integrations/hubspot/callback`
+- `NEXT_PUBLIC_APP_URL` — base URL de l'app (`https://revold.io` en prod, `http://localhost:3000` en dev) — utilisée pour les redirects OAuth
+
+**Optionnels :**
+- `OAUTH_STATE_SECRET` — clé HMAC pour signer le state OAuth. Si absent, fallback sur `SUPABASE_SERVICE_ROLE_KEY`. Recommandé en prod : valeur dédiée 32+ chars random
+- `HUBSPOT_ACCESS_TOKEN` — **legacy mono-tenant**, sera supprimé après migration de tous les callsites en Phase 8.1b. Garde un fallback dans `getHubSpotToken()` le temps de la transition
 
 No `.env.example` yet (Phase 1.5). No runtime validation yet — env vars use `!` assertions.
 

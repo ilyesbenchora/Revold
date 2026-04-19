@@ -3,9 +3,13 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
+import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import Link from "next/link";
 
-export default async function ParametresIntegrationsPage() {
+type SearchParams = Promise<{ hs_connected?: string; hs_error?: string }>;
+
+export default async function ParametresIntegrationsPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
   const orgId = await getOrgId();
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
@@ -19,6 +23,12 @@ export default async function ParametresIntegrationsPage() {
   const inactive = (integrations ?? []).filter((i) => !i.is_active);
   const logs = syncLogs ?? [];
 
+  // État HubSpot : OAuth (table integrations) > env var (legacy) > non configuré
+  const hsRow = (integrations ?? []).find((i) => i.provider === "hubspot" && i.is_active);
+  const hsMeta = (hsRow?.metadata as { hub_domain?: string; scopes?: string[]; connected_at?: string } | null) ?? null;
+  const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  const hsState: "oauth" | "env" | "none" = hsRow ? "oauth" : hasEnvFallback ? "env" : "none";
+
   return (
     <section className="space-y-8">
       <header>
@@ -28,28 +38,96 @@ export default async function ParametresIntegrationsPage() {
 
       <ParametresTabs />
 
+      {/* Banners post-OAuth */}
+      {params.hs_connected && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          ✓ HubSpot connecté avec succès — portail <strong>{params.hs_connected}</strong>.
+        </div>
+      )}
+      {params.hs_error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Erreur HubSpot : {params.hs_error}
+        </div>
+      )}
+
       {/* HubSpot */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-orange-500" />HubSpot (CRM principal)
         </h2>
         <div className="card p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#FF7A59"><path d="M18.164 7.93V5.084a2.198 2.198 0 0 0 1.267-1.978v-.067A2.2 2.2 0 0 0 17.238.845h-.067a2.2 2.2 0 0 0-2.193 2.194v.067a2.198 2.198 0 0 0 1.267 1.978V7.93a6.215 6.215 0 0 0-2.952 1.3L5.51 3.146a2.476 2.476 0 1 0-1.16 1.578l7.658 5.96a6.235 6.235 0 0 0 .094 7.027l-2.33 2.33a2.013 2.013 0 0 0-.581-.093 2.04 2.04 0 1 0 2.04 2.04 2.013 2.013 0 0 0-.094-.581l2.305-2.305a6.247 6.247 0 1 0 4.722-11.173zm-1.106 9.371a3.205 3.205 0 1 1 3.205-3.205 3.208 3.208 0 0 1-3.205 3.205z"/></svg>
               <div>
                 <p className="text-sm font-semibold text-slate-900">HubSpot</p>
-                <p className="text-xs text-slate-500">Private App Token</p>
+                <p className="text-xs text-slate-500">
+                  {hsState === "oauth"
+                    ? `OAuth — ${hsMeta?.hub_domain ?? "portail connecté"}`
+                    : hsState === "env"
+                      ? "Private App Token (env var)"
+                      : "Non connecté"}
+                </p>
               </div>
             </div>
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${process.env.HUBSPOT_ACCESS_TOKEN ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-              {process.env.HUBSPOT_ACCESS_TOKEN ? "✓ Connecté" : "Non configuré"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                hsState === "oauth" ? "bg-emerald-100 text-emerald-700"
+                : hsState === "env" ? "bg-amber-100 text-amber-700"
+                : "bg-slate-100 text-slate-500"
+              }`}>
+                {hsState === "oauth" ? "✓ Connecté (OAuth)"
+                  : hsState === "env" ? "⚠ env var (legacy)"
+                  : "Non configuré"}
+              </span>
+              {hsState === "oauth" ? (
+                <HubspotDisconnectButton />
+              ) : (
+                <a
+                  href="/api/integrations/hubspot/connect"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-orange-600"
+                >
+                  Connecter HubSpot
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14" /><polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              )}
+            </div>
           </div>
-          <p className="mt-3 text-xs text-slate-400">
-            Le token HubSpot est configuré via la variable d&apos;environnement <code className="rounded bg-slate-100 px-1 py-0.5">HUBSPOT_ACCESS_TOKEN</code> sur Vercel.
-            Pour le changer, allez dans Vercel → Settings → Environment Variables.
-          </p>
+
+          {hsState === "oauth" && hsMeta && (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="font-medium text-slate-500">Portal ID</p>
+                <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="font-medium text-slate-500">Scopes accordés</p>
+                <p className="mt-0.5 font-semibold text-slate-800">{(hsMeta.scopes ?? []).length}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="font-medium text-slate-500">Connecté le</p>
+                <p className="mt-0.5 font-semibold text-slate-800">
+                  {hsMeta.connected_at ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {hsState === "env" && (
+            <p className="mt-3 text-xs text-amber-700">
+              ⚠ Token configuré via variable d&apos;environnement (mode legacy mono-tenant).
+              Connectez via OAuth pour passer en multi-tenant et activer le refresh automatique.
+            </p>
+          )}
+
+          {hsState === "none" && (
+            <p className="mt-3 text-xs text-slate-500">
+              Cliquez « Connecter HubSpot » — vous serez redirigé vers HubSpot pour autoriser l&apos;accès lecture seule à votre CRM.
+              Aucune donnée ne sort de votre portail HubSpot vers Revold sans cette autorisation.
+            </p>
+          )}
         </div>
       </div>
 

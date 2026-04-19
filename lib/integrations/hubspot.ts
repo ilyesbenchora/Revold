@@ -15,18 +15,52 @@ type HubSpotTokens = {
   expires_in: number;
 };
 
-export function getHubSpotAuthUrl(orgId: string): string {
+/** Scopes minimaux pour le sync CRM + insights. Doivent matcher l'app HubSpot
+ *  configurée dans le portail développeur. */
+export const HUBSPOT_OAUTH_SCOPES = [
+  "crm.objects.deals.read",
+  "crm.objects.contacts.read",
+  "crm.objects.companies.read",
+  "crm.objects.owners.read",
+  "crm.schemas.deals.read",
+  "crm.schemas.contacts.read",
+  "crm.schemas.companies.read",
+  "tickets",
+  "automation",
+  "sales-email-read",
+];
+
+/**
+ * Construit l'URL d'autorisation HubSpot.
+ * `state` doit être un nonce signé côté serveur (CSRF) — on ne met PAS l'orgId
+ * en clair dedans, l'orgId est résolu côté serveur depuis la session.
+ */
+export function getHubSpotAuthUrl(state: string): string {
   const clientId = process.env.HUBSPOT_CLIENT_ID!;
   const redirectUri = process.env.HUBSPOT_REDIRECT_URI!;
-  const scopes = [
-    "crm.objects.deals.read",
-    "crm.objects.contacts.read",
-    "crm.objects.companies.read",
-    "crm.objects.owners.read",
-    "sales-email-read",
-  ].join(" ");
+  const scopes = HUBSPOT_OAUTH_SCOPES.join(" ");
 
-  return `${HUBSPOT_AUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${orgId}`;
+  return `${HUBSPOT_AUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
+}
+
+/**
+ * Récupère les infos du token (portal_id, scopes, expires_in) — endpoint
+ * public HubSpot, ne consomme pas de quota.
+ * https://developers.hubspot.com/docs/api/oauth-tokens#get-token-information
+ */
+export type HubSpotAccountInfo = {
+  hub_id: number;
+  hub_domain: string;
+  portal_id: number;
+  user: string;
+  user_id: number;
+  scopes: string[];
+};
+
+export async function fetchHubSpotAccountInfo(accessToken: string): Promise<HubSpotAccountInfo> {
+  const res = await fetch(`${HUBSPOT_API}/oauth/v1/access-tokens/${accessToken}`);
+  if (!res.ok) throw new Error(`HubSpot account info failed: ${res.status}`);
+  return res.json();
 }
 
 export async function exchangeHubSpotCode(code: string): Promise<HubSpotTokens> {
