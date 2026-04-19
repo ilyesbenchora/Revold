@@ -4,6 +4,7 @@
  * disconnect HubSpot, avec affichage portal_id, scopes, custom objects.
  */
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
+import { inferHubSpotPlan, TIER_LABELS, HUB_LABELS } from "@/lib/integrations/hubspot-scopes";
 
 type HsMeta = {
   hub_domain?: string;
@@ -105,34 +106,101 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
           </div>
         </div>
 
-        {hsState === "oauth" && hsMeta && (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5 text-xs">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Portal ID</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
+        {hsState === "oauth" && hsMeta && (() => {
+          const grantedSet = new Set(hsMeta.scopes ?? []);
+          const plan = inferHubSpotPlan(grantedSet);
+          const tierColor = {
+            free: "bg-slate-100 text-slate-700",
+            starter: "bg-blue-100 text-blue-700",
+            pro: "bg-fuchsia-100 text-fuchsia-700",
+            enterprise: "bg-amber-100 text-amber-700 ring-1 ring-amber-300",
+          }[plan.tier];
+
+          return (
+            <>
+              {/* Plan détecté + score d'exploitation */}
+              <div className="mt-4 rounded-xl border border-fuchsia-100 bg-gradient-to-br from-fuchsia-50/60 to-amber-50/40 p-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-fuchsia-700">
+                      Plan HubSpot détecté
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold ${tierColor}`}>
+                        {plan.tier === "enterprise" && <span aria-hidden>👑</span>}
+                        {TIER_LABELS[plan.tier]}
+                      </span>
+                      {Object.entries(plan.hubs)
+                        .filter(([, t]) => t !== null)
+                        .map(([hub, t]) => (
+                          <span key={hub} className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-slate-700 ring-1 ring-slate-200">
+                            {HUB_LABELS[hub as keyof typeof HUB_LABELS]}
+                            <span className="text-slate-400">·</span>
+                            <span className="text-fuchsia-600">{TIER_LABELS[t!]}</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-medium text-slate-500">Données exploitées</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="w-28 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            plan.exploitationScore >= 75 ? "bg-emerald-500" :
+                            plan.exploitationScore >= 50 ? "bg-fuchsia-500" :
+                            plan.exploitationScore >= 25 ? "bg-amber-500" : "bg-slate-400"
+                          }`}
+                          style={{ width: `${plan.exploitationScore}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-slate-900 tabular-nums">{plan.exploitationScore}%</span>
+                    </div>
+                  </div>
+                </div>
+                {plan.addons.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-fuchsia-100">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 mb-1.5">
+                      Add-ons activés
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {plan.addons.map((a) => (
+                        <span key={a} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          ✓ {a}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Scopes accordés</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{(hsMeta.scopes ?? []).length}</p>
+
+              {/* Stats détail */}
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5 text-xs">
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Portal ID</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Scopes accordés</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{grantedSet.size}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Custom objects</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.custom_objects_count ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Listes</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.lists_count ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="font-medium text-slate-500">Connecté le</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">
+                    {hsMeta.connected_at
+                      ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+                      : "—"}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Custom objects</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.custom_objects_count ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Listes</p>
-                <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.lists_count ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="font-medium text-slate-500">Connecté le</p>
-                <p className="mt-0.5 font-semibold text-slate-800">
-                  {hsMeta.connected_at
-                    ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
-                    : "—"}
-                </p>
-              </div>
-            </div>
 
             {hsMeta.lists && hsMeta.lists.length > 0 && (
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-3">
@@ -194,7 +262,8 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
               </div>
             )}
           </>
-        )}
+          );
+        })()}
 
         {hsState === "env" && (
           <p className="mt-3 text-xs text-amber-700">

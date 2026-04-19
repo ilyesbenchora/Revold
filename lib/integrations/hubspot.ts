@@ -59,52 +59,114 @@ export const HUBSPOT_OAUTH_REQUIRED_SCOPES = [
  * le cocher "Optional" dans le dev portal HubSpot. Aucun risque d'erreur.
  */
 export const HUBSPOT_OAUTH_OPTIONAL_SCOPES = [
-  // CRM objects étendus
+  // ── CRM objects étendus (any account) ────────────────
   "crm.objects.users.read",
   "crm.objects.line_items.read",
   "crm.objects.appointments.read",
   "crm.objects.quotes.read",
   "crm.objects.invoices.read",
   "crm.objects.marketing_events.read",
-  "crm.objects.custom.read",        // Enterprise
   "crm.objects.subscriptions.read",
+  "crm.objects.partner-clients.read",
+  "crm.objects.partner-services.read",
+  "crm.objects.orders.read",
+  "crm.objects.services.read",
+  "crm.objects.carts.read",
+  "crm.objects.courses.read",
+
+  // ── CRM objects Pro+ ─────────────────────────────────
   "crm.objects.goals.read",         // Sales Hub Starter+
   "crm.objects.leads.read",         // Sales Hub Pro+
-  "crm.objects.feedback_submissions.read", // Service Hub
-  "crm.objects.partner-clients.read",
+  "crm.objects.feedback_submissions.read", // Service Hub Pro+
+  "crm.objects.commercepayments.read", // Starter+
 
-  // CRM Schemas
+  // ── CRM objects Enterprise (sensitive + highly_sensitive) ──
+  "crm.objects.custom.read",
+  "crm.objects.contacts.sensitive.read",
+  "crm.objects.companies.sensitive.read",
+  "crm.objects.deals.sensitive.read",
+  "crm.objects.appointments.sensitive.read",
+  "crm.objects.custom.sensitive.read",
+  "crm.objects.contacts.highly_sensitive.read",
+  "crm.objects.companies.highly_sensitive.read",
+  "crm.objects.deals.highly_sensitive.read",
+  "crm.objects.custom.highly_sensitive.read",
+  "crm.objects.projects.read",       // Pro+
+  "crm.objects.projects.sensitive.read", // Enterprise
+
+  // ── CRM Schemas (any) ────────────────────────────────
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
   "crm.schemas.deals.read",
   "crm.schemas.appointments.read",
   "crm.schemas.invoices.read",
-  "crm.schemas.custom.read",        // Enterprise
+  "crm.schemas.line_items.read",
+  "crm.schemas.quotes.read",
+  "crm.schemas.subscriptions.read",
+  "crm.schemas.orders.read",
+  "crm.schemas.services.read",
+  "crm.schemas.carts.read",
 
-  // Lists
+  // ── CRM Schemas Enterprise / Pro+ ────────────────────
+  "crm.schemas.custom.read",
+  "crm.schemas.projects.read",        // Pro+
+
+  // ── CRM Pipelines / Lists / Imports ──────────────────
   "crm.lists.read",
+  "crm.pipelines.orders.read",
+  "crm.import",
+  "crm.export",
 
-  // Sales Hub
-  "sales-email-read",
-  "automation.sequences.read",      // Sales/Service Hub Pro+
+  // ── Sales Hub ────────────────────────────────────────
+  "sales-email-read",                // Sales Hub Pro+
+  "automation.sequences.read",       // Sales/Service Hub Pro+
+  "automation.sequences.enrollments.write", // Sales/Service Hub Pro+
+  "crm.dealsplits.read_write",       // Sales Hub Enterprise
 
-  // Service Hub
+  // ── Service Hub ──────────────────────────────────────
   "tickets",
   "conversations.read",
+  "conversations.visitor_identification.tokens.create", // Pro+
+  "conversations.custom_channels.read",  // Enterprise
+  "cms.knowledge_base.articles.read",    // Service Hub Pro+
+  "cms.knowledge_base.settings.read",    // Service Hub Pro+
 
-  // Marketing Hub
+  // ── Marketing Hub ────────────────────────────────────
   "forms",
-  "automation",
+  "forms-uploaded-files",
+  "automation",                      // Marketing Hub Pro+
   "marketing.campaigns.revenue.read",
+  "marketing-email",                 // Pro+
+  "communication_preferences.read",
+  "ctas.read",                       // Marketing/CMS Hub Starter+
 
-  // Settings & Admin
+  // ── Marketing Hub Enterprise ─────────────────────────
+  "communication_preferences.read_write",
+  "communication_preferences.statuses.batch.read",
+  "analytics.behavioral_events.send",
+  "behavioral_events.event_definitions.read_write",
+
+  // ── CMS / Content ────────────────────────────────────
+  "content",                         // CMS Hub Pro+
+  "cms.functions.read",              // CMS Hub Enterprise
+  "cms.performance.read",            // CMS Hub Pro+
+  "cms.membership.access_groups.read", // Service/Content Pro+
+
+  // ── Files & Media ────────────────────────────────────
+  "files",
+
+  // ── Settings & Admin ─────────────────────────────────
   "settings.users.read",
   "settings.users.teams.read",
   "settings.currencies.read",
 
-  // Account meta + analytics
+  // ── Account / Analytics / Integrations ───────────────
   "account-info.security.read",
   "business-intelligence",
+  "accounting",
+  "e-commerce",
+  "actions",
+  "external_integrations.forms.access",
 ];
 
 /** Tous les scopes (required + optional) pour la liste totale. */
