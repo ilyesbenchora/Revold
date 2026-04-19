@@ -42,7 +42,8 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
     custom_objects_count?: number;
   };
   const hsMeta = (hsRow?.metadata as HsMeta | null) ?? null;
-  const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  // Fallback env var supprimé en Phase 8.1c (faille multi-tenant) — toujours false
+  const hasEnvFallback = false;
   const hsState: "oauth" | "env" | "none" = hsRow ? "oauth" : hasEnvFallback ? "env" : "none";
 
   return (

@@ -1,5 +1,7 @@
 export const maxDuration = 60;
 
+export const dynamic = "force-dynamic";
+
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 import type { DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-suggestions";

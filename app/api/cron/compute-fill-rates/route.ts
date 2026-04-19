@@ -74,15 +74,10 @@ export async function GET(request: Request) {
     .eq("is_active", true);
 
   if (!integrations || integrations.length === 0) {
-    // Fallback to env var for single-tenant
-    const token = process.env.HUBSPOT_ACCESS_TOKEN;
-    if (!token) return NextResponse.json({ error: "No HubSpot token" }, { status: 400 });
-
-    const { data: orgs } = await supabase.from("organizations").select("id").limit(1);
-    if (!orgs?.[0]) return NextResponse.json({ error: "No org" }, { status: 400 });
-
-    await computeForOrg(orgs[0].id, token);
-    return NextResponse.json({ ok: true, orgs: 1 });
+    // ⚠ PAS de fallback env var : sinon le cron polluait la 1ʳᵉ org du
+    // système avec les fill_rates du portail HubSpot demo (faille
+    // multi-tenant). Si aucune org n'a connecté HubSpot, on ne fait rien.
+    return NextResponse.json({ ok: true, orgs: 0, message: "Aucune org avec HubSpot OAuth connecté" });
   }
 
   for (const int of integrations) {

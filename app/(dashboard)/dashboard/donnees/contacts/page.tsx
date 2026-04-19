@@ -1,5 +1,7 @@
 export const maxDuration = 60;
 
+export const dynamic = "force-dynamic";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";

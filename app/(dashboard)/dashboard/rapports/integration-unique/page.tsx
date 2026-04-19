@@ -1,5 +1,7 @@
 export const maxDuration = 60;
 
+export const dynamic = "force-dynamic";
+
 import { detectIntegrations } from "@/lib/integrations/detect-integrations";
 import { getReportSuggestions, type ReportSuggestion } from "@/lib/reports/report-suggestions";
 import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";

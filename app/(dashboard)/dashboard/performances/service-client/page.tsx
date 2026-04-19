@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CollapsibleBlock } from "@/components/collapsible-block";

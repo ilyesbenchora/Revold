@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";

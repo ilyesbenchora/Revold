@@ -1,10 +1,18 @@
 /**
  * Retrieve the HubSpot access token for the current org.
  *
- * Resolution order:
- *  1. Supabase `integrations` table (OAuth flow or manually inserted)
- *     → auto-refreshes if token is about to expire
- *  2. Fallback: `process.env.HUBSPOT_ACCESS_TOKEN` (Vercel env / private app)
+ * STRICTEMENT par org : on ne fait PLUS de fallback sur process.env.HUBSPOT_
+ * ACCESS_TOKEN car c'est une faille multi-tenant qui faisait que les
+ * nouvelles orgs (sans OAuth) voyaient les données du portail Vercel
+ * (NovaTech demo).
+ *
+ * Si l'org n'a pas connecté son propre HubSpot via OAuth -> retourne null.
+ * Les pages qui en dépendent doivent gérer ce cas (afficher un état vide
+ * "Connectez HubSpot pour voir vos données").
+ *
+ * Le fallback env var reste accessible UNIQUEMENT pour les jobs cron
+ * multi-tenant qui ont besoin du portail demo (ils doivent appeler
+ * process.env.HUBSPOT_ACCESS_TOKEN explicitement, pas via ce helper).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -53,10 +61,12 @@ export async function getHubSpotToken(
 
       return data.access_token;
     }
-  } catch {
-    // Table may not exist or query failed — fall through to env var
+  } catch (err) {
+    console.error("[getHubSpotToken] DB query failed", { orgId, err });
   }
 
-  // ── 2. Fallback: env var (private app / Vercel config) ──────────────────
-  return process.env.HUBSPOT_ACCESS_TOKEN ?? null;
+  // ⚠ PAS de fallback sur process.env.HUBSPOT_ACCESS_TOKEN — faille
+  // multi-tenant. Si org sans OAuth, on retourne null et la page doit
+  // afficher un état "non connecté".
+  return null;
 }

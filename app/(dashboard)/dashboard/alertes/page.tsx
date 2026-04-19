@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";

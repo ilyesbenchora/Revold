@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
 import Link from "next/link";

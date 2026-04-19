@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { ParametresTabs } from "@/components/parametres-tabs";
 
 const ALERT_RULES = [

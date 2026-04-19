@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";

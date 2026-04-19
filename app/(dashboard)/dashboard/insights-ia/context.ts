@@ -391,7 +391,7 @@ export async function fetchDataModelInsights(
       distinctUsers: t.distinctUsers,
       enrichedRecords: t.enrichedRecords,
     })),
-    hasHubSpot: hasHubSpotOAuth || !!process.env.HUBSPOT_ACCESS_TOKEN,
+    hasHubSpot: hasHubSpotOAuth, // strict OAuth-only (plus de fallback env)
     contactsCount: ctx.totalContacts,
     companiesCount: ctx.totalCompanies,
     sourceLinksCount: 0,
