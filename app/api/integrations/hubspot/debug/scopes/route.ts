@@ -1,5 +1,5 @@
 /**
- * GET /api/integrations/hubspot/_debug/scopes
+ * GET /api/integrations/hubspot/debug/scopes
  *
  * Endpoint debug : retourne la liste exacte des scopes que le code Revold
  * actuellement déployé demanderait dans l'URL OAuth, plus l'URL OAuth
