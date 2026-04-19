@@ -65,7 +65,9 @@ export const HUBSPOT_OAUTH_SCOPES = [
   // ── Service Hub ──────────────────────────────────────
   "tickets",
   "conversations.read",
-  "crm.objects.feedback_submission.read", // attention: SINGULIER (pas submissionS)
+  // Note: feedback_submission scope retiré (variante singular/plural non
+  // disponible dans le dev portal HubSpot Pro standard). Les données NPS/
+  // CSAT restent accessibles via tickets + custom properties.
 
   // ── Marketing Hub Pro+ ───────────────────────────────
   "forms",
