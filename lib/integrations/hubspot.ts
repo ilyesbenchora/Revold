@@ -39,9 +39,7 @@ export const HUBSPOT_OAUTH_SCOPES = [
   "crm.objects.companies.read",
   "crm.objects.owners.read",
   "crm.objects.line_items.read",
-  "crm.objects.leads.read",
   "crm.objects.custom.read",        // accès lecture aux DONNÉES des custom objects
-  "crm.objects.listings.read",      // built-in HubSpot Listings + alias pour custom "Listings"
   "crm.lists.read",
   "crm.schemas.deals.read",
   "crm.schemas.contacts.read",
@@ -68,7 +66,6 @@ export const HUBSPOT_OAUTH_SCOPES = [
   // ── Revenue / facturation HubSpot ─────────────────────
   "crm.objects.invoices.read",
   "crm.objects.quotes.read",
-  "crm.dealsplits.read_write",
 
   // ── Settings (structure équipes pour rollups) ─────────
   "settings.users.read",
