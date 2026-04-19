@@ -30,10 +30,10 @@
   <!-- Badge cercle blanc en haut-droite avec flèche → -->
   <g filter="url(#badgeShadow)">
     <circle cx="500" cy="100" r="90" fill="white"/>
-    <!-- Flèche pointant vers la droite -->
+    <!-- Flèche pointant vers le haut-droite (momentum) -->
     <g stroke="#d946ef" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <line x1="455" y1="100" x2="540" y2="100"/>
-      <polyline points="510,65 545,100 510,135"/>
+      <line x1="460" y1="140" x2="540" y2="60"/>
+      <polyline points="485,60 540,60 540,115"/>
     </g>
   </g>
 </svg>

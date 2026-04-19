@@ -38,8 +38,8 @@ export function RevoldLogo({
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M4 12 L20 12" />
-            <path d="M14 6 L20 12 L14 18" />
+            <path d="M6 18 L18 6" />
+            <path d="M9 6 L18 6 L18 15" />
           </svg>
         </span>
       </div>
