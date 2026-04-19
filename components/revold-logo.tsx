@@ -6,7 +6,8 @@ type RevoldLogoProps = {
 
 /**
  * Revold logo — fuchsia → purple → indigo gradient with a stylised "R"
- * mark and a small upward arrow accent reinforcing the revenue-uplift idea.
+ * mark and a small right-pointing arrow accent reinforcing the
+ * revenue-acceleration idea (forward momentum).
  * Distinct visual identity, no overlap with the underlying AI vendor.
  */
 export function RevoldLogo({
@@ -26,7 +27,7 @@ export function RevoldLogo({
         <span className="relative text-base font-black tracking-tighter text-white">
           R
         </span>
-        {/* Upward-arrow accent — revenue uplift signature */}
+        {/* Right-pointing arrow accent — forward momentum signature */}
         <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
           <svg
             viewBox="0 0 24 24"
@@ -37,8 +38,8 @@ export function RevoldLogo({
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M6 14 L12 6 L18 14" />
-            <path d="M12 6 L12 20" />
+            <path d="M4 12 L20 12" />
+            <path d="M14 6 L20 12 L14 18" />
           </svg>
         </span>
       </div>

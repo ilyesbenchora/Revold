@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d946ef"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="highlight" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="20" stdDeviation="40" flood-color="#a855f7" flood-opacity="0.30"/>
+    </filter>
+    <filter id="badgeShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Carré gradient principal -->
+  <rect width="600" height="600" rx="120" fill="url(#grad)" filter="url(#cardShadow)"/>
+  <!-- Highlight intérieur top-left -->
+  <rect width="600" height="600" rx="120" fill="url(#highlight)"/>
+
+  <!-- Lettre R blanche centrée (légèrement décalée à gauche pour équilibrer le badge) -->
+  <text x="280" y="430" text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-weight="900" font-size="400" fill="white" letter-spacing="-16">R</text>
+
+  <!-- Badge cercle blanc en haut-droite avec flèche → -->
+  <g filter="url(#badgeShadow)">
+    <circle cx="500" cy="100" r="90" fill="white"/>
+    <!-- Flèche pointant vers la droite -->
+    <g stroke="#d946ef" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <line x1="455" y1="100" x2="540" y2="100"/>
+      <polyline points="510,65 545,100 510,135"/>
+    </g>
+  </g>
+</svg>
