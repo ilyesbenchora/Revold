@@ -1,294 +1,204 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getLatestKpi } from "@/lib/supabase/cached";
+import { getOrgId } from "@/lib/supabase/cached";
 import Link from "next/link";
-import { getScoreLabel } from "@/lib/score-utils";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
 
+  // Hero KPIs : on agrège juste les compteurs essentiels (toujours filtrés par org).
   const [
-    latestKpi,
-    { data: insight },
-    { data: allDeals },
-    { data: allContacts },
+    { count: contactCount },
+    { count: dealCount },
+    { count: openDealCount },
+    { data: wonDeals },
     { data: integrations },
-    { count: totalUsers },
   ] = await Promise.all([
-    getLatestKpi(),
-    supabase
-      .from("ai_insights")
-      .select("*")
-      .eq("organization_id", orgId)
-      .is("deal_id", null)
-      .eq("is_dismissed", false)
-      .order("generated_at", { ascending: false })
-      .limit(1)
-      .single(),
-    supabase
-      .from("deals")
-      .select("id, amount, is_closed_won, is_closed_lost, is_at_risk, next_activity_date, sales_activities_count")
-      .eq("organization_id", orgId),
-    supabase
-      .from("contacts")
-      .select("id, company_id, is_mql, is_sql, phone")
-      .eq("organization_id", orgId),
-    supabase
-      .from("integrations")
-      .select("provider, is_active")
-      .eq("organization_id", orgId),
-    supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("organization_id", orgId),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
+    supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true),
+    supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId).eq("is_active", true),
   ]);
 
-  const k = latestKpi;
-  const deals = allDeals ?? [];
-  const contacts = allContacts ?? [];
+  const wonAmount = (wonDeals ?? []).reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const activeIntegrations = (integrations ?? []).length;
 
-  // ── Compute from deals ──
-  const totalDeals = deals.length;
-  const atRiskDeals = deals.filter((d) => d.is_at_risk).length;
-  const wonDeals = deals.filter((d) => d.is_closed_won);
-  const wonDealsCount = wonDeals.length;
-  const lostDealsCount = deals.filter((d) => d.is_closed_lost).length;
-  const wonAmount = wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const openDeals = deals.filter((d) => !d.is_closed_won && !d.is_closed_lost);
-  const openDealsCount = openDeals.length;
-  const openAmount = openDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const dealsWithNextActivity = openDeals.filter((d) => d.next_activity_date != null).length;
-  const followUpRate = openDealsCount > 0 ? Math.round((dealsWithNextActivity / openDealsCount) * 100) : 0;
-  const closingRateComputed = (wonDealsCount + lostDealsCount) > 0
-    ? Math.round((wonDealsCount / (wonDealsCount + lostDealsCount)) * 100)
-    : 0;
-
-  // ── Compute from contacts ──
-  const contactTotal = contacts.length;
-  const contactAssigned = contacts.filter((c) => c.company_id != null).length;
-  const attributionRate = contactTotal > 0 ? Math.round((contactAssigned / contactTotal) * 100) : 0;
-  const orphansCount = contactTotal - contactAssigned;
-  const opportunityCount = contacts.filter((c) => c.is_sql).length;
-  const leadsCount = contactTotal - opportunityCount;
-  const conversionLeadOpp = contactTotal > 0 ? Math.round((opportunityCount / contactTotal) * 100) : 0;
-  const contactsWithPhone = contacts.filter((c) => c.phone != null).length;
-  const phoneFilledRate = contactTotal > 0 ? Math.round((contactsWithPhone / contactTotal) * 100) : 0;
-
-  // ── Scores ──
-  const salesScore = Number(k?.sales_score) || 0;
-  const marketingScore = Number(k?.marketing_score) || 0;
-  const crmScore = Number(k?.crm_ops_score) || 0;
-
-  const dataComp = Number(k?.data_completeness) || 0;
-  const dupesPct = Number(k?.duplicate_contacts_pct) || 0;
-  const orphansPct = Number(k?.orphan_contacts_pct) || 0;
-  const donneesScore = k ? Math.round(
-    dataComp * 0.5 +
-    Math.max(0, 100 - dupesPct * 5) * 0.25 +
-    Math.max(0, 100 - orphansPct * 3) * 0.25
-  ) : 0;
-
-  const inactivePct = Number(k?.inactive_deals_pct) || 0;
-  const stagnationPct = Number(k?.deal_stagnation_rate) || 0;
-  const actPerDeal = Number(k?.activities_per_deal) || 0;
-  const cycleDays = Number(k?.sales_cycle_days) || 0;
-  const processScore = k ? Math.round(
-    Math.max(0, (1 - inactivePct / 50) * 100) * 0.30 +
-    Math.max(0, (1 - stagnationPct / 40) * 100) * 0.30 +
-    Math.min(100, (actPerDeal / 12) * 100) * 0.20 +
-    Math.min(100, Math.max(0, (1 - (cycleDays - 30) / 90) * 100)) * 0.20
-  ) : 0;
-
-  const integrationScore = k ? Math.round(dataComp * 0.4 + crmScore * 0.6) : 0;
-
-  // Conduite du changement — adoption des outils par l'équipe.
-  // Proxy basé sur le taux d'attribution (50 pts), le nombre d'intégrations
-  // actives (25 pts) et le nombre d'utilisateurs Revold (25 pts).
-  const conduiteScore = Math.round(
-    Math.min(50, attributionRate * 0.5) +
-    Math.min(25, ((integrations ?? []).filter((i) => i.is_active).length) * 5) +
-    Math.min(25, (totalUsers ?? 0) * 5)
-  );
-
-  const globalScore = k ? Math.round(
-    donneesScore * 0.20 + processScore * 0.20 + salesScore * 0.25 +
-    marketingScore * 0.20 + integrationScore * 0.15
-  ) : 0;
-
-  const activeIntegrations = (integrations ?? []).filter((i) => i.is_active);
-  const inactiveWorkflows = openDealsCount > 0 ? Math.round(openDealsCount * inactivePct / 100) : 0;
-
-  const lastUpdated = k?.snapshot_date
-    ? new Date(k.snapshot_date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : null;
-
-  const categories = [
+  // ── Cards des sections principales — actionables, sans badge score ──
+  const sections = [
     {
-      label: "Données",
-      description: "Qualité et enrichissement",
-      score: donneesScore,
-      href: "/dashboard/donnees",
-      details: [
-        { label: "Téléphone renseigné", value: contactTotal > 0 ? `${phoneFilledRate}%` : "—" },
-        { label: "Contacts attribués", value: contactTotal > 0 ? `${attributionRate}%` : "—" },
-        { label: "Contacts orphelins", value: `${orphansCount.toLocaleString("fr-FR")}` },
-      ],
+      label: "Audit",
+      description: "Diagnostiquez la santé de votre CRM : données, process, performances, adoption.",
+      href: "/dashboard/audit",
+      cta: "Lancer l'audit",
+      gradient: "from-blue-500 to-indigo-500",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      ),
     },
     {
-      label: "Process & Alignement",
-      description: "Workflows & Lifecycle",
-      score: processScore,
-      href: "/dashboard/process",
-      details: [
-        { label: "Contacts", value: `${contactTotal.toLocaleString("fr-FR")}` },
-        { label: "Conversion Lead → Opp.", value: `${conversionLeadOpp}%` },
-        { label: "Opportunités", value: `${opportunityCount.toLocaleString("fr-FR")}` },
-      ],
+      label: "Coaching IA",
+      description: "Transformez vos données en plans d'action concrets pour vos équipes.",
+      href: "/dashboard/insights-ia",
+      cta: "Voir les coachings",
+      gradient: "from-fuchsia-500 to-pink-500",
+      ai: true,
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+          <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+        </svg>
+      ),
     },
     {
-      label: "Performance Sales",
-      description: "Pipeline & Closing",
-      score: salesScore,
-      href: "/dashboard/performances/commerciale",
-      details: [
-        { label: "Taux de closing", value: (wonDealsCount + lostDealsCount) > 0 ? `${closingRateComputed}%` : "—" },
-        { label: "Pipeline en cours", value: openAmount > 0 ? `€${Math.round(openAmount / 1000)}K` : "—" },
-        { label: "Taux de suivi", value: openDealsCount > 0 ? `${followUpRate}%` : "—" },
-      ],
+      label: "Rapports",
+      description: "Construisez des rapports sur mesure pour piloter ce qui compte vraiment.",
+      href: "/dashboard/rapports",
+      cta: "Créer un rapport",
+      gradient: "from-emerald-500 to-teal-500",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="16" y2="17" />
+        </svg>
+      ),
     },
     {
-      label: "Performance Marketing",
-      description: "Funnel & Attribution",
-      score: marketingScore,
-      href: "/dashboard/performances/marketing",
-      details: [
-        { label: "Leads", value: `${leadsCount.toLocaleString("fr-FR")}` },
-        { label: "Opportunités", value: `${opportunityCount.toLocaleString("fr-FR")}` },
-        { label: "Conversion Lead → Opp.", value: `${conversionLeadOpp}%` },
-      ],
+      label: "Simulations IA",
+      description: "Mesurez l'impact d'objectifs ambitieux et activez des alertes intelligentes.",
+      href: "/dashboard/alertes",
+      cta: "Lancer une simulation",
+      gradient: "from-amber-500 to-orange-500",
+      ai: true,
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      ),
     },
     {
       label: "Intégration",
-      description: "Outils & utilisateurs",
-      score: integrationScore,
+      description: "Connectez votre CRM, votre facturation, votre téléphonie et votre service client.",
       href: "/dashboard/integration",
-      details: [
-        { label: "Intégrations actives", value: `${activeIntegrations.length}` },
-        { label: "Utilisateurs CRM", value: `${totalUsers ?? 0}` },
-        { label: "Données synchronisées", value: `${(totalDeals + contactTotal).toLocaleString("fr-FR")}` },
-      ],
-    },
-    {
-      label: "Conduite du changement",
-      description: "Adoption & engagement équipe",
-      score: conduiteScore,
-      href: "/dashboard/conduite-changement",
-      details: [
-        { label: "Contacts attribués", value: contactTotal > 0 ? `${attributionRate}%` : "—" },
-        { label: "Utilisateurs Revold", value: `${totalUsers ?? 0}` },
-        { label: "Intégrations actives", value: `${activeIntegrations.length}` },
-      ],
+      cta: activeIntegrations > 0 ? "Gérer les intégrations" : "Connecter mes outils",
+      gradient: "from-violet-500 to-fuchsia-500",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 11a9 9 0 0 1 9 9" />
+          <path d="M4 4a16 16 0 0 1 16 16" />
+          <circle cx="5" cy="19" r="1" />
+        </svg>
+      ),
     },
   ];
+
+  const isEmpty = contactCount === 0 && dealCount === 0;
 
   return (
     <section className="space-y-8">
       {/* Header */}
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Synthèse globale de la santé de votre HubSpot.
-            {lastUpdated && (
-              <span className="ml-2 text-slate-400">Actualisé le {lastUpdated}</span>
-            )}
-          </p>
-        </div>
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {isEmpty
+            ? "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."
+            : "Synthèse globale de votre intelligence revenue."}
+        </p>
       </header>
 
-      {/* Hero — Revenue intelligence at a glance */}
+      {/* Hero — KPIs essentiels */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
         <div className="p-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Contacts CRM</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{contactTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(contactCount ?? 0).toLocaleString("fr-FR")}</p>
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Deals ouverts</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{openDealsCount.toLocaleString("fr-FR")}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Pipeline en cours</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{openAmount > 0 ? `${Math.round(openAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(openDealCount ?? 0).toLocaleString("fr-FR")}</p>
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">CA Closed Won</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">{wonAmount > 0 ? `${Math.round(wonAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Taux de closing</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(wonDealsCount + lostDealsCount) > 0 ? `${closingRateComputed}%` : "—"}</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                {wonAmount > 0 ? `${Math.round(wonAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}
+              </p>
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Outils connectés</p>
-              <p className="mt-1 text-2xl font-bold text-accent tabular-nums">{activeIntegrations.length}</p>
+              <p className="mt-1 text-2xl font-bold text-accent tabular-nums">{activeIntegrations}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Total deals</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(dealCount ?? 0).toLocaleString("fr-FR")}</p>
             </div>
           </div>
-          {lastUpdated && (
-            <p className="mt-4 text-[10px] text-slate-400">Dernière synchronisation le {lastUpdated}</p>
+          {isEmpty && (
+            <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-2.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 shrink-0">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <p className="text-xs text-amber-800">
+                Aucune donnée pour l&apos;instant. <Link href="/dashboard/integration" className="font-medium underline hover:no-underline">Connectez votre CRM HubSpot</Link> pour démarrer.
+              </p>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Category Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {categories.map((cat) => {
-          const badge = getScoreLabel(cat.score);
-          const wide = cat.details.length > 3;
-          return (
-            <Link
-              key={cat.label}
-              href={cat.href}
-              className={`card group p-5 transition hover:shadow-md ${wide ? "md:col-span-2 lg:col-span-2" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent">{cat.label}</h3>
-                <div className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
-                  {badge.label}
+      {/* Cards d'accès aux sections principales — sans badge score, force de proposition */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {sections.map((s) => (
+          <Link
+            key={s.label}
+            href={s.href}
+            className="card group relative overflow-hidden p-5 transition hover:shadow-md hover:border-accent/30"
+          >
+            {/* Halo gradient au hover */}
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${s.gradient}`} />
+
+            <div className="flex items-start gap-3">
+              <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${s.gradient} text-white shadow-sm`}>
+                {s.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent transition">
+                    {s.label}
+                  </h3>
+                  {s.ai && (
+                    <span className="rounded-full bg-gradient-to-r from-amber-100 to-fuchsia-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-700">
+                      IA
+                    </span>
+                  )}
                 </div>
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed">{s.description}</p>
               </div>
-              <div className={`mt-5 grid gap-2 ${wide ? "grid-cols-3 md:grid-cols-5" : "grid-cols-3"}`}>
-                {cat.details.map((d) => (
-                  <div key={d.label}>
-                    <p className="text-xs text-slate-400">{d.label}</p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-800">{d.value}</p>
-                  </div>
-                ))}
-              </div>
-            </Link>
-          );
-        })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-xs font-medium text-accent group-hover:underline">
+                {s.cta} →
+              </span>
+            </div>
+          </Link>
+        ))}
       </div>
 
       {/* AI Insight — Locked / Upgrade required */}
       <InsightLockedBlock
-        previewTitle={insight?.title || "Analyse stratégique de votre pipeline RevOps"}
-        previewBody={insight?.body || "L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."}
+        previewTitle="Analyse stratégique de votre pipeline RevOps"
+        previewBody="L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."
       />
-
-
-      {!latestKpi && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-600">
-            Aucune donnée KPI disponible. Les métriques apparaîtront une fois les données synchronisées.
-          </p>
-        </div>
-      )}
     </section>
   );
 }

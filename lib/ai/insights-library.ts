@@ -379,6 +379,13 @@ export function selectInsights(
     data: [],
   };
 
+  // Org vide (0 contacts ET 0 deals) → aucun insight ne fait sens.
+  // On évite de générer des "Tu as 0 contacts orphelins, parfait" qui
+  // donnent l'illusion d'analyses sur du néant.
+  if (ctx.totalContacts === 0 && ctx.totalDeals === 0) {
+    return result;
+  }
+
   const sorted = [...INSIGHT_LIBRARY].sort((a, b) => b.priority - a.priority);
 
   for (const tpl of sorted) {
