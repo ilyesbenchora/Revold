@@ -6,6 +6,11 @@ import { BrandLogo } from "@/components/brand-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import Link from "next/link";
 
+// Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel
+// après connect/disconnect, on ne veut surtout pas afficher un état mis en cache.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type SearchParams = Promise<{ hs_connected?: string; hs_error?: string }>;
 
 export default async function ParametresIntegrationsPage({ searchParams }: { searchParams: SearchParams }) {
