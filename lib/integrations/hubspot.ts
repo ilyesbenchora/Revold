@@ -46,10 +46,22 @@ export const HUBSPOT_OAUTH_SCOPES = [
   "crm.schemas.companies.read",
   "crm.schemas.custom.read",        // SCHÉMAS des custom objects (pour les détecter à la connexion)
 
-  // ── Engagements & activité ────────────────────────────
+  // ── Engagements & activité (analyse deep CRM) ────────
   "crm.objects.appointments.read",
   "crm.schemas.appointments.read",
   "sales-email-read",
+  // Engagements en tant qu'objets : nécessaires pour accéder aux DÉTAILS
+  // (durée appel, contenu email, status meeting). Sans ça on n'a que les
+  // associations (IDs liés aux deals). Pour aller vraiment deep dans
+  // l'analyse activité commerciale, ces scopes sont indispensables.
+  "crm.objects.calls.read",
+  "crm.objects.emails.read",
+  "crm.objects.meetings.read",
+  "crm.objects.notes.read",
+  "crm.objects.tasks.read",
+  "crm.objects.feedback_submissions.read", // CSAT / NPS HubSpot Service
+  "crm.objects.products.read",              // catalogue produits (line_items)
+  "conversations.read",                      // Service Hub conversations inbox
 
   // ── Workflows & automation (Marketing/Ops Pro+) ───────
   "automation",
@@ -133,6 +145,51 @@ export type HubSpotCustomObject = {
   /** date de création de l'objet */
   createdAt: string | null;
 };
+
+/**
+ * Liste les LISTES HubSpot (segments de contacts/companies) du portail.
+ * Ce ne sont PAS des custom objects mais souvent confondues — on les
+ * affiche à part dans la card pour donner une vue complète.
+ */
+export type HubSpotList = {
+  listId: string;
+  name: string;
+  objectTypeId: string;
+  size: number | null;
+  processingType: string;
+  createdAt: string | null;
+};
+
+export async function fetchHubSpotLists(accessToken: string): Promise<HubSpotList[]> {
+  try {
+    const res = await fetch(`${HUBSPOT_API}/crm/v3/lists/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ count: 100 }),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      lists?: Array<{
+        listId: string;
+        name: string;
+        objectTypeId: string;
+        processingType: string;
+        createdAt?: string;
+        additionalProperties?: { hs_list_size?: string };
+      }>;
+    };
+    return (data.lists ?? []).map((l) => ({
+      listId: l.listId,
+      name: l.name,
+      objectTypeId: l.objectTypeId,
+      size: l.additionalProperties?.hs_list_size ? parseInt(l.additionalProperties.hs_list_size, 10) : null,
+      processingType: l.processingType,
+      createdAt: l.createdAt ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export async function fetchHubSpotCustomObjects(accessToken: string): Promise<HubSpotCustomObject[]> {
   const res = await fetch(`${HUBSPOT_API}/crm/v3/schemas`, {

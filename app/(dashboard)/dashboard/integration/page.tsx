@@ -21,6 +21,8 @@ import {
   getCanonicalIntegrationData,
 } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
+import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { guessDomain } from "@/lib/integrations/guess-domain";
 import { Suspense } from "react";
 import Link from "next/link";
 
@@ -136,14 +138,18 @@ export default async function IntegrationPage({
                 <p className="mt-3 text-xs text-slate-400">Aucune app privée détectée.</p>
               ) : (
                 <ul className="mt-3 space-y-1.5">
-                  {portalApps.privateApps.slice(0, 10).map((app) => (
-                    <li key={app.name} className="flex items-center justify-between text-xs">
-                      <span className="truncate text-slate-700">{app.name}</span>
-                      <span className="ml-2 shrink-0 font-medium text-slate-500">
-                        {app.usageCount.toLocaleString("fr-FR")} appels
-                      </span>
-                    </li>
-                  ))}
+                  {portalApps.privateApps.slice(0, 10).map((app) => {
+                    const guessed = guessDomain(app.name);
+                    return (
+                      <li key={app.name} className="flex items-center gap-2 text-xs">
+                        <BrandLogo domain={guessed.domain} alt={app.name} fallback={guessed.icon} size={20} />
+                        <span className="flex-1 truncate text-slate-700">{app.name}</span>
+                        <span className="shrink-0 font-medium text-slate-500">
+                          {app.usageCount.toLocaleString("fr-FR")} appels
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </article>
@@ -161,14 +167,18 @@ export default async function IntegrationPage({
                 <p className="mt-3 text-xs text-slate-400">Aucune app publique détectée.</p>
               ) : (
                 <ul className="mt-3 space-y-1.5">
-                  {portalApps.publicApps.slice(0, 10).map((app) => (
-                    <li key={app.name} className="flex items-center justify-between text-xs">
-                      <span className="truncate text-slate-700">{app.name}</span>
-                      <span className="ml-2 shrink-0 font-medium text-slate-500">
-                        {app.usageCount.toLocaleString("fr-FR")} appels
-                      </span>
-                    </li>
-                  ))}
+                  {portalApps.publicApps.slice(0, 10).map((app) => {
+                    const guessed = guessDomain(app.name);
+                    return (
+                      <li key={app.name} className="flex items-center gap-2 text-xs">
+                        <BrandLogo domain={guessed.domain} alt={app.name} fallback={guessed.icon} size={20} />
+                        <span className="flex-1 truncate text-slate-700">{app.name}</span>
+                        <span className="shrink-0 font-medium text-slate-500">
+                          {app.usageCount.toLocaleString("fr-FR")} appels
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </article>
@@ -198,19 +208,27 @@ export default async function IntegrationPage({
                 </tr>
               </thead>
               <tbody>
-                {directlyConnectedKeys.map((provider) => (
-                  <tr key={provider} className="border-b border-card-border last:border-0">
-                    <td className="px-5 py-2.5 font-medium capitalize text-slate-800">{provider}</td>
-                    <td className="px-5 py-2.5">
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">✓ Connecté</span>
-                    </td>
-                    <td className="px-5 py-2.5">
-                      <Link href={`/dashboard/integration/connect/${provider}`} className="text-xs font-medium text-accent hover:underline">
-                        Reconfigurer
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {directlyConnectedKeys.map((provider) => {
+                  const tool = CONNECTABLE_TOOLS[provider];
+                  return (
+                    <tr key={provider} className="border-b border-card-border last:border-0">
+                      <td className="px-5 py-2.5">
+                        <div className="flex items-center gap-2">
+                          {tool && <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={24} />}
+                          <span className="font-medium text-slate-800">{tool?.label ?? provider}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-2.5">
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">✓ Connecté</span>
+                      </td>
+                      <td className="px-5 py-2.5">
+                        <Link href={`/dashboard/integration/connect/${provider}`} className="text-xs font-medium text-accent hover:underline">
+                          Reconfigurer
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

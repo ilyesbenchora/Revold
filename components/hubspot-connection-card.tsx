@@ -18,6 +18,15 @@ type HsMeta = {
     createdAt: string | null;
   }>;
   custom_objects_count?: number;
+  lists?: Array<{
+    listId: string;
+    name: string;
+    objectTypeId: string;
+    size: number | null;
+    processingType: string;
+    createdAt: string | null;
+  }>;
+  lists_count?: number;
 };
 
 type IntegrationRow = {
@@ -98,7 +107,7 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
 
         {hsState === "oauth" && hsMeta && (
           <>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4 text-xs">
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5 text-xs">
               <div className="rounded-lg bg-slate-50 px-3 py-2">
                 <p className="font-medium text-slate-500">Portal ID</p>
                 <p className="mt-0.5 font-semibold text-slate-800">{hsRow?.portal_id ?? "—"}</p>
@@ -112,6 +121,10 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
                 <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.custom_objects_count ?? 0}</p>
               </div>
               <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="font-medium text-slate-500">Listes</p>
+                <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.lists_count ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
                 <p className="font-medium text-slate-500">Connecté le</p>
                 <p className="mt-0.5 font-semibold text-slate-800">
                   {hsMeta.connected_at
@@ -120,6 +133,34 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
                 </p>
               </div>
             </div>
+
+            {hsMeta.lists && hsMeta.lists.length > 0 && (
+              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2">
+                  📋 Listes HubSpot détectées ({hsMeta.lists.length})
+                </p>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {hsMeta.lists.slice(0, 12).map((l) => (
+                    <div key={l.listId} className="flex items-center justify-between gap-3 rounded-md bg-white/70 px-3 py-1.5">
+                      <span className="truncate text-xs font-medium text-slate-800">{l.name}</span>
+                      <div className="shrink-0 flex items-center gap-2">
+                        {l.size != null && (
+                          <span className="text-[10px] text-slate-500">{l.size.toLocaleString("fr-FR")} contacts</span>
+                        )}
+                        <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700">
+                          {l.processingType === "DYNAMIC" ? "dynamique" : l.processingType === "SNAPSHOT" ? "snapshot" : l.processingType.toLowerCase()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {hsMeta.lists.length > 12 && (
+                    <p className="text-[10px] italic text-slate-500 text-center">
+                      + {hsMeta.lists.length - 12} autres listes
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {hsMeta.custom_objects && hsMeta.custom_objects.length > 0 && (
               <div className="mt-4 rounded-lg border border-fuchsia-100 bg-fuchsia-50/40 p-3">

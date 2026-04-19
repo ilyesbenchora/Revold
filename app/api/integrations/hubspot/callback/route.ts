@@ -12,6 +12,7 @@ import {
   exchangeHubSpotCode,
   fetchHubSpotAccountInfo,
   fetchHubSpotCustomObjects,
+  fetchHubSpotLists,
 } from "@/lib/integrations/hubspot";
 import { verifyOAuthState } from "@/lib/integrations/oauth-state";
 
@@ -79,13 +80,17 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Détecte les custom objects créés dans le portail (non bloquant si fail)
-  let customObjects: Awaited<ReturnType<typeof fetchHubSpotCustomObjects>> = [];
-  try {
-    customObjects = await fetchHubSpotCustomObjects(tokens.access_token);
-  } catch (err) {
-    console.warn("[hubspot oauth callback] custom objects fetch failed (non-fatal)", { orgId, err });
-  }
+  // Détecte les custom objects + listes (non bloquant si fail)
+  const [customObjects, lists] = await Promise.all([
+    fetchHubSpotCustomObjects(tokens.access_token).catch((err) => {
+      console.warn("[hubspot oauth callback] custom objects fetch failed", { orgId, err });
+      return [] as Awaited<ReturnType<typeof fetchHubSpotCustomObjects>>;
+    }),
+    fetchHubSpotLists(tokens.access_token).catch((err) => {
+      console.warn("[hubspot oauth callback] lists fetch failed", { orgId, err });
+      return [] as Awaited<ReturnType<typeof fetchHubSpotLists>>;
+    }),
+  ]);
 
   // Upsert dans integrations
   const supabase = await createSupabaseServerClient();
@@ -108,6 +113,8 @@ export async function GET(req: NextRequest) {
           connected_at: new Date().toISOString(),
           custom_objects: customObjects,
           custom_objects_count: customObjects.length,
+          lists,
+          lists_count: lists.length,
         },
         updated_at: new Date().toISOString(),
       },
