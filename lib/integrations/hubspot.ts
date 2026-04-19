@@ -15,9 +15,18 @@ type HubSpotTokens = {
   expires_in: number;
 };
 
-/** Scopes minimaux pour le sync CRM + insights. Doivent matcher l'app HubSpot
- *  configurée dans le portail développeur. */
+/** Scopes nécessaires pour l'analyse Revold complète.
+ *  Doivent EXACTEMENT matcher la liste "Required" dans l'app HubSpot du portail développeur.
+ *
+ *  Plan dependencies :
+ *   - Free / Starter : crm.objects.* + crm.schemas.* + crm.lists.read OK
+ *   - Sales Hub Pro+ : sales-email-read, crm.objects.quotes.read
+ *   - Service Hub Pro+ : tickets
+ *   - Marketing Hub Pro+ / Operations Hub : automation, forms
+ *   - HubSpot Invoices (add-on) : crm.objects.invoices.read
+ */
 export const HUBSPOT_OAUTH_SCOPES = [
+  // ── CRM core (tous plans) ─────────────────────────────
   "crm.objects.deals.read",
   "crm.objects.contacts.read",
   "crm.objects.companies.read",
@@ -25,9 +34,27 @@ export const HUBSPOT_OAUTH_SCOPES = [
   "crm.schemas.deals.read",
   "crm.schemas.contacts.read",
   "crm.schemas.companies.read",
-  "tickets",
-  "automation",
+  "crm.lists.read",
+  "crm.objects.line_items.read", // line items des deals (multi-produit)
+
+  // ── Engagements & activité (Sales Hub Pro+) ───────────
   "sales-email-read",
+
+  // ── Workflows & automation (Marketing/Ops Pro+) ───────
+  "automation",
+
+  // ── Service Hub ───────────────────────────────────────
+  "tickets",
+
+  // ── Marketing / formulaires ───────────────────────────
+  "forms",
+
+  // ── Revenue / facturation HubSpot ─────────────────────
+  "crm.objects.invoices.read",
+  "crm.objects.quotes.read",
+
+  // ── Méta-données portail ──────────────────────────────
+  "account-info.security.read",
 ];
 
 /**
