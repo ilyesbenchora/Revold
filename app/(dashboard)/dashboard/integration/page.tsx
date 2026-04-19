@@ -1,5 +1,4 @@
 export const maxDuration = 60;
-// Toujours frais : l'état de la connexion HubSpot change après connect/disconnect
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -10,21 +9,43 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { HubspotConnectionCard } from "@/components/hubspot-connection-card";
 import { type DetectedIntegration } from "@/lib/integrations/detect-integrations";
 import { type PortalApp } from "@/lib/integrations/detect-portal-apps";
-import { getRecommendedCategories } from "@/lib/integrations/recommended-tools";
-import {
-  filterBusinessIntegrations,
-} from "@/lib/integrations/integration-score";
-import {
-  getCanonicalIntegrationData,
-} from "@/lib/supabase/cached";
+import { getCanonicalIntegrationData } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
-import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/connect-catalog";
 import { guessDomain } from "@/lib/integrations/guess-domain";
 import { Suspense } from "react";
 import Link from "next/link";
+
+const CATEGORY_META: Record<ConnectableTool["category"], { label: string; emoji: string; gradient: string; description: string }> = {
+  crm: {
+    label: "CRM",
+    emoji: "🗂️",
+    gradient: "from-orange-500 to-amber-500",
+    description: "Source principale de vos contacts, deals, pipelines et activités commerciales.",
+  },
+  billing: {
+    label: "Facturation",
+    emoji: "💳",
+    gradient: "from-emerald-500 to-teal-500",
+    description: "Réconciliez les opportunités fermées avec les factures et paiements réels — pilotez le cash, pas seulement le pipeline.",
+  },
+  phone: {
+    label: "Téléphonie",
+    emoji: "📞",
+    gradient: "from-indigo-500 to-blue-500",
+    description: "Croisez les appels (durée, taux de connexion) avec les deals pour mesurer l'impact du téléphone sur le closing.",
+  },
+  support: {
+    label: "Service client",
+    emoji: "🎧",
+    gradient: "from-fuchsia-500 to-pink-500",
+    description: "Croisez tickets clients et opportunités pour mesurer la rétention, anticiper le churn et calculer le NPS.",
+  },
+};
+
+const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support"];
 
 export default async function IntegrationPage({
   searchParams,
@@ -51,36 +72,38 @@ export default async function IntegrationPage({
     totalApps: 0,
   };
   if (hubspotTokenConfigured) {
-    // Same canonical helper as the header → guaranteed identical inputs.
     const data = await getCanonicalIntegrationData();
     detectedIntegrations = data.integrations;
     portalApps = data.portalApps;
   }
 
-  // DB integrations row (full HubSpot row pour le HubspotConnectionCard)
+  // Lecture stricte de la table integrations pour CETTE org : on prend
+  // uniquement les rows actives (multi-tenant safe, sans fallback env).
   const { data: integrationsRecords } = await supabase
     .from("integrations")
-    .select("*")
-    .eq("organization_id", orgId);
+    .select("provider, is_active, refresh_token, portal_id")
+    .eq("organization_id", orgId)
+    .eq("is_active", true);
 
-  const activeIntegrations = (integrationsRecords ?? []).filter((i) => i.is_active);
-  const hsRow = (integrationsRecords ?? []).find((i) => i.provider === "hubspot") ?? null;
-  const hasEnvFallback = !!process.env.HUBSPOT_ACCESS_TOKEN;
+  const connectedKeys = new Set(
+    (integrationsRecords ?? []).map((i) => i.provider).filter(Boolean),
+  );
+  // HubSpot OAuth réel : refresh_token + portal_id requis
+  const hubspotOAuthConnected = (integrationsRecords ?? []).some(
+    (i) => i.provider === "hubspot" && i.refresh_token && i.portal_id,
+  );
+  if (hubspotOAuthConnected) connectedKeys.add("hubspot");
 
-  // Same canonical filter used by the header score so KPI numbers and
-  // displayed cards always match.
-  const businessIntegrations = filterBusinessIntegrations(detectedIntegrations);
-
-  // Tools already connected directly to Revold (via the connect/[tool] flow)
-  const directlyConnectedKeys = activeIntegrations
-    .map((i) => i.provider)
-    .filter((p) => p !== "hubspot");
-
-  // Recommended tools to connect (filter out HubSpot-detected AND directly-connected ones)
-  const recommendedCategories = getRecommendedCategories([
-    ...businessIntegrations.map((i) => i.key),
-    ...directlyConnectedKeys,
-  ]);
+  // Group tools by category
+  const toolsByCategory: Record<ConnectableTool["category"], ConnectableTool[]> = {
+    crm: [],
+    billing: [],
+    phone: [],
+    support: [],
+  };
+  for (const tool of Object.values(CONNECTABLE_TOOLS)) {
+    toolsByCategory[tool.category].push(tool);
+  }
 
   return (
     <section className="space-y-8">
@@ -89,7 +112,7 @@ export default async function IntegrationPage({
 
       {connectedTool && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          ✓ <strong>{connectedTool}</strong> est maintenant connecté à Revold. Vos données seront synchronisées en arrière-plan.
+          ✓ <strong>{connectedTool}</strong> est maintenant connecté à Revold.
         </div>
       )}
       {disconnectedTool && (
@@ -101,31 +124,121 @@ export default async function IntegrationPage({
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Intégration</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Connectez votre CRM HubSpot et vos outils tiers à Revold.
+          Connectez votre stack revenue : CRM, facturation, téléphonie, service client.
+          Tout converge dans Revold.
         </p>
       </header>
 
-      {/* Card de connexion HubSpot — source unique de vérité */}
-      <HubspotConnectionCard hsRow={hsRow} hasEnvFallback={hasEnvFallback} />
-
       <InsightLockedBlock />
 
-      {/* Apps connectées au portail HubSpot */}
+      {/* ── BLOC TOP : Outils synchronisés (apparaît UNIQUEMENT si ≥ 1 connecté) ── */}
+      {connectedKeys.size > 0 && (
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-white p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-teal-500 text-xs text-white">
+              ✓
+            </span>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Outils principaux synchronisés
+            </h2>
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+              {connectedKeys.size}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Vos outils CRM, facturation, téléphonie et service client connectés à Revold.
+            Les données convergent automatiquement.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {CATEGORY_ORDER.flatMap((cat) =>
+              toolsByCategory[cat]
+                .filter((t) => connectedKeys.has(t.key))
+                .map((tool) => {
+                  const meta = CATEGORY_META[tool.category];
+                  return (
+                    <Link
+                      key={tool.key}
+                      href="/dashboard/parametres/integrations"
+                      className="group flex items-center gap-3 rounded-xl border border-emerald-200 bg-white p-4 transition hover:border-emerald-300 hover:shadow-sm"
+                    >
+                      <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
+                          <span className="shrink-0 text-xs">{meta.emoji}</span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-emerald-700 font-medium">
+                          ✓ Connecté · {meta.label}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                }),
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BLOCS CATEGORIES : outils à connecter (ne montre QUE les non-connectés) ── */}
+      <div className="space-y-6">
+        {CATEGORY_ORDER.map((cat) => {
+          const meta = CATEGORY_META[cat];
+          const tools = toolsByCategory[cat].filter((t) => !connectedKeys.has(t.key));
+          if (tools.length === 0) return null; // Catégorie entièrement connectée → masquer
+
+          return (
+            <div key={cat} className="space-y-3">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br ${meta.gradient} text-xs text-white`}>
+                  {meta.emoji}
+                </span>
+                {meta.label}
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                  à connecter
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500">{meta.description}</p>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {tools.map((tool) => {
+                  const url = tool.connectUrl ?? `/dashboard/integration/connect/${tool.key}`;
+                  return (
+                    <Link
+                      key={tool.key}
+                      href={url}
+                      className="group relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-accent/40 hover:bg-slate-50/50"
+                    >
+                      <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
+                        <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">{tool.vendor}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent opacity-0 transition group-hover:opacity-100">
+                        Connecter
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Apps détectées dans le portail HubSpot — info contextuelle gardée */}
       {portalApps.totalApps > 0 && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />Apps connectées au portail HubSpot
+              <span className="h-2 w-2 rounded-full bg-blue-500" />Apps détectées dans le portail HubSpot
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{portalApps.totalApps}</span>
             </h2>
           }
         >
           <p className="text-sm text-slate-500">
-            Toutes les applications publiques (marketplace) et privées qui consomment l&apos;API de votre portail HubSpot.
-            Indicateur clé pour comprendre l&apos;ampleur de votre stack et identifier les apps actives.
+            Applications publiques (marketplace) et privées qui consomment l&apos;API de votre portail HubSpot.
           </p>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* Apps privées */}
             <article className="card p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-slate-900">Apps privées</h3>
@@ -133,16 +246,15 @@ export default async function IntegrationPage({
                   {portalApps.privateApps.length}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-400">Développées en interne ou par des partenaires.</p>
               {portalApps.privateApps.length === 0 ? (
                 <p className="mt-3 text-xs text-slate-400">Aucune app privée détectée.</p>
               ) : (
                 <ul className="mt-3 space-y-1.5">
                   {portalApps.privateApps.slice(0, 10).map((app) => {
-                    const guessed = guessDomain(app.name);
+                    const g = guessDomain(app.name);
                     return (
                       <li key={app.name} className="flex items-center gap-2 text-xs">
-                        <BrandLogo domain={guessed.domain} alt={app.name} fallback={guessed.icon} size={20} />
+                        <BrandLogo domain={g.domain} alt={app.name} fallback={g.icon} size={20} />
                         <span className="flex-1 truncate text-slate-700">{app.name}</span>
                         <span className="shrink-0 font-medium text-slate-500">
                           {app.usageCount.toLocaleString("fr-FR")} appels
@@ -153,8 +265,6 @@ export default async function IntegrationPage({
                 </ul>
               )}
             </article>
-
-            {/* Apps publiques */}
             <article className="card p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-slate-900">Apps publiques (marketplace)</h3>
@@ -162,16 +272,15 @@ export default async function IntegrationPage({
                   {portalApps.publicApps.length}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-400">Installées depuis le marketplace HubSpot.</p>
               {portalApps.publicApps.length === 0 ? (
                 <p className="mt-3 text-xs text-slate-400">Aucune app publique détectée.</p>
               ) : (
                 <ul className="mt-3 space-y-1.5">
                   {portalApps.publicApps.slice(0, 10).map((app) => {
-                    const guessed = guessDomain(app.name);
+                    const g = guessDomain(app.name);
                     return (
                       <li key={app.name} className="flex items-center gap-2 text-xs">
-                        <BrandLogo domain={guessed.domain} alt={app.name} fallback={guessed.icon} size={20} />
+                        <BrandLogo domain={g.domain} alt={app.name} fallback={g.icon} size={20} />
                         <span className="flex-1 truncate text-slate-700">{app.name}</span>
                         <span className="shrink-0 font-medium text-slate-500">
                           {app.usageCount.toLocaleString("fr-FR")} appels
@@ -185,103 +294,6 @@ export default async function IntegrationPage({
           </div>
         </CollapsibleBlock>
       )}
-
-      {/* Already connected to Revold */}
-      {directlyConnectedKeys.length > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />Outils connectés à Revold
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                {directlyConnectedKeys.length}
-              </span>
-            </h2>
-          }
-        >
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="px-5 py-2">Outil</th>
-                  <th className="px-5 py-2">Statut</th>
-                  <th className="px-5 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {directlyConnectedKeys.map((provider) => {
-                  const tool = CONNECTABLE_TOOLS[provider];
-                  return (
-                    <tr key={provider} className="border-b border-card-border last:border-0">
-                      <td className="px-5 py-2.5">
-                        <div className="flex items-center gap-2">
-                          {tool && <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={24} />}
-                          <span className="font-medium text-slate-800">{tool?.label ?? provider}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-2.5">
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">✓ Connecté</span>
-                      </td>
-                      <td className="px-5 py-2.5">
-                        <Link href={`/dashboard/integration/connect/${provider}`} className="text-xs font-medium text-accent hover:underline">
-                          Reconfigurer
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CollapsibleBlock>
-      )}
-
-      {/* Recommended tools to connect */}
-      {recommendedCategories.length > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />Outils à connecter à Revold
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                {recommendedCategories.reduce((s, c) => s + c.tools.length, 0)} suggestions
-              </span>
-            </h2>
-          }
-        >
-          <p className="text-sm text-slate-500">
-            Synchronisez ces outils <strong>directement à Revold</strong>, sans passer par HubSpot.
-            C&apos;est ça la puissance de Revold : centraliser <strong>toutes les données revenus de votre entreprise</strong> en un seul endroit
-            — CRM, facturation, service client — pour piloter le business à 360°.
-          </p>
-          <div className="space-y-4">
-            {recommendedCategories.map((cat) => (
-              <article key={cat.id} className="card p-5">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">{cat.label}</h3>
-                  <p className="mt-1 text-xs text-slate-500">{cat.description}</p>
-                </div>
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {cat.tools.map((tool) => (
-                    <Link
-                      key={tool.key}
-                      href={tool.connectUrl}
-                      className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition"
-                    >
-                      <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={32} />
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-900 group-hover:text-indigo-700">{tool.label}</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white opacity-0 transition group-hover:opacity-100">
-                        Connecter
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </CollapsibleBlock>
-      )}
-
     </section>
   );
 }

@@ -24,7 +24,11 @@ export type ConnectableTool = {
   icon: string;
   // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
   domain: string;
-  category: "crm" | "billing" | "support";
+  category: "crm" | "billing" | "phone" | "support";
+  /** True si la connexion passe par OAuth (URL spéciale) au lieu du flow API key. */
+  oauth?: boolean;
+  /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
+  connectUrl?: string;
   description: string;
   helpUrl: string;
   helpText: string;
@@ -33,6 +37,20 @@ export type ConnectableTool = {
 
 export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
   // ── CRM ─────────────────────────────────────────────────────────
+  hubspot: {
+    key: "hubspot",
+    label: "HubSpot",
+    vendor: "HubSpot Inc.",
+    icon: "🟧",
+    domain: "hubspot.com",
+    category: "crm",
+    oauth: true,
+    connectUrl: "/api/integrations/hubspot/connect",
+    description: "CRM B2B leader pour PME / mid-market. Le coeur de votre Revenue Stack — 31 scopes lecture pour exploiter pleinement les données.",
+    helpUrl: "https://www.hubspot.com/products/crm",
+    helpText: "Connexion en un clic via OAuth — vous serez redirigé vers HubSpot pour autoriser l'accès lecture seule.",
+    fields: [], // OAuth, pas de champs manuels
+  },
   salesforce: {
     key: "salesforce",
     label: "Salesforce",
@@ -172,6 +190,37 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     ],
   },
 
+  // ── Téléphonie ──────────────────────────────────────────────────
+  aircall: {
+    key: "aircall",
+    label: "Aircall",
+    vendor: "Aircall",
+    icon: "📞",
+    domain: "aircall.io",
+    category: "phone",
+    description: "Téléphonie cloud B2B. Synchronisez les appels (volume, durée, taux de connexion) au niveau owner et deal pour l'analyse activité commerciale.",
+    helpUrl: "https://developer.aircall.io/api-references/#authentication",
+    helpText: "Récupérez vos identifiants API : Aircall Dashboard → Integrations & API → API Keys.",
+    fields: [
+      { key: "api_id", label: "API ID", placeholder: "•••••••••••", type: "text" },
+      { key: "api_token", label: "API Token", placeholder: "•••••••••••", type: "password" },
+    ],
+  },
+  ringover: {
+    key: "ringover",
+    label: "Ringover",
+    vendor: "Ringover",
+    icon: "📞",
+    domain: "ringover.com",
+    category: "phone",
+    description: "Téléphonie cloud française. Croisez les appels avec les deals pour mesurer l'impact du téléphone sur le closing.",
+    helpUrl: "https://developers.ringover.com/",
+    helpText: "Générez votre API Key : Dashboard Ringover → Account → API Keys.",
+    fields: [
+      { key: "api_key", label: "API Key", placeholder: "•••••••••••", type: "password" },
+    ],
+  },
+
   // ── Service client ──────────────────────────────────────────────
   intercom: {
     key: "intercom",
@@ -243,6 +292,7 @@ export function getConnectableTool(key: string): ConnectableTool | null {
 const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   crm: "CRM",
   billing: "Facturation",
+  phone: "Téléphonie",
   support: "Service client",
 };
 
