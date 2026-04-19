@@ -50,6 +50,7 @@ export const HUBSPOT_OAUTH_SCOPES = [
 
   // ── Engagements & activité ────────────────────────────
   "crm.objects.appointments.read",
+  "crm.schemas.appointments.read",
   "sales-email-read",
 
   // ── Workflows & automation (Marketing/Ops Pro+) ───────
