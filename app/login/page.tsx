@@ -22,6 +22,7 @@ export default function LoginPage() {
 function LoginForm() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const checkEmail = searchParams.get("check_email") === "1";
   const isSignup = searchParams.get("mode") === "signup";
 
   const [email, setEmail] = useState("");
@@ -82,6 +83,13 @@ function LoginForm() {
         {error && (
           <div className="mt-4 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
             {decodeURIComponent(error)}
+          </div>
+        )}
+
+        {checkEmail && (
+          <div className="mt-4 rounded-lg border border-emerald-800 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-300">
+            ✓ Compte créé. Vérifiez vos emails — un lien de confirmation vient d&apos;être envoyé.
+            Cliquez dessus pour activer votre accès Revold.
           </div>
         )}
 

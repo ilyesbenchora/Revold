@@ -31,26 +31,58 @@ export const getOrgId = cache(async (): Promise<string | null> => {
     .eq("id", user.id)
     .single();
 
-  // Auto-create profile if it doesn't exist (new user via Supabase Auth)
+  // Pas de profile : créer SA propre org depuis user_metadata.
+  // ⚠ JAMAIS de fallback "first org found" — c'était une faille multi-tenant
+  // qui attachait silencieusement les nouveaux users à la 1ʳᵉ org existante.
   if (!profile) {
-    const { data: org } = await supabase
+    const meta = user.user_metadata as { org_name?: string; full_name?: string } | null;
+    const orgName =
+      (meta?.org_name && meta.org_name.trim()) ||
+      (user.email ? `Org de ${user.email.split("@")[0]}` : "Mon organisation");
+    const fullName = meta?.full_name?.trim() || user.email?.split("@")[0] || "Utilisateur";
+
+    const slug = orgName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      || "org";
+
+    const { data: org, error: orgErr } = await supabase
       .from("organizations")
+      .insert({ name: orgName, slug: `${slug}-${Date.now()}` })
       .select("id")
-      .limit(1)
       .single();
 
-    if (!org) return null;
+    if (orgErr || !org) {
+      console.error("[getOrgId] failed to create org for new user", { userId: user.id, orgErr });
+      return null;
+    }
 
-    const { data: newProfile } = await supabase
+    const { data: newProfile, error: profErr } = await supabase
       .from("profiles")
       .insert({
         id: user.id,
         organization_id: org.id,
-        full_name: user.email?.split("@")[0] ?? "Utilisateur",
+        full_name: fullName,
         role: "admin",
       })
       .select("organization_id")
       .single();
+
+    if (profErr) {
+      console.error("[getOrgId] failed to create profile", { userId: user.id, orgId: org.id, profErr });
+      return null;
+    }
+
+    // Pipeline stages par défaut pour la nouvelle org
+    await supabase.from("pipeline_stages").insert([
+      { organization_id: org.id, name: "Découverte", position: 1, probability: 10 },
+      { organization_id: org.id, name: "Qualification", position: 2, probability: 25 },
+      { organization_id: org.id, name: "Proposition", position: 3, probability: 50 },
+      { organization_id: org.id, name: "Négociation", position: 4, probability: 75 },
+      { organization_id: org.id, name: "Gagné", position: 5, probability: 100, is_closed_won: true },
+      { organization_id: org.id, name: "Perdu", position: 6, probability: 0, is_closed_lost: true },
+    ]);
 
     profile = newProfile;
   }
