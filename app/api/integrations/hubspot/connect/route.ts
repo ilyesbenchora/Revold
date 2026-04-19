@@ -29,12 +29,14 @@ export async function GET() {
   const authUrl = getHubSpotAuthUrl(state);
 
   const res = NextResponse.redirect(authUrl);
-  // Pose le state dans un cookie httpOnly pour double-vérification au callback
+  // Cookie httpOnly pour double-vérification au callback.
+  // Path = "/" pour éviter tout problème de scope cookie (path strict trop
+  // étroit peut être ignoré par certains browsers en cross-site redirect).
   res.cookies.set("hs_oauth_state", state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/api/integrations/hubspot/callback",
+    path: "/",
     maxAge: 600, // 10 min
   });
   return res;
