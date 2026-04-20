@@ -51,8 +51,9 @@ export type RevenuePipelineContext = {
   inferredType: "new_business" | "renewal" | "upsell" | "other";
 };
 
-export type RevenueSmartSim = Omit<BaseSmartSim, "section" | "selectedStageIds"> & {
+export type RevenueSmartSim = Omit<BaseSmartSim, "section" | "selectedStageIds" | "id"> & {
   section: "growth" | "ticket" | "forecast" | "retention";
+  id?: string;
   // Revenue n'utilise pas de filtre stages — tout le pipeline est concerné
 };
 
