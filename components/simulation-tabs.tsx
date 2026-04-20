@@ -2,6 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { AlertButton } from "@/components/alert-button";
+import { CycleVentesSimulations } from "@/components/cycle-ventes-simulations";
+
+type Pipeline = {
+  id: string;
+  label: string;
+  stages: Array<{ id: string; label: string; probability: number; closedWon: boolean; closedLost: boolean }>;
+};
 
 export type SimulationItem = {
   title: string;
@@ -260,9 +267,11 @@ function SimulationCard({ sim }: { sim: SimulationItem }) {
 export function SimulationTabs({
   scenarios,
   alerts,
+  pipelines = [],
 }: {
   scenarios: SimulationItem[];
   alerts: AlertItem[];
+  pipelines?: Pipeline[];
 }) {
   const [tab, setTab] = useState<TabId>("mine");
   const [teamFilter, setTeamFilter] = useState<string>("all");
@@ -376,7 +385,7 @@ export function SimulationTabs({
         filteredAlerts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <p className="text-sm text-slate-500">
-              Aucune alerte activée pour l&apos;instant. Activez un objectif depuis les onglets Pipeline / Lifecycle / Données.
+              Aucune alerte activée pour l&apos;instant. Activez un objectif depuis les onglets Cycle de ventes / Marketing / Deals à risques / Revenue / Données.
             </p>
           </div>
         ) : (
@@ -384,6 +393,10 @@ export function SimulationTabs({
             {filteredAlerts.map((a) => <AlertCard key={a.id} alert={a} />)}
           </div>
         )
+      ) : tab === "cycle_ventes" ? (
+        // Onglet Cycle de ventes : composant dédié avec sélecteurs pipeline + stages
+        // qui génère 4 sections (velocity, risk, forecast, analytics) dynamiquement.
+        <CycleVentesSimulations pipelines={pipelines} />
       ) : (
         filteredScenarios.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">

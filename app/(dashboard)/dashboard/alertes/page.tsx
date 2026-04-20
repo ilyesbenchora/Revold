@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { SimulationTabs, type SimulationItem, type AlertItem } from "@/components/simulation-tabs";
 import { buildContext, buildScenarios } from "../insights-ia/context";
@@ -14,13 +14,14 @@ export default async function ScenariosPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [ctx, { data: allAlerts }] = await Promise.all([
+  const [ctx, { data: allAlerts }, snapshot] = await Promise.all([
     buildContext(supabase, orgId),
     supabase
       .from("alerts")
       .select("*")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false }),
+    getHubspotSnapshot(),
   ]);
 
   // Les 30 simulations s'affichent toujours — buildContext fait fallback HubSpot
@@ -41,7 +42,21 @@ export default async function ScenariosPage() {
         <CreateAlertModal />
       </header>
 
-      <SimulationTabs scenarios={scenarios} alerts={alerts} />
+      <SimulationTabs
+        scenarios={scenarios}
+        alerts={alerts}
+        pipelines={snapshot.pipelines.map((p) => ({
+          id: p.id,
+          label: p.label,
+          stages: p.stages.map((s) => ({
+            id: s.id,
+            label: s.label,
+            probability: s.probability,
+            closedWon: s.closedWon,
+            closedLost: s.closedLost,
+          })),
+        }))}
+      />
     </section>
   );
 }
