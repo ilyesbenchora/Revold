@@ -35,69 +35,95 @@ export const getOrgId = cache(async (): Promise<string | null> => {
   if (!user) return null;
   const supabase = await createSupabaseServerClient();
 
+  // 1ère tentative : profile déjà créé
   let { data: profile } = await supabase
     .from("profiles")
     .select("organization_id")
     .eq("id", user.id)
     .single();
 
-  // Pas de profile : créer SA propre org depuis user_metadata.
-  // ⚠ JAMAIS de fallback "first org found" — c'était une faille multi-tenant
-  // qui attachait silencieusement les nouveaux users à la 1ʳᵉ org existante.
-  if (!profile) {
-    const meta = user.user_metadata as { org_name?: string; full_name?: string } | null;
-    const orgName =
-      (meta?.org_name && meta.org_name.trim()) ||
-      (user.email ? `Org de ${user.email.split("@")[0]}` : "Mon organisation");
-    const fullName = meta?.full_name?.trim() || user.email?.split("@")[0] || "Utilisateur";
+  if (profile?.organization_id) return profile.organization_id;
 
-    const slug = orgName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")
-      || "org";
+  // Pas de profile → créer org + profile.
+  // ⚠ Multi-tenant strict : JAMAIS de fallback "first org found".
+  // Pour éviter les race conditions (user qui refresh = 2 orgs créées),
+  // on retry la lecture du profile une seconde fois APRÈS avoir tenté la
+  // création (un autre render peut avoir créé entre-temps).
 
-    const { data: org, error: orgErr } = await supabase
-      .from("organizations")
-      .insert({ name: orgName, slug: `${slug}-${Date.now()}` })
-      .select("id")
-      .single();
+  const meta = user.user_metadata as { org_name?: string; full_name?: string } | null;
+  const orgName =
+    (meta?.org_name && meta.org_name.trim()) ||
+    (user.email ? `Org de ${user.email.split("@")[0]}` : "Mon organisation");
+  const fullName = meta?.full_name?.trim() || user.email?.split("@")[0] || "Utilisateur";
 
-    if (orgErr || !org) {
-      console.error("[getOrgId] failed to create org for new user", { userId: user.id, orgErr });
-      return null;
-    }
+  const slug = orgName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    || "org";
 
-    const { data: newProfile, error: profErr } = await supabase
+  const { data: org, error: orgErr } = await supabase
+    .from("organizations")
+    .insert({ name: orgName, slug: `${slug}-${Date.now()}` })
+    .select("id")
+    .single();
+
+  if (orgErr || !org) {
+    console.error("[getOrgId] failed to create org for new user", { userId: user.id, orgErr });
+    // Re-check si une autre requête concurrente a créé entre-temps
+    const { data: retry } = await supabase
       .from("profiles")
-      .insert({
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    return retry?.organization_id ?? null;
+  }
+
+  // Insert profile avec UPSERT idempotent (id = primary key user.id)
+  // Si race condition crée déjà le profile, le UPSERT met juste à jour sans dupliquer
+  const { data: newProfile, error: profErr } = await supabase
+    .from("profiles")
+    .upsert(
+      {
         id: user.id,
         organization_id: org.id,
         full_name: fullName,
         role: "admin",
-      })
-      .select("organization_id")
-      .single();
+      },
+      { onConflict: "id", ignoreDuplicates: false },
+    )
+    .select("organization_id")
+    .single();
 
-    if (profErr) {
-      console.error("[getOrgId] failed to create profile", { userId: user.id, orgId: org.id, profErr });
-      return null;
-    }
-
-    // Pipeline stages par défaut pour la nouvelle org
-    await supabase.from("pipeline_stages").insert([
-      { organization_id: org.id, name: "Découverte", position: 1, probability: 10 },
-      { organization_id: org.id, name: "Qualification", position: 2, probability: 25 },
-      { organization_id: org.id, name: "Proposition", position: 3, probability: 50 },
-      { organization_id: org.id, name: "Négociation", position: 4, probability: 75 },
-      { organization_id: org.id, name: "Gagné", position: 5, probability: 100, is_closed_won: true },
-      { organization_id: org.id, name: "Perdu", position: 6, probability: 0, is_closed_lost: true },
-    ]);
-
-    profile = newProfile;
+  if (profErr) {
+    console.error("[getOrgId] failed to upsert profile", { userId: user.id, orgId: org.id, profErr });
+    // Cleanup org orphan créée
+    await supabase.from("organizations").delete().eq("id", org.id);
+    return null;
   }
 
-  return profile?.organization_id ?? null;
+  // Si le profile renvoyé pointe vers une AUTRE org (race), supprime celle qu'on vient de créer
+  if (newProfile?.organization_id && newProfile.organization_id !== org.id) {
+    console.warn("[getOrgId] race detected, cleaning up duplicate org", {
+      userId: user.id,
+      created: org.id,
+      kept: newProfile.organization_id,
+    });
+    await supabase.from("organizations").delete().eq("id", org.id);
+    return newProfile.organization_id;
+  }
+
+  // Pipeline stages par défaut pour la nouvelle org
+  await supabase.from("pipeline_stages").insert([
+    { organization_id: org.id, name: "Découverte", position: 1, probability: 10 },
+    { organization_id: org.id, name: "Qualification", position: 2, probability: 25 },
+    { organization_id: org.id, name: "Proposition", position: 3, probability: 50 },
+    { organization_id: org.id, name: "Négociation", position: 4, probability: 75 },
+    { organization_id: org.id, name: "Gagné", position: 5, probability: 100, is_closed_won: true },
+    { organization_id: org.id, name: "Perdu", position: 6, probability: 0, is_closed_lost: true },
+  ]);
+
+  return newProfile?.organization_id ?? org.id;
 });
 
 export const getProfile = cache(async () => {
@@ -216,24 +242,40 @@ export const getHubspotEcosystemCounts = cache(
 /**
  * SNAPSHOT HUBSPOT UNIFIÉ — source de vérité pour TOUTES les pages dashboard.
  *
- * Récupère en parallèle ~30 stats HubSpot : deals, contacts, companies,
- * pipelines, lifecycle, tickets, invoices, subscriptions, owners, ecosystem.
- *
  * Cache request-scoped : un seul fetch par render même si plusieurs pages
  * /composants l'appellent. Toujours préférer getHubspotSnapshot() à des
  * lectures Supabase directes pour TOUTE donnée présente dans HubSpot.
+ *
+ * Retourne aussi des METADATA (`status`, `error`) pour que les pages puissent
+ * distinguer "0 = vraie donnée vide" vs "0 = panne API / token expiré".
  */
-export const getHubspotSnapshot = cache(async (): Promise<HubSpotSnapshot> => {
+export type HubspotSnapshotResult = HubSpotSnapshot & {
+  /** "ok" = données live OK ; "no-token" = pas connecté ; "error" = panne API */
+  status: "ok" | "no-token" | "error";
+  /** Message d'erreur si status === "error" */
+  error?: string;
+};
+
+export const getHubspotSnapshot = cache(async (): Promise<HubspotSnapshotResult> => {
   const orgId = await getOrgId();
-  if (!orgId) return EMPTY_SNAPSHOT;
+  if (!orgId) {
+    return { ...EMPTY_SNAPSHOT, status: "no-token", error: "Aucune organisation" };
+  }
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  if (!token) return EMPTY_SNAPSHOT;
+  if (!token) {
+    return { ...EMPTY_SNAPSHOT, status: "no-token" };
+  }
   try {
-    return await fetchHubSpotSnapshot(token);
+    const snapshot = await fetchHubSpotSnapshot(token);
+    return { ...snapshot, status: "ok" };
   } catch (err) {
     console.error("[getHubspotSnapshot] failed", { orgId, err });
-    return EMPTY_SNAPSHOT;
+    return {
+      ...EMPTY_SNAPSHOT,
+      status: "error",
+      error: err instanceof Error ? err.message : "Erreur HubSpot inconnue",
+    };
   }
 });
 

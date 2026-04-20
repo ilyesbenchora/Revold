@@ -16,26 +16,28 @@ export async function GET(request: Request) {
   const syncType = url.searchParams.get("type") as "companies" | "contacts" | "deals" | "kpi" | null;
   const requestedOrgId = url.searchParams.get("orgId");
 
-  // ── Auth ──
-  // Accepte 2 modes :
-  //  1. orgId explicite via query + CRON_SECRET (utilisé par le callback OAuth
-  //     en fire-and-forget, et par les crons multi-tenant)
-  //  2. Pas d'orgId → fallback sur la 1ère org (legacy single-tenant)
-  let orgId: string;
-  if (requestedOrgId) {
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = request.headers.get("authorization");
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    orgId = requestedOrgId;
-  } else {
-    const { data: orgs } = await supabase.from("organizations").select("id").limit(1);
-    if (!orgs || orgs.length === 0) {
-      return NextResponse.json({ error: "No organization found" }, { status: 400 });
-    }
-    orgId = orgs[0].id;
+  // ── Auth multi-tenant strict ──
+  // orgId est OBLIGATOIRE. CRON_SECRET requis (cron jobs ou callback OAuth).
+  // Plus de fallback "1ère org" qui était une faille (sync org A pouvait
+  // écraser org B).
+  if (!requestedOrgId) {
+    return NextResponse.json(
+      { error: "orgId query param is required (multi-tenant safety)" },
+      { status: 400 },
+    );
   }
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json(
+      { error: "Server misconfiguration: CRON_SECRET not set" },
+      { status: 500 },
+    );
+  }
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const orgId: string = requestedOrgId;
 
   // Token OAuth de cette org spécifique (multi-tenant safe)
   const accessToken = await getHubSpotToken(supabase, orgId);

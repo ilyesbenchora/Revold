@@ -6,7 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
-import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, hubspotLinks } from "../context";
+import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
 
 export default async function DataCoachingPage() {
   const orgId = await getOrgId();
@@ -16,6 +16,8 @@ export default async function DataCoachingPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
+  const portalId = await getOrgHubspotPortalId(supabase, orgId);
+  const hubspotLinks = buildHubspotLinks(portalId);
   const [ctx, { dismissedKeys }, manualCoachings] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
@@ -38,9 +40,9 @@ export default async function DataCoachingPage() {
       title: i.title,
       body: i.body,
       recommendation: i.recommendation,
-      hubspotUrl: hubspotLinks.data,
+      hubspotUrl: hubspotLinks.properties,
       category: "data",
-      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.data, title: i.title, body: i.body, recommendation: i.recommendation, category: "data" }),
+      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.properties, title: i.title, body: i.body, recommendation: i.recommendation, category: "data" }),
     })),
     ...manualCoachings.map((m): UnifiedCoaching => ({
       id: `manual-${m.id}`,

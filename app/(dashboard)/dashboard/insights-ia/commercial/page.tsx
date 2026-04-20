@@ -6,11 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
-import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, hubspotLinks } from "../context";
-
-const HUBSPOT_PORTAL = "48372600";
-const NEW_WORKFLOW = `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}/new`;
-const ALL_WORKFLOWS = `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}`;
+import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
 
 export default async function CommercialCoachingPage() {
   const orgId = await getOrgId();
@@ -20,6 +16,10 @@ export default async function CommercialCoachingPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
+  const portalId = await getOrgHubspotPortalId(supabase, orgId);
+  const hubspotLinks = buildHubspotLinks(portalId);
+  const NEW_WORKFLOW = portalId ? `https://app.hubspot.com/workflows/${portalId}/new` : "https://app.hubspot.com/workflows";
+  const ALL_WORKFLOWS = portalId ? `https://app.hubspot.com/workflows/${portalId}` : "https://app.hubspot.com/workflows";
 
   const [ctx, { dismissedKeys }, { workflows, dealsNoOwner }, manualCoachings] = await Promise.all([
     buildContext(supabase, orgId),
@@ -106,9 +106,9 @@ export default async function CommercialCoachingPage() {
       title: i.title,
       body: i.body,
       recommendation: i.recommendation,
-      hubspotUrl: hubspotLinks.commercial,
+      hubspotUrl: hubspotLinks.deals,
       category: "commercial",
-      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.commercial, title: i.title, body: i.body, recommendation: i.recommendation, category: "commercial" }),
+      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.deals, title: i.title, body: i.body, recommendation: i.recommendation, category: "commercial" }),
     })),
     ...visibleAutomation.map((i): UnifiedCoaching => ({
       id: `automation-${i.key}`,

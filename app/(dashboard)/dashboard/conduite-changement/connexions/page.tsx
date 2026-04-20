@@ -6,8 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { StaleDaysSelector } from "@/components/stale-days-selector";
 import { fetchOwners, searchCount, batchedFetch } from "../context";
-
-const HUBSPOT_PORTAL = "48372600";
+import { getOrgHubspotPortalId } from "../../insights-ia/context";
 
 type Props = {
   searchParams: Promise<{ days?: string; lc?: string | string[]; owner?: string }>;
@@ -20,6 +19,7 @@ export default async function ConnexionsPage({ searchParams }: Props) {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
+  const HUBSPOT_PORTAL = (await getOrgHubspotPortalId(supabase, orgId)) ?? "";
 
   const params = await searchParams;
   const days = Math.max(1, Math.min(365, parseInt(params.days as string || "10") || 10));

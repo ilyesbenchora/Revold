@@ -21,17 +21,50 @@ export type IntInsight = {
   recommendation: string;
 };
 
-export const HUBSPOT_PORTAL = "48372600";
-export const HS = {
-  contacts: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-1`,
-  deals: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-3`,
-  properties: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/settings/properties`,
-};
-export const hubspotLinks: Record<string, string> = {
-  commercial: HS.deals,
-  marketing: HS.contacts,
-  data: HS.properties,
-};
+/**
+ * Génère les liens HubSpot dynamiquement à partir du portal_id réel de l'org.
+ * Évite la fuite multi-tenant des anciens liens hardcodés vers le portail démo.
+ *
+ * Si portal_id est null (ex: org sans OAuth), retourne `https://app.hubspot.com`
+ * (la page d'accueil HubSpot, l'utilisateur sera redirigé vers son propre portail).
+ */
+export function buildHubspotLinks(portalId: string | null | undefined): {
+  contacts: string;
+  deals: string;
+  properties: string;
+} {
+  const id = portalId ?? "";
+  if (!id) {
+    return {
+      contacts: "https://app.hubspot.com/",
+      deals: "https://app.hubspot.com/",
+      properties: "https://app.hubspot.com/",
+    };
+  }
+  return {
+    contacts: `https://app.hubspot.com/contacts/${id}/objects/0-1`,
+    deals: `https://app.hubspot.com/contacts/${id}/objects/0-3`,
+    properties: `https://app.hubspot.com/contacts/${id}/settings/properties`,
+  };
+}
+
+/**
+ * Récupère le portal_id de l'org connectée via OAuth.
+ * Cached request-scoped via React cache().
+ */
+export async function getOrgHubspotPortalId(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("integrations")
+    .select("portal_id")
+    .eq("organization_id", orgId)
+    .eq("provider", "hubspot")
+    .eq("is_active", true)
+    .single();
+  return (data?.portal_id as string | null) ?? null;
+}
 
 /**
  * Compte exact via /search (POST) qui retourne `total` sans charger les rows.

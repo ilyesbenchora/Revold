@@ -6,11 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
-import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, hubspotLinks } from "../context";
-
-const HUBSPOT_PORTAL = "48372600";
-const NEW_WORKFLOW = `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}/new`;
-const PROPERTIES = `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/settings/properties`;
+import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
 
 export default async function MarketingCoachingPage() {
   const orgId = await getOrgId();
@@ -20,6 +16,10 @@ export default async function MarketingCoachingPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
+  const portalId = await getOrgHubspotPortalId(supabase, orgId);
+  const hubspotLinks = buildHubspotLinks(portalId);
+  const NEW_WORKFLOW = portalId ? `https://app.hubspot.com/workflows/${portalId}/new` : "https://app.hubspot.com/workflows";
+  const PROPERTIES = hubspotLinks.properties;
 
   const [ctx, { dismissedKeys }, { workflows }, manualCoachings] = await Promise.all([
     buildContext(supabase, orgId),
@@ -81,9 +81,9 @@ export default async function MarketingCoachingPage() {
       title: i.title,
       body: i.body,
       recommendation: i.recommendation,
-      hubspotUrl: hubspotLinks.marketing,
+      hubspotUrl: hubspotLinks.contacts,
       category: "marketing",
-      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.marketing, title: i.title, body: i.body, recommendation: i.recommendation, category: "marketing" }),
+      actionType: inferActionType({ templateKey: i.key, hubspotUrl: hubspotLinks.contacts, title: i.title, body: i.body, recommendation: i.recommendation, category: "marketing" }),
     })),
     ...visibleAutomation.map((i): UnifiedCoaching => ({
       id: `automation-${i.key}`,

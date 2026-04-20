@@ -111,6 +111,19 @@ export default async function DashboardOverviewPage() {
         </p>
       </header>
 
+      {/* Bandeau erreur snapshot (panne API HubSpot, token expiré, etc.) */}
+      {snapshot.status === "error" && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <p className="font-medium">⚠ Erreur de synchronisation HubSpot</p>
+          <p className="mt-1 text-xs">
+            Les chiffres affichés peuvent être incomplets : {snapshot.error ?? "panne réseau"}.
+            <Link href="/dashboard/parametres/integrations" className="ml-1 font-medium underline">
+              Vérifier la connexion
+            </Link>.
+          </p>
+        </div>
+      )}
+
       {/* Hero — KPIs essentiels */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />

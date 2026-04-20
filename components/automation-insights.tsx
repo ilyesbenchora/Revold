@@ -12,12 +12,9 @@ type Props = {
   contacts: number;
   leads: number;
   dismissedKeys?: Set<string>;
+  /** Portal id de l'org connectée. Si null, liens HubSpot pointent vers la home. */
+  portalId?: string | null;
 };
-
-const HUBSPOT_PORTAL = "48372600";
-const NEW_WORKFLOW = `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}/new`;
-const ALL_WORKFLOWS = `https://app.hubspot.com/workflows/${HUBSPOT_PORTAL}`;
-const PROPERTIES = `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/settings/properties`;
 
 export function AutomationInsights({
   workflows,
@@ -29,7 +26,11 @@ export function AutomationInsights({
   contacts,
   leads,
   dismissedKeys = new Set(),
+  portalId,
 }: Props) {
+  const NEW_WORKFLOW = portalId ? `https://app.hubspot.com/workflows/${portalId}/new` : "https://app.hubspot.com/workflows";
+  const ALL_WORKFLOWS = portalId ? `https://app.hubspot.com/workflows/${portalId}` : "https://app.hubspot.com/workflows";
+  const PROPERTIES = portalId ? `https://app.hubspot.com/contacts/${portalId}/settings/properties` : "https://app.hubspot.com/";
   const wfNames = workflows.map((w) => w.name.toLowerCase());
   const hasAttribution = wfNames.some((n) => n.includes("attribut") || n.includes("assign") || n.includes("round") || n.includes("routing"));
   const hasLeadScoring = wfNames.some((n) => n.includes("scoring") || n.includes("score") || n.includes("mql") || n.includes("sql") || n.includes("qualif"));

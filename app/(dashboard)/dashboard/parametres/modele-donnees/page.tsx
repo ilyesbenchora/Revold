@@ -205,6 +205,20 @@ export default async function ParametresModeleDonneesPage() {
 
       <ParametresTabs />
 
+      {/* Bandeau pilote HubSpot-only : clarifie que les mentions Stripe/Pennylane
+          /Sellsy/Axonaut concernent une intégration future, pas l'état actuel. */}
+      {connectedProviders.length === 1 && connectedProviders[0] === "hubspot" && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-900">
+          <p className="font-medium">Mode HubSpot uniquement</p>
+          <p className="mt-1 text-xs leading-relaxed">
+            Cette page affiche les règles de résolution multi-sources pour la couche cross-source
+            (Stripe, Pennylane, Sellsy, Zendesk…). Vous n&apos;avez actuellement que HubSpot connecté,
+            donc seules les règles HubSpot sont actives. Les autres outils s&apos;activent automatiquement
+            dès leur connexion future.
+          </p>
+        </div>
+      )}
+
       {/* ── KPIs + Matching Stats ── */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
         <article className="card p-4 text-center">
