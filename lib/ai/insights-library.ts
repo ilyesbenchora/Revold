@@ -63,6 +63,9 @@ export type InsightContext = {
   ownersCount?: number;
   teamsCount?: number;
   appointmentsCount?: number;
+  // ── LIFECYCLE DISTRIBUTION (vraies valeurs HubSpot) ──
+  lifecycleByStage?: Record<string, { label: string; count: number }>;
+  customersCount?: number;
 };
 
 export type InsightTemplate = {
@@ -344,6 +347,128 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
       body: "Aucune source online (SEO, paid, social, email) détectée. Soit le pixel HubSpot n'est pas installé, soit tous les contacts viennent d'imports manuels offline.",
       recommendation: "Installer le tracking code HubSpot sur tout le site. Activer les forms HubSpot. Connecter les landing pages. Vérifier hs_analytics_source sur les nouveaux contacts à 7j.",
     }),
+  },
+
+  // ── LIFECYCLE DISTRIBUTION DIAGNOSTICS (utilise la VRAIE distribution HubSpot) ──
+  {
+    key: "marketing_lifecycle_lead_to_mql_drop",
+    category: "marketing",
+    severity: "critical",
+    priority: 102,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const lead = c.lifecycleByStage["lead"]?.count ?? 0;
+      const mql = c.lifecycleByStage["marketingqualifiedlead"]?.count ?? 0;
+      return lead >= 100 && mql < lead * 0.05;
+    },
+    build: (c) => {
+      const lead = c.lifecycleByStage?.["lead"]?.count ?? 0;
+      const mql = c.lifecycleByStage?.["marketingqualifiedlead"]?.count ?? 0;
+      const dropRate = Math.round(((lead - mql) / Math.max(lead, 1)) * 100);
+      return {
+        title: `Funnel cassé Lead → MQL : ${lead.toLocaleString("fr-FR")} leads → seulement ${mql} MQL (${dropRate}% drop)`,
+        body: `Sur ${lead.toLocaleString("fr-FR")} leads, ${mql} ont été qualifiés en MQL. Le scoring marketing ne fonctionne pas — soit critères trop stricts, soit aucune automation de qualification active.`,
+        recommendation: "Audit du modèle de scoring : quels engagements (emails, visites, downloads) doivent passer un Lead en MQL ? Workflow auto qui change le lifecyclestage = MQL dès franchissement du seuil. Cible : 10-20% conversion Lead → MQL.",
+      };
+    },
+  },
+  {
+    key: "marketing_lifecycle_mql_to_sql_drop",
+    category: "marketing",
+    severity: "critical",
+    priority: 101,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const mql = c.lifecycleByStage["marketingqualifiedlead"]?.count ?? 0;
+      const sql = c.lifecycleByStage["salesqualifiedlead"]?.count ?? 0;
+      return mql >= 50 && sql < mql * 0.2;
+    },
+    build: (c) => {
+      const mql = c.lifecycleByStage?.["marketingqualifiedlead"]?.count ?? 0;
+      const sql = c.lifecycleByStage?.["salesqualifiedlead"]?.count ?? 0;
+      return {
+        title: `Handoff MQL → SQL cassé : ${mql} MQL → ${sql} SQL`,
+        body: `Les MQL ne se transforment pas en SQL. Soit les SDR ne traitent pas les MQL, soit le critère SQL est mal défini, soit le handoff manuel est perdu.`,
+        recommendation: "SLA marketing/sales : tout MQL doit être contacté < 5 minutes. Workflow d'attribution auto SDR à la création MQL. Critère SQL clair (BANT/MEDDIC). Reporting hebdo MQL non-traités.",
+      };
+    },
+  },
+  {
+    key: "marketing_lifecycle_pipeline_health",
+    category: "marketing",
+    severity: "info",
+    priority: 75,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const opp = c.lifecycleByStage["opportunity"]?.count ?? 0;
+      return opp > 100;
+    },
+    build: (c) => {
+      const opp = c.lifecycleByStage?.["opportunity"]?.count ?? 0;
+      const cust = c.customersCount ?? 0;
+      return {
+        title: `${opp.toLocaleString("fr-FR")} opportunités en lifecycle vs ${cust} customers`,
+        body: `Stock d'opportunités très élevé. Soit le funnel marketing/sales ne se déclenche pas (handoff bloqué), soit lifecycle stage non maintenu (devrait être Customer après signature).`,
+        recommendation: "Audit : combien de ces opportunités ont une activité <30j ? Workflow auto qui passe les contacts en Customer dès que leur company a un deal won. Sinon le funnel reste artificiellement haut.",
+      };
+    },
+  },
+  {
+    key: "data_lifecycle_subscriber_unused",
+    category: "data",
+    severity: "info",
+    priority: 65,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const sub = c.lifecycleByStage["subscriber"]?.count ?? 0;
+      return sub === 0 && c.totalContacts > 100;
+    },
+    build: (c) => ({
+      title: `0 contact en lifecycle "Subscriber" sur ${c.totalContacts.toLocaleString("fr-FR")} contacts`,
+      body: "Le stage Subscriber (newsletter, blog) est inutilisé. Soit pas de newsletter en place, soit les souscripteurs entrent directement en Lead — perte du marqueur top-of-funnel.",
+      recommendation: "Activer le stage Subscriber sur les opt-in newsletter + content. Workflow Subscriber → Lead à la 1re conversion (form, démo). Permet de mesurer la conversion newsletter → pipeline.",
+    }),
+  },
+  {
+    key: "marketing_no_customers",
+    category: "marketing",
+    severity: "warning",
+    priority: 80,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const cust = c.customersCount ?? 0;
+      return cust < 5 && c.totalContacts >= 500 && c.wonDeals >= 5;
+    },
+    build: (c) => ({
+      title: `${c.wonDeals} deals gagnés mais seulement ${c.customersCount ?? 0} contact${(c.customersCount ?? 0) > 1 ? "s" : ""} en lifecycle Customer`,
+      body: "Désync entre deals won et lifecycle Customer. Workflow manquant qui devrait passer le contact principal d'un company à Customer dès qu'un deal est won.",
+      recommendation: "Workflow déclenché : Deal status = Closed Won → set lifecyclestage = Customer sur tous les contacts associés. Backfill batch sur les deals won historiques.",
+    }),
+  },
+  {
+    key: "marketing_lifecycle_distribution_audit",
+    category: "marketing",
+    severity: "info",
+    priority: 50,
+    shouldShow: (c) => {
+      if (!c.lifecycleByStage) return false;
+      const stages = Object.values(c.lifecycleByStage);
+      const usedStages = stages.filter((s) => s.count > 0).length;
+      return usedStages >= 3 && c.totalContacts >= 500;
+    },
+    build: (c) => {
+      const stages = Object.entries(c.lifecycleByStage ?? {})
+        .filter(([, v]) => v.count > 0)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 5)
+        .map(([, v]) => `${v.label} (${v.count.toLocaleString("fr-FR")})`)
+        .join(", ");
+      return {
+        title: `Distribution lifecycle : ${stages}`,
+        body: "Audit la répartition de votre base. Un funnel sain en B2B SaaS suit une pyramide : beaucoup de Lead/Subscriber, moins de MQL, encore moins de SQL/Opp, et un noyau de Customer.",
+        recommendation: "Si la distribution est anormale (ex: plus d'Opportunités que de Leads), c'est un signe que les transitions automatiques sont cassées ou que le lifecycle n'est plus mis à jour.",
+      };
+    },
   },
   {
     key: "marketing_low_conversion_rate",

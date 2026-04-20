@@ -102,11 +102,50 @@ export async function GET() {
   // Le snapshot final qu'on utilise dans ctx
   const ecosystem = await fetchHubSpotEcosystemCounts(token);
 
+  // Distribution lifecycle stages (count exact par stage HubSpot)
+  let lifecycleDistribution: Record<string, unknown> = {};
+  try {
+    const propRes = await fetch(
+      "https://api.hubapi.com/crm/v3/properties/contacts/lifecyclestage",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (propRes.ok) {
+      const propData = await propRes.json();
+      const stages = ((propData.options ?? []) as Array<{ value: string; label: string; hidden?: boolean }>)
+        .filter((o) => !o.hidden);
+      const counts = await Promise.all(
+        stages.map(async (s) => {
+          const r = await fetch(
+            "https://api.hubapi.com/crm/v3/objects/contacts/search",
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                limit: 1,
+                filterGroups: [{ filters: [{ propertyName: "lifecyclestage", operator: "EQ", value: s.value }] }],
+              }),
+            },
+          );
+          if (!r.ok) return { stage: s.value, label: s.label, count: 0, error: r.status };
+          const d = await r.json();
+          return { stage: s.value, label: s.label, count: d.total ?? 0 };
+        }),
+      );
+      lifecycleDistribution = {
+        stages_in_hubspot: stages.length,
+        per_stage: counts,
+      };
+    }
+  } catch (err) {
+    lifecycleDistribution = { error: String(err) };
+  }
+
   return NextResponse.json(
     {
       ecosystem_used_in_app: ecosystem,
+      lifecycle_distribution: lifecycleDistribution,
       raw_endpoint_audit: audit,
-      hint: "Compare ecosystem_used_in_app aux chiffres réels HubSpot. raw_endpoint_audit montre la réponse brute de chaque endpoint pour diagnostiquer.",
+      hint: "Compare ecosystem_used_in_app + lifecycle_distribution aux chiffres réels HubSpot. raw_endpoint_audit montre la réponse brute de chaque endpoint pour diagnostiquer.",
     },
     { headers: { "Cache-Control": "no-store" } },
   );

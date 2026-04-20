@@ -53,6 +53,98 @@ async function fetchHubSpotCount(token: string, objectType: string, body?: objec
 }
 
 /**
+ * Récupère la distribution complète des lifecycle stages depuis HubSpot.
+ * Lit d'abord la définition de la propriété `lifecyclestage` (qui inclut
+ * les stages custom de l'org), puis compte chaque stage en parallèle.
+ *
+ * C'est ESSENTIEL pour avoir des chiffres justes : un client peut avoir
+ * 6089 leads / 2 MQL / 10k opportunities / 8 customers — impossible de
+ * connaître la distribution sans interroger les options de la propriété
+ * et compter chaque valeur.
+ */
+async function fetchLifecycleDistribution(token: string): Promise<{
+  byStage: Record<string, { label: string; count: number }>;
+  total: number;
+  leadsLikeCount: number; // subscriber + lead + MQL
+  oppsLikeCount: number;  // SQL + opportunity + customer + evangelist
+  customersCount: number;
+}> {
+  // 1. Définition de la propriété (inclut les options custom)
+  let stages: Array<{ value: string; label: string }> = [];
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/properties/contacts/lifecyclestage", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      stages = ((data.options ?? []) as Array<{ value: string; label: string; hidden?: boolean }>)
+        .filter((o) => !o.hidden);
+    }
+  } catch {}
+
+  // Si on n'a pas pu récupérer les options, fallback sur les stages standard
+  if (stages.length === 0) {
+    stages = [
+      { value: "subscriber", label: "Subscriber" },
+      { value: "lead", label: "Lead" },
+      { value: "marketingqualifiedlead", label: "Marketing Qualified Lead" },
+      { value: "salesqualifiedlead", label: "Sales Qualified Lead" },
+      { value: "opportunity", label: "Opportunity" },
+      { value: "customer", label: "Customer" },
+      { value: "evangelist", label: "Evangelist" },
+      { value: "other", label: "Other" },
+    ];
+  }
+
+  // 2. Count par stage en parallèle
+  const counts = await Promise.all(
+    stages.map(async (s) => {
+      const c = await fetchHubSpotCount(token, "contacts", {
+        filterGroups: [{ filters: [{ propertyName: "lifecyclestage", operator: "EQ", value: s.value }] }],
+      });
+      return { stage: s.value, label: s.label, count: c };
+    }),
+  );
+
+  const byStage: Record<string, { label: string; count: number }> = {};
+  let total = 0;
+  for (const c of counts) {
+    byStage[c.stage] = { label: c.label, count: c.count };
+    total += c.count;
+  }
+
+  // 3. Buckets sémantiques. Match sur les valeurs HubSpot standards ET
+  //    sur les valeurs custom (par label substring) pour robustness.
+  const matchAny = (stage: string, label: string, needles: string[]): boolean => {
+    const s = `${stage} ${label}`.toLowerCase();
+    return needles.some((n) => s.includes(n.toLowerCase()));
+  };
+
+  let leadsLike = 0;
+  let oppsLike = 0;
+  let customers = 0;
+  for (const c of counts) {
+    if (matchAny(c.stage, c.label, ["subscriber", "lead", "marketingqualifiedlead", "mql", "marketing qualified"])) {
+      leadsLike += c.count;
+    }
+    if (matchAny(c.stage, c.label, ["salesqualifiedlead", "sql", "sales qualified", "opportunity", "opportunit", "customer", "client", "evangelist"])) {
+      oppsLike += c.count;
+    }
+    if (matchAny(c.stage, c.label, ["customer", "client"])) {
+      customers += c.count;
+    }
+  }
+
+  return {
+    byStage,
+    total,
+    leadsLikeCount: leadsLike,
+    oppsLikeCount: oppsLike,
+    customersCount: customers,
+  };
+}
+
+/**
  * Récupère TOUS les stats deals/contacts/companies directement depuis l'API
  * HubSpot (source de vérité). Ne dépend plus de la sync Supabase.
  *
@@ -71,19 +163,18 @@ async function fetchHubSpotFullContext(token: string) {
     dealsNoCloseDate,
     dealsStagnant,
     totalContacts,
-    opportunitiesCount,
     orphansCount,
     contactsNoPhone,
     contactsNoTitle,
     totalCompanies,
     companiesNoIndustry,
     companiesNoRevenue,
+    lifecycle,
   ] = await Promise.all([
     // Deals
     fetchHubSpotCount(token, "deals"),
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }] }),
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed", operator: "EQ", value: "true" }, { propertyName: "hs_is_closed_won", operator: "NEQ", value: "true" }] }] }),
-    // Open deals sans next activity
     fetchHubSpotCount(token, "deals", {
       filterGroups: [{
         filters: [
@@ -92,11 +183,8 @@ async function fetchHubSpotFullContext(token: string) {
         ],
       }],
     }),
-    // Sans amount
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] }] }),
-    // Sans closedate
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "NOT_HAS_PROPERTY" }] }] }),
-    // Open deals stagnants (last contacted > 7j ET sans next activity)
     fetchHubSpotCount(token, "deals", {
       filterGroups: [{
         filters: [
@@ -110,14 +198,6 @@ async function fetchHubSpotFullContext(token: string) {
     fetchHubSpotCount(token, "contacts"),
     fetchHubSpotCount(token, "contacts", {
       filterGroups: [{
-        filters: [
-          { propertyName: "lifecyclestage", operator: "IN", values: ["opportunity", "salesqualifiedlead", "customer"] },
-        ],
-      }],
-    }),
-    // Orphans : contacts sans company associée
-    fetchHubSpotCount(token, "contacts", {
-      filterGroups: [{
         filters: [{ propertyName: "associatedcompanyid", operator: "NOT_HAS_PROPERTY" }],
       }],
     }),
@@ -127,10 +207,17 @@ async function fetchHubSpotFullContext(token: string) {
     fetchHubSpotCount(token, "companies"),
     fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "NOT_HAS_PROPERTY" }] }] }),
     fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "NOT_HAS_PROPERTY" }] }] }),
+    // ── DISTRIBUTION LIFECYCLE STAGES (vrai count par stage) ──
+    fetchLifecycleDistribution(token),
   ]);
 
   const closedTotal = wonDeals + lostDeals;
   const openDeals = Math.max(0, totalDeals - closedTotal);
+
+  // opportunitiesCount = vraie distribution (SQL + Opp + Customer + Evangelist)
+  // Beaucoup plus juste que le filtre IN précédent qui ratait les stages custom.
+  const opportunitiesCount = lifecycle.oppsLikeCount;
+  const leadsCount = lifecycle.leadsLikeCount;
 
   return {
     totalDeals,
@@ -139,13 +226,12 @@ async function fetchHubSpotFullContext(token: string) {
     openDeals,
     closingRate: closedTotal > 0 ? Math.round((wonDeals / closedTotal) * 100) : 0,
     dealsNoNextActivity,
-    // dealsNoActivity = approximation via "last_contacted manquant" sur open deals
-    dealsNoActivity: 0, // propriété non disponible facilement via search API
+    dealsNoActivity: 0,
     dealsNoAmount,
     dealsNoCloseDate,
     stagnantDeals: dealsStagnant,
     totalContacts,
-    leadsCount: Math.max(0, totalContacts - opportunitiesCount),
+    leadsCount,
     opportunitiesCount,
     conversionRate: totalContacts > 0 ? Math.round((opportunitiesCount / totalContacts) * 100) : 0,
     orphansCount,
@@ -155,6 +241,9 @@ async function fetchHubSpotFullContext(token: string) {
     totalCompanies,
     companiesNoIndustry,
     companiesNoRevenue,
+    // Lifecycle distribution complète (utilisable par les templates)
+    lifecycleByStage: lifecycle.byStage,
+    customersCount: lifecycle.customersCount,
   };
 }
 
@@ -203,6 +292,7 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
       ownersCount,
       teamsCount: ecosystem.teams,
       appointmentsCount: ecosystem.appointments,
+      // lifecycleByStage et customersCount viennent déjà de hsCore
     };
   }
 
