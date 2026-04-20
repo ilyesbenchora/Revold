@@ -3,19 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Props = {
-  contactsCount: number;
-  companiesCount: number;
-  dealsCount: number;
-};
-
-export function DonneesTabs({ contactsCount, companiesCount, dealsCount }: Props) {
+export function DonneesTabs() {
   const pathname = usePathname();
   const tabs = [
-    { href: "/dashboard/donnees", label: "Vue d'ensemble", count: null },
-    { href: "/dashboard/donnees/contacts", label: "Contacts", count: contactsCount },
-    { href: "/dashboard/donnees/entreprises", label: "Entreprises", count: companiesCount },
-    { href: "/dashboard/donnees/transactions", label: "Transactions", count: dealsCount },
+    { href: "/dashboard/donnees", label: "Vue d'ensemble" },
+    { href: "/dashboard/donnees/contacts", label: "Contacts" },
+    { href: "/dashboard/donnees/entreprises", label: "Entreprises" },
+    { href: "/dashboard/donnees/transactions", label: "Transactions" },
   ];
 
   return (
@@ -32,11 +26,6 @@ export function DonneesTabs({ contactsCount, companiesCount, dealsCount }: Props
               }`}
             >
               {t.label}
-              {t.count != null && (
-                <span className={`ml-1.5 text-xs ${isActive ? "text-accent" : "text-slate-400"}`}>
-                  {t.count.toLocaleString("fr-FR")}
-                </span>
-              )}
               {isActive && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
             </Link>
           );
