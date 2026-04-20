@@ -12,6 +12,11 @@ import {
   EMPTY_ECOSYSTEM_COUNTS,
   type HubSpotEcosystemCounts,
 } from "@/lib/integrations/hubspot";
+import {
+  fetchHubSpotSnapshot,
+  EMPTY_SNAPSHOT,
+  type HubSpotSnapshot,
+} from "@/lib/integrations/hubspot-snapshot";
 
 /**
  * Request-scoped cached helpers.
@@ -207,6 +212,30 @@ export const getHubspotEcosystemCounts = cache(
     }
   },
 );
+
+/**
+ * SNAPSHOT HUBSPOT UNIFIÉ — source de vérité pour TOUTES les pages dashboard.
+ *
+ * Récupère en parallèle ~30 stats HubSpot : deals, contacts, companies,
+ * pipelines, lifecycle, tickets, invoices, subscriptions, owners, ecosystem.
+ *
+ * Cache request-scoped : un seul fetch par render même si plusieurs pages
+ * /composants l'appellent. Toujours préférer getHubspotSnapshot() à des
+ * lectures Supabase directes pour TOUTE donnée présente dans HubSpot.
+ */
+export const getHubspotSnapshot = cache(async (): Promise<HubSpotSnapshot> => {
+  const orgId = await getOrgId();
+  if (!orgId) return EMPTY_SNAPSHOT;
+  const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
+  if (!token) return EMPTY_SNAPSHOT;
+  try {
+    return await fetchHubSpotSnapshot(token);
+  } catch (err) {
+    console.error("[getHubspotSnapshot] failed", { orgId, err });
+    return EMPTY_SNAPSHOT;
+  }
+});
 
 export const getLatestKpi = cache(async () => {
   const orgId = await getOrgId();
