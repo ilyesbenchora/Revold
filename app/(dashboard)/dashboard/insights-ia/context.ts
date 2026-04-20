@@ -258,7 +258,7 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
   // Si pas de token HubSpot → fallback Supabase (cas legacy ou avant connexion).
 
   if (token) {
-    const [hsCore, ecosystem, ownersCount] = await Promise.all([
+    const [hsCore, ecosystem, ownersCount, contactsNoEmail] = await Promise.all([
       fetchHubSpotFullContext(token),
       fetchHubSpotEcosystemCounts(token),
       fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
@@ -267,10 +267,22 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
         .then((r) => (r.ok ? r.json() : { results: [] }))
         .then((d) => (d.results ?? []).length)
         .catch(() => 0),
+      fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          limit: 1,
+          filterGroups: [{ filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] }],
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : { total: 0 }))
+        .then((d) => d.total ?? 0)
+        .catch(() => 0),
     ]);
 
     return {
       ...hsCore,
+      contactsNoEmail,
       ticketsCount: ecosystem.tickets,
       conversationsCount: ecosystem.conversations,
       feedbackCount: ecosystem.feedbackSubmissions,
@@ -292,7 +304,6 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
       ownersCount,
       teamsCount: ecosystem.teams,
       appointmentsCount: ecosystem.appointments,
-      // lifecycleByStage et customersCount viennent déjà de hsCore
     };
   }
 
