@@ -1,65 +1,96 @@
 /**
- * Insight Library — CRO/RevOps best practices
- * Each template has a stable key so dismissals persist across sessions.
- * Templates are evaluated against real CRM data and ranked by priority.
+ * Insight Library — diagnostics CRO/RevOps de 20 ans d'expérience
+ *
+ * Chaque template est :
+ *   - Data-driven : shouldShow conditionné sur des seuils réels
+ *   - Quantifié : title et body utilisent des nombres extraits de ctx
+ *   - Actionnable : recommendation = action concrète (pas du best-practice générique)
+ *
+ * Pas de templates "always-on" génériques — ils n'apportent aucune valeur quand
+ * Revold doit se distinguer comme un expert qui regarde la VRAIE donnée du client.
  */
 
 export type InsightCategory = "commercial" | "marketing" | "data";
 export type Severity = "critical" | "warning" | "info";
 
 export type InsightContext = {
-  // Deals
+  // ── DEALS ──
   totalDeals: number;
   openDeals: number;
   wonDeals: number;
   lostDeals: number;
-  closingRate: number; // 0-100
+  closingRate: number;
   dealsNoNextActivity: number;
   dealsNoActivity: number;
   dealsNoAmount: number;
   dealsNoCloseDate: number;
   stagnantDeals: number;
-  // Contacts
+  // ── CONTACTS ──
   totalContacts: number;
   leadsCount: number;
   opportunitiesCount: number;
-  conversionRate: number; // 0-100
+  conversionRate: number;
   orphansCount: number;
-  orphanRate: number; // 0-100
+  orphanRate: number;
   contactsNoPhone: number;
   contactsNoTitle: number;
-  // Companies
+  // ── COMPANIES ──
   totalCompanies: number;
   companiesNoIndustry: number;
   companiesNoRevenue: number;
-  // Tracking (web analytics)
+  // ── TRACKING ──
   trackingSample?: number;
   onlineContacts?: number;
+  // ── ECOSYSTEM (scopes optional HubSpot) ──
+  ticketsCount?: number;
+  conversationsCount?: number;
+  feedbackCount?: number;
+  leadsObjectCount?: number;
+  quotesCount?: number;
+  lineItemsCount?: number;
+  sequencesCount?: number;
+  forecastsCount?: number;
+  goalsCount?: number;
+  invoicesCount?: number;
+  subscriptionsCount?: number;
+  marketingCampaignsCount?: number;
+  marketingEventsCount?: number;
+  formsCount?: number;
+  customObjectsCount?: number;
+  listsCount?: number;
+  workflowsCount?: number;
+  workflowsActiveCount?: number;
+  ownersCount?: number;
+  teamsCount?: number;
+  appointmentsCount?: number;
 };
 
 export type InsightTemplate = {
   key: string;
   category: InsightCategory;
   severity: Severity;
-  priority: number; // higher = more urgent
+  priority: number;
   shouldShow: (ctx: InsightContext) => boolean;
   build: (ctx: InsightContext) => { title: string; body: string; recommendation: string };
 };
 
+const PCT = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
+
 export const INSIGHT_LIBRARY: InsightTemplate[] = [
-  // ════════════════════════════════════════════════════
-  // COMMERCIAL (20 templates)
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════
+  // COMMERCIAL — diagnostics data-driven niveau CRO
+  // ════════════════════════════════════════════════════════════════════
+
   {
     key: "commercial_low_closing_rate",
     category: "commercial",
     severity: "critical",
     priority: 100,
-    shouldShow: (c) => (c.wonDeals + c.lostDeals) >= 5 && c.closingRate < 20,
+    shouldShow: (c) => c.wonDeals + c.lostDeals >= 5 && c.closingRate < 20,
     build: (c) => ({
-      title: `Taux de closing critique : ${c.closingRate}%`,
-      body: `Sur ${c.wonDeals + c.lostDeals} transactions clôturées, seulement ${c.wonDeals} ont été gagnées. Le benchmark se situe entre 25% et 35%.`,
-      recommendation: "Auditer les transactions perdues pour identifier les causes récurrentes (prix, concurrence, qualification). Renforcer le process de qualification (BANT, MEDDIC) avant d'avancer un deal.",
+      title: `Taux de closing critique : ${c.closingRate}% (benchmark B2B : 25-35%)`,
+      body: `${c.wonDeals} deals gagnés sur ${c.wonDeals + c.lostDeals} clôturés. Diagnostic : qualification trop laxiste, deals non-mûrs entrent en pipeline et finissent en lost. Manque-à-gagner estimé : ${Math.round((c.wonDeals + c.lostDeals) * 0.25 - c.wonDeals)} deals/an si vous montez à 25%.`,
+      recommendation: "Implémenter MEDDIC ou BANT en checkpoint obligatoire entre stage Qualification → Proposition. Disqualifier 30% des deals au stade Qualification — ils pollueront moins le pipeline et amélioreront le taux mécaniquement.",
     }),
   },
   {
@@ -67,233 +98,241 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "commercial",
     severity: "critical",
     priority: 99,
-    shouldShow: (c) => c.openDeals > 0 && c.dealsNoNextActivity > c.openDeals * 0.5,
+    shouldShow: (c) => c.openDeals >= 5 && c.dealsNoNextActivity > c.openDeals * 0.4,
     build: (c) => ({
-      title: `${c.dealsNoNextActivity} transactions sans prochaine activité planifiée`,
-      body: `${Math.round((c.dealsNoNextActivity / c.openDeals) * 100)}% des transactions en cours n'ont aucune activité planifiée. Ces deals risquent de stagner et d'être perdus.`,
-      recommendation: "Imposer la règle « pas de deal sans next activity » dans le CRM. Bloquer la sauvegarde d'un deal si aucune prochaine étape n'est datée.",
+      title: `${c.dealsNoNextActivity} deals ouverts sans next activity (${PCT(c.dealsNoNextActivity, c.openDeals)}% du pipeline)`,
+      body: `Sur ${c.openDeals} deals en cours, ${c.dealsNoNextActivity} n'ont aucune prochaine action planifiée. Probabilité de stagnation puis perte : ~70% à 30 jours selon les benchmarks Sales Hub.`,
+      recommendation: "Workflow HubSpot bloquant : interdire la sauvegarde d'un deal en stage actif sans champ next_activity_date renseigné. Audit one-shot sur les deals existants avec règle de relance forcée sous 5 jours ouvrés.",
     }),
   },
   {
-    key: "commercial_no_activity",
+    key: "commercial_no_activity_burn",
     category: "commercial",
     severity: "critical",
     priority: 98,
-    shouldShow: (c) => c.openDeals > 0 && c.dealsNoActivity > c.openDeals * 0.3,
+    shouldShow: (c) => c.openDeals >= 5 && c.dealsNoActivity > c.openDeals * 0.25,
     build: (c) => ({
-      title: `${c.dealsNoActivity} transactions sans aucune activité commerciale`,
-      body: `Ces deals ont été créés mais jamais travaillés. Ils gonflent artificiellement le pipeline et faussent les prévisions.`,
-      recommendation: "Lancer un sprint de qualification cette semaine : chaque deal sans activité doit être contacté ou clôturé en lost.",
+      title: `${c.dealsNoActivity} deals créés mais jamais travaillés (${PCT(c.dealsNoActivity, c.openDeals)}% du pipeline)`,
+      body: `Ces deals ont été ouverts dans le CRM puis abandonnés. Ils faussent le forecast, bloquent les rapports de couverture et polluent les revues de pipeline.`,
+      recommendation: "Sprint nettoyage cette semaine : pour chaque deal sans activité, choix binaire en 2min — soit 1 action concrète planifiée (call, email, RDV), soit clôture en lost (avec lost_reason). Max 30 deals par sales/jour.",
     }),
   },
   {
-    key: "commercial_stagnant_deals",
+    key: "commercial_stagnant_critical",
     category: "commercial",
-    severity: "warning",
-    priority: 92,
-    shouldShow: (c) => c.stagnantDeals > 5,
+    severity: "critical",
+    priority: 97,
+    shouldShow: (c) => c.openDeals >= 5 && c.stagnantDeals > c.openDeals * 0.35,
     build: (c) => ({
-      title: `${c.stagnantDeals} transactions stagnantes détectées`,
-      body: `Ces deals n'ont eu aucune activité depuis plus de 7 jours et n'ont pas de prochain RDV. Ils sont à risque de tomber dans l'oubli.`,
-      recommendation: "Mettre en place une revue de pipeline hebdomadaire pour traiter les deals stagnants : relance, escalade ou clôture.",
+      title: `War room nécessaire : ${c.stagnantDeals} deals stagnants (${PCT(c.stagnantDeals, c.openDeals)}% du pipeline figé)`,
+      body: `Plus du tiers du pipeline n'a aucune activité depuis 7+ jours. C'est le signal d'une équipe sales débordée OU démotivée OU mal pilotée. Risque : forecast irréaliste qui explose au QBR.`,
+      recommendation: "Bloquer 2h cette semaine pour une war room stagnation : 1 deal = 1 décision (relance avec next activity OU lost OU escalade manager). Si > 50 deals stagnants, escalade direction commerciale — c'est un problème de capacité.",
     }),
   },
   {
-    key: "commercial_no_amount",
+    key: "commercial_no_amount_forecast_blind",
+    category: "commercial",
+    severity: "critical",
+    priority: 96,
+    shouldShow: (c) => c.totalDeals >= 10 && c.dealsNoAmount > c.totalDeals * 0.4,
+    build: (c) => ({
+      title: `Forecast aveugle : ${PCT(c.dealsNoAmount, c.totalDeals)}% des deals sans montant`,
+      body: `${c.dealsNoAmount} deals sur ${c.totalDeals} n'ont aucun montant renseigné. Impossible de calculer la couverture pipeline (3x objectif), le forecast pondéré ou la vélocité.`,
+      recommendation: "Champ amount obligatoire dès le stage Qualification (avant Proposition). Workflow validation : refus de progression vers Proposition si amount = null OR amount < 100€. Audit rétroactif sur les deals open avec rappel sales.",
+    }),
+  },
+  {
+    key: "commercial_no_close_date_planning",
     category: "commercial",
     severity: "warning",
     priority: 90,
-    shouldShow: (c) => c.totalDeals > 0 && c.dealsNoAmount > c.totalDeals * 0.5,
+    shouldShow: (c) => c.totalDeals >= 10 && c.dealsNoCloseDate > c.totalDeals * 0.4,
     build: (c) => ({
-      title: `${Math.round((c.dealsNoAmount / c.totalDeals) * 100)}% des transactions sans montant`,
-      body: `${c.dealsNoAmount} transactions n'ont pas de montant renseigné. Impossible de construire un forecast fiable ou de calculer la couverture pipeline.`,
-      recommendation: "Rendre le champ montant obligatoire dès qu'un deal entre dans la phase de qualification ou de proposition commerciale.",
-    }),
-  },
-  {
-    key: "commercial_no_close_date",
-    category: "commercial",
-    severity: "warning",
-    priority: 88,
-    shouldShow: (c) => c.totalDeals > 0 && c.dealsNoCloseDate > c.totalDeals * 0.5,
-    build: (c) => ({
-      title: `${Math.round((c.dealsNoCloseDate / c.totalDeals) * 100)}% des transactions sans date de closing`,
-      body: `Sans date de closing prévisionnelle, impossible de construire un forecast fiable par mois ou par trimestre.`,
-      recommendation: "Exiger une date de closing estimée dès la création du deal. Cette date peut bouger mais doit toujours exister.",
+      title: `${PCT(c.dealsNoCloseDate, c.totalDeals)}% des deals sans date de closing`,
+      body: `${c.dealsNoCloseDate} deals sans close_date estimée. Forecast mensuel et trimestriel impossibles. Les sales sont dans le brouillard.`,
+      recommendation: "Champ closedate obligatoire avant passage en Proposition. Règle : la date peut bouger mais doit toujours exister. Workflow d'alerte 14j avant close_date pour pousser la signature.",
     }),
   },
   {
     key: "commercial_low_pipeline_volume",
     category: "commercial",
-    severity: "warning",
-    priority: 85,
-    shouldShow: (c) => c.openDeals > 0 && c.openDeals < 20,
+    severity: "critical",
+    priority: 95,
+    shouldShow: (c) => c.openDeals > 0 && c.openDeals < 15,
     build: (c) => ({
-      title: `Pipeline trop léger : ${c.openDeals} transactions ouvertes seulement`,
-      body: `Un pipeline en bonne santé doit représenter au moins 3x votre objectif de revenu. Avec ${c.openDeals} deals, la marge d'erreur est faible.`,
-      recommendation: "Intensifier la prospection et l'acquisition de leads pour alimenter le haut du pipeline. Objectif : 2-3 nouveaux deals par commercial par semaine.",
+      title: `Pipeline anémique : ${c.openDeals} deals ouverts seulement`,
+      body: `Avec ${c.openDeals} deals actifs, vous êtes sous le seuil critique. Règle CRO : pipeline ≥ 3x objectif trimestriel. Un seul churn de gros deal vous fait rater le quarter.`,
+      recommendation: `Plan d'urgence inbound + outbound combiné dès cette semaine. Cible : x3 le pipeline en 60 jours. Mobiliser SDR sur ${Math.max(20, c.openDeals * 3)} deals nouveaux à créer.`,
     }),
   },
   {
     key: "commercial_high_lost_ratio",
     category: "commercial",
     severity: "warning",
-    priority: 82,
-    shouldShow: (c) => (c.wonDeals + c.lostDeals) >= 10 && c.lostDeals > c.wonDeals * 2,
+    priority: 88,
+    shouldShow: (c) => c.wonDeals + c.lostDeals >= 10 && c.lostDeals > c.wonDeals * 2,
     build: (c) => ({
-      title: `Trop de transactions perdues : ${c.lostDeals} lost vs ${c.wonDeals} gagnées`,
-      body: `Ratio lost/won de ${(c.lostDeals / Math.max(c.wonDeals, 1)).toFixed(1)}. Les commerciaux passent du temps sur des deals non qualifiés ou face à de la mauvaise concurrence.`,
-      recommendation: "Construire un ICP strict (Ideal Customer Profile) et disqualifier rapidement les leads hors-cible. Mettre en place un scoring lost reasons pour identifier les patterns.",
+      title: `Trop de lost : ratio ${(c.lostDeals / Math.max(c.wonDeals, 1)).toFixed(1)}x lost vs won`,
+      body: `${c.lostDeals} perdus pour ${c.wonDeals} gagnés. L'équipe brûle du temps sur des deals non-qualifiés ou face à de mauvais concurrents. Coût opportunité énorme.`,
+      recommendation: "ICP strict + scoring lead automatique. Disqualifier dès la 1re call si l'un des critères ICP manque. Analyser les top 10 lost reasons pour identifier les patterns récurrents (prix, timing, concurrent dominant, mauvais profil).",
     }),
   },
   {
-    key: "commercial_pipeline_concentration",
+    key: "commercial_no_owner",
     category: "commercial",
     severity: "warning",
-    priority: 80,
-    shouldShow: (c) => c.openDeals > 0 && c.openDeals < 10 && c.totalDeals >= 20,
+    priority: 85,
+    shouldShow: (c) => c.openDeals >= 5 && (c.ownersCount ?? 0) > 0,
     build: (c) => ({
-      title: `Pipeline concentré sur peu de deals : ${c.openDeals} ouverts`,
-      body: `Concentrer son pipeline sur trop peu de deals expose à des trous d'air en cas de perte d'un gros compte. Risque commercial élevé.`,
-      recommendation: "Diversifier le pipeline avec des deals de différentes tailles. Cible : au moins 15-20 deals ouverts simultanément par commercial.",
+      title: `Vérifier l'attribution owners sur les ${c.openDeals} deals ouverts`,
+      body: `${c.ownersCount ?? 0} owners actifs dans HubSpot. Les deals sans owner ne sont suivis par personne — perte garantie.`,
+      recommendation: "Workflow HubSpot d'attribution auto à la création (round-robin par segment, source ou industrie). Audit hebdo des deals sans hubspot_owner_id via report dédié.",
     }),
   },
   {
-    key: "commercial_average_deal_size",
+    key: "commercial_no_sequences",
     category: "commercial",
-    severity: "info",
-    priority: 70,
-    shouldShow: (c) => c.wonDeals >= 5 && c.dealsNoAmount < c.totalDeals * 0.3,
-    build: (c) => ({
-      title: `Calculer le ticket moyen pour piloter par valeur`,
-      body: `Avec ${c.wonDeals} deals gagnés, le panier moyen est mesurable. Comparer le ticket par segment, secteur ou source révèle les segments les plus rentables.`,
-      recommendation: "Créer un dashboard ticket moyen par persona et par source. Réinvestir l'acquisition sur les segments à plus forte valeur.",
-    }),
-  },
-  {
-    key: "commercial_velocity_review",
-    category: "commercial",
-    severity: "info",
-    priority: 68,
-    shouldShow: (c) => c.totalDeals >= 20,
+    severity: "warning",
+    priority: 82,
+    shouldShow: (c) => c.openDeals >= 10 && (c.sequencesCount ?? 0) === 0,
     build: () => ({
-      title: "Mesurer la vélocité du pipeline (deals/semaine)",
-      body: "La vélocité = nombre de deals × ticket moyen × win rate / cycle de vente. C'est l'indicateur n°1 d'une équipe sales performante.",
-      recommendation: "Tracker la vélocité chaque semaine dans un dashboard dédié. Identifier le levier le plus impactant (ticket, win rate, cycle) et travailler dessus en priorité.",
+      title: "0 sequence Sales Hub déployée — outbound artisanal",
+      body: "Aucune sequence détectée. Les SDR/AE prospectent à la main, sans cadence ni A/B test. Productivité plafonnée et messages incohérents.",
+      recommendation: "Construire 3 sequences de base : cold prospect (5-7 touches), nurturing tiède (3 touches sur 21j), réactivation dormants (2 touches espacées). Tracker open/reply rate dans Sales Hub.",
     }),
   },
   {
-    key: "commercial_stage_conversion",
-    category: "commercial",
-    severity: "info",
-    priority: 65,
-    shouldShow: (c) => c.totalDeals >= 20,
-    build: () => ({
-      title: "Auditer le funnel par étape (taux de conversion stage à stage)",
-      body: "Identifier les étapes du pipeline où le taux de chute est le plus élevé révèle les vrais blocages : qualification, démo, négo, closing.",
-      recommendation: "Construire un rapport HubSpot stage-to-stage conversion. Coacher les commerciaux sur l'étape la plus faible avec des role-plays ciblés.",
-    }),
-  },
-  {
-    key: "commercial_pipeline_review_weekly",
+    key: "commercial_sequences_few",
     category: "commercial",
     severity: "info",
     priority: 60,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Mettre en place une revue de pipeline hebdomadaire",
-      body: "Une revue de pipeline structurée chaque semaine permet de détecter les blocages tôt et de prioriser les actions commerciales.",
-      recommendation: "Créer un rituel hebdomadaire de 30min avec l'équipe sales : top 5 deals chauds, deals à relancer, deals à clôturer en lost.",
+    shouldShow: (c) => (c.sequencesCount ?? 0) >= 1 && (c.sequencesCount ?? 0) < 5,
+    build: (c) => ({
+      title: `Seulement ${c.sequencesCount} sequence${(c.sequencesCount ?? 0) > 1 ? "s" : ""} active${(c.sequencesCount ?? 0) > 1 ? "s" : ""} sur Sales Hub`,
+      body: "Sequences existantes mais peu nombreuses. Probablement un cold outreach unique sans variantes par persona ou par segment.",
+      recommendation: "Décliner 1 sequence par persona × phase funnel (cold, follow-up, post-démo, nurturing). Mesurer la sequence avec le meilleur reply rate et standardiser sur l'équipe.",
     }),
   },
   {
-    key: "commercial_call_quotas",
+    key: "commercial_no_forecasts",
     category: "commercial",
     severity: "info",
-    priority: 58,
-    shouldShow: (c) => c.openDeals > 10,
+    priority: 70,
+    shouldShow: (c) => c.totalDeals >= 20 && (c.forecastsCount ?? 0) === 0,
     build: () => ({
-      title: "Mettre en place des quotas d'activités hebdomadaires",
-      body: "Sans quotas (X appels, Y emails, Z RDV par semaine), les commerciaux compensent le manque d'activité par de l'optimisme dans le forecast.",
-      recommendation: "Définir avec chaque commercial des quotas d'activités basés sur le pipeline cible. Tracker hebdo via dashboard HubSpot Sales Hub.",
+      title: "Aucun forecast HubSpot enregistré",
+      body: "Sales Hub Forecast Tool inutilisé. Les sales ne soumettent pas leur prévision personnelle — la direction commerciale n'a pas de baseline pour comparer engagement vs réalité.",
+      recommendation: "Activer le Forecast Tool. Rituel mensuel : chaque sales soumet son commit + best case + most likely. Comparer en fin de mois pour identifier les sur/sous-estimateurs systématiques.",
     }),
   },
   {
-    key: "commercial_loss_reason_tracking",
+    key: "commercial_no_goals",
+    category: "commercial",
+    severity: "info",
+    priority: 68,
+    shouldShow: (c) => (c.ownersCount ?? 0) >= 2 && (c.goalsCount ?? 0) === 0,
+    build: (c) => ({
+      title: `0 objectif (Goal HubSpot) défini pour ${c.ownersCount ?? 0} sales`,
+      body: "Les commerciaux n'ont pas d'objectifs structurés dans HubSpot Goals. Coaching aveugle, impossibilité de mesurer attainment.",
+      recommendation: "Définir des objectifs trimestriels par sales : nombre de deals créés, nombre de meetings bookés, montant de pipeline généré, montant won. Revue mensuelle 1-on-1 sur l'attainment.",
+    }),
+  },
+  {
+    key: "commercial_quotes_low",
     category: "commercial",
     severity: "warning",
     priority: 78,
-    shouldShow: (c) => c.lostDeals >= 10,
+    shouldShow: (c) => c.openDeals >= 10 && (c.quotesCount ?? 0) < c.openDeals * 0.3,
     build: (c) => ({
-      title: `Tracker les raisons de perte (${c.lostDeals} deals lost analysables)`,
-      body: `${c.lostDeals} deals perdus sans cause structurée = aucune amélioration du process possible. C'est de la donnée business gâchée.`,
-      recommendation: "Rendre obligatoire le champ « lost reason » à la clôture. Catégories : prix, concurrence, timing, qualification, no decision, autre. Analyse mensuelle.",
+      title: `Très peu de devis émis : ${c.quotesCount ?? 0} quotes pour ${c.openDeals} deals ouverts`,
+      body: "Le ratio quotes/deals est anormalement bas. Soit les sales font des devis hors HubSpot (fuite data), soit ils n'envoient pas de devis formel (cycle de vente long).",
+      recommendation: "Audit : 100% des deals en stage Proposition doivent avoir un quote HubSpot associé. Si l'équipe utilise un autre outil, intégration ou migration vers HubSpot Quotes.",
     }),
   },
   {
-    key: "commercial_stalled_high_value",
+    key: "commercial_low_appointments",
     category: "commercial",
-    severity: "critical",
-    priority: 95,
-    shouldShow: (c) => c.stagnantDeals > 0 && c.openDeals > 0 && c.stagnantDeals > c.openDeals * 0.4,
+    severity: "warning",
+    priority: 75,
+    shouldShow: (c) => c.openDeals >= 10 && (c.appointmentsCount ?? 0) < c.openDeals * 0.5,
     build: (c) => ({
-      title: `Concentration de deals stagnants : ${Math.round((c.stagnantDeals / c.openDeals) * 100)}% du pipeline`,
-      body: `${c.stagnantDeals} deals sur ${c.openDeals} ouverts sont à l'arrêt. Le pipeline est gelé.`,
-      recommendation: "Lancer une war room stagnation : revue 1-by-1 de chaque deal bloqué avec décision binaire (relance avec next activity OU clôture lost).",
+      title: `Peu de meetings logués : ${c.appointmentsCount ?? 0} pour ${c.openDeals} deals ouverts`,
+      body: "Le ratio meetings/deals suggère que les sales ne loguent pas tous leurs RDV dans HubSpot. Perte de signal sur la santé deal et le coaching impossible.",
+      recommendation: "Imposer le calendrier HubSpot Meetings (ou intégration Google/Outlook). Tout meeting client doit créer un engagement automatiquement. Coaching basé sur le ratio meetings → next stage.",
     }),
   },
   {
-    key: "commercial_deals_per_rep",
+    key: "commercial_pipeline_per_rep",
+    category: "commercial",
+    severity: "info",
+    priority: 65,
+    shouldShow: (c) => c.openDeals >= 20 && (c.ownersCount ?? 0) >= 2,
+    build: (c) => {
+      const dealsPerRep = Math.round(c.openDeals / Math.max(1, c.ownersCount ?? 1));
+      return {
+        title: `${dealsPerRep} deals en moyenne par sales (${c.openDeals} deals / ${c.ownersCount ?? 0} owners)`,
+        body: `Charge de pipeline ${dealsPerRep > 30 ? "élevée — risque de dilution" : dealsPerRep < 10 ? "faible — sous-utilisation" : "dans la fourchette"}. Cible CRO : 15-25 deals actifs par sales selon cycle.`,
+        recommendation: dealsPerRep > 30
+          ? "Re-balancer le pipeline. Identifier les top 20 deals par sales et clôturer les autres en lost ou re-attribuer."
+          : dealsPerRep < 10
+            ? "Capacity sales sous-utilisée. Pousser sur la création de deals via outbound ou ré-allouer du headcount."
+            : "Maintenir cette charge. Auditer trimestriellement.",
+      };
+    },
+  },
+  {
+    key: "commercial_no_workflows_active",
+    category: "commercial",
+    severity: "warning",
+    priority: 80,
+    shouldShow: (c) => c.openDeals >= 5 && (c.workflowsActiveCount ?? 0) === 0,
+    build: () => ({
+      title: "0 workflow d'automatisation actif",
+      body: "Aucun workflow HubSpot actif. L'équipe sales fait tout à la main : assignation, relances, tâches de suivi. Productivité perdue de 3-5h/sales/semaine.",
+      recommendation: "Construire 5 workflows critiques : (1) attribution auto à la création, (2) tâche de relance 5j sans activité, (3) tâche relance 14j sans activité, (4) email post-démo, (5) alerte deal stagnant manager.",
+    }),
+  },
+  {
+    key: "commercial_few_workflows",
     category: "commercial",
     severity: "info",
     priority: 55,
-    shouldShow: (c) => c.openDeals >= 30,
+    shouldShow: (c) => (c.workflowsCount ?? 0) >= 1 && (c.workflowsActiveCount ?? 0) > 0 && (c.workflowsActiveCount ?? 0) < (c.workflowsCount ?? 0) * 0.5,
     build: (c) => ({
-      title: `Mesurer la charge de pipeline par commercial (${c.openDeals} deals ouverts)`,
-      body: `Trop de deals par commercial dilue l'attention. Trop peu sous-utilise la capacité.`,
-      recommendation: "Cible : 15-25 deals actifs par commercial selon cycle. Re-balancer le pipeline si certains sont surchargés et d'autres sous-occupés.",
+      title: `${(c.workflowsCount ?? 0) - (c.workflowsActiveCount ?? 0)} workflows désactivés sur ${c.workflowsCount ?? 0}`,
+      body: "Beaucoup de workflows existent mais sont éteints. Soit pollution historique, soit features désactivées suite à un incident.",
+      recommendation: "Audit workflows désactivés : archiver les obsolètes, réactiver les pertinents (avec test A/B). Documenter pourquoi chaque workflow off est off.",
     }),
   },
   {
-    key: "commercial_no_associated_company",
-    category: "commercial",
-    severity: "warning",
-    priority: 73,
-    shouldShow: (c) => c.openDeals > 5 && c.orphanRate > 30,
-    build: (c) => ({
-      title: `Deals B2B sans entreprise associée : risque rapport`,
-      body: `Avec ${c.orphanRate}% de contacts orphelins, beaucoup de deals risquent d'être mal attribués au niveau compte. Impossible de mesurer la part-of-wallet ou le land & expand.`,
-      recommendation: "Workflow d'auto-association deal ↔ company via le contact principal. Audit mensuel des deals sans company.",
-    }),
-  },
-  {
-    key: "commercial_good_closing_rate",
-    category: "commercial",
-    severity: "info",
-    priority: 35,
-    shouldShow: (c) => (c.wonDeals + c.lostDeals) >= 10 && c.closingRate >= 30,
-    build: (c) => ({
-      title: `Taux de closing solide : ${c.closingRate}%`,
-      body: `${c.wonDeals} transactions gagnées sur ${c.wonDeals + c.lostDeals} clôturées — au-dessus du benchmark de 25-30%.`,
-      recommendation: "Documenter les facteurs de succès des deals gagnés et les répliquer sur les deals en cours via des playbooks.",
-    }),
-  },
-  {
-    key: "commercial_playbook_creation",
+    key: "commercial_few_pipelines",
     category: "commercial",
     severity: "info",
     priority: 50,
-    shouldShow: (c) => c.wonDeals >= 5,
+    shouldShow: (c) => c.totalDeals >= 50 && (c.lineItemsCount ?? 0) < c.wonDeals * 0.5,
     build: (c) => ({
-      title: `Construire un playbook commercial à partir des ${c.wonDeals} deals gagnés`,
-      body: "Les patterns des deals gagnés sont une mine d'or : profil ICP, parcours type, objections résolues, durée moyenne par étape.",
-      recommendation: "Interviewer les commerciaux sur les 5 derniers deals gagnés. Documenter les questions clés posées en discovery, les démos qui closent, les arguments décisifs.",
+      title: `Peu de line items : ${c.lineItemsCount ?? 0} sur ${c.wonDeals} deals gagnés`,
+      body: "Le ratio line_items/won deals suggère que les sales ne décomposent pas leurs deals par produit. Impossible de mesurer ARPU par SKU ou cross-sell.",
+      recommendation: "Imposer le mapping produits dans HubSpot via Products + Line items. Reporting revenue par produit, identifier les bundles à prioriser.",
+    }),
+  },
+  {
+    key: "commercial_leads_object_unused",
+    category: "commercial",
+    severity: "info",
+    priority: 45,
+    shouldShow: (c) => c.totalContacts >= 100 && (c.leadsObjectCount ?? 0) === 0,
+    build: () => ({
+      title: "L'objet Leads HubSpot n'est pas utilisé",
+      body: "L'objet Leads (différent de contacts) permet de gérer la phase pré-MQL. Sans lui, les SDR mélangent prospects froids et contacts qualifiés dans la même base.",
+      recommendation: "Activer l'objet Leads pour le top of funnel. Workflow de conversion Lead → Contact à la qualification SQL. Dashboard SDR séparé du CRM principal.",
     }),
   },
 
-  // ════════════════════════════════════════════════════
-  // MARKETING (20 templates)
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════
+  // MARKETING — diagnostics data-driven
+  // ════════════════════════════════════════════════════════════════════
+
   {
     key: "marketing_no_online_tracking",
     category: "marketing",
@@ -301,9 +340,9 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     priority: 100,
     shouldShow: (c) => (c.trackingSample ?? 0) > 0 && (c.onlineContacts ?? 0) === 0,
     build: () => ({
-      title: "Aucun contact tracké en ligne",
-      body: "100% des contacts proviennent de sources offline. Le tracking HubSpot (script de suivi, formulaires, landing pages) n'est pas actif ou pas installé sur votre site web.",
-      recommendation: "Installer le code de suivi HubSpot sur votre site, activer les formulaires HubSpot et connecter vos landing pages pour commencer à tracker les sources online (SEO, Ads, Social, Email).",
+      title: "0 contact tracké en ligne sur les 100 derniers",
+      body: "Aucune source online (SEO, paid, social, email) détectée. Soit le pixel HubSpot n'est pas installé, soit tous les contacts viennent d'imports manuels offline.",
+      recommendation: "Installer le tracking code HubSpot sur tout le site. Activer les forms HubSpot. Connecter les landing pages. Vérifier hs_analytics_source sur les nouveaux contacts à 7j.",
     }),
   },
   {
@@ -311,11 +350,11 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "marketing",
     severity: "critical",
     priority: 99,
-    shouldShow: (c) => c.totalContacts > 0 && c.conversionRate < 10,
+    shouldShow: (c) => c.totalContacts >= 50 && c.conversionRate < 10,
     build: (c) => ({
-      title: `Conversion Lead → Opportunité critique : ${c.conversionRate}%`,
-      body: `Sur ${c.totalContacts.toLocaleString("fr-FR")} contacts, seulement ${c.opportunitiesCount.toLocaleString("fr-FR")} sont en phase Opportunité. Le funnel marketing perd la majorité de ses leads.`,
-      recommendation: "Auditer le scoring des leads et le process de qualification. Mettre en place un workflow de nurturing pour réchauffer les leads froids.",
+      title: `Conversion Lead → Opp critique : ${c.conversionRate}% (benchmark B2B : 25-40%)`,
+      body: `${c.opportunitiesCount} opportunités sur ${c.totalContacts} contacts. Funnel marketing qui perd 90%+ des leads — soit qualification ratée, soit handoff sales-marketing cassé, soit ICP mal défini.`,
+      recommendation: "Audit MQL→SQL : critères de scoring trop laxistes (top of funnel pollué) OU process de qualification trop strict (perte de leads viables). Réunion alignement marketing × sales semaine prochaine.",
     }),
   },
   {
@@ -323,231 +362,160 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "marketing",
     severity: "critical",
     priority: 98,
-    shouldShow: (c) => c.totalContacts > 0 && c.orphanRate > 30,
+    shouldShow: (c) => c.totalContacts >= 50 && c.orphanRate > 30,
     build: (c) => ({
-      title: `${c.orphansCount.toLocaleString("fr-FR")} contacts orphelins (${c.orphanRate}%)`,
-      body: `${c.orphanRate}% des contacts ne sont rattachés à aucune entreprise. Impossible d'analyser par compte ou de faire de l'ABM.`,
-      recommendation: "Activer l'association automatique par domaine email dans HubSpot. Lancer un nettoyage manuel pour les orphelins restants.",
+      title: `${c.orphansCount} contacts orphelins (${c.orphanRate}%) — ABM impossible`,
+      body: `${c.orphanRate}% des contacts ne sont rattachés à aucune entreprise. Reporting par compte cassé, account-based marketing impossible, segmentation par taille faussée.`,
+      recommendation: "Workflow auto-association : si email pro et domaine matche une company existante, association automatique. Pour les orphelins restants, batch d'enrichissement Dropcontact/Clearbit ce mois.",
     }),
   },
   {
     key: "marketing_low_conversion_warning",
     category: "marketing",
     severity: "warning",
-    priority: 88,
-    shouldShow: (c) => c.totalContacts > 0 && c.conversionRate >= 10 && c.conversionRate < 25,
+    priority: 90,
+    shouldShow: (c) => c.totalContacts >= 50 && c.conversionRate >= 10 && c.conversionRate < 25,
     build: (c) => ({
-      title: `Conversion Lead → Opportunité à améliorer : ${c.conversionRate}%`,
-      body: `${c.conversionRate}% de conversion est dans la moyenne basse. Le benchmark B2B SaaS se situe entre 25% et 40%.`,
-      recommendation: "Aligner marketing et sales sur les critères d'un MQL/SQL. Mettre en place des séquences de nurturing par persona.",
+      title: `Conversion Lead → Opp : ${c.conversionRate}% (en-dessous du benchmark 25%)`,
+      body: `${c.opportunitiesCount} opportunités sur ${c.totalContacts} contacts. Marge de progression de ${25 - c.conversionRate} points = +${Math.round(c.totalContacts * 0.01 * (25 - c.conversionRate))} opportunités potentielles à acquisition constante.`,
+      recommendation: "Construire un programme de nurturing en 3 séquences (TOFU/MOFU/BOFU). Lead scoring sur engagement (visites site, email opens, content downloads). Handoff SDR à un seuil de score défini.",
+    }),
+  },
+  {
+    key: "marketing_no_forms",
+    category: "marketing",
+    severity: "warning",
+    priority: 88,
+    shouldShow: (c) => c.totalContacts >= 100 && (c.formsCount ?? 0) === 0,
+    build: (c) => ({
+      title: `0 form HubSpot mais ${c.totalContacts} contacts — d'où viennent-ils ?`,
+      body: "Aucun form HubSpot détecté. Si le site convertit, l'attribution source est cassée. Si le site ne convertit pas, c'est le canal n°1 inbound qui manque.",
+      recommendation: "Audit site web : combien de pages ont un CTA ? Quelle est la conversion ? Soit migrer les forms tiers vers HubSpot Forms (attribution unifiée), soit créer 3-5 forms HubSpot sur les pages clés (homepage, product, pricing, blog).",
+    }),
+  },
+  {
+    key: "marketing_few_forms",
+    category: "marketing",
+    severity: "info",
+    priority: 65,
+    shouldShow: (c) => (c.formsCount ?? 0) >= 1 && (c.formsCount ?? 0) < 5,
+    build: (c) => ({
+      title: `Seulement ${c.formsCount} form${(c.formsCount ?? 0) > 1 ? "s" : ""} HubSpot actif${(c.formsCount ?? 0) > 1 ? "s" : ""}`,
+      body: "Peu de points de conversion en place. Les meilleurs sites B2B ont 8-15 forms (par persona, par étape funnel, par produit).",
+      recommendation: "Construire 1 form par persona × intent : fiche commerciale (BOFU), démo (BOFU), guide (TOFU), webinaire (MOFU), newsletter (TOFU). A/B tester progressivement.",
+    }),
+  },
+  {
+    key: "marketing_no_workflows",
+    category: "marketing",
+    severity: "warning",
+    priority: 85,
+    shouldShow: (c) => c.totalContacts >= 100 && (c.workflowsActiveCount ?? 0) < 3,
+    build: (c) => ({
+      title: `Très peu de workflows marketing actifs (${c.workflowsActiveCount ?? 0})`,
+      body: `Avec ${c.totalContacts} contacts en base, l'équipe marketing fait beaucoup de manuel. ROI marketing limité par le manque d'automation.`,
+      recommendation: "5 workflows critiques à activer : (1) MQL→SQL auto, (2) nurturing TOFU, (3) re-engagement dormants, (4) post-event follow-up, (5) lead scoring composite.",
+    }),
+  },
+  {
+    key: "marketing_no_lifecycle_progress",
+    category: "marketing",
+    severity: "warning",
+    priority: 82,
+    shouldShow: (c) => c.totalContacts >= 100 && c.opportunitiesCount === 0,
+    build: (c) => ({
+      title: `${c.totalContacts} contacts en base mais 0 opportunité`,
+      body: "Lifecycle stages probablement non configurés, ou personne ne les met à jour. Le funnel est invisible.",
+      recommendation: "Activer les lifecycle stages standard. Workflows de progression auto basés sur scoring (Subscriber → Lead → MQL → SQL → Opportunity → Customer). Reporting funnel hebdo.",
+    }),
+  },
+  {
+    key: "marketing_few_campaigns",
+    category: "marketing",
+    severity: "info",
+    priority: 70,
+    shouldShow: (c) => c.totalContacts >= 200 && (c.marketingCampaignsCount ?? 0) < 3,
+    build: (c) => ({
+      title: `Seulement ${c.marketingCampaignsCount ?? 0} campagne marketing trackée`,
+      body: "Sans tracking de campagnes, impossible de mesurer le ROI marketing par initiative (webinar, content, partenariat, ads).",
+      recommendation: "Tagger TOUTES les actions marketing comme Campaigns dans HubSpot. Reporting mensuel : leads générés + deals attribués + revenue par campagne.",
+    }),
+  },
+  {
+    key: "marketing_no_events",
+    category: "marketing",
+    severity: "info",
+    priority: 60,
+    shouldShow: (c) => c.totalContacts >= 200 && (c.marketingEventsCount ?? 0) === 0,
+    build: () => ({
+      title: "0 marketing event tracké dans HubSpot",
+      body: "Webinars, conférences, salons inexistants dans le CRM ou trackés ailleurs. Attribution cassée pour les sources event-driven (souvent les plus chaudes).",
+      recommendation: "Connecter Zoom/Webex/On24 à HubSpot. Chaque participant → contact + lifecycle update. Reporting event ROI : participants → leads → opportunities → revenue.",
+    }),
+  },
+  {
+    key: "marketing_lists_unused",
+    category: "marketing",
+    severity: "warning",
+    priority: 75,
+    shouldShow: (c) => c.totalContacts >= 200 && (c.listsCount ?? 0) < 5,
+    build: (c) => ({
+      title: `${c.listsCount ?? 0} listes seulement pour ${c.totalContacts} contacts`,
+      body: "Très peu de segmentation. Les campagnes touchent des audiences trop larges, l'engagement plafonne.",
+      recommendation: "Construire 10-15 listes dynamiques : par lifecycle, par persona, par intent (visiteurs pricing 7j), par engagement (opens 30j), par segment (industrie, taille). Personnaliser les campagnes par segment.",
     }),
   },
   {
     key: "marketing_few_opportunities",
     category: "marketing",
     severity: "warning",
-    priority: 86,
-    shouldShow: (c) => c.totalContacts > 100 && c.opportunitiesCount < 50,
-    build: (c) => ({
-      title: `Peu d'opportunités créées : ${c.opportunitiesCount}`,
-      body: `Avec ${c.totalContacts.toLocaleString("fr-FR")} contacts en base, seulement ${c.opportunitiesCount} sont en phase Opportunité. Le potentiel commercial n'est pas exploité.`,
-      recommendation: "Lancer une campagne de réactivation des contacts dormants pour identifier les opportunités latentes dans la base existante.",
-    }),
-  },
-  {
-    key: "marketing_attribution_workflow",
-    category: "marketing",
-    severity: "warning",
-    priority: 80,
-    shouldShow: (c) => c.orphanRate > 15 && c.orphanRate <= 30,
-    build: (c) => ({
-      title: `${c.orphanRate}% de contacts sans entreprise associée`,
-      body: `L'attribution par compte est partielle. ${c.orphansCount} contacts manquent de contexte entreprise.`,
-      recommendation: "Créer un workflow d'auto-association : si l'email correspond au domaine d'une entreprise existante, l'associer automatiquement.",
-    }),
-  },
-  {
-    key: "marketing_lead_source_attribution",
-    category: "marketing",
-    severity: "warning",
     priority: 78,
-    shouldShow: (c) => c.totalContacts > 100,
+    shouldShow: (c) => c.totalContacts > 200 && c.opportunitiesCount > 0 && c.opportunitiesCount < c.totalContacts * 0.05,
     build: (c) => ({
-      title: `Attribution source manquante sur ${c.totalContacts.toLocaleString("fr-FR")} contacts`,
-      body: "Sans hs_analytics_source renseigné, impossible de mesurer le ROI des canaux d'acquisition (SEO, Ads, social, email, partenaires).",
-      recommendation: "Vérifier que le tracking pixel HubSpot est installé partout. Activer les UTM systématiques sur toutes les campagnes payantes.",
+      title: `Seulement ${c.opportunitiesCount} opportunités sur ${c.totalContacts} contacts`,
+      body: `${c.opportunitiesCount.toLocaleString("fr-FR")} opportunités créées sur ${c.totalContacts.toLocaleString("fr-FR")} contacts en base. Potentiel énorme dormant : ~${Math.round(c.totalContacts * 0.1).toLocaleString("fr-FR")} contacts probablement réactivables.`,
+      recommendation: "Campagne réactivation : segmenter les contacts non-engagés depuis 6 mois, offre exclusive ou content premium pour re-engager. Re-scorer les leads après 7j de campagne.",
     }),
   },
   {
-    key: "marketing_no_lifecycle_stages",
+    key: "marketing_attribution_workflow_low",
     category: "marketing",
     severity: "warning",
     priority: 76,
-    shouldShow: (c) => c.totalContacts > 100 && c.opportunitiesCount === 0,
-    build: () => ({
-      title: "Aucun lifecycle stage utilisé dans la base contacts",
-      body: "Sans lifecycle stage (Subscriber, Lead, MQL, SQL, Opportunity, Customer), impossible de mesurer le funnel marketing.",
-      recommendation: "Définir les critères de progression entre stages et automatiser la transition via workflows HubSpot. C'est la fondation du funnel.",
+    shouldShow: (c) => c.totalContacts >= 50 && c.orphanRate > 15 && c.orphanRate <= 30,
+    build: (c) => ({
+      title: `${c.orphanRate}% de contacts orphelins — ABM partiellement cassé`,
+      body: `${c.orphansCount} contacts manquent de contexte entreprise. Les rapports par compte sont biaisés.`,
+      recommendation: "Workflow d'auto-association par domaine email. Process mensuel d'enrichissement des résiduels via Clearbit/Dropcontact.",
     }),
   },
   {
     key: "marketing_segmentation",
     category: "marketing",
     severity: "info",
-    priority: 60,
-    shouldShow: (c) => c.totalContacts > 500,
-    build: (c) => ({
-      title: "Segmenter votre base contacts pour des campagnes ciblées",
-      body: `Avec ${c.totalContacts.toLocaleString("fr-FR")} contacts, des campagnes génériques perdent en efficacité. La segmentation augmente l'engagement de 60%.`,
-      recommendation: "Créer des listes intelligentes par secteur, taille d'entreprise, fonction, lifecycle stage. Personnaliser les campagnes par segment.",
-    }),
-  },
-  {
-    key: "marketing_lead_magnet",
-    category: "marketing",
-    severity: "info",
     priority: 50,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Créer un lead magnet pour générer plus de leads qualifiés",
-      body: "Un lead magnet (ebook, template, webinar, calculator) capture des leads avec une intention claire et permet un nurturing efficace.",
-      recommendation: "Identifier le pain point n°1 de votre cible et créer un asset téléchargeable. Le promouvoir via Ads, SEO, social et email signature.",
-    }),
-  },
-  {
-    key: "marketing_good_conversion",
-    category: "marketing",
-    severity: "info",
-    priority: 35,
-    shouldShow: (c) => c.totalContacts > 0 && c.conversionRate >= 25,
+    shouldShow: (c) => c.totalContacts >= 500,
     build: (c) => ({
-      title: `Bonne conversion Lead → Opportunité : ${c.conversionRate}%`,
-      body: `Le funnel marketing performe bien. Continuez à alimenter le top du funnel pour scaler.`,
-      recommendation: "Identifier les sources qui convertissent le mieux et y réinvestir le budget acquisition.",
-    }),
-  },
-  {
-    key: "marketing_nurturing_program",
-    category: "marketing",
-    severity: "warning",
-    priority: 75,
-    shouldShow: (c) => c.totalContacts > 200 && c.opportunitiesCount < c.totalContacts * 0.15,
-    build: (c) => ({
-      title: `Manque de programme de nurturing (${c.totalContacts - c.opportunitiesCount} leads dormants)`,
-      body: "Sans nurturing, 80% des leads non immédiatement matures sont perdus. C'est le plus gros gisement de pipeline gratuit.",
-      recommendation: "Construire 3 séquences de nurturing : top funnel (éducation), middle funnel (use cases), bottom funnel (preuves sociales/démos).",
-    }),
-  },
-  {
-    key: "marketing_inbound_outbound_split",
-    category: "marketing",
-    severity: "info",
-    priority: 55,
-    shouldShow: (c) => c.totalContacts > 100,
-    build: () => ({
-      title: "Mesurer le mix inbound vs outbound dans le pipeline",
-      body: "Connaître la proportion de deals issus de chaque canal d'acquisition oriente l'allocation budget marketing/SDR.",
-      recommendation: "Tagger chaque deal avec sa source primaire. Construire un rapport « source → revenu » mensuel pour piloter le mix.",
-    }),
-  },
-  {
-    key: "marketing_persona_definition",
-    category: "marketing",
-    severity: "info",
-    priority: 48,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Documenter les buyer personas et les utiliser dans toutes les campagnes",
-      body: "Sans persona structuré (problèmes, objectifs, objections, vocabulaire), les campagnes restent génériques et le taux de réponse plafonne.",
-      recommendation: "Interviewer 5 clients par persona cible. Construire des fiches d'1 page : profile, pain points, success metrics, no-go signals.",
-    }),
-  },
-  {
-    key: "marketing_landing_page_optimization",
-    category: "marketing",
-    severity: "info",
-    priority: 45,
-    shouldShow: (c) => (c.onlineContacts ?? 0) > 50,
-    build: () => ({
-      title: "Optimiser les landing pages pour augmenter le taux de conversion",
-      body: "Le taux de conversion d'une landing page B2B varie de 1% à 15% selon le ciblage et le design. Marge d'amélioration énorme.",
-      recommendation: "A/B tester un élément à la fois (headline, CTA, formulaire). Outils : HubSpot A/B testing ou VWO. Cibler 3-5% conversion minimum.",
-    }),
-  },
-  {
-    key: "marketing_email_engagement",
-    category: "marketing",
-    severity: "warning",
-    priority: 70,
-    shouldShow: (c) => c.totalContacts > 500,
-    build: (c) => ({
-      title: `Mesurer l'engagement email sur ${c.totalContacts.toLocaleString("fr-FR")} contacts`,
-      body: "Sans tracking d'opens/clicks, les campagnes email tournent à l'aveugle. Les non-engagés polluent les délivrabilités.",
-      recommendation: "Activer le scoring d'engagement par contact. Pruner trimestriellement les non-engagés depuis 6+ mois (ou les segmenter en re-engagement).",
-    }),
-  },
-  {
-    key: "marketing_content_strategy",
-    category: "marketing",
-    severity: "info",
-    priority: 42,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Aligner le contenu marketing sur les objections sales",
-      body: "Les meilleurs contenus marketing répondent aux objections récurrentes en sales. Cycle court entre besoin terrain et production éditoriale.",
-      recommendation: "Sync mensuel marketing × sales sur les 5 objections les plus fréquentes. Produire 1 contenu pédagogique par objection (article, vidéo, fiche).",
-    }),
-  },
-  {
-    key: "marketing_account_based_marketing",
-    category: "marketing",
-    severity: "info",
-    priority: 40,
-    shouldShow: (c) => c.totalCompanies > 50 && c.orphanRate < 30,
-    build: (c) => ({
-      title: `Lancer une stratégie ABM sur les ${c.totalCompanies} comptes en base`,
-      body: "L'ABM (Account-Based Marketing) cible les comptes à plus haut potentiel avec des messages personnalisés. ROI typique 2-3x supérieur au lead gen classique.",
-      recommendation: "Identifier les top 50 comptes cibles. Construire des séquences personnalisées par compte. Aligner SDR + AE + marketing sur ces comptes.",
-    }),
-  },
-  {
-    key: "marketing_referral_program",
-    category: "marketing",
-    severity: "info",
-    priority: 38,
-    shouldShow: (c) => c.wonDeals > 20,
-    build: (c) => ({
-      title: `Activer un programme de référencement (${c.wonDeals} clients existants)`,
-      body: "Les leads issus du référencement convertissent 3-5x mieux que les autres sources. C'est l'acquisition la moins chère en B2B.",
-      recommendation: "Construire un programme structuré : ask systématique post-onboarding, incentive (commission, cadeau, cause), tracking dans le CRM.",
-    }),
-  },
-  {
-    key: "marketing_brand_search_visibility",
-    category: "marketing",
-    severity: "info",
-    priority: 36,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Mesurer la visibilité de la marque (volume de recherche, share of voice)",
-      body: "La part de marché digitale (search) est un leading indicator du pipeline futur. Les mots-clés en croissance prédisent les leads à 3-6 mois.",
-      recommendation: "Tracker mensuellement les volumes de recherche brand vs concurrents (SEMrush, Ahrefs). Investir contenu/SEO sur les mots-clés à fort intent.",
+      title: `Base de ${c.totalContacts.toLocaleString("fr-FR")} contacts à segmenter`,
+      body: "À cette taille de base, des campagnes génériques perdent 60%+ d'efficacité. La personnalisation par segment double l'engagement.",
+      recommendation: "10 listes intelligentes : par secteur (top 5), par taille (PME/ETI/Grand compte), par lifecycle, par engagement récent. Personnaliser les campagnes par segment.",
     }),
   },
 
-  // ════════════════════════════════════════════════════
-  // DATA (20 templates)
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════
+  // DATA — diagnostics qualité CRM
+  // ════════════════════════════════════════════════════════════════════
+
   {
     key: "data_no_phone",
     category: "data",
     severity: "warning",
     priority: 95,
-    shouldShow: (c) => c.totalContacts > 0 && c.contactsNoPhone > c.totalContacts * 0.5,
+    shouldShow: (c) => c.totalContacts >= 50 && c.contactsNoPhone > c.totalContacts * 0.4,
     build: (c) => ({
-      title: `${Math.round((c.contactsNoPhone / c.totalContacts) * 100)}% des contacts sans téléphone`,
-      body: `${c.contactsNoPhone.toLocaleString("fr-FR")} contacts n'ont pas de numéro de téléphone renseigné. Cela limite la prospection multicanale.`,
-      recommendation: "Enrichir la base via un outil tiers (Dropcontact, Clearbit, Lusha) ou rendre le champ téléphone obligatoire dans les formulaires.",
+      title: `${PCT(c.contactsNoPhone, c.totalContacts)}% des contacts sans téléphone (${c.contactsNoPhone.toLocaleString("fr-FR")})`,
+      body: "Outbound multicanal impossible. Les SDR ne peuvent pas combiner email + appel sur ces contacts — productivité divisée par 2.",
+      recommendation: "Enrichissement batch via Dropcontact ou Cognism (~0.30€/contact). Champ phone obligatoire dans tous les forms d'acquisition à partir de la prochaine sprint.",
     }),
   },
   {
@@ -555,11 +523,11 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "data",
     severity: "warning",
     priority: 92,
-    shouldShow: (c) => c.totalContacts > 0 && c.contactsNoTitle > c.totalContacts * 0.5,
+    shouldShow: (c) => c.totalContacts >= 50 && c.contactsNoTitle > c.totalContacts * 0.4,
     build: (c) => ({
-      title: `${Math.round((c.contactsNoTitle / c.totalContacts) * 100)}% des contacts sans poste`,
-      body: `Le poste permet de qualifier le décideur et de personnaliser les approches commerciales. Sans cette information, la qualification est aveugle.`,
-      recommendation: "Ajouter le champ poste dans tous les formulaires d'acquisition. Enrichir les contacts existants via LinkedIn Sales Navigator ou Dropcontact.",
+      title: `${PCT(c.contactsNoTitle, c.totalContacts)}% des contacts sans poste (${c.contactsNoTitle.toLocaleString("fr-FR")})`,
+      body: "Personnalisation outbound aveugle. Impossible de cibler par fonction ou niveau hiérarchique. Les sequences génériques sous-performent de 60%.",
+      recommendation: "Enrichissement LinkedIn Sales Navigator ou Apollo. Champ jobtitle obligatoire dans les forms BOFU. Workflow d'enrichissement déclenché au lifecycle MQL.",
     }),
   },
   {
@@ -567,11 +535,11 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "data",
     severity: "warning",
     priority: 88,
-    shouldShow: (c) => c.totalCompanies > 0 && c.companiesNoIndustry > c.totalCompanies * 0.7,
+    shouldShow: (c) => c.totalCompanies >= 30 && c.companiesNoIndustry > c.totalCompanies * 0.5,
     build: (c) => ({
-      title: `${Math.round((c.companiesNoIndustry / c.totalCompanies) * 100)}% des entreprises sans secteur d'activité`,
-      body: `${c.companiesNoIndustry.toLocaleString("fr-FR")} entreprises n'ont pas de secteur renseigné. Impossible de segmenter par industrie.`,
-      recommendation: "Activer l'enrichissement automatique HubSpot Insights ou utiliser un outil tiers pour récupérer les secteurs depuis le domaine.",
+      title: `${PCT(c.companiesNoIndustry, c.totalCompanies)}% des entreprises sans secteur d'activité`,
+      body: `${c.companiesNoIndustry} entreprises sans industry. Segmentation industry impossible, ICP par secteur invisible.`,
+      recommendation: "Activer HubSpot Insights (auto-fill par domaine) ou enrichissement Clearbit. Workflow déclenché à la création company pour fill automatique sous 24h.",
     }),
   },
   {
@@ -579,11 +547,11 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "data",
     severity: "warning",
     priority: 85,
-    shouldShow: (c) => c.totalCompanies > 0 && c.companiesNoRevenue > c.totalCompanies * 0.7,
+    shouldShow: (c) => c.totalCompanies >= 30 && c.companiesNoRevenue > c.totalCompanies * 0.5,
     build: (c) => ({
-      title: `${Math.round((c.companiesNoRevenue / c.totalCompanies) * 100)}% des entreprises sans CA`,
-      body: `Le chiffre d'affaires est essentiel pour qualifier la taille des comptes et prioriser le commercial.`,
-      recommendation: "Enrichir les entreprises avec des données firmographic via Clearbit, ZoomInfo ou un outil similaire.",
+      title: `${PCT(c.companiesNoRevenue, c.totalCompanies)}% des entreprises sans CA renseigné`,
+      body: "Impossible de scorer la taille des comptes. Les sales priorisent à l'aveugle, perdent du temps sur des comptes hors-cible.",
+      recommendation: "Enrichissement Clearbit/Société.com mensuel. Champ annualrevenue obligatoire avant passage en SQL. ICP scoring basé sur taille CA + secteur.",
     }),
   },
   {
@@ -591,187 +559,78 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "data",
     severity: "warning",
     priority: 80,
-    shouldShow: (c) => c.totalContacts > 0 && c.orphanRate > 20 && c.orphanRate <= 30,
+    shouldShow: (c) => c.totalContacts >= 50 && c.orphanRate > 15 && c.orphanRate <= 30,
     build: (c) => ({
-      title: `${c.orphansCount.toLocaleString("fr-FR")} contacts orphelins à enrichir`,
-      body: `Ces contacts existent dans le CRM mais sans entreprise associée. Leur valeur business est limitée.`,
-      recommendation: "Lancer un workflow d'enrichissement automatique des contacts orphelins via le domaine email.",
+      title: `${c.orphansCount} contacts orphelins (${c.orphanRate}%) à associer`,
+      body: "Ces contacts existent dans le CRM mais sans entreprise. Valeur business limitée — pas d'analyse compte ni de ABM possible.",
+      recommendation: "Workflow d'auto-association par domaine email actif sur les nouveaux contacts. Batch one-shot sur les orphelins existants via le matching domaine.",
     }),
   },
   {
-    key: "data_required_fields",
-    category: "data",
-    severity: "info",
-    priority: 60,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Définir les champs obligatoires par lifecycle stage",
-      body: "Chaque étape du lifecycle devrait exiger des informations spécifiques (qualification, contexte, taille, budget).",
-      recommendation: "Configurer des champs requis dans HubSpot par lifecycle stage pour bloquer la progression d'un contact incomplet.",
-    }),
-  },
-  {
-    key: "data_validation_rules",
-    category: "data",
-    severity: "info",
-    priority: 55,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Mettre en place des règles de validation sur les champs",
-      body: "Les règles de validation (format email, format téléphone, valeurs autorisées) garantissent la qualité de la donnée à la saisie.",
-      recommendation: "Configurer les regex de validation dans HubSpot pour les champs critiques (email, téléphone, code postal).",
-    }),
-  },
-  {
-    key: "data_dedup_strategy",
-    category: "data",
-    severity: "info",
-    priority: 50,
-    shouldShow: (c) => c.totalContacts > 1000,
-    build: (c) => ({
-      title: "Mettre en place une stratégie de dédoublonnage",
-      body: `Avec ${c.totalContacts.toLocaleString("fr-FR")} contacts, le risque de doublons est élevé. Les doublons faussent les rapports et créent de la confusion commerciale.`,
-      recommendation: "Utiliser l'outil de gestion des doublons HubSpot mensuellement. Activer la détection automatique sur l'email comme clé unique.",
-    }),
-  },
-  {
-    key: "data_email_validation",
+    key: "data_dedup",
     category: "data",
     severity: "warning",
     priority: 78,
-    shouldShow: (c) => c.totalContacts > 100,
+    shouldShow: (c) => c.totalContacts >= 1000,
     build: (c) => ({
-      title: `Valider les emails sur ${c.totalContacts.toLocaleString("fr-FR")} contacts`,
-      body: "Les emails invalides détruisent la délivrabilité et faussent les KPIs marketing. Un taux de bounce >5% pénalise la sender reputation.",
-      recommendation: "Brancher un service d'email verification (NeverBounce, ZeroBounce) sur les nouveaux leads. Auditer trimestriellement la base.",
+      title: `Risque doublons élevé : ${c.totalContacts.toLocaleString("fr-FR")} contacts en base`,
+      body: "À ce volume, les doublons s'accumulent inévitablement. Ils faussent les rapports, polluent les emails (sender reputation) et créent de la confusion sales.",
+      recommendation: "Lancer l'outil Manage Duplicates HubSpot ce mois. Activer la détection auto sur l'email comme clé unique. Process trimestriel de cleanup.",
     }),
   },
   {
-    key: "data_property_governance",
+    key: "data_high_property_count",
     category: "data",
-    severity: "warning",
-    priority: 73,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Mettre en place une gouvernance des propriétés CRM",
-      body: "Sans gouvernance, les propriétés s'accumulent : doublons sémantiques, champs orphelins, valeurs incohérentes. Le CRM devient illisible.",
-      recommendation: "Audit trimestriel : qui crée des champs ? lesquels sont vraiment utilisés ? Archive les obsolètes. Documenter chaque champ actif.",
-    }),
-  },
-  {
-    key: "data_country_normalization",
-    category: "data",
-    severity: "warning",
-    priority: 70,
-    shouldShow: (c) => c.totalContacts > 200,
-    build: () => ({
-      title: "Normaliser les valeurs pays / état / ville",
-      body: "« France », « FR », « FRANCE », « france » apparaissent comme 4 valeurs différentes. Reporting géographique cassé.",
-      recommendation: "Forcer les listes déroulantes (dropdown) sur pays/états. Workflow de normalisation rétroactive sur la base existante.",
-    }),
-  },
-  {
-    key: "data_no_lifecycle",
-    category: "data",
-    severity: "critical",
-    priority: 90,
-    shouldShow: (c) => c.totalContacts > 100 && c.opportunitiesCount === 0 && c.totalDeals < 5,
-    build: () => ({
-      title: "Lifecycle stage inutilisé : funnel marketing aveugle",
-      body: "Aucun contact n'a progressé dans le lifecycle. Impossible de mesurer la conversion lead → MQL → SQL → opportunity.",
-      recommendation: "Activer immédiatement les lifecycle stages standard. Mettre en place des règles de progression auto via workflows.",
-    }),
-  },
-  {
-    key: "data_pii_compliance",
-    category: "data",
-    severity: "warning",
-    priority: 75,
-    shouldShow: (c) => c.totalContacts > 500,
-    build: () => ({
-      title: "Audit RGPD : preuves de consentement",
-      body: "Avec une base contacts conséquente, l'absence de preuves de consentement (date, source, contenu) expose à des risques RGPD lourds.",
-      recommendation: "Activer le module GDPR HubSpot. Tracer pour chaque contact : date opt-in, source, version des CGU. Process documenté de droit à l'oubli.",
-    }),
-  },
-  {
-    key: "data_owner_assignment",
-    category: "data",
-    severity: "warning",
-    priority: 68,
-    shouldShow: (c) => c.totalDeals > 10 && c.openDeals > 0,
+    severity: "info",
+    priority: 60,
+    shouldShow: (c) => (c.customObjectsCount ?? 0) >= 10,
     build: (c) => ({
-      title: `Vérifier l'attribution des owners sur les deals (${c.openDeals} ouverts)`,
-      body: "Deals sans owner = deals sans responsable = deals perdus. C'est l'erreur n°1 des CRM mal gouvernés.",
-      recommendation: "Workflow d'attribution auto à la création (round-robin, segment, source). Audit hebdo des deals sans owner via report HubSpot.",
+      title: `${c.customObjectsCount} schemas custom — gouvernance critique`,
+      body: "Beaucoup de custom objects = beaucoup de gouvernance nécessaire. Sans audit, le CRM devient illisible et les nouvelles features cassent l'existant.",
+      recommendation: "Audit trimestriel : qui utilise chaque custom object, est-il à jour, peut-il être archivé ? Documentation Notion centralisée. Process strict d'ajout (validation par le RevOps).",
     }),
   },
   {
-    key: "data_field_documentation",
+    key: "data_inactive_users",
     category: "data",
     severity: "info",
-    priority: 45,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Documenter les définitions des champs critiques",
-      body: "« MRR », « ARR », « lifecycle stage »... les définitions diffèrent par personne. Sans documentation, le reporting est ingérable.",
-      recommendation: "Créer un data dictionary dans Notion/Confluence : nom du champ, définition, source, owner, exemples. Référencer dans HubSpot.",
-    }),
-  },
-  {
-    key: "data_source_tracking_quality",
-    category: "data",
-    severity: "warning",
-    priority: 65,
-    shouldShow: (c) => c.totalContacts > 100,
+    priority: 58,
+    shouldShow: (c) => (c.ownersCount ?? 0) > 5,
     build: (c) => ({
-      title: `Renseigner la source originale sur ${c.totalContacts.toLocaleString("fr-FR")} contacts`,
-      body: "Sans source originale (création), impossible de mesurer le ROI marketing par canal.",
-      recommendation: "Champ « Original Source » obligatoire à la création. Workflow de fallback si vide (heuristique sur referrer/UTM).",
+      title: `${c.ownersCount ?? 0} owners HubSpot — risque licences inactives`,
+      body: "À cette taille, certains utilisateurs sont probablement inactifs (anciens collaborateurs, freelances ponctuels). Risque sécurité + gaspillage budget.",
+      recommendation: "Audit trimestriel des dernières connexions. Désactiver tout utilisateur inactif >90j. Process automatique au offboarding RH.",
     }),
   },
   {
-    key: "data_company_hierarchy",
+    key: "data_teams_unused",
     category: "data",
     severity: "info",
-    priority: 42,
-    shouldShow: (c) => c.totalCompanies > 100,
-    build: () => ({
-      title: "Activer les hiérarchies parent ↔ filiales sur les comptes",
-      body: "Pour les groupes multi-entités, l'absence de hiérarchie cache les opportunités cross-sell intra-groupe.",
-      recommendation: "Activer la fonction parent/child companies de HubSpot. Documenter les hiérarchies via enrichissement (Société.com, BvD).",
+    priority: 55,
+    shouldShow: (c) => (c.ownersCount ?? 0) >= 5 && (c.teamsCount ?? 0) === 0,
+    build: (c) => ({
+      title: `${c.ownersCount ?? 0} owners mais 0 équipe configurée`,
+      body: "Sans Teams, impossible de faire du reporting par équipe (sales, marketing, CS) ou du round-robin par segment.",
+      recommendation: "Configurer les Teams selon votre org : Sales Inbound, Sales Outbound, Marketing, CS, etc. Permissions différenciées + reports par team.",
     }),
   },
   {
-    key: "data_inactive_users_cleanup",
+    key: "data_quality_phone_partial",
     category: "data",
     severity: "info",
-    priority: 40,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Auditer les utilisateurs CRM inactifs (sécurité + licences)",
-      body: "Les anciens collaborateurs avec accès CRM = risque sécurité + gaspillage de licences.",
-      recommendation: "Audit trimestriel : qui s'est connecté dans les 90 derniers jours ? Désactiver les inactifs. Process automatique au offboarding.",
-    }),
-  },
-  {
-    key: "data_property_naming_convention",
-    category: "data",
-    severity: "info",
-    priority: 38,
-    shouldShow: () => true,
-    build: () => ({
-      title: "Adopter une convention de nommage des propriétés",
-      body: "Champs « lead_score », « LeadScore », « Lead Score » coexistent → confusion + bugs reporting. Convention claire = cleanup.",
-      recommendation: "Standard recommandé : snake_case en français ou anglais, préfixé par catégorie (sales_, marketing_, ops_). Documenté + enforcé en review.",
+    priority: 50,
+    shouldShow: (c) => c.totalContacts >= 50 && c.contactsNoPhone <= c.totalContacts * 0.4 && c.contactsNoPhone > c.totalContacts * 0.15,
+    build: (c) => ({
+      title: `${PCT(c.contactsNoPhone, c.totalContacts)}% des contacts sans téléphone — couverture moyenne`,
+      body: `${c.contactsNoPhone} contacts à enrichir pour atteindre 90% de couverture phone. Tâche d'enrichissement budgétisable (~${Math.round(c.contactsNoPhone * 0.3)}€).`,
+      recommendation: "Enrichissement ciblé sur les contacts en lifecycle MQL+. Skip les Subscriber/Lead pour économiser le budget enrichment.",
     }),
   },
 ];
 
 /**
- * Returns up to 20 non-dismissed insights per category, ranked by priority.
- * Cap relevé de 3 → 20 pour exposer toute la profondeur de la library
- * (60 templates au total). L'UI peut paginer/scroller au besoin.
+ * Sélectionne jusqu'à 20 templates non-dismissés par catégorie, classés par priorité.
+ * Templates conditionnés par ctx — ne fireront pas si la donnée n'est pas là.
  */
 export function selectInsights(
   ctx: InsightContext,
@@ -783,18 +642,16 @@ export function selectInsights(
     data: [],
   };
 
-  // ⚠ Plus de short-circuit "org vide" : on laisse les templates always-on
-  // (gouvernance, validation, RGPD, playbooks, etc.) s'afficher même sans
-  // données chargées, car ce sont de vrais conseils CRO/RevOps universels.
-  // Les templates conditionnés (ex: "X% sans téléphone") ne fireront pas
-  // tant qu'il n'y a pas de données — leur shouldShow s'en charge.
-
   const sorted = [...INSIGHT_LIBRARY].sort((a, b) => b.priority - a.priority);
 
   for (const tpl of sorted) {
     if (dismissedKeys.has(tpl.key)) continue;
-    if (!tpl.shouldShow(ctx)) continue;
-    if (result[tpl.category].length >= 20) continue; // max 20 per category
+    try {
+      if (!tpl.shouldShow(ctx)) continue;
+    } catch {
+      continue;
+    }
+    if (result[tpl.category].length >= 20) continue;
     const built = tpl.build(ctx);
     result[tpl.category].push({
       key: tpl.key,

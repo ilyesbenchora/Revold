@@ -47,6 +47,7 @@ const CATEGORY_COLORS: Record<string, { dot: string; badge: string }> = {
   marketing: { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700" },
   data: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
   process: { dot: "bg-indigo-500", badge: "bg-indigo-50 text-indigo-700" },
+  csm: { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -54,6 +55,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   marketing: "Marketing",
   data: "Data",
   process: "Process",
+  csm: "CSM",
 };
 
 type TabId = "mine" | "pipeline" | "lifecycle" | "data_quality";
@@ -175,33 +177,79 @@ function AlertCard({ alert }: { alert: AlertItem }) {
 
 function SimulationCard({ sim }: { sim: SimulationItem }) {
   const colors = CATEGORY_COLORS[sim.category] ?? CATEGORY_COLORS.sales;
+  // sim.color est désormais un gradient Tailwind tel que "from-blue-500 to-indigo-600"
+  const gradient = sim.color || "from-slate-500 to-slate-700";
+
   return (
-    <article className={`card flex flex-col gap-3 p-5 ${sim.color}`}>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
-        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${colors.badge}`}>
-          {CATEGORY_LABELS[sim.category] ?? sim.category}
-        </span>
-      </div>
-      <p className="text-sm font-semibold text-slate-900">{sim.title}</p>
-      <p className="text-xs text-slate-600 leading-relaxed">{sim.description}</p>
-      <div className="mt-1 flex items-start gap-2 rounded-lg bg-white/70 px-3 py-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-slate-500">
-          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-          <polyline points="16 7 22 7 22 13" />
-        </svg>
-        <p className="text-sm font-semibold text-slate-900">{sim.impact}</p>
-      </div>
-      <div className="mt-auto pt-2">
-        <AlertButton
-          title={sim.title}
-          description={sim.description}
-          impact={sim.impact}
-          category={sim.category}
-          forecastType={sim.forecastType}
-          threshold={sim.threshold}
-          direction={sim.direction}
-        />
+    <article className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition hover:shadow-xl hover:-translate-y-0.5">
+      {/* Bandeau gradient en haut */}
+      <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
+
+      {/* Halo coloré décoratif (top-right) */}
+      <div className={`pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br ${gradient} opacity-10 blur-2xl transition group-hover:opacity-20`} />
+
+      <div className="relative flex flex-col gap-4 p-5">
+        {/* Badge équipe */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex h-7 items-center rounded-full bg-gradient-to-r ${gradient} px-2.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm`}>
+              {CATEGORY_LABELS[sim.category] ?? sim.category}
+            </span>
+          </div>
+          <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
+        </div>
+
+        {/* Titre principal — taille volontairement grande */}
+        <h3 className="text-base font-bold leading-tight text-slate-900">
+          {sim.title}
+        </h3>
+
+        {/* Description courte */}
+        <p className="text-xs leading-relaxed text-slate-600">{sim.description}</p>
+
+        {/* Bloc Impact — la pièce maîtresse, gradient + gros texte */}
+        <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${gradient} p-3.5 shadow-sm`}>
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/25 backdrop-blur-sm">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-white"
+              >
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                <polyline points="16 7 22 7 22 13" />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-white/80">
+                Impact estimé
+              </p>
+              <p className="mt-0.5 text-sm font-bold leading-snug text-white">
+                {sim.impact}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="mt-auto">
+          <AlertButton
+            title={sim.title}
+            description={sim.description}
+            impact={sim.impact}
+            category={sim.category}
+            forecastType={sim.forecastType}
+            threshold={sim.threshold}
+            direction={sim.direction}
+          />
+        </div>
       </div>
     </article>
   );

@@ -6,6 +6,9 @@ import { buildCrossSourceContext, selectCrossSourceInsights } from "@/lib/insigh
 import { generateDataModelInsights } from "@/lib/insights/data-model-insights";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { fetchHubSpotEcosystemCounts, EMPTY_ECOSYSTEM_COUNTS } from "@/lib/integrations/hubspot";
+
+const PCT = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
 
 export { selectInsights };
 export type { InsightContext };
@@ -154,19 +157,58 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
   const opps = opportunitiesCount ?? 0;
   const orphans = orphansCount ?? 0;
 
-  // ── FALLBACK HUBSPOT DIRECT ──
-  // Supabase vide (sync pas encore propagée OU sync incomplète) mais HubSpot
-  // OAuth connecté = source de vérité disponible. On va chercher les counts
-  // directement via /search?limit=1 qui renvoie le total sans charger les rows.
-  if (tDeals === 0 && tContacts === 0) {
-    const token = await getHubSpotToken(supabase, orgId);
-    if (token) {
-      const fb = await fetchHubSpotFallbackCounts(token);
-      // Si HubSpot a vraiment des données, on les retourne. Sinon on tombe
-      // sur les zéros Supabase (org réellement vide).
-      if (fb.totalDeals > 0 || fb.totalContacts > 0 || fb.totalCompanies > 0) {
-        return fb;
-      }
+  // ── ECOSYSTEM COUNTS + OWNERS via HubSpot OAuth ──
+  // On enrichit ctx avec TOUS les counts ecosystem (tickets, leads, invoices,
+  // subscriptions, sequences, forecasts, marketing campaigns, etc.) pour que
+  // les templates CRO/RevOps puissent diagnostiquer sur la donnée réelle.
+  const token = await getHubSpotToken(supabase, orgId);
+  let ecosystem = EMPTY_ECOSYSTEM_COUNTS;
+  let ownersCount = 0;
+  if (token) {
+    try {
+      const [eco, owners] = await Promise.all([
+        fetchHubSpotEcosystemCounts(token),
+        fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => (r.ok ? r.json() : { results: [] }))
+          .then((d) => (d.results ?? []).length)
+          .catch(() => 0),
+      ]);
+      ecosystem = eco;
+      ownersCount = owners;
+    } catch {}
+  }
+
+  // ── FALLBACK HUBSPOT DIRECT pour deals/contacts/companies ──
+  // Supabase vide mais HubSpot connecté = source de vérité disponible.
+  if (tDeals === 0 && tContacts === 0 && token) {
+    const fb = await fetchHubSpotFallbackCounts(token);
+    if (fb.totalDeals > 0 || fb.totalContacts > 0 || fb.totalCompanies > 0) {
+      return {
+        ...fb,
+        ticketsCount: ecosystem.tickets,
+        conversationsCount: ecosystem.conversations,
+        feedbackCount: ecosystem.feedbackSubmissions,
+        leadsObjectCount: ecosystem.leads,
+        quotesCount: ecosystem.quotes,
+        lineItemsCount: ecosystem.lineItems,
+        sequencesCount: ecosystem.sequences,
+        forecastsCount: ecosystem.forecasts,
+        goalsCount: ecosystem.goals,
+        invoicesCount: ecosystem.invoices,
+        subscriptionsCount: ecosystem.subscriptions,
+        marketingCampaignsCount: ecosystem.marketingCampaigns,
+        marketingEventsCount: ecosystem.marketingEvents,
+        formsCount: ecosystem.forms,
+        customObjectsCount: ecosystem.customObjects,
+        listsCount: ecosystem.lists,
+        workflowsCount: ecosystem.workflows,
+        workflowsActiveCount: ecosystem.workflowsActive,
+        ownersCount,
+        teamsCount: ecosystem.teams,
+        appointmentsCount: ecosystem.appointments,
+      };
     }
   }
 
@@ -192,6 +234,28 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
     totalCompanies: totalCompanies ?? 0,
     companiesNoIndustry: companiesNoIndustry ?? 0,
     companiesNoRevenue: companiesNoRevenue ?? 0,
+    // Ecosystem
+    ticketsCount: ecosystem.tickets,
+    conversationsCount: ecosystem.conversations,
+    feedbackCount: ecosystem.feedbackSubmissions,
+    leadsObjectCount: ecosystem.leads,
+    quotesCount: ecosystem.quotes,
+    lineItemsCount: ecosystem.lineItems,
+    sequencesCount: ecosystem.sequences,
+    forecastsCount: ecosystem.forecasts,
+    goalsCount: ecosystem.goals,
+    invoicesCount: ecosystem.invoices,
+    subscriptionsCount: ecosystem.subscriptions,
+    marketingCampaignsCount: ecosystem.marketingCampaigns,
+    marketingEventsCount: ecosystem.marketingEvents,
+    formsCount: ecosystem.forms,
+    customObjectsCount: ecosystem.customObjects,
+    listsCount: ecosystem.lists,
+    workflowsCount: ecosystem.workflows,
+    workflowsActiveCount: ecosystem.workflowsActive,
+    ownersCount,
+    teamsCount: ecosystem.teams,
+    appointmentsCount: ecosystem.appointments,
   };
 }
 
@@ -630,349 +694,411 @@ export function buildScenarios(ctx: InsightContext) {
     companiesNoRevenue,
   } = ctx;
 
-  // ─── PIPELINE simulations (10) ──────────────────────
-  const pipeline = [
+  type Sim = {
+    title: string;
+    description: string;
+    impact: string;
+    category: string;
+    simulationCategory: "pipeline" | "lifecycle" | "data_quality";
+    color: string;
+    forecastType: string;
+    threshold: number;
+    direction: "above" | "below";
+    show: boolean;
+  };
+
+  // Helper : ne montrer que si current < target (above) ou current > target (below)
+  // ET si on a au moins un peu de signal data
+  const hasDealSignal = tDeals >= 5 || open >= 5;
+  const hasContactSignal = tContacts >= 50;
+  const hasCompanySignal = totalCompanies >= 30;
+
+  // ─── PIPELINE simulations (data-driven uniquement) ──
+  const closedTotal = won + lost;
+  const closingTarget = Math.min(50, Math.max(closingRate + 10, 30));
+  const nextActivityRate = tDeals > 0 ? Math.round(((tDeals - dealsNoNextActivity) / tDeals) * 100) : 0;
+  const activationRate = open > 0 ? Math.round(((open - dealsNoActivity) / open) * 100) : 0;
+  const amountCompleteness = tDeals > 0 ? Math.round(((tDeals - dealsNoAmount) / tDeals) * 100) : 0;
+  const closeDateCompleteness = tDeals > 0 ? Math.round(((tDeals - dealsNoCloseDate) / tDeals) * 100) : 0;
+
+  const pipeline: Sim[] = [
     {
-      title: `Closing rate : ${closingRate}% → ${Math.min(100, closingRate + 15)}%`,
-      description: `Actuellement ${won} transactions gagnées sur ${won + lost} clôturées. Améliorer la qualification.`,
-      impact: `+${Math.min(100, closingRate + 15) - closingRate} pts, ~${Math.round(won * 0.5)} deals supplémentaires`,
+      show: hasDealSignal && closedTotal >= 5 && closingRate < closingTarget,
+      title: `Closing rate : ${closingRate}% → ${closingTarget}%`,
+      description: `${won} deals gagnés / ${closedTotal} clôturés. Top quartile B2B atteint ${closingTarget}%. Renforcer MEDDIC en stage Qualification = +${closingTarget - closingRate} pts mécaniques.`,
+      impact: `~+${Math.max(1, Math.round(closedTotal * (closingTarget - closingRate) / 100))} deals gagnés / quarter`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-blue-200 bg-blue-50",
+      simulationCategory: "pipeline",
+      color: "from-blue-500 to-indigo-600",
       forecastType: "closing_rate",
-      threshold: Math.min(100, closingRate + 15),
-      direction: "above" as const,
+      threshold: closingTarget,
+      direction: "above",
     },
     {
-      title: `Suivi pipeline : ${tDeals > 0 ? Math.round(((tDeals - (dealsNoNextActivity ?? 0)) / tDeals) * 100) : 0}% → 80%`,
-      description: `${dealsNoNextActivity ?? 0} deals sans activité planifiée. Chaque deal doit avoir un prochain RDV.`,
-      impact: `+${Math.round((dealsNoNextActivity ?? 0) * 0.7)} deals suivis activement`,
+      show: hasDealSignal && dealsNoNextActivity > 0 && nextActivityRate < 90,
+      title: `Suivi pipeline : ${nextActivityRate}% → 90%`,
+      description: `${dealsNoNextActivity} deals sur ${open} sans next activity planifiée. Workflow bloquant la sauvegarde sans next_activity_date = effet immédiat.`,
+      impact: `+${Math.max(1, Math.round(dealsNoNextActivity * 0.7))} deals remis en suivi actif`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-indigo-200 bg-indigo-50",
+      simulationCategory: "pipeline",
+      color: "from-indigo-500 to-purple-600",
       forecastType: "pipeline_coverage",
-      threshold: 80,
-      direction: "above" as const,
+      threshold: 90,
+      direction: "above",
     },
     {
-      title: `Activation deals : ${open > 0 ? Math.round(((open - (dealsNoActivity ?? 0)) / open) * 100) : 0}% → 100%`,
-      description: `${dealsNoActivity ?? 0} deals en cours sans aucune activité commerciale enregistrée.`,
-      impact: `Pipeline réellement travaillé, ~${Math.round((dealsNoActivity ?? 0) * 0.4)} deals à transformer`,
+      show: hasDealSignal && dealsNoActivity > 0 && activationRate < 95,
+      title: `Activation deals : ${activationRate}% → 95%`,
+      description: `${dealsNoActivity} deals créés mais jamais touchés. Sprint nettoyage : 1 décision/deal en 2min (action OU lost). ~${Math.max(1, Math.round(dealsNoActivity * 0.4))} deals récupérables.`,
+      impact: `~+${Math.max(1, Math.round(dealsNoActivity * 0.4))} deals réveillés`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-blue-200 bg-blue-50",
+      simulationCategory: "pipeline",
+      color: "from-cyan-500 to-blue-600",
       forecastType: "deal_activation",
-      threshold: 100,
-      direction: "above" as const,
+      threshold: 95,
+      direction: "above",
     },
     {
-      title: `Pipeline en valeur : forecast +20%`,
-      description: `Renseigner les montants sur tous les deals permet de construire un forecast fiable.`,
-      impact: `Visibilité revenus trimestriels, prévisions data-driven`,
+      show: hasDealSignal && dealsNoAmount > 0 && amountCompleteness < 95,
+      title: `Montants renseignés : ${amountCompleteness}% → 95%`,
+      description: `${dealsNoAmount} deals sans amount. Forecast en valeur impossible. Champ obligatoire en stage Qualification = data complète sous 30j.`,
+      impact: `Forecast pondéré activé sur ${dealsNoAmount} deals additionnels`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-indigo-200 bg-indigo-50",
-      forecastType: "pipeline_value",
-      threshold: 0,
-      direction: "above" as const,
-    },
-    {
-      title: `Montants renseignés : ${tDeals > 0 ? Math.round(((tDeals - dealsNoAmount) / tDeals) * 100) : 0}% → 95%`,
-      description: `${dealsNoAmount} deals sans montant. Forecast impossible à fiabiliser tant que ces deals sont opaques.`,
-      impact: `Forecast en valeur ${tDeals > 0 ? `+${Math.round((dealsNoAmount / tDeals) * 100)} pts de fiabilité` : ""}`,
-      category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-blue-200 bg-blue-50",
+      simulationCategory: "pipeline",
+      color: "from-blue-500 to-indigo-600",
       forecastType: "amount_completion",
       threshold: 95,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Date de closing : ${tDeals > 0 ? Math.round(((tDeals - dealsNoCloseDate) / tDeals) * 100) : 0}% → 95%`,
-      description: `${dealsNoCloseDate} deals sans date de closing. Impossible de bâtir un forecast par mois ou trimestre.`,
-      impact: `Visibilité revenu mensuel/trimestriel`,
+      show: hasDealSignal && dealsNoCloseDate > 0 && closeDateCompleteness < 95,
+      title: `Date closing : ${closeDateCompleteness}% → 95%`,
+      description: `${dealsNoCloseDate} deals sans closedate. Forecast mensuel/trimestriel cassé. Champ obligatoire avant Proposition.`,
+      impact: `Forecast par période fiable sur ${dealsNoCloseDate} deals`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-indigo-200 bg-indigo-50",
+      simulationCategory: "pipeline",
+      color: "from-indigo-500 to-violet-600",
       forecastType: "close_date_completion",
       threshold: 95,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Réduction stagnation : ${stagnantDeals} → 0 deals stagnants`,
-      description: `${stagnantDeals} deals à l'arrêt depuis +7 jours sans next activity. War room hebdo recommandée.`,
-      impact: `Pipeline assaini, ~${Math.round(stagnantDeals * 0.3)} deals récupérables`,
+      show: hasDealSignal && stagnantDeals > 0,
+      title: `Stagnation : ${stagnantDeals} → 0 deals figés`,
+      description: `${stagnantDeals} deals sans activité depuis 7j+ et sans next activity. War room cette semaine = revue 1-by-1 avec décision binaire.`,
+      impact: `~+${Math.max(1, Math.round(stagnantDeals * 0.3))} deals récupérés, pipeline assaini`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-blue-200 bg-blue-50",
+      simulationCategory: "pipeline",
+      color: "from-rose-500 to-pink-600",
       forecastType: "stagnant_clear",
       threshold: 0,
-      direction: "below" as const,
+      direction: "below",
     },
     {
-      title: `Velocity x2 : doubler le nombre de deals/mois`,
-      description: `Cible : doubler la cadence de création de nouveaux deals via outbound + inbound combinés.`,
-      impact: `Capacité pipeline doublée, base d'opportunités robuste`,
+      show: hasDealSignal && lost >= 10 && lost > won * 1.5,
+      title: `Lost rate : ${PCT(lost, closedTotal)}% → ${Math.max(40, PCT(lost, closedTotal) - 15)}%`,
+      description: `${lost} perdus pour ${won} gagnés. Ratio anormal — qualification trop laxiste. Disqualifier 30% des deals dès la Discovery = baisse mécanique du lost rate.`,
+      impact: `~+${Math.max(1, Math.round((lost - won) * 0.2))} deals win supplémentaires`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-indigo-200 bg-indigo-50",
-      forecastType: "velocity_x2",
-      threshold: 200,
-      direction: "above" as const,
+      simulationCategory: "pipeline",
+      color: "from-orange-500 to-rose-600",
+      forecastType: "lost_rate",
+      threshold: Math.max(40, PCT(lost, closedTotal) - 15),
+      direction: "below",
     },
     {
-      title: `Win rate par segment : identifier les top 3 ICP`,
-      description: `Calculer le win rate par segment (taille, secteur, source) révèle où concentrer l'effort sales.`,
-      impact: `Ré-allocation budget acquisition vers les meilleurs segments`,
+      show: hasDealSignal && open > 0 && open < 20,
+      title: `Pipeline : ${open} → ${Math.max(30, open * 3)} deals ouverts`,
+      description: `Pipeline anémique. Règle CRO : pipeline = 3x objectif quarter. Mobilisation SDR + inbound combinée pour x3 en 60j.`,
+      impact: `+${Math.max(20, open * 3 - open)} deals ouverts, couverture forecast atteinte`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-blue-200 bg-blue-50",
-      forecastType: "icp_win_rate",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "pipeline",
+      color: "from-fuchsia-500 to-purple-600",
+      forecastType: "pipeline_volume",
+      threshold: Math.max(30, open * 3),
+      direction: "above",
     },
     {
-      title: `Réduire le cycle de vente de 20%`,
-      description: `Cycle plus court = plus de deals fermés sur la même période. Levier : raccourcir le temps en pipeline + automatiser les contrats.`,
-      impact: `+20% de revenu sur la même équipe sales`,
+      show: hasDealSignal && (ctx.sequencesCount ?? 0) === 0,
+      title: `Sequences : 0 → 3 séquences actives`,
+      description: `Aucune sequence Sales Hub. SDR/AE prospectent à la main = productivité divisée par 2. 3 sequences (cold, follow-up, re-engagement) = effet immédiat.`,
+      impact: `~+30% reply rate, ~+20% meetings bookés`,
       category: "sales",
-      simulationCategory: "pipeline" as const,
-      color: "border-indigo-200 bg-indigo-50",
-      forecastType: "cycle_reduction",
-      threshold: 80,
-      direction: "below" as const,
+      simulationCategory: "pipeline",
+      color: "from-violet-500 to-fuchsia-600",
+      forecastType: "sequences_setup",
+      threshold: 3,
+      direction: "above",
+    },
+    {
+      show: hasDealSignal && (ctx.workflowsActiveCount ?? 0) < 3,
+      title: `Workflows actifs : ${ctx.workflowsActiveCount ?? 0} → 5 workflows critiques`,
+      description: `Trop peu d'automation sales. 5 workflows clés (attribution, relance 5j, relance 14j, post-démo, alerte stagnation) = -3h/sales/semaine en manuel.`,
+      impact: `Économie ~${Math.max(1, (ctx.ownersCount ?? 1)) * 12}h/semaine sur l'équipe`,
+      category: "sales",
+      simulationCategory: "pipeline",
+      color: "from-blue-500 to-cyan-600",
+      forecastType: "workflows_setup",
+      threshold: 5,
+      direction: "above",
     },
   ];
 
-  // ─── LIFECYCLE simulations (10) ─────────────────────
-  const lifecycle = [
+  // ─── LIFECYCLE simulations (data-driven uniquement) ──
+  const conversionTarget = Math.max(conversionRate + 10, 25);
+  const lifecycle: Sim[] = [
     {
-      title: `Conversion Lead→Opp : ${conversionRate}% → ${Math.min(100, conversionRate + 10)}%`,
-      description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, ${opps.toLocaleString("fr-FR")} sont en phase Opportunité.`,
-      impact: `+${Math.round(tContacts * 0.1).toLocaleString("fr-FR")} opportunités potentielles`,
+      show: hasContactSignal && conversionRate < conversionTarget,
+      title: `Conversion Lead → Opp : ${conversionRate}% → ${conversionTarget}%`,
+      description: `${opps} opportunités sur ${tContacts.toLocaleString("fr-FR")} contacts. Top quartile B2B atteint ${conversionTarget}%. Lead scoring + handoff automatique = +${conversionTarget - conversionRate} pts.`,
+      impact: `~+${Math.max(1, Math.round(tContacts * (conversionTarget - conversionRate) / 100)).toLocaleString("fr-FR")} opportunités/an`,
       category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-orange-600",
       forecastType: "conversion_rate",
-      threshold: Math.min(100, conversionRate + 10),
-      direction: "above" as const,
+      threshold: conversionTarget,
+      direction: "above",
     },
     {
-      title: `Réactivation contacts dormants`,
-      description: `Lancer une campagne sur les contacts sans engagement depuis 6 mois pour identifier les opportunités latentes.`,
-      impact: `~${Math.round(tContacts * 0.05).toLocaleString("fr-FR")} contacts potentiellement réactivables`,
+      show: hasContactSignal && tContacts > opps * 4,
+      title: `Réactivation dormants : ~${Math.round(tContacts * 0.05).toLocaleString("fr-FR")} contacts re-engageables`,
+      description: `${(tContacts - opps).toLocaleString("fr-FR")} contacts non-opportunités. Statistiquement 5% sont réactivables avec une bonne campagne (offre + content + scoring).`,
+      impact: `+${Math.max(1, Math.round(tContacts * 0.005)).toLocaleString("fr-FR")} opportunités gratuites identifiées`,
       category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-rose-500",
       forecastType: "dormant_reactivation",
-      threshold: Math.round(tContacts * 0.05),
-      direction: "below" as const,
+      threshold: Math.max(1, Math.round(tContacts * 0.05)),
+      direction: "above",
     },
     {
-      title: `MQL → SQL : automatiser la transition`,
-      description: `Workflow déclenché par scoring qui passe automatiquement les leads en SQL une fois les critères atteints.`,
-      impact: `Réactivité commerciale, 0 lead perdu en attente de qualif manuelle`,
+      show: hasContactSignal && (ctx.workflowsActiveCount ?? 0) < 3,
+      title: `Workflows lifecycle : ${ctx.workflowsActiveCount ?? 0} → 5 actifs`,
+      description: "MQL→SQL auto, nurturing TOFU, re-engagement dormants, post-event, lead scoring composite. 5 automations qui multiplient le ROI marketing.",
+      impact: "+30-50% de conversion lead→opp à 12 mois",
       category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "mql_sql_automation",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-yellow-600",
+      forecastType: "workflows_lifecycle",
+      threshold: 5,
+      direction: "above",
     },
     {
-      title: `Lead scoring : déployer un modèle prédictif`,
-      description: `Le scoring (engagement + firmographic) priorise les leads chauds pour SDR et augmente la productivité.`,
-      impact: `2-3x plus de meetings bookés sur le même volume de leads`,
+      show: hasContactSignal && (ctx.formsCount ?? 0) < 5,
+      title: `Forms : ${ctx.formsCount ?? 0} → 8 forms par persona/intent`,
+      description: "Démo, fiche commerciale, guide TOFU, webinar MOFU, newsletter, contact, partenaires, careers. 8 forms par persona × intent = funnel structuré.",
+      impact: `+${Math.max(20, Math.round(tContacts * 0.1)).toLocaleString("fr-FR")} leads/mois (cible)`,
       category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "lead_scoring",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-orange-500",
+      forecastType: "forms_setup",
+      threshold: 8,
+      direction: "above",
     },
     {
-      title: `Nurturing : 3 séquences (TOFU, MOFU, BOFU)`,
-      description: `Construire 3 programmes de nurturing par étape funnel. 80% des leads non-immédiats finissent par convertir s'ils sont bien nurturés.`,
-      impact: `+30 à 50% de conversion totale lead→opp à 12 mois`,
+      show: hasContactSignal && (ctx.listsCount ?? 0) < 10,
+      title: `Listes segmentation : ${ctx.listsCount ?? 0} → 15 listes dynamiques`,
+      description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, peu de segments. 15 listes intelligentes (lifecycle, persona, intent, engagement) = +60% engagement.`,
+      impact: `Personnalisation des campagnes sur 100% de la base`,
       category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "nurturing_setup",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "lifecycle",
+      color: "from-rose-500 to-amber-500",
+      forecastType: "lists_setup",
+      threshold: 15,
+      direction: "above",
     },
     {
-      title: `Customer onboarding : raccourcir le time-to-value`,
-      description: `Plus le client tire de la valeur tôt, plus il renouvelle. Audit du parcours onboarding et identification des frictions.`,
-      impact: `+15-25% de retention année 1`,
-      category: "csm",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "onboarding_speed",
-      threshold: 0,
-      direction: "above" as const,
+      show: hasContactSignal && (ctx.marketingCampaignsCount ?? 0) < 5,
+      title: `Campagnes trackées : ${ctx.marketingCampaignsCount ?? 0} → 10 campagnes structurées`,
+      description: "Sans tracking de campagnes (Marketing Campaigns HubSpot), impossible de mesurer ROI par initiative. 10 campagnes minimum pour benchmarker.",
+      impact: "Reporting ROI par campagne mensuel activé",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-fuchsia-500",
+      forecastType: "campaigns_setup",
+      threshold: 10,
+      direction: "above",
     },
     {
-      title: `Upsell programmatique : détecter les expansion signals`,
-      description: `Workflow qui flag les comptes avec usage croissant + faible MRR comme prêts pour upsell.`,
-      impact: `+10-20% d'expansion revenue ARR`,
+      show: (ctx.ticketsCount ?? 0) > 0 && (ctx.feedbackCount ?? 0) === 0,
+      title: `NPS/CSAT loop : 0 → ${Math.max(10, Math.round((ctx.ticketsCount ?? 0) * 0.3))} feedbacks/mois`,
+      description: `${ctx.ticketsCount} tickets ouverts mais 0 feedback collecté. Survey post-ticket + NPS trimestriel = détection proactive churn.`,
+      impact: `${Math.max(10, Math.round((ctx.ticketsCount ?? 0) * 0.3))} signaux client/mois pour CSM`,
       category: "csm",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "upsell_detection",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "lifecycle",
+      color: "from-emerald-500 to-teal-600",
+      forecastType: "feedback_loop",
+      threshold: Math.max(10, Math.round((ctx.ticketsCount ?? 0) * 0.3)),
+      direction: "above",
     },
     {
-      title: `Renouvellement : alerter 90 jours avant échéance`,
-      description: `Notifier le CSM 90 jours avant la fin du contrat pour préparer le renouvellement et identifier les blocages tôt.`,
-      impact: `+5-10 pts de retention`,
+      show: (ctx.subscriptionsCount ?? 0) > 0,
+      title: `Renouvellement : alerte 90j avant échéance`,
+      description: `${ctx.subscriptionsCount} subscriptions actives. Workflow d'alerte à J-90 = +5-10 pts de retention.`,
+      impact: `Retention améliorée sur ${ctx.subscriptionsCount} comptes récurrents`,
       category: "csm",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "renewal_alert",
+      simulationCategory: "lifecycle",
+      color: "from-emerald-500 to-cyan-600",
+      forecastType: "renewal_alerts",
       threshold: 90,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Programme de référencement client`,
-      description: `Demande systématique de réf en NPS promoteur ou post-success. Les leads issus de réf convertissent 3x mieux.`,
-      impact: `Acquisition la moins chère + meilleure qualité`,
-      category: "marketing",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "referral_program",
-      threshold: 0,
-      direction: "above" as const,
-    },
-    {
-      title: `NPS / CSAT loop : capturer la voix client`,
-      description: `Mesurer NPS post-onboarding + CSAT après chaque ticket. Les détracteurs deviennent des risques churn flaggés.`,
-      impact: `Détection proactive du churn, base testimoniaux + cas clients`,
+      show: (ctx.invoicesCount ?? 0) > 0 && won > 0,
+      title: `Réconciliation deals ↔ factures`,
+      description: `${won} deals gagnés vs ${ctx.invoicesCount} factures émises. Audit des écarts = détection fuites revenue + alignement sales/finance.`,
+      impact: "Forecast vs réalisé fiabilisé, fuite revenue identifiée",
       category: "csm",
-      simulationCategory: "lifecycle" as const,
-      color: "border-amber-200 bg-amber-50",
-      forecastType: "nps_csat_loop",
+      simulationCategory: "lifecycle",
+      color: "from-cyan-500 to-blue-600",
+      forecastType: "deals_invoices_match",
       threshold: 0,
-      direction: "above" as const,
+      direction: "above",
+    },
+    {
+      show: hasContactSignal && (ctx.marketingEventsCount ?? 0) === 0,
+      title: `Events trackés : 0 → minimum 3 events/an`,
+      description: "Webinars, conférences, salons non trackés. Attribution event-driven cassée. Connecter Zoom/On24/Eventbrite à HubSpot Events.",
+      impact: "ROI events mesurable + lead gen attribué",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-rose-500 to-fuchsia-500",
+      forecastType: "events_tracking",
+      threshold: 3,
+      direction: "above",
     },
   ];
 
-  // ─── DATA QUALITY simulations (10) ──────────────────
-  const dataQuality = [
+  // ─── DATA QUALITY simulations (data-driven uniquement) ──
+  const phoneRate = tContacts > 0 ? PCT(tContacts - contactsNoPhone, tContacts) : 0;
+  const titleRate = tContacts > 0 ? PCT(tContacts - contactsNoTitle, tContacts) : 0;
+  const industryRate = totalCompanies > 0 ? PCT(totalCompanies - companiesNoIndustry, totalCompanies) : 0;
+  const revenueRate = totalCompanies > 0 ? PCT(totalCompanies - companiesNoRevenue, totalCompanies) : 0;
+
+  const dataQuality: Sim[] = [
     {
-      title: `Orphelins : ${orphanRate}% → ${Math.max(0, orphanRate - 20)}%`,
-      description: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise associée.`,
-      impact: `Segmentation ABM, fiabilité des rapports par compte`,
+      show: hasContactSignal && orphanRate > 5,
+      title: `Orphelins : ${orphanRate}% → ${Math.max(5, orphanRate - 20)}%`,
+      description: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise. Workflow auto-association par domaine email = effet immédiat sur les nouveaux + batch enrichissement sur l'existant.`,
+      impact: `${Math.max(1, Math.round(orphans * 0.6)).toLocaleString("fr-FR")} contacts ré-attribués`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-teal-600",
       forecastType: "orphan_rate",
-      threshold: Math.max(0, orphanRate - 20),
-      direction: "below" as const,
+      threshold: Math.max(5, orphanRate - 20),
+      direction: "below",
     },
     {
-      title: `Téléphone : ${tContacts > 0 ? Math.round(((tContacts - (contactsNoPhone ?? 0)) / tContacts) * 100) : 0}% → 80%`,
-      description: `${contactsNoPhone ?? 0} contacts sans numéro de téléphone. Outbound téléphone impossible.`,
-      impact: `Multicanal débloqué, ${Math.round((contactsNoPhone ?? 0) * 0.6).toLocaleString("fr-FR")} contacts joignables`,
+      show: hasContactSignal && phoneRate < 80 && contactsNoPhone > 0,
+      title: `Téléphone : ${phoneRate}% → 80%`,
+      description: `${contactsNoPhone.toLocaleString("fr-FR")} contacts sans phone. Enrichissement Dropcontact (~0,30€/contact) + champ obligatoire dans les forms futurs.`,
+      impact: `+${Math.max(1, Math.round(contactsNoPhone * 0.6)).toLocaleString("fr-FR")} contacts joignables outbound`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-green-600",
       forecastType: "phone_enrichment",
       threshold: 80,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Poste : ${tContacts > 0 ? Math.round(((tContacts - contactsNoTitle) / tContacts) * 100) : 0}% → 90%`,
-      description: `${contactsNoTitle} contacts sans poste. Personnalisation outbound aveugle.`,
-      impact: `Discours commercial sur-mesure par fonction et niveau hiérarchique`,
+      show: hasContactSignal && titleRate < 90 && contactsNoTitle > 0,
+      title: `Poste : ${titleRate}% → 90%`,
+      description: `${contactsNoTitle.toLocaleString("fr-FR")} contacts sans jobtitle. Personnalisation outbound aveugle. Enrichissement LinkedIn Sales Navigator + champ obligatoire BOFU.`,
+      impact: `Personnalisation par fonction sur ${Math.max(1, Math.round(contactsNoTitle * 0.7)).toLocaleString("fr-FR")} contacts`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-teal-500 to-cyan-600",
       forecastType: "title_enrichment",
       threshold: 90,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Secteur entreprise : ${totalCompanies > 0 ? Math.round(((totalCompanies - companiesNoIndustry) / totalCompanies) * 100) : 0}% → 90%`,
-      description: `${companiesNoIndustry} entreprises sans secteur. Segmentation industry impossible.`,
-      impact: `Reporting + ICP par secteur enfin actionnable`,
+      show: hasCompanySignal && industryRate < 90 && companiesNoIndustry > 0,
+      title: `Secteur : ${industryRate}% → 90%`,
+      description: `${companiesNoIndustry.toLocaleString("fr-FR")} companies sans industry. HubSpot Insights (gratuit, auto-fill par domaine) ou Clearbit = enrichissement sous 24h.`,
+      impact: `Segmentation industry sur +${Math.max(1, Math.round(companiesNoIndustry * 0.8)).toLocaleString("fr-FR")} comptes`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-cyan-500 to-blue-600",
       forecastType: "industry_enrichment",
       threshold: 90,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `CA entreprise : ${totalCompanies > 0 ? Math.round(((totalCompanies - companiesNoRevenue) / totalCompanies) * 100) : 0}% → 80%`,
-      description: `${companiesNoRevenue} entreprises sans CA. Priorisation des comptes en aveugle.`,
-      impact: `Priorisation account-based avec scoring par taille + CA`,
+      show: hasCompanySignal && revenueRate < 80 && companiesNoRevenue > 0,
+      title: `CA entreprise : ${revenueRate}% → 80%`,
+      description: `${companiesNoRevenue.toLocaleString("fr-FR")} companies sans annualrevenue. ICP scoring impossible. Enrichissement Clearbit/Société.com mensuel.`,
+      impact: `ICP scoring activé sur +${Math.max(1, Math.round(companiesNoRevenue * 0.7)).toLocaleString("fr-FR")} comptes`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-blue-500 to-indigo-600",
       forecastType: "revenue_enrichment",
       threshold: 80,
-      direction: "above" as const,
+      direction: "above",
     },
     {
-      title: `Dédoublonnage : éliminer 100% des doublons`,
-      description: `Les doublons faussent les rapports, créent de la confusion sales et polluent les emails marketing.`,
-      impact: `Reporting fiable + base contact assainie`,
+      show: tContacts >= 1000,
+      title: `Dédoublonnage base : ${tContacts.toLocaleString("fr-FR")} contacts à scanner`,
+      description: `À cette taille, doublons garantis. HubSpot Manage Duplicates ce mois + détection auto sur email comme clé unique.`,
+      impact: `Reporting fiable + sender reputation préservée`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-teal-600",
       forecastType: "dedup",
       threshold: 0,
-      direction: "below" as const,
+      direction: "below",
     },
     {
-      title: `Email validation : 100% des nouveaux leads validés`,
-      description: `Les emails invalides détruisent la délivrabilité. Brancher un service d'email verification sur tous les nouveaux leads.`,
-      impact: `Délivrabilité protégée, sender reputation maintenue`,
+      show: (ctx.customObjectsCount ?? 0) >= 5,
+      title: `Audit custom objects : ${ctx.customObjectsCount} schemas`,
+      description: `${ctx.customObjectsCount} schemas custom dans HubSpot. Sans gouvernance, le CRM devient illisible. Audit + documentation Notion.`,
+      impact: `CRM gouverné, équipes alignées sur les définitions`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
-      forecastType: "email_validation",
-      threshold: 100,
-      direction: "above" as const,
-    },
-    {
-      title: `Normalisation pays/ville : 0 doublons orthographiques`,
-      description: `« France », « FR », « FRANCE » comptent comme 3 valeurs distinctes. Forcer les listes déroulantes.`,
-      impact: `Reporting géographique enfin propre`,
-      category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
-      forecastType: "country_normalize",
+      simulationCategory: "data_quality",
+      color: "from-teal-500 to-emerald-600",
+      forecastType: "custom_audit",
       threshold: 0,
-      direction: "below" as const,
+      direction: "above",
     },
     {
-      title: `Audit trimestriel des propriétés CRM`,
-      description: `Lister, archiver, documenter les propriétés HubSpot. Sans gouvernance le CRM devient illisible.`,
-      impact: `CRM lisible, équipes alignées sur les définitions`,
+      show: (ctx.ownersCount ?? 0) >= 5 && (ctx.teamsCount ?? 0) === 0,
+      title: `Teams : 0 → ${Math.max(2, Math.ceil((ctx.ownersCount ?? 0) / 5))} équipes`,
+      description: `${ctx.ownersCount} owners actifs mais aucune team configurée. Reporting par équipe impossible. Round-robin par segment cassé.`,
+      impact: `Reporting par team activé, attribution fine possible`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
-      forecastType: "property_audit",
-      threshold: 0,
-      direction: "above" as const,
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-cyan-600",
+      forecastType: "teams_setup",
+      threshold: Math.max(2, Math.ceil((ctx.ownersCount ?? 0) / 5)),
+      direction: "above",
     },
     {
-      title: `Tracking source originale : 100% des nouveaux contacts`,
-      description: `Workflow obligeant un Original Source à la création (sinon fallback heuristique sur referrer/UTM).`,
-      impact: `Attribution marketing fiable par canal`,
+      show: (ctx.workflowsCount ?? 0) > 0 && (ctx.workflowsActiveCount ?? 0) < (ctx.workflowsCount ?? 0) * 0.5,
+      title: `Workflows : ${ctx.workflowsActiveCount}/${ctx.workflowsCount} actifs`,
+      description: `${(ctx.workflowsCount ?? 0) - (ctx.workflowsActiveCount ?? 0)} workflows désactivés. Soit pollution historique, soit features cassées.`,
+      impact: `Audit + cleanup = automation propre`,
       category: "data",
-      simulationCategory: "data_quality" as const,
-      color: "border-emerald-200 bg-emerald-50",
-      forecastType: "source_tracking",
-      threshold: 100,
-      direction: "above" as const,
+      simulationCategory: "data_quality",
+      color: "from-cyan-500 to-blue-600",
+      forecastType: "workflows_audit",
+      threshold: ctx.workflowsCount ?? 0,
+      direction: "above",
+    },
+    {
+      show: hasContactSignal && (ctx.listsCount ?? 0) === 0,
+      title: `Listes : 0 → 10 listes dynamiques`,
+      description: `${tContacts.toLocaleString("fr-FR")} contacts sans aucune segmentation. Construction de 10 listes (lifecycle, persona, intent, engagement) = base pour campagnes ciblées.`,
+      impact: "Personnalisation activée sur 100% de la base",
+      category: "data",
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-green-600",
+      forecastType: "lists_baseline",
+      threshold: 10,
+      direction: "above",
     },
   ];
 
-  return [...pipeline, ...lifecycle, ...dataQuality];
+  return [...pipeline, ...lifecycle, ...dataQuality].filter((s) => s.show);
 }
 
 export type SimulationCategory = "pipeline" | "lifecycle" | "data_quality";
