@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -30,6 +30,7 @@ export default async function PerformanceMarketingPage() {
 
   const supabase = await createSupabaseServerClient();
   const hsToken = await getHubSpotToken(supabase, orgId);
+  const snapshot = await getHubspotSnapshot();
 
   // Helper: count contacts by HubSpot search filter (real global count, no sample)
   async function countContactsBy(filters: Array<{ propertyName: string; operator: string; value?: string }>): Promise<number> {
@@ -88,34 +89,43 @@ export default async function PerformanceMarketingPage() {
   const nativeShare = totalSourceContacts > 0 ? Math.round((totalNative / totalSourceContacts) * 100) : 0;
   offlineContactsTotal = Math.max(0, totalSourceContacts - onlineContactsTotal);
 
-  const [
-    { count: totalContacts },
-    { count: leadContacts },
-    { count: opportunityContacts },
-    { count: contactsWithCompany },
-    { count: contactsOrphans },
-    { count: totalDeals },
-    { count: contactsWithDeals },
-    { data: recentContacts },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", false).eq("is_sql", false),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).is("company_id", null),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    // Contacts qui sont dans une opportunité (is_sql = true = lifecycle opportunity/customer)
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
-    supabase.from("contacts").select("id, full_name, email, is_mql, is_sql, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(10),
-  ]);
+  // Tout vient maintenant du snapshot HubSpot live
+  const total = snapshot.totalContacts;
+  const leads = snapshot.leadsCount;
+  const opportunities = snapshot.opportunitiesCount;
+  const withCompany = total - snapshot.orphansCount;
+  const orphans = snapshot.orphansCount;
+  const deals = snapshot.totalDeals;
 
-  const total = totalContacts ?? 0;
-  const leads = leadContacts ?? 0;
-  const opportunities = opportunityContacts ?? 0;
-  const withCompany = contactsWithCompany ?? 0;
-  const orphans = contactsOrphans ?? 0;
-  const deals = totalDeals ?? 0;
-  const recent = recentContacts ?? [];
+  // Derniers contacts ajoutés via /search HubSpot
+  type RecentContact = { id: string; full_name: string; email: string; lifecycle: string; created_at: string };
+  let recent: RecentContact[] = [];
+  if (hsToken) {
+    try {
+      const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${hsToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          properties: ["firstname", "lastname", "email", "lifecyclestage", "createdate"],
+          sorts: [{ propertyName: "createdate", direction: "DESCENDING" }],
+          limit: 10,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        recent = ((data.results ?? []) as Array<{
+          id: string;
+          properties: { firstname?: string; lastname?: string; email?: string; lifecyclestage?: string; createdate?: string };
+        }>).map((r) => ({
+          id: r.id,
+          full_name: `${r.properties.firstname ?? ""} ${r.properties.lastname ?? ""}`.trim() || "Sans nom",
+          email: r.properties.email ?? "",
+          lifecycle: r.properties.lifecyclestage ?? "",
+          created_at: r.properties.createdate ?? "",
+        }));
+      }
+    } catch {}
+  }
 
   // Taux de conversion : Lead → Opportunité
   const conversionRate = total > 0 ? Math.round((opportunities / total) * 100) : 0;
@@ -333,22 +343,33 @@ export default async function PerformanceMarketingPage() {
         >
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
-              {recent.map((c) => (
-                <div key={c.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{c.full_name}</p>
-                    <p className="text-xs text-slate-400">{c.email}</p>
+              {recent.map((c) => {
+                const isOpp = ["opportunity", "salesqualifiedlead", "customer"].some((s) =>
+                  c.lifecycle.toLowerCase().includes(s),
+                );
+                return (
+                  <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{c.full_name}</p>
+                      <p className="text-xs text-slate-400">{c.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          isOpp ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {c.lifecycle || "Lead"}
+                      </span>
+                      {c.created_at && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {new Date(c.created_at).toLocaleDateString("fr-FR")}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      c.is_sql ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
-                    }`}>
-                      {c.is_sql ? "Opportunité" : "Lead"}
-                    </span>
-                    {c.created_at && <p className="mt-1 text-xs text-slate-400">{new Date(c.created_at).toLocaleDateString("fr-FR")}</p>}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </CollapsibleBlock>

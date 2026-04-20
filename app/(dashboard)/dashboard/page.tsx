@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 
@@ -9,22 +9,19 @@ export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
 
-  // Hero KPIs : on agrège juste les compteurs essentiels (toujours filtrés par org).
-  const [
-    { count: contactCount },
-    { count: dealCount },
-    { count: openDealCount },
-    { data: wonDeals },
-    { data: integrations },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
-    supabase.from("deals").select("amount").eq("organization_id", orgId).eq("is_closed_won", true),
-    supabase.from("integrations").select("provider, is_active").eq("organization_id", orgId).eq("is_active", true),
+  const [snapshot, { data: integrations }] = await Promise.all([
+    getHubspotSnapshot(),
+    supabase
+      .from("integrations")
+      .select("provider, is_active")
+      .eq("organization_id", orgId)
+      .eq("is_active", true),
   ]);
 
-  const wonAmount = (wonDeals ?? []).reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const contactCount = snapshot.totalContacts;
+  const dealCount = snapshot.totalDeals;
+  const openDealCount = snapshot.openDeals;
+  const wonAmount = snapshot.wonAmount;
   const activeIntegrations = (integrations ?? []).length;
 
   // ── Cards des sections principales — actionables, sans badge score ──
@@ -100,7 +97,7 @@ export default async function DashboardOverviewPage() {
     },
   ];
 
-  const isEmpty = contactCount === 0 && dealCount === 0;
+  const isEmpty = (contactCount ?? 0) === 0 && (dealCount ?? 0) === 0;
 
   return (
     <section className="space-y-8">

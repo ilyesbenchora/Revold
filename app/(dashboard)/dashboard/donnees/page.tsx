@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
+import { getOrgId, getCanonicalIntegrationData, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
@@ -38,7 +38,10 @@ export default async function DonneesPage() {
   if (!orgId) return null;
 
   const supabase = await createSupabaseServerClient();
-  const { integrations: hsIntegrations } = await getCanonicalIntegrationData();
+  const [{ integrations: hsIntegrations }, snapshot] = await Promise.all([
+    getCanonicalIntegrationData(),
+    getHubspotSnapshot(),
+  ]);
   const businessIntegrations = filterBusinessIntegrations(hsIntegrations);
 
   // Fetch custom properties from HubSpot
@@ -50,92 +53,42 @@ export default async function DonneesPage() {
   const totalCustomProps = propStats.reduce((s, p) => s + p.custom, 0);
   const totalAllProps = propStats.reduce((s, p) => s + p.total, 0);
 
-  // Quick summary per object — Supabase d'abord, fallback HubSpot direct
-  const [
-    { count: tc }, { count: contactsWithPhone }, { count: contactsWithCompany }, { count: contactsWithTitle },
-    { count: tco }, { count: companiesWithDomain }, { count: companiesWithIndustry }, { count: companiesWithRevenue },
-    { count: td }, { count: dealsWithAmount }, { count: dealsWithCloseDate }, { count: dealsWithOwner },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("phone", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("title", "is", null),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("domain", "is", null),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("industry", "is", null),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("annual_revenue", "is", null),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gt("amount", 0),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("close_date", "is", null),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("owner_id", "is", null),
-  ]);
+  // ── Tout depuis HubSpot (snapshot) ──
+  // Pour les "with X" on dérive depuis les "no X" du snapshot (total - noX)
+  const contactsTotal = snapshot.totalContacts;
+  const contactsPhone = Math.max(0, contactsTotal - snapshot.contactsNoPhone);
+  const contactsCompany = Math.max(0, contactsTotal - snapshot.orphansCount);
+  const contactsTitle = Math.max(0, contactsTotal - snapshot.contactsNoTitle);
 
-  // FALLBACK HUBSPOT DIRECT si Supabase vide mais HubSpot connecté
-  let hsFallback = {
-    contacts: { total: 0, withPhone: 0, withCompany: 0, withTitle: 0 },
-    companies: { total: 0, withDomain: 0, withIndustry: 0, withRevenue: 0 },
-    deals: { total: 0, withAmount: 0, withCloseDate: 0, withOwner: 0 },
-  };
-  const supabaseEmpty = (tc ?? 0) === 0 && (td ?? 0) === 0 && (tco ?? 0) === 0;
-  if (supabaseEmpty && hubspotToken) {
-    const hsCount = async (objectType: string, body?: object) => {
-      try {
-        const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: 1, ...body }),
-          cache: "no-store",
-        });
-        if (!res.ok) return 0;
-        const data = await res.json();
-        return typeof data.total === "number" ? data.total : 0;
-      } catch {
-        return 0;
+  const companiesTotal = snapshot.totalCompanies;
+  const companiesDomain = Math.max(0, companiesTotal - snapshot.companiesNoDomain);
+  const companiesIndustry = Math.max(0, companiesTotal - snapshot.companiesNoIndustry);
+  const companiesRevenue = Math.max(0, companiesTotal - snapshot.companiesNoRevenue);
+
+  const dealsTotal = snapshot.totalDeals;
+  const dealsAmount = Math.max(0, dealsTotal - snapshot.dealsNoAmount);
+  const dealsCloseDate = Math.max(0, dealsTotal - snapshot.dealsNoCloseDate);
+
+  // dealsWithOwner non dans snapshot — fetch direct rapide
+  let dealsOwner = 0;
+  if (hubspotToken) {
+    try {
+      const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "HAS_PROPERTY" }] }],
+          limit: 1,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        dealsOwner = d.total ?? 0;
       }
-    };
-    const [
-      hsContacts, hsContactsPhone, hsContactsCompany, hsContactsTitle,
-      hsCompanies, hsCompaniesDomain, hsCompaniesIndustry, hsCompaniesRevenue,
-      hsDeals, hsDealsAmount, hsDealsCloseDate, hsDealsOwner,
-    ] = await Promise.all([
-      hsCount("contacts"),
-      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("companies"),
-      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "domain", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("deals"),
-      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "HAS_PROPERTY" }] }] }),
-      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "HAS_PROPERTY" }] }] }),
-    ]);
-    hsFallback = {
-      contacts: { total: hsContacts, withPhone: hsContactsPhone, withCompany: hsContactsCompany, withTitle: hsContactsTitle },
-      companies: { total: hsCompanies, withDomain: hsCompaniesDomain, withIndustry: hsCompaniesIndustry, withRevenue: hsCompaniesRevenue },
-      deals: { total: hsDeals, withAmount: hsDealsAmount, withCloseDate: hsDealsCloseDate, withOwner: hsDealsOwner },
-    };
+    } catch {}
   }
 
-  const total = (n: number | null) => n ?? 0;
-  const pct = (filled: number | null, t: number) => t > 0 ? Math.round((total(filled) / t) * 100) : 0;
-  const useFallback = supabaseEmpty && (hsFallback.contacts.total > 0 || hsFallback.deals.total > 0 || hsFallback.companies.total > 0);
-
-  const contactsTotal = useFallback ? hsFallback.contacts.total : total(tc);
-  const contactsPhone = useFallback ? hsFallback.contacts.withPhone : total(contactsWithPhone);
-  const contactsCompany = useFallback ? hsFallback.contacts.withCompany : total(contactsWithCompany);
-  const contactsTitle = useFallback ? hsFallback.contacts.withTitle : total(contactsWithTitle);
-
-  const companiesTotal = useFallback ? hsFallback.companies.total : total(tco);
-  const companiesDomain = useFallback ? hsFallback.companies.withDomain : total(companiesWithDomain);
-  const companiesIndustry = useFallback ? hsFallback.companies.withIndustry : total(companiesWithIndustry);
-  const companiesRevenue = useFallback ? hsFallback.companies.withRevenue : total(companiesWithRevenue);
-
-  const dealsTotal = useFallback ? hsFallback.deals.total : total(td);
-  const dealsAmount = useFallback ? hsFallback.deals.withAmount : total(dealsWithAmount);
-  const dealsCloseDate = useFallback ? hsFallback.deals.withCloseDate : total(dealsWithCloseDate);
-  const dealsOwner = useFallback ? hsFallback.deals.withOwner : total(dealsWithOwner);
+  const pct = (filled: number, t: number) => (t > 0 ? Math.round((filled / t) * 100) : 0);
 
   const summaries = [
     {

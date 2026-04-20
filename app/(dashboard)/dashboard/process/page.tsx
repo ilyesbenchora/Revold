@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
@@ -14,27 +14,15 @@ export default async function ProcessPage() {
 
   const supabase = await createSupabaseServerClient();
   const hsToken = await getHubSpotToken(supabase, orgId);
+  const snapshot = await getHubspotSnapshot();
 
-  // Lifecycle + insights data
-  const [
-    { count: totalContacts },
-    { count: leadsCount },
-    { count: opportunitiesCount },
-    { count: totalDeals },
-    { count: openDeals },
-    { count: dealsNoNextActivity },
-    { count: dealsNoActivity },
-  ] = await Promise.all([
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_mql", false).eq("is_sql", false),
-    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_sql", true),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).is("next_activity_date", null),
-    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).eq("sales_activities_count", 0),
-  ]);
+  // Tout vient du snapshot HubSpot live
+  const totalContacts = snapshot.totalContacts;
+  const leadsCount = snapshot.leadsCount;
+  const opportunitiesCount = snapshot.opportunitiesCount;
+  const totalDeals = snapshot.totalDeals;
 
-  // Deals sans owner via HubSpot Search API (the DB doesn't store owner)
+  // Deals sans owner via search dédiée
   let dealsNoOwner = 0;
   let dealsNoOwnerPct = 0;
   if (hsToken) {
@@ -50,31 +38,58 @@ export default async function ProcessPage() {
       if (res.ok) {
         const d = await res.json();
         dealsNoOwner = d.total ?? 0;
-        const totalForPct = totalDeals ?? 1;
-        dealsNoOwnerPct = totalForPct > 0 ? Math.round((dealsNoOwner / totalForPct) * 100) : 0;
+        dealsNoOwnerPct = totalDeals > 0 ? Math.round((dealsNoOwner / totalDeals) * 100) : 0;
       }
     } catch {}
   }
 
-  // Workflows from HubSpot API
+  // Workflows (v3 + v4 mergés depuis snapshot.ecosystem est partiel,
+  // ici on a besoin de la liste détaillée pour l'analyse par type)
   let workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }> = [];
   let workflowError: string | null = null;
   if (hsToken) {
     try {
-      const res = await fetch("https://api.hubapi.com/automation/v4/flows?limit=100", {
-        headers: { Authorization: `Bearer ${hsToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        workflows = (data.results ?? []).map((w: Record<string, unknown>) => ({
-          id: w.id as string,
-          name: (w.name as string) || "Sans nom",
-          enabled: w.isEnabled === true || w.enabled === true,
-          type: (w.type as string) || "unknown",
-          objectType: w.objectTypeId as string | undefined,
-        }));
-      } else {
-        workflowError = "Scope automation manquant sur l'app HubSpot";
+      const [v3Res, v4Res] = await Promise.all([
+        fetch("https://api.hubapi.com/automation/v3/workflows", {
+          headers: { Authorization: `Bearer ${hsToken}` },
+        }),
+        fetch("https://api.hubapi.com/automation/v4/flows?limit=200", {
+          headers: { Authorization: `Bearer ${hsToken}` },
+        }),
+      ]);
+      const seen = new Set<string>();
+      if (v3Res.ok) {
+        const data = await v3Res.json();
+        for (const w of (data.workflows ?? []) as Array<Record<string, unknown>>) {
+          const id = String(w.id);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          workflows.push({
+            id,
+            name: (w.name as string) || "Sans nom",
+            enabled: w.enabled === true,
+            type: (w.type as string) || "unknown",
+            objectType: w.objectTypeId as string | undefined,
+          });
+        }
+      }
+      if (v4Res.ok) {
+        const data = await v4Res.json();
+        for (const w of (data.results ?? []) as Array<Record<string, unknown>>) {
+          const id = String(w.id);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          workflows.push({
+            id,
+            name: (w.name as string) || "Sans nom",
+            enabled: w.isEnabled === true || w.enabled === true,
+            type: (w.type as string) || "unknown",
+            objectType: w.objectTypeId as string | undefined,
+          });
+        }
+      }
+      if (workflows.length === 0) {
+        workflowError = "Scope automation manquant ou aucun workflow";
       }
     } catch {
       workflowError = "Impossible de récupérer les workflows";
@@ -99,9 +114,9 @@ export default async function ProcessPage() {
     !w.name || w.name.toLowerCase().includes("test") || w.name.toLowerCase().includes("brouillon") || w.name === "Sans nom"
   ).length;
 
-  const contacts = totalContacts ?? 0;
-  const leads = leadsCount ?? 0;
-  const opportunities = opportunitiesCount ?? 0;
+  const contacts = totalContacts;
+  const leads = leadsCount;
+  const opportunities = opportunitiesCount;
   const lifecycleRate = contacts > 0 ? Math.round((opportunities / contacts) * 100) : 0;
 
   // Detect missing workflow types by analyzing existing workflow names

@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
@@ -19,9 +19,10 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: integrations }, { data: syncLogs }] = await Promise.all([
+  const [{ data: integrations }, { data: syncLogs }, snapshot] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
     supabase.from("sync_logs").select("*").eq("organization_id", orgId).order("started_at", { ascending: false }).limit(10),
+    getHubspotSnapshot(),
   ]);
 
   const connected = (integrations ?? []).filter((i) => i.is_active);
@@ -126,7 +127,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                 </div>
                 <div className="rounded-lg bg-slate-50 px-3 py-2">
                   <p className="font-medium text-slate-500">Custom objects</p>
-                  <p className="mt-0.5 font-semibold text-slate-800">{hsMeta.custom_objects_count ?? 0}</p>
+                  <p className="mt-0.5 font-semibold text-slate-800">{snapshot.customObjectsCount}</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 px-3 py-2">
                   <p className="font-medium text-slate-500">Connecté le</p>
@@ -134,6 +135,36 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                     {hsMeta.connected_at ? new Date(hsMeta.connected_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                   </p>
                 </div>
+              </div>
+
+              {/* Données HubSpot live accessibles via OAuth */}
+              <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Données HubSpot live accessibles
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 text-xs">
+                  <div><p className="text-slate-500">Contacts</p><p className="font-bold text-slate-900">{snapshot.totalContacts.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Companies</p><p className="font-bold text-slate-900">{snapshot.totalCompanies.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Deals</p><p className="font-bold text-slate-900">{snapshot.totalDeals.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Owners</p><p className="font-bold text-slate-900">{snapshot.ownersCount}</p></div>
+                  <div><p className="text-slate-500">Pipelines</p><p className="font-bold text-slate-900">{snapshot.pipelines.length}</p></div>
+                  <div><p className="text-slate-500">Workflows</p><p className="font-bold text-slate-900">{snapshot.workflowsActiveCount}/{snapshot.workflowsCount}</p></div>
+                  <div><p className="text-slate-500">Tickets</p><p className="font-bold text-slate-900">{snapshot.totalTickets.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Invoices</p><p className="font-bold text-slate-900">{snapshot.totalInvoices.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Subscriptions</p><p className="font-bold text-slate-900">{snapshot.activeSubscriptions}/{snapshot.totalSubscriptions}</p></div>
+                  <div><p className="text-slate-500">Quotes</p><p className="font-bold text-slate-900">{snapshot.totalQuotes}</p></div>
+                  <div><p className="text-slate-500">Forms</p><p className="font-bold text-slate-900">{snapshot.formsCount}</p></div>
+                  <div><p className="text-slate-500">Lists</p><p className="font-bold text-slate-900">{snapshot.listsCount}</p></div>
+                  <div><p className="text-slate-500">Leads</p><p className="font-bold text-slate-900">{snapshot.leadsObjectCount}</p></div>
+                  <div><p className="text-slate-500">Goals</p><p className="font-bold text-slate-900">{snapshot.goalsCount}</p></div>
+                  <div><p className="text-slate-500">Campaigns</p><p className="font-bold text-slate-900">{snapshot.marketingCampaignsCount}</p></div>
+                  <div><p className="text-slate-500">Events</p><p className="font-bold text-slate-900">{snapshot.marketingEventsCount}</p></div>
+                  <div><p className="text-slate-500">Teams</p><p className="font-bold text-slate-900">{snapshot.teamsCount}</p></div>
+                  <div><p className="text-slate-500">Custom obj</p><p className="font-bold text-slate-900">{snapshot.customObjectsCount}</p></div>
+                </div>
+                <p className="mt-3 text-[10px] italic text-slate-500">
+                  Counts récupérés en live via les scopes OAuth accordés. Si un objet est à 0 alors que vous en avez dans HubSpot, le scope correspondant n'est probablement pas activé dans l'app HubSpot.
+                </p>
               </div>
 
               {hsMeta.custom_objects && hsMeta.custom_objects.length > 0 && (

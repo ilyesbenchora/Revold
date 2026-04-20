@@ -3,7 +3,7 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 // getBarColor removed — no longer used after removing summary block
 import { PropertyCarousel } from "@/components/property-carousel";
@@ -197,11 +197,16 @@ export default async function DonneesContactsPage() {
 
   const supabase = await createSupabaseServerClient();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
+  const snapshot = await getHubspotSnapshot();
 
-  // Fill rates from pre-computed Supabase table (instant)
+  // Total contacts depuis snapshot HubSpot (source de vérité)
+  const totalContacts = snapshot.totalContacts;
+
+  // Fill rates : table Supabase pré-calculée (calcul batch trop coûteux à chaque
+  // pageview — une search par propriété sur 200+ props = 200 requêtes)
   const { data: fillRateRows } = await supabase
     .from("property_fill_rates")
-    .select("property_name, label, is_custom, fill_rate, fill_count, total_count")
+    .select("property_name, label, is_custom, fill_rate")
     .eq("organization_id", orgId)
     .eq("object_type", "contacts")
     .order("fill_rate", { ascending: false });
@@ -213,11 +218,9 @@ export default async function DonneesContactsPage() {
       fillRate: r.fill_rate,
       isCustom: r.is_custom,
     }))
-    .filter((p) => p.fillRate > 0 || p.isCustom); // Retirer les propriétés HubSpot à 0%
+    .filter((p) => p.fillRate > 0 || p.isCustom);
 
-  const totalContacts = fillRateRows?.[0]?.total_count ?? 0;
-
-  // Fast API calls (tracking, associations, shared props, property usage)
+  // Property usage (deps workflows/forms/lists) + tracking + associations en HubSpot direct
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
   let trackingData: TrackingResult = { sources: [], drillDown1: [], drillDown2: [], total: 0 };
@@ -241,7 +244,6 @@ export default async function DonneesContactsPage() {
   const t = totalContacts;
 
   // Enrich shared props with fill rates
-  // Enrich shared props with fill rates and filter out HubSpot 0%
   const fillRateMap = new Map(allPropertyStats.map((p) => [p.name, p.fillRate]));
   for (const sp of sharedProps) sp.fillRate = fillRateMap.get(sp.name) ?? -1;
   sharedProps = sharedProps.filter((p) => p.fillRate > 0 || p.isCustom);

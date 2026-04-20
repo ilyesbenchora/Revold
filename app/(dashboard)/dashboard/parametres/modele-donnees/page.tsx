@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS, CANONICAL_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
@@ -103,11 +103,14 @@ export default async function ParametresModeleDonneesPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
+  const snapshot = await getHubspotSnapshot();
 
-  // ── Load all saved settings + stats in parallel ──
+  // Counts contacts/companies = HubSpot live (source de vérité)
+  const contactsCount = snapshot.totalContacts;
+  const companiesCount = snapshot.totalCompanies;
+
+  // Configuration & resolution rules restent en Supabase (état app)
   let sourceLinksCount = 0;
-  let contactsCount = 0;
-  let companiesCount = 0;
   let connectedProviders: string[] = [];
   let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string }> = [];
@@ -116,10 +119,8 @@ export default async function ParametresModeleDonneesPage() {
   let matchStats: Record<string, number> = {};
 
   try {
-    const [sl, co, cp, integ, ruleConfigs, mappings, authority, freqs, matchData] = await Promise.all([
+    const [sl, integ, ruleConfigs, mappings, authority, freqs, matchData] = await Promise.all([
       supabase.from("source_links").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-      supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
-      supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
       supabase.from("integrations").select("provider").eq("organization_id", orgId).eq("is_active", true),
       supabase.from("entity_resolution_config").select("rule_id, enabled, config").eq("organization_id", orgId),
       supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field").eq("organization_id", orgId),
@@ -129,8 +130,6 @@ export default async function ParametresModeleDonneesPage() {
     ]);
 
     sourceLinksCount = sl.count ?? 0;
-    contactsCount = co.count ?? 0;
-    companiesCount = cp.count ?? 0;
     connectedProviders = (integ.data ?? []).map((i) => i.provider);
     savedRuleConfigs = (ruleConfigs.data ?? []) as typeof savedRuleConfigs;
     savedMappings = (mappings.data ?? []) as typeof savedMappings;
@@ -138,7 +137,6 @@ export default async function ParametresModeleDonneesPage() {
     for (const f of (freqs.data ?? []) as Array<{ category: string; frequency: string }>) {
       savedFrequencies[f.category] = f.frequency;
     }
-    // Count match methods
     for (const row of (matchData.data ?? []) as Array<{ match_method: string }>) {
       matchStats[row.match_method] = (matchStats[row.match_method] ?? 0) + 1;
     }
