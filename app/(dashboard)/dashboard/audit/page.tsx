@@ -59,6 +59,19 @@ const modules = [
     ),
     color: "from-fuchsia-500 to-purple-500",
   },
+  {
+    href: "/dashboard/audit/recommandations",
+    title: "Recommandations IA",
+    description: "Diagnostic CRO/RevOps complet : pain points, plans d'action, activation coachings IA.",
+    objective: "Transformer l'audit en plans d'action concrets et activables en 1 clic.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+        <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+      </svg>
+    ),
+    color: "from-fuchsia-500 to-indigo-600",
+  },
 ];
 
 export default function AuditPage() {
