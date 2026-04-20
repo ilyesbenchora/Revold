@@ -34,10 +34,8 @@ export const hubspotLinks: Record<string, string> = {
 };
 
 /**
- * Fallback HubSpot direct si la sync Supabase n'a pas (encore) tourné.
- * On veut que les pages affichent QUELQUE CHOSE même si la donnée n'est
- * pas dans nos tables canoniques. Compte exact via /search?limit=1 (renvoie
- * un total sans charger les rows).
+ * Compte exact via /search (POST) qui retourne `total` sans charger les rows.
+ * Résilient : retourne 0 en cas d'erreur (scope manquant, propriété inconnue).
  */
 async function fetchHubSpotCount(token: string, objectType: string, body?: object): Promise<number> {
   try {
@@ -54,53 +52,104 @@ async function fetchHubSpotCount(token: string, objectType: string, body?: objec
   }
 }
 
-async function fetchHubSpotFallbackCounts(token: string) {
+/**
+ * Récupère TOUS les stats deals/contacts/companies directement depuis l'API
+ * HubSpot (source de vérité). Ne dépend plus de la sync Supabase.
+ *
+ * 17 requêtes en parallèle sur /search?limit=1 — l'endpoint renvoie le total
+ * sans charger les rows donc très rapide et économique en quota HubSpot.
+ */
+async function fetchHubSpotFullContext(token: string) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime();
+
   const [
     totalDeals,
     wonDeals,
     lostDeals,
+    dealsNoNextActivity,
     dealsNoAmount,
     dealsNoCloseDate,
+    dealsStagnant,
     totalContacts,
     opportunitiesCount,
+    orphansCount,
     contactsNoPhone,
     contactsNoTitle,
     totalCompanies,
     companiesNoIndustry,
     companiesNoRevenue,
   ] = await Promise.all([
+    // Deals
     fetchHubSpotCount(token, "deals"),
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }] }),
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed", operator: "EQ", value: "true" }, { propertyName: "hs_is_closed_won", operator: "NEQ", value: "true" }] }] }),
+    // Open deals sans next activity
+    fetchHubSpotCount(token, "deals", {
+      filterGroups: [{
+        filters: [
+          { propertyName: "hs_is_closed", operator: "NEQ", value: "true" },
+          { propertyName: "notes_next_activity_date", operator: "NOT_HAS_PROPERTY" },
+        ],
+      }],
+    }),
+    // Sans amount
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] }] }),
+    // Sans closedate
     fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "NOT_HAS_PROPERTY" }] }] }),
+    // Open deals stagnants (last contacted > 7j ET sans next activity)
+    fetchHubSpotCount(token, "deals", {
+      filterGroups: [{
+        filters: [
+          { propertyName: "hs_is_closed", operator: "NEQ", value: "true" },
+          { propertyName: "notes_next_activity_date", operator: "NOT_HAS_PROPERTY" },
+          { propertyName: "notes_last_contacted", operator: "LT", value: String(sevenDaysAgo) },
+        ],
+      }],
+    }),
+    // Contacts
     fetchHubSpotCount(token, "contacts"),
-    fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "lifecyclestage", operator: "IN", values: ["opportunity", "salesqualifiedlead", "customer"] }] }] }),
+    fetchHubSpotCount(token, "contacts", {
+      filterGroups: [{
+        filters: [
+          { propertyName: "lifecyclestage", operator: "IN", values: ["opportunity", "salesqualifiedlead", "customer"] },
+        ],
+      }],
+    }),
+    // Orphans : contacts sans company associée
+    fetchHubSpotCount(token, "contacts", {
+      filterGroups: [{
+        filters: [{ propertyName: "associatedcompanyid", operator: "NOT_HAS_PROPERTY" }],
+      }],
+    }),
     fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] }] }),
     fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "NOT_HAS_PROPERTY" }] }] }),
+    // Companies
     fetchHubSpotCount(token, "companies"),
     fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "NOT_HAS_PROPERTY" }] }] }),
     fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "NOT_HAS_PROPERTY" }] }] }),
   ]);
 
   const closedTotal = wonDeals + lostDeals;
+  const openDeals = Math.max(0, totalDeals - closedTotal);
+
   return {
     totalDeals,
     wonDeals,
     lostDeals,
-    openDeals: Math.max(0, totalDeals - closedTotal),
+    openDeals,
     closingRate: closedTotal > 0 ? Math.round((wonDeals / closedTotal) * 100) : 0,
-    dealsNoNextActivity: 0,
-    dealsNoActivity: 0,
+    dealsNoNextActivity,
+    // dealsNoActivity = approximation via "last_contacted manquant" sur open deals
+    dealsNoActivity: 0, // propriété non disponible facilement via search API
     dealsNoAmount,
     dealsNoCloseDate,
-    stagnantDeals: 0,
+    stagnantDeals: dealsStagnant,
     totalContacts,
     leadsCount: Math.max(0, totalContacts - opportunitiesCount),
     opportunitiesCount,
     conversionRate: totalContacts > 0 ? Math.round((opportunitiesCount / totalContacts) * 100) : 0,
-    orphansCount: 0,
-    orphanRate: 0,
+    orphansCount,
+    orphanRate: totalContacts > 0 ? Math.round((orphansCount / totalContacts) * 100) : 0,
     contactsNoPhone,
     contactsNoTitle,
     totalCompanies,
@@ -110,8 +159,55 @@ async function fetchHubSpotFallbackCounts(token: string) {
 }
 
 export async function buildContext(supabase: SupabaseClient, orgId: string): Promise<InsightContext> {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const token = await getHubSpotToken(supabase, orgId);
 
+  // ═══ STRATÉGIE : HubSpot est la source de vérité ═══
+  // Si OAuth HubSpot connecté, on prend TOUT directement de l'API HubSpot
+  // (deals, contacts, companies stats + ecosystem counts + owners). On ignore
+  // les compteurs Supabase qui peuvent être vides/stales tant que la sync
+  // canonique n'a pas tourné.
+  // Si pas de token HubSpot → fallback Supabase (cas legacy ou avant connexion).
+
+  if (token) {
+    const [hsCore, ecosystem, ownersCount] = await Promise.all([
+      fetchHubSpotFullContext(token),
+      fetchHubSpotEcosystemCounts(token),
+      fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => (r.ok ? r.json() : { results: [] }))
+        .then((d) => (d.results ?? []).length)
+        .catch(() => 0),
+    ]);
+
+    return {
+      ...hsCore,
+      ticketsCount: ecosystem.tickets,
+      conversationsCount: ecosystem.conversations,
+      feedbackCount: ecosystem.feedbackSubmissions,
+      leadsObjectCount: ecosystem.leads,
+      quotesCount: ecosystem.quotes,
+      lineItemsCount: ecosystem.lineItems,
+      sequencesCount: ecosystem.sequences,
+      forecastsCount: ecosystem.forecasts,
+      goalsCount: ecosystem.goals,
+      invoicesCount: ecosystem.invoices,
+      subscriptionsCount: ecosystem.subscriptions,
+      marketingCampaignsCount: ecosystem.marketingCampaigns,
+      marketingEventsCount: ecosystem.marketingEvents,
+      formsCount: ecosystem.forms,
+      customObjectsCount: ecosystem.customObjects,
+      listsCount: ecosystem.lists,
+      workflowsCount: ecosystem.workflows,
+      workflowsActiveCount: ecosystem.workflowsActive,
+      ownersCount,
+      teamsCount: ecosystem.teams,
+      appointmentsCount: ecosystem.appointments,
+    };
+  }
+
+  // ── FALLBACK SUPABASE (pas de token HubSpot) ──
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const [
     { count: totalDeals },
     { count: wonDeals },
@@ -157,61 +253,6 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
   const opps = opportunitiesCount ?? 0;
   const orphans = orphansCount ?? 0;
 
-  // ── ECOSYSTEM COUNTS + OWNERS via HubSpot OAuth ──
-  // On enrichit ctx avec TOUS les counts ecosystem (tickets, leads, invoices,
-  // subscriptions, sequences, forecasts, marketing campaigns, etc.) pour que
-  // les templates CRO/RevOps puissent diagnostiquer sur la donnée réelle.
-  const token = await getHubSpotToken(supabase, orgId);
-  let ecosystem = EMPTY_ECOSYSTEM_COUNTS;
-  let ownersCount = 0;
-  if (token) {
-    try {
-      const [eco, owners] = await Promise.all([
-        fetchHubSpotEcosystemCounts(token),
-        fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((r) => (r.ok ? r.json() : { results: [] }))
-          .then((d) => (d.results ?? []).length)
-          .catch(() => 0),
-      ]);
-      ecosystem = eco;
-      ownersCount = owners;
-    } catch {}
-  }
-
-  // ── FALLBACK HUBSPOT DIRECT pour deals/contacts/companies ──
-  // Supabase vide mais HubSpot connecté = source de vérité disponible.
-  if (tDeals === 0 && tContacts === 0 && token) {
-    const fb = await fetchHubSpotFallbackCounts(token);
-    if (fb.totalDeals > 0 || fb.totalContacts > 0 || fb.totalCompanies > 0) {
-      return {
-        ...fb,
-        ticketsCount: ecosystem.tickets,
-        conversationsCount: ecosystem.conversations,
-        feedbackCount: ecosystem.feedbackSubmissions,
-        leadsObjectCount: ecosystem.leads,
-        quotesCount: ecosystem.quotes,
-        lineItemsCount: ecosystem.lineItems,
-        sequencesCount: ecosystem.sequences,
-        forecastsCount: ecosystem.forecasts,
-        goalsCount: ecosystem.goals,
-        invoicesCount: ecosystem.invoices,
-        subscriptionsCount: ecosystem.subscriptions,
-        marketingCampaignsCount: ecosystem.marketingCampaigns,
-        marketingEventsCount: ecosystem.marketingEvents,
-        formsCount: ecosystem.forms,
-        customObjectsCount: ecosystem.customObjects,
-        listsCount: ecosystem.lists,
-        workflowsCount: ecosystem.workflows,
-        workflowsActiveCount: ecosystem.workflowsActive,
-        ownersCount,
-        teamsCount: ecosystem.teams,
-        appointmentsCount: ecosystem.appointments,
-      };
-    }
-  }
-
   return {
     totalDeals: tDeals,
     openDeals: openDeals ?? 0,
@@ -234,28 +275,6 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
     totalCompanies: totalCompanies ?? 0,
     companiesNoIndustry: companiesNoIndustry ?? 0,
     companiesNoRevenue: companiesNoRevenue ?? 0,
-    // Ecosystem
-    ticketsCount: ecosystem.tickets,
-    conversationsCount: ecosystem.conversations,
-    feedbackCount: ecosystem.feedbackSubmissions,
-    leadsObjectCount: ecosystem.leads,
-    quotesCount: ecosystem.quotes,
-    lineItemsCount: ecosystem.lineItems,
-    sequencesCount: ecosystem.sequences,
-    forecastsCount: ecosystem.forecasts,
-    goalsCount: ecosystem.goals,
-    invoicesCount: ecosystem.invoices,
-    subscriptionsCount: ecosystem.subscriptions,
-    marketingCampaignsCount: ecosystem.marketingCampaigns,
-    marketingEventsCount: ecosystem.marketingEvents,
-    formsCount: ecosystem.forms,
-    customObjectsCount: ecosystem.customObjects,
-    listsCount: ecosystem.lists,
-    workflowsCount: ecosystem.workflows,
-    workflowsActiveCount: ecosystem.workflowsActive,
-    ownersCount,
-    teamsCount: ecosystem.teams,
-    appointmentsCount: ecosystem.appointments,
   };
 }
 

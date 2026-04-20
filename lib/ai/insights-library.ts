@@ -637,11 +637,11 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
     category: "commercial",
     severity: "critical",
     priority: 100,
-    shouldShow: (c) => c.totalDeals < 5,
-    build: (c) => ({
-      title: `Pipeline vide : ${c.totalDeals} deal${c.totalDeals > 1 ? "s" : ""} en base`,
-      body: "Avant de scaler, il faut un funnel testé. Cible setup : 20 deals dans le pipeline pour valider les stages et calibrer les premiers KPIs (closing rate, cycle, ticket moyen).",
-      recommendation: "Plan 30 jours : 10 deals via outbound SDR (LinkedIn + email), 5 via inbound (formulaires + content), 5 via referral (clients existants ou réseau perso fondateurs).",
+    shouldShow: (c) => c.totalDeals === 0,
+    build: () => ({
+      title: "Aucun deal en base — démarrage du funnel",
+      body: "CRM connecté mais sans deals. Cible setup : 20 deals dans le pipeline en 30 jours pour valider les stages et calibrer les premiers KPIs.",
+      recommendation: "Plan 30j : 10 deals via outbound SDR (LinkedIn + email), 5 via inbound (formulaires + content), 5 via referral (clients existants ou réseau fondateurs).",
     }),
   },
   {
