@@ -512,9 +512,50 @@ async function safeCount(accessToken: string, endpoint: string, body?: unknown):
   }
 }
 
-/** Count via /crm/v3/objects/{type}/search (POST) — fiable pour la plupart des objets */
+/**
+ * Count exact via /crm/v3/objects/{type}/search (POST) — l'endpoint renvoie
+ * `total` sans charger les rows. Fiable pour TOUS les CRM objects (standard
+ * et custom) tant que le scope correspondant est accordé.
+ */
 function searchCount(accessToken: string, objectType: string): Promise<number> {
   return safeCount(accessToken, `/crm/v3/objects/${objectType}/search`, { limit: 1 });
+}
+
+/**
+ * Paginate jusqu'à `maxPages` pour compter une ressource sans champ `total`
+ * (forms, campaigns, users HubSpot v3). Cap volontaire pour éviter les
+ * loops infinis sur des comptes très gros.
+ */
+async function paginatedCount(
+  accessToken: string,
+  endpoint: string,
+  maxPages = 10,
+): Promise<number> {
+  let total = 0;
+  let after: string | undefined;
+  let page = 0;
+
+  do {
+    try {
+      const url = new URL(`${HUBSPOT_API}${endpoint}`);
+      url.searchParams.set("limit", "100");
+      if (after) url.searchParams.set("after", after);
+
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return total;
+      const data = await res.json();
+      const results = (data.results ?? []) as unknown[];
+      total += results.length;
+      after = data.paging?.next?.after;
+      page++;
+    } catch {
+      return total;
+    }
+  } while (after && page < maxPages);
+
+  return total;
 }
 
 export type HubSpotEcosystemCounts = {
@@ -553,6 +594,19 @@ export type HubSpotEcosystemCounts = {
 };
 
 export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<HubSpotEcosystemCounts> {
+  // ── Custom objects : compter UNIQUEMENT les schemas non-standard ──
+  // /crm/v3/schemas retourne aussi les standard objects (préfixe "0-").
+  // Les custom objects ont objectTypeId qui commence par "2-".
+  const customObjectsCount = await fetch(`${HUBSPOT_API}/crm/v3/schemas`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+    .then((r) => (r.ok ? r.json() : { results: [] }))
+    .then((d) => {
+      const all = (d.results ?? []) as Array<{ objectTypeId?: string; archived?: boolean }>;
+      return all.filter((s) => s.objectTypeId && s.objectTypeId.startsWith("2-") && !s.archived).length;
+    })
+    .catch(() => 0);
+
   const [
     invoices,
     subscriptions,
@@ -563,21 +617,20 @@ export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<
     goals,
     leads,
     feedbackSubmissions,
-    forecasts,
     listings,
     projects,
     tickets,
     conversations,
-    sequences,
+    sequencesEnrollments,
     forms,
     marketingCampaigns,
     users,
     teams,
-    customObjects,
-    lists,
+    listsCount,
     pipelines,
     workflowsData,
   ] = await Promise.all([
+    // ── CRM objects (search?limit=1 renvoie .total fiable) ──
     searchCount(accessToken, "invoices"),
     searchCount(accessToken, "subscriptions"),
     searchCount(accessToken, "quotes"),
@@ -587,19 +640,43 @@ export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<
     searchCount(accessToken, "goals"),
     searchCount(accessToken, "leads"),
     searchCount(accessToken, "feedback_submissions"),
-    searchCount(accessToken, "forecasts"),
     searchCount(accessToken, "listings"),
     searchCount(accessToken, "projects"),
     searchCount(accessToken, "tickets"),
-    safeCount(accessToken, "/conversations/v3/conversations/threads?limit=1"),
-    safeCount(accessToken, "/automation/v3/sequences"),
-    safeCount(accessToken, "/marketing/v3/forms?limit=1"),
-    safeCount(accessToken, "/marketing/v3/campaigns?limit=1"),
-    safeCount(accessToken, "/settings/v3/users?limit=1"),
-    safeCount(accessToken, "/settings/v3/users/teams"),
-    safeCount(accessToken, "/crm/v3/schemas"),
-    safeCount(accessToken, "/crm/v3/lists/search", { count: 1 }),
-    safeCount(accessToken, "/crm/v3/pipelines/deals"),
+
+    // Conversations : v3 inbox endpoint paginé
+    paginatedCount(accessToken, "/conversations/v3/conversations/threads", 5),
+
+    // Sequences : pas d'endpoint public direct pour le total des sequences.
+    // On compte les enrollments comme proxy d'usage. 0 = pas de scope ou
+    // pas de Sales Hub Pro+
+    paginatedCount(accessToken, "/automation/v4/sequences/enrollments", 3),
+
+    // Forms / Campaigns / Users : pagination obligatoire (pas de .total)
+    paginatedCount(accessToken, "/marketing/v3/forms", 5),
+    paginatedCount(accessToken, "/marketing/v3/campaigns", 5),
+    paginatedCount(accessToken, "/settings/v3/users", 10),
+
+    // Teams
+    fetch(`${HUBSPOT_API}/settings/v3/users/teams`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then((d) => (d.results ?? []).length)
+      .catch(() => 0),
+
+    // Lists via search (a un .total)
+    safeCount(accessToken, "/crm/v3/lists/search", { count: 1, processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"] }),
+
+    // Pipelines
+    fetch(`${HUBSPOT_API}/crm/v3/pipelines/deals`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then((d) => (d.results ?? []).length)
+      .catch(() => 0),
+
+    // Workflows : v3 + v4 mergés
     fetchWorkflowsCounts(accessToken),
   ]);
 
@@ -613,37 +690,72 @@ export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<
     goals,
     leads,
     feedbackSubmissions,
-    forecasts,
+    forecasts: 0, // forecasts n'est PAS un CRM object (Sales Hub Forecast Tool en interne)
     listings,
     projects,
     tickets,
     conversations,
-    sequences,
+    sequences: sequencesEnrollments,
     forms,
     marketingCampaigns,
     users,
     teams,
-    customObjects,
-    lists,
+    customObjects: customObjectsCount,
+    lists: listsCount,
     pipelines,
     workflows: workflowsData.total,
     workflowsActive: workflowsData.active,
   };
 }
 
+/**
+ * Compte les workflows HubSpot — sur les DEUX endpoints v3 et v4 simultanément
+ * car ils gèrent des workflows différents :
+ *  - /automation/v3/workflows : workflows legacy (la majorité des comptes)
+ *  - /automation/v4/flows     : workflows nouvelle génération
+ * Dedup par id pour les workflows présents dans les deux APIs.
+ */
 async function fetchWorkflowsCounts(accessToken: string): Promise<{ total: number; active: number }> {
-  try {
-    const res = await fetch(`${HUBSPOT_API}/automation/v4/flows?limit=200`, {
+  type Wf = { id: string | number; enabled?: boolean; isEnabled?: boolean };
+
+  const [v3Res, v4Res] = await Promise.all([
+    fetch(`${HUBSPOT_API}/automation/v3/workflows`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) return { total: 0, active: 0 };
-    const data = await res.json();
-    const flows = (data.results ?? []) as Array<{ isEnabled?: boolean; enabled?: boolean }>;
-    const active = flows.filter((f) => f.isEnabled === true || f.enabled === true).length;
-    return { total: flows.length, active };
-  } catch {
-    return { total: 0, active: 0 };
+    }).catch(() => null),
+    fetch(`${HUBSPOT_API}/automation/v4/flows?limit=200`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).catch(() => null),
+  ]);
+
+  let v3List: Wf[] = [];
+  let v4List: Wf[] = [];
+
+  if (v3Res && v3Res.ok) {
+    try {
+      const data = await v3Res.json();
+      v3List = (data.workflows ?? []) as Wf[];
+    } catch {}
   }
+
+  if (v4Res && v4Res.ok) {
+    try {
+      const data = await v4Res.json();
+      v4List = (data.results ?? []) as Wf[];
+    } catch {}
+  }
+
+  // Dedup par id (un workflow peut apparaître dans les deux APIs)
+  const seen = new Set<string>();
+  const merged: Wf[] = [];
+  for (const w of [...v3List, ...v4List]) {
+    const id = String(w.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(w);
+  }
+
+  const active = merged.filter((w) => w.enabled === true || w.isEnabled === true).length;
+  return { total: merged.length, active };
 }
 
 /** Snapshot par défaut quand pas de token / pas de scopes. */
