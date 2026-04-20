@@ -24,7 +24,7 @@ export type ConnectableTool = {
   icon: string;
   // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
   domain: string;
-  category: "crm" | "billing" | "phone" | "support" | "communication";
+  category: "crm" | "billing" | "phone" | "support" | "communication" | "conv_intel";
   /** True si la connexion passe par OAuth (URL spéciale) au lieu du flow API key. */
   oauth?: boolean;
   /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
@@ -341,6 +341,22 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
       { key: "recipients", label: "Adresses Outlook destinataires", placeholder: "alice@outlook.com, bob@company.com", type: "text", helper: "Séparées par virgule. Microsoft 365 accepté." },
     ],
   },
+
+  // ── Conversation Intelligence ────────────────────────────────────
+  praiz: {
+    key: "praiz",
+    label: "Praiz",
+    vendor: "Praiz (FR)",
+    icon: "🎙️",
+    domain: "praiz.io",
+    category: "conv_intel",
+    description: "Conversation intelligence française : transcription auto des appels (Aircall, Ringover, Zoom, Meet), analyse IA (talk ratio, objections, sentiment, scoring deal). Branche le webhook Praiz pour enrichir les deals HubSpot dans Revold.",
+    helpUrl: "https://help.praiz.io/en/category/public-api-webhooks-1mvk6ti/",
+    helpText: "1) Contacte hello@praiz.io pour activer l'API webhooks. 2) Génère un secret aléatoire 32+ caractères. 3) Dans Praiz → configure l'URL webhook fournie par Revold après connexion + header Authorization: Bearer <secret>. 4) Colle le secret ci-dessous.",
+    fields: [
+      { key: "webhook_secret", label: "Webhook Secret (Bearer token)", placeholder: "gen via openssl rand -hex 32", type: "password", helper: "Secret partagé que Praiz inclura dans le header Authorization de chaque webhook. Vérifié côté Revold pour bloquer les requêtes non-authentifiées." },
+    ],
+  },
 };
 
 export function getConnectableTool(key: string): ConnectableTool | null {
@@ -353,6 +369,7 @@ const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   phone: "Téléphonie",
   support: "Service client",
   communication: "Communication",
+  conv_intel: "Conversation Intelligence",
 };
 
 export function getCategoryLabel(cat: ConnectableTool["category"]): string {

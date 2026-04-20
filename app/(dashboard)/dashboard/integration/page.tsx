@@ -49,9 +49,15 @@ const CATEGORY_META: Record<ConnectableTool["category"], { label: string; emoji:
     gradient: "from-violet-500 to-purple-500",
     description: "Recevez vos alertes Revold + digest quotidien dans Slack, Teams, Gmail ou Outlook — là où votre équipe travaille déjà.",
   },
+  conv_intel: {
+    label: "Conversation Intelligence",
+    emoji: "🎙️",
+    gradient: "from-rose-500 to-fuchsia-500",
+    description: "Transcription + analyse IA des appels commerciaux. Talk ratio, objections, sentiment, scoring deal — auto-enrichis dans Revold.",
+  },
 };
 
-const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "communication"];
+const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "conv_intel", "communication"];
 
 export default async function IntegrationPage({
   searchParams,
@@ -107,6 +113,7 @@ export default async function IntegrationPage({
     phone: [],
     support: [],
     communication: [],
+    conv_intel: [],
   };
   for (const tool of Object.values(CONNECTABLE_TOOLS)) {
     toolsByCategory[tool.category].push(tool);
