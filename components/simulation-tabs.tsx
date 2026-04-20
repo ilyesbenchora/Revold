@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertButton } from "@/components/alert-button";
 import { CycleVentesSimulations } from "@/components/cycle-ventes-simulations";
+import { RevenueSimulations } from "@/components/revenue-simulations";
 
 type Pipeline = {
   id: string;
@@ -397,6 +398,11 @@ export function SimulationTabs({
         // Onglet Cycle de ventes : composant dédié avec sélecteurs pipeline + stages
         // qui génère 4 sections (velocity, risk, forecast, analytics) dynamiquement.
         <CycleVentesSimulations pipelines={pipelines} />
+      ) : tab === "revenue" ? (
+        // Onglet Revenue : sélecteur pipeline single (les simulations s'adaptent
+        // au type détecté : new_business / renewal / upsell). 4 sections :
+        // growth / ticket / forecast / retention.
+        <RevenueSimulations pipelines={pipelines} />
       ) : (
         filteredScenarios.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
