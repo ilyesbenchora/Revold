@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 type AlertButtonProps = {
@@ -30,6 +31,12 @@ export function AlertButton({ title, description, impact, category, forecastType
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
   const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
   const [loadedChannels, setLoadedChannels] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Portal mount detection (évite hydration mismatch SSR)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (pickerOpen && !loadedChannels) {
@@ -42,6 +49,27 @@ export function AlertButton({ title, description, impact, category, forecastType
         .catch(() => setLoadedChannels(true));
     }
   }, [pickerOpen, loadedChannels]);
+
+  // Lock body scroll quand le modal est ouvert
+  useEffect(() => {
+    if (pickerOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = original;
+      };
+    }
+  }, [pickerOpen]);
+
+  // Fermer avec Escape
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && state !== "loading") setPickerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pickerOpen, state]);
 
   function toggleChannel(ch: string) {
     setSelectedChannels((prev) =>
@@ -90,6 +118,120 @@ export function AlertButton({ title, description, impact, category, forecastType
     );
   }
 
+  // ── Modal contenu (porté via createPortal pour échapper aux overflow-hidden parents) ──
+  const modal = pickerOpen && mounted ? (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={() => state !== "loading" && setPickerOpen(false)}
+    >
+      <div
+        className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl ring-1 ring-slate-200"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Bouton close en haut à droite */}
+        <button
+          type="button"
+          onClick={() => state !== "loading" && setPickerOpen(false)}
+          className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Fermer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        <h3 className="pr-8 text-base font-semibold text-slate-900">
+          Choisir les canaux de notification
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Quand l&apos;objectif sera atteint, vous serez notifié via les canaux sélectionnés.
+        </p>
+
+        <div className="mt-4 space-y-1.5">
+          {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
+            const isInApp = ch === "in_app";
+            const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
+            const meta = CHANNEL_META[ch];
+            const isSelected = selectedChannels.includes(ch);
+
+            return (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => isConfigured && toggleChannel(ch)}
+                disabled={!isConfigured}
+                className={`flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition ${
+                  isSelected
+                    ? "border-accent bg-accent/5"
+                    : isConfigured
+                    ? "border-slate-200 hover:border-slate-300"
+                    : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
+                }`}
+              >
+                <span className="text-lg shrink-0">{meta.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-slate-900">{meta.label}</p>
+                    {isInApp && (
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                        ✓ Toujours
+                      </span>
+                    )}
+                    {!isConfigured && !isInApp && (
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+                        Non configuré
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
+                </div>
+                <div
+                  className={`h-4 w-4 shrink-0 rounded border-2 transition ${
+                    isSelected ? "border-accent bg-accent" : "border-slate-300"
+                  } ${!isConfigured ? "opacity-50" : ""}`}
+                >
+                  {isSelected && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="h-full w-full">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="mt-3 text-[10px] text-slate-400">
+          Pas configuré ?{" "}
+          <a href="/dashboard/parametres/notifications" target="_blank" className="text-accent underline">
+            Configurer mes canaux →
+          </a>
+        </p>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(false)}
+            disabled={state === "loading"}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={state === "loading" || selectedChannels.length === 0}
+            className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+          >
+            {state === "loading" ? "Activation..." : "Activer le suivi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       <button
@@ -104,102 +246,10 @@ export function AlertButton({ title, description, impact, category, forecastType
         Suivre cet objectif
       </button>
 
-      {pickerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={() => state !== "loading" && setPickerOpen(false)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold text-slate-900">Choisir les canaux de notification</h3>
-            <p className="mt-1 text-xs text-slate-500">
-              Quand l&apos;objectif sera atteint, vous serez notifié via les canaux sélectionnés.
-            </p>
-
-            <div className="mt-4 space-y-1.5">
-              {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
-                const isInApp = ch === "in_app";
-                const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
-                const meta = CHANNEL_META[ch];
-                const isSelected = selectedChannels.includes(ch);
-
-                return (
-                  <button
-                    key={ch}
-                    type="button"
-                    onClick={() => isConfigured && toggleChannel(ch)}
-                    disabled={!isConfigured}
-                    className={`flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition ${
-                      isSelected
-                        ? "border-accent bg-accent/5"
-                        : isConfigured
-                        ? "border-slate-200 hover:border-slate-300"
-                        : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
-                    }`}
-                  >
-                    <span className="text-lg shrink-0">{meta.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-slate-900">{meta.label}</p>
-                        {isInApp && (
-                          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
-                            ✓ Toujours
-                          </span>
-                        )}
-                        {!isConfigured && !isInApp && (
-                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
-                            Non configuré
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
-                    </div>
-                    <div
-                      className={`h-4 w-4 shrink-0 rounded border-2 transition ${
-                        isSelected ? "border-accent bg-accent" : "border-slate-300"
-                      } ${!isConfigured ? "opacity-50" : ""}`}
-                    >
-                      {isSelected && (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="h-full w-full">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-3 text-[10px] text-slate-400">
-              Pas configuré ?{" "}
-              <a href="/dashboard/parametres/notifications" target="_blank" className="text-accent underline">
-                Configurer mes canaux →
-              </a>
-            </p>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPickerOpen(false)}
-                disabled={state === "loading"}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={state === "loading" || selectedChannels.length === 0}
-                className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-              >
-                {state === "loading" ? "Activation..." : "Activer le suivi"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Portal vers document.body pour échapper aux containers parents
+          (les SimulationCard ont overflow-hidden + transform/halo qui peuvent
+          créer un stacking context et casser le rendu fixed) */}
+      {modal && createPortal(modal, document.body)}
     </>
   );
 }
