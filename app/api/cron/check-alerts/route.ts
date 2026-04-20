@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
+import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
 
 export const maxDuration = 300;
 
@@ -104,21 +105,34 @@ export async function GET(request: Request) {
 
       resolved++;
 
-      // Create notification
+      // Notification multi-canaux selon la config per-alert
       const unit = FORECAST_UNITS[alert.forecast_type] || "";
       const label = FORECAST_LABELS[alert.forecast_type] || alert.forecast_type;
+      const subject = `Objectif atteint : ${label}`;
+      const body =
+        `Votre objectif de ${alert.threshold}${unit} a été atteint !\n\n` +
+        `Valeur actuelle : ${currentValue}${unit}\n` +
+        `Direction : ${direction === "above" ? "↑ atteindre" : "↓ descendre sous"} ${alert.threshold}${unit}\n` +
+        (alert.description ? `\n${alert.description}\n` : "") +
+        `\nOuvrez Revold pour voir tous les détails et configurer la prochaine étape.`;
 
-      const { error: notifError } = await supabase.from("notifications").insert({
-        organization_id: alert.organization_id,
-        user_id: alert.created_by,
-        type: "alert_resolved",
-        title: `Objectif atteint : ${label}`,
-        body: `Votre objectif de ${alert.threshold}${unit} a été atteint ! Valeur actuelle : ${currentValue}${unit}.`,
+      // Canaux configurés pour cette alerte (default = ["in_app"])
+      const channels = (Array.isArray(alert.notification_channels) && alert.notification_channels.length > 0
+        ? alert.notification_channels
+        : ["in_app"]) as NotificationChannelType[];
+
+      const result = await sendNotification(supabase, {
+        orgId: alert.organization_id,
+        sourceType: "alert_resolved",
+        sourceId: alert.id,
+        channels,
+        userId: alert.created_by ?? undefined,
+        subject,
+        bodyText: body,
         link: "/dashboard/alertes",
-        alert_id: alert.id,
       });
 
-      if (!notifError) notificationsCreated++;
+      if (result.sentCount > 0) notificationsCreated++;
     }
   }
 

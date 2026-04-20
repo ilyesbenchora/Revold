@@ -26,6 +26,8 @@ export async function POST(request: Request) {
     expires_at, min_deal_amount, deal_stage_filter,
     // Marketing filters
     lifecycle_stage, source_filters, custom_property, custom_prop_value,
+    // Notifications (Phase 8.4) — canaux à utiliser quand objectif atteint
+    notification_channels,
   } = body;
 
   if (!title || !description || !impact) {
@@ -73,6 +75,9 @@ export async function POST(request: Request) {
     source_filters: source_filters?.length ? source_filters : null,
     custom_property: custom_property || null,
     custom_prop_value: custom_prop_value || null,
+    notification_channels: Array.isArray(notification_channels) && notification_channels.length > 0
+      ? notification_channels
+      : ["in_app"],
   }).select("id").single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

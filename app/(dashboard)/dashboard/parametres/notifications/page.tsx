@@ -1,151 +1,145 @@
 export const dynamic = "force-dynamic";
 
 import { ParametresTabs } from "@/components/parametres-tabs";
+import { NotificationChannelsForm } from "@/components/notification-channels-form";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
 
-const ALERT_RULES = [
-  { id: "deals_stagnant", label: "Deals stagnants", description: "Aucune activité commerciale depuis X jours", defaultThreshold: "7 jours", category: "commercial" },
-  { id: "deals_no_owner", label: "Deals sans owner", description: "Plus de X% des deals ouverts n'ont pas de commercial assigné", defaultThreshold: "10%", category: "commercial" },
-  { id: "won_no_invoice", label: "Won sans facture", description: "Deal Closed Won sans facture associée dans Stripe/Pennylane après X jours", defaultThreshold: "7 jours", category: "cross_source" },
-  { id: "payment_failed", label: "Échec de paiement", description: "Tout échec de paiement Stripe sur un compte Tier 1", defaultThreshold: "Immédiat", category: "billing" },
-  { id: "churn_risk", label: "Risque de churn", description: "Compte avec >X tickets ouverts à 30j du renouvellement", defaultThreshold: "3 tickets", category: "support" },
-  { id: "data_quality", label: "Qualité de la donnée", description: "Plus de X% de contacts orphelins (sans entreprise)", defaultThreshold: "20%", category: "data" },
-  { id: "low_adoption", label: "Adoption faible", description: "Outil métier connecté mais utilisé par moins de X commerciaux", defaultThreshold: "2 users", category: "adoption" },
-  { id: "forecast_gap", label: "Écart forecast vs réalisé", description: "Écart > X% entre le pipeline HubSpot et le MRR Stripe sur le dernier mois", defaultThreshold: "15%", category: "cross_source" },
-];
+export default async function ParametresNotificationsPage() {
+  const orgId = await getOrgId();
+  if (!orgId) {
+    return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
+  }
 
-const CHANNELS = [
-  { id: "in_app", label: "In-app", description: "Cloche du header + page Alertes", enabled: true, available: true },
-  { id: "email", label: "Email", description: "Digest quotidien par email", enabled: false, available: true },
-  { id: "slack", label: "Slack", description: "Webhook vers un canal Slack dédié", enabled: false, available: false },
-  { id: "teams", label: "Microsoft Teams", description: "Webhook vers un canal Teams", enabled: false, available: false },
-  { id: "webhook", label: "Webhook custom", description: "POST JSON vers une URL HTTPS", enabled: false, available: false },
-];
+  const supabase = await createSupabaseServerClient();
+  const { data: channels } = await supabase
+    .from("notification_channels")
+    .select("*")
+    .eq("organization_id", orgId);
 
-const CATEGORY_BADGE: Record<string, string> = {
-  commercial: "bg-blue-50 text-blue-700",
-  billing: "bg-emerald-50 text-emerald-700",
-  support: "bg-fuchsia-50 text-fuchsia-700",
-  data: "bg-amber-50 text-amber-700",
-  adoption: "bg-violet-50 text-violet-700",
-  cross_source: "bg-gradient-to-r from-fuchsia-50 to-indigo-50 text-indigo-700",
-};
+  // Stats récentes : combien de notifs envoyées sur les 7 derniers jours
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { data: recentLogs } = await supabase
+    .from("notification_log")
+    .select("channel_type, status")
+    .eq("organization_id", orgId)
+    .gte("created_at", sevenDaysAgo);
 
-const CATEGORY_LABEL: Record<string, string> = {
-  commercial: "Ventes",
-  billing: "Facturation",
-  support: "Support",
-  data: "Data",
-  adoption: "Adoption",
-  cross_source: "Cross-source",
-};
+  const stats = {
+    total: recentLogs?.length ?? 0,
+    sent: recentLogs?.filter((l) => l.status === "sent").length ?? 0,
+    failed: recentLogs?.filter((l) => l.status === "failed").length ?? 0,
+    byChannel: (recentLogs ?? []).reduce<Record<string, number>>((acc, l) => {
+      acc[l.channel_type] = (acc[l.channel_type] ?? 0) + 1;
+      return acc;
+    }, {}),
+  };
 
-export default function ParametresNotificationsPage() {
   return (
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Configuration des règles d&apos;alerte et des canaux de notification.
+          Configuration des canaux de notification et des digests.
         </p>
       </header>
 
       <ParametresTabs />
 
-      {/* Channels */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Canaux de diffusion
-        </h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {CHANNELS.map((c) => (
-            <article key={c.id} className="card flex items-start justify-between gap-4 p-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">{c.label}</h3>
-                  {!c.available && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                      Bientôt
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-slate-500">{c.description}</p>
-              </div>
-              <label className="relative inline-flex shrink-0 cursor-not-allowed items-center">
-                <input type="checkbox" className="peer sr-only" defaultChecked={c.enabled} disabled />
-                <div className="h-5 w-9 rounded-full bg-slate-200 peer-checked:bg-emerald-500 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4" />
-              </label>
-            </article>
-          ))}
-        </div>
+      {/* Stats 7j */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <article className="card p-4">
+          <p className="text-[10px] font-medium uppercase text-slate-500">Notifs envoyées (7j)</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</p>
+        </article>
+        <article className="card p-4">
+          <p className="text-[10px] font-medium uppercase text-slate-500">Réussies</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">{stats.sent}</p>
+        </article>
+        <article className="card p-4">
+          <p className="text-[10px] font-medium uppercase text-slate-500">Échecs</p>
+          <p
+            className={`mt-1 text-2xl font-bold ${
+              stats.failed > 0 ? "text-rose-600" : "text-slate-400"
+            }`}
+          >
+            {stats.failed}
+          </p>
+        </article>
+        <article className="card p-4">
+          <p className="text-[10px] font-medium uppercase text-slate-500">Canaux configurés</p>
+          <p className="mt-1 text-2xl font-bold text-accent">
+            {(channels ?? []).filter((c) => c.enabled).length}
+          </p>
+        </article>
       </div>
 
-      {/* Alert rules */}
+      {/* In-app (toujours actif) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Règles d&apos;alerte
+          <span className="h-2 w-2 rounded-full bg-blue-500" />Cloche in-app
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+            ✓ Toujours actif
+          </span>
         </h2>
-        <p className="text-sm text-slate-500">
-          Seuils de déclenchement pour les alertes générées automatiquement par Revold.
-          Les alertes apparaissent dans la cloche du header et la page Alertes.
+        <p className="text-xs text-slate-500">
+          Les notifications apparaissent dans la cloche du header et la page Alertes.
+          Activé par défaut pour toute alerte créée.
         </p>
-        <div className="space-y-2">
-          {ALERT_RULES.map((rule) => (
-            <article key={rule.id} className="card p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-semibold text-slate-900">{rule.label}</h3>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[rule.category]}`}>
-                      {CATEGORY_LABEL[rule.category]}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{rule.description}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <input
-                    type="text"
-                    defaultValue={rule.defaultThreshold}
-                    disabled
-                    className="w-24 rounded-lg border border-card-border bg-slate-50 px-2 py-1 text-center text-xs text-slate-700"
-                  />
-                  <label className="relative inline-flex cursor-not-allowed items-center">
-                    <input type="checkbox" className="peer sr-only" defaultChecked disabled />
-                    <div className="h-5 w-9 rounded-full bg-slate-200 peer-checked:bg-emerald-500 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4" />
-                  </label>
-                </div>
-              </div>
-            </article>
-          ))}
+      </div>
+
+      {/* Canaux configurables */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Canaux additionnels
+        </h2>
+        <p className="text-xs text-slate-500">
+          Configurez les canaux supplémentaires pour recevoir vos alertes et digests.
+        </p>
+        <NotificationChannelsForm initialChannels={channels ?? []} />
+      </div>
+
+      {/* Digest schedule (placeholder pour les futures préférences globales) */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />Digests automatiques
+        </h2>
+        <div className="card p-5">
+          <p className="text-sm text-slate-700">
+            Le <strong>digest quotidien</strong> est envoyé tous les matins à 8h via le canal email
+            configuré. Il regroupe :
+          </p>
+          <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
+            <li>• Alertes dont l&apos;objectif a été atteint dans les dernières 24h</li>
+            <li>• Top 3 coachings critiques générés par l&apos;IA Revold</li>
+            <li>• KPIs principaux (closing rate, pipeline, conversion) avec variation 24h</li>
+          </ul>
+          <p className="mt-3 text-xs text-slate-500">
+            Activez l&apos;email ci-dessus pour recevoir le digest. Pour désactiver le digest sans
+            désactiver les alertes ponctuelles, contactez-nous (préférence digest individuelle à
+            venir).
+          </p>
         </div>
       </div>
 
-      {/* Digest schedule */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />Planification des digests
-        </h2>
-        <div className="card p-6">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <label className="text-xs font-medium text-slate-500">Digest quotidien</label>
-              <select disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <option>08:00 (matin)</option>
-                <option>12:00 (midi)</option>
-                <option>18:00 (fin de journée)</option>
-                <option>Désactivé</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Digest hebdomadaire</label>
-              <select disabled className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <option>Lundi 08:00</option>
-                <option>Vendredi 17:00</option>
-                <option>Désactivé</option>
-              </select>
+      {/* Stats par canal */}
+      {Object.keys(stats.byChannel).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="h-2 w-2 rounded-full bg-indigo-500" />Activité par canal (7 jours)
+          </h2>
+          <div className="card p-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              {Object.entries(stats.byChannel).map(([channel, count]) => (
+                <div key={channel} className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase text-slate-500">{channel}</p>
+                  <p className="mt-0.5 text-lg font-bold text-slate-900">{count}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

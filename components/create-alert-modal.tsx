@@ -94,6 +94,15 @@ const unitLabels: Record<string, string> = { percent: "%", currency: "€", coun
 
 type Pipeline = { id: string; label: string };
 type Owner = { id: string; name: string; email: string; team: string | null };
+type ConfiguredChannel = { type: "email" | "slack" | "teams" | "webhook"; enabled: boolean };
+
+const CHANNEL_LABELS: Record<string, { label: string; description: string; icon: string }> = {
+  in_app: { label: "Cloche in-app", description: "Notification dans le header + page Alertes", icon: "🔔" },
+  email: { label: "Email", description: "Email aux destinataires configurés", icon: "✉️" },
+  slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬" },
+  teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥" },
+  webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
+};
 
 export function CreateAlertModal() {
   const [open, setOpen] = useState(false);
@@ -133,6 +142,9 @@ export function CreateAlertModal() {
   const [hsTeamFilter, setHsTeamFilter] = useState("");
   const [customProp, setCustomProp] = useState("");
   const [customPropValue, setCustomPropValue] = useState("");
+  // Step 4 — Notifications
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
+  const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
 
   const kpiList = kpisByTeam[team] ?? [];
   const kpi = kpiList.find((k) => k.id === kpiId);
@@ -140,18 +152,23 @@ export function CreateAlertModal() {
   // Load pipelines/owners on first open
   useEffect(() => {
     if (open && !optionsLoaded) {
-      fetch("/api/alerts/options")
-        .then((r) => r.ok ? r.json() : { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] })
-        .then((data) => {
-          setPipelines(data.pipelines ?? []);
-          setOwners(data.owners ?? []);
-          setHsTeams(data.teams ?? []);
-          setLifecycleStages(data.lifecycleStages ?? []);
-          setSources(data.sources ?? []);
-          setCustomContactProps(data.customContactProps ?? []);
-          setOptionsLoaded(true);
-        })
-        .catch(() => setOptionsLoaded(true));
+      Promise.all([
+        fetch("/api/alerts/options")
+          .then((r) => (r.ok ? r.json() : { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] }))
+          .catch(() => ({ pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] })),
+        fetch("/api/notifications/channels")
+          .then((r) => (r.ok ? r.json() : { channels: [] }))
+          .catch(() => ({ channels: [] })),
+      ]).then(([options, notifData]) => {
+        setPipelines(options.pipelines ?? []);
+        setOwners(options.owners ?? []);
+        setHsTeams(options.teams ?? []);
+        setLifecycleStages(options.lifecycleStages ?? []);
+        setSources(options.sources ?? []);
+        setCustomContactProps(options.customContactProps ?? []);
+        setConfiguredChannels(notifData.channels ?? []);
+        setOptionsLoaded(true);
+      });
     }
   }, [open, optionsLoaded]);
 
@@ -162,7 +179,12 @@ export function CreateAlertModal() {
     setShowAdvanced(false); setSeverity("info"); setFrequency("every_check");
     setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
     setCustomProp(""); setCustomPropValue("");
+    setSelectedChannels(["in_app"]);
     setState("idle"); setResult(null);
+  }
+
+  function toggleChannel(ch: string) {
+    setSelectedChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]);
   }
 
   function selectTeam(t: string) { setTeam(t); setKpiId(""); setStep(2); }
@@ -245,6 +267,7 @@ export function CreateAlertModal() {
           source_filters: selectedSources.length > 0 ? selectedSources : null,
           custom_property: customProp || null,
           custom_prop_value: customPropValue || null,
+          notification_channels: selectedChannels.length > 0 ? selectedChannels : ["in_app"],
         }),
       });
       if (res.ok) {
@@ -293,17 +316,17 @@ export function CreateAlertModal() {
             ) : (
               <>
                 {/* Steps indicator */}
-                <div className="flex items-center gap-2 mb-6">
-                  {[1, 2, 3].map((s) => (
+                <div className="flex items-center gap-2 mb-6 flex-wrap">
+                  {[1, 2, 3, 4].map((s) => (
                     <div key={s} className="flex items-center gap-2">
                       <button type="button" onClick={() => { if (s < step) setStep(s); }} disabled={s > step}
                         className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
                           s === step ? "bg-accent text-white" : s < step ? "bg-accent/20 text-accent cursor-pointer" : "bg-slate-100 text-slate-400"
                         }`}>{s}</button>
                       <span className={`text-xs font-medium ${s === step ? "text-slate-900" : "text-slate-400"}`}>
-                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : "Objectif"}
+                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : s === 3 ? "Objectif" : "Notifications"}
                       </span>
-                      {s < 3 && <span className="mx-1 text-slate-300">→</span>}
+                      {s < 4 && <span className="mx-1 text-slate-300">→</span>}
                     </div>
                   ))}
                 </div>
@@ -351,7 +374,7 @@ export function CreateAlertModal() {
 
                 {/* ── Step 3: Configure ── */}
                 {step === 3 && kpi && (
-                  <form onSubmit={handleSubmit}>
+                  <form onSubmit={(e) => { e.preventDefault(); if (threshold && (kpiId !== "source_to_lifecycle" || lifecycleStage)) setStep(4); }}>
                     <h2 className="text-lg font-semibold text-slate-900">Paramétrer l&apos;objectif</h2>
                     <p className="mt-1 text-sm text-slate-500">{kpi.label} — {kpi.description}</p>
 
@@ -611,7 +634,103 @@ export function CreateAlertModal() {
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={!threshold || state === "loading" || (kpiId === "source_to_lifecycle" && !lifecycleStage)}
+                        <button type="submit" disabled={!threshold || (kpiId === "source_to_lifecycle" && !lifecycleStage)}
+                          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
+                          Suivant : Notifications →
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                {/* ── Step 4: Notifications ── */}
+                {step === 4 && kpi && (
+                  <form onSubmit={handleSubmit}>
+                    <h2 className="text-lg font-semibold text-slate-900">Comment être notifié ?</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Choisissez les canaux qui recevront l&apos;alerte quand l&apos;objectif est atteint.
+                    </p>
+
+                    <div className="mt-5 space-y-2">
+                      {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
+                        const isInApp = ch === "in_app";
+                        const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
+                        const meta = CHANNEL_LABELS[ch];
+                        const isSelected = selectedChannels.includes(ch);
+
+                        return (
+                          <button
+                            key={ch}
+                            type="button"
+                            onClick={() => isConfigured && toggleChannel(ch)}
+                            disabled={!isConfigured}
+                            className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
+                              isSelected
+                                ? "border-accent bg-accent/5"
+                                : isConfigured
+                                ? "border-slate-200 hover:border-slate-300"
+                                : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
+                            }`}
+                          >
+                            <span className="text-xl shrink-0">{meta.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-slate-900">{meta.label}</p>
+                                {isInApp && (
+                                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                                    Toujours actif
+                                  </span>
+                                )}
+                                {!isConfigured && !isInApp && (
+                                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+                                    Non configuré
+                                  </span>
+                                )}
+                                {isSelected && !isInApp && (
+                                  <span className="rounded-full bg-accent text-white px-1.5 py-0.5 text-[9px] font-bold">
+                                    ✓ Sélectionné
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
+                              {!isConfigured && !isInApp && (
+                                <p className="mt-1 text-[10px] text-amber-700">
+                                  <a href="/dashboard/parametres/notifications" target="_blank" className="underline">
+                                    Configurer ce canal →
+                                  </a>
+                                </p>
+                              )}
+                            </div>
+                            <div
+                              className={`mt-1 h-5 w-5 shrink-0 rounded border-2 transition ${
+                                isSelected ? "border-accent bg-accent" : "border-slate-300"
+                              } ${!isConfigured ? "opacity-50" : ""}`}
+                            >
+                              {isSelected && (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="h-full w-full">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedChannels.length === 0 && (
+                      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        ⚠ Au moins un canal doit être sélectionné. La cloche in-app est sélectionnée par défaut.
+                      </p>
+                    )}
+
+                    <div className="mt-6 flex items-center justify-between">
+                      <button type="button" onClick={() => setStep(3)} className="text-xs text-slate-400 hover:text-accent">
+                        ← Modifier l&apos;objectif
+                      </button>
+                      <div className="flex gap-3">
+                        <button type="button" onClick={() => { setOpen(false); reset(); }}
+                          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
+                        <button type="submit" disabled={state === "loading" || selectedChannels.length === 0}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           {state === "loading" ? "Création..." : "Créer l'alerte"}
                         </button>
