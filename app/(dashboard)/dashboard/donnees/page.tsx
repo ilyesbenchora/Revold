@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
+import { getOrgId, getCanonicalIntegrationData, getHubspotEcosystemCounts } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
@@ -38,7 +38,10 @@ export default async function DonneesPage() {
   if (!orgId) return null;
 
   const supabase = await createSupabaseServerClient();
-  const { integrations: hsIntegrations } = await getCanonicalIntegrationData();
+  const [{ integrations: hsIntegrations }, ecosystem] = await Promise.all([
+    getCanonicalIntegrationData(),
+    getHubspotEcosystemCounts(),
+  ]);
   const businessIntegrations = filterBusinessIntegrations(hsIntegrations);
 
   // Fetch custom properties from HubSpot
@@ -128,6 +131,61 @@ export default async function DonneesPage() {
             <p className="mt-3 text-[10px] text-slate-400 group-hover:text-accent">Voir le détail →</p>
           </Link>
         ))}
+      </div>
+
+      {/* Écosystème HubSpot complet — counts via les 41 scopes optional */}
+      <div className="card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Écosystème HubSpot complet</h2>
+            <p className="text-[11px] text-slate-500">
+              Tous les objets et features HubSpot accessibles via votre OAuth.
+              Les zéros peuvent indiquer un scope non accordé ou un objet non utilisé.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[
+            { label: "Tickets", count: ecosystem.tickets, group: "Service" },
+            { label: "Conversations", count: ecosystem.conversations, group: "Service" },
+            { label: "Feedback (CSAT/NPS)", count: ecosystem.feedbackSubmissions, group: "Service" },
+            { label: "Leads", count: ecosystem.leads, group: "Sales" },
+            { label: "Devis", count: ecosystem.quotes, group: "Sales" },
+            { label: "Line items", count: ecosystem.lineItems, group: "Sales" },
+            { label: "Sequences", count: ecosystem.sequences, group: "Sales" },
+            { label: "Forecasts", count: ecosystem.forecasts, group: "Sales" },
+            { label: "Goals", count: ecosystem.goals, group: "Sales" },
+            { label: "Factures", count: ecosystem.invoices, group: "Revenue" },
+            { label: "Subscriptions", count: ecosystem.subscriptions, group: "Revenue" },
+            { label: "Marketing campaigns", count: ecosystem.marketingCampaigns, group: "Marketing" },
+            { label: "Marketing events", count: ecosystem.marketingEvents, group: "Marketing" },
+            { label: "Forms", count: ecosystem.forms, group: "Marketing" },
+            { label: "Listings (immo)", count: ecosystem.listings, group: "Custom" },
+            { label: "Projects", count: ecosystem.projects, group: "Custom" },
+            { label: "Custom objects", count: ecosystem.customObjects, group: "Custom" },
+            { label: "Listes", count: ecosystem.lists, group: "Workspace" },
+            { label: "Pipelines", count: ecosystem.pipelines, group: "Workspace" },
+            { label: "Workflows", count: ecosystem.workflows, group: "Workspace" },
+            { label: "Workflows actifs", count: ecosystem.workflowsActive, group: "Workspace" },
+            { label: "Utilisateurs", count: ecosystem.users, group: "Workspace" },
+            { label: "Équipes", count: ecosystem.teams, group: "Workspace" },
+            { label: "Rendez-vous", count: ecosystem.appointments, group: "Workspace" },
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">{item.group}</span>
+                <span
+                  className={`text-2xl font-bold tabular-nums ${
+                    item.count > 0 ? "text-slate-900" : "text-slate-300"
+                  }`}
+                >
+                  {item.count.toLocaleString("fr-FR")}
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-medium text-slate-700">{item.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Propriétés personnalisées HubSpot */}

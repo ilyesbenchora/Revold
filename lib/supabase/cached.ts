@@ -7,6 +7,11 @@ import {
   computeIntegrationScore,
 } from "@/lib/integrations/integration-score";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import {
+  fetchHubSpotEcosystemCounts,
+  EMPTY_ECOSYSTEM_COUNTS,
+  type HubSpotEcosystemCounts,
+} from "@/lib/integrations/hubspot";
 
 /**
  * Request-scoped cached helpers.
@@ -181,6 +186,27 @@ export const getHubspotIntegrationScore = cache(async (): Promise<number | null>
   return computeIntegrationScore(businessIntegrations, ownersCount).score;
 });
 
+
+/**
+ * Snapshot écosystème HubSpot — counts pour TOUS les objets accessibles via
+ * les scopes optional accordés (invoices, subscriptions, tickets, leads, etc.).
+ * Cache request-scoped pour éviter de dupliquer les ~20 appels API si
+ * plusieurs pages/composants l'utilisent dans le même render.
+ */
+export const getHubspotEcosystemCounts = cache(
+  async (): Promise<HubSpotEcosystemCounts> => {
+    const orgId = await getOrgId();
+    if (!orgId) return EMPTY_ECOSYSTEM_COUNTS;
+    const supabase = await createSupabaseServerClient();
+    const token = await getHubSpotToken(supabase, orgId);
+    if (!token) return EMPTY_ECOSYSTEM_COUNTS;
+    try {
+      return await fetchHubSpotEcosystemCounts(token);
+    } catch {
+      return EMPTY_ECOSYSTEM_COUNTS;
+    }
+  },
+);
 
 export const getLatestKpi = cache(async () => {
   const orgId = await getOrgId();

@@ -471,3 +471,205 @@ export async function fetchHubSpotCompanies(accessToken: string, maxPages: numbe
 
   return companies;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// ECOSYSTEM SNAPSHOT — exploite TOUS les scopes optional disponibles
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pour chaque objet/feature HubSpot autorisé par les scopes optional, on
+ * récupère le COUNT total + (parfois) un sample. Permet aux pages Revold
+ * d'afficher des KPIs sans rien synchroniser, et aux insights de raisonner
+ * sur l'écosystème complet (tickets, leads, invoices, etc.).
+ *
+ * Chaque fetch est résilient : si le scope n'est pas accordé ou si l'API
+ * répond 403, on retourne 0 sans crasher l'ensemble.
+ */
+
+async function safeCount(accessToken: string, endpoint: string, body?: unknown): Promise<number> {
+  try {
+    const url = `${HUBSPOT_API}${endpoint}`;
+    const res = await fetch(url, {
+      method: body ? "POST" : "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    if (typeof data.total === "number") return data.total;
+    if (Array.isArray(data.results)) return data.results.length;
+    if (Array.isArray(data.workflows)) return data.workflows.length;
+    if (Array.isArray(data.lists)) return data.lists.length;
+    if (Array.isArray(data.users)) return data.users.length;
+    if (Array.isArray(data.teams)) return data.teams.length;
+    if (typeof data.totalCount === "number") return data.totalCount;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Count via /crm/v3/objects/{type}/search (POST) — fiable pour la plupart des objets */
+function searchCount(accessToken: string, objectType: string): Promise<number> {
+  return safeCount(accessToken, `/crm/v3/objects/${objectType}/search`, { limit: 1 });
+}
+
+export type HubSpotEcosystemCounts = {
+  // CRM objects étendus
+  invoices: number;
+  subscriptions: number;
+  quotes: number;
+  lineItems: number;
+  appointments: number;
+  marketingEvents: number;
+  goals: number;
+  leads: number;
+  feedbackSubmissions: number;
+  forecasts: number;
+  listings: number;
+  projects: number;
+  // Service / Engagement
+  tickets: number;
+  conversations: number;
+  // Sales
+  sequences: number;
+  // Marketing
+  forms: number;
+  marketingCampaigns: number;
+  // Workspace
+  users: number;
+  teams: number;
+  // Schemas (custom)
+  customObjects: number;
+  // Lists / pipelines
+  lists: number;
+  pipelines: number;
+  // Workflows
+  workflows: number;
+  workflowsActive: number;
+};
+
+export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<HubSpotEcosystemCounts> {
+  const [
+    invoices,
+    subscriptions,
+    quotes,
+    lineItems,
+    appointments,
+    marketingEvents,
+    goals,
+    leads,
+    feedbackSubmissions,
+    forecasts,
+    listings,
+    projects,
+    tickets,
+    conversations,
+    sequences,
+    forms,
+    marketingCampaigns,
+    users,
+    teams,
+    customObjects,
+    lists,
+    pipelines,
+    workflowsData,
+  ] = await Promise.all([
+    searchCount(accessToken, "invoices"),
+    searchCount(accessToken, "subscriptions"),
+    searchCount(accessToken, "quotes"),
+    searchCount(accessToken, "line_items"),
+    searchCount(accessToken, "appointments"),
+    searchCount(accessToken, "marketing_events"),
+    searchCount(accessToken, "goals"),
+    searchCount(accessToken, "leads"),
+    searchCount(accessToken, "feedback_submissions"),
+    searchCount(accessToken, "forecasts"),
+    searchCount(accessToken, "listings"),
+    searchCount(accessToken, "projects"),
+    searchCount(accessToken, "tickets"),
+    safeCount(accessToken, "/conversations/v3/conversations/threads?limit=1"),
+    safeCount(accessToken, "/automation/v3/sequences"),
+    safeCount(accessToken, "/marketing/v3/forms?limit=1"),
+    safeCount(accessToken, "/marketing/v3/campaigns?limit=1"),
+    safeCount(accessToken, "/settings/v3/users?limit=1"),
+    safeCount(accessToken, "/settings/v3/users/teams"),
+    safeCount(accessToken, "/crm/v3/schemas"),
+    safeCount(accessToken, "/crm/v3/lists/search", { count: 1 }),
+    safeCount(accessToken, "/crm/v3/pipelines/deals"),
+    fetchWorkflowsCounts(accessToken),
+  ]);
+
+  return {
+    invoices,
+    subscriptions,
+    quotes,
+    lineItems,
+    appointments,
+    marketingEvents,
+    goals,
+    leads,
+    feedbackSubmissions,
+    forecasts,
+    listings,
+    projects,
+    tickets,
+    conversations,
+    sequences,
+    forms,
+    marketingCampaigns,
+    users,
+    teams,
+    customObjects,
+    lists,
+    pipelines,
+    workflows: workflowsData.total,
+    workflowsActive: workflowsData.active,
+  };
+}
+
+async function fetchWorkflowsCounts(accessToken: string): Promise<{ total: number; active: number }> {
+  try {
+    const res = await fetch(`${HUBSPOT_API}/automation/v4/flows?limit=200`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return { total: 0, active: 0 };
+    const data = await res.json();
+    const flows = (data.results ?? []) as Array<{ isEnabled?: boolean; enabled?: boolean }>;
+    const active = flows.filter((f) => f.isEnabled === true || f.enabled === true).length;
+    return { total: flows.length, active };
+  } catch {
+    return { total: 0, active: 0 };
+  }
+}
+
+/** Snapshot par défaut quand pas de token / pas de scopes. */
+export const EMPTY_ECOSYSTEM_COUNTS: HubSpotEcosystemCounts = {
+  invoices: 0,
+  subscriptions: 0,
+  quotes: 0,
+  lineItems: 0,
+  appointments: 0,
+  marketingEvents: 0,
+  goals: 0,
+  leads: 0,
+  feedbackSubmissions: 0,
+  forecasts: 0,
+  listings: 0,
+  projects: 0,
+  tickets: 0,
+  conversations: 0,
+  sequences: 0,
+  forms: 0,
+  marketingCampaigns: 0,
+  users: 0,
+  teams: 0,
+  customObjects: 0,
+  lists: 0,
+  pipelines: 0,
+  workflows: 0,
+  workflowsActive: 0,
+};
