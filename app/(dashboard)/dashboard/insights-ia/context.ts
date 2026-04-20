@@ -5,6 +5,7 @@ import { getReportSuggestions, getToolCategory } from "@/lib/reports/report-sugg
 import { buildCrossSourceContext, selectCrossSourceInsights } from "@/lib/insights/cross-source";
 import { generateDataModelInsights } from "@/lib/insights/data-model-insights";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export { selectInsights };
 export type { InsightContext };
@@ -28,6 +29,82 @@ export const hubspotLinks: Record<string, string> = {
   marketing: HS.contacts,
   data: HS.properties,
 };
+
+/**
+ * Fallback HubSpot direct si la sync Supabase n'a pas (encore) tourné.
+ * On veut que les pages affichent QUELQUE CHOSE même si la donnée n'est
+ * pas dans nos tables canoniques. Compte exact via /search?limit=1 (renvoie
+ * un total sans charger les rows).
+ */
+async function fetchHubSpotCount(token: string, objectType: string, body?: object): Promise<number> {
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 1, ...body }),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return typeof data.total === "number" ? data.total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function fetchHubSpotFallbackCounts(token: string) {
+  const [
+    totalDeals,
+    wonDeals,
+    lostDeals,
+    dealsNoAmount,
+    dealsNoCloseDate,
+    totalContacts,
+    opportunitiesCount,
+    contactsNoPhone,
+    contactsNoTitle,
+    totalCompanies,
+    companiesNoIndustry,
+    companiesNoRevenue,
+  ] = await Promise.all([
+    fetchHubSpotCount(token, "deals"),
+    fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }] }),
+    fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed", operator: "EQ", value: "true" }, { propertyName: "hs_is_closed_won", operator: "NEQ", value: "true" }] }] }),
+    fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] }] }),
+    fetchHubSpotCount(token, "deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "NOT_HAS_PROPERTY" }] }] }),
+    fetchHubSpotCount(token, "contacts"),
+    fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "lifecyclestage", operator: "IN", values: ["opportunity", "salesqualifiedlead", "customer"] }] }] }),
+    fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] }] }),
+    fetchHubSpotCount(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "NOT_HAS_PROPERTY" }] }] }),
+    fetchHubSpotCount(token, "companies"),
+    fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "NOT_HAS_PROPERTY" }] }] }),
+    fetchHubSpotCount(token, "companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "NOT_HAS_PROPERTY" }] }] }),
+  ]);
+
+  const closedTotal = wonDeals + lostDeals;
+  return {
+    totalDeals,
+    wonDeals,
+    lostDeals,
+    openDeals: Math.max(0, totalDeals - closedTotal),
+    closingRate: closedTotal > 0 ? Math.round((wonDeals / closedTotal) * 100) : 0,
+    dealsNoNextActivity: 0,
+    dealsNoActivity: 0,
+    dealsNoAmount,
+    dealsNoCloseDate,
+    stagnantDeals: 0,
+    totalContacts,
+    leadsCount: Math.max(0, totalContacts - opportunitiesCount),
+    opportunitiesCount,
+    conversionRate: totalContacts > 0 ? Math.round((opportunitiesCount / totalContacts) * 100) : 0,
+    orphansCount: 0,
+    orphanRate: 0,
+    contactsNoPhone,
+    contactsNoTitle,
+    totalCompanies,
+    companiesNoIndustry,
+    companiesNoRevenue,
+  };
+}
 
 export async function buildContext(supabase: SupabaseClient, orgId: string): Promise<InsightContext> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -76,6 +153,22 @@ export async function buildContext(supabase: SupabaseClient, orgId: string): Pro
   const tContacts = totalContacts ?? 0;
   const opps = opportunitiesCount ?? 0;
   const orphans = orphansCount ?? 0;
+
+  // ── FALLBACK HUBSPOT DIRECT ──
+  // Supabase vide (sync pas encore propagée OU sync incomplète) mais HubSpot
+  // OAuth connecté = source de vérité disponible. On va chercher les counts
+  // directement via /search?limit=1 qui renvoie le total sans charger les rows.
+  if (tDeals === 0 && tContacts === 0) {
+    const token = await getHubSpotToken(supabase, orgId);
+    if (token) {
+      const fb = await fetchHubSpotFallbackCounts(token);
+      // Si HubSpot a vraiment des données, on les retourne. Sinon on tombe
+      // sur les zéros Supabase (org réellement vide).
+      if (fb.totalDeals > 0 || fb.totalContacts > 0 || fb.totalCompanies > 0) {
+        return fb;
+      }
+    }
+  }
 
   return {
     totalDeals: tDeals,
@@ -282,6 +375,115 @@ export async function fetchIntegrationInsights(
       recommendation: `Consultez la page Intégration pour découvrir les outils à connecter, et la page Rapports pour voir ce que Revold débloquera ensuite.`,
     });
   }
+
+  // ── ALWAYS-ON integration recommendations (universelles, indépendantes du stack détecté) ──
+  integrationInsights.push(
+    {
+      key: "int_audit_stack_quarterly",
+      severity: "info",
+      title: "🔌 Audit trimestriel de la stack outils",
+      body: "Les apps connectées s'accumulent : trial jamais désactivé, app remplacée non débranchée, doublons. Audit régulier = stack lean + sécurité renforcée.",
+      recommendation: "Tous les 3 mois : lister les apps, leur owner, leur usage réel. Désactiver/désinstaller les inactives. Documenter pourquoi chaque app est en place.",
+    },
+    {
+      key: "int_consolidate_stack",
+      severity: "info",
+      title: "🔌 Identifier les opportunités de consolidation outils",
+      body: "Beaucoup de stacks ont 2 outils qui font la même chose (ex: 2 séquenceurs, 2 outils d'enrichissement). Consolidation = -30% de coût + meilleure cohérence data.",
+      recommendation: "Lister les redondances dans la stack. Choisir l'outil le plus utilisé, migrer les utilisateurs, négocier la résiliation de l'autre.",
+    },
+    {
+      key: "int_native_vs_third_party",
+      severity: "info",
+      title: "🔌 Privilégier les apps natives marketplace HubSpot",
+      body: "Les apps natives marketplace HubSpot sont mieux maintenues, ont un meilleur support et évitent les casses lors des updates HubSpot.",
+      recommendation: "Pour chaque tool tiers en place, vérifier s'il existe une app marketplace officielle. Si oui, basculer dessus.",
+    },
+    {
+      key: "int_data_governance",
+      severity: "info",
+      title: "🔌 Mettre en place une gouvernance data inter-outils",
+      body: "Sans gouvernance, chaque outil ajoute ses propres champs et workflows. Le CRM devient une accumulation incohérente.",
+      recommendation: "Créer un comité data trimestriel : qui peut ajouter des champs, sous quelles règles, quel naming, quel cleanup. Documenté.",
+    },
+    {
+      key: "int_security_audit",
+      severity: "warning",
+      title: "🔌 Audit sécurité des accès tiers",
+      body: "Chaque app connectée peut potentiellement lire / écrire dans le CRM. Une app compromise = fuite de données massive.",
+      recommendation: "Pour chaque app connectée : vérifier les scopes accordés (principle of least privilege), changer les credentials annuellement, alertes sur les accès anormaux.",
+    },
+    {
+      key: "int_business_continuity",
+      severity: "info",
+      title: "🔌 Plan de continuité en cas de panne d'un outil",
+      body: "Si HubSpot, Stripe, Salesforce tombent, comment l'équipe continue à bosser ? Sans plan, la productivité chute à zéro.",
+      recommendation: "Documenter pour chaque outil critique : workaround manuel, contact support, SLA fournisseur, exports backup réguliers.",
+    },
+    {
+      key: "int_onboarding_kit",
+      severity: "info",
+      title: "🔌 Onboarding kit pour les nouveaux arrivants",
+      body: "Sans onboarding kit, chaque nouveau collaborateur perd 2 semaines à découvrir la stack. Et utilise mal les outils.",
+      recommendation: "Document Notion/Confluence : liste des outils, à quoi sert chacun, qui est l'owner, formations vidéo. Mis à jour à chaque évolution.",
+    },
+    {
+      key: "int_workflow_documentation",
+      severity: "info",
+      title: "🔌 Documenter les workflows automatisés critiques",
+      body: "Les workflows tournent en silence. Un changement non-documenté peut casser le funnel sans qu'on s'en aperçoive pendant des semaines.",
+      recommendation: "Pour chaque workflow critique : ce qu'il fait, qui l'a créé, quand il a été modifié, comment le tester. Audit avant chaque update HubSpot.",
+    },
+    {
+      key: "int_field_mapping_check",
+      severity: "warning",
+      title: "🔌 Vérifier les mappings champs entre outils",
+      body: "Les apps tierces mappent leurs champs sur des champs HubSpot. Si un champ HubSpot est renommé/supprimé, le mapping casse silencieusement.",
+      recommendation: "Audit semestriel : lister tous les mappings, vérifier qu'ils fonctionnent, corriger les ruptures.",
+    },
+    {
+      key: "int_revops_role",
+      severity: "info",
+      title: "🔌 Désigner un RevOps owner pour la stack",
+      body: "Sans owner unique, personne n'est responsable de la cohérence inter-outils. Les problèmes restent en suspens 6+ mois.",
+      recommendation: "Désigner un RevOps (ou DRH-like role pour les petites structures). Mission : qualité data + workflow design + tools governance. KPIs trackés.",
+    },
+    {
+      key: "int_internal_help_channel",
+      severity: "info",
+      title: "🔌 Créer un canal Slack dédié aux questions outils",
+      body: "Les questions outils traînent dans les DMs ou en réunion. Un canal centralisé = entraide rapide + base de connaissances émergente.",
+      recommendation: "Créer #stack-help sur Slack. Demande de réponse < 1h. Capture des FAQs récurrentes vers la doc.",
+    },
+    {
+      key: "int_metrics_dashboard",
+      severity: "info",
+      title: "🔌 Dashboard d'usage des outils",
+      body: "Sans dashboard d'usage, impossible de prouver le ROI d'un outil ou de détecter une chute d'adoption.",
+      recommendation: "Pour chaque outil critique : utilisateurs actifs / mois, actions effectuées, comparaison avec mois N-1. Alerte si chute > 20%.",
+    },
+    {
+      key: "int_quarterly_demo",
+      severity: "info",
+      title: "🔌 Demo trimestrielle des nouveautés outils",
+      body: "Les outils sortent des features tous les mois. Sans demo régulière, l'équipe loupe 80% des nouveautés et n'utilise que 20% du potentiel.",
+      recommendation: "Tous les trimestres : 30min de demo des nouveautés HubSpot + apps clés. Diapo + replay disponible. Champion désigné.",
+    },
+    {
+      key: "int_partner_managed_services",
+      severity: "info",
+      title: "🔌 Évaluer un partenaire HubSpot pour la maintenance",
+      body: "Pour les stacks complexes, un partenaire HubSpot certifié coûte 1-3k€/mois et économise 5-10x ce coût en évitant les bugs et en optimisant.",
+      recommendation: "Demander 3 devis à des partenaires HubSpot Diamond/Elite. Comparer offres + retours clients. Test de 3 mois avant engagement long.",
+    },
+    {
+      key: "int_revold_full_stack",
+      severity: "info",
+      title: "🔌 Connecter toute la stack à Revold pour cross-source",
+      body: "Plus Revold a accès à votre stack complète (HubSpot + Stripe + Zendesk + Pipedrive...), plus la valeur des rapports cross-source explose.",
+      recommendation: "Connecter au minimum : CRM + facturation + support + outil de prospection. Chaque ajout débloque 5-10 rapports cross-source.",
+    },
+  );
 
   const totalReportSuggestions = getReportSuggestions(detectedIntegrations).length;
 

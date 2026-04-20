@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getCanonicalIntegrationData, getHubspotEcosystemCounts } from "@/lib/supabase/cached";
+import { getOrgId, getCanonicalIntegrationData } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
@@ -38,10 +38,7 @@ export default async function DonneesPage() {
   if (!orgId) return null;
 
   const supabase = await createSupabaseServerClient();
-  const [{ integrations: hsIntegrations }, ecosystem] = await Promise.all([
-    getCanonicalIntegrationData(),
-    getHubspotEcosystemCounts(),
-  ]);
+  const { integrations: hsIntegrations } = await getCanonicalIntegrationData();
   const businessIntegrations = filterBusinessIntegrations(hsIntegrations);
 
   // Fetch custom properties from HubSpot
@@ -53,51 +50,125 @@ export default async function DonneesPage() {
   const totalCustomProps = propStats.reduce((s, p) => s + p.custom, 0);
   const totalAllProps = propStats.reduce((s, p) => s + p.total, 0);
 
-  // Quick summary per object
+  // Quick summary per object — Supabase d'abord, fallback HubSpot direct
   const [
-    { count: tc }, { count: contactsWithPhone }, { count: contactsWithCompany },
-    { count: tco }, { count: companiesWithDomain },
-    { count: td }, { count: dealsWithAmount },
+    { count: tc }, { count: contactsWithPhone }, { count: contactsWithCompany }, { count: contactsWithTitle },
+    { count: tco }, { count: companiesWithDomain }, { count: companiesWithIndustry }, { count: companiesWithRevenue },
+    { count: td }, { count: dealsWithAmount }, { count: dealsWithCloseDate }, { count: dealsWithOwner },
   ] = await Promise.all([
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("phone", "is", null),
     supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("company_id", "is", null),
+    supabase.from("contacts").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("title", "is", null),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("domain", "is", null),
+    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("industry", "is", null),
+    supabase.from("companies").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("annual_revenue", "is", null),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gt("amount", 0),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("close_date", "is", null),
+    supabase.from("deals").select("*", { count: "exact", head: true }).eq("organization_id", orgId).not("owner_id", "is", null),
   ]);
+
+  // FALLBACK HUBSPOT DIRECT si Supabase vide mais HubSpot connecté
+  let hsFallback = {
+    contacts: { total: 0, withPhone: 0, withCompany: 0, withTitle: 0 },
+    companies: { total: 0, withDomain: 0, withIndustry: 0, withRevenue: 0 },
+    deals: { total: 0, withAmount: 0, withCloseDate: 0, withOwner: 0 },
+  };
+  const supabaseEmpty = (tc ?? 0) === 0 && (td ?? 0) === 0 && (tco ?? 0) === 0;
+  if (supabaseEmpty && hubspotToken) {
+    const hsCount = async (objectType: string, body?: object) => {
+      try {
+        const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 1, ...body }),
+          cache: "no-store",
+        });
+        if (!res.ok) return 0;
+        const data = await res.json();
+        return typeof data.total === "number" ? data.total : 0;
+      } catch {
+        return 0;
+      }
+    };
+    const [
+      hsContacts, hsContactsPhone, hsContactsCompany, hsContactsTitle,
+      hsCompanies, hsCompaniesDomain, hsCompaniesIndustry, hsCompaniesRevenue,
+      hsDeals, hsDealsAmount, hsDealsCloseDate, hsDealsOwner,
+    ] = await Promise.all([
+      hsCount("contacts"),
+      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "associatedcompanyid", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("companies"),
+      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "domain", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("deals"),
+      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "HAS_PROPERTY" }] }] }),
+      hsCount("deals", { filterGroups: [{ filters: [{ propertyName: "hubspot_owner_id", operator: "HAS_PROPERTY" }] }] }),
+    ]);
+    hsFallback = {
+      contacts: { total: hsContacts, withPhone: hsContactsPhone, withCompany: hsContactsCompany, withTitle: hsContactsTitle },
+      companies: { total: hsCompanies, withDomain: hsCompaniesDomain, withIndustry: hsCompaniesIndustry, withRevenue: hsCompaniesRevenue },
+      deals: { total: hsDeals, withAmount: hsDealsAmount, withCloseDate: hsDealsCloseDate, withOwner: hsDealsOwner },
+    };
+  }
 
   const total = (n: number | null) => n ?? 0;
   const pct = (filled: number | null, t: number) => t > 0 ? Math.round((total(filled) / t) * 100) : 0;
+  const useFallback = supabaseEmpty && (hsFallback.contacts.total > 0 || hsFallback.deals.total > 0 || hsFallback.companies.total > 0);
+
+  const contactsTotal = useFallback ? hsFallback.contacts.total : total(tc);
+  const contactsPhone = useFallback ? hsFallback.contacts.withPhone : total(contactsWithPhone);
+  const contactsCompany = useFallback ? hsFallback.contacts.withCompany : total(contactsWithCompany);
+  const contactsTitle = useFallback ? hsFallback.contacts.withTitle : total(contactsWithTitle);
+
+  const companiesTotal = useFallback ? hsFallback.companies.total : total(tco);
+  const companiesDomain = useFallback ? hsFallback.companies.withDomain : total(companiesWithDomain);
+  const companiesIndustry = useFallback ? hsFallback.companies.withIndustry : total(companiesWithIndustry);
+  const companiesRevenue = useFallback ? hsFallback.companies.withRevenue : total(companiesWithRevenue);
+
+  const dealsTotal = useFallback ? hsFallback.deals.total : total(td);
+  const dealsAmount = useFallback ? hsFallback.deals.withAmount : total(dealsWithAmount);
+  const dealsCloseDate = useFallback ? hsFallback.deals.withCloseDate : total(dealsWithCloseDate);
+  const dealsOwner = useFallback ? hsFallback.deals.withOwner : total(dealsWithOwner);
 
   const summaries = [
     {
       label: "Contacts",
       href: "/dashboard/donnees/contacts",
-      count: total(tc),
+      count: contactsTotal,
       color: "bg-blue-500",
       metrics: [
-        { label: "Téléphone", pct: pct(contactsWithPhone, total(tc)) },
-        { label: "Entreprise liée", pct: pct(contactsWithCompany, total(tc)) },
+        { label: "Téléphone", pct: pct(contactsPhone, contactsTotal) },
+        { label: "Entreprise liée", pct: pct(contactsCompany, contactsTotal) },
+        { label: "Poste", pct: pct(contactsTitle, contactsTotal) },
       ],
     },
     {
       label: "Entreprises",
       href: "/dashboard/donnees/entreprises",
-      count: total(tco),
+      count: companiesTotal,
       color: "bg-violet-500",
       metrics: [
-        { label: "Domaine", pct: pct(companiesWithDomain, total(tco)) },
+        { label: "Domaine", pct: pct(companiesDomain, companiesTotal) },
+        { label: "Secteur", pct: pct(companiesIndustry, companiesTotal) },
+        { label: "CA", pct: pct(companiesRevenue, companiesTotal) },
       ],
     },
     {
       label: "Transactions",
       href: "/dashboard/donnees/transactions",
-      count: total(td),
+      count: dealsTotal,
       color: "bg-orange-500",
       metrics: [
-        { label: "Montant", pct: pct(dealsWithAmount, total(td)) },
+        { label: "Montant", pct: pct(dealsAmount, dealsTotal) },
+        { label: "Date closing", pct: pct(dealsCloseDate, dealsTotal) },
+        { label: "Propriétaire", pct: pct(dealsOwner, dealsTotal) },
       ],
     },
   ];
@@ -131,61 +202,6 @@ export default async function DonneesPage() {
             <p className="mt-3 text-[10px] text-slate-400 group-hover:text-accent">Voir le détail →</p>
           </Link>
         ))}
-      </div>
-
-      {/* Écosystème HubSpot complet — counts via les 41 scopes optional */}
-      <div className="card p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Écosystème HubSpot complet</h2>
-            <p className="text-[11px] text-slate-500">
-              Tous les objets et features HubSpot accessibles via votre OAuth.
-              Les zéros peuvent indiquer un scope non accordé ou un objet non utilisé.
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {[
-            { label: "Tickets", count: ecosystem.tickets, group: "Service" },
-            { label: "Conversations", count: ecosystem.conversations, group: "Service" },
-            { label: "Feedback (CSAT/NPS)", count: ecosystem.feedbackSubmissions, group: "Service" },
-            { label: "Leads", count: ecosystem.leads, group: "Sales" },
-            { label: "Devis", count: ecosystem.quotes, group: "Sales" },
-            { label: "Line items", count: ecosystem.lineItems, group: "Sales" },
-            { label: "Sequences", count: ecosystem.sequences, group: "Sales" },
-            { label: "Forecasts", count: ecosystem.forecasts, group: "Sales" },
-            { label: "Goals", count: ecosystem.goals, group: "Sales" },
-            { label: "Factures", count: ecosystem.invoices, group: "Revenue" },
-            { label: "Subscriptions", count: ecosystem.subscriptions, group: "Revenue" },
-            { label: "Marketing campaigns", count: ecosystem.marketingCampaigns, group: "Marketing" },
-            { label: "Marketing events", count: ecosystem.marketingEvents, group: "Marketing" },
-            { label: "Forms", count: ecosystem.forms, group: "Marketing" },
-            { label: "Listings (immo)", count: ecosystem.listings, group: "Custom" },
-            { label: "Projects", count: ecosystem.projects, group: "Custom" },
-            { label: "Custom objects", count: ecosystem.customObjects, group: "Custom" },
-            { label: "Listes", count: ecosystem.lists, group: "Workspace" },
-            { label: "Pipelines", count: ecosystem.pipelines, group: "Workspace" },
-            { label: "Workflows", count: ecosystem.workflows, group: "Workspace" },
-            { label: "Workflows actifs", count: ecosystem.workflowsActive, group: "Workspace" },
-            { label: "Utilisateurs", count: ecosystem.users, group: "Workspace" },
-            { label: "Équipes", count: ecosystem.teams, group: "Workspace" },
-            { label: "Rendez-vous", count: ecosystem.appointments, group: "Workspace" },
-          ].map((item) => (
-            <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">{item.group}</span>
-                <span
-                  className={`text-2xl font-bold tabular-nums ${
-                    item.count > 0 ? "text-slate-900" : "text-slate-300"
-                  }`}
-                >
-                  {item.count.toLocaleString("fr-FR")}
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-medium text-slate-700">{item.label}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Propriétés personnalisées HubSpot */}

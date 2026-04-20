@@ -23,10 +23,10 @@ export default async function ScenariosPage() {
       .order("created_at", { ascending: false }),
   ]);
 
-  // Pas de scenarios calculables si l'org est vide (0 deals, 0 contacts) :
-  // sinon on affiche des cards génériques type "0% → 15%" qui ne veulent rien dire.
-  const isEmpty = ctx.totalDeals === 0 && ctx.totalContacts === 0;
-  const scenarios = isEmpty ? [] : (buildScenarios(ctx) as SimulationItem[]);
+  // Les 30 simulations s'affichent toujours — buildContext fait fallback HubSpot
+  // direct si Supabase est vide. Les scénarios deviennent juste plus génériques
+  // tant qu'il n'y a aucune donnée connectée (zéros propres, pas d'empty state).
+  const scenarios = buildScenarios(ctx) as SimulationItem[];
   const alerts = (allAlerts ?? []) as AlertItem[];
 
   return (
@@ -41,17 +41,7 @@ export default async function ScenariosPage() {
         <CreateAlertModal />
       </header>
 
-      {isEmpty ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-8 text-center">
-          <p className="text-base font-medium text-slate-900">Aucune donnée pour générer des simulations</p>
-          <p className="mt-2 text-sm text-slate-600">
-            Connectez votre CRM HubSpot dans la page <a href="/dashboard/integration" className="font-medium text-accent underline hover:no-underline">Intégration</a>.
-            Une fois vos contacts et deals synchronisés, les simulations IA s&apos;adapteront à vos vraies données.
-          </p>
-        </div>
-      ) : (
-        <SimulationTabs scenarios={scenarios} alerts={alerts} />
-      )}
+      <SimulationTabs scenarios={scenarios} alerts={alerts} />
     </section>
   );
 }

@@ -783,10 +783,11 @@ export function selectInsights(
     data: [],
   };
 
-  // Org vide (0 contacts ET 0 deals) → aucun insight ne fait sens.
-  if (ctx.totalContacts === 0 && ctx.totalDeals === 0) {
-    return result;
-  }
+  // ⚠ Plus de short-circuit "org vide" : on laisse les templates always-on
+  // (gouvernance, validation, RGPD, playbooks, etc.) s'afficher même sans
+  // données chargées, car ce sont de vrais conseils CRO/RevOps universels.
+  // Les templates conditionnés (ex: "X% sans téléphone") ne fireront pas
+  // tant qu'il n'y a pas de données — leur shouldShow s'en charge.
 
   const sorted = [...INSIGHT_LIBRARY].sort((a, b) => b.priority - a.priority);
 

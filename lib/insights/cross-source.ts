@@ -192,14 +192,9 @@ export async function buildCrossSourceContext(
     }
   } catch {}
 
-  // Return null if absolutely nothing was found — keeps the UI clean
-  const hasAnyData =
-    ctx.activeSubscriptions > 0 ||
-    ctx.totalInvoices > 0 ||
-    ctx.failedPaymentsCount > 0 ||
-    ctx.stripeContactsWithoutHubspot > 0;
-  if (!hasAnyData) return null;
-
+  // ⚠ On retourne TOUJOURS le contexte (même vide) pour que les always-on
+  // insights cross-source s'affichent comme conseils RevOps universels.
+  // Les insights conditionnels ne fireront que si la donnée est présente.
   return ctx;
 }
 
@@ -293,6 +288,108 @@ export function selectCrossSourceInsights(
       recommendation: `Mettre en place un programme Key Account Management dédié sur ces comptes. Tag "Tier 1" dans HubSpot, revue trimestrielle, sponsor exécutif côté Revold.`,
     });
   }
+
+  // ── ALWAYS-ON cross-source recommendations (toujours pertinentes) ──
+  insights.push(
+    {
+      key: "cross_forecast_vs_billing",
+      severity: "info",
+      title: "🔗 Réconcilier forecast HubSpot vs facturation réelle",
+      body: "Le forecast pipeline et le CA encaissé Stripe/Pennylane divergent souvent de 10-30%. Sans réconciliation, on pilote sur un forecast déconnecté du cash réel.",
+      recommendation: "Activer le rapport « Forecast HubSpot vs CA encaissé » qui matche les deals gagnés à leurs factures. Audit mensuel des écarts > 5%.",
+    },
+    {
+      key: "cross_csm_account_health",
+      severity: "info",
+      title: "🔗 Account health score multi-sources",
+      body: "Combiner usage produit + tickets support + factures impayées + sentiment NPS donne un score de santé client bien plus fiable qu'un signal seul.",
+      recommendation: "Construire un score composite dans Revold avec 4-5 inputs cross-source. Alertes proactives sur les comptes qui dégradent leur score.",
+    },
+    {
+      key: "cross_quote_to_invoice_speed",
+      severity: "info",
+      title: "🔗 Mesurer le délai devis → facture",
+      body: "Plus le cycle quote→invoice est long, plus le DSO augmente. Un cycle court accélère le cash et révèle les frictions process.",
+      recommendation: "Croiser dates devis HubSpot et émission facture Stripe. Cible : < 5 jours pour les < 5k€, < 15 jours pour les comptes complexes.",
+    },
+    {
+      key: "cross_churn_signals",
+      severity: "info",
+      title: "🔗 Détection churn multi-signaux",
+      body: "Le churn se prédit avec 3-4 signaux faibles : baisse usage, augmentation tickets, retard paiement, NPS détracteur. Aucun outil seul ne voit l'ensemble.",
+      recommendation: "Workflow Revold qui agrège les signaux et flagge les comptes en zone risque. Notification CSM 60 jours avant renouvellement à risque.",
+    },
+    {
+      key: "cross_expansion_signals",
+      severity: "info",
+      title: "🔗 Détection expansion multi-signaux",
+      body: "Les comptes prêts pour l'upsell ont des patterns : usage croissant + nombre d'utilisateurs additionnés + activations features avancées + NPS promoteur.",
+      recommendation: "Créer un scoring expansion qui combine ces inputs. Workflow d'attribution automatique au CSM expansion sur les top scorers.",
+    },
+    {
+      key: "cross_attribution_revenue",
+      severity: "info",
+      title: "🔗 Attribution revenue multi-touch",
+      body: "Sans cross-source, l'attribution se fait sur le dernier touch (souvent direct). On surévalue le brand au détriment des canaux d'acquisition réels.",
+      recommendation: "Construire un modèle d'attribution multi-touch en croisant marketing campaigns + leads + deals + revenue. Revoir l'allocation budget mensuellement.",
+    },
+    {
+      key: "cross_data_completeness_audit",
+      severity: "info",
+      title: "🔗 Audit de complétude data inter-outils",
+      body: "Chaque tool a sa source de vérité : HubSpot pour le CRM, Stripe pour le revenue, Zendesk pour le support. Sans audit, des trous se créent.",
+      recommendation: "Créer un dashboard Revold qui montre, pour chaque entité (compte, contact, deal), si elle existe dans tous les tools attendus. Alertes sur les manquants.",
+    },
+    {
+      key: "cross_unified_customer_view",
+      severity: "info",
+      title: "🔗 Vue client unifiée 360°",
+      body: "Sans vue unifiée, les équipes consultent 5 outils pour comprendre un client. Friction massive + risque d'erreur (versions différentes).",
+      recommendation: "Construire une fiche client Revold qui agrège : deals HubSpot + paiements Stripe + tickets Zendesk + activité produit. Source de vérité unique.",
+    },
+    {
+      key: "cross_sales_finance_alignment",
+      severity: "info",
+      title: "🔗 Aligner sales et finance sur la définition d'un deal gagné",
+      body: "Sales considère un deal gagné = signature contrat. Finance = première facture émise. Cet écart explique 80% des conflits forecast vs CA.",
+      recommendation: "Réunion sales + finance pour figer une définition commune. Workflow HubSpot qui ne marque « won » qu'à émission de la 1ʳᵉ facture.",
+    },
+    {
+      key: "cross_data_warehouse",
+      severity: "info",
+      title: "🔗 Stocker l'historique cross-source dans un entrepôt",
+      body: "Les outils SaaS ont des historiques limités (90j, 1an). Pour analyser sur > 1 an, il faut un entrepôt (BigQuery, Snowflake, Postgres dédié).",
+      recommendation: "Brancher un connecteur Fivetran/Airbyte vers BigQuery/Snowflake. Revold devient le tableau de bord, l'entrepôt garde la mémoire long terme.",
+    },
+    {
+      key: "cross_attribution_offline",
+      severity: "info",
+      title: "🔗 Réintégrer les revenus offline (factures papier, virements)",
+      body: "Beaucoup de B2B ont 30-50% de CA offline (factures papier, virements directs). Sans réintégration, l'attribution est faussée.",
+      recommendation: "Process mensuel d'import des factures non-Stripe (depuis l'ERP ou Pennylane). Tag « offline » pour les distinguer dans les rapports.",
+    },
+    {
+      key: "cross_sla_response_times",
+      severity: "info",
+      title: "🔗 Mesurer les SLA inter-équipes (sales, support, success)",
+      body: "Les délais de réponse impactent la conversion lead, la santé client, le NPS. Mesurés à l'échelle équipe, ils révèlent les goulots.",
+      recommendation: "Définir des SLAs : < 5min pour un lead chaud, < 4h pour un ticket support, < 24h pour un email customer. Reporting hebdo.",
+    },
+    {
+      key: "cross_renewal_health",
+      severity: "info",
+      title: "🔗 Health score renouvellement à 90 jours",
+      body: "Le renouvellement se prépare 90 jours avant l'échéance. Un score combinant usage, tickets, NPS et discussions sales prédit le risque.",
+      recommendation: "Créer le score auto dans Revold. CSM alerté dès que le score d'un compte franchit le seuil rouge. Action playbook standardisée.",
+    },
+    {
+      key: "cross_compliance_data_residency",
+      severity: "info",
+      title: "🔗 Audit RGPD inter-outils",
+      body: "Un contact peut être supprimé dans HubSpot mais persister dans Stripe, Mailchimp, Calendly. Le droit à l'oubli est cassé sans process cross-source.",
+      recommendation: "Workflow Revold de droit à l'oubli qui propage la suppression à tous les outils connectés. Audit trimestriel des écarts.",
+    },
+  );
 
   return insights.filter((i) => !dismissedKeys.has(i.key));
 }
