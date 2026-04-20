@@ -707,11 +707,13 @@ export function buildScenarios(ctx: InsightContext) {
     show: boolean;
   };
 
-  // Helper : ne montrer que si current < target (above) ou current > target (below)
-  // ET si on a au moins un peu de signal data
-  const hasDealSignal = tDeals >= 5 || open >= 5;
-  const hasContactSignal = tContacts >= 50;
-  const hasCompanySignal = totalCompanies >= 30;
+  // Seuils volontairement bas pour que les diagnostics fonctionnent dès qu'il
+  // y a un minimum de signal. Pour les orgs vides (0 deals/0 contacts), on
+  // bascule sur les simulations "starter" plus bas.
+  const hasDealSignal = tDeals >= 1 || open >= 1;
+  const hasContactSignal = tContacts >= 5;
+  const hasCompanySignal = totalCompanies >= 3;
+  const isStarter = tDeals === 0 && tContacts === 0;
 
   // ─── PIPELINE simulations (data-driven uniquement) ──
   const closedTotal = won + lost;
@@ -1098,7 +1100,133 @@ export function buildScenarios(ctx: InsightContext) {
     },
   ];
 
-  return [...pipeline, ...lifecycle, ...dataQuality].filter((s) => s.show);
+  // ─── STARTER simulations (org vide ou très petite) ──
+  // Diagnostics de SETUP qui fonctionnent même sans données opérationnelles.
+  // Pertinents pour : nouveau CRM, nouvelle org, sync en cours, démarrage.
+  const starter: Sim[] = [
+    {
+      show: tDeals < 5,
+      title: `Premier pipeline : ${tDeals} → 20 deals créés`,
+      description: "Cible setup CRM : avoir 20 deals en pipeline pour valider le funnel et calibrer les premiers rapports. Mix outbound (SDR) + inbound (formulaires).",
+      impact: "Funnel testé + premiers KPIs calculables",
+      category: "sales",
+      simulationCategory: "pipeline",
+      color: "from-fuchsia-500 to-purple-600",
+      forecastType: "starter_pipeline",
+      threshold: 20,
+      direction: "above",
+    },
+    {
+      show: (ctx.ownersCount ?? 0) === 0,
+      title: `Owners HubSpot : 0 → ${Math.max(2, ctx.ownersCount ?? 0 + 2)} actifs`,
+      description: "Sans owners actifs, aucun deal/contact n'est attribué. Ajout des sales/marketing/CSM dans HubSpot avant tout travail commercial.",
+      impact: "Attribution + reporting par personne activé",
+      category: "sales",
+      simulationCategory: "pipeline",
+      color: "from-blue-500 to-indigo-600",
+      forecastType: "owners_setup",
+      threshold: 2,
+      direction: "above",
+    },
+    {
+      show: (ctx.formsCount ?? 0) === 0,
+      title: "Site web → CRM : brancher le tracking",
+      description: "Sans tracking pixel HubSpot + forms, 100% des leads échappent. Installation prioritaire avant toute campagne marketing.",
+      impact: "Top-of-funnel inbound activé",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-orange-600",
+      forecastType: "tracking_setup",
+      threshold: 1,
+      direction: "above",
+    },
+    {
+      show: tContacts < 50 && (ctx.formsCount ?? 0) === 0,
+      title: `Lead generation : 0 → 100 leads/mois`,
+      description: "Cible démarrage : générer 100 leads/mois via 1 lead magnet + 3 sources (SEO content, LinkedIn ads, partenaires). Base à 1k contacts en 12 mois.",
+      impact: "Pipeline alimenté, base en croissance prévisible",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-rose-500 to-pink-600",
+      forecastType: "lead_gen_setup",
+      threshold: 100,
+      direction: "above",
+    },
+    {
+      show: tContacts < 100,
+      title: `ICP defined : 0 → 1 ICP documenté`,
+      description: "Avant de scale l'acquisition, documenter l'ICP en 1 page : secteur, taille, persona, pain, déclencheurs. Sans ICP, l'acquisition tire à vue.",
+      impact: "Acquisition focalisée, lead quality x2-3",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-fuchsia-600",
+      forecastType: "icp_setup",
+      threshold: 1,
+      direction: "above",
+    },
+    {
+      show: tDeals < 5 && (ctx.workflowsActiveCount ?? 0) === 0,
+      title: `Setup workflows : 0 → 5 automations critiques`,
+      description: "5 workflows à activer dès le premier jour : attribution auto, lifecycle progression, MQL→SQL, relance 5j, alerte stagnation.",
+      impact: "Sales & marketing sur autopilote",
+      category: "sales",
+      simulationCategory: "pipeline",
+      color: "from-indigo-500 to-blue-600",
+      forecastType: "workflows_starter",
+      threshold: 5,
+      direction: "above",
+    },
+    {
+      show: tContacts < 50 && (ctx.listsCount ?? 0) < 3,
+      title: `Listes de base : ${ctx.listsCount ?? 0} → 5 listes setup`,
+      description: "5 listes minimales : tous-contacts, MQL actifs, customers, dormants 90j, opt-out. Base de la segmentation marketing.",
+      impact: "Campagnes ciblables, audit RGPD simplifié",
+      category: "data",
+      simulationCategory: "data_quality",
+      color: "from-emerald-500 to-teal-600",
+      forecastType: "lists_starter",
+      threshold: 5,
+      direction: "above",
+    },
+    {
+      show: (ctx.workflowsActiveCount ?? 0) === 0,
+      title: `Lifecycle stages : 0 → 6 stages activés`,
+      description: "Subscriber → Lead → MQL → SQL → Opportunity → Customer. Sans lifecycle, aucun funnel marketing mesurable.",
+      impact: "Funnel marketing/sales aligné et mesurable",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-amber-500 to-yellow-600",
+      forecastType: "lifecycle_setup",
+      threshold: 6,
+      direction: "above",
+    },
+    {
+      show: tContacts < 100,
+      title: `Premier programme nurturing : 0 → 1 séquence`,
+      description: "Email nurturing de 4-5 touches sur 21j pour les nouveaux leads. Activation immédiate, ROI mesurable dès le 2e mois.",
+      impact: "+30% de leads convertis vs sans nurturing",
+      category: "marketing",
+      simulationCategory: "lifecycle",
+      color: "from-fuchsia-500 to-rose-600",
+      forecastType: "nurturing_starter",
+      threshold: 1,
+      direction: "above",
+    },
+    {
+      show: (ctx.customObjectsCount ?? 0) === 0 && tDeals < 50,
+      title: "Custom properties critiques à créer",
+      description: "Avant le 1er gros volume : créer les custom fields qui structurent votre business (lead_source détaillé, ICP_segment, intent_score, churn_risk).",
+      impact: "CRM préparé pour scale sans dette technique",
+      category: "data",
+      simulationCategory: "data_quality",
+      color: "from-teal-500 to-emerald-600",
+      forecastType: "custom_fields_setup",
+      threshold: 0,
+      direction: "above",
+    },
+  ];
+
+  return [...starter, ...pipeline, ...lifecycle, ...dataQuality].filter((s) => s.show);
 }
 
 export type SimulationCategory = "pipeline" | "lifecycle" | "data_quality";

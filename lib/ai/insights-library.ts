@@ -626,6 +626,196 @@ export const INSIGHT_LIBRARY: InsightTemplate[] = [
       recommendation: "Enrichissement ciblé sur les contacts en lifecycle MQL+. Skip les Subscriber/Lead pour économiser le budget enrichment.",
     }),
   },
+
+  // ════════════════════════════════════════════════════════════════════
+  // STARTER TEMPLATES — orgs nouvelles, peu de données opérationnelles
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── Commercial setup ──
+  {
+    key: "starter_commercial_no_pipeline",
+    category: "commercial",
+    severity: "critical",
+    priority: 100,
+    shouldShow: (c) => c.totalDeals < 5,
+    build: (c) => ({
+      title: `Pipeline vide : ${c.totalDeals} deal${c.totalDeals > 1 ? "s" : ""} en base`,
+      body: "Avant de scaler, il faut un funnel testé. Cible setup : 20 deals dans le pipeline pour valider les stages et calibrer les premiers KPIs (closing rate, cycle, ticket moyen).",
+      recommendation: "Plan 30 jours : 10 deals via outbound SDR (LinkedIn + email), 5 via inbound (formulaires + content), 5 via referral (clients existants ou réseau perso fondateurs).",
+    }),
+  },
+  {
+    key: "starter_no_owners",
+    category: "commercial",
+    severity: "critical",
+    priority: 99,
+    shouldShow: (c) => (c.ownersCount ?? 0) === 0,
+    build: () => ({
+      title: "0 owner HubSpot configuré — attribution impossible",
+      body: "Sans utilisateurs HubSpot actifs, aucun deal/contact n'est attribué. Premier blocage avant tout travail commercial.",
+      recommendation: "Settings > Users → ajouter chaque sales/marketing/CSM. Permissions différenciées par rôle. Une fois ≥ 2 users, créer les Teams correspondantes.",
+    }),
+  },
+  {
+    key: "starter_pipeline_setup",
+    category: "commercial",
+    severity: "warning",
+    priority: 95,
+    shouldShow: (c) => c.totalDeals < 5,
+    build: () => ({
+      title: "Définir les 5-7 stages du pipeline avant d'ouvrir des deals",
+      body: "Pipeline mal designé = data illisible 6 mois plus tard. Stages standards B2B SaaS : Discovery → Qualification → Démo → Proposition → Négociation → Signature → Won/Lost.",
+      recommendation: "Workshop 2h avec sales lead : définir les critères d'entrée/sortie de chaque stage (BANT, MEDDIC). Documenter dans Notion + créer les stages dans HubSpot.",
+    }),
+  },
+  {
+    key: "starter_icp_documented",
+    category: "commercial",
+    severity: "warning",
+    priority: 90,
+    shouldShow: (c) => c.totalContacts < 100,
+    build: () => ({
+      title: "Documenter l'ICP avant le 1er sprint sales",
+      body: "Sans ICP (Ideal Customer Profile) documenté en 1 page, l'équipe sales tire à vue. 80% des leads disqualifiés en 1 call = perte de temps massive.",
+      recommendation: "ICP en 1 page : secteur, taille (CA + employés), persona (titre + niveau), pain principal, déclencheurs achat, no-go signals. Ré-évaluer trimestriellement.",
+    }),
+  },
+  {
+    key: "starter_first_workflow",
+    category: "commercial",
+    severity: "warning",
+    priority: 88,
+    shouldShow: (c) => (c.workflowsActiveCount ?? 0) === 0 && c.totalDeals >= 1,
+    build: () => ({
+      title: "Activer le 1er workflow : attribution automatique",
+      body: "Premier workflow critique : à la création d'un deal/contact, attribution automatique à un owner (round-robin ou par segment). Évite les deals orphelins.",
+      recommendation: "HubSpot > Automation > Workflows. Trigger : Deal created. Action : assign owner round-robin. Test sur 5 deals avant rollout complet.",
+    }),
+  },
+
+  // ── Marketing setup ──
+  {
+    key: "starter_marketing_no_acquisition",
+    category: "marketing",
+    severity: "critical",
+    priority: 100,
+    shouldShow: (c) => c.totalContacts < 50,
+    build: (c) => ({
+      title: `Base contacts faible : ${c.totalContacts} contact${c.totalContacts > 1 ? "s" : ""}`,
+      body: "Sans base contacts, aucun pipeline marketing possible. Cible setup : 1000 contacts en 12 mois via 3 sources d'acquisition.",
+      recommendation: "Plan acquisition multi-canal : (1) SEO content (1 article/semaine), (2) LinkedIn outreach (50 connexions/jour), (3) lead magnet (ebook ou template) promu sur 5 canaux.",
+    }),
+  },
+  {
+    key: "starter_no_forms",
+    category: "marketing",
+    severity: "critical",
+    priority: 99,
+    shouldShow: (c) => (c.formsCount ?? 0) === 0,
+    build: () => ({
+      title: "Aucun form HubSpot — top of funnel inbound cassé",
+      body: "Sans forms HubSpot, impossible de capter et tracker les leads inbound. Toutes les visites site sont perdues.",
+      recommendation: "Créer 3 forms minimum cette semaine : (1) demande de démo, (2) téléchargement de contenu, (3) contact. Installer le pixel HubSpot sur tout le site.",
+    }),
+  },
+  {
+    key: "starter_lifecycle_setup",
+    category: "marketing",
+    severity: "warning",
+    priority: 95,
+    shouldShow: (c) => c.opportunitiesCount === 0,
+    build: () => ({
+      title: "Activer les Lifecycle Stages avant la 1re campagne",
+      body: "Lifecycle stages = colonne vertébrale du funnel marketing. Sans eux, impossible de mesurer la conversion lead→opp→customer.",
+      recommendation: "Activer les 6 stages standard (Subscriber → Lead → MQL → SQL → Opportunity → Customer). Workflow auto pour la transition Lead → MQL basée sur scoring.",
+    }),
+  },
+  {
+    key: "starter_first_campaign",
+    category: "marketing",
+    severity: "warning",
+    priority: 88,
+    shouldShow: (c) => (c.marketingCampaignsCount ?? 0) === 0,
+    build: () => ({
+      title: "Tagger toutes les actions marketing comme Campaigns",
+      body: "Sans tag Campaign, le ROI marketing n'est pas mesurable. Premier outil de gouvernance.",
+      recommendation: "Toute action marketing > Marketing Campaigns > Create campaign. Inclure : email, landing page, ads, events. Reporting mensuel revenue par campagne.",
+    }),
+  },
+  {
+    key: "starter_first_nurturing",
+    category: "marketing",
+    severity: "info",
+    priority: 80,
+    shouldShow: (c) => c.totalContacts >= 10 && (c.workflowsActiveCount ?? 0) === 0,
+    build: () => ({
+      title: "Construire le 1er workflow nurturing",
+      body: "Email automation 4-5 touches sur 21 jours pour les nouveaux leads. ROI mesurable dès le 2e mois.",
+      recommendation: "Trigger : nouveau Lead. Touch 1 (J0): bienvenue + valeur. Touch 2 (J3): cas client. Touch 3 (J7): contenu pédago. Touch 4 (J14): démo. Touch 5 (J21): re-engagement ou marquage cold.",
+    }),
+  },
+
+  // ── Data setup ──
+  {
+    key: "starter_data_governance",
+    category: "data",
+    severity: "warning",
+    priority: 90,
+    shouldShow: (c) => c.totalContacts < 100 && c.totalDeals < 50,
+    build: () => ({
+      title: "Définir la gouvernance data avant le scale",
+      body: "Le moment idéal pour fixer les règles est AVANT d'avoir 10k records. Sans gouvernance précoce, dette technique CRM garantie.",
+      recommendation: "Document Notion en 1 page : naming convention propriétés, lifecycle ownership, validation des champs critiques (email, phone, jobtitle), process trimestriel d'audit.",
+    }),
+  },
+  {
+    key: "starter_required_fields",
+    category: "data",
+    severity: "warning",
+    priority: 85,
+    shouldShow: (c) => c.totalDeals < 50,
+    build: () => ({
+      title: "Configurer les champs obligatoires par stage dès maintenant",
+      body: "Avant le 1er rush commercial, fixer les champs obligatoires par lifecycle stage = data complète from day 1.",
+      recommendation: "MQL → email + jobtitle. SQL → phone + company + lead_source. Opportunity → amount + closedate. Customer → contract value + start date. Bloquer la progression sans ces champs.",
+    }),
+  },
+  {
+    key: "starter_no_teams",
+    category: "data",
+    severity: "info",
+    priority: 70,
+    shouldShow: (c) => (c.ownersCount ?? 0) >= 2 && (c.teamsCount ?? 0) === 0,
+    build: (c) => ({
+      title: `${c.ownersCount ?? 0} owners actifs mais 0 team configurée`,
+      body: "Avec ≥ 2 utilisateurs, créer des Teams permet le reporting groupé, le round-robin par équipe, les permissions différenciées.",
+      recommendation: "Settings > Teams → créer minimum 2 teams (ex: Sales + CSM). Assigner chaque user. Activer les reports Teams pour comparer perf cross-équipes.",
+    }),
+  },
+  {
+    key: "starter_first_enrichment",
+    category: "data",
+    severity: "info",
+    priority: 65,
+    shouldShow: (c) => c.totalCompanies >= 5 && (c.companiesNoIndustry > c.totalCompanies * 0.5 || c.companiesNoRevenue > c.totalCompanies * 0.5),
+    build: () => ({
+      title: "Activer HubSpot Insights (gratuit) pour enrichir les companies",
+      body: "Auto-fill par domaine : industry, revenue, employees, description, technologies. Gratuit et automatique sur les nouveaux records.",
+      recommendation: "HubSpot > Settings > Properties > HubSpot Insights → activer. Pour l'existant, lancer un workflow batch d'enrichissement sur les companies déjà en base.",
+    }),
+  },
+  {
+    key: "starter_dedup_baseline",
+    category: "data",
+    severity: "info",
+    priority: 60,
+    shouldShow: (c) => c.totalContacts >= 50 && c.totalContacts < 1000,
+    build: () => ({
+      title: "Lancer le 1er audit de doublons avant 1k contacts",
+      body: "Plus tôt = plus simple. Au-delà de 1k contacts, le cleanup manuel devient ingérable.",
+      recommendation: "HubSpot > Contacts > Manage Duplicates. Review batch hebdo. Activer la détection auto sur l'email pour bloquer les futurs doublons à la création.",
+    }),
+  },
 ];
 
 /**
