@@ -24,7 +24,7 @@ export type ConnectableTool = {
   icon: string;
   // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
   domain: string;
-  category: "crm" | "billing" | "phone" | "support";
+  category: "crm" | "billing" | "phone" | "support" | "communication";
   /** True si la connexion passe par OAuth (URL spéciale) au lieu du flow API key. */
   oauth?: boolean;
   /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
@@ -283,6 +283,64 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
       { key: "api_key", label: "API Key", placeholder: "•••••••••••", type: "password" },
     ],
   },
+
+  // ── Communication ──────────────────────────────────────────────
+  slack: {
+    key: "slack",
+    label: "Slack",
+    vendor: "Salesforce / Slack",
+    icon: "💬",
+    domain: "slack.com",
+    category: "communication",
+    description: "Recevez vos alertes, coachings et digests Revold dans le canal Slack de votre choix.",
+    helpUrl: "https://api.slack.com/messaging/webhooks",
+    helpText: "Créez un Incoming Webhook depuis Slack → Apps → Incoming Webhooks. Sélectionnez le canal cible et copiez l'URL fournie.",
+    fields: [
+      { key: "webhook_url", label: "Webhook URL Slack", placeholder: "https://hooks.slack.com/services/T0/B0/...", type: "password", helper: "URL HTTPS générée par Slack pour votre canal" },
+    ],
+  },
+  teams: {
+    key: "teams",
+    label: "Microsoft Teams",
+    vendor: "Microsoft",
+    icon: "👥",
+    domain: "microsoft.com",
+    category: "communication",
+    description: "Cards Teams pour vos alertes et digests Revold dans le canal de votre choix.",
+    helpUrl: "https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook",
+    helpText: "Dans le canal Teams cible : Connecteurs → Incoming Webhook → Configurer → copier l'URL fournie.",
+    fields: [
+      { key: "webhook_url", label: "Webhook URL Teams", placeholder: "https://outlook.office.com/webhook/...", type: "password", helper: "URL HTTPS du connecteur Incoming Webhook Teams" },
+    ],
+  },
+  gmail: {
+    key: "gmail",
+    label: "Gmail",
+    vendor: "Google",
+    icon: "📧",
+    domain: "gmail.com",
+    category: "communication",
+    description: "Notifications email via votre compte Gmail. Recevez les alertes et le digest quotidien sur votre boîte pro.",
+    helpUrl: "https://support.google.com/mail/answer/7126229",
+    helpText: "Ajoutez simplement les adresses Gmail destinataires dans la page Notifications. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.io).",
+    fields: [
+      { key: "recipients", label: "Adresses Gmail destinataires", placeholder: "alice@gmail.com, bob@workspace.fr", type: "text", helper: "Séparées par virgule. Acceptent aussi Google Workspace." },
+    ],
+  },
+  outlook: {
+    key: "outlook",
+    label: "Outlook / Microsoft 365",
+    vendor: "Microsoft",
+    icon: "📨",
+    domain: "outlook.com",
+    category: "communication",
+    description: "Notifications email Outlook / Microsoft 365. Le digest quotidien et les alertes critiques arrivent dans votre Outlook.",
+    helpUrl: "https://support.microsoft.com/en-us/office/welcome-to-outlook-com-3920a3c9-2c5b-4a5b-8c5d-1e7e88a45f23",
+    helpText: "Ajoutez simplement les adresses Outlook/M365 destinataires. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.io, donc pas marqués comme spam).",
+    fields: [
+      { key: "recipients", label: "Adresses Outlook destinataires", placeholder: "alice@outlook.com, bob@company.com", type: "text", helper: "Séparées par virgule. Microsoft 365 accepté." },
+    ],
+  },
 };
 
 export function getConnectableTool(key: string): ConnectableTool | null {
@@ -294,6 +352,7 @@ const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   billing: "Facturation",
   phone: "Téléphonie",
   support: "Service client",
+  communication: "Communication",
 };
 
 export function getCategoryLabel(cat: ConnectableTool["category"]): string {

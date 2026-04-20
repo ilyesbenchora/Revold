@@ -43,9 +43,15 @@ const CATEGORY_META: Record<ConnectableTool["category"], { label: string; emoji:
     gradient: "from-fuchsia-500 to-pink-500",
     description: "Croisez tickets clients et opportunités pour mesurer la rétention, anticiper le churn et calculer le NPS.",
   },
+  communication: {
+    label: "Communication",
+    emoji: "💬",
+    gradient: "from-violet-500 to-purple-500",
+    description: "Recevez vos alertes Revold + digest quotidien dans Slack, Teams, Gmail ou Outlook — là où votre équipe travaille déjà.",
+  },
 };
 
-const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support"];
+const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "communication"];
 
 export default async function IntegrationPage({
   searchParams,
@@ -100,6 +106,7 @@ export default async function IntegrationPage({
     billing: [],
     phone: [],
     support: [],
+    communication: [],
   };
   for (const tool of Object.values(CONNECTABLE_TOOLS)) {
     toolsByCategory[tool.category].push(tool);

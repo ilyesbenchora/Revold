@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type AlertButtonProps = {
@@ -13,11 +13,44 @@ type AlertButtonProps = {
   direction?: "above" | "below";
 };
 
+type ConfiguredChannel = { type: "email" | "slack" | "teams" | "webhook"; enabled: boolean };
+
+const CHANNEL_META: Record<string, { label: string; icon: string; description: string }> = {
+  in_app: { label: "Cloche in-app", icon: "🔔", description: "Header + page Alertes" },
+  email: { label: "Email", icon: "✉️", description: "Aux destinataires configurés" },
+  slack: { label: "Slack", icon: "💬", description: "Canal Slack configuré" },
+  teams: { label: "Microsoft Teams", icon: "👥", description: "Canal Teams configuré" },
+  webhook: { label: "Webhook custom", icon: "🔌", description: "POST JSON vers votre URL" },
+};
+
 export function AlertButton({ title, description, impact, category, forecastType, threshold, direction }: AlertButtonProps) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
+  const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
+  const [loadedChannels, setLoadedChannels] = useState(false);
 
-  async function handleClick() {
+  useEffect(() => {
+    if (pickerOpen && !loadedChannels) {
+      fetch("/api/notifications/channels")
+        .then((r) => (r.ok ? r.json() : { channels: [] }))
+        .then((data) => {
+          setConfiguredChannels(data.channels ?? []);
+          setLoadedChannels(true);
+        })
+        .catch(() => setLoadedChannels(true));
+    }
+  }, [pickerOpen, loadedChannels]);
+
+  function toggleChannel(ch: string) {
+    setSelectedChannels((prev) =>
+      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
+    );
+  }
+
+  async function submit() {
+    if (selectedChannels.length === 0) return;
     setState("loading");
     try {
       const res = await fetch("/api/alerts", {
@@ -31,11 +64,12 @@ export function AlertButton({ title, description, impact, category, forecastType
           forecast_type: forecastType || null,
           threshold: threshold ?? null,
           direction: direction || "above",
+          notification_channels: selectedChannels,
         }),
       });
       if (res.ok) {
         setState("done");
-        // Refresh la page : le nouvel objectif apparait dans l'onglet "Mes alertes"
+        setPickerOpen(false);
         router.refresh();
       } else {
         setState("idle");
@@ -57,16 +91,115 @@ export function AlertButton({ title, description, impact, category, forecastType
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={state === "loading"}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:opacity-50"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </svg>
-      {state === "loading" ? "Activation..." : "Suivre cet objectif"}
-    </button>
+    <>
+      <button
+        onClick={() => setPickerOpen(true)}
+        disabled={state === "loading"}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:opacity-50"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        Suivre cet objectif
+      </button>
+
+      {pickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => state !== "loading" && setPickerOpen(false)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-slate-900">Choisir les canaux de notification</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Quand l&apos;objectif sera atteint, vous serez notifié via les canaux sélectionnés.
+            </p>
+
+            <div className="mt-4 space-y-1.5">
+              {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
+                const isInApp = ch === "in_app";
+                const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
+                const meta = CHANNEL_META[ch];
+                const isSelected = selectedChannels.includes(ch);
+
+                return (
+                  <button
+                    key={ch}
+                    type="button"
+                    onClick={() => isConfigured && toggleChannel(ch)}
+                    disabled={!isConfigured}
+                    className={`flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition ${
+                      isSelected
+                        ? "border-accent bg-accent/5"
+                        : isConfigured
+                        ? "border-slate-200 hover:border-slate-300"
+                        : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
+                    }`}
+                  >
+                    <span className="text-lg shrink-0">{meta.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-slate-900">{meta.label}</p>
+                        {isInApp && (
+                          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                            ✓ Toujours
+                          </span>
+                        )}
+                        {!isConfigured && !isInApp && (
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+                            Non configuré
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
+                    </div>
+                    <div
+                      className={`h-4 w-4 shrink-0 rounded border-2 transition ${
+                        isSelected ? "border-accent bg-accent" : "border-slate-300"
+                      } ${!isConfigured ? "opacity-50" : ""}`}
+                    >
+                      {isSelected && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="h-full w-full">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 text-[10px] text-slate-400">
+              Pas configuré ?{" "}
+              <a href="/dashboard/parametres/notifications" target="_blank" className="text-accent underline">
+                Configurer mes canaux →
+              </a>
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                disabled={state === "loading"}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={state === "loading" || selectedChannels.length === 0}
+                className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+              >
+                {state === "loading" ? "Activation..." : "Activer le suivi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

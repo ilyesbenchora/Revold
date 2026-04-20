@@ -53,8 +53,44 @@ export async function connectToolAction(toolKey: string, formData: FormData) {
     redirect(`/dashboard/integration/connect/${toolKey}?error=save_failed`);
   }
 
+  // ── Sync vers notification_channels pour les outils communication ──
+  // Slack/Teams/Gmail/Outlook = canaux de notif. On crée la ligne
+  // notification_channels correspondante pour qu'ils apparaissent comme
+  // sélectionnables dans le step 4 de CreateAlertModal et AlertButton.
+  if (tool && tool.category === "communication") {
+    let channelType: "email" | "slack" | "teams" | null = null;
+    let channelConfig: Record<string, unknown> = {};
+
+    if (toolKey === "slack") {
+      channelType = "slack";
+      channelConfig = { webhook_url: credentials.webhook_url };
+    } else if (toolKey === "teams") {
+      channelType = "teams";
+      channelConfig = { webhook_url: credentials.webhook_url };
+    } else if (toolKey === "gmail" || toolKey === "outlook") {
+      channelType = "email";
+      const recipients = (credentials.recipients ?? "")
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      channelConfig = { recipients };
+    }
+
+    if (channelType) {
+      await supabase.from("notification_channels").upsert(
+        {
+          organization_id: orgId,
+          type: channelType,
+          config: channelConfig,
+          enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "organization_id,type" },
+      );
+    }
+  }
+
   // After saving credentials, trigger an initial sync via the orchestrator UI.
-  // The integration page mounts <ToolSyncOrchestrator /> which detects ?sync= and POSTs /api/sync/{tool}.
   redirect(`/dashboard/integration?connected=${toolKey}&sync=${toolKey}`);
 }
 
