@@ -16,7 +16,7 @@ export type SimulationItem = {
   description: string;
   impact: string;
   category: string;
-  simulationCategory: "cycle_ventes" | "marketing_cycle" | "deals_risk" | "revenue" | "data_quality";
+  simulationCategory: "cycle_ventes" | "marketing_cycle" | "revenue" | "data_quality";
   color: string;
   forecastType?: string;
   threshold?: number;
@@ -66,13 +66,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   csm: "CSM",
 };
 
-type TabId = "mine" | "cycle_ventes" | "marketing_cycle" | "deals_risk" | "revenue" | "data_quality";
+type TabId = "mine" | "cycle_ventes" | "marketing_cycle" | "revenue" | "data_quality";
 
 const TABS: { id: TabId; label: string; emoji: string }[] = [
   { id: "mine", label: "Mes alertes", emoji: "✨" },
   { id: "cycle_ventes", label: "Cycle de ventes", emoji: "🚀" },
   { id: "marketing_cycle", label: "Marketing cycle", emoji: "🔄" },
-  { id: "deals_risk", label: "Deals à risques", emoji: "⚠️" },
   { id: "revenue", label: "Revenue", emoji: "💰" },
   { id: "data_quality", label: "Données", emoji: "🛡️" },
 ];
@@ -282,7 +281,6 @@ export function SimulationTabs({
     mine: alerts.length,
     cycle_ventes: scenarios.filter((s) => s.simulationCategory === "cycle_ventes").length,
     marketing_cycle: scenarios.filter((s) => s.simulationCategory === "marketing_cycle").length,
-    deals_risk: scenarios.filter((s) => s.simulationCategory === "deals_risk").length,
     revenue: scenarios.filter((s) => s.simulationCategory === "revenue").length,
     data_quality: scenarios.filter((s) => s.simulationCategory === "data_quality").length,
   }), [alerts, scenarios]);
