@@ -118,6 +118,73 @@ export async function pingStripe(secretKey: string): Promise<boolean> {
   }
 }
 
+/**
+ * Validation Stripe enrichie : détecte le type de clé (pk/sk/rk), le mode
+ * (test/live) et la cause d'échec (401, 403, format invalide). Conçue pour
+ * que le wizard puisse afficher un message UX précis au lieu d'un échec
+ * générique.
+ */
+export type StripePingResult =
+  | { ok: true; mode: "live" | "test"; keyType: "secret" | "restricted" }
+  | { ok: false; reason: string; hint?: string };
+
+export async function pingStripeDetailed(secretKey: string): Promise<StripePingResult> {
+  const key = (secretKey ?? "").trim();
+  if (!key) {
+    return { ok: false, reason: "Clé Stripe manquante." };
+  }
+  if (key.startsWith("pk_")) {
+    return {
+      ok: false,
+      reason: "Vous avez collé une Publishable Key (pk_…). Stripe utilise deux clés différentes : la publishable est publique et inutile ici.",
+      hint: "Il vous faut une Secret Key (sk_live_… / sk_test_…) ou une Restricted Key en lecture seule (rk_live_… / rk_test_…).",
+    };
+  }
+  if (key.startsWith("whsec_")) {
+    return {
+      ok: false,
+      reason: "C'est un secret de webhook (whsec_…), pas une clé API.",
+      hint: "Allez dans Developers → API keys (pas Webhooks) pour récupérer la bonne clé.",
+    };
+  }
+  if (!key.startsWith("sk_") && !key.startsWith("rk_")) {
+    return {
+      ok: false,
+      reason: "Format de clé inattendu.",
+      hint: "Une clé Stripe valide commence par sk_live_, sk_test_, rk_live_ ou rk_test_.",
+    };
+  }
+
+  const mode: "live" | "test" =
+    key.startsWith("sk_test_") || key.startsWith("rk_test_") ? "test" : "live";
+  const keyType: "secret" | "restricted" = key.startsWith("rk_") ? "restricted" : "secret";
+
+  try {
+    await stripeFetch(key, "/balance");
+    return { ok: true, mode, keyType };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes(" 401")) {
+      return {
+        ok: false,
+        reason: "Stripe a rejeté la clé (401 Unauthorized).",
+        hint: "Vérifiez qu'elle est active dans Developers → API keys et qu'elle n'a pas été révoquée.",
+      };
+    }
+    if (msg.includes(" 403")) {
+      return {
+        ok: false,
+        reason: "Permissions insuffisantes sur cette Restricted Key.",
+        hint: "Cochez les accès READ pour Customers, Charges, Invoices, Subscriptions et Balance, puis recréez la clé.",
+      };
+    }
+    return {
+      ok: false,
+      reason: `Stripe a refusé la clé : ${msg.slice(0, 140)}`,
+    };
+  }
+}
+
 /** Compute MRR for a Stripe subscription (in major currency units, e.g. EUR). */
 export function computeMrr(sub: StripeSubscription): number {
   let mrr = 0;

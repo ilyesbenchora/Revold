@@ -6,6 +6,7 @@ import { getConnectableTool, getCategoryLabel } from "@/lib/integrations/connect
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BrandLogo } from "@/components/brand-logo";
+import { StripeWizard } from "@/components/connect-wizards/stripe-wizard";
 import { connectToolAction, disconnectToolAction } from "./actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -101,32 +102,46 @@ export default async function ConnectToolPage({
           )}
         </div>
 
-        {/* Help block */}
-        <div className="mt-6 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4">
-          <p className="text-sm font-semibold text-indigo-900">Comment obtenir vos identifiants ?</p>
-          <p className="mt-1 text-sm text-indigo-800">{tool.helpText}</p>
-          <a
-            href={tool.helpUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-700 hover:underline"
-          >
-            Documentation officielle {tool.label}
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        </div>
-
-        {errorMessage && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <p className="font-semibold">{errorMessage}</p>
-            {errorReason && <p className="mt-1 text-xs text-red-600">{errorReason}</p>}
+        {/* Tool-specific wizard (Stripe) — UX pas-à-pas pour non-dev */}
+        {toolKey === "stripe" ? (
+          <div className="mt-6">
+            <StripeWizard
+              toolKey={toolKey}
+              alreadyConnected={alreadyConnected}
+              submitAction={submitAction}
+              disconnectAction={disconnectAction}
+              errorMessage={errorMessage}
+              errorReason={errorReason}
+            />
           </div>
-        )}
+        ) : (
+          <>
+            {/* Help block générique */}
+            <div className="mt-6 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4">
+              <p className="text-sm font-semibold text-indigo-900">Comment obtenir vos identifiants ?</p>
+              <p className="mt-1 text-sm text-indigo-800">{tool.helpText}</p>
+              <a
+                href={tool.helpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-700 hover:underline"
+              >
+                Documentation officielle {tool.label}
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            </div>
 
-        {/* Form */}
-        <form action={submitAction} className="mt-6 space-y-4">
+            {errorMessage && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <p className="font-semibold">{errorMessage}</p>
+                {errorReason && <p className="mt-1 text-xs text-red-600">{errorReason}</p>}
+              </div>
+            )}
+
+            {/* Form générique */}
+            <form action={submitAction} className="mt-6 space-y-4">
           {tool.fields.map((field) => (
             <div key={field.key}>
               <label htmlFor={field.key} className="block text-sm font-medium text-slate-700">
@@ -163,15 +178,17 @@ export default async function ConnectToolPage({
           </div>
         </form>
 
-        {alreadyConnected && (
-          <form action={disconnectAction} className="mt-6 border-t border-slate-200 pt-4">
-            <button
-              type="submit"
-              className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
-            >
-              Déconnecter {tool.label}
-            </button>
-          </form>
+            {alreadyConnected && (
+              <form action={disconnectAction} className="mt-6 border-t border-slate-200 pt-4">
+                <button
+                  type="submit"
+                  className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+                >
+                  Déconnecter {tool.label}
+                </button>
+              </form>
+            )}
+          </>
         )}
       </div>
     </section>

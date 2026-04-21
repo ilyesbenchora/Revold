@@ -12,7 +12,7 @@
  */
 
 import { pingPipedrive } from "./sources/pipedrive";
-import { pingStripe } from "./sources/stripe";
+import { pingStripeDetailed } from "./sources/stripe";
 import { pingSalesforce } from "./sources/salesforce";
 import { pingZoho } from "./sources/zoho";
 import { pingMonday } from "./sources/monday";
@@ -77,8 +77,10 @@ export async function pingTool(
 
       // ── Billing ──────────────────────────────────────────────────
       case "stripe": {
-        const ok = await pingStripe(creds.secret_key);
-        return ok ? { ok: true } : { ok: false, reason: "Stripe a refusé la Secret Key (vérifiez le mode live/test et les permissions de la Restricted Key)." };
+        const result = await pingStripeDetailed(creds.secret_key);
+        if (result.ok) return { ok: true };
+        const reason = result.hint ? `${result.reason} ${result.hint}` : result.reason;
+        return { ok: false, reason };
       }
       case "pennylane": {
         const ok = await pingPennylane(creds.api_token);
