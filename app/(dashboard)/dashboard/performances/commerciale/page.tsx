@@ -173,8 +173,11 @@ export default async function PerformanceCommercialePage() {
           </p>
         ) : (
           <div className="space-y-6">
-            {pipelineAnalytics.map((pa) => (
+            {pipelineAnalytics.map((pa) => {
+              const stageColors = ["bg-blue-400", "bg-indigo-400", "bg-violet-400", "bg-fuchsia-400", "bg-emerald-400", "bg-amber-400", "bg-rose-400", "bg-teal-400"];
+              return (
               <article key={pa.pipeline.id} className="card overflow-hidden">
+                {/* Header pipeline */}
                 <div className="flex items-start justify-between border-b border-card-border bg-slate-50 px-5 py-3">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">{pa.pipeline.label}</h3>
@@ -192,6 +195,32 @@ export default async function PerformanceCommercialePage() {
                   </div>
                 </div>
 
+                {/* Répartition CA pondéré par étape (stacked bar + légende) */}
+                {pa.stages.length > 0 && pa.weightedAmount > 0 && (
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Répartition CA pondéré par étape</p>
+                    <div className="mt-2 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+                      {pa.stages.map((sa, idx) => (
+                        <div
+                          key={sa.stage.id}
+                          className={`${stageColors[idx % stageColors.length]} transition-all`}
+                          style={{ width: `${Math.max(2, sa.weightedPct)}%` }}
+                          title={`${sa.stage.label} : ${sa.weightedPct}%`}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {pa.stages.map((sa, idx) => (
+                        <div key={sa.stage.id} className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                          <span className={`h-2 w-2 rounded-full ${stageColors[idx % stageColors.length]}`} />
+                          {sa.stage.label} · <span className="font-semibold">{sa.weightedPct}%</span> · {sa.dealCount} deal{sa.dealCount > 1 ? "s" : ""}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Détails des étapes */}
                 <div className="border-t border-card-border px-5 py-3">
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -238,8 +267,93 @@ export default async function PerformanceCommercialePage() {
                     </table>
                   </div>
                 </div>
+
+                {/* Étapes efficaces vs stagnantes */}
+                <div className="grid grid-cols-1 gap-0 border-t border-card-border md:grid-cols-2 md:divide-x md:divide-card-border">
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Étapes efficaces (≤ 7j moy.)</p>
+                    {pa.efficientStages.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
+                        {pa.efficientStages.map((s) => (
+                          <li key={s.label} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-700">{s.label}</span>
+                            <span className="font-medium text-emerald-600">{s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="mt-1 text-xs text-slate-400">Aucune étape rapide détectée.</p>}
+                  </div>
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-red-600">Étapes stagnantes (&gt; 21j moy.)</p>
+                    {pa.stagnantStages.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
+                        {pa.stagnantStages.map((s) => (
+                          <li key={s.label} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-700">{s.label}</span>
+                            <span className="font-medium text-red-600">{s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="mt-1 text-xs text-slate-400">Aucune étape stagnante.</p>}
+                  </div>
+                </div>
+
+                {/* Audit d'attractivité — score /100 */}
+                <div className="border-t border-card-border bg-slate-50/50 px-5 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Audit d&apos;attractivité</p>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      pa.attractiveness.score >= 60 ? "bg-emerald-100 text-emerald-700" :
+                      pa.attractiveness.score >= 30 ? "bg-amber-100 text-amber-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                      {pa.attractiveness.score}/100
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-3 text-xs md:grid-cols-5">
+                    <div>
+                      <p className="text-slate-500">Activités moy./deal</p>
+                      <p className={`font-semibold ${pa.attractiveness.avgActivities >= 3 ? "text-emerald-700" : pa.attractiveness.avgActivities >= 1 ? "text-amber-700" : "text-red-600"}`}>
+                        {pa.attractiveness.avgActivities}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Close date à jour</p>
+                      <p className={`font-semibold ${pa.attractiveness.closeDateFreshPct >= 60 ? "text-emerald-700" : pa.attractiveness.closeDateFreshPct >= 30 ? "text-amber-700" : "text-red-600"}`}>
+                        {pa.attractiveness.closeDateFreshPct}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Deals gagnés</p>
+                      <p className="font-semibold text-emerald-700">{pa.attractiveness.wonCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Taux de perte</p>
+                      <p className={`font-semibold ${pa.attractiveness.lostRate < 30 ? "text-emerald-700" : pa.attractiveness.lostRate < 50 ? "text-amber-700" : "text-red-600"}`}>
+                        {pa.attractiveness.lostRate}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Forecast</p>
+                      <p className={`font-semibold ${pa.attractiveness.forecastReliable ? "text-emerald-700" : "text-red-600"}`}>
+                        {pa.attractiveness.forecastReliable ? "Fiable" : "Non fiable"}
+                      </p>
+                    </div>
+                  </div>
+                  {!pa.attractiveness.forecastReliable && (
+                    <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
+                      Ce pipeline a un forecast peu fiable :
+                      {pa.attractiveness.closeDateFreshPct < 60 ? " les dates de fermeture ne sont pas mises à jour régulièrement" : ""}
+                      {pa.attractiveness.closeDateFreshPct < 60 && pa.attractiveness.avgActivities < 2 ? " et" : ""}
+                      {pa.attractiveness.avgActivities < 2 ? " les commerciaux ne logguent pas assez d'activités" : ""}
+                      {pa.attractiveness.lostRate >= 50 ? `${(pa.attractiveness.closeDateFreshPct < 60 || pa.attractiveness.avgActivities < 2) ? "," : ""} et le taux de perte est élevé (${pa.attractiveness.lostRate}%)` : ""}
+                      .
+                    </p>
+                  )}
+                </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </CollapsibleBlock>
