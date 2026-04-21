@@ -4,17 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { href: "/dashboard/performances/commerciale", label: "Ventes" },
-  { href: "/dashboard/performances/marketing", label: "Marketing" },
+  { href: "/dashboard/audit/paiement-facturation", label: "Vue d'ensemble" },
+  { href: "/dashboard/audit/paiement-facturation/facturation", label: "Facturation" },
+  { href: "/dashboard/audit/paiement-facturation/paiement", label: "Paiement" },
 ];
 
-export function PerformancesTabs() {
+export function PaiementFacturationTabs() {
   const pathname = usePathname();
   return (
     <div className="border-b border-card-border">
       <div className="flex gap-1">
         {tabs.map((t) => {
-          const isActive = pathname === t.href || pathname.startsWith(t.href);
+          const isActive = pathname === t.href;
           return (
             <Link
               key={t.href}

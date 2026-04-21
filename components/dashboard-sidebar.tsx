@@ -63,6 +63,27 @@ const auditChildren: LeafLink[] = [
     ),
   },
   {
+    href: "/dashboard/audit/paiement-facturation",
+    label: "Paiement & Facturation",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/audit/service-client",
+    label: "Service Client",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1v-7h3v5z" />
+        <path d="M3 19a2 2 0 0 0 2 2h1v-7H3v5z" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/conduite-changement",
     label: "Adoption",
     icon: (
