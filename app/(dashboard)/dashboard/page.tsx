@@ -5,9 +5,8 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
-import { BrandLogo } from "@/components/brand-logo";
-import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import {
   buildContext,
   buildScenarios,
@@ -72,6 +71,22 @@ export default async function DashboardOverviewPage() {
 
   // Rapports actionnables : activés + suggestions disponibles.
   const reportsTotal = tabCounts.myCount + tabCounts.singleCount + tabCounts.multiCount;
+
+  // Recommandations Audit : 4 catégories CRO/RevOps (données, process,
+  // performances, adoption) générées par buildAuditRecommendations.
+  const auditRecos = buildAuditRecommendations(snapshot);
+  const auditTotal =
+    auditRecos.donnees.length +
+    auditRecos.process.length +
+    auditRecos.performances.length +
+    auditRecos.adoption.length;
+
+  // Données Revenue analysées : volume total d'entités revenue traitées.
+  // Deals (HubSpot) + factures + abonnements (Stripe/Pennylane si connecté).
+  const revenueRecordsTotal =
+    (ctx.totalDeals ?? 0) +
+    (ctx.invoicesCount ?? 0) +
+    (ctx.subscriptionsCount ?? 0);
 
   const activeIntegrations = connectedTools.length;
 
@@ -173,62 +188,56 @@ export default async function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* Hero — KPIs essentiels (4 tuiles dynamiques) */}
+      {/* Hero — KPIs essentiels (6 tuiles dynamiques, layout adaptatif) */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
         <div className="p-6">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
-            {/* 1. Intégrations actives — count + logos dynamiques */}
-            <div className="md:col-span-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Intégrations actives</p>
-                <Link href="/dashboard/integration" className="text-[10px] font-medium text-accent hover:underline">Gérer →</Link>
-              </div>
-              <p className="mt-1 text-2xl font-bold text-accent tabular-nums">{activeIntegrations}</p>
-              {connectedTools.length > 0 ? (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {connectedTools.slice(0, 8).map((t) => {
-                    const def = CONNECTABLE_TOOLS[t.key];
-                    return (
-                      <span
-                        key={t.key}
-                        title={`${t.label} · ${t.category}`}
-                        className="inline-flex items-center gap-1 rounded-full bg-white px-1.5 py-1 ring-1 ring-slate-200"
-                      >
-                        <BrandLogo domain={def?.domain ?? t.domain} alt={t.label} fallback={t.icon} size={16} />
-                        <span className="text-[10px] font-medium text-slate-600">{t.label}</span>
-                      </span>
-                    );
-                  })}
-                  {connectedTools.length > 8 && (
-                    <span className="text-[10px] font-medium text-slate-500">+{connectedTools.length - 8}</span>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-2 text-[11px] text-slate-500">Aucun outil branché — commencez par HubSpot.</p>
-              )}
-            </div>
+          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-6">
+            {/* 1. Intégrations actives — sobre, sans logos pour éviter wrap */}
+            <Link href="/dashboard/integration" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Intégrations actives</p>
+              <p className="mt-1 text-2xl font-bold text-accent tabular-nums group-hover:text-indigo-700">{activeIntegrations}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
+                {activeIntegrations === 0 ? "Connecter mes outils" : "Gérer →"}
+              </p>
+            </Link>
 
-            {/* 2. Coaching à faire */}
+            {/* 2. Recommandations Audit */}
+            <Link href="/dashboard/audit/recommandations" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Recommandations Audit</p>
+              <p className="mt-1 text-2xl font-bold text-blue-600 tabular-nums group-hover:text-blue-700">{auditTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">CRO/RevOps détectées</p>
+            </Link>
+
+            {/* 3. Coachings à faire */}
             <Link href="/dashboard/insights-ia" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Coachings à faire</p>
               <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Recommandations IA actives</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Insights IA actifs</p>
             </Link>
 
-            {/* 3. Simulations IA */}
+            {/* 4. Simulations IA */}
             <Link href="/dashboard/alertes" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Simulations IA</p>
               <p className="mt-1 text-2xl font-bold text-amber-600 tabular-nums group-hover:text-amber-700">{simulationsTotal.toLocaleString("fr-FR")}</p>
               <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Scénarios disponibles</p>
             </Link>
 
-            {/* 4. Rapports actionnables */}
+            {/* 5. Rapports actionnables */}
             <Link href="/dashboard/rapports" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Rapports actionnables</p>
               <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums group-hover:text-emerald-700">{reportsTotal.toLocaleString("fr-FR")}</p>
               <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
-                {tabCounts.myCount} activés · {tabCounts.singleCount + tabCounts.multiCount} disponibles
+                {tabCounts.myCount} activés · {tabCounts.singleCount + tabCounts.multiCount} dispo
+              </p>
+            </Link>
+
+            {/* 6. Données Revenue analysées */}
+            <Link href="/dashboard/performances" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Données Revenue analysées</p>
+              <p className="mt-1 text-2xl font-bold text-teal-600 tabular-nums group-hover:text-teal-700">{revenueRecordsTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
+                Deals + factures + abonnements
               </p>
             </Link>
           </div>
