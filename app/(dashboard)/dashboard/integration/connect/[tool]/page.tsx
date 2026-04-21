@@ -6,7 +6,8 @@ import { getConnectableTool, getCategoryLabel } from "@/lib/integrations/connect
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BrandLogo } from "@/components/brand-logo";
-import { StripeWizard } from "@/components/connect-wizards/stripe-wizard";
+import { GenericConnectWizard } from "@/components/connect-wizards/generic-wizard";
+import { getWizardConfig } from "@/lib/integrations/wizard-configs";
 import { connectToolAction, disconnectToolAction } from "./actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -27,6 +28,7 @@ export default async function ConnectToolPage({
   const sp = await searchParams;
   const tool = getConnectableTool(toolKey);
   if (!tool) notFound();
+
   if (tool.comingSoon) {
     return (
       <section className="mx-auto max-w-2xl space-y-6">
@@ -71,6 +73,10 @@ export default async function ConnectToolPage({
   const submitAction = connectToolAction.bind(null, toolKey);
   const disconnectAction = disconnectToolAction.bind(null, toolKey);
 
+  // Tool-specific wizard config (Stripe + tous les autres tools).
+  // Si pas de config wizard, fallback sur le formulaire générique simple.
+  const wizardConfig = getWizardConfig(toolKey);
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <Link
@@ -102,11 +108,12 @@ export default async function ConnectToolPage({
           )}
         </div>
 
-        {/* Tool-specific wizard (Stripe) — UX pas-à-pas pour non-dev */}
-        {toolKey === "stripe" ? (
+        {wizardConfig ? (
           <div className="mt-6">
-            <StripeWizard
+            <GenericConnectWizard
               toolKey={toolKey}
+              toolLabel={tool.label}
+              config={wizardConfig}
               alreadyConnected={alreadyConnected}
               submitAction={submitAction}
               disconnectAction={disconnectAction}
@@ -115,8 +122,8 @@ export default async function ConnectToolPage({
             />
           </div>
         ) : (
+          // Fallback : formulaire simple (pour HubSpot OAuth ou tool sans wizard config)
           <>
-            {/* Help block générique */}
             <div className="mt-6 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4">
               <p className="text-sm font-semibold text-indigo-900">Comment obtenir vos identifiants ?</p>
               <p className="mt-1 text-sm text-indigo-800">{tool.helpText}</p>
@@ -140,43 +147,44 @@ export default async function ConnectToolPage({
               </div>
             )}
 
-            {/* Form générique */}
-            <form action={submitAction} className="mt-6 space-y-4">
-          {tool.fields.map((field) => (
-            <div key={field.key}>
-              <label htmlFor={field.key} className="block text-sm font-medium text-slate-700">
-                {field.label}
-              </label>
-              <input
-                id={field.key}
-                name={field.key}
-                type={field.type}
-                placeholder={field.placeholder}
-                required
-                autoComplete="off"
-                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-              {field.helper && (
-                <p className="mt-1 text-xs text-slate-500">{field.helper}</p>
-              )}
-            </div>
-          ))}
+            {tool.fields.length > 0 && (
+              <form action={submitAction} className="mt-6 space-y-4">
+                {tool.fields.map((field) => (
+                  <div key={field.key}>
+                    <label htmlFor={field.key} className="block text-sm font-medium text-slate-700">
+                      {field.label}
+                    </label>
+                    <input
+                      id={field.key}
+                      name={field.key}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      required
+                      autoComplete="off"
+                      className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    {field.helper && (
+                      <p className="mt-1 text-xs text-slate-500">{field.helper}</p>
+                    )}
+                  </div>
+                ))}
 
-          <div className="flex items-center justify-between gap-3 pt-2">
-            <p className="text-xs text-slate-400">
-              🔒 Vos identifiants sont stockés chiffrés dans Revold (Supabase RLS).
-            </p>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
-            >
-              {alreadyConnected ? "Mettre à jour" : "Connecter à Revold"}
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
-          </div>
-        </form>
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <p className="text-xs text-slate-400">
+                    🔒 Vos identifiants sont stockés chiffrés dans Revold (Supabase RLS).
+                  </p>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+                  >
+                    {alreadyConnected ? "Mettre à jour" : "Connecter à Revold"}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            )}
 
             {alreadyConnected && (
               <form action={disconnectAction} className="mt-6 border-t border-slate-200 pt-4">
