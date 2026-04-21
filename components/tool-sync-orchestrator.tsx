@@ -10,7 +10,7 @@
  * Pennylane / Intercom / etc. as soon as their connector is implemented.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type StatCount = {
@@ -43,8 +43,24 @@ export function ToolSyncOrchestrator() {
   const [counts, setCounts] = useState<StatCount>({});
   const [notImplemented, setNotImplemented] = useState(false);
 
+  // Track le provider déjà processé pour éviter qu'un setStatus("idle")
+  // déclenché par close() ne relance une nouvelle sync via le useEffect
+  // (race entre setStatus et useSearchParams qui n'a pas encore propagé
+  // la suppression du param `sync`).
+  const processedProvider = useRef<string | null>(null);
+  // Garde une ref sur l'AbortController de la sync en cours pour pouvoir
+  // l'abort proprement quand l'user clique "Fermer".
+  const activeController = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    if (!provider || status !== "idle") return;
+    if (!provider) {
+      processedProvider.current = null;
+      return;
+    }
+    if (provider === processedProvider.current) return;
+    if (status !== "idle") return;
+
+    processedProvider.current = provider;
     let cancelled = false;
     setStatus("running");
 
@@ -53,6 +69,7 @@ export function ToolSyncOrchestrator() {
     // (Vercel kill la fonction à 5 min, on s'arrête avant pour laisser au
     // serveur le temps d'écrire son sync_log final).
     const controller = new AbortController();
+    activeController.current = controller;
     const timeoutMs = 4 * 60 * 1000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -77,9 +94,13 @@ export function ToolSyncOrchestrator() {
       } catch (err) {
         clearTimeout(timeoutId);
         if (cancelled) return;
-        setStatus("error");
         const e = err as Error;
         if (e.name === "AbortError") {
+          // Distingue abort utilisateur (close) vs abort timeout
+          if (controller.signal.reason === "user_cancelled") {
+            return; // Pas de message d'erreur, l'user a fermé volontairement
+          }
+          setStatus("error");
           setMessage(
             `La synchronisation ${provider} a dépassé 4 minutes. ` +
               `Le compte est probablement très volumineux. ` +
@@ -87,7 +108,12 @@ export function ToolSyncOrchestrator() {
               `les données déjà importées seront conservées et la sync reprendra.`,
           );
         } else {
+          setStatus("error");
           setMessage(e.message || "Erreur réseau pendant la synchronisation.");
+        }
+      } finally {
+        if (activeController.current === controller) {
+          activeController.current = null;
         }
       }
     })();
@@ -98,10 +124,22 @@ export function ToolSyncOrchestrator() {
   }, [provider, status]);
 
   function close() {
+    // Si une sync est en cours, on l'abort tout de suite (pas d'attente
+    // côté serveur, l'API continuera mais on ne reçoit plus la réponse).
+    if (activeController.current) {
+      activeController.current.abort("user_cancelled");
+      activeController.current = null;
+    }
+    // Hide modal immédiatement avant le router.replace pour éviter un
+    // flicker.
+    setStatus("idle");
+    setMessage("");
+    setCounts({});
+    // Nettoie l'URL — le useEffect réagira au changement de provider et
+    // n'aura plus rien à faire.
     const url = new URL(window.location.href);
     url.searchParams.delete("sync");
     router.replace(url.pathname + (url.search ? url.search : ""));
-    setStatus("idle");
   }
 
   if (!provider || status === "idle") return null;
@@ -151,13 +189,22 @@ export function ToolSyncOrchestrator() {
           <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</div>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-2">
+          {status === "running" && (
+            <p className="mr-auto self-center text-[11px] text-slate-400">
+              Vous pouvez fermer — la sync continue en arrière-plan.
+            </p>
+          )}
           <button
             type="button"
             onClick={close}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
+              status === "running"
+                ? "bg-slate-500 hover:bg-slate-600"
+                : "bg-accent hover:bg-indigo-500"
+            }`}
           >
-            Fermer
+            {status === "running" ? "Fermer (continuer en arrière-plan)" : "Fermer"}
           </button>
         </div>
       </div>
