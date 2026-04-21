@@ -39,7 +39,7 @@ export function InsightLockedBlock({
           <span className="text-xs font-semibold text-amber-700">Fonctionnalité Premium</span>
         </div>
         <p className="text-sm font-medium text-slate-700">
-          Débloquez les insights stratégiques générés par l&apos;IA
+          Débloquez vos coachings personnalisés propulsés par l&apos;IA
         </p>
         <Link
           href="/dashboard/mon-compte#subscription"
