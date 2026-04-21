@@ -15,7 +15,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getConnector } from "@/lib/integrations/sync/registry";
 import { fail } from "@/lib/integrations/sync/types";
 
-export const maxDuration = 60;
+// Vercel Fluid Compute max — large Stripe accounts peuvent dépasser 60s
+// pendant l'ingestion initiale (customers + invoices + subscriptions +
+// upserts source_links). On laisse de la marge.
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 export async function POST(
   _req: Request,

@@ -47,9 +47,22 @@ export function ToolSyncOrchestrator() {
     if (!provider || status !== "idle") return;
     let cancelled = false;
     setStatus("running");
+
+    // AbortController côté client : si la sync n'a pas répondu en 4 min
+    // on coupe proprement et on affiche un message d'erreur explicite
+    // (Vercel kill la fonction à 5 min, on s'arrête avant pour laisser au
+    // serveur le temps d'écrire son sync_log final).
+    const controller = new AbortController();
+    const timeoutMs = 4 * 60 * 1000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     (async () => {
       try {
-        const res = await fetch(`/api/sync/${provider}`, { method: "POST" });
+        const res = await fetch(`/api/sync/${provider}`, {
+          method: "POST",
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
@@ -62,13 +75,25 @@ export function ToolSyncOrchestrator() {
         setNotImplemented(!!data.notImplemented);
         setStatus("done");
       } catch (err) {
+        clearTimeout(timeoutId);
         if (cancelled) return;
         setStatus("error");
-        setMessage((err as Error).message);
+        const e = err as Error;
+        if (e.name === "AbortError") {
+          setMessage(
+            `La synchronisation ${provider} a dépassé 4 minutes. ` +
+              `Le compte est probablement très volumineux. ` +
+              `Fermez cette fenêtre puis cliquez sur "Re-synchroniser" — ` +
+              `les données déjà importées seront conservées et la sync reprendra.`,
+          );
+        } else {
+          setMessage(e.message || "Erreur réseau pendant la synchronisation.");
+        }
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [provider, status]);
 
