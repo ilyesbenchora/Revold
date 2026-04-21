@@ -7,6 +7,7 @@ import {
   type CoachingActionType,
   type UnifiedCoaching,
 } from "@/lib/reports/coaching-types";
+import { BreezePromptDrawer } from "@/components/breeze-prompt-drawer";
 
 type TabId = "mine" | "critical" | "warning" | "info";
 
@@ -17,10 +18,28 @@ const TABS: { id: TabId; label: string; emoji: string }[] = [
   { id: "info", label: "Infos", emoji: "🔵" },
 ];
 
-const SEV_STYLE: Record<UnifiedCoaching["severity"], { bg: string; border: string; badge: string; label: string }> = {
-  critical: { bg: "bg-red-50", border: "border-red-200", badge: "bg-red-100 text-red-700", label: "Critique" },
-  warning: { bg: "bg-amber-50", border: "border-amber-200", badge: "bg-amber-100 text-amber-700", label: "Vigilance" },
-  info: { bg: "bg-indigo-50", border: "border-indigo-200", badge: "bg-indigo-100 text-indigo-700", label: "Info" },
+const SEV_STYLE: Record<UnifiedCoaching["severity"], { bg: string; border: string; badge: string; label: string; llmBtn: string }> = {
+  critical: {
+    bg: "bg-red-50",
+    border: "border-red-200",
+    badge: "bg-red-100 text-red-700",
+    label: "Critique",
+    llmBtn: "border-red-300 bg-white text-red-700 hover:bg-red-100",
+  },
+  warning: {
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    badge: "bg-amber-100 text-amber-700",
+    label: "Vigilance",
+    llmBtn: "border-amber-300 bg-white text-amber-800 hover:bg-amber-100",
+  },
+  info: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-200",
+    badge: "bg-indigo-100 text-indigo-700",
+    label: "Info",
+    llmBtn: "border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100",
+  },
 };
 
 const STATUS_STYLE: Record<NonNullable<UnifiedCoaching["status"]>, { label: string; cls: string }> = {
@@ -49,6 +68,7 @@ function CoachingCard({
 }) {
   const [state, setState] = useState<CardState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [llmOpen, setLlmOpen] = useState(false);
 
   const sev = SEV_STYLE[item.severity];
   const status = item.status ?? "active";
@@ -185,6 +205,20 @@ function CoachingCard({
 
       {/* Footer CTAs */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {/* CTA Aperçu LLM Breeze — couleur alignée sur la sévérité de la card */}
+        <button
+          type="button"
+          onClick={() => setLlmOpen(true)}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${sev.llmBtn}`}
+          title="Voir le prompt LLM prêt à coller dans HubSpot Breeze"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
+            <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
+          </svg>
+          Aperçu du LLM
+        </button>
+
         {/* CTA principal : ouvrir HubSpot ou page interne Revold */}
         {item.hubspotUrl && ctaLabel && (
           <a
@@ -238,6 +272,9 @@ function CoachingCard({
           </span>
         )}
       </div>
+
+      {/* Side drawer : prompt LLM Breeze (rendu via portal sur document.body) */}
+      <BreezePromptDrawer item={item} open={llmOpen} onClose={() => setLlmOpen(false)} />
     </article>
   );
 }
