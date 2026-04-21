@@ -613,22 +613,34 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
         return [] as unknown[];
       }),
     // ── Tickets ──
+    // BUG FIX : on ne hardcode plus le stage "4" (qui ne marche que sur le
+    // pipeline ticket par défaut). On compte TOUS les tickets ouverts via
+    // hs_pipeline_stage HAS_PROPERTY puis on dérive open/closed via le total
+    // ticketsTotal (ecosystem.tickets) - searchClosed.
+    // Pour le compte des fermés, on utilise hs_lastclosedate HAS_PROPERTY :
+    // un ticket avec une date de fermeture est forcément fermé (universel
+    // sur tous les portails et pipelines, pas de hardcode d'ID).
     searchTotal(token, "tickets", {
-      filterGroups: [{ filters: [{ propertyName: "hs_pipeline_stage", operator: "NEQ", value: "4" }] }],
+      filterGroups: [{ filters: [{ propertyName: "hs_lastclosedate", operator: "NOT_HAS_PROPERTY" }] }],
     }, diag, "openTickets"),
     searchTotal(token, "tickets", {
-      filterGroups: [{ filters: [{ propertyName: "hs_pipeline_stage", operator: "EQ", value: "4" }] }],
+      filterGroups: [{ filters: [{ propertyName: "hs_lastclosedate", operator: "HAS_PROPERTY" }] }],
     }, diag, "closedTickets"),
     // ── Invoices ──
+    // BUG FIX : on couvre TOUS les statuts HubSpot Invoices :
+    // draft, open, paid, voided, partially_paid (cf. doc HubSpot)
     searchTotal(token, "invoices", {
-      filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "EQ", value: "paid" }] }],
+      filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "IN", values: ["paid", "partially_paid"] }] }],
     }, diag, "paidInvoices"),
     searchTotal(token, "invoices", {
-      filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "IN", values: ["open", "uncollectible"] }] }],
+      filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "IN", values: ["open", "uncollectible", "draft"] }] }],
     }, diag, "unpaidInvoices"),
     // ── Subscriptions actives ──
+    // BUG FIX : "active" SEUL ratait les subs en trialing (cas SaaS standard
+    // avec free trial) ET les past_due (paiement échoué mais sub pas annulée).
+    // On compte comme "active" TOUT ce qui n'est pas annulé/expiré/paused.
     searchTotal(token, "subscriptions", {
-      filterGroups: [{ filters: [{ propertyName: "hs_subscription_status", operator: "EQ", value: "active" }] }],
+      filterGroups: [{ filters: [{ propertyName: "hs_subscription_status", operator: "IN", values: ["active", "trialing", "past_due"] }] }],
     }, diag, "activeSubscriptions"),
     // ── Ecosystem complet (autres counts) ──
     fetchHubSpotEcosystemCounts(token),
@@ -672,12 +684,18 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     lifecycleByStage: lifecycle.byStage,
     pipelines: pipelines.filter((p) => !p.archived),
     ownersCount: ownersList.length,
-    totalTickets: openTickets + closedTickets,
+    // BUG FIX : on prend le vrai total tickets de l'ecosystem (search?limit=1)
+    // au lieu de la somme dérivée openTickets + closedTickets, qui pouvait
+    // être 0 si le hardcode "stage 4" ratait les pipelines tickets custom.
+    totalTickets: ecosystem.tickets,
     openTickets,
     closedTickets,
     totalConversations: ecosystem.conversations,
     feedbackCount: ecosystem.feedbackSubmissions,
-    totalInvoices: paidInvoices + unpaidInvoices + ecosystem.invoices,
+    // BUG FIX : on ne fait plus paidInvoices + unpaidInvoices + ecosystem.invoices
+    // qui triple-comptait. ecosystem.invoices = total /search?limit=1 sans
+    // filter = TOUTES les invoices déjà. C'est la source de vérité.
+    totalInvoices: ecosystem.invoices,
     paidInvoices,
     unpaidInvoices,
     totalSubscriptions: ecosystem.subscriptions,
