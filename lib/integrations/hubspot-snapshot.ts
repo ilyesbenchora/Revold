@@ -19,17 +19,80 @@ const HUBSPOT_API = "https://api.hubapi.com";
 // HELPERS BAS NIVEAU
 // ────────────────────────────────────────────────────────────────────────────
 
-async function searchTotal(token: string, objectType: string, body?: object): Promise<number> {
+/**
+ * Diagnostic du statut d'un KPI individuel — permet de différencier
+ * "vraiment 0" d'un échec API silencieux (scope manquant, addon HubSpot
+ * non activé, propriété inexistante, panne réseau).
+ *
+ *  - "ok"           : appel HTTP 200, valeur lue normalement (peut être 0)
+ *  - "no_scope"     : HTTP 401/403 — scope OAuth manquant
+ *  - "addon_missing": HTTP 404 (objet inexistant : Service Hub / Invoicing
+ *                     non activé sur ce portail)
+ *  - "bad_property" : HTTP 400 (la propriété demandée n'existe pas)
+ *  - "endpoint_error": autre HTTP 4xx/5xx
+ *  - "network_error": exception réseau / timeout
+ */
+export type KpiStatus =
+  | "ok"
+  | "no_scope"
+  | "addon_missing"
+  | "bad_property"
+  | "endpoint_error"
+  | "network_error";
+
+export type KpiDiagnosticEntry = { status: KpiStatus; httpCode?: number; detail?: string };
+
+function classifyHttpError(status: number, body: string): KpiStatus {
+  if (status === 401 || status === 403) return "no_scope";
+  if (status === 404) return "addon_missing";
+  if (status === 400) {
+    // HubSpot répond 400 si une property dans le filter n'existe pas
+    if (/property|does not exist|not a known property/i.test(body)) return "bad_property";
+    return "endpoint_error";
+  }
+  return "endpoint_error";
+}
+
+/**
+ * Fait un /search?limit=1 et tracke le statut dans `diag` sous la clé `kpiKey`.
+ * Retourne UNIQUEMENT la valeur numérique (compat avec le code existant).
+ * Le statut est lisible via `diag.get(kpiKey)`.
+ */
+async function searchTotal(
+  token: string,
+  objectType: string,
+  body?: object,
+  diag?: Map<string, KpiDiagnosticEntry>,
+  kpiKey?: string,
+): Promise<number> {
   try {
     const res = await fetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ limit: 1, ...body }),
     });
-    if (!res.ok) return 0;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      if (diag && kpiKey) {
+        diag.set(kpiKey, {
+          status: classifyHttpError(res.status, errBody),
+          httpCode: res.status,
+          detail: errBody.slice(0, 160),
+        });
+      }
+      return 0;
+    }
     const data = await res.json();
-    return typeof data.total === "number" ? data.total : 0;
-  } catch {
+    const total = typeof data.total === "number" ? data.total : 0;
+    if (diag && kpiKey) diag.set(kpiKey, { status: "ok", httpCode: 200 });
+    return total;
+  } catch (err) {
+    if (diag && kpiKey) {
+      diag.set(kpiKey, {
+        status: "network_error",
+        detail: err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160),
+      });
+    }
     return 0;
   }
 }
@@ -39,6 +102,8 @@ async function searchSum(
   objectType: string,
   property: string,
   body?: object,
+  diag?: Map<string, KpiDiagnosticEntry>,
+  kpiKey?: string,
 ): Promise<number> {
   // Aggregate sum sur une propriété — pas d'endpoint dédié dans HubSpot Public,
   // donc on pagine sur 5 pages max et on somme. Cap volontaire pour éviter les
@@ -46,6 +111,7 @@ async function searchSum(
   let total = 0;
   let after: string | undefined;
   let page = 0;
+  let firstError: KpiDiagnosticEntry | null = null;
 
   do {
     try {
@@ -59,7 +125,15 @@ async function searchSum(
           ...body,
         }),
       });
-      if (!res.ok) return total;
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        firstError = {
+          status: classifyHttpError(res.status, errBody),
+          httpCode: res.status,
+          detail: errBody.slice(0, 160),
+        };
+        break;
+      }
       const data = await res.json();
       const results = (data.results ?? []) as Array<{ properties?: Record<string, string> }>;
       for (const r of results) {
@@ -68,11 +142,16 @@ async function searchSum(
       }
       after = data.paging?.next?.after;
       page++;
-    } catch {
-      return total;
+    } catch (err) {
+      firstError = {
+        status: "network_error",
+        detail: err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160),
+      };
+      break;
     }
   } while (after && page < 5);
 
+  if (diag && kpiKey) diag.set(kpiKey, firstError ?? { status: "ok", httpCode: 200 });
   return total;
 }
 
@@ -344,6 +423,15 @@ export type HubSpotSnapshot = {
 
   // Whole ecosystem snapshot
   ecosystem: HubSpotEcosystemCounts;
+
+  /**
+   * Diagnostic per-KPI : permet de différencier "vraiment 0" d'un échec
+   * silencieux (scope manquant, addon HubSpot non activé, etc.).
+   * La clé est le nom du KPI (ex: "totalDeals", "totalTickets",
+   * "totalInvoices"). Les UI peuvent afficher "—" + tooltip explicatif
+   * au lieu de "0" quand status !== "ok".
+   */
+  kpiDiagnostics: Record<string, KpiDiagnosticEntry>;
 };
 
 export const EMPTY_SNAPSHOT: HubSpotSnapshot = {
@@ -405,6 +493,7 @@ export const EMPTY_SNAPSHOT: HubSpotSnapshot = {
   projectsCount: 0,
   usersCount: 0,
   ecosystem: EMPTY_ECOSYSTEM_COUNTS,
+  kpiDiagnostics: {},
 };
 
 /**
@@ -414,6 +503,8 @@ export const EMPTY_SNAPSHOT: HubSpotSnapshot = {
  */
 export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapshot> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime();
+  const diag = new Map<string, KpiDiagnosticEntry>();
+  let ownersStatus: KpiDiagnosticEntry = { status: "ok" };
 
   const [
     totalDeals,
@@ -446,8 +537,8 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     ecosystem,
   ] = await Promise.all([
     // ── Deals ──
-    searchTotal(token, "deals"),
-    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }] }),
+    searchTotal(token, "deals", undefined, diag, "totalDeals"),
+    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }] }, diag, "wonDeals"),
     searchTotal(token, "deals", {
       filterGroups: [{
         filters: [
@@ -455,7 +546,7 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
           { propertyName: "hs_is_closed_won", operator: "NEQ", value: "true" },
         ],
       }],
-    }),
+    }, diag, "lostDeals"),
     searchTotal(token, "deals", {
       filterGroups: [{
         filters: [
@@ -463,9 +554,9 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
           { propertyName: "notes_next_activity_date", operator: "NOT_HAS_PROPERTY" },
         ],
       }],
-    }),
-    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "NOT_HAS_PROPERTY" }] }] }),
+    }, diag, "dealsNoNextActivity"),
+    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "dealsNoAmount"),
+    searchTotal(token, "deals", { filterGroups: [{ filters: [{ propertyName: "closedate", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "dealsNoCloseDate"),
     searchTotal(token, "deals", {
       filterGroups: [{
         filters: [
@@ -474,7 +565,7 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
           { propertyName: "notes_last_contacted", operator: "LT", value: String(sevenDaysAgo) },
         ],
       }],
-    }),
+    }, diag, "stagnantDeals"),
     searchTotal(token, "deals", {
       filterGroups: [{
         filters: [
@@ -482,24 +573,24 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
           { propertyName: "hs_deal_stage_probability", operator: "LT", value: "0.30" },
         ],
       }],
-    }),
+    }, diag, "dealsAtRisk"),
     searchSum(token, "deals", "amount", {
       filterGroups: [{ filters: [{ propertyName: "hs_is_closed", operator: "NEQ", value: "true" }] }],
-    }),
+    }, diag, "totalPipelineAmount"),
     searchSum(token, "deals", "amount", {
       filterGroups: [{ filters: [{ propertyName: "hs_is_closed_won", operator: "EQ", value: "true" }] }],
-    }),
+    }, diag, "wonAmount"),
     // ── Contacts ──
-    searchTotal(token, "contacts"),
-    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "associatedcompanyid", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] }] }),
+    searchTotal(token, "contacts", undefined, diag, "totalContacts"),
+    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "associatedcompanyid", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "orphansCount"),
+    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "contactsNoPhone"),
+    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "jobtitle", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "contactsNoTitle"),
+    searchTotal(token, "contacts", { filterGroups: [{ filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "contactsNoEmail"),
     // ── Companies ──
-    searchTotal(token, "companies"),
-    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "NOT_HAS_PROPERTY" }] }] }),
-    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] }] }),
+    searchTotal(token, "companies", undefined, diag, "totalCompanies"),
+    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "industry", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "companiesNoIndustry"),
+    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "annualrevenue", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "companiesNoRevenue"),
+    searchTotal(token, "companies", { filterGroups: [{ filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] }] }, diag, "companiesNoDomain"),
     // ── Lifecycle distribution ──
     fetchLifecycleDistribution(token),
     // ── Pipelines ──
@@ -508,30 +599,42 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     fetch(`${HUBSPOT_API}/crm/v3/owners?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then(async (r) => {
+        if (!r.ok) {
+          const errBody = await r.text().catch(() => "");
+          ownersStatus = { status: classifyHttpError(r.status, errBody), httpCode: r.status, detail: errBody.slice(0, 160) };
+          return { results: [] };
+        }
+        return r.json();
+      })
       .then((d) => (d.results ?? []) as unknown[])
-      .catch(() => [] as unknown[]),
+      .catch((err) => {
+        ownersStatus = { status: "network_error", detail: err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160) };
+        return [] as unknown[];
+      }),
     // ── Tickets ──
     searchTotal(token, "tickets", {
       filterGroups: [{ filters: [{ propertyName: "hs_pipeline_stage", operator: "NEQ", value: "4" }] }],
-    }),
+    }, diag, "openTickets"),
     searchTotal(token, "tickets", {
       filterGroups: [{ filters: [{ propertyName: "hs_pipeline_stage", operator: "EQ", value: "4" }] }],
-    }),
+    }, diag, "closedTickets"),
     // ── Invoices ──
     searchTotal(token, "invoices", {
       filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "EQ", value: "paid" }] }],
-    }),
+    }, diag, "paidInvoices"),
     searchTotal(token, "invoices", {
       filterGroups: [{ filters: [{ propertyName: "hs_invoice_status", operator: "IN", values: ["open", "uncollectible"] }] }],
-    }),
+    }, diag, "unpaidInvoices"),
     // ── Subscriptions actives ──
     searchTotal(token, "subscriptions", {
       filterGroups: [{ filters: [{ propertyName: "hs_subscription_status", operator: "EQ", value: "active" }] }],
-    }),
+    }, diag, "activeSubscriptions"),
     // ── Ecosystem complet (autres counts) ──
     fetchHubSpotEcosystemCounts(token),
   ]);
+
+  diag.set("ownersCount", ownersStatus);
 
   const closedTotal = wonDeals + lostDeals;
   const openDealsCount = Math.max(0, totalDeals - closedTotal);
@@ -598,5 +701,6 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     projectsCount: ecosystem.projects,
     usersCount: ecosystem.users,
     ecosystem,
+    kpiDiagnostics: Object.fromEntries(diag),
   };
 }

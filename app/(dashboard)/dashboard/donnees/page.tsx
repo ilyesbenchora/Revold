@@ -1,12 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getCanonicalIntegrationData, getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
-import { ExpandableIntegrationsList } from "@/components/expandable-integrations-list";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import Link from "next/link";
@@ -48,50 +46,13 @@ async function countCanonicalForProvider(
   }
 }
 
-type CustomPropStat = { objectType: string; label: string; total: number; custom: number };
-
-async function fetchCustomProperties(token: string): Promise<CustomPropStat[]> {
-  const objectTypes = [
-    { key: "contacts", label: "Contacts" },
-    { key: "companies", label: "Entreprises" },
-    { key: "deals", label: "Transactions" },
-  ];
-  const results: CustomPropStat[] = [];
-  for (const ot of objectTypes) {
-    try {
-      const res = await fetch(`https://api.hubapi.com/crm/v3/properties/${ot.key}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const props = (data.results ?? []) as Array<{ hubspotDefined: boolean }>;
-      const custom = props.filter((p) => !p.hubspotDefined).length;
-      results.push({ objectType: ot.key, label: ot.label, total: props.length, custom });
-    } catch {}
-  }
-  return results;
-}
-
 export default async function DonneesPage() {
   const orgId = await getOrgId();
   if (!orgId) return null;
 
   const supabase = await createSupabaseServerClient();
-  const [{ integrations: hsIntegrations }, snapshot] = await Promise.all([
-    getCanonicalIntegrationData(),
-    getHubspotSnapshot(),
-  ]);
-  const businessIntegrations = filterBusinessIntegrations(hsIntegrations);
-
-  // Fetch custom properties from HubSpot
+  const snapshot = await getHubspotSnapshot();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
-  let propStats: CustomPropStat[] = [];
-  if (hubspotToken) {
-    propStats = await fetchCustomProperties(hubspotToken);
-  }
-  const totalCustomProps = propStats.reduce((s, p) => s + p.custom, 0);
-  const totalAllProps = propStats.reduce((s, p) => s + p.total, 0);
 
   // ── Tout depuis HubSpot (snapshot) ──
   // Pour les "with X" on dérive depuis les "no X" du snapshot (total - noX)
@@ -488,76 +449,6 @@ export default async function DonneesPage() {
         ))}
       </div>
 
-      {/* Propriétés personnalisées HubSpot */}
-      {propStats.length > 0 && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Propriétés personnalisées</h2>
-              <p className="text-[11px] text-slate-500">Champs créés par votre équipe dans HubSpot</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-accent tabular-nums">{totalCustomProps}</p>
-              <p className="text-[10px] text-slate-400">sur {totalAllProps} propriétés</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {propStats.map((p) => (
-              <div key={p.objectType} className="rounded-lg bg-slate-50 p-3">
-                <p className="text-[10px] font-medium text-slate-500">{p.label}</p>
-                <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-lg font-bold text-slate-900 tabular-nums">{p.custom}</span>
-                  <span className="text-[10px] text-slate-400">custom</span>
-                </div>
-                <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${p.total > 0 ? (p.custom / p.total) * 100 : 0}%` }} />
-                </div>
-                <p className="mt-1 text-[9px] text-slate-400">{p.total - p.custom} natives · {p.custom} personnalisées</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Applications connectées */}
-      {businessIntegrations.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Applications connectées à HubSpot
-            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">{businessIntegrations.length}</span>
-          </h2>
-          <ExpandableIntegrationsList totalCount={businessIntegrations.length} visibleByDefault={4}>
-            {businessIntegrations.map((int) => (
-              <article key={int.key} className="card p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{int.icon}</span>
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">{int.label}</h3>
-                      <p className="text-xs text-slate-400">{int.vendor}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Propriétés</p>
-                    <p className="text-lg font-bold text-slate-900">{int.totalProperties}</p>
-                  </div>
-                </div>
-                {int.totalProperties > 0 && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">Enrichissement</span>
-                      <span className={`font-bold ${int.enrichmentRate >= 50 ? "text-emerald-600" : int.enrichmentRate >= 20 ? "text-amber-600" : "text-orange-500"}`}>{int.enrichmentRate}%</span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100">
-                      <div className={`h-full rounded-full ${getBarColor(int.enrichmentRate)}`} style={{ width: `${Math.min(100, int.enrichmentRate)}%` }} />
-                    </div>
-                  </div>
-                )}
-              </article>
-            ))}
-          </ExpandableIntegrationsList>
-        </div>
-      )}
     </div>
   );
 }

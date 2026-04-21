@@ -1,4 +1,8 @@
 export const dynamic = "force-dynamic";
+// fetchOpenDeals + fetchClosedDealsByPipeline tournent maintenant sur jusqu'à
+// 50 batches chacun (5000 deals max) pour ne plus rater de pipelines.
+// On laisse 300s à Vercel pour un large compte HubSpot.
+export const maxDuration = 300;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";

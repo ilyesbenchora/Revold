@@ -109,7 +109,11 @@ export async function fetchOpenDeals(token: string): Promise<HsDealRow[]> {
   const all: HsDealRow[] = [];
   let after: string | undefined;
 
-  for (let batch = 0; batch < 3; batch++) {
+  // Cap relevé de 3 → 50 batches (5000 deals). À 3 batches, le tri amount
+  // DESC faisait disparaître les petits deals ET certains pipelines entiers
+  // si l'org avait > 300 deals ouverts. Sans ces deals, le buildPipeline
+  // Analytics retournait 0 pipeline visible.
+  for (let batch = 0; batch < 50; batch++) {
     const body: Record<string, unknown> = {
       filterGroups: [{
         filters: [
@@ -174,7 +178,9 @@ export async function fetchClosedDealsByPipeline(
 
   async function fetchClosed(isWon: boolean): Promise<void> {
     let after: string | undefined;
-    for (let batch = 0; batch < 3; batch++) {
+    // Cap relevé de 3 → 50 batches : on a besoin de l'historique COMPLET
+    // won/lost par pipeline pour le calcul attractiveness, pas un échantillon.
+    for (let batch = 0; batch < 50; batch++) {
       const body: Record<string, unknown> = {
         filterGroups: [{
           filters: [
@@ -317,5 +323,9 @@ export function buildPipelineAnalytics(
         forecastReliable,
       },
     };
-  }).filter((pa) => pa.totalDeals > 0);
+  })
+    // Garde TOUS les pipelines détectés dans HubSpot (même sans deal ouvert).
+    // On affiche au minimum les pipelines qui ont eu un won/lost historique
+    // OU qui ont des deals ouverts. Un pipeline complètement vide reste filtré.
+    .filter((pa) => pa.totalDeals > 0 || pa.attractiveness.wonCount > 0 || pa.attractiveness.lostCount > 0);
 }
