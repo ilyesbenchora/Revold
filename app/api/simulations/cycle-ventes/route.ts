@@ -37,6 +37,8 @@ async function fetchAllDealsForPipeline(token: string, pipelineId: string): Prom
             "hs_deal_stage_probability",
             "hs_is_closed",
             "hs_is_closed_won",
+            "hs_time_in_latest_deal_stage",
+            "hs_lastmodifieddate",
             "notes_last_contacted",
             "notes_next_activity_date",
           ],
@@ -48,6 +50,7 @@ async function fetchAllDealsForPipeline(token: string, pipelineId: string): Prom
       const data = await res.json();
       for (const r of data.results ?? []) {
         const p = r.properties ?? {};
+        const msInStage = parseFloat(p.hs_time_in_latest_deal_stage ?? "");
         all.push({
           id: r.id,
           amount: parseFloat(p.amount ?? "0") || 0,
@@ -61,6 +64,10 @@ async function fetchAllDealsForPipeline(token: string, pipelineId: string): Prom
           createdate: p.createdate ?? null,
           is_closed: p.hs_is_closed === "true",
           is_won: p.hs_is_closed_won === "true",
+          daysInStage: !isNaN(msInStage) && msInStage > 0
+            ? Math.round(msInStage / 86_400_000)
+            : null,
+          lastModified: p.hs_lastmodifieddate ?? null,
         });
       }
       after = data.paging?.next?.after;

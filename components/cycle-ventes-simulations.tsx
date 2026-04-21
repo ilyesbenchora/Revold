@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertButton } from "@/components/alert-button";
 
 type Pipeline = {
@@ -59,17 +59,34 @@ const SECTION_META: Record<keyof Sections, { label: string; emoji: string; gradi
     label: "CA Analytics",
     emoji: "💰",
     gradient: "from-fuchsia-500 to-emerald-600",
-    description: "Analyse de la performance revenue : ticket moyen, win rate, attribution, cohorts",
+    description: "Analyse de la performance revenue : ticket moyen, win rate, concentration, drop-off",
   },
 };
 
-function SimulationCard({ sim }: { sim: SmartSim }) {
+function SimulationCard({ sim, pipeline }: { sim: SmartSim; pipeline: Pipeline | null }) {
+  // Reconstitue le nom des stages scopées si la sim cible une étape précise
+  const scopedStageLabels = pipeline
+    ? sim.selectedStageIds
+        .map((id) => pipeline.stages.find((s) => s.id === id)?.label)
+        .filter((l): l is string => !!l)
+    : [];
+  const isStageScoped = scopedStageLabels.length > 0 && scopedStageLabels.length < (pipeline?.stages.length ?? 999);
+
   return (
     <article className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition hover:shadow-xl hover:-translate-y-0.5">
       <div className={`h-1.5 bg-gradient-to-r ${sim.color}`} />
       <div className={`pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br ${sim.color} opacity-10 blur-2xl transition group-hover:opacity-20`} />
 
       <div className="relative flex flex-col gap-4 p-5">
+        {isStageScoped && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {scopedStageLabels.map((lbl) => (
+              <span key={lbl} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                🎯 {lbl}
+              </span>
+            ))}
+          </div>
+        )}
         <h3 className="text-base font-bold leading-tight text-slate-900">{sim.title}</h3>
         <p className="text-xs leading-relaxed text-slate-600">{sim.description}</p>
 
@@ -91,7 +108,7 @@ function SimulationCard({ sim }: { sim: SmartSim }) {
         <div className="mt-auto">
           <AlertButton
             title={sim.title}
-            description={`${sim.description} (Pipeline ${sim.pipelineLabel}${sim.selectedStageIds.length > 0 ? ` · ${sim.selectedStageIds.length} étape${sim.selectedStageIds.length > 1 ? "s" : ""}` : ""})`}
+            description={`${sim.description} (Pipeline ${sim.pipelineLabel}${isStageScoped ? ` · ${scopedStageLabels.join(" + ")}` : ""})`}
             impact={sim.impact}
             category={sim.category}
             forecastType={sim.forecastType}
@@ -105,23 +122,19 @@ function SimulationCard({ sim }: { sim: SmartSim }) {
 }
 
 export function CycleVentesSimulations({ pipelines }: Props) {
-  // Sélection : 1 pipeline (default = 1er) + N stages (default = all = [])
   const [pipelineId, setPipelineId] = useState<string>(pipelines[0]?.id ?? "");
-  const [stageIds, setStageIds] = useState<string[]>([]);
   const [sections, setSections] = useState<Sections | null>(null);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<{ totalDeals: number; totalAmount: number; atRiskCount: number; stagnantCount: number } | null>(null);
 
-  const currentPipeline = useMemo(
-    () => pipelines.find((p) => p.id === pipelineId) ?? null,
-    [pipelines, pipelineId],
-  );
+  const currentPipeline = pipelines.find((p) => p.id === pipelineId) ?? null;
 
   useEffect(() => {
     if (!pipelineId) return;
     setLoading(true);
-    const stagesParam = stageIds.length === 0 ? "all" : stageIds.join(",");
-    fetch(`/api/simulations/cycle-ventes?pipeline=${pipelineId}&stages=${encodeURIComponent(stagesParam)}`)
+    // On ne filtre plus par stages — toutes les étapes sont analysées et
+    // la library génère des simulations stage-par-stage automatiquement.
+    fetch(`/api/simulations/cycle-ventes?pipeline=${pipelineId}&stages=all`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.sections) {
@@ -137,20 +150,7 @@ export function CycleVentesSimulations({ pipelines }: Props) {
         setCounts(null);
       })
       .finally(() => setLoading(false));
-  }, [pipelineId, stageIds]);
-
-  function changePipeline(id: string) {
-    setPipelineId(id);
-    setStageIds([]); // reset stages quand on change de pipeline
-  }
-
-  function toggleStage(id: string) {
-    setStageIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
-  }
-
-  function selectAllStages() {
-    setStageIds([]);
-  }
+  }, [pipelineId]);
 
   if (pipelines.length === 0) {
     return (
@@ -164,114 +164,65 @@ export function CycleVentesSimulations({ pipelines }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Sélecteurs ── */}
-      <div className="card p-5 space-y-4">
-        {/* Pipeline (single select) */}
-        <div>
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Pipeline (un seul)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {pipelines.map((p) => {
-              const active = p.id === pipelineId;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => changePipeline(p.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
-                    active
-                      ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {p.label}
-                  <span className={`ml-1.5 text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}>
-                    ({p.stages.length} étapes)
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {/* ── Sélecteur compact + résumé (même carte) ── */}
+      <div className="card flex flex-wrap items-center gap-3 p-3">
+        <label htmlFor="pipeline-select" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+          Pipeline
+        </label>
+        <select
+          id="pipeline-select"
+          value={pipelineId}
+          onChange={(e) => setPipelineId(e.target.value)}
+          className="min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        >
+          {pipelines.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label} ({p.stages.length} étapes)
+            </option>
+          ))}
+        </select>
 
-        {/* Stages (multi select) */}
-        {currentPipeline && (
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Étapes du pipeline (une, plusieurs ou toutes)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={selectAllStages}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  stageIds.length === 0
-                    ? "bg-accent text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Toutes ({currentPipeline.stages.length})
-              </button>
-              {currentPipeline.stages.map((s) => {
-                const active = stageIds.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleStage(s.id)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      active
-                        ? "bg-accent text-white"
-                        : s.closedWon
-                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                        : s.closedLost
-                        ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {active && <span className="mr-1">✓</span>}
-                    {s.label}
-                    <span className={`ml-1 text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}>
-                      {s.probability}%
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Résumé sélection */}
+        {/* Compteurs inline */}
         {counts && (
-          <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-4">
+          <div className="ml-auto flex flex-wrap items-center gap-4 text-xs">
             <div>
-              <p className="text-[10px] uppercase text-slate-500">Deals dans la sélection</p>
-              <p className="text-lg font-bold text-slate-900">{counts.totalDeals.toLocaleString("fr-FR")}</p>
+              <span className="text-slate-500">Deals : </span>
+              <span className="font-bold text-slate-900 tabular-nums">{counts.totalDeals.toLocaleString("fr-FR")}</span>
             </div>
             <div>
-              <p className="text-[10px] uppercase text-slate-500">Montant total</p>
-              <p className="text-lg font-bold text-slate-900">
+              <span className="text-slate-500">CA : </span>
+              <span className="font-bold text-slate-900 tabular-nums">
                 {counts.totalAmount >= 1000
                   ? `${Math.round(counts.totalAmount / 1000).toLocaleString("fr-FR")}K€`
                   : `${Math.round(counts.totalAmount)}€`}
-              </p>
+              </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase text-slate-500">À risque</p>
-              <p className={`text-lg font-bold ${counts.atRiskCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+              <span className="text-slate-500">À risque : </span>
+              <span className={`font-bold tabular-nums ${counts.atRiskCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
                 {counts.atRiskCount}
-              </p>
+              </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase text-slate-500">Stagnants</p>
-              <p className={`text-lg font-bold ${counts.stagnantCount > 0 ? "text-orange-600" : "text-slate-400"}`}>
+              <span className="text-slate-500">Stagnants : </span>
+              <span className={`font-bold tabular-nums ${counts.stagnantCount > 0 ? "text-orange-600" : "text-slate-400"}`}>
                 {counts.stagnantCount}
-              </p>
+              </span>
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Info étapes du pipeline sélectionné (compact) ── */}
+      {currentPipeline && (
+        <p className="text-[11px] text-slate-500">
+          Les simulations sont générées automatiquement pour chaque étape du pipeline (bottleneck, vélocité, drop-off,
+          forecast contributor, activity gap) à partir des données temps réel HubSpot.
+        </p>
+      )}
 
       {/* ── Sections de simulations ── */}
       {loading && (
@@ -302,12 +253,12 @@ export function CycleVentesSimulations({ pipelines }: Props) {
 
                 {sims.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-400">
-                    Aucune simulation pour cette sélection. Choisis d&apos;autres étapes ou un pipeline avec plus de deals.
+                    Aucune simulation pour ce pipeline — les KPIs sont dans les benchmarks.
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {sims.map((sim, i) => (
-                      <SimulationCard key={`${key}-${i}`} sim={sim} />
+                      <SimulationCard key={`${key}-${i}`} sim={sim} pipeline={currentPipeline} />
                     ))}
                   </div>
                 )}

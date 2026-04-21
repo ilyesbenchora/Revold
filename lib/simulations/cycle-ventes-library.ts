@@ -35,6 +35,9 @@ export type DealLite = {
   createdate: string | null;
   is_closed: boolean;
   is_won: boolean;
+  /** Temps réel passé dans la stage actuelle (HubSpot hs_time_in_latest_deal_stage). */
+  daysInStage?: number | null;
+  lastModified?: string | null;
 };
 
 export type StageCategory = "early" | "mid" | "late" | "closed_won" | "closed_lost";
@@ -68,7 +71,16 @@ export type StageMetrics = {
   stagnantAmount: number;
   noNextActivityCount: number;
 
+  /** Avg "deal age in pipeline" — depuis createdate. */
   avgDaysInStage: number;
+  /** Avg temps réel passé DANS la stage (hs_time_in_latest_deal_stage). */
+  avgRealTimeInStageDays: number;
+  /** % du nombre total de deals du pipeline (concentration). */
+  shareCount: number;
+  /** % du CA pondéré pipeline. */
+  shareWeightedAmount: number;
+  /** % de deals sans next activity dans cette stage. */
+  noActivityRate: number;
 };
 
 export type PipelineSelectionContext = {
@@ -206,6 +218,7 @@ export function buildPipelineSelectionContext(
     let amount = 0, atRiskCount = 0, atRiskAmount = 0;
     let stagnantCount = 0, stagnantAmount = 0, noNextActivityCount = 0;
     let totalDays = 0, daysCount = 0;
+    let totalRealStageDays = 0, realStageDaysCount = 0;
 
     for (const d of dealsInStage) {
       amount += d.amount;
@@ -215,6 +228,10 @@ export function buildPipelineSelectionContext(
           totalDays += (now - created) / (24 * 60 * 60 * 1000);
           daysCount++;
         }
+      }
+      if (typeof d.daysInStage === "number" && d.daysInStage >= 0) {
+        totalRealStageDays += d.daysInStage;
+        realStageDaysCount++;
       }
       if (isOpen) {
         if (d.probability < 0.3) { atRiskCount++; atRiskAmount += d.amount; }
@@ -244,12 +261,24 @@ export function buildPipelineSelectionContext(
       stagnantAmount,
       noNextActivityCount,
       avgDaysInStage: daysCount > 0 ? Math.round(totalDays / daysCount) : 0,
+      avgRealTimeInStageDays: realStageDaysCount > 0 ? Math.round(totalRealStageDays / realStageDaysCount) : 0,
+      shareCount: 0, // computé après
+      shareWeightedAmount: 0, // computé après
+      noActivityRate: count > 0 && isOpen ? Math.round((noNextActivityCount / count) * 100) : 0,
     };
   });
 
   const totalDeals = dealsInSelection.length;
   const totalAmount = dealsInSelection.reduce((s, d) => s + d.amount, 0);
   const totalWeightedAmount = byStage.reduce((s, sm) => s + sm.weightedAmount, 0);
+
+  // Calcule les parts shareCount + shareWeightedAmount par stage
+  for (const sm of byStage) {
+    sm.shareCount = totalDeals > 0 ? Math.round((sm.count / totalDeals) * 100) : 0;
+    sm.shareWeightedAmount = totalWeightedAmount > 0
+      ? Math.round((sm.weightedAmount / totalWeightedAmount) * 100)
+      : 0;
+  }
 
   const openIds = new Set(selectedStages.filter((s) => !s.closedWon && !s.closedLost).map((s) => s.id));
   const wonIds = new Set(selectedStages.filter((s) => s.closedWon).map((s) => s.id));
@@ -1028,5 +1057,147 @@ export function buildCycleVentesSimulations(
     }
   }
 
+  // ── Simulations stage-par-stage générées dynamiquement à partir des
+  //    métriques réelles HubSpot (hs_time_in_latest_deal_stage,
+  //    concentration, weighted share, no_next_activity rate).
+  //    Une stage peut générer 0 à 4 sims selon ses anomalies détectées.
+  for (const sim of buildStageSpecificSimulations(context)) {
+    result[sim.section].push(sim);
+  }
+
   return result;
+}
+
+/**
+ * Génère des SmartSimulations spécifiques à chaque étape "ouverte" du
+ * pipeline en exploitant les vraies métriques HubSpot :
+ *   - hs_time_in_latest_deal_stage → temps réel passé dans la stage
+ *   - concentration (% du nb deals)
+ *   - share weighted (% du CA pondéré)
+ *   - taux de no_next_activity dans la stage
+ *
+ * 4 patterns testés par stage :
+ *   A. Vélocité stage trop lente (avgRealTimeInStageDays > 14 + count >= 3)
+ *   B. Bottleneck volume (shareCount > 35%)
+ *   C. Forecast contributor (shareWeightedAmount > 25%)
+ *   D. Activity gap (noActivityRate > 50% + count >= 3)
+ */
+function buildStageSpecificSimulations(ctx: PipelineSelectionContext): SmartSimulation[] {
+  const sims: SmartSimulation[] = [];
+  const baseProps = {
+    simulationCategory: "cycle_ventes" as const,
+    pipelineId: ctx.pipeline.id,
+    pipelineLabel: ctx.pipeline.label,
+  };
+
+  // On ne génère QUE pour les stages ouvertes (pas closed_won / closed_lost)
+  const openStages = ctx.byStage.filter((s) => !s.closedWon && !s.closedLost);
+
+  for (const sm of openStages) {
+    if (sm.count === 0) continue;
+    const stageScopeIds = [sm.stageId];
+
+    // ── A. Vélocité stage trop lente ──────────────────────────────
+    if (sm.avgRealTimeInStageDays > 14 && sm.count >= 3) {
+      const target = Math.max(7, Math.round(sm.avgRealTimeInStageDays * 0.7));
+      const gainDeals = Math.round(sm.count * 0.25);
+      sims.push({
+        id: `stage.${sm.stageId}.velocity`,
+        section: "velocity",
+        title: `Stage « ${sm.stageLabel} » : ${sm.avgRealTimeInStageDays}j → ${target}j en 60 jours`,
+        description: `${sm.count} deals stagnent en moyenne ${sm.avgRealTimeInStageDays}j dans cette étape (cible top quartile : ${target}j). Audit du process de qualification + setup d'un workflow de relance auto à J+${Math.round(target / 2)}.`,
+        impact: `~${gainDeals} deal${gainDeals > 1 ? "s" : ""} déstagné${gainDeals > 1 ? "s" : ""} / mois — ${fmtK(sm.amount * 0.25 * (sm.probability / 100))} CA pondéré débloqué`,
+        category: "sales",
+        color: "from-blue-500 to-indigo-600",
+        forecastType: `stage_velocity_${sm.stageId}`,
+        threshold: target,
+        direction: "below",
+        ...baseProps,
+        selectedStageIds: stageScopeIds,
+      });
+    }
+
+    // ── B. Bottleneck volume (concentration deals) ────────────────
+    if (sm.shareCount > 35) {
+      sims.push({
+        id: `stage.${sm.stageId}.bottleneck`,
+        section: "analytics",
+        title: `Stage « ${sm.stageLabel} » concentre ${sm.shareCount}% du pipeline`,
+        description: `${sm.count} deals (${sm.shareCount}% du total ouvert) sont coincés sur cette seule étape. Bottleneck typique d'une qualification trop large ou d'un handoff manquant vers la suite.`,
+        impact: `Réduire la concentration sous 25% = +${Math.round(sm.count * 0.4)} deals progressés vers la suite`,
+        category: "sales",
+        color: "from-fuchsia-500 to-rose-600",
+        forecastType: `stage_concentration_${sm.stageId}`,
+        threshold: 25,
+        direction: "below",
+        ...baseProps,
+        selectedStageIds: stageScopeIds,
+      });
+    }
+
+    // ── C. Forecast contributor (poids pondéré) ───────────────────
+    if (sm.shareWeightedAmount > 25 && sm.weightedAmount > 0) {
+      sims.push({
+        id: `stage.${sm.stageId}.forecast_contrib`,
+        section: "forecast",
+        title: `Stage « ${sm.stageLabel} » = ${sm.shareWeightedAmount}% du CA pondéré`,
+        description: `${fmtK(sm.weightedAmount)} pondéré sur ${sm.count} deals à ${sm.probability}% de proba. Cette stage porte le forecast : revue hebdo obligatoire + plan d'action sur chaque deal pour sécuriser le quarter.`,
+        impact: `+10 pts de closing sur cette stage = +${fmtK(sm.amount * 0.1)} de CA réalisé`,
+        category: "sales",
+        color: "from-emerald-500 to-teal-600",
+        forecastType: `stage_forecast_${sm.stageId}`,
+        threshold: sm.probability + 10,
+        direction: "above",
+        ...baseProps,
+        selectedStageIds: stageScopeIds,
+      });
+    }
+
+    // ── D. Activity gap (no next_activity_date) ───────────────────
+    if (sm.noActivityRate > 50 && sm.count >= 3) {
+      sims.push({
+        id: `stage.${sm.stageId}.activity_gap`,
+        section: "risk",
+        title: `Stage « ${sm.stageLabel} » : ${sm.noActivityRate}% sans next activity`,
+        description: `${sm.noNextActivityCount}/${sm.count} deals dans cette étape n'ont aucune prochaine activité planifiée. Workflow auto à activer : tâche de relance créée à J+5 sans activity.`,
+        impact: `Récupérer ${Math.round(sm.noNextActivityCount * 0.6)} deals avec suivi actif = ${fmtK(sm.amount * 0.6 * (sm.probability / 100))} pondéré sécurisé`,
+        category: "sales",
+        color: "from-rose-500 to-orange-600",
+        forecastType: `stage_no_activity_${sm.stageId}`,
+        threshold: 25,
+        direction: "below",
+        ...baseProps,
+        selectedStageIds: stageScopeIds,
+      });
+    }
+  }
+
+  // ── Détection drop-off entre stages successives (early → mid → late)
+  //    Compare le ratio count(stage N+1) / count(stage N) sur les 3 premières
+  //    transitions ouvertes : si < 30%, on flagge la chute.
+  for (let i = 0; i < openStages.length - 1; i++) {
+    const from = openStages[i];
+    const to = openStages[i + 1];
+    if (from.count < 5) continue;
+    const dropRatio = to.count / from.count;
+    if (dropRatio < 0.3) {
+      const dropPct = Math.round((1 - dropRatio) * 100);
+      sims.push({
+        id: `stage.${from.stageId}_to_${to.stageId}.dropoff`,
+        section: "analytics",
+        title: `Drop-off ${dropPct}% entre « ${from.stageLabel} » et « ${to.stageLabel} »`,
+        description: `${from.count} deals dans « ${from.stageLabel} » mais seulement ${to.count} dans « ${to.stageLabel} » (${dropPct}% de chute). Audit script de transition : qu'est-ce qui bloque le passage ?`,
+        impact: `Réduire le drop sous 50% = +${Math.round(from.count * 0.2)} deals supplémentaires en stage suivante`,
+        category: "sales",
+        color: "from-orange-500 to-rose-600",
+        forecastType: `stage_dropoff_${from.stageId}`,
+        threshold: 50,
+        direction: "below",
+        ...baseProps,
+        selectedStageIds: [from.stageId, to.stageId],
+      });
+    }
+  }
+
+  return sims;
 }
