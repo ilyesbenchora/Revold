@@ -79,6 +79,19 @@ async function listAll<T>(token: string, endpoint: string, max = 1000): Promise<
   return all;
 }
 
+/**
+ * Validate Sellsy creds by attempting OAuth2 client_credentials exchange.
+ * Catches bad client_id and bad client_secret in one call.
+ */
+export async function pingSellsy(clientId: string, clientSecret: string): Promise<boolean> {
+  try {
+    const token = await getSellsyAccessToken(clientId, clientSecret);
+    return Boolean(token);
+  } catch {
+    return false;
+  }
+}
+
 export const listSellsyCompanies = (token: string, max = 1000) =>
   listAll<SellsyCompany>(token, "/companies", max);
 

@@ -2,27 +2,78 @@ export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
+import { BrandLogo } from "@/components/brand-logo";
+import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import {
+  buildContext,
+  buildScenarios,
+  fetchDismissals,
+  fetchIntegrationInsights,
+  fetchCrossSourceInsights,
+  fetchDataModelInsights,
+  selectInsights,
+} from "./insights-ia/context";
+import { getTabCounts } from "@/lib/reports/report-tab-counts";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
+  if (!orgId) {
+    return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
+  }
   const supabase = await createSupabaseServerClient();
+  const token = await getHubSpotToken(supabase, orgId);
 
-  const [snapshot, { data: integrations }] = await Promise.all([
+  // Connexion HubSpot OAuth réelle (refresh_token + portal_id présents).
+  // Source de vérité pour décider si on affiche le bandeau "Connectez HubSpot".
+  const { data: hubspotRow } = await supabase
+    .from("integrations")
+    .select("refresh_token, portal_id")
+    .eq("organization_id", orgId)
+    .eq("provider", "hubspot")
+    .eq("is_active", true)
+    .maybeSingle();
+  const hubspotConnected = Boolean(hubspotRow?.refresh_token && hubspotRow?.portal_id);
+
+  const [snapshot, connectedTools, ctx, dismissals, integrationInsightsRes, tabCounts] = await Promise.all([
     getHubspotSnapshot(),
-    supabase
-      .from("integrations")
-      .select("provider, is_active")
-      .eq("organization_id", orgId)
-      .eq("is_active", true),
+    getConnectedTools(supabase, orgId),
+    buildContext(supabase, orgId),
+    fetchDismissals(supabase, orgId),
+    fetchIntegrationInsights(token),
+    getTabCounts(supabase, orgId),
   ]);
 
-  const contactCount = snapshot.totalContacts;
-  const dealCount = snapshot.totalDeals;
-  const openDealCount = snapshot.openDeals;
-  const wonAmount = snapshot.wonAmount;
-  const activeIntegrations = (integrations ?? []).length;
+  const connectedCats = connectedCategoriesSet(connectedTools);
+  const { dismissedKeys } = dismissals;
+  const { detectedIntegrations, integrationInsights } = integrationInsightsRes;
+
+  // ── Compteurs dashboard ──
+  // Coaching à faire : insights ouverts (non dismissés) toutes catégories.
+  const insightsByCategory = selectInsights(ctx, dismissedKeys);
+  const visibleIntegrationInsights = integrationInsights.filter((i) => !dismissedKeys.has(i.key));
+  const [crossSourceInsights, dataModelInsights] = await Promise.all([
+    fetchCrossSourceInsights(supabase, orgId, dismissedKeys, connectedCats),
+    fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys),
+  ]);
+  const coachingTotal =
+    insightsByCategory.commercial.length +
+    insightsByCategory.marketing.length +
+    insightsByCategory.data.length +
+    visibleIntegrationInsights.length +
+    crossSourceInsights.length +
+    dataModelInsights.length;
+
+  // Simulations IA : nb de scenarios après gating par outil connecté.
+  const simulationsTotal = buildScenarios(ctx, connectedCats).length;
+
+  // Rapports actionnables : activés + suggestions disponibles.
+  const reportsTotal = tabCounts.myCount + tabCounts.singleCount + tabCounts.multiCount;
+
+  const activeIntegrations = connectedTools.length;
 
   // ── Cards des sections principales — actionables, sans badge score ──
   const sections = [
@@ -97,17 +148,15 @@ export default async function DashboardOverviewPage() {
     },
   ];
 
-  const isEmpty = (contactCount ?? 0) === 0 && (dealCount ?? 0) === 0;
-
   return (
     <section className="space-y-8">
       {/* Header */}
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {isEmpty
-            ? "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."
-            : "Synthèse globale de votre intelligence revenue."}
+          {hubspotConnected
+            ? "Synthèse globale de votre intelligence revenue."
+            : "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."}
         </p>
       </header>
 
@@ -124,41 +173,73 @@ export default async function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* Hero — KPIs essentiels */}
+      {/* Hero — KPIs essentiels (4 tuiles dynamiques) */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
         <div className="p-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Contacts CRM</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(contactCount ?? 0).toLocaleString("fr-FR")}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Deals ouverts</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(openDealCount ?? 0).toLocaleString("fr-FR")}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">CA Closed Won</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
-                {wonAmount > 0 ? `${Math.round(wonAmount / 1000).toLocaleString("fr-FR")}K€` : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Outils connectés</p>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
+            {/* 1. Intégrations actives — count + logos dynamiques */}
+            <div className="md:col-span-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Intégrations actives</p>
+                <Link href="/dashboard/integration" className="text-[10px] font-medium text-accent hover:underline">Gérer →</Link>
+              </div>
               <p className="mt-1 text-2xl font-bold text-accent tabular-nums">{activeIntegrations}</p>
+              {connectedTools.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {connectedTools.slice(0, 8).map((t) => {
+                    const def = CONNECTABLE_TOOLS[t.key];
+                    return (
+                      <span
+                        key={t.key}
+                        title={`${t.label} · ${t.category}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-white px-1.5 py-1 ring-1 ring-slate-200"
+                      >
+                        <BrandLogo domain={def?.domain ?? t.domain} alt={t.label} fallback={t.icon} size={16} />
+                        <span className="text-[10px] font-medium text-slate-600">{t.label}</span>
+                      </span>
+                    );
+                  })}
+                  {connectedTools.length > 8 && (
+                    <span className="text-[10px] font-medium text-slate-500">+{connectedTools.length - 8}</span>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-[11px] text-slate-500">Aucun outil branché — commencez par HubSpot.</p>
+              )}
             </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Total deals</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{(dealCount ?? 0).toLocaleString("fr-FR")}</p>
-            </div>
+
+            {/* 2. Coaching à faire */}
+            <Link href="/dashboard/insights-ia" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Coachings à faire</p>
+              <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Recommandations IA actives</p>
+            </Link>
+
+            {/* 3. Simulations IA */}
+            <Link href="/dashboard/alertes" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Simulations IA</p>
+              <p className="mt-1 text-2xl font-bold text-amber-600 tabular-nums group-hover:text-amber-700">{simulationsTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Scénarios disponibles</p>
+            </Link>
+
+            {/* 4. Rapports actionnables */}
+            <Link href="/dashboard/rapports" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Rapports actionnables</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums group-hover:text-emerald-700">{reportsTotal.toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
+                {tabCounts.myCount} activés · {tabCounts.singleCount + tabCounts.multiCount} disponibles
+              </p>
+            </Link>
           </div>
-          {isEmpty && (
+
+          {!hubspotConnected && (
             <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-2.5">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 shrink-0">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               <p className="text-xs text-amber-800">
-                Aucune donnée pour l&apos;instant. <Link href="/dashboard/integration" className="font-medium underline hover:no-underline">Connectez votre CRM HubSpot</Link> pour démarrer.
+                HubSpot non connecté. <Link href="/dashboard/integration" className="font-medium underline hover:no-underline">Connectez HubSpot via OAuth</Link> pour démarrer.
               </p>
             </div>
           )}

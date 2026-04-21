@@ -67,6 +67,25 @@ async function qbQuery<T>(companyId: string, accessToken: string, sql: string): 
   return key ? ((qr as Record<string, unknown>)[key] as T[]) : [];
 }
 
+/**
+ * Validate QuickBooks creds: refresh the access token and hit a tiny query.
+ * Catches bad client_id, secret, refresh_token AND bad company_id in one path.
+ */
+export async function pingQuickBooks(
+  companyId: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<boolean> {
+  try {
+    const access = await refreshQbAccessToken(clientId, clientSecret, refreshToken);
+    await qbQuery(companyId, access, "SELECT COUNT(*) FROM Customer");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listQbCustomers = (companyId: string, token: string, max = 1000) =>
   qbQuery<QbCustomer>(companyId, token, `SELECT * FROM Customer MAXRESULTS ${max}`);
 

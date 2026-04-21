@@ -4,11 +4,15 @@ import { redirect } from "next/navigation";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
+import { pingTool } from "@/lib/integrations/ping";
 
 export async function connectToolAction(toolKey: string, formData: FormData) {
   const tool = getConnectableTool(toolKey);
   if (!tool) {
     redirect(`/dashboard/integration?error=unknown_tool`);
+  }
+  if (tool.comingSoon) {
+    redirect(`/dashboard/integration?error=coming_soon`);
   }
 
   const orgId = await getOrgId();
@@ -32,6 +36,15 @@ export async function connectToolAction(toolKey: string, formData: FormData) {
   }
   if (!primaryToken) {
     primaryToken = Object.values(credentials)[0] ?? "";
+  }
+
+  // ── Validate the credentials BEFORE marking the integration active ──
+  // Otherwise users see "Connecté" on garbage tokens and the next sync
+  // fails silently. This is the gate that protects pilots.
+  const ping = await pingTool(toolKey, credentials);
+  if (!ping.ok) {
+    const reason = encodeURIComponent(ping.reason);
+    redirect(`/dashboard/integration/connect/${toolKey}?error=invalid_token&reason=${reason}`);
   }
 
   const supabase = await createSupabaseServerClient();

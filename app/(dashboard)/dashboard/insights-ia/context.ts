@@ -759,10 +759,11 @@ export async function fetchCrossSourceInsights(
   supabase: SupabaseClient,
   orgId: string,
   dismissedKeys: Set<string>,
+  connected?: import("@/lib/insights/cross-source").ConnectedCategorySet,
 ) {
   const crossSourceCtx = await buildCrossSourceContext(supabase, orgId);
   return crossSourceCtx
-    ? selectCrossSourceInsights(crossSourceCtx, dismissedKeys)
+    ? selectCrossSourceInsights(crossSourceCtx, dismissedKeys, connected)
     : [];
 }
 
@@ -823,7 +824,9 @@ export async function fetchDataModelInsights(
 
 // ── Scenarios ──
 
-export function buildScenarios(ctx: InsightContext) {
+type ConnectedCats = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication">;
+
+export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCats) {
   const {
     closingRate,
     wonDeals: won,
@@ -858,6 +861,8 @@ export function buildScenarios(ctx: InsightContext) {
     threshold: number;
     direction: "above" | "below";
     show: boolean;
+    /** Catégories d'outils Revold requises pour que la simulation ait du sens. */
+    requires?: Array<"billing" | "support" | "phone" | "conv_intel">;
   };
 
   // ⚠ Plus de short-circuit hasXSignal : produisait du flicker car les counts
@@ -1276,6 +1281,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "mrr_growth",
       threshold: 110,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1312,6 +1318,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "churn_rate",
       threshold: 5,
       direction: "below",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1324,6 +1331,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "nrr",
       threshold: 100,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1336,6 +1344,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "expansion_mrr",
       threshold: 10,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1348,6 +1357,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "ltv_growth",
       threshold: 130,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1360,6 +1370,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "deals_invoices_match",
       threshold: 100,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1372,6 +1383,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "subscriptions_growth",
       threshold: 120,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1384,6 +1396,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "invoice_recovery",
       threshold: 80,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1432,6 +1445,7 @@ export function buildScenarios(ctx: InsightContext) {
       forecastType: "cross_sell",
       threshold: 30,
       direction: "above",
+      requires: ["billing"],
     },
     {
       show: true,
@@ -1633,8 +1647,49 @@ export function buildScenarios(ctx: InsightContext) {
     },
   ];
 
-  // Helper interne pour formatter les amounts
-  return [...cycleVentes, ...lifecycle, ...revenue, ...dataQuality].filter((s) => s.show);
+  // Gate les sims qui requièrent un outil non connecté : on n'invente pas
+  // de données revenue/MRR/NRR sans billing branché, ni de churn signals
+  // sans support, etc. Filtre silencieux ; un CTA dédié est ajouté dans
+  // la liste cross-source des coachings.
+  const gated = [...cycleVentes, ...lifecycle, ...revenue, ...dataQuality].filter((s) => {
+    if (!s.show) return false;
+    if (!s.requires || s.requires.length === 0) return true;
+    if (!connectedCats) return true; // Pas de gate si l'appelant ne fournit pas l'info
+    return s.requires.every((req) => connectedCats.has(req));
+  });
+  return gated;
+}
+
+/**
+ * Quelles catégories de simulations sont bloquées faute d'outil connecté ?
+ * Utilisé pour afficher un CTA explicite « Connectez X » sur la page
+ * Simulations IA, pour chaque tab dont au moins une sim a été filtrée.
+ */
+export type BlockedSimCategory = {
+  category: "billing" | "support" | "phone" | "conv_intel";
+  affectedTabs: Array<"revenue" | "cycle_ventes" | "marketing_cycle" | "data_quality">;
+  blockedCount: number;
+};
+
+export function detectBlockedSimulations(
+  ctx: InsightContext,
+  connectedCats: ConnectedCats,
+): BlockedSimCategory[] {
+  const all = buildScenarios(ctx); // Sans gating
+  const blocked: Record<string, BlockedSimCategory> = {};
+  for (const s of all) {
+    if (!s.requires) continue;
+    for (const req of s.requires) {
+      if (connectedCats.has(req)) continue;
+      const tab = s.simulationCategory === "deals_risk" ? "cycle_ventes" : s.simulationCategory;
+      if (!blocked[req]) {
+        blocked[req] = { category: req, affectedTabs: [], blockedCount: 0 };
+      }
+      blocked[req].blockedCount++;
+      if (!blocked[req].affectedTabs.includes(tab)) blocked[req].affectedTabs.push(tab);
+    }
+  }
+  return Object.values(blocked);
 }
 
 function snapshotAmount(_ctx: InsightContext): string {

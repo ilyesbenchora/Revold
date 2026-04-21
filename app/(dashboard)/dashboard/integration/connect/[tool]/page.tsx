@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_org: "Aucune organisation associée à votre compte.",
   save_failed: "Erreur lors de l'enregistrement des identifiants. Réessayez.",
   unknown_tool: "Outil inconnu.",
+  invalid_token: "Identifiants refusés par l'outil. Vérifiez chaque champ et réessayez.",
 };
 
 export default async function ConnectToolPage({
@@ -25,6 +26,24 @@ export default async function ConnectToolPage({
   const sp = await searchParams;
   const tool = getConnectableTool(toolKey);
   if (!tool) notFound();
+  if (tool.comingSoon) {
+    return (
+      <section className="mx-auto max-w-2xl space-y-6">
+        <Link href="/dashboard/integration" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
+          ← Retour aux intégrations
+        </Link>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+          <div className="mx-auto inline-flex grayscale">
+            <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={56} />
+          </div>
+          <p className="mt-4 text-base font-semibold text-slate-900">{tool.label} — Bientôt disponible</p>
+          <p className="mt-2 text-sm text-slate-600">
+            Pour les pilotes en cours, Revold se concentre sur HubSpot. Le connecteur {tool.label} sera activé prochainement.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   // Detect existing connection
   let alreadyConnected = false;
@@ -42,6 +61,7 @@ export default async function ConnectToolPage({
   }
 
   const errorKey = typeof sp.error === "string" ? sp.error : null;
+  const errorReason = typeof sp.reason === "string" ? sp.reason : null;
   const errorMessage = errorKey
     ? ERROR_MESSAGES[errorKey] ?? (errorKey.startsWith("missing_") ? `Champ requis manquant : ${errorKey.replace("missing_", "")}` : "Une erreur est survenue.")
     : null;
@@ -100,7 +120,8 @@ export default async function ConnectToolPage({
 
         {errorMessage && (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {errorMessage}
+            <p className="font-semibold">{errorMessage}</p>
+            {errorReason && <p className="mt-1 text-xs text-red-600">{errorReason}</p>}
           </div>
         )}
 

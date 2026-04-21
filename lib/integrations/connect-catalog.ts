@@ -29,6 +29,12 @@ export type ConnectableTool = {
   oauth?: boolean;
   /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
   connectUrl?: string;
+  /**
+   * True si l'outil est listé mais pas encore activable pour les pilotes.
+   * UI: card grisée avec badge "Bientôt", non-cliquable, exclue des
+   * connexions / pings / simulations cross-source.
+   */
+  comingSoon?: boolean;
   description: string;
   helpUrl: string;
   helpText: string;
@@ -58,6 +64,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "☁️",
     domain: "salesforce.com",
     category: "crm",
+    comingSoon: true,
     description: "CRM B2B leader mondial. Synchronisez contacts, comptes, opportunités et activités directement dans Revold.",
     helpUrl: "https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm",
     helpText: "Récupérez votre Security Token depuis Salesforce : Setup → Personal Information → Reset Security Token.",
@@ -74,6 +81,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "🟢",
     domain: "pipedrive.com",
     category: "crm",
+    comingSoon: true,
     description: "CRM pipeline-first orienté PME. Synchronisez deals, contacts et activités.",
     helpUrl: "https://support.pipedrive.com/en/article/how-can-i-find-my-personal-api-key",
     helpText: "Récupérez votre API Token : Settings → Personal preferences → API.",
@@ -89,6 +97,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "🟣",
     domain: "zoho.com",
     category: "crm",
+    comingSoon: true,
     description: "Suite CRM tout-en-un. Synchronisez leads, comptes, deals et tâches.",
     helpUrl: "https://www.zoho.com/crm/developer/docs/api/v6/auth-request.html",
     helpText: "Générez un OAuth refresh token via le Zoho API Console (Self-Client).",
@@ -106,6 +115,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "🟦",
     domain: "monday.com",
     category: "crm",
+    comingSoon: true,
     description: "CRM visuel collaboratif. Synchronisez vos boards CRM, items et activités.",
     helpUrl: "https://developer.monday.com/api-reference/docs/authentication",
     helpText: "Récupérez votre API Token : Avatar → Developers → My access tokens.",

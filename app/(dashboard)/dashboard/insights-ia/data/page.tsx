@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { buildContext, fetchDismissals, fetchTrackingStats, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
@@ -18,11 +20,13 @@ export default async function DataCoachingPage() {
   const token = await getHubSpotToken(supabase, orgId);
   const portalId = await getOrgHubspotPortalId(supabase, orgId);
   const hubspotLinks = buildHubspotLinks(portalId);
-  const [ctx, { dismissedKeys }, manualCoachings] = await Promise.all([
+  const [ctx, { dismissedKeys }, manualCoachings, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchReportCoachings(supabase, orgId, "data", ["active", "done", "removed"]),
+    getConnectedTools(supabase, orgId),
   ]);
+  const connectedSummary = summarizeConnected(connectedTools);
 
   const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
@@ -62,5 +66,10 @@ export default async function DataCoachingPage() {
     })),
   ];
 
-  return <CoachingPageTabs allItems={allItems} categoryLabel="data" />;
+  return (
+    <div className="space-y-6">
+      <MultiToolBanner summary={connectedSummary} />
+      <CoachingPageTabs allItems={allItems} categoryLabel="data" />
+    </div>
+  );
 }

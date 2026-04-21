@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
@@ -21,12 +23,14 @@ export default async function MarketingCoachingPage() {
   const NEW_WORKFLOW = portalId ? `https://app.hubspot.com/workflows/${portalId}/new` : "https://app.hubspot.com/workflows";
   const PROPERTIES = hubspotLinks.properties;
 
-  const [ctx, { dismissedKeys }, { workflows }, manualCoachings] = await Promise.all([
+  const [ctx, { dismissedKeys }, { workflows }, manualCoachings, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchWorkflows(token),
     fetchReportCoachings(supabase, orgId, "marketing", ["active", "done", "removed"]),
+    getConnectedTools(supabase, orgId),
   ]);
+  const connectedSummary = summarizeConnected(connectedTools);
 
   const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
@@ -115,5 +119,10 @@ export default async function MarketingCoachingPage() {
     })),
   ];
 
-  return <CoachingPageTabs allItems={allItems} categoryLabel="marketing" />;
+  return (
+    <div className="space-y-6">
+      <MultiToolBanner summary={connectedSummary} />
+      <CoachingPageTabs allItems={allItems} categoryLabel="marketing" />
+    </div>
+  );
 }

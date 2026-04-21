@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
   fetchDismissals,
@@ -36,11 +38,14 @@ export default async function MesCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
 
-  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }] = await Promise.all([
+  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchIntegrationInsights(token),
+    getConnectedTools(supabase, orgId),
   ]);
+  const connectedSummary = summarizeConnected(connectedTools);
+  const connectedCats = connectedCategoriesSet(connectedTools);
 
   const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
@@ -48,7 +53,7 @@ export default async function MesCoachingPage() {
 
   const insightsByCategory = selectInsights(ctx, dismissedKeys);
   const visibleIntegrationInsights = integrationInsights.filter((i) => !dismissedKeys.has(i.key));
-  const crossSourceInsights = await fetchCrossSourceInsights(supabase, orgId, dismissedKeys);
+  const crossSourceInsights = await fetchCrossSourceInsights(supabase, orgId, dismissedKeys, connectedCats);
   const dataModelInsights = await fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys);
 
   const categories = [
@@ -91,6 +96,8 @@ export default async function MesCoachingPage() {
 
   return (
     <div className="space-y-8">
+      <MultiToolBanner summary={connectedSummary} />
+
       {/* Coaching réalisé — horizontal carousel */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">

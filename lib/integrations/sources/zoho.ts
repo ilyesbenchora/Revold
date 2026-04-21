@@ -106,6 +106,24 @@ export const listZohoContacts = (dc: string, token: string, max = 2000) =>
 export const listZohoDeals = (dc: string, token: string, max = 2000) =>
   listAll<ZohoDeal>(dc, token, "Deals", max);
 
+/**
+ * Validate Zoho creds by exchanging the refresh token for an access token.
+ * Catches bad client_id/secret/refresh_token AND bad data_center.
+ */
+export async function pingZoho(
+  dc: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<boolean> {
+  try {
+    const token = await refreshAccessToken(dc, clientId, clientSecret, refreshToken);
+    return Boolean(token);
+  } catch {
+    return false;
+  }
+}
+
 export function extractDomain(url?: string | null): string | null {
   if (!url) return null;
   try {

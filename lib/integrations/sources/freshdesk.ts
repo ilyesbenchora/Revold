@@ -77,6 +77,18 @@ const PRIORITY_MAP: Record<number, string> = { 1: "low", 2: "normal", 3: "high",
 const STATUS_MAP: Record<number, string> = { 2: "open", 3: "pending", 4: "closed", 5: "closed" };
 const SOURCE_MAP: Record<number, string> = { 1: "email", 2: "web", 3: "phone", 7: "chat" };
 
+/**
+ * Validate Freshdesk creds via /agents/me. Catches bad subdomain + bad key.
+ */
+export async function pingFreshdesk(subdomain: string, apiKey: string): Promise<boolean> {
+  try {
+    await fdFetch(subdomain, apiKey, "/agents/me");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listFreshdeskContacts = (sub: string, key: string, max = 1000) =>
   listAll<FreshdeskContact>(sub, key, "/contacts", max);
 

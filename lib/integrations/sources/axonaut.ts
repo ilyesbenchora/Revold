@@ -49,6 +49,16 @@ async function listAll<T>(apiKey: string, endpoint: string, max = 1000): Promise
   return all;
 }
 
+/** Validate Axonaut API key via /companies (smallest authenticated call). */
+export async function pingAxonaut(apiKey: string): Promise<boolean> {
+  try {
+    await axoFetch(apiKey, "/companies?page=1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listAxonautCompanies = (key: string, max = 1000) =>
   listAll<AxonautCompany>(key, "/companies", max);
 

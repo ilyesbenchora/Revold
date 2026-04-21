@@ -69,6 +69,23 @@ async function listAll<T>(
   return all;
 }
 
+/**
+ * Validate Crisp creds via /website/{id}/people/stats.
+ * Catches bad website_id, identifier, key in one call.
+ */
+export async function pingCrisp(
+  websiteId: string,
+  identifier: string,
+  key: string,
+): Promise<boolean> {
+  try {
+    await crispFetch(identifier, key, `/website/${websiteId}/people/stats`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listCrispProfiles = (websiteId: string, identifier: string, key: string, max = 1000) =>
   listAll<CrispProfile>(identifier, key, `/website/${websiteId}/people/profiles`, max);
 

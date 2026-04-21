@@ -59,6 +59,16 @@ export async function listMondayItems(token: string, boardId: string, max = 500)
   return res.boards?.[0]?.items_page?.items ?? [];
 }
 
+/** Validate monday API token via the `me` query (smallest authenticated call). */
+export async function pingMonday(token: string): Promise<boolean> {
+  try {
+    const res = await gql<{ me: { id: string } }>(token, `query { me { id } }`);
+    return Boolean(res?.me?.id);
+  } catch {
+    return false;
+  }
+}
+
 /** Heuristic: pick boards that look like CRM/Deals/Pipeline. */
 export function pickCrmBoards(boards: MondayBoard[]): MondayBoard[] {
   const re = /(crm|deal|pipeline|sales|opportunit|client)/i;

@@ -11,6 +11,8 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { RapportsTabs } from "@/components/rapports-tabs";
 import { ReportListWithFilter } from "@/components/report-list-with-filter";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
 
 export default async function RapportsIntegrationUniquePage() {
   const [supabase, orgId] = await Promise.all([
@@ -65,6 +67,10 @@ export default async function RapportsIntegrationUniquePage() {
   const tabCounts = orgId ? await getTabCounts(supabase, orgId) : { myCount: 0, singleCount: 0, multiCount: 0 };
   tabCounts.singleCount = available.length;
 
+  const connectedSummary = orgId
+    ? summarizeConnected(await getConnectedTools(supabase, orgId))
+    : summarizeConnected([]);
+
   return (
     <section className="space-y-8">
       <header>
@@ -75,6 +81,8 @@ export default async function RapportsIntegrationUniquePage() {
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
+
+      <MultiToolBanner summary={connectedSummary} />
 
       <ReportListWithFilter
         reports={available.map((r) => ({

@@ -81,6 +81,22 @@ async function listAll<T>(
   return all;
 }
 
+/**
+ * Validate Zendesk creds via /users/me. Catches bad subdomain, email, token.
+ */
+export async function pingZendesk(
+  subdomain: string,
+  email: string,
+  token: string,
+): Promise<boolean> {
+  try {
+    await zdFetch(subdomain, email, token, "/users/me.json");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listZendeskUsers = (sub: string, email: string, token: string, max = 1000) =>
   listAll<ZendeskUser>(sub, email, token, "/users.json", "users", max);
 

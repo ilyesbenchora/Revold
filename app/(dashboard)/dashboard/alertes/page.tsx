@@ -4,7 +4,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { SimulationTabs, type SimulationItem, type AlertItem } from "@/components/simulation-tabs";
-import { buildContext, buildScenarios } from "../insights-ia/context";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { BlockedSimulationsNotice } from "@/components/blocked-simulations-notice";
+import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { buildContext, buildScenarios, detectBlockedSimulations } from "../insights-ia/context";
 
 export default async function ScenariosPage() {
   const orgId = await getOrgId();
@@ -14,7 +17,7 @@ export default async function ScenariosPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [ctx, { data: allAlerts }, snapshot] = await Promise.all([
+  const [ctx, { data: allAlerts }, snapshot, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     supabase
       .from("alerts")
@@ -22,12 +25,16 @@ export default async function ScenariosPage() {
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false }),
     getHubspotSnapshot(),
+    getConnectedTools(supabase, orgId),
   ]);
+  const connectedSummary = summarizeConnected(connectedTools);
+  const connectedCats = connectedCategoriesSet(connectedTools);
 
-  // Les 30 simulations s'affichent toujours — buildContext fait fallback HubSpot
-  // direct si Supabase est vide. Les scénarios deviennent juste plus génériques
-  // tant qu'il n'y a aucune donnée connectée (zéros propres, pas d'empty state).
-  const scenarios = buildScenarios(ctx) as SimulationItem[];
+  // Les simulations sont gatées par catégorie d'outil connecté. Sans billing
+  // branché, les sims revenue MRR/NRR/LTV/factures sont retirées (pas de
+  // données inventées) et un encart « Connectez X » s'affiche à la place.
+  const scenarios = buildScenarios(ctx, connectedCats) as SimulationItem[];
+  const blockedSims = detectBlockedSimulations(ctx, connectedCats);
   const alerts = (allAlerts ?? []) as AlertItem[];
 
   return (
@@ -41,6 +48,10 @@ export default async function ScenariosPage() {
         </div>
         <CreateAlertModal />
       </header>
+
+      <MultiToolBanner summary={connectedSummary} />
+
+      {blockedSims.length > 0 && <BlockedSimulationsNotice blocked={blockedSims} />}
 
       <SimulationTabs
         scenarios={scenarios}

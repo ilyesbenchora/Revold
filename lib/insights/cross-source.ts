@@ -45,7 +45,16 @@ export type CrossSourceInsight = {
   title: string;
   body: string;
   recommendation: string;
+  /** Catégories d'outils Revold requises pour que cet insight soit pertinent. */
+  requires?: Array<"billing" | "support" | "phone" | "conv_intel" | "communication">;
 };
+
+/**
+ * Set des catégories d'outils que l'org a connectées dans Revold (table
+ * integrations). Sert à filtrer les insights/sims qui inventeraient de la
+ * donnée sur des outils absents.
+ */
+export type ConnectedCategorySet = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication">;
 
 /**
  * Build the cross-source context. Returns null if the canonical tables don't
@@ -216,10 +225,16 @@ function fmtMoney(amount: number, currency: string): string {
 /**
  * Generate cross-source insights from the context.
  * Filters out insights that the user has already dismissed.
+ *
+ * `connected` (optionnel) : catégories d'outils branchées à Revold. Si fourni,
+ * les insights `requires` non couverts sont exclus pour ne pas inventer de la
+ * donnée. À la place, un seul CTA explicite par catégorie manquante est ajouté
+ * en queue (cross_connect_*).
  */
 export function selectCrossSourceInsights(
   ctx: CrossSourceContext,
   dismissedKeys: Set<string>,
+  connected?: ConnectedCategorySet,
 ): CrossSourceInsight[] {
   const insights: CrossSourceInsight[] = [];
 
@@ -289,7 +304,10 @@ export function selectCrossSourceInsights(
     });
   }
 
-  // ── ALWAYS-ON cross-source recommendations (toujours pertinentes) ──
+  // ── ALWAYS-ON cross-source recommendations ──
+  // Chaque item est tagué avec `requires` : les catégories d'outils Revold
+  // nécessaires pour que la recommandation soit pertinente. Si l'org n'a pas
+  // l'outil branché, on n'invente PAS la donnée — on remplace par un CTA.
   insights.push(
     {
       key: "cross_forecast_vs_billing",
@@ -297,6 +315,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Réconcilier forecast HubSpot vs facturation réelle",
       body: "Le forecast pipeline et le CA encaissé Stripe/Pennylane divergent souvent de 10-30%. Sans réconciliation, on pilote sur un forecast déconnecté du cash réel.",
       recommendation: "Activer le rapport « Forecast HubSpot vs CA encaissé » qui matche les deals gagnés à leurs factures. Audit mensuel des écarts > 5%.",
+      requires: ["billing"],
     },
     {
       key: "cross_csm_account_health",
@@ -304,6 +323,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Account health score multi-sources",
       body: "Combiner usage produit + tickets support + factures impayées + sentiment NPS donne un score de santé client bien plus fiable qu'un signal seul.",
       recommendation: "Construire un score composite dans Revold avec 4-5 inputs cross-source. Alertes proactives sur les comptes qui dégradent leur score.",
+      requires: ["billing", "support"],
     },
     {
       key: "cross_quote_to_invoice_speed",
@@ -311,6 +331,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Mesurer le délai devis → facture",
       body: "Plus le cycle quote→invoice est long, plus le DSO augmente. Un cycle court accélère le cash et révèle les frictions process.",
       recommendation: "Croiser dates devis HubSpot et émission facture Stripe. Cible : < 5 jours pour les < 5k€, < 15 jours pour les comptes complexes.",
+      requires: ["billing"],
     },
     {
       key: "cross_churn_signals",
@@ -318,6 +339,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Détection churn multi-signaux",
       body: "Le churn se prédit avec 3-4 signaux faibles : baisse usage, augmentation tickets, retard paiement, NPS détracteur. Aucun outil seul ne voit l'ensemble.",
       recommendation: "Workflow Revold qui agrège les signaux et flagge les comptes en zone risque. Notification CSM 60 jours avant renouvellement à risque.",
+      requires: ["support", "billing"],
     },
     {
       key: "cross_expansion_signals",
@@ -325,6 +347,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Détection expansion multi-signaux",
       body: "Les comptes prêts pour l'upsell ont des patterns : usage croissant + nombre d'utilisateurs additionnés + activations features avancées + NPS promoteur.",
       recommendation: "Créer un scoring expansion qui combine ces inputs. Workflow d'attribution automatique au CSM expansion sur les top scorers.",
+      requires: ["billing"],
     },
     {
       key: "cross_attribution_revenue",
@@ -332,6 +355,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Attribution revenue multi-touch",
       body: "Sans cross-source, l'attribution se fait sur le dernier touch (souvent direct). On surévalue le brand au détriment des canaux d'acquisition réels.",
       recommendation: "Construire un modèle d'attribution multi-touch en croisant marketing campaigns + leads + deals + revenue. Revoir l'allocation budget mensuellement.",
+      requires: ["billing"],
     },
     {
       key: "cross_data_completeness_audit",
@@ -339,6 +363,8 @@ export function selectCrossSourceInsights(
       title: "🔗 Audit de complétude data inter-outils",
       body: "Chaque tool a sa source de vérité : HubSpot pour le CRM, Stripe pour le revenue, Zendesk pour le support. Sans audit, des trous se créent.",
       recommendation: "Créer un dashboard Revold qui montre, pour chaque entité (compte, contact, deal), si elle existe dans tous les tools attendus. Alertes sur les manquants.",
+      // Pertinent dès qu'on a un 2e outil connecté en plus du CRM.
+      requires: ["billing"],
     },
     {
       key: "cross_unified_customer_view",
@@ -346,6 +372,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Vue client unifiée 360°",
       body: "Sans vue unifiée, les équipes consultent 5 outils pour comprendre un client. Friction massive + risque d'erreur (versions différentes).",
       recommendation: "Construire une fiche client Revold qui agrège : deals HubSpot + paiements Stripe + tickets Zendesk + activité produit. Source de vérité unique.",
+      requires: ["billing", "support"],
     },
     {
       key: "cross_sales_finance_alignment",
@@ -353,6 +380,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Aligner sales et finance sur la définition d'un deal gagné",
       body: "Sales considère un deal gagné = signature contrat. Finance = première facture émise. Cet écart explique 80% des conflits forecast vs CA.",
       recommendation: "Réunion sales + finance pour figer une définition commune. Workflow HubSpot qui ne marque « won » qu'à émission de la 1ʳᵉ facture.",
+      requires: ["billing"],
     },
     {
       key: "cross_data_warehouse",
@@ -360,6 +388,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Stocker l'historique cross-source dans un entrepôt",
       body: "Les outils SaaS ont des historiques limités (90j, 1an). Pour analyser sur > 1 an, il faut un entrepôt (BigQuery, Snowflake, Postgres dédié).",
       recommendation: "Brancher un connecteur Fivetran/Airbyte vers BigQuery/Snowflake. Revold devient le tableau de bord, l'entrepôt garde la mémoire long terme.",
+      requires: ["billing"],
     },
     {
       key: "cross_attribution_offline",
@@ -367,6 +396,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Réintégrer les revenus offline (factures papier, virements)",
       body: "Beaucoup de B2B ont 30-50% de CA offline (factures papier, virements directs). Sans réintégration, l'attribution est faussée.",
       recommendation: "Process mensuel d'import des factures non-Stripe (depuis l'ERP ou Pennylane). Tag « offline » pour les distinguer dans les rapports.",
+      requires: ["billing"],
     },
     {
       key: "cross_sla_response_times",
@@ -374,6 +404,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Mesurer les SLA inter-équipes (sales, support, success)",
       body: "Les délais de réponse impactent la conversion lead, la santé client, le NPS. Mesurés à l'échelle équipe, ils révèlent les goulots.",
       recommendation: "Définir des SLAs : < 5min pour un lead chaud, < 4h pour un ticket support, < 24h pour un email customer. Reporting hebdo.",
+      requires: ["support"],
     },
     {
       key: "cross_renewal_health",
@@ -381,6 +412,7 @@ export function selectCrossSourceInsights(
       title: "🔗 Health score renouvellement à 90 jours",
       body: "Le renouvellement se prépare 90 jours avant l'échéance. Un score combinant usage, tickets, NPS et discussions sales prédit le risque.",
       recommendation: "Créer le score auto dans Revold. CSM alerté dès que le score d'un compte franchit le seuil rouge. Action playbook standardisée.",
+      requires: ["billing", "support"],
     },
     {
       key: "cross_compliance_data_residency",
@@ -388,8 +420,75 @@ export function selectCrossSourceInsights(
       title: "🔗 Audit RGPD inter-outils",
       body: "Un contact peut être supprimé dans HubSpot mais persister dans Stripe, Mailchimp, Calendly. Le droit à l'oubli est cassé sans process cross-source.",
       recommendation: "Workflow Revold de droit à l'oubli qui propage la suppression à tous les outils connectés. Audit trimestriel des écarts.",
+      requires: ["billing"],
     },
   );
 
-  return insights.filter((i) => !dismissedKeys.has(i.key));
+  // ── Filtrage gating + CTA pour chaque catégorie manquante ──
+  let filtered = insights;
+  if (connected) {
+    filtered = insights.filter((i) => {
+      if (!i.requires || i.requires.length === 0) return true;
+      // Garder uniquement si TOUTES les catégories requises sont connectées
+      return i.requires.every((req) => connected.has(req));
+    });
+
+    const missingCategories = MISSING_CTA_ORDER.filter((cat) => !connected.has(cat));
+    for (const cat of missingCategories) {
+      const cta = MISSING_CATEGORY_CTAS[cat];
+      filtered.push(cta);
+    }
+  }
+
+  return filtered.filter((i) => !dismissedKeys.has(i.key));
 }
+
+// ── CTAs par catégorie d'outil manquante ──────────────────────────────
+const MISSING_CTA_ORDER: Array<"billing" | "support" | "phone" | "conv_intel" | "communication"> = [
+  "billing",
+  "support",
+  "phone",
+  "conv_intel",
+  "communication",
+];
+
+const MISSING_CATEGORY_CTAS: Record<
+  "billing" | "support" | "phone" | "conv_intel" | "communication",
+  CrossSourceInsight
+> = {
+  billing: {
+    key: "cross_connect_billing",
+    severity: "info",
+    title: "🔌 Connectez un outil de facturation pour débloquer 11 insights",
+    body: "Sans Stripe / Pennylane / Sellsy / Axonaut / QuickBooks branché, les insights revenue (MRR, churn, fuite revenue, DSO, attribution) ne peuvent pas être calculés. Aucune donnée n'est inventée tant qu'aucun outil de facturation n'est connecté.",
+    recommendation: "Allez dans Intégrations → catégorie Facturation et connectez votre outil. Les insights cross-source apparaîtront automatiquement.",
+  },
+  support: {
+    key: "cross_connect_support",
+    severity: "info",
+    title: "🔌 Connectez un outil de service client pour débloquer 5 insights",
+    body: "Sans Intercom / Zendesk / Crisp / Freshdesk branché, les insights santé client (account health, churn signals, SLA, renewal) ne peuvent pas être calculés.",
+    recommendation: "Allez dans Intégrations → catégorie Service client et connectez votre outil de support. Les coachings cross-source santé client apparaîtront automatiquement.",
+  },
+  phone: {
+    key: "cross_connect_phone",
+    severity: "info",
+    title: "🔌 Connectez un outil de téléphonie pour mesurer l'impact appels",
+    body: "Sans Aircall / Ringover branché, impossible de croiser les appels avec les deals pour mesurer l'impact du téléphone sur le closing rate.",
+    recommendation: "Allez dans Intégrations → catégorie Téléphonie. Les coachings appels × pipeline arriveront dès la connexion.",
+  },
+  conv_intel: {
+    key: "cross_connect_conv_intel",
+    severity: "info",
+    title: "🔌 Connectez Praiz pour analyser vos conversations commerciales",
+    body: "Sans conversation intelligence (Praiz), les insights talk ratio × win rate, objections récurrentes et scoring deal automatique ne sont pas disponibles.",
+    recommendation: "Allez dans Intégrations → Praiz. Configurez le webhook secret puis branchez le webhook côté Praiz pour activer la synchro.",
+  },
+  communication: {
+    key: "cross_connect_communication",
+    severity: "info",
+    title: "🔌 Connectez un canal Slack / Teams / email pour recevoir vos alertes",
+    body: "Sans canal de communication branché, les alertes critiques et le digest quotidien Revold restent uniquement consultables in-app.",
+    recommendation: "Allez dans Intégrations → catégorie Communication et choisissez Slack, Teams, Gmail ou Outlook.",
+  },
+};

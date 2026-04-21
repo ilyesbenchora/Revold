@@ -56,6 +56,16 @@ async function listAll<T>(token: string, endpoint: string, max = 1000): Promise<
   return all;
 }
 
+/** Validate the Pennylane API token (smallest authenticated call). */
+export async function pingPennylane(token: string): Promise<boolean> {
+  try {
+    await plFetch(token, "/customers?per_page=1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listPennylaneCustomers = (token: string, max = 1000) =>
   listAll<PennylaneCustomer>(token, "/customers", max);
 

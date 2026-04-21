@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { buildContext, fetchDismissals, fetchTrackingStats, fetchWorkflows, selectInsights, buildHubspotLinks, getOrgHubspotPortalId } from "../context";
@@ -21,13 +23,15 @@ export default async function CommercialCoachingPage() {
   const NEW_WORKFLOW = portalId ? `https://app.hubspot.com/workflows/${portalId}/new` : "https://app.hubspot.com/workflows";
   const ALL_WORKFLOWS = portalId ? `https://app.hubspot.com/workflows/${portalId}` : "https://app.hubspot.com/workflows";
 
-  const [ctx, { dismissedKeys }, { workflows, dealsNoOwner }, manualCoachings] = await Promise.all([
+  const [ctx, { dismissedKeys }, { workflows, dealsNoOwner }, manualCoachings, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchWorkflows(token),
     // Tous les status pour l'onglet "Mes coachings IA"
     fetchReportCoachings(supabase, orgId, "commercial", ["active", "done", "removed"]),
+    getConnectedTools(supabase, orgId),
   ]);
+  const connectedSummary = summarizeConnected(connectedTools);
 
   const tracking = await fetchTrackingStats(token);
   ctx.trackingSample = tracking.trackingSample;
@@ -140,5 +144,10 @@ export default async function CommercialCoachingPage() {
     })),
   ];
 
-  return <CoachingPageTabs allItems={allItems} categoryLabel="ventes" />;
+  return (
+    <div className="space-y-6">
+      <MultiToolBanner summary={connectedSummary} />
+      <CoachingPageTabs allItems={allItems} categoryLabel="ventes" />
+    </div>
+  );
 }

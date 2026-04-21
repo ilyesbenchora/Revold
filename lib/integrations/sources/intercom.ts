@@ -73,6 +73,16 @@ async function scrollAll<T>(token: string, path: string, max = 1000): Promise<T[
   return all;
 }
 
+/** Validate the Intercom access token via /me (smallest authenticated call). */
+export async function pingIntercom(token: string): Promise<boolean> {
+  try {
+    await intercomFetch(token, "/me");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const listIntercomContacts = (token: string, max = 1000) =>
   scrollAll<IntercomContact>(token, "/contacts/scroll", max);
 

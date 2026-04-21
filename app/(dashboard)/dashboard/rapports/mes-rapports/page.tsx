@@ -19,6 +19,8 @@ import { ReportInsight } from "@/components/report-insight";
 import { ReportDateRange } from "@/components/report-date-range";
 import { resolvePresetDates } from "@/lib/reports/date-utils";
 import { CreateReportModal } from "@/components/create-report-modal";
+import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -400,6 +402,7 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
 
   const noToken = !hubspotToken;
   const catLabels = DISPLAY_CATEGORY_LABELS as Record<string, string>;
+  const connectedSummary = summarizeConnected(await getConnectedTools(supabase, orgId));
 
   return (
     <section className="space-y-6">
@@ -412,6 +415,8 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
+
+      <MultiToolBanner summary={connectedSummary} />
 
       {noToken && activatedReports.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">

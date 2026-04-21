@@ -88,14 +88,16 @@ export default async function PipelinePage() {
         <header>
           <h1 className="text-2xl font-semibold text-slate-900">Pipeline</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Connectez votre CRM HubSpot pour visualiser vos deals par étape.
+            {!token
+              ? "Connectez votre CRM HubSpot pour visualiser vos deals par étape."
+              : "Aucun pipeline n'a été détecté dans votre portail HubSpot."}
           </p>
         </header>
         <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-8 text-center">
           <p className="text-sm text-slate-700">
             {!token
               ? "HubSpot non connecté. Allez dans la page Intégration."
-              : "Aucun pipeline détecté dans HubSpot."}
+              : "Créez un pipeline dans HubSpot, puis revenez ici — la synchro est automatique."}
           </p>
         </div>
       </section>

@@ -215,6 +215,27 @@ export default async function IntegrationPage({
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {tools.map((tool) => {
+                  if (tool.comingSoon) {
+                    return (
+                      <div
+                        key={tool.key}
+                        aria-disabled
+                        className="relative flex cursor-not-allowed items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 opacity-70"
+                        title="Connecteur en cours de développement — disponible bientôt"
+                      >
+                        <div className="grayscale">
+                          <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-700">{tool.label}</p>
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">{tool.vendor}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                          Bientôt
+                        </span>
+                      </div>
+                    );
+                  }
                   const url = tool.connectUrl ?? `/dashboard/integration/connect/${tool.key}`;
                   return (
                     <Link

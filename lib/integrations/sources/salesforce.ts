@@ -74,6 +74,19 @@ export const listSfOpportunities = (instanceUrl: string, token: string, max = 20
     `SELECT Id, Name, Amount, StageName, CloseDate, IsClosed, IsWon, AccountId FROM Opportunity LIMIT ${max}`,
   );
 
+/** Validate Salesforce instance + token (smallest authenticated call). */
+export async function pingSalesforce(instanceUrl: string, accessToken: string): Promise<boolean> {
+  try {
+    const url = `${instanceUrl.replace(/\/$/, "")}/services/data/${SF_API_VERSION}/limits`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Extract domain from a Salesforce Account.Website. */
 export function extractDomain(url?: string | null): string | null {
   if (!url) return null;
