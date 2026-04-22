@@ -331,6 +331,73 @@ async function fetchV4FlowDetail(token: string, id: string): Promise<V4FlowDetai
   }
 }
 
+/** Format v3 workflow detail — TOTALEMENT différent de v4. */
+type V3WorkflowDetail = {
+  id?: string | number;
+  name?: string;
+  enabled?: boolean;
+  type?: string;
+  /** Trigger v3 : segmentCriteria contient les filtres d'enrollment. */
+  segmentCriteria?: unknown;
+  /** Goal v3. */
+  goalCriteria?: unknown;
+  /** Actions v3 : array de Record avec field `type` (pas actionTypeId). */
+  actions?: Array<Record<string, unknown>>;
+  /** Re-enrollment v3 : noms multiples selon version. */
+  allowContactToTriggerOnReEnrollment?: boolean;
+  reEnrollmentTriggersAllowed?: boolean;
+  metaData?: {
+    allowContactToTriggerOnReEnrollment?: boolean;
+  };
+};
+
+async function fetchV3WorkflowDetail(token: string, id: string): Promise<V3WorkflowDetail | null> {
+  try {
+    const r = await fetch(`${HS_API}/automation/v3/workflows/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as V3WorkflowDetail;
+  } catch {
+    return null;
+  }
+}
+
+/** Convertit un actionType v3 (ex SET_CONTACT_PROPERTY, DELAY, EMAIL) → notre WorkflowActionCategory. */
+function categorizeV3Action(type: string): WorkflowActionCategory {
+  const t = type.toUpperCase();
+  if (t.includes("SET_CONTACT_PROPERTY") || t.includes("SET_PROPERTY") || t.includes("UPDATE_PROPERTY")) return "set_property";
+  if (t === "EMAIL" || t.includes("SEND_EMAIL") || t.includes("AUTOMATED_EMAIL")) return "send_email";
+  if (t.includes("CREATE_TASK") || t === "TASK") return "create_task";
+  if (t.includes("WEBHOOK")) return "webhook";
+  if (t.includes("DELAY")) return "delay";
+  if (t.includes("BRANCH") || t.includes("IF_THEN")) return "branch";
+  if (t.includes("OWNER") || t.includes("ROTATE")) return "update_owner";
+  if (t.includes("CREATE_NOTE") || t.includes("ENGAGEMENT")) return "create_engagement";
+  return "other";
+}
+
+function describeV3Action(a: Record<string, unknown>): string {
+  const type = (a.type ?? "UNKNOWN") as string;
+  const cat = categorizeV3Action(type);
+  switch (cat) {
+    case "set_property":
+      return `Set ${(a.propertyName ?? "?") as string} = ${String(a.newValue ?? "?").slice(0, 40)}`;
+    case "send_email":
+      return `Envoi email contentId=${(a.contentId ?? a.emailContentId ?? "?") as string}`;
+    case "create_task":
+      return `Créer tâche ${(a.subject ?? a.taskSubject ?? "") as string}`.trim();
+    case "webhook":
+      return `Webhook → ${String(a.webhookUrl ?? a.url ?? "?").slice(0, 60)}`;
+    case "delay":
+      return `Délai ${String(a.delayMillis ?? a.delta ?? "?")}ms`;
+    case "branch":
+      return "Branche if/then v3";
+    default:
+      return type;
+  }
+}
+
 /** Process en chunks parallèles pour ne pas exploser le rate limit. */
 async function processInChunks<T, R>(items: T[], chunkSize: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -389,11 +456,27 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
     });
   }
 
-  // ── Détail EXHAUSTIF des workflows ACTIFS via /v4/flows/{id} ──
+  // ── Détail EXHAUSTIF des workflows ACTIFS ──
+  // ROUTING : v4 → /v4/flows/{id} ; v3 (source: v3_inferred) → /v3/workflows/{id}
+  // Critique : v4/flows/{id} renvoie 404 pour les workflows v3 legacy.
   // Chunks de 5 en parallèle pour ne pas overcharger l'API HubSpot.
-  // Cap à 200 workflows (tous comptes confondus, exhaustif).
-  const activeIds = [...summaries.values()].filter((w) => w.enabled).map((w) => w.id).slice(0, 200);
-  const detailsRaw = await processInChunks(activeIds, 5, (id) => fetchV4FlowDetail(token, id));
+  const activeWorkflowsList = [...summaries.values()].filter((w) => w.enabled).slice(0, 200);
+
+  const detailsRaw = await processInChunks(activeWorkflowsList, 5, async (w) => {
+    if (w.source === "v4") {
+      const v4 = await fetchV4FlowDetail(token, w.id);
+      if (v4) return { kind: "v4" as const, data: v4 };
+      // Fallback v3 si v4 retourne null (rare mais possible)
+      const v3 = await fetchV3WorkflowDetail(token, w.id);
+      return v3 ? { kind: "v3" as const, data: v3 } : null;
+    }
+    // Workflow legacy v3 → essayer v3 d'abord
+    const v3 = await fetchV3WorkflowDetail(token, w.id);
+    if (v3) return { kind: "v3" as const, data: v3 };
+    // Fallback v4 (au cas où)
+    const v4 = await fetchV4FlowDetail(token, w.id);
+    return v4 ? { kind: "v4" as const, data: v4 } : null;
+  });
 
   // ── Build details ─────────────────────────────────────────────────
   const details: WorkflowDetail[] = [];
@@ -404,69 +487,110 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
   let totalActionsAcross = 0;
   const webhookHosts = new Set<string>();
 
-  for (let i = 0; i < activeIds.length; i++) {
-    const id = activeIds[i];
-    const summary = summaries.get(id)!;
-    const detail = detailsRaw[i];
-    if (!detail) continue;
+  for (let i = 0; i < activeWorkflowsList.length; i++) {
+    const summary = activeWorkflowsList[i];
+    const id = summary.id;
+    const raw = detailsRaw[i];
+    if (!raw) continue;
 
-    const objectType = mapObjectTypeId(detail.objectTypeId);
+    let objectType = summary.objectType;
+    let actions: WorkflowAction[] = [];
+    let reenrollmentEnabled = false;
+    let goalDescription: string | undefined;
+    let triggerDescription = "";
+    let triggerCriteriaCount = 0;
 
-    // Actions ────────────────────────────────────────
-    const actions: WorkflowAction[] = (detail.actions ?? []).map((a) => {
-      const rawType = a.actionTypeId || a.actionType || "UNKNOWN";
-      const cat = categorizeAction(rawType);
-      const fields = a.fields ?? {};
-      const action: WorkflowAction = {
-        rawType,
-        category: cat,
-        description: describeAction(rawType, fields),
-      };
-      if (cat === "webhook") {
-        const url = (fields.webhookUrl ?? fields.url ?? "") as string;
-        const host = extractWebhookHost(url);
-        if (host) {
-          action.webhookHost = host;
-          webhookHosts.add(host);
+    if (raw.kind === "v4") {
+      const detail = raw.data;
+      const objMapped = mapObjectTypeId(detail.objectTypeId);
+      if (objMapped !== "unknown") objectType = objMapped;
+
+      actions = (detail.actions ?? []).map((a) => {
+        const rawType = a.actionTypeId || a.actionType || "UNKNOWN";
+        const cat = categorizeAction(rawType);
+        const fields = a.fields ?? {};
+        const action: WorkflowAction = {
+          rawType,
+          category: cat,
+          description: describeAction(rawType, fields),
+        };
+        if (cat === "webhook") {
+          const url = (fields.webhookUrl ?? fields.url ?? "") as string;
+          const host = extractWebhookHost(url);
+          if (host) {
+            action.webhookHost = host;
+            webhookHosts.add(host);
+          }
         }
-      }
-      // Aggregate stats
-      aggregateCategories[cat]++;
-      totalActionsAcross++;
-      return action;
-    });
+        return action;
+      });
 
-    // Catégories métier uniques (on exclut delay/branch qui sont du
-    // contrôle de flux, pas des actions métier)
+      reenrollmentEnabled = Boolean(
+        detail.shouldReEnroll ||
+        detail.enrollmentBehavior?.allowContactToReEnroll ||
+        detail.enrollmentBehavior?.reEnrollOnTrigger,
+      );
+
+      goalDescription = describeGoal(detail.goalCriteria);
+      const trigger = describeTriggerCriteria(detail.enrollmentCriteria);
+      triggerDescription = trigger.description;
+      triggerCriteriaCount = trigger.count;
+    } else {
+      // V3 detail
+      const detail = raw.data;
+      actions = (detail.actions ?? []).map((a) => {
+        const type = (a.type ?? "UNKNOWN") as string;
+        const cat = categorizeV3Action(type);
+        const action: WorkflowAction = {
+          rawType: type,
+          category: cat,
+          description: describeV3Action(a),
+        };
+        if (cat === "webhook") {
+          const url = (a.webhookUrl ?? a.url ?? "") as string;
+          const host = extractWebhookHost(url as string);
+          if (host) {
+            action.webhookHost = host;
+            webhookHosts.add(host);
+          }
+        }
+        return action;
+      });
+
+      reenrollmentEnabled = Boolean(
+        detail.allowContactToTriggerOnReEnrollment ||
+        detail.reEnrollmentTriggersAllowed ||
+        detail.metaData?.allowContactToTriggerOnReEnrollment,
+      );
+
+      goalDescription = describeGoal(detail.goalCriteria);
+      const trigger = describeTriggerCriteria(detail.segmentCriteria);
+      triggerDescription = trigger.description !== "Déclencheur non lisible via API"
+        ? trigger.description
+        : (detail.type ? `Déclencheur v3 (type ${detail.type})` : "Déclencheur v3 non parsé");
+      triggerCriteriaCount = trigger.count;
+    }
+
+    // Aggregate stats
+    for (const a of actions) {
+      aggregateCategories[a.category]++;
+      totalActionsAcross++;
+    }
+
     const businessCategories = new Set(
-      actions
-        .filter((a) => a.category !== "delay" && a.category !== "branch")
-        .map((a) => a.category),
+      actions.filter((a) => a.category !== "delay" && a.category !== "branch").map((a) => a.category),
     );
     const uniqueActionCategories = [...businessCategories];
-
-    // Re-enrollment : check les multiples flags possibles selon version v4
-    const reenrollmentEnabled = Boolean(
-      detail.shouldReEnroll ||
-      detail.enrollmentBehavior?.allowContactToReEnroll ||
-      detail.enrollmentBehavior?.reEnrollOnTrigger,
-    );
-
-    // Goal
-    const goalDescription = describeGoal(detail.goalCriteria);
     const hasGoal = !!goalDescription;
-
-    // Trigger
-    const trigger = describeTriggerCriteria(detail.enrollmentCriteria);
 
     const baseDetail: Omit<WorkflowDetail, "recommendations"> = {
       id,
       name: summary.name,
       enabled: summary.enabled,
-      objectType: objectType !== "unknown" ? objectType : summary.objectType,
+      objectType,
       flowType: undefined,
-      triggerDescription: trigger.description,
-      triggerCriteriaCount: trigger.count,
+      triggerDescription,
+      triggerCriteriaCount,
       reenrollmentEnabled,
       hasGoal,
       goalDescription,
@@ -480,9 +604,9 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
       recommendations: buildRecommendations(baseDetail),
     });
 
-    // Maj objectType dans le summary si v4 a renvoyé une valeur lisible
-    if (objectType !== "unknown") {
-      summaries.set(id, { ...summary, objectType, source: "v4" });
+    // Maj objectType dans le summary si on a une valeur lisible
+    if (objectType !== "unknown" && summary.objectType !== objectType) {
+      summaries.set(id, { ...summary, objectType });
     }
   }
 
