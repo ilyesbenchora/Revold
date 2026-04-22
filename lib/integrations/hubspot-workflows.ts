@@ -59,11 +59,22 @@ export type WorkflowDetail = {
   objectType: WorkflowObjectType;
   flowType?: string;
 
+  /** Lien direct vers le workflow dans HubSpot (construit avec portalId). */
+  hubspotUrl?: string;
+
   /** Description lisible du déclencheur (ex "Création de contact AND
    *  lifecyclestage = lead"). Vide si l'API ne renvoie rien d'exploitable. */
   triggerDescription: string;
   /** Nombre de critères dans enrollmentCriteria. */
   triggerCriteriaCount: number;
+
+  /** Records actuellement enrôlés dans le workflow (snapshot live).
+   *  Pour les workflows de contact = nb de contacts, pour les workflows
+   *  de deal = nb de transactions, etc. Source : v3 contactCounts.active
+   *  ou v4 currentlyEnrolledCount. */
+  currentlyEnrolledCount?: number;
+  /** Total cumulé des records jamais enrôlés (lifetime). */
+  lifetimeEnrolledCount?: number;
 
   /** TRUE si le re-enrollment est explicitement activé (paramètre critique
    *  pour les workflows de relance ou de scoring : sans reenrollment, un
@@ -221,31 +232,79 @@ function describeGoal(goal: unknown): string | undefined {
   return `${f.property ?? f.propertyName ?? "?"} ${f.operation ?? f.operator ?? "?"}`;
 }
 
+/**
+ * Détecte le PROFIL d'usage du workflow à partir de son nom + ses actions.
+ * Permet de filtrer les recommandations qui ne s'appliquent PAS à ce
+ * profil (ex: pas besoin de re-enrollment sur un workflow welcome,
+ * pas besoin de goal sur un set-property unique).
+ */
+function detectWorkflowProfile(d: Omit<WorkflowDetail, "recommendations">): {
+  profile: "welcome_onboarding" | "notification" | "nurturing_scoring" | "relance" | "set_property_unique" | "routing" | "general";
+  needsReenrollment: boolean;
+  needsGoal: boolean;
+} {
+  const name = d.name.toLowerCase();
+  const onlySetProperty = d.uniqueActionCategories.length === 1 && d.uniqueActionCategories[0] === "set_property" && d.actions.filter((a) => a.category === "set_property").length === 1;
+  const onlyOwnerUpdate = d.uniqueActionCategories.length === 1 && d.uniqueActionCategories[0] === "update_owner";
+
+  if (/welcome|onboard|kickoff|first|d[ée]marrage|bienvenue/.test(name)) {
+    // One-shot par contact : re-enrollment nuisible (relancerait l'onboarding)
+    // Goal souvent inutile (la fin du flow EST la fin de l'onboarding)
+    return { profile: "welcome_onboarding", needsReenrollment: false, needsGoal: false };
+  }
+  if (/notif|notification|alert|alerte|inform/.test(name)) {
+    // Notification interne : pas besoin de re-enrollment ni de goal
+    return { profile: "notification", needsReenrollment: false, needsGoal: false };
+  }
+  if (/nurturing|drip|lead\s*scor|scoring|qualif|education/.test(name)) {
+    // Nurturing/scoring : re-enrollment et goal critiques
+    return { profile: "nurturing_scoring", needsReenrollment: true, needsGoal: true };
+  }
+  if (/relance|reactivat|r[eé]veil|re-engage|reengage|dormant|inactif/.test(name)) {
+    // Relance : re-enrollment critique (sinon on ne relance qu'1 fois)
+    return { profile: "relance", needsReenrollment: true, needsGoal: true };
+  }
+  if (onlySetProperty) {
+    // Workflow utilitaire qui set 1 propriété : pas besoin de goal
+    return { profile: "set_property_unique", needsReenrollment: false, needsGoal: false };
+  }
+  if (onlyOwnerUpdate || /attribut|round[\s-]?robin|rotation|assign|routing/.test(name)) {
+    // Routing/round-robin : pas de goal (la rotation EST l'objectif)
+    return { profile: "routing", needsReenrollment: false, needsGoal: false };
+  }
+  return { profile: "general", needsReenrollment: true, needsGoal: true };
+}
+
 function buildRecommendations(d: Omit<WorkflowDetail, "recommendations">): WorkflowRecommendation[] {
   const recs: WorkflowRecommendation[] = [];
+  const ctx = detectWorkflowProfile(d);
 
-  // ── 1. Pas de re-enrollment activé ──
-  if (!d.reenrollmentEnabled) {
-    const isCriticalForReenroll = /relance|nurturing|scoring|réveil|reactivation|re-engage/i.test(d.name);
+  // ── 1. Re-enrollment : seulement si CONTEXTUELLEMENT nécessaire ──
+  if (!d.reenrollmentEnabled && ctx.needsReenrollment) {
+    const isCritical = ctx.profile === "relance" || ctx.profile === "nurturing_scoring";
     recs.push({
-      severity: isCriticalForReenroll ? "critical" : "warning",
+      severity: isCritical ? "critical" : "warning",
       title: "Re-enrollment désactivé",
-      body: `Sans re-enrollment, un record ne peut pas re-passer dans ce workflow${
-        isCriticalForReenroll
-          ? " — pourtant le nom suggère un workflow de relance/scoring qui DOIT pouvoir re-traiter le même contact (ex: relance après J+30, re-scoring après changement de stage)."
-          : "."
-      }`,
+      body: ctx.profile === "relance"
+        ? "Workflow de relance détecté : sans re-enrollment, un contact ne sera relancé QU'UNE SEULE FOIS — incompatible avec une logique de relance récurrente (ex: relance J+30, J+60)."
+        : ctx.profile === "nurturing_scoring"
+          ? "Workflow de nurturing/scoring détecté : sans re-enrollment, impossible de re-scorer un contact qui change de stage ou de re-engager un lead qui revient sur le site."
+          : "Sans re-enrollment, un record ne peut pas re-passer dans ce workflow s'il remplit à nouveau les critères.",
       recommendation: "Activer 'Allow contacts to re-enroll when they meet the trigger criteria again' dans la configuration du workflow.",
     });
   }
 
-  // ── 2. Pas d'objectif paramétré ──
-  if (!d.hasGoal) {
+  // ── 2. Goal : seulement si CONTEXTUELLEMENT nécessaire ──
+  if (!d.hasGoal && ctx.needsGoal) {
     recs.push({
-      severity: "warning",
+      severity: ctx.profile === "nurturing_scoring" || ctx.profile === "relance" ? "warning" : "info",
       title: "Aucun objectif (goal) paramétré",
-      body: "Sans objectif, les records restent dans le workflow indéfiniment (ou jusqu'à la fin du flow). C'est une dette : impossible de mesurer le taux de conversion du workflow, et risque de spam si le contact ne sort jamais.",
-      recommendation: "Définir un goal explicite (ex: lifecyclestage = customer pour un workflow de nurturing). HubSpot sortira automatiquement les records qui atteignent l'objectif.",
+      body: ctx.profile === "nurturing_scoring"
+        ? "Workflow de nurturing : sans goal, impossible de mesurer le taux de conversion (ex: % contacts devenus MQL grâce au workflow). Les contacts qui ont déjà converti continuent à recevoir les emails."
+        : "Sans goal, les records restent dans le workflow jusqu'à la fin de la séquence. Difficile de mesurer l'impact business.",
+      recommendation: ctx.profile === "nurturing_scoring"
+        ? "Définir un goal type 'lifecyclestage = MQL' ou 'hs_lead_status = qualified' selon l'objectif business."
+        : "Définir un goal explicite quand un record n'a plus besoin du workflow (ex: lifecyclestage = customer).",
     });
   }
 
@@ -260,7 +319,9 @@ function buildRecommendations(d: Omit<WorkflowDetail, "recommendations">): Workf
   }
 
   // ── 4. Trigger trop large (peu de critères) ──
-  if (d.triggerCriteriaCount === 0 && d.enabled) {
+  // Skip pour les workflows de routing/round-robin qui s'enrôlent légitimement
+  // sur la création de tous les records.
+  if (d.triggerCriteriaCount === 0 && d.enabled && ctx.profile !== "routing" && ctx.profile !== "set_property_unique") {
     recs.push({
       severity: "warning",
       title: "Déclencheur sans filter — risque d'enrollment massif",
@@ -292,6 +353,16 @@ function buildRecommendations(d: Omit<WorkflowDetail, "recommendations">): Workf
     });
   }
 
+  // ── Si TOUT est OK pour le profil détecté, on rajoute une note positive ──
+  if (recs.length === 0 && d.actions.length > 0) {
+    recs.push({
+      severity: "info",
+      title: `Workflow conforme au profil "${ctx.profile}"`,
+      body: "Aucun anti-pattern détecté : configuration cohérente avec l'objectif du workflow.",
+      recommendation: "Aucune action requise. Continuer à monitorer les performances du workflow.",
+    });
+  }
+
   return recs;
 }
 
@@ -317,6 +388,9 @@ type V4FlowDetail = {
    *  `enrollmentCriteria.shouldReEnrollOnTrigger`. Champ varie selon version. */
   shouldReEnroll?: boolean;
   enrollmentBehavior?: { allowContactToReEnroll?: boolean; reEnrollOnTrigger?: boolean };
+  /** Records actuellement dans le workflow (champ v4 disponible selon edition). */
+  currentlyEnrolledCount?: number;
+  enrollmentStats?: { active?: number; total?: number; lifetime?: number };
 };
 
 async function fetchV4FlowDetail(token: string, id: string): Promise<V4FlowDetail | null> {
@@ -346,8 +420,11 @@ type V3WorkflowDetail = {
   /** Re-enrollment v3 : noms multiples selon version. */
   allowContactToTriggerOnReEnrollment?: boolean;
   reEnrollmentTriggersAllowed?: boolean;
+  /** Stats enrollment v3 : disponibles directement dans la réponse detail. */
+  contactCounts?: { active?: number; enrolled?: number; total?: number };
   metaData?: {
     allowContactToTriggerOnReEnrollment?: boolean;
+    contactCounts?: { active?: number; enrolled?: number };
   };
 };
 
@@ -409,7 +486,10 @@ async function processInChunks<T, R>(items: T[], chunkSize: number, worker: (ite
   return out;
 }
 
-export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAuditResult> {
+export async function auditHubSpotWorkflows(
+  token: string,
+  portalId?: string | null,
+): Promise<WorkflowsAuditResult> {
   const empty: WorkflowsAuditResult = {
     workflows: [],
     details: [],
@@ -499,6 +579,8 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
     let goalDescription: string | undefined;
     let triggerDescription = "";
     let triggerCriteriaCount = 0;
+    let currentlyEnrolledCount: number | undefined;
+    let lifetimeEnrolledCount: number | undefined;
 
     if (raw.kind === "v4") {
       const detail = raw.data;
@@ -535,6 +617,9 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
       const trigger = describeTriggerCriteria(detail.enrollmentCriteria);
       triggerDescription = trigger.description;
       triggerCriteriaCount = trigger.count;
+
+      currentlyEnrolledCount = detail.currentlyEnrolledCount ?? detail.enrollmentStats?.active;
+      lifetimeEnrolledCount = detail.enrollmentStats?.total ?? detail.enrollmentStats?.lifetime;
     } else {
       // V3 detail
       const detail = raw.data;
@@ -569,6 +654,9 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
         ? trigger.description
         : (detail.type ? `Déclencheur v3 (type ${detail.type})` : "Déclencheur v3 non parsé");
       triggerCriteriaCount = trigger.count;
+
+      currentlyEnrolledCount = detail.contactCounts?.active ?? detail.metaData?.contactCounts?.active;
+      lifetimeEnrolledCount = detail.contactCounts?.enrolled ?? detail.contactCounts?.total;
     }
 
     // Aggregate stats
@@ -583,14 +671,21 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
     const uniqueActionCategories = [...businessCategories];
     const hasGoal = !!goalDescription;
 
+    const hubspotUrl = portalId
+      ? `https://app.hubspot.com/workflows/${portalId}/platform/flow/${id}/edit`
+      : undefined;
+
     const baseDetail: Omit<WorkflowDetail, "recommendations"> = {
       id,
       name: summary.name,
       enabled: summary.enabled,
       objectType,
       flowType: undefined,
+      hubspotUrl,
       triggerDescription,
       triggerCriteriaCount,
+      currentlyEnrolledCount,
+      lifetimeEnrolledCount,
       reenrollmentEnabled,
       hasGoal,
       goalDescription,

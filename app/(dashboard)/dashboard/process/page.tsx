@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { auditHubSpotWorkflows } from "@/lib/integrations/hubspot-workflows";
+import { getOrgHubspotPortalId } from "@/app/(dashboard)/dashboard/insights-ia/context";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
@@ -20,12 +21,13 @@ export default async function AutomatisationsPage() {
   const supabase = await createSupabaseServerClient();
   const hsToken = await getHubSpotToken(supabase, orgId);
   const snapshot = await getHubspotSnapshot();
+  const portalId = await getOrgHubspotPortalId(supabase, orgId);
 
   const recommendations = buildAuditRecommendations(snapshot).process;
 
   // ── Audit workflows EXHAUSTIF ──
   const audit = hsToken
-    ? await auditHubSpotWorkflows(hsToken)
+    ? await auditHubSpotWorkflows(hsToken, portalId)
     : {
         workflows: [],
         details: [],
