@@ -161,9 +161,9 @@ export default async function AutomatisationsPage() {
             </div>
           )}
 
-          {audit.details.length > 0 && (
+          {activeWorkflows.length > 0 && (
             <div className="mt-4">
-              <WorkflowCarousel details={audit.details} />
+              <WorkflowCarousel workflows={audit.workflows} details={audit.details} />
             </div>
           )}
         </CollapsibleBlock>

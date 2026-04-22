@@ -3,21 +3,18 @@
 /**
  * Carrousel d'analyse exhaustive des workflows actifs HubSpot.
  *
- * Navigation flèches gauche/droite (clavier + boutons). Pour chaque
- * workflow on affiche TOUTES les infos transparentes :
- *   - Nom du workflow (exact, depuis HubSpot API)
- *   - ID HubSpot brut (pour vérification)
- *   - Source API : v3 (classic legacy) ou v4 (Workflows 2.0)
- *   - Lien direct "Voir dans HubSpot"
- *   - Nombre de records enrôlés (actifs + lifetime)
- *   - Déclencheur, actions complètes, re-enrollment, goal
- *   - Analyse contextuelle par profil + recommandations CRO
+ * AFFICHE TOUS LES WORKFLOWS ACTIFS DÉTECTÉS, pas seulement ceux dont
+ * le détail (/v4/flows/{id} ou /v3/workflows/{id}) a été chargé. Si un
+ * détail n'est pas dispo, on affiche en mode "lite" (nom + ID + source
+ * API + lien HubSpot) avec un badge "Détail non chargé".
  *
- * Aucune donnée inventée : tout vient de l'API HubSpot.
+ * Navigation flèches gauche/droite (clavier + boutons).
+ * Filter Tous / v3 Classic / v4 Workflows 2.0 pour comparer avec
+ * HubSpot UI qui mélange les 2 systèmes.
  */
 
 import { useState, useEffect, useCallback } from "react";
-import type { WorkflowDetail } from "@/lib/integrations/hubspot-workflows";
+import type { WorkflowDetail, WorkflowSummaryItem } from "@/lib/integrations/hubspot-workflows";
 
 const SEV_STYLE: Record<"critical" | "warning" | "info", { bg: string; text: string; border: string; emoji: string }> = {
   critical: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", emoji: "🔴" },
@@ -47,13 +44,24 @@ const OBJECT_PLURAL: Record<string, string> = {
   ticket: "tickets", lead: "leads", custom: "records", unknown: "records",
 };
 
-export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
-  const [index, setIndex] = useState(0);
-  const [filter, setFilter] = useState<"all" | "v3" | "v4">("all");
+type Props = {
+  /** TOUS les workflows actifs détectés (avec ou sans détail). */
+  workflows: WorkflowSummaryItem[];
+  /** Détails enrichis pour ceux qui ont chargé. */
+  details: WorkflowDetail[];
+};
 
-  const filtered = details.filter((d) => {
-    if (filter === "v3") return d.apiSource === "v3";
-    if (filter === "v4") return d.apiSource === "v4";
+export function WorkflowCarousel({ workflows, details }: Props) {
+  // On ne garde QUE les actifs (les inactifs ne sont pas dans le carrousel)
+  const allActive = workflows.filter((w) => w.enabled);
+
+  const [index, setIndex] = useState(0);
+  const [filter, setFilter] = useState<"all" | "v4" | "v3_inferred">("all");
+
+  // v4 = créé en Workflows 2.0 ; v3_inferred = legacy classic
+  const filtered = allActive.filter((w) => {
+    if (filter === "v4") return w.source === "v4";
+    if (filter === "v3_inferred") return w.source === "v3_inferred" || w.source === "v3_detail";
     return true;
   });
 
@@ -76,7 +84,7 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
         <p className="text-sm text-slate-500">
-          {filter === "all" ? "Aucun workflow actif détaillé." : `Aucun workflow ${filter} dans la liste.`}
+          {filter === "all" ? "Aucun workflow actif détecté." : `Aucun workflow ${filter} dans la liste.`}
         </p>
       </div>
     );
@@ -84,19 +92,22 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
 
   const safeIndex = Math.min(index, Math.max(0, filtered.length - 1));
   const w = filtered[safeIndex];
-  const v3Count = details.filter((d) => d.apiSource === "v3").length;
-  const v4Count = details.filter((d) => d.apiSource === "v4").length;
+  const detailById = new Map(details.map((d) => [d.id, d]));
+  const fullDetail = detailById.get(w.id);
+
+  const v4Count = allActive.filter((w) => w.source === "v4").length;
+  const v3Count = allActive.filter((w) => w.source === "v3_inferred" || w.source === "v3_detail").length;
 
   return (
     <div className="space-y-4">
       {/* Filter source + navigation + position */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
         <div className="flex items-center gap-1 text-xs">
-          <span className="mr-2 font-semibold text-slate-700">Filtrer par source API :</span>
+          <span className="mr-2 font-semibold text-slate-700">Filtrer :</span>
           {([
-            ["all", `Tous (${details.length})`],
-            ["v3", `v3 Classic (${v3Count})`],
-            ["v4", `v4 Workflows 2.0 (${v4Count})`],
+            ["all", `Tous (${allActive.length})`],
+            ["v3_inferred", `Classic v3 (${v3Count})`],
+            ["v4", `Workflows 2.0 v4 (${v4Count})`],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -116,7 +127,6 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
             onClick={goPrev}
             disabled={safeIndex === 0}
             className="rounded-md bg-white px-3 py-1.5 font-medium text-slate-700 ring-1 ring-slate-200 disabled:opacity-40"
-            aria-label="Précédent"
           >
             ← Précédent
           </button>
@@ -128,7 +138,6 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
             onClick={goNext}
             disabled={safeIndex === filtered.length - 1}
             className="rounded-md bg-white px-3 py-1.5 font-medium text-slate-700 ring-1 ring-slate-200 disabled:opacity-40"
-            aria-label="Suivant"
           >
             Suivant →
           </button>
@@ -136,29 +145,35 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
       </div>
 
       <p className="text-[10px] text-slate-400">
-        💡 Astuce : utilisez les flèches ← / → du clavier pour naviguer.
+        💡 Astuce : flèches ← / → du clavier pour naviguer.
+        Affiche TOUS les {allActive.length} workflows actifs détectés via /automation/v3 + /automation/v4.
       </p>
 
       <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
         <div className="p-5 space-y-4">
-          {/* Header avec transparence */}
+          {/* Header transparence */}
           <header className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700">
                 {OBJECT_LABEL[w.objectType] ?? w.objectType}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                w.apiSource === "v4" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
+                w.source === "v4" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
               }`}>
-                API {w.apiSource}
+                API {w.source === "v4" ? "v4" : "v3"}
               </span>
               {w.enabled && (
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                   ✓ Actif
                 </span>
               )}
-              {w.isMultiPurpose && (
+              {!w.hasDetail && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                  ⚠ Détail non chargé
+                </span>
+              )}
+              {fullDetail?.isMultiPurpose && (
                 <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700">
                   ⚠ Multi-purpose
                 </span>
@@ -188,113 +203,116 @@ export function WorkflowCarousel({ details }: { details: WorkflowDetail[] }) {
             </div>
           </header>
 
-          {/* Records enrôlés */}
-          {(typeof w.currentlyEnrolledCount === "number" || typeof w.lifetimeEnrolledCount === "number") && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Actuellement inscrits
-                </p>
-                <p className="mt-0.5 text-2xl font-bold text-slate-900 tabular-nums">
-                  {typeof w.currentlyEnrolledCount === "number" ? w.currentlyEnrolledCount.toLocaleString("fr-FR") : "—"}
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  {OBJECT_PLURAL[w.objectType] ?? "records"} dans le workflow
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Lifetime (depuis création)
-                </p>
-                <p className="mt-0.5 text-2xl font-bold text-slate-900 tabular-nums">
-                  {typeof w.lifetimeEnrolledCount === "number" ? w.lifetimeEnrolledCount.toLocaleString("fr-FR") : "—"}
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  Total {OBJECT_PLURAL[w.objectType] ?? "records"} jamais enrôlés
-                </p>
-              </div>
+          {/* Mode lite si pas de détail */}
+          {!fullDetail && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 text-xs text-amber-900">
+              <p className="font-bold">Détail complet non chargé pour ce workflow</p>
+              <p className="mt-1">
+                Ni <code className="rounded bg-white px-1">/automation/v4/flows/{w.id}</code> ni{" "}
+                <code className="rounded bg-white px-1">/automation/v3/workflows/{w.id}</code> n&apos;ont
+                renvoyé un détail exploitable. Causes possibles : workflow d&apos;un type non supporté
+                par l&apos;API détail (ex: workflow de calculation, workflow imported, custom object workflow),
+                scope automation manquant pour cet objet précis, ou workflow archivé côté HubSpot.
+                Le nom et l&apos;ID viennent de la liste source &mdash; cliquez sur &laquo; Voir dans HubSpot &raquo;
+                pour ouvrir directement le workflow.
+              </p>
             </div>
           )}
 
-          {/* Configuration */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Déclencheur</p>
-              <p className="mt-1 text-xs text-slate-800">{w.triggerDescription}</p>
-              {w.triggerCriteriaCount > 0 && (
-                <p className="mt-1 text-[10px] text-slate-400">{w.triggerCriteriaCount} critère{w.triggerCriteriaCount > 1 ? "s" : ""}</p>
-              )}
-            </div>
-            <div className={`rounded-lg border p-3 ${w.reenrollmentEnabled ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Re-enrollment</p>
-              <p className={`mt-1 text-sm font-bold ${w.reenrollmentEnabled ? "text-emerald-700" : "text-amber-700"}`}>
-                {w.reenrollmentEnabled ? "✓ Activé" : "✗ Désactivé"}
-              </p>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {w.reenrollmentEnabled ? "Les records peuvent re-passer" : "Un record ne peut pas re-passer"}
-              </p>
-            </div>
-            <div className={`rounded-lg border p-3 ${w.hasGoal ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Objectif (goal)</p>
-              <p className={`mt-1 text-sm font-bold ${w.hasGoal ? "text-emerald-700" : "text-amber-700"}`}>
-                {w.hasGoal ? "🎯 Défini" : "✗ Aucun"}
-              </p>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {w.goalDescription ?? "Sortie automatique non paramétrée"}
-              </p>
-            </div>
-          </div>
-
-          {/* Séquence d'actions */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Séquence d&apos;actions ({w.actions.length})
-            </p>
-            <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-              <ol className="divide-y divide-slate-100">
-                {w.actions.map((a, i) => (
-                  <li key={i} className="flex items-center gap-3 px-3 py-2">
-                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                      {i + 1}
-                    </span>
-                    <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${ACTION_COLOR[a.category] ?? ACTION_COLOR.other}`}>
-                      {a.category}
-                    </span>
-                    <p className="min-w-0 flex-1 truncate text-xs text-slate-700">{a.description}</p>
-                  </li>
-                ))}
-                {w.actions.length === 0 && (
-                  <li className="px-3 py-3 text-xs text-slate-400">
-                    L&apos;API HubSpot n&apos;a renvoyé aucune action pour ce workflow.
-                  </li>
-                )}
-              </ol>
-            </div>
-          </div>
-
-          {/* Analyse du workflow */}
-          {w.recommendations.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-700">
-                ✨ Analyse du workflow
-              </p>
-              {w.recommendations.map((r, i) => {
-                const sev = SEV_STYLE[r.severity];
-                return (
-                  <div key={i} className={`rounded-lg border ${sev.border} ${sev.bg} p-3`}>
-                    <p className={`text-xs font-bold ${sev.text}`}>
-                      {sev.emoji} {r.title}
+          {/* Si détail dispo : tous les blocs habituels */}
+          {fullDetail && (
+            <>
+              {(typeof fullDetail.currentlyEnrolledCount === "number" || typeof fullDetail.lifetimeEnrolledCount === "number") && (
+                <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Actuellement inscrits
                     </p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-700">{r.body}</p>
-                    {r.recommendation && (
-                      <p className="mt-1.5 text-[11px] font-medium text-slate-900">
-                        → {r.recommendation}
-                      </p>
-                    )}
+                    <p className="mt-0.5 text-2xl font-bold text-slate-900 tabular-nums">
+                      {typeof fullDetail.currentlyEnrolledCount === "number" ? fullDetail.currentlyEnrolledCount.toLocaleString("fr-FR") : "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {OBJECT_PLURAL[w.objectType] ?? "records"} dans le workflow
+                    </p>
                   </div>
-                );
-              })}
-            </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Lifetime
+                    </p>
+                    <p className="mt-0.5 text-2xl font-bold text-slate-900 tabular-nums">
+                      {typeof fullDetail.lifetimeEnrolledCount === "number" ? fullDetail.lifetimeEnrolledCount.toLocaleString("fr-FR") : "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      Total {OBJECT_PLURAL[w.objectType] ?? "records"} jamais enrôlés
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Déclencheur</p>
+                  <p className="mt-1 text-xs text-slate-800">{fullDetail.triggerDescription}</p>
+                </div>
+                <div className={`rounded-lg border p-3 ${fullDetail.reenrollmentEnabled ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Re-enrollment</p>
+                  <p className={`mt-1 text-sm font-bold ${fullDetail.reenrollmentEnabled ? "text-emerald-700" : "text-amber-700"}`}>
+                    {fullDetail.reenrollmentEnabled ? "✓ Activé" : "✗ Désactivé"}
+                  </p>
+                </div>
+                <div className={`rounded-lg border p-3 ${fullDetail.hasGoal ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Objectif (goal)</p>
+                  <p className={`mt-1 text-sm font-bold ${fullDetail.hasGoal ? "text-emerald-700" : "text-amber-700"}`}>
+                    {fullDetail.hasGoal ? "🎯 Défini" : "✗ Aucun"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Séquence d&apos;actions ({fullDetail.actions.length})
+                </p>
+                <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                  <ol className="divide-y divide-slate-100">
+                    {fullDetail.actions.map((a, i) => (
+                      <li key={i} className="flex items-center gap-3 px-3 py-2">
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                          {i + 1}
+                        </span>
+                        <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${ACTION_COLOR[a.category] ?? ACTION_COLOR.other}`}>
+                          {a.category}
+                        </span>
+                        <p className="min-w-0 flex-1 truncate text-xs text-slate-700">{a.description}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+
+              {fullDetail.recommendations.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-700">
+                    ✨ Analyse du workflow
+                  </p>
+                  {fullDetail.recommendations.map((r, i) => {
+                    const sev = SEV_STYLE[r.severity];
+                    return (
+                      <div key={i} className={`rounded-lg border ${sev.border} ${sev.bg} p-3`}>
+                        <p className={`text-xs font-bold ${sev.text}`}>
+                          {sev.emoji} {r.title}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-slate-700">{r.body}</p>
+                        {r.recommendation && (
+                          <p className="mt-1.5 text-[11px] font-medium text-slate-900">
+                            → {r.recommendation}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </article>

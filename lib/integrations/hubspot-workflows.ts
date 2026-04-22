@@ -112,16 +112,23 @@ export type WorkflowActionStats = {
   outgoingWebhookHosts: string[];
 };
 
+export type WorkflowSummaryItem = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  objectType: WorkflowObjectType;
+  source: "v4" | "v3_detail" | "v3_inferred" | "unknown";
+  /** Si true, /v4/flows/{id} OU /v3/workflows/{id} a renvoyé un détail.
+   *  Si false, on ne sait pas grand chose au-delà du nom + ID. */
+  hasDetail: boolean;
+  /** URL directe HubSpot construite avec portalId. */
+  hubspotUrl?: string;
+};
+
 export type WorkflowsAuditResult = {
-  /** Liste résumée de tous les workflows (actifs + inactifs). */
-  workflows: Array<{
-    id: string;
-    name: string;
-    enabled: boolean;
-    objectType: WorkflowObjectType;
-    source: "v4" | "v3_detail" | "v3_inferred" | "unknown";
-  }>;
-  /** Détails analysés des workflows ACTIFS (jusqu'à 200 max). */
+  /** Liste résumée de TOUS les workflows (actifs + inactifs). */
+  workflows: WorkflowSummaryItem[];
+  /** Détails analysés des workflows ACTIFS qui ont retourné un détail. */
   details: WorkflowDetail[];
   countsByObject: Record<WorkflowObjectType, number>;
   actionStats: WorkflowActionStats;
@@ -740,6 +747,7 @@ export async function auditHubSpotWorkflows(
 
   // Diagnostic : pour chaque workflow actif, charge OK ou échec ?
   const failedIds: Array<{ id: string; name: string; reason: string }> = [];
+  const detailLoadedIds = new Set(details.map((d) => d.id));
   for (let i = 0; i < activeWorkflowsList.length; i++) {
     if (!detailsRaw[i]) {
       const w = activeWorkflowsList[i];
@@ -753,8 +761,17 @@ export async function auditHubSpotWorkflows(
     }
   }
 
+  // Enrichit la liste workflows avec hasDetail + hubspotUrl
+  const workflowsEnriched: WorkflowSummaryItem[] = all.map((w) => ({
+    ...w,
+    hasDetail: detailLoadedIds.has(w.id),
+    hubspotUrl: portalId
+      ? `https://app.hubspot.com/workflows/${portalId}/platform/flow/${w.id}/edit`
+      : undefined,
+  }));
+
   return {
-    workflows: all,
+    workflows: workflowsEnriched,
     details,
     countsByObject,
     actionStats: {
