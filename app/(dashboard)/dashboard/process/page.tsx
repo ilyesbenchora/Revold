@@ -9,6 +9,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import { AuditPageTabs } from "@/components/audit-page-tabs";
+import { WorkflowCarousel } from "@/components/workflow-carousel";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -19,14 +20,9 @@ export default async function AutomatisationsPage() {
   const supabase = await createSupabaseServerClient();
   const hsToken = await getHubSpotToken(supabase, orgId);
   const snapshot = await getHubspotSnapshot();
-
-  // Tout vient du snapshot HubSpot live
-  const totalContacts = snapshot.totalContacts;
-  const leadsCount = snapshot.leadsCount;
-  const opportunitiesCount = snapshot.opportunitiesCount;
   const totalDeals = snapshot.totalDeals;
 
-  // Deals sans owner via search dédiée
+  // Deals sans owner (signal d'absence de workflow d'attribution auto)
   let dealsNoOwner = 0;
   let dealsNoOwnerPct = 0;
   if (hsToken) {
@@ -47,28 +43,33 @@ export default async function AutomatisationsPage() {
     } catch {}
   }
 
-  // ── Recommandations CRO/RevOps spécifiques aux automatisations ──
   const recommendations = buildAuditRecommendations(snapshot).process;
 
-  // ── Audit workflows complet (v4 prioritaire + détail v3 + actions) ──
+  // ── Audit workflows EXHAUSTIF (tous workflows actifs avec détail) ──
   const audit = hsToken
     ? await auditHubSpotWorkflows(hsToken)
-    : { workflows: [], active: [], inactive: [], countsByObject: { contact: 0, company: 0, deal: 0, ticket: 0, lead: 0, custom: 0, unknown: 0 }, actionStats: { totalActions: 0, byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 }, outgoingWebhookHosts: [] }, error: undefined };
+    : {
+        workflows: [],
+        details: [],
+        countsByObject: { contact: 0, company: 0, deal: 0, ticket: 0, lead: 0, custom: 0, unknown: 0 },
+        actionStats: { totalActions: 0, byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 }, outgoingWebhookHosts: [] },
+        error: undefined,
+      };
 
-  const workflows = audit.workflows;
-  const activeWorkflows = audit.active;
-  const inactiveWorkflows = audit.inactive;
+  const allWorkflows = audit.workflows;
+  const activeWorkflows = allWorkflows.filter((w) => w.enabled);
+  const inactiveWorkflows = allWorkflows.filter((w) => !w.enabled);
   const workflowError = audit.error ?? null;
 
-  // Workflows sans nom descriptif (proxy "objectif manquant")
-  const workflowsNoGoal = activeWorkflows.filter((w) =>
-    !w.name || w.name.toLowerCase().includes("test") || w.name.toLowerCase().includes("brouillon") || w.name === "Sans nom",
-  ).length;
-
-  const contacts = totalContacts;
-  const leads = leadsCount;
-  const opportunities = opportunitiesCount;
-  const lifecycleRate = contacts > 0 ? Math.round((opportunities / contacts) * 100) : 0;
+  // ── Stats anti-pattern RevOps ──
+  const multiPurposeCount = audit.details.filter((d) => d.isMultiPurpose).length;
+  const noReenrollCount = audit.details.filter((d) => !d.reenrollmentEnabled).length;
+  const noGoalCount = audit.details.filter((d) => !d.hasGoal).length;
+  const totalRecos = audit.details.reduce((s, d) => s + d.recommendations.length, 0);
+  const criticalRecos = audit.details.reduce(
+    (s, d) => s + d.recommendations.filter((r) => r.severity === "critical").length,
+    0,
+  );
 
   const a = audit.actionStats;
   const actionRows: Array<{ key: string; label: string; count: number; color: string; description: string }> = [
@@ -88,8 +89,8 @@ export default async function AutomatisationsPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Workflows HubSpot, actions internes et conversion lifecycle.
-          {workflows.length > 0 && ` (${activeWorkflows.length} actifs / ${workflows.length} total — ${a.totalActions} actions analysées)`}
+          Audit exhaustif de vos workflows HubSpot — déclencheur, actions, re-enrollment, objectif.
+          {audit.details.length > 0 && ` (${audit.details.length} workflows actifs analysés en profondeur, ${a.totalActions} actions extraites)`}
         </p>
       </header>
 
@@ -102,11 +103,16 @@ export default async function AutomatisationsPage() {
 
       <InsightLockedBlock />
 
-      {/* ── Synthèse workflows ── */}
+      {/* ── Synthèse haut niveau ── */}
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             <span className="h-2 w-2 rounded-full bg-violet-500" />Workflows d&apos;automatisation
+            {activeWorkflows.length > 0 && (
+              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                {activeWorkflows.length} actifs / {allWorkflows.length}
+              </span>
+            )}
           </h2>
         }
       >
@@ -117,32 +123,69 @@ export default async function AutomatisationsPage() {
               Pour afficher les workflows, ajoutez le scope <code>automation</code> à votre app HubSpot.
             </p>
           </div>
-        ) : workflows.length === 0 ? (
+        ) : allWorkflows.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
             <p className="text-sm text-slate-500">Aucun workflow détecté dans votre portail HubSpot.</p>
           </div>
         ) : (
           <div className="space-y-4">
+            {/* KPIs synthèse */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <article className="card p-5 text-center">
                 <p className="text-xs text-slate-500">Workflows actifs</p>
                 <p className="mt-1 text-3xl font-bold text-emerald-600">{activeWorkflows.length}</p>
               </article>
               <article className="card p-5 text-center">
-                <p className="text-xs text-slate-500">Workflows inactifs</p>
+                <p className="text-xs text-slate-500">Inactifs</p>
                 <p className="mt-1 text-3xl font-bold text-slate-400">{inactiveWorkflows.length}</p>
               </article>
               <article className="card p-5 text-center">
-                <p className="text-xs text-slate-500">Total workflows</p>
-                <p className="mt-1 text-3xl font-bold text-slate-900">{workflows.length}</p>
+                <p className="text-xs text-slate-500">Recommandations CRO</p>
+                <p className={`mt-1 text-3xl font-bold ${criticalRecos > 0 ? "text-rose-600" : totalRecos > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {totalRecos}
+                </p>
+                {criticalRecos > 0 && (
+                  <p className="mt-1 text-[10px] font-bold text-rose-600">{criticalRecos} critique{criticalRecos > 1 ? "s" : ""}</p>
+                )}
               </article>
               <article className="card p-5 text-center">
-                <p className="text-xs text-slate-500">Sans objectif défini</p>
-                <p className={`mt-1 text-3xl font-bold ${workflowsNoGoal > 0 ? "text-orange-500" : "text-emerald-600"}`}>{workflowsNoGoal}</p>
+                <p className="text-xs text-slate-500">Actions analysées</p>
+                <p className="mt-1 text-3xl font-bold text-slate-900">{a.totalActions}</p>
               </article>
             </div>
 
-            {/* Par type d'objet (FIX : maintenant correct grâce à v4 + détail v3) */}
+            {/* Anti-patterns RevOps détectés */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <article className={`rounded-xl border p-4 ${multiPurposeCount > 0 ? "border-rose-200 bg-rose-50/40" : "border-emerald-200 bg-emerald-50/40"}`}>
+                <p className="text-xs font-semibold text-slate-700">Workflows multi-purpose</p>
+                <p className={`mt-1 text-2xl font-bold ${multiPurposeCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                  {multiPurposeCount} / {audit.details.length}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Anti-pattern : 1 workflow doit avoir 1 action principale (RevOps)
+                </p>
+              </article>
+              <article className={`rounded-xl border p-4 ${noReenrollCount > audit.details.length / 2 ? "border-amber-200 bg-amber-50/40" : "border-emerald-200 bg-emerald-50/40"}`}>
+                <p className="text-xs font-semibold text-slate-700">Re-enrollment OFF</p>
+                <p className={`mt-1 text-2xl font-bold ${noReenrollCount > audit.details.length / 2 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {noReenrollCount} / {audit.details.length}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Sans re-enrollment, un record ne peut pas re-passer dans le workflow
+                </p>
+              </article>
+              <article className={`rounded-xl border p-4 ${noGoalCount > audit.details.length / 2 ? "border-amber-200 bg-amber-50/40" : "border-emerald-200 bg-emerald-50/40"}`}>
+                <p className="text-xs font-semibold text-slate-700">Sans objectif (goal)</p>
+                <p className={`mt-1 text-2xl font-bold ${noGoalCount > audit.details.length / 2 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {noGoalCount} / {audit.details.length}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Sans goal, impossible de mesurer la conversion du workflow
+                </p>
+              </article>
+            </div>
+
+            {/* Par type d'objet */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-slate-700">Workflows actifs par type d&apos;objet</h3>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
@@ -159,12 +202,35 @@ export default async function AutomatisationsPage() {
         )}
       </CollapsibleBlock>
 
-      {/* ── Analyse des actions à l'intérieur des workflows actifs ── */}
-      {activeWorkflows.length > 0 && a.totalActions > 0 && (
+      {/* ── Carrousel détaillé par workflow ── */}
+      {audit.details.length > 0 && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Actions à l&apos;intérieur des workflows actifs
+              <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Analyse exhaustive workflow par workflow
+              <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
+                {audit.details.length}
+              </span>
+            </h2>
+          }
+        >
+          <p className="text-xs text-slate-500">
+            Naviguez workflow par workflow avec les flèches. Pour chacun :
+            déclencheur, séquence d&apos;actions complète, état du re-enrollment et de l&apos;objectif,
+            recommandations CRO/RevOps.
+          </p>
+          <div className="mt-4">
+            <WorkflowCarousel details={audit.details} />
+          </div>
+        </CollapsibleBlock>
+      )}
+
+      {/* ── Synthèse actions agrégées ── */}
+      {audit.details.length > 0 && a.totalActions > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Synthèse actions toutes workflows confondus
               <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
                 {a.totalActions}
               </span>
@@ -172,8 +238,7 @@ export default async function AutomatisationsPage() {
           }
         >
           <p className="text-xs text-slate-500">
-            Décomposition des {a.totalActions} actions trouvées dans vos {Math.min(activeWorkflows.length, 25)} premiers
-            workflows actifs (audit limité aux 25 plus récents pour rester sous le timeout serveur).
+            Décomposition des {a.totalActions} actions extraites des {audit.details.length} workflows actifs analysés.
           </p>
 
           <div className="mt-4 space-y-2">
@@ -205,8 +270,8 @@ export default async function AutomatisationsPage() {
                 🔗 Webhooks sortants détectés ({a.outgoingWebhookHosts.length})
               </p>
               <p className="mt-1 text-[11px] text-fuchsia-800">
-                Domaines vers lesquels vos workflows envoient des données. Permet d&apos;auditer les intégrations
-                externes branchées en sortie de HubSpot (Zapier, Make, n8n, Slack, services maison…).
+                Domaines vers lesquels vos workflows envoient des données. Permet d&apos;auditer les
+                intégrations externes branchées en sortie de HubSpot.
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {a.outgoingWebhookHosts.map((h) => (
@@ -220,36 +285,7 @@ export default async function AutomatisationsPage() {
         </CollapsibleBlock>
       )}
 
-      {/* ── Lifecycle ── */}
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />Conversion lifecycle
-          </h2>
-        }
-      >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Contacts</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{contacts.toLocaleString("fr-FR")}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Leads</p>
-            <p className="mt-1 text-3xl font-bold text-blue-600">{leads.toLocaleString("fr-FR")}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Opportunités</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{opportunities.toLocaleString("fr-FR")}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Taux de conversion</p>
-            <p className={`mt-1 text-3xl font-bold ${lifecycleRate >= 25 ? "text-emerald-600" : lifecycleRate >= 10 ? "text-yellow-600" : "text-orange-500"}`}>{lifecycleRate}%</p>
-            <p className="mt-1 text-xs text-slate-400">Lead vers Opportunité</p>
-          </article>
-        </div>
-      </CollapsibleBlock>
-
-      {/* Deals sans owner */}
+      {/* ── Attribution deals (signal absence workflow round-robin) ── */}
       {totalDeals > 0 && (
         <CollapsibleBlock
           title={

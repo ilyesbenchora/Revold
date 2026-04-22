@@ -1,68 +1,119 @@
 /**
- * Helper d'audit avancé des workflows HubSpot.
+ * Audit avancé EXHAUSTIF des workflows HubSpot.
  *
- * 2 problèmes résolus par rapport à l'ancien code de la page Process :
+ * Pour CHAQUE workflow actif, on récupère le détail complet via
+ * /automation/v4/flows/{flowId} qui renvoie :
+ *   - objectTypeId (objet enrollé)
+ *   - actions (tableau complet des actions)
+ *   - enrollmentCriteria (déclencheur — quels records entrent dans le flow)
+ *   - canEnrollFromSalesforce / allowContactToTriggerOnReEnrollment / etc.
+ *     pour détecter le RE-ENROLLMENT (paramètre critique)
+ *   - goalCriteria (objectif paramétré qui sort automatiquement les records)
+ *   - exitCriteria (critères de sortie)
  *
- *   1. Détection de l'objet (Contact / Company / Deal / Ticket) :
- *      L'API v3 /automation/v3/workflows ne renvoie PAS objectTypeId au
- *      top-level → tous les workflows legacy (la majorité) tombaient en
- *      "Autre". On utilise maintenant l'API v4 (/automation/v4/flows) qui
- *      renvoie objectTypeId, et pour les workflows v3-only on appelle le
- *      détail /automation/v3/workflows/{id} pour parser enrollmentCriteria.
- *
- *   2. Analyse des actions internes (réponse à "peut-on voir les actions
- *      à l'intérieur d'un workflow actif ?") : OUI. /automation/v4/flows/
- *      {flowId} renvoie le tableau `actions` complet avec actionType +
- *      fields. On agrège ici par catégorie : SET_PROPERTY, SEND_EMAIL,
- *      CREATE_TASK, WEBHOOK, BRANCH (if/then), DELAY, autre.
+ * Résultat exposé :
+ *   - WorkflowDetail[] : analyse fine par workflow (déclencheur, actions,
+ *     reenrollment, objectif, anti-patterns détectés, reco CRO)
+ *   - countsByObject : compteurs par type d'objet (déjà fait)
+ *   - aggregateActionStats : stats agrégées toutes actions (déjà fait)
  */
 
 const HS_API = "https://api.hubapi.com";
 
 export type WorkflowObjectType = "contact" | "company" | "deal" | "ticket" | "lead" | "custom" | "unknown";
 
-export type WorkflowSummary = {
+export type WorkflowActionCategory =
+  | "set_property"
+  | "send_email"
+  | "create_task"
+  | "webhook"
+  | "branch"
+  | "delay"
+  | "create_engagement"
+  | "update_owner"
+  | "other";
+
+export type WorkflowAction = {
+  /** ID brut de l'actionType HubSpot. */
+  rawType: string;
+  category: WorkflowActionCategory;
+  /** Description lisible (ex "Set property: lifecycle_stage = lead"). */
+  description: string;
+  /** Pour les webhooks, le host de l'URL cible. */
+  webhookHost?: string;
+};
+
+export type WorkflowRecommendation = {
+  /** Sévérité de la reco. */
+  severity: "critical" | "warning" | "info";
+  title: string;
+  body: string;
+  /** Action concrète à entreprendre côté HubSpot. */
+  recommendation: string;
+};
+
+export type WorkflowDetail = {
   id: string;
   name: string;
   enabled: boolean;
-  /** Source d'où vient l'info : v4 (objectTypeId direct), v3_detail (parsing
-   *  enrollmentCriteria), v3_inferred (heuristique sur le type), unknown. */
-  source: "v4" | "v3_detail" | "v3_inferred" | "unknown";
   objectType: WorkflowObjectType;
-  /** v4 seulement : type technique du flow (DRIP, PROPERTY_ANCHOR, ...) */
   flowType?: string;
+
+  /** Description lisible du déclencheur (ex "Création de contact AND
+   *  lifecyclestage = lead"). Vide si l'API ne renvoie rien d'exploitable. */
+  triggerDescription: string;
+  /** Nombre de critères dans enrollmentCriteria. */
+  triggerCriteriaCount: number;
+
+  /** TRUE si le re-enrollment est explicitement activé (paramètre critique
+   *  pour les workflows de relance ou de scoring : sans reenrollment, un
+   *  contact ne peut pas être re-traité). */
+  reenrollmentEnabled: boolean;
+
+  /** TRUE si un objectif est paramétré (les records sortent automatiquement
+   *  du flow quand le goal est atteint — bonne pratique RevOps). */
+  hasGoal: boolean;
+  /** Description de l'objectif si présent. */
+  goalDescription?: string;
+
+  /** Toutes les actions du workflow, dans l'ordre. */
+  actions: WorkflowAction[];
+  /** Catégories d'actions UNIQUES présentes (sans compter les delays/branches). */
+  uniqueActionCategories: WorkflowActionCategory[];
+
+  /** TRUE si on viole le principe RevOps "1 workflow = 1 action principale".
+   *  Détecté quand uniqueActionCategories contient > 1 action métier
+   *  (set_property + send_email + create_task ensemble par exemple). */
+  isMultiPurpose: boolean;
+
+  /** Recommandations CRO/RevOps spécifiques à ce workflow. */
+  recommendations: WorkflowRecommendation[];
 };
 
 export type WorkflowActionStats = {
   totalActions: number;
-  byCategory: {
-    set_property: number;
-    send_email: number;
-    create_task: number;
-    webhook: number;
-    branch: number;
-    delay: number;
-    create_engagement: number;
-    update_owner: number;
-    other: number;
-  };
-  /** Liste des webhook URLs sortantes uniques (utile pour détecter Zapier,
-   *  Make, n8n, Slack, etc. branchés en sortie de workflow). */
+  byCategory: Record<WorkflowActionCategory, number>;
   outgoingWebhookHosts: string[];
 };
 
 export type WorkflowsAuditResult = {
-  workflows: WorkflowSummary[];
-  active: WorkflowSummary[];
-  inactive: WorkflowSummary[];
+  /** Liste résumée de tous les workflows (actifs + inactifs). */
+  workflows: Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    objectType: WorkflowObjectType;
+    source: "v4" | "v3_detail" | "v3_inferred" | "unknown";
+  }>;
+  /** Détails analysés des workflows ACTIFS (jusqu'à 200 max). */
+  details: WorkflowDetail[];
   countsByObject: Record<WorkflowObjectType, number>;
-  /** Stats agrégées sur les actions des workflows ACTIFS uniquement. */
   actionStats: WorkflowActionStats;
-  /** Si null, l'audit a fonctionné. Sinon, raison de l'échec. */
   error?: string;
 };
 
-/** Mapping HubSpot objectTypeId standard → enum lisible. */
+// ── Helpers ────────────────────────────────────────────────────────────
+
 function mapObjectTypeId(id: string | null | undefined): WorkflowObjectType {
   if (!id) return "unknown";
   const s = String(id).toLowerCase();
@@ -75,40 +126,7 @@ function mapObjectTypeId(id: string | null | undefined): WorkflowObjectType {
   return "unknown";
 }
 
-/**
- * Heuristique sur le `type` v3 quand on n'a pas le détail.
- *  - PROPERTY_ANCHOR, STATIC_ANCHOR, DRIP_DELAY → souvent contact
- *  - DEAL_BASED → deal
- *  - TICKET_BASED → ticket
- */
-function inferFromV3Type(type: string | undefined): WorkflowObjectType {
-  if (!type) return "unknown";
-  const t = type.toUpperCase();
-  if (t.includes("DEAL")) return "deal";
-  if (t.includes("TICKET")) return "ticket";
-  if (t.includes("COMPANY")) return "company";
-  // La majorité des workflows v3 contact sont DRIP_DELAY, PROPERTY_ANCHOR,
-  // STATIC_ANCHOR, EMAIL_ENGAGEMENT — tous contact-based historiquement.
-  if (["DRIP_DELAY", "PROPERTY_ANCHOR", "STATIC_ANCHOR", "EMAIL_ENGAGEMENT"].includes(t)) return "contact";
-  return "unknown";
-}
-
-/** Parse enrollmentCriteria du détail v3 pour deviner l'objet. */
-function inferFromV3Detail(detail: Record<string, unknown>): WorkflowObjectType {
-  const meta = (detail.metaData ?? {}) as Record<string, unknown>;
-  const objectType = (detail.objectTypeId ?? meta.objectTypeId) as string | undefined;
-  if (objectType) return mapObjectTypeId(objectType);
-
-  // Heuristique sur les contactListIds / dealListIds présents
-  if (meta.dealListIds && Array.isArray(meta.dealListIds) && (meta.dealListIds as unknown[]).length > 0) return "deal";
-  if (meta.ticketListIds && Array.isArray(meta.ticketListIds) && (meta.ticketListIds as unknown[]).length > 0) return "ticket";
-  if (meta.contactListIds && Array.isArray(meta.contactListIds) && (meta.contactListIds as unknown[]).length > 0) return "contact";
-
-  return "unknown";
-}
-
-/** Catégorise une action HubSpot v4 (actionType) vers nos buckets. */
-function categorizeAction(actionType: string): keyof WorkflowActionStats["byCategory"] {
+function categorizeAction(actionType: string): WorkflowActionCategory {
   const t = actionType.toUpperCase();
   if (t.includes("SET_PROPERTY") || t.includes("UPDATE_PROPERTY")) return "set_property";
   if (t.includes("SEND_EMAIL") || t.includes("SEND_AUTOMATED_EMAIL") || t.includes("ONE_TO_ONE_EMAIL")) return "send_email";
@@ -121,19 +139,213 @@ function categorizeAction(actionType: string): keyof WorkflowActionStats["byCate
   return "other";
 }
 
-function extractWebhookHost(url: string): string | null {
+function describeAction(actionType: string, fields: Record<string, unknown>): string {
+  const cat = categorizeAction(actionType);
+  switch (cat) {
+    case "set_property": {
+      const propName = (fields?.property_name ?? fields?.propertyName ?? fields?.name ?? "?") as string;
+      const value = (fields?.property_value ?? fields?.value ?? "?") as string;
+      return `Set ${propName} = ${String(value).slice(0, 40)}`;
+    }
+    case "send_email": {
+      const emailId = (fields?.email_id ?? fields?.emailContentId ?? "?") as string;
+      return `Envoi email ${emailId}`;
+    }
+    case "create_task": {
+      const subject = (fields?.task_subject ?? fields?.subject ?? "?") as string;
+      return `Créer tâche : ${String(subject).slice(0, 50)}`;
+    }
+    case "webhook": {
+      const url = (fields?.webhookUrl ?? fields?.url ?? "?") as string;
+      return `Webhook → ${String(url).slice(0, 60)}`;
+    }
+    case "branch":
+      return "Branche if/then";
+    case "delay": {
+      const v = fields?.delta ?? fields?.delay_amount ?? "?";
+      return `Délai ${String(v)}`;
+    }
+    case "create_engagement":
+      return "Engagement / note loggué";
+    case "update_owner":
+      return "Réassigne owner (round-robin)";
+    default:
+      return actionType;
+  }
+}
+
+function extractWebhookHost(url: string): string | undefined {
   try {
     return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Lit une éventuelle description de critères depuis enrollmentCriteria v4. */
+function describeTriggerCriteria(crit: unknown): { description: string; count: number } {
+  if (!crit || typeof crit !== "object") return { description: "Déclencheur non lisible via API", count: 0 };
+  const c = crit as Record<string, unknown>;
+  const filterBranches = (c.filterBranches ?? c.filterGroups ?? []) as Array<unknown>;
+  let total = 0;
+  const parts: string[] = [];
+  for (const fb of filterBranches) {
+    if (fb && typeof fb === "object") {
+      const filters = ((fb as Record<string, unknown>).filters ?? (fb as Record<string, unknown>).filterBranches ?? []) as Array<unknown>;
+      for (const f of filters) {
+        total++;
+        if (parts.length < 3 && f && typeof f === "object") {
+          const fr = f as Record<string, unknown>;
+          const prop = (fr.property ?? fr.propertyName ?? "?") as string;
+          const op = (fr.operation ?? fr.operator ?? "?") as string;
+          parts.push(`${prop} ${op}`);
+        }
+      }
+    }
+  }
+  if (total === 0) return { description: "Création de l'objet (déclencheur sans filter)", count: 0 };
+  const desc = parts.length > 0
+    ? `${parts.join(" + ")}${total > parts.length ? ` + ${total - parts.length} autre${total - parts.length > 1 ? "s" : ""} critère${total - parts.length > 1 ? "s" : ""}` : ""}`
+    : `${total} critère${total > 1 ? "s" : ""}`;
+  return { description: desc, count: total };
+}
+
+function describeGoal(goal: unknown): string | undefined {
+  if (!goal || typeof goal !== "object") return undefined;
+  const g = goal as Record<string, unknown>;
+  const branches = (g.filterBranches ?? g.filterGroups ?? []) as Array<unknown>;
+  if (branches.length === 0) return undefined;
+  const filter = (branches[0] as Record<string, unknown>)?.filters as Array<unknown> | undefined;
+  if (!filter || filter.length === 0) return "Objectif paramétré (critères non lisibles)";
+  const f = filter[0] as Record<string, unknown>;
+  return `${f.property ?? f.propertyName ?? "?"} ${f.operation ?? f.operator ?? "?"}`;
+}
+
+function buildRecommendations(d: Omit<WorkflowDetail, "recommendations">): WorkflowRecommendation[] {
+  const recs: WorkflowRecommendation[] = [];
+
+  // ── 1. Pas de re-enrollment activé ──
+  if (!d.reenrollmentEnabled) {
+    const isCriticalForReenroll = /relance|nurturing|scoring|réveil|reactivation|re-engage/i.test(d.name);
+    recs.push({
+      severity: isCriticalForReenroll ? "critical" : "warning",
+      title: "Re-enrollment désactivé",
+      body: `Sans re-enrollment, un record ne peut pas re-passer dans ce workflow${
+        isCriticalForReenroll
+          ? " — pourtant le nom suggère un workflow de relance/scoring qui DOIT pouvoir re-traiter le même contact (ex: relance après J+30, re-scoring après changement de stage)."
+          : "."
+      }`,
+      recommendation: "Activer 'Allow contacts to re-enroll when they meet the trigger criteria again' dans la configuration du workflow.",
+    });
+  }
+
+  // ── 2. Pas d'objectif paramétré ──
+  if (!d.hasGoal) {
+    recs.push({
+      severity: "warning",
+      title: "Aucun objectif (goal) paramétré",
+      body: "Sans objectif, les records restent dans le workflow indéfiniment (ou jusqu'à la fin du flow). C'est une dette : impossible de mesurer le taux de conversion du workflow, et risque de spam si le contact ne sort jamais.",
+      recommendation: "Définir un goal explicite (ex: lifecyclestage = customer pour un workflow de nurturing). HubSpot sortira automatiquement les records qui atteignent l'objectif.",
+    });
+  }
+
+  // ── 3. Multi-action (anti-pattern RevOps "1 workflow = 1 action") ──
+  if (d.isMultiPurpose) {
+    recs.push({
+      severity: "critical",
+      title: "Workflow multi-purpose : 1 workflow = 1 action principale (principe RevOps)",
+      body: `Ce workflow combine ${d.uniqueActionCategories.length} types d'actions différentes : ${d.uniqueActionCategories.join(", ")}. Anti-pattern : impossible de mesurer l'efficacité d'une action isolée, et toute modification d'une action impacte les autres.`,
+      recommendation: "Découper en N workflows distincts, 1 par objectif (ex: 1 workflow 'Set lifecycle', 1 workflow 'Send email nurturing', 1 workflow 'Create task SDR'). Chaque workflow garde un goal mesurable.",
+    });
+  }
+
+  // ── 4. Trigger trop large (peu de critères) ──
+  if (d.triggerCriteriaCount === 0 && d.enabled) {
+    recs.push({
+      severity: "warning",
+      title: "Déclencheur sans filter — risque d'enrollment massif",
+      body: "Le workflow se déclenche sur la simple création de l'objet, sans filtrer par segment (lifecycle, source, etc.). Risque d'enrôler des records non-pertinents et de dégrader la délivrabilité email.",
+      recommendation: "Ajouter au moins 1 critère de segmentation (ex: lifecyclestage IN [lead, MQL] ou hs_lead_status NOT IN [closed_lost]).",
+    });
+  }
+
+  // ── 5. Webhook sortant sans monitoring ──
+  const hasWebhook = d.actions.some((a) => a.category === "webhook");
+  if (hasWebhook) {
+    recs.push({
+      severity: "info",
+      title: "Webhook sortant détecté — auditer la cible",
+      body: `Ce workflow envoie des données à un système externe (${
+        d.actions.find((a) => a.webhookHost)?.webhookHost ?? "host inconnu"
+      }). Vérifier que la cible est documentée et monitorée (Zapier ne notifie pas en cas d'échec en plan Free).`,
+      recommendation: "Ajouter une étape de fallback (Create Task si le webhook échoue) ou utiliser HubSpot Operations Hub workflows avec retry automatique.",
+    });
+  }
+
+  // ── 6. Trop d'actions (workflow obèse) ──
+  if (d.actions.length > 20) {
+    recs.push({
+      severity: "warning",
+      title: `Workflow très volumineux (${d.actions.length} actions)`,
+      body: "Au-delà de 20 actions, un workflow devient difficile à maintenir et à débugger. Souvent signe d'un workflow qui devrait être splitté.",
+      recommendation: "Identifier les sous-séquences logiques (ex: 'Onboarding J+0', 'Onboarding J+7', 'Onboarding J+30') et les extraire en workflows distincts chaînés via property triggers.",
+    });
+  }
+
+  return recs;
+}
+
+// ── Fetchers ───────────────────────────────────────────────────────────
+
+type V4Flow = { id: string | number; name?: string; isEnabled?: boolean; objectTypeId?: string; type?: string };
+type V3Wf = { id: string | number; name?: string; enabled?: boolean; type?: string };
+
+type V4FlowDetail = {
+  id?: string | number;
+  name?: string;
+  isEnabled?: boolean;
+  objectTypeId?: string;
+  actions?: Array<{
+    actionTypeId?: string;
+    actionType?: string;
+    fields?: Record<string, unknown>;
+  }>;
+  enrollmentCriteria?: unknown;
+  goalCriteria?: unknown;
+  /** Re-enrollment HubSpot v4 : `canEnrollFromSalesforce` n'a rien à voir,
+   *  ce qu'on cherche c'est `flowMeta.canEnrollFromMembership` ou
+   *  `enrollmentCriteria.shouldReEnrollOnTrigger`. Champ varie selon version. */
+  shouldReEnroll?: boolean;
+  enrollmentBehavior?: { allowContactToReEnroll?: boolean; reEnrollOnTrigger?: boolean };
+};
+
+async function fetchV4FlowDetail(token: string, id: string): Promise<V4FlowDetail | null> {
+  try {
+    const r = await fetch(`${HS_API}/automation/v4/flows/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as V4FlowDetail;
   } catch {
     return null;
   }
 }
 
+/** Process en chunks parallèles pour ne pas exploser le rate limit. */
+async function processInChunks<T, R>(items: T[], chunkSize: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const results = await Promise.all(chunk.map(worker));
+    out.push(...results);
+  }
+  return out;
+}
+
 export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAuditResult> {
   const empty: WorkflowsAuditResult = {
     workflows: [],
-    active: [],
-    inactive: [],
+    details: [],
     countsByObject: { contact: 0, company: 0, deal: 0, ticket: 0, lead: 0, custom: 0, unknown: 0 },
     actionStats: {
       totalActions: 0,
@@ -141,10 +353,6 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
       outgoingWebhookHosts: [],
     },
   };
-
-  // ── 1. Récupère v4 et v3 en parallèle ────────────────────────────────
-  type V4Flow = { id: string | number; name?: string; isEnabled?: boolean; objectTypeId?: string; type?: string };
-  type V3Wf = { id: string | number; name?: string; enabled?: boolean; type?: string };
 
   const [v4Res, v3Res] = await Promise.all([
     fetch(`${HS_API}/automation/v4/flows?limit=200`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
@@ -158,108 +366,139 @@ export async function auditHubSpotWorkflows(token: string): Promise<WorkflowsAud
     return { ...empty, error: "Scope automation manquant ou aucun workflow accessible." };
   }
 
-  const summaries = new Map<string, WorkflowSummary>();
+  // Liste des workflows résumés (v4 + v3 mergés, déduplication par ID)
+  const summaries = new Map<string, { id: string; name: string; enabled: boolean; objectType: WorkflowObjectType; source: "v4" | "v3_detail" | "v3_inferred" | "unknown" }>();
 
-  // v4 d'abord (objectTypeId fiable)
   for (const w of v4) {
-    const id = String(w.id);
-    summaries.set(id, {
-      id,
+    summaries.set(String(w.id), {
+      id: String(w.id),
       name: w.name || "Sans nom",
       enabled: w.isEnabled === true,
       objectType: mapObjectTypeId(w.objectTypeId),
       source: "v4",
-      flowType: w.type,
     });
   }
-
-  // v3 : tous ceux qui ne sont pas déjà dans v4
-  const v3Only = v3.filter((w) => !summaries.has(String(w.id)));
-  for (const w of v3Only) {
+  for (const w of v3) {
+    if (summaries.has(String(w.id))) continue;
     summaries.set(String(w.id), {
       id: String(w.id),
       name: w.name || "Sans nom",
       enabled: w.enabled === true,
-      objectType: inferFromV3Type(w.type),
+      objectType: "unknown",
       source: "v3_inferred",
-      flowType: w.type,
     });
   }
 
-  // ── 2. Pour les v3-only "unknown", on appelle le détail (max 30 pour
-  //    rester < 60s sur Vercel) et on parse enrollmentCriteria.
-  const needsDetail = v3Only.filter((w) => {
-    const s = summaries.get(String(w.id));
-    return s && s.objectType === "unknown";
-  }).slice(0, 30);
+  // ── Détail EXHAUSTIF des workflows ACTIFS via /v4/flows/{id} ──
+  // Chunks de 5 en parallèle pour ne pas overcharger l'API HubSpot.
+  // Cap à 200 workflows (tous comptes confondus, exhaustif).
+  const activeIds = [...summaries.values()].filter((w) => w.enabled).map((w) => w.id).slice(0, 200);
+  const detailsRaw = await processInChunks(activeIds, 5, (id) => fetchV4FlowDetail(token, id));
 
-  if (needsDetail.length > 0) {
-    await Promise.all(
-      needsDetail.map(async (w) => {
-        try {
-          const r = await fetch(`${HS_API}/automation/v3/workflows/${w.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!r.ok) return;
-          const detail = await r.json();
-          const inferred = inferFromV3Detail(detail);
-          const existing = summaries.get(String(w.id));
-          if (existing && inferred !== "unknown") {
-            summaries.set(String(w.id), { ...existing, objectType: inferred, source: "v3_detail" });
-          }
-        } catch {}
-      }),
-    );
-  }
-
-  // ── 3. Audit des actions sur les workflows ACTIFS de v4 (max 25) ─────
-  const actionStats: WorkflowActionStats = {
-    totalActions: 0,
-    byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 },
-    outgoingWebhookHosts: [],
+  // ── Build details ─────────────────────────────────────────────────
+  const details: WorkflowDetail[] = [];
+  const aggregateCategories: Record<WorkflowActionCategory, number> = {
+    set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0,
+    delay: 0, create_engagement: 0, update_owner: 0, other: 0,
   };
+  let totalActionsAcross = 0;
   const webhookHosts = new Set<string>();
 
-  const activeV4 = v4.filter((w) => w.isEnabled === true).slice(0, 25);
-  await Promise.all(
-    activeV4.map(async (w) => {
-      try {
-        const r = await fetch(`${HS_API}/automation/v4/flows/${w.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        const actions = (data.actions ?? []) as Array<{ actionTypeId?: string; actionType?: string; fields?: Record<string, unknown> }>;
-        for (const a of actions) {
-          actionStats.totalActions++;
-          const t = a.actionTypeId || a.actionType || "";
-          const cat = categorizeAction(t);
-          actionStats.byCategory[cat]++;
-          if (cat === "webhook") {
-            const url = (a.fields?.webhookUrl ?? a.fields?.url ?? "") as string;
-            const host = extractWebhookHost(url);
-            if (host) webhookHosts.add(host);
-          }
-        }
-      } catch {}
-    }),
-  );
-  actionStats.outgoingWebhookHosts = [...webhookHosts].sort();
+  for (let i = 0; i < activeIds.length; i++) {
+    const id = activeIds[i];
+    const summary = summaries.get(id)!;
+    const detail = detailsRaw[i];
+    if (!detail) continue;
 
-  // ── 4. Compteurs par objet ──────────────────────────────────────────
-  const all = [...summaries.values()];
-  const active = all.filter((w) => w.enabled);
-  const inactive = all.filter((w) => !w.enabled);
-  const countsByObject = empty.countsByObject;
-  for (const w of active) {
-    countsByObject[w.objectType]++;
+    const objectType = mapObjectTypeId(detail.objectTypeId);
+
+    // Actions ────────────────────────────────────────
+    const actions: WorkflowAction[] = (detail.actions ?? []).map((a) => {
+      const rawType = a.actionTypeId || a.actionType || "UNKNOWN";
+      const cat = categorizeAction(rawType);
+      const fields = a.fields ?? {};
+      const action: WorkflowAction = {
+        rawType,
+        category: cat,
+        description: describeAction(rawType, fields),
+      };
+      if (cat === "webhook") {
+        const url = (fields.webhookUrl ?? fields.url ?? "") as string;
+        const host = extractWebhookHost(url);
+        if (host) {
+          action.webhookHost = host;
+          webhookHosts.add(host);
+        }
+      }
+      // Aggregate stats
+      aggregateCategories[cat]++;
+      totalActionsAcross++;
+      return action;
+    });
+
+    // Catégories métier uniques (on exclut delay/branch qui sont du
+    // contrôle de flux, pas des actions métier)
+    const businessCategories = new Set(
+      actions
+        .filter((a) => a.category !== "delay" && a.category !== "branch")
+        .map((a) => a.category),
+    );
+    const uniqueActionCategories = [...businessCategories];
+
+    // Re-enrollment : check les multiples flags possibles selon version v4
+    const reenrollmentEnabled = Boolean(
+      detail.shouldReEnroll ||
+      detail.enrollmentBehavior?.allowContactToReEnroll ||
+      detail.enrollmentBehavior?.reEnrollOnTrigger,
+    );
+
+    // Goal
+    const goalDescription = describeGoal(detail.goalCriteria);
+    const hasGoal = !!goalDescription;
+
+    // Trigger
+    const trigger = describeTriggerCriteria(detail.enrollmentCriteria);
+
+    const baseDetail: Omit<WorkflowDetail, "recommendations"> = {
+      id,
+      name: summary.name,
+      enabled: summary.enabled,
+      objectType: objectType !== "unknown" ? objectType : summary.objectType,
+      flowType: undefined,
+      triggerDescription: trigger.description,
+      triggerCriteriaCount: trigger.count,
+      reenrollmentEnabled,
+      hasGoal,
+      goalDescription,
+      actions,
+      uniqueActionCategories,
+      isMultiPurpose: uniqueActionCategories.length > 1,
+    };
+
+    details.push({
+      ...baseDetail,
+      recommendations: buildRecommendations(baseDetail),
+    });
+
+    // Maj objectType dans le summary si v4 a renvoyé une valeur lisible
+    if (objectType !== "unknown") {
+      summaries.set(id, { ...summary, objectType, source: "v4" });
+    }
   }
+
+  // Compteurs par objet (sur tous les workflows actifs)
+  const all = [...summaries.values()];
+  const countsByObject = empty.countsByObject;
+  for (const w of all.filter((w) => w.enabled)) countsByObject[w.objectType]++;
 
   return {
     workflows: all,
-    active,
-    inactive,
+    details,
     countsByObject,
-    actionStats,
+    actionStats: {
+      totalActions: totalActionsAcross,
+      byCategory: aggregateCategories,
+      outgoingWebhookHosts: [...webhookHosts].sort(),
+    },
   };
 }
