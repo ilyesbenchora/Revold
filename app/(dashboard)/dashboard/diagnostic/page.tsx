@@ -134,11 +134,36 @@ export default async function DiagnosticPage() {
       probe(token, "/crm/v3/lists/search", "POST", { count: 1, processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"] }, (d) => `total: ${(d as { total?: number }).total ?? "?"}`),
     ]);
 
-  // 4) Workflows
-  const [wfV3, wfV4] = await Promise.all([
+  // 4) Workflows + détail du 1er
+  const [wfV3, wfV4, accountInfoProbe] = await Promise.all([
     probe(token, "/automation/v3/workflows", "GET", undefined, (d) => `${((d as { workflows?: unknown[] }).workflows ?? []).length} workflows v3`),
     probe(token, "/automation/v4/flows?limit=10", "GET", undefined, (d) => `${((d as { results?: unknown[] }).results ?? []).length} flows v4`),
+    probe(token, `/oauth/v1/access-tokens/${token}`, "GET", undefined, (d) => {
+      const info = d as { hub_id?: number; hub_domain?: string; scopes?: string[] };
+      return `portalId (hub_id) = ${info.hub_id ?? "?"} | domain = ${info.hub_domain ?? "?"} | scopes = ${(info.scopes ?? []).slice(0, 5).join(", ")}…`;
+    }),
   ]);
+
+  // Détail v3 + v4 du PREMIER workflow détecté pour vérifier que
+  // l'API détail répond correctement
+  const wfV3Data = wfV3.ok ? JSON.parse(wfV3.rawBody) : { workflows: [] };
+  const firstWfId = String((wfV3Data.workflows ?? [])[0]?.id ?? "");
+  const wfDetailProbes: ProbeResult[] = firstWfId
+    ? await Promise.all([
+        probe(token, `/automation/v3/workflows/${firstWfId}`, "GET", undefined, (d) => {
+          const w = d as { id?: number; name?: string; actions?: unknown[]; type?: string; goalCriteria?: unknown; allowContactToTriggerOnReEnrollment?: boolean; metaData?: { allowContactToTriggerOnReEnrollment?: boolean; contactCounts?: { active?: number } }; contactCounts?: { active?: number } };
+          const actions = (w.actions ?? []).length;
+          const reenroll = w.allowContactToTriggerOnReEnrollment ?? w.metaData?.allowContactToTriggerOnReEnrollment ?? false;
+          const enrolled = w.contactCounts?.active ?? w.metaData?.contactCounts?.active ?? "?";
+          const hasGoal = w.goalCriteria ? "OUI" : "non";
+          return `Détail v3 OK : ${actions} actions | re-enrollment=${reenroll} | goal=${hasGoal} | enrôlés=${enrolled}`;
+        }),
+        probe(token, `/automation/v4/flows/${firstWfId}`, "GET", undefined, (d) => {
+          const w = d as { actions?: unknown[]; objectTypeId?: string };
+          return `v4/flows/${firstWfId} : ${(w.actions ?? []).length} actions | objectTypeId=${w.objectTypeId ?? "?"}`;
+        }),
+      ])
+    : [];
 
   // 5) Snapshot status
   const snapshot = await getHubspotSnapshot();
@@ -149,6 +174,8 @@ export default async function DiagnosticPage() {
     { section: "3️⃣ Counts globaux (Contacts / Companies / Deals / Tickets)", results: [contactsProbe, companiesProbe, dealsProbe, ticketsProbe] },
     { section: "4️⃣ Forms (v3 → v2 fallback) + Lists", results: [formsProbeV3, formsProbeV2, listsProbe] },
     { section: "5️⃣ Workflows (v3 + v4)", results: [wfV3, wfV4] },
+    { section: "6️⃣ Détail du PREMIER workflow v3 (test endpoint detail)", results: wfDetailProbes },
+    { section: "7️⃣ Account info OAuth (portalId pour les liens)", results: [accountInfoProbe] },
   ];
 
   return (

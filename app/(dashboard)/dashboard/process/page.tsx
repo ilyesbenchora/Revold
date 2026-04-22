@@ -33,6 +33,8 @@ export default async function AutomatisationsPage() {
         details: [],
         countsByObject: { contact: 0, company: 0, deal: 0, ticket: 0, lead: 0, custom: 0, unknown: 0 },
         actionStats: { totalActions: 0, byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 }, outgoingWebhookHosts: [] },
+        detailLoadStatus: { activeCount: 0, detailLoaded: 0, failedIds: [] as Array<{ id: string; name: string; reason: string }> },
+        portalId: undefined as string | undefined,
         error: undefined,
       };
 
@@ -108,37 +110,64 @@ export default async function AutomatisationsPage() {
       </CollapsibleBlock>
 
       {/* ── ANALYSE ÉCRITE workflow par workflow ── */}
-      {audit.details.length > 0 ? (
+      {allWorkflows.length > 0 && !workflowError && (
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
               <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Analyse exhaustive workflow par workflow
               <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
-                {audit.details.length}
+                {audit.detailLoadStatus.detailLoaded} / {audit.detailLoadStatus.activeCount}
               </span>
             </h2>
           }
         >
           <p className="text-xs text-slate-500">
-            Pour chacun des {audit.details.length} workflows actifs analysés, on décrit en clair :
-            l&apos;objet enrôlé, le déclencheur, les types d&apos;actions exécutées, l&apos;état du
-            re-enrollment, l&apos;objectif paramétré, et les recommandations CRO/RevOps spécifiques.
+            Pour chacun des {audit.detailLoadStatus.activeCount} workflows actifs détectés, on
+            décrit en clair : l&apos;objet enrôlé, le nombre de records actuellement inscrits, le
+            déclencheur, les types d&apos;actions exécutées, l&apos;état du re-enrollment,
+            l&apos;objectif paramétré, et l&apos;analyse contextuelle par profil de workflow.
           </p>
-          <div className="mt-4">
-            <WorkflowTextAnalysis details={audit.details} />
-          </div>
+
+          {/* Diagnostic chargement détail */}
+          {audit.detailLoadStatus.failedIds.length > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-bold">
+                ⚠ {audit.detailLoadStatus.failedIds.length} workflow{audit.detailLoadStatus.failedIds.length > 1 ? "s" : ""} sur {audit.detailLoadStatus.activeCount} sans détail chargé
+              </p>
+              <p className="mt-1 text-[11px]">
+                Ni /automation/v3/workflows/&#123;id&#125; ni /automation/v4/flows/&#123;id&#125; n&apos;ont retourné de détail.
+                Cause probable : scope OAuth automation manquant ou workflows custom non standard.
+              </p>
+              <details className="mt-2">
+                <summary className="cursor-pointer font-semibold">Voir les workflows en échec</summary>
+                <ul className="mt-1 space-y-0.5 pl-4">
+                  {audit.detailLoadStatus.failedIds.slice(0, 20).map((f) => (
+                    <li key={f.id} className="text-[11px]">
+                      <span className="font-mono">{f.id}</span> — {f.name}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </div>
+          )}
+
+          {!audit.portalId && audit.detailLoadStatus.detailLoaded > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-bold">⚠ Liens HubSpot non disponibles</p>
+              <p className="mt-1 text-[11px]">
+                Le portalId HubSpot n&apos;a pas pu être déterminé. Les liens &laquo; Voir le workflow
+                dans HubSpot &raquo; sont absents. Reconnectez HubSpot via OAuth pour le récupérer.
+              </p>
+            </div>
+          )}
+
+          {audit.details.length > 0 && (
+            <div className="mt-4">
+              <WorkflowTextAnalysis details={audit.details} />
+            </div>
+          )}
         </CollapsibleBlock>
-      ) : allWorkflows.length > 0 && !workflowError ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5">
-          <p className="text-sm font-bold text-amber-900">⚠ Détail workflows non disponible</p>
-          <p className="mt-1 text-xs text-amber-800">
-            {allWorkflows.length} workflows détectés mais le détail (actions, déclencheur, goal,
-            re-enrollment) n&apos;a pas pu être chargé via /automation/v4/flows/&#123;id&#125;.
-            Cela peut venir d&apos;un scope OAuth manquant ou de workflows v3 legacy non migrés
-            vers v4. Allez sur la page diagnostic pour voir les vraies réponses HubSpot.
-          </p>
-        </div>
-      ) : null}
+      )}
     </section>
   );
 }

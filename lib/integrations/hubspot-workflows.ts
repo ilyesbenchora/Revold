@@ -120,6 +120,14 @@ export type WorkflowsAuditResult = {
   details: WorkflowDetail[];
   countsByObject: Record<WorkflowObjectType, number>;
   actionStats: WorkflowActionStats;
+  /** Diagnostic chargement détail : pour visibilité côté UI. */
+  detailLoadStatus: {
+    activeCount: number;        // nb workflows actifs
+    detailLoaded: number;        // nb dont le détail a été chargé avec succès
+    failedIds: Array<{ id: string; name: string; reason: string }>;
+  };
+  /** portalId résolu (depuis hint ou /oauth/v1/access-tokens). */
+  portalId?: string;
   error?: string;
 };
 
@@ -488,8 +496,20 @@ async function processInChunks<T, R>(items: T[], chunkSize: number, worker: (ite
 
 export async function auditHubSpotWorkflows(
   token: string,
-  portalId?: string | null,
+  portalIdHint?: string | null,
 ): Promise<WorkflowsAuditResult> {
+  // Si pas de portalId fourni, on le récupère via /oauth/v1/access-tokens/{token}
+  // qui renvoie hub_id (= portalId). Endpoint gratuit, pas de quota.
+  let portalId: string | undefined = portalIdHint ?? undefined;
+  if (!portalId) {
+    try {
+      const r = await fetch(`${HS_API}/oauth/v1/access-tokens/${token}`);
+      if (r.ok) {
+        const info = (await r.json()) as { hub_id?: number };
+        if (info.hub_id) portalId = String(info.hub_id);
+      }
+    } catch {}
+  }
   const empty: WorkflowsAuditResult = {
     workflows: [],
     details: [],
@@ -499,6 +519,8 @@ export async function auditHubSpotWorkflows(
       byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 },
       outgoingWebhookHosts: [],
     },
+    detailLoadStatus: { activeCount: 0, detailLoaded: 0, failedIds: [] },
+    portalId,
   };
 
   const [v4Res, v3Res] = await Promise.all([
@@ -710,6 +732,21 @@ export async function auditHubSpotWorkflows(
   const countsByObject = empty.countsByObject;
   for (const w of all.filter((w) => w.enabled)) countsByObject[w.objectType]++;
 
+  // Diagnostic : pour chaque workflow actif, charge OK ou échec ?
+  const failedIds: Array<{ id: string; name: string; reason: string }> = [];
+  for (let i = 0; i < activeWorkflowsList.length; i++) {
+    if (!detailsRaw[i]) {
+      const w = activeWorkflowsList[i];
+      failedIds.push({
+        id: w.id,
+        name: w.name,
+        reason: w.source === "v4"
+          ? "v4/flows/{id} a échoué + fallback v3 aussi"
+          : "v3/workflows/{id} a échoué + fallback v4 aussi",
+      });
+    }
+  }
+
   return {
     workflows: all,
     details,
@@ -719,5 +756,11 @@ export async function auditHubSpotWorkflows(
       byCategory: aggregateCategories,
       outgoingWebhookHosts: [...webhookHosts].sort(),
     },
+    detailLoadStatus: {
+      activeCount: activeWorkflowsList.length,
+      detailLoaded: details.length,
+      failedIds,
+    },
+    portalId,
   };
 }
