@@ -16,9 +16,6 @@ import {
   type HsPipeline,
   type PipelineAnalytics,
 } from "@/lib/integrations/hubspot-pipelines";
-import { RecommendationCard } from "@/components/recommendation-card";
-import { buildAuditRecommendations, SUBCATEGORY_LABELS } from "@/lib/audit/recommendations-library";
-import Link from "next/link";
 
 const fmtK = (n: number) =>
   n >= 1000
@@ -183,11 +180,6 @@ export default async function PerformanceCommercialePage() {
   const withoutNext = snapshot.dealsNoNextActivity;
   const followUpRate = open > 0 ? Math.round((withNext / open) * 100) : 0;
 
-  // ── Recommandations spécifiques à la sous-catégorie Ventes ──
-  const salesRecos = buildAuditRecommendations(snapshot).performances.filter(
-    (r) => r.subcategory === "ventes",
-  );
-
   return (
     <section className="space-y-8">
       <header>
@@ -204,36 +196,6 @@ export default async function PerformanceCommercialePage() {
         previewTitle="Analyse IA de votre performance commerciale"
         previewBody="L'IA Revold identifie les deals à risque, les patterns de closing gagnants et les optimisations de pipeline à fort impact sur votre taux de conversion."
       />
-
-      {/* ── RECOMMANDATIONS CRO/REVOPS — VENTES ── */}
-      {salesRecos.length > 0 && (
-        <section className="space-y-4">
-          <header className="flex items-baseline justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                <span className="inline-flex h-7 items-center rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3 text-xs font-bold uppercase tracking-wide text-white">
-                  ✨ Recommandations IA
-                </span>
-                {SUBCATEGORY_LABELS.ventes.emoji} {SUBCATEGORY_LABELS.ventes.label}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {salesRecos.length} recommandation{salesRecos.length > 1 ? "s" : ""} CRO/RevOps détectée{salesRecos.length > 1 ? "s" : ""} sur le pipeline et la qualification.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/audit/recommandations/performances"
-              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-            >
-              Voir toutes les recommandations →
-            </Link>
-          </header>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {salesRecos.slice(0, 4).map((reco) => (
-              <RecommendationCard key={reco.id} reco={reco} />
-            ))}
-          </div>
-        </section>
-      )}
 
       <CollapsibleBlock
         title={

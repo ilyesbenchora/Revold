@@ -4,16 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type Props = {
-  counts?: { donnees?: number; process?: number; performances?: number; adoption?: number };
+  counts?: {
+    donnees?: number;
+    process?: number;
+    performances?: number;
+    adoption?: number;
+    paiement?: number;
+    service_client?: number;
+  };
 };
 
 export function RecommandationsTabs({ counts = {} }: Props) {
   const pathname = usePathname();
-  const tabs = [
+  const tabs: Array<{ href: string; label: string; emoji: string; count?: number }> = [
     { href: "/dashboard/audit/recommandations", label: "Vue d'ensemble", emoji: "🎯", count: undefined },
     { href: "/dashboard/audit/recommandations/donnees", label: "Données", emoji: "🗂️", count: counts.donnees },
-    { href: "/dashboard/audit/recommandations/process", label: "Process & Alignement", emoji: "⚙️", count: counts.process },
+    { href: "/dashboard/audit/recommandations/process", label: "Automatisations", emoji: "⚙️", count: counts.process },
     { href: "/dashboard/audit/recommandations/performances", label: "Performances", emoji: "📈", count: counts.performances },
+    { href: "/dashboard/audit/recommandations/paiement-facturation", label: "Paiement & Facturation", emoji: "💰", count: counts.paiement },
+    { href: "/dashboard/audit/recommandations/service-client", label: "Service Client", emoji: "🎧", count: counts.service_client },
     { href: "/dashboard/audit/recommandations/adoption", label: "Adoption", emoji: "🚀", count: counts.adoption },
   ];
 

@@ -11,11 +11,16 @@ export default async function RecommandationsLayout({ children }: { children: Re
 
   const snapshot = await getHubspotSnapshot();
   const recs = buildAuditRecommendations(snapshot);
+  // Performances = ventes + marketing (paiement et service_client extraits dans
+  // leurs propres pages dédiées).
+  const perfMain = recs.performances.filter((r) => r.subcategory === "ventes" || r.subcategory === "marketing").length;
   const counts = {
     donnees: recs.donnees.length,
     process: recs.process.length,
-    performances: recs.performances.length,
+    performances: perfMain,
     adoption: recs.adoption.length,
+    paiement: recs.performances.filter((r) => r.subcategory === "paiement").length,
+    service_client: recs.performances.filter((r) => r.subcategory === "service_client").length,
   };
 
   return (

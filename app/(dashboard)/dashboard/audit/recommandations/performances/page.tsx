@@ -5,11 +5,13 @@ import { buildAuditRecommendations, SUBCATEGORY_LABELS } from "@/lib/audit/recom
 import type { RecoSubcategory } from "@/lib/audit/recommendations-library";
 import { RecommendationCard } from "@/components/recommendation-card";
 
+// Ventes + Marketing uniquement. Paiement et Service Client ont chacun
+// leur propre page dédiée :
+//   /dashboard/audit/recommandations/paiement-facturation
+//   /dashboard/audit/recommandations/service-client
 const SECTIONS: Array<{ key: RecoSubcategory; description: string }> = [
   { key: "ventes", description: "Closing rate, pipeline coverage, vélocité, deals stagnants, forecast" },
   { key: "marketing", description: "Lead → MQL, conversion, attribution, campaigns, lead scoring" },
-  { key: "paiement", description: "Réconciliation deals ↔ factures, recouvrement, MRR/ARR, subscriptions" },
-  { key: "service_client", description: "Tickets, CSAT/NPS, churn signals, process renewal" },
 ];
 
 export default async function RecommandationsPerformancesPage() {
@@ -23,14 +25,15 @@ export default async function RecommandationsPerformancesPage() {
     recs: all.filter((r) => r.subcategory === key),
   }));
 
-  const total = all.length;
+  const total = bySubcategory.reduce((s, b) => s + b.recs.length, 0);
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-4">
-        <p className="text-sm font-semibold text-fuchsia-900">📈 Performances — recommandations par équipe</p>
+        <p className="text-sm font-semibold text-fuchsia-900">📈 Performances — Ventes &amp; Marketing</p>
         <p className="mt-1 text-xs text-fuchsia-800">
-          {total} recommandation{total > 1 ? "s" : ""} groupées par équipe (Ventes / Marketing / Paiement &amp; Facturation / Service Client).
+          {total} recommandation{total > 1 ? "s" : ""} groupée{total > 1 ? "s" : ""} par équipe.
+          Paiement &amp; Facturation et Service Client ont leurs propres onglets dédiés ci-dessus.
         </p>
       </div>
 

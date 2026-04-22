@@ -5,8 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchOwners, searchCount, batchedFetch } from "./context";
-import { RecommendationCard } from "@/components/recommendation-card";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
+import { AuditPageTabs } from "@/components/audit-page-tabs";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -41,35 +41,12 @@ export default async function AdoptionOverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* ── RECOMMANDATIONS CRO/REVOPS — ADOPTION ── */}
-      {recommendations.length > 0 && (
-        <section className="space-y-4">
-          <header className="flex items-baseline justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                <span className="inline-flex h-7 items-center rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3 text-xs font-bold uppercase tracking-wide text-white">
-                  ✨ Recommandations IA
-                </span>
-                Adoption
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {recommendations.length} recommandation{recommendations.length > 1 ? "s" : ""} CRO/RevOps détectée{recommendations.length > 1 ? "s" : ""} sur l&apos;adoption équipe.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/audit/recommandations/adoption"
-              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-            >
-              Voir toutes les recommandations →
-            </Link>
-          </header>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {recommendations.slice(0, 4).map((reco) => (
-              <RecommendationCard key={reco.id} reco={reco} />
-            ))}
-          </div>
-        </section>
-      )}
+      <AuditPageTabs
+        tabs={[
+          { href: "/dashboard/conduite-changement", label: "Vue d'ensemble" },
+          { href: "/dashboard/conduite-changement/recommandations", label: `Recommandations${recommendations.length > 0 ? ` (${recommendations.length})` : ""}`, highlight: true },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {cards.map((c) => (
