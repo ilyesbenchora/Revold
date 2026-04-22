@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 
 export function DonneesTabs() {
   const pathname = usePathname();
-  const tabs = [
+  const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
     { href: "/dashboard/donnees", label: "Vue d'ensemble" },
     { href: "/dashboard/donnees/contacts", label: "Contacts" },
     { href: "/dashboard/donnees/entreprises", label: "Entreprises" },
     { href: "/dashboard/donnees/transactions", label: "Transactions" },
+    { href: "/dashboard/donnees/recommandations", label: "Recommandations", highlight: true },
   ];
 
   return (
@@ -23,8 +24,9 @@ export function DonneesTabs() {
               href={t.href}
               className={`relative px-4 py-2 text-sm font-medium transition ${
                 isActive ? "text-accent" : "text-slate-500 hover:text-slate-900"
-              }`}
+              } ${t.highlight ? "flex items-center gap-1.5" : ""}`}
             >
+              {t.highlight && <span aria-hidden>✨</span>}
               {t.label}
               {isActive && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
             </Link>

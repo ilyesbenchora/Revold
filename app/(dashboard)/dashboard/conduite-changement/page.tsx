@@ -2,11 +2,9 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchOwners, searchCount, batchedFetch } from "./context";
-import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
-import { AuditPageTabs } from "@/components/audit-page-tabs";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -16,11 +14,7 @@ export default async function AdoptionOverviewPage() {
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
 
-  const [snapshot, owners] = await Promise.all([
-    getHubspotSnapshot(),
-    fetchOwners(token),
-  ]);
-  const recommendations = buildAuditRecommendations(snapshot).adoption;
+  const owners = await fetchOwners(token);
 
   // Quick summary counts (batched)
   const fns = owners.slice(0, 10).map((o) => () =>
@@ -40,15 +34,7 @@ export default async function AdoptionOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <AuditPageTabs
-        tabs={[
-          { href: "/dashboard/conduite-changement", label: "Vue d'ensemble" },
-          { href: "/dashboard/conduite-changement/recommandations", label: `Recommandations${recommendations.length > 0 ? ` (${recommendations.length})` : ""}`, highlight: true },
-        ]}
-      />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {cards.map((c) => (
           <Link key={c.href} href={c.href} className="card group flex flex-col gap-3 p-5 transition hover:border-accent/30 hover:shadow-md">
             <div className="flex items-center justify-between">
@@ -63,6 +49,5 @@ export default async function AdoptionOverviewPage() {
           </Link>
         ))}
       </div>
-    </div>
   );
 }

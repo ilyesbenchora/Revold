@@ -7,8 +7,6 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
-import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
-import { AuditPageTabs } from "@/components/audit-page-tabs";
 import Link from "next/link";
 
 type ToolEntityCount = {
@@ -245,9 +243,6 @@ export default async function DonneesPage() {
     });
   }
 
-  // ── Recommandations CRO/RevOps spécifiques à la catégorie Données ──
-  const recommendations = buildAuditRecommendations(snapshot).donnees;
-
   // Tous les gaps consolidés, triés par sévérité (les pires d'abord)
   const allGaps = hubs.flatMap((h) =>
     h.gaps.map((g) => ({ ...g, hubLabel: h.label, hubDomain: h.domain, hubIcon: h.icon })),
@@ -315,13 +310,6 @@ export default async function DonneesPage() {
           </p>
         </div>
       )}
-
-      <AuditPageTabs
-        tabs={[
-          { href: "/dashboard/donnees", label: "Vue d'ensemble" },
-          { href: "/dashboard/donnees/recommandations", label: `Recommandations${recommendations.length > 0 ? ` (${recommendations.length})` : ""}`, highlight: true },
-        ]}
-      />
 
       {/* ── ENRICHISSEMENTS À PRIORISER ── */}
       {allGaps.length > 0 && (
