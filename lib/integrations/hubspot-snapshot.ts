@@ -642,8 +642,8 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     searchTotal(token, "subscriptions", {
       filterGroups: [{ filters: [{ propertyName: "hs_subscription_status", operator: "IN", values: ["active", "trialing", "past_due"] }] }],
     }, diag, "activeSubscriptions"),
-    // ── Ecosystem complet (autres counts) ──
-    fetchHubSpotEcosystemCounts(token),
+    // ── Ecosystem complet (autres counts) — diag partagé pour traçabilité ──
+    fetchHubSpotEcosystemCounts(token, diag as unknown as Map<string, { status: string; httpCode?: number }>),
   ]);
 
   diag.set("ownersCount", ownersStatus);

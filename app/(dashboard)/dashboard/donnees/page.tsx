@@ -118,6 +118,19 @@ export default async function DonneesPage() {
     if (dealsTotal > 0 && closeDatePct < 80) hsGaps.push({ entity: "Deals", field: "Date closing", pct: closeDatePct, severity: closeDatePct < 50 ? "critical" : "warning" });
     if (dealsTotal > 0 && ownerPct < 80) hsGaps.push({ entity: "Deals", field: "Propriétaire", pct: ownerPct, severity: ownerPct < 50 ? "critical" : "warning" });
 
+    // Helper qui transforme un statut diagnostic en label utilisateur
+    const diag = snapshot.kpiDiagnostics ?? {};
+    const labelFromDiag = (key: string, fallback?: string): string | undefined => {
+      const d = diag[key];
+      if (!d || d.status === "ok") return fallback;
+      if (d.status === "no_scope") return "Scope OAuth manquant";
+      if (d.status === "addon_missing") return "Hub HubSpot non activé";
+      if (d.status === "bad_property") return "Propriété inexistante";
+      if (d.status === "endpoint_error") return `Erreur HubSpot (${d.httpCode ?? "?"})`;
+      if (d.status === "network_error") return "Erreur réseau";
+      return fallback;
+    };
+
     hubs.push({
       key: "hubspot",
       label: "HubSpot",
@@ -125,17 +138,17 @@ export default async function DonneesPage() {
       icon: "🟧",
       category: "CRM",
       entities: [
-        { label: "Contacts", count: contactsTotal, enrichmentPct: Math.round((phonePct + companyPct + titlePct) / 3), enrichmentLabel: "champs clés" },
-        { label: "Entreprises", count: companiesTotal, enrichmentPct: Math.round((domainPct + industryPct + revenuePct) / 3), enrichmentLabel: "champs clés" },
-        { label: "Deals", count: dealsTotal, enrichmentPct: Math.round((amountPct + closeDatePct + ownerPct) / 3), enrichmentLabel: "champs clés" },
-        { label: "Tickets", count: snapshot.totalTickets, enrichmentLabel: snapshot.totalTickets === 0 ? "Service Hub désactivé" : undefined },
-        { label: "Conversations", count: snapshot.totalConversations },
-        { label: "Quotes", count: snapshot.totalQuotes },
-        { label: "Forms", count: snapshot.formsCount },
-        { label: "Workflows", count: snapshot.workflowsCount, enrichmentLabel: `${snapshot.workflowsActiveCount} actifs` },
-        { label: "Listes", count: snapshot.listsCount },
-        { label: "Custom Objects", count: snapshot.customObjectsCount },
-      ].filter((e) => e.count > 0 || ["Contacts", "Entreprises", "Deals", "Tickets"].includes(e.label)),
+        { label: "Contacts", count: contactsTotal, enrichmentPct: Math.round((phonePct + companyPct + titlePct) / 3), enrichmentLabel: labelFromDiag("totalContacts", "champs clés") },
+        { label: "Entreprises", count: companiesTotal, enrichmentPct: Math.round((domainPct + industryPct + revenuePct) / 3), enrichmentLabel: labelFromDiag("totalCompanies", "champs clés") },
+        { label: "Deals", count: dealsTotal, enrichmentPct: Math.round((amountPct + closeDatePct + ownerPct) / 3), enrichmentLabel: labelFromDiag("totalDeals", "champs clés") },
+        { label: "Tickets", count: snapshot.totalTickets, enrichmentLabel: labelFromDiag("tickets", snapshot.totalTickets === 0 ? "Service Hub désactivé ou sans tickets" : undefined) },
+        { label: "Conversations", count: snapshot.totalConversations, enrichmentLabel: labelFromDiag("conversations") },
+        { label: "Quotes", count: snapshot.totalQuotes, enrichmentLabel: labelFromDiag("quotes") },
+        { label: "Forms", count: snapshot.formsCount, enrichmentLabel: labelFromDiag("forms") },
+        { label: "Workflows", count: snapshot.workflowsCount, enrichmentLabel: snapshot.workflowsActiveCount > 0 ? `${snapshot.workflowsActiveCount} actifs` : labelFromDiag("workflows") },
+        { label: "Listes", count: snapshot.listsCount, enrichmentLabel: labelFromDiag("lists") },
+        { label: "Custom Objects", count: snapshot.customObjectsCount, enrichmentLabel: labelFromDiag("custom_objects") },
+      ].filter((e) => e.count > 0 || ["Contacts", "Entreprises", "Deals", "Tickets"].includes(e.label) || e.enrichmentLabel), // garde aussi les 0 avec un label diag
       gaps: hsGaps,
     });
   }
@@ -277,6 +290,27 @@ export default async function DonneesPage() {
 
   return (
     <div className="space-y-6">
+      {/* ── BANDEAU DIAGNOSTIC SNAPSHOT (si erreur) ── */}
+      {snapshot.status === "error" && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <p className="text-sm font-bold text-rose-900">⚠ Erreur de récupération des données HubSpot</p>
+          <p className="mt-1 text-xs text-rose-800">
+            Le snapshot n&apos;a pas pu être chargé : {snapshot.error ?? "erreur inconnue"}.
+            Les compteurs HubSpot sont à 0 par défaut. Vérifiez la connexion HubSpot dans
+            <Link href="/dashboard/integration" className="ml-1 font-semibold underline">Intégrations</Link>.
+          </p>
+        </div>
+      )}
+      {snapshot.status === "no-token" && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-900">🔌 HubSpot non connecté</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Connectez votre portail HubSpot via OAuth pour alimenter cette page.
+            <Link href="/dashboard/integration" className="ml-1 font-semibold underline">Intégrations →</Link>
+          </p>
+        </div>
+      )}
+
       {/* ── ENRICHISSEMENTS À PRIORISER ── */}
       {allGaps.length > 0 && (
         <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50/70 to-amber-50/40 p-5">

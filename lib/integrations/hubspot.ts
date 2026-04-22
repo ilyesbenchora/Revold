@@ -486,7 +486,24 @@ export async function fetchHubSpotCompanies(accessToken: string, maxPages: numbe
  * répond 403, on retourne 0 sans crasher l'ensemble.
  */
 
-async function safeCount(accessToken: string, endpoint: string, body?: unknown): Promise<number> {
+/**
+ * Diagnostic optionnel passé à safeCount/searchCount/paginatedCount.
+ * Quand fourni, le helper écrit le status HTTP réel pour le KPI
+ * correspondant. Permet à la page Données de différencier "vraiment 0"
+ * vs "scope manquant" vs "endpoint 404".
+ */
+type DiagInput = { diag?: Map<string, { status: string; httpCode?: number }>; key?: string };
+
+function recordDiag(opts: DiagInput | undefined, status: string, httpCode?: number) {
+  if (opts?.diag && opts.key) opts.diag.set(opts.key, { status, httpCode });
+}
+
+async function safeCount(
+  accessToken: string,
+  endpoint: string,
+  body?: unknown,
+  opts?: DiagInput,
+): Promise<number> {
   try {
     const url = `${HUBSPOT_API}${endpoint}`;
     const res = await fetch(url, {
@@ -497,17 +514,27 @@ async function safeCount(accessToken: string, endpoint: string, body?: unknown):
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) return 0;
+    if (!res.ok) {
+      const s = res.status === 401 || res.status === 403 ? "no_scope"
+        : res.status === 404 ? "addon_missing"
+        : "endpoint_error";
+      recordDiag(opts, s, res.status);
+      return 0;
+    }
     const data = await res.json();
-    if (typeof data.total === "number") return data.total;
-    if (Array.isArray(data.results)) return data.results.length;
-    if (Array.isArray(data.workflows)) return data.workflows.length;
-    if (Array.isArray(data.lists)) return data.lists.length;
-    if (Array.isArray(data.users)) return data.users.length;
-    if (Array.isArray(data.teams)) return data.teams.length;
-    if (typeof data.totalCount === "number") return data.totalCount;
-    return 0;
+    let total = 0;
+    if (typeof data.total === "number") total = data.total;
+    else if (Array.isArray(data.results)) total = data.results.length;
+    else if (Array.isArray(data.workflows)) total = data.workflows.length;
+    else if (Array.isArray(data.lists)) total = data.lists.length;
+    else if (Array.isArray(data.users)) total = data.users.length;
+    else if (Array.isArray(data.teams)) total = data.teams.length;
+    else if (Array.isArray(data.objects)) total = data.objects.length;
+    else if (typeof data.totalCount === "number") total = data.totalCount;
+    recordDiag(opts, "ok", 200);
+    return total;
   } catch {
+    recordDiag(opts, "network_error");
     return 0;
   }
 }
@@ -517,8 +544,8 @@ async function safeCount(accessToken: string, endpoint: string, body?: unknown):
  * `total` sans charger les rows. Fiable pour TOUS les CRM objects (standard
  * et custom) tant que le scope correspondant est accordé.
  */
-function searchCount(accessToken: string, objectType: string): Promise<number> {
-  return safeCount(accessToken, `/crm/v3/objects/${objectType}/search`, { limit: 1 });
+function searchCount(accessToken: string, objectType: string, opts?: DiagInput): Promise<number> {
+  return safeCount(accessToken, `/crm/v3/objects/${objectType}/search`, { limit: 1 }, opts);
 }
 
 /**
@@ -530,11 +557,13 @@ async function paginatedCount(
   accessToken: string,
   endpoint: string,
   maxPages = 10,
+  opts?: DiagInput,
 ): Promise<number> {
   let total = 0;
   let after: string | undefined;
   let page = 0;
 
+  let lastErrCode: number | null = null;
   do {
     try {
       const url = new URL(`${HUBSPOT_API}${endpoint}`);
@@ -544,18 +573,75 @@ async function paginatedCount(
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!res.ok) return total;
+      if (!res.ok) {
+        lastErrCode = res.status;
+        break;
+      }
       const data = await res.json();
       const results = (data.results ?? []) as unknown[];
       total += results.length;
       after = data.paging?.next?.after;
       page++;
     } catch {
+      recordDiag(opts, "network_error");
       return total;
     }
   } while (after && page < maxPages);
 
+  if (lastErrCode !== null && total === 0) {
+    const s = lastErrCode === 401 || lastErrCode === 403 ? "no_scope"
+      : lastErrCode === 404 ? "addon_missing"
+      : "endpoint_error";
+    recordDiag(opts, s, lastErrCode);
+  } else {
+    recordDiag(opts, "ok", 200);
+  }
   return total;
+}
+
+/**
+ * Forms : essai prioritaire sur /marketing/v3/forms (Marketing Hub).
+ * Si scope manquant ou 404 → fallback sur /forms/v2/forms (legacy public,
+ * disponible sur la plupart des comptes même Free).
+ */
+async function paginatedCountWithFallback(
+  accessToken: string,
+  primaryEndpoint: string,
+  fallbackEndpoint: string,
+  maxPages = 10,
+  opts?: DiagInput,
+): Promise<number> {
+  // 1) Essai endpoint principal sans recordDiag final
+  const localDiag = new Map<string, { status: string; httpCode?: number }>();
+  const localOpts: DiagInput = { diag: localDiag, key: "primary" };
+  const primaryCount = await paginatedCount(accessToken, primaryEndpoint, maxPages, localOpts);
+  const primaryStatus = localDiag.get("primary");
+  if (primaryStatus?.status === "ok" && primaryCount > 0) {
+    recordDiag(opts, "ok", 200);
+    return primaryCount;
+  }
+  if (primaryCount > 0) {
+    // Endpoint a renvoyé qqch même si status pas tout à fait clean
+    recordDiag(opts, "ok", primaryStatus?.httpCode ?? 200);
+    return primaryCount;
+  }
+  // 2) Fallback legacy
+  try {
+    const r = await fetch(`${HUBSPOT_API}${fallbackEndpoint}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) {
+      recordDiag(opts, primaryStatus?.status ?? "endpoint_error", primaryStatus?.httpCode);
+      return 0;
+    }
+    const data = await r.json();
+    const arr = Array.isArray(data) ? data : (data.objects ?? data.results ?? []);
+    recordDiag(opts, "ok", 200);
+    return Array.isArray(arr) ? arr.length : 0;
+  } catch {
+    recordDiag(opts, primaryStatus?.status ?? "network_error");
+    return 0;
+  }
 }
 
 export type HubSpotEcosystemCounts = {
@@ -593,7 +679,11 @@ export type HubSpotEcosystemCounts = {
   workflowsActive: number;
 };
 
-export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<HubSpotEcosystemCounts> {
+export async function fetchHubSpotEcosystemCounts(
+  accessToken: string,
+  diag?: Map<string, { status: string; httpCode?: number }>,
+): Promise<HubSpotEcosystemCounts> {
+  const D = (key: string): DiagInput => ({ diag, key });
   // ── Custom objects : compter UNIQUEMENT les schemas non-standard ──
   // /crm/v3/schemas retourne aussi les standard objects (préfixe "0-").
   // Les custom objects ont objectTypeId qui commence par "2-".
@@ -631,31 +721,32 @@ export async function fetchHubSpotEcosystemCounts(accessToken: string): Promise<
     workflowsData,
   ] = await Promise.all([
     // ── CRM objects (search?limit=1 renvoie .total fiable) ──
-    searchCount(accessToken, "invoices"),
-    searchCount(accessToken, "subscriptions"),
-    searchCount(accessToken, "quotes"),
-    searchCount(accessToken, "line_items"),
-    searchCount(accessToken, "appointments"),
-    searchCount(accessToken, "marketing_events"),
-    searchCount(accessToken, "goals"),
-    searchCount(accessToken, "leads"),
-    searchCount(accessToken, "feedback_submissions"),
-    searchCount(accessToken, "listings"),
-    searchCount(accessToken, "projects"),
-    searchCount(accessToken, "tickets"),
+    searchCount(accessToken, "invoices", D("invoices")),
+    searchCount(accessToken, "subscriptions", D("subscriptions")),
+    searchCount(accessToken, "quotes", D("quotes")),
+    searchCount(accessToken, "line_items", D("line_items")),
+    searchCount(accessToken, "appointments", D("appointments")),
+    searchCount(accessToken, "marketing_events", D("marketing_events")),
+    searchCount(accessToken, "goals", D("goals")),
+    searchCount(accessToken, "leads", D("leads")),
+    searchCount(accessToken, "feedback_submissions", D("feedback_submissions")),
+    searchCount(accessToken, "listings", D("listings")),
+    searchCount(accessToken, "projects", D("projects")),
+    searchCount(accessToken, "tickets", D("tickets")),
 
     // Conversations : v3 inbox endpoint paginé
-    paginatedCount(accessToken, "/conversations/v3/conversations/threads", 5),
+    paginatedCount(accessToken, "/conversations/v3/conversations/threads", 5, D("conversations")),
 
     // Sequences : pas d'endpoint public direct pour le total des sequences.
     // On compte les enrollments comme proxy d'usage. 0 = pas de scope ou
     // pas de Sales Hub Pro+
-    paginatedCount(accessToken, "/automation/v4/sequences/enrollments", 3),
+    paginatedCount(accessToken, "/automation/v4/sequences/enrollments", 3, D("sequences")),
 
-    // Forms / Campaigns / Users : pagination obligatoire (pas de .total)
-    paginatedCount(accessToken, "/marketing/v3/forms", 5),
-    paginatedCount(accessToken, "/marketing/v3/campaigns", 5),
-    paginatedCount(accessToken, "/settings/v3/users", 10),
+    // Forms : essai prioritaire /marketing/v3/forms (Marketing Hub Pro+),
+    // fallback /forms/v2/forms (legacy public, dispo même Marketing Hub Free)
+    paginatedCountWithFallback(accessToken, "/marketing/v3/forms", "/forms/v2/forms", 5, D("forms")),
+    paginatedCount(accessToken, "/marketing/v3/campaigns", 5, D("marketing_campaigns")),
+    paginatedCount(accessToken, "/settings/v3/users", 10, D("users")),
 
     // Teams
     fetch(`${HUBSPOT_API}/settings/v3/users/teams`, {
