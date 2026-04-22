@@ -59,6 +59,11 @@ export type WorkflowDetail = {
   objectType: WorkflowObjectType;
   flowType?: string;
 
+  /** Source API du workflow : v3 = classic legacy, v4 = Workflows 2.0.
+   *  Affiché sur la card pour transparence totale (l'utilisateur peut
+   *  vérifier dans son HubSpot UI lequel correspond). */
+  apiSource: "v3" | "v4";
+
   /** Lien direct vers le workflow dans HubSpot (construit avec portalId). */
   hubspotUrl?: string;
 
@@ -703,6 +708,7 @@ export async function auditHubSpotWorkflows(
       enabled: summary.enabled,
       objectType,
       flowType: undefined,
+      apiSource: raw.kind,
       hubspotUrl,
       triggerDescription,
       triggerCriteriaCount,

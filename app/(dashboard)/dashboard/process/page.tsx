@@ -10,7 +10,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import { AuditPageTabs } from "@/components/audit-page-tabs";
-import { WorkflowTextAnalysis } from "@/components/workflow-text-analysis";
+import { WorkflowCarousel } from "@/components/workflow-carousel";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -163,7 +163,7 @@ export default async function AutomatisationsPage() {
 
           {audit.details.length > 0 && (
             <div className="mt-4">
-              <WorkflowTextAnalysis details={audit.details} />
+              <WorkflowCarousel details={audit.details} />
             </div>
           )}
         </CollapsibleBlock>
