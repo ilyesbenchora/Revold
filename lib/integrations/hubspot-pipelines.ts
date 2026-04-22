@@ -323,9 +323,10 @@ export function buildPipelineAnalytics(
         forecastReliable,
       },
     };
-  })
-    // Garde TOUS les pipelines détectés dans HubSpot (même sans deal ouvert).
-    // On affiche au minimum les pipelines qui ont eu un won/lost historique
-    // OU qui ont des deals ouverts. Un pipeline complètement vide reste filtré.
-    .filter((pa) => pa.totalDeals > 0 || pa.attractiveness.wonCount > 0 || pa.attractiveness.lostCount > 0);
+  });
+  // BUG FIX : on garde TOUS les pipelines détectés dans HubSpot, même
+  // complètement vides. Un pipeline qui apparaît dans /crm/v3/pipelines/deals
+  // existe légitimement et doit être affiché. Le filtre précédent faisait
+  // disparaître tous les pipelines quand fetchOpenDeals timeoutait sur les
+  // gros comptes (résultat: "Aucun pipeline détecté" alors qu'il y en a).
 }
