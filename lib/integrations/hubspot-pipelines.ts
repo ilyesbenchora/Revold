@@ -168,6 +168,140 @@ export async function fetchOpenDeals(token: string): Promise<HsDealRow[]> {
 }
 
 /**
+ * Fetch open deals POUR UN SEUL pipeline (capé à 500 deals).
+ *
+ * Bien plus rapide et fiable que fetchOpenDeals() qui chargait jusqu'à 5000
+ * deals tous pipelines confondus puis filtrait en mémoire. Sur un compte
+ * avec 5+ pipelines actifs, l'ancienne approche timeoutait régulièrement.
+ *
+ * Cette version est appelée en parallèle par pipeline → N requêtes
+ * indépendantes au lieu d'1 grosse requête séquentielle paginée.
+ */
+export async function fetchOpenDealsForPipeline(
+  token: string,
+  pipelineId: string,
+  max = 500,
+): Promise<HsDealRow[]> {
+  const properties = [
+    "dealname", "pipeline", "dealstage", "amount", "closedate",
+    "hs_time_in_latest_deal_stage", "hs_lastmodifieddate",
+    "num_notes", "hubspot_owner_id",
+  ];
+
+  const all: HsDealRow[] = [];
+  let after: string | undefined;
+  const batches = Math.ceil(max / 100);
+
+  for (let batch = 0; batch < batches; batch++) {
+    const body: Record<string, unknown> = {
+      filterGroups: [{
+        filters: [
+          { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
+          { propertyName: "pipeline", operator: "EQ", value: pipelineId },
+        ],
+      }],
+      properties,
+      sorts: [{ propertyName: "hs_lastmodifieddate", direction: "DESCENDING" }],
+      limit: 100,
+    };
+    if (after) body.after = after;
+
+    try {
+      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) break;
+      const data = await res.json();
+      const results = (data.results ?? []) as Array<Record<string, unknown>>;
+      if (results.length === 0) break;
+
+      for (const r of results) {
+        const props = (r.properties as Record<string, string | null>) ?? {};
+        const msInStage = Number(props.hs_time_in_latest_deal_stage ?? 0);
+        const daysInStage = Math.round(msInStage / 86_400_000);
+
+        all.push({
+          id: r.id as string,
+          name: props.dealname || `Deal ${r.id}`,
+          pipeline: props.pipeline || pipelineId,
+          dealstage: props.dealstage || "",
+          amount: Number(props.amount) || 0,
+          closedate: props.closedate || null,
+          daysInStage,
+          salesActivities: Number(props.num_notes ?? 0),
+          lastModified: props.hs_lastmodifieddate || null,
+          ownerId: props.hubspot_owner_id || null,
+        });
+      }
+
+      after = data.paging?.next?.after;
+      if (!after) break;
+    } catch {
+      break;
+    }
+  }
+
+  return all;
+}
+
+/**
+ * Compte exact des deals fermés (won OU lost) pour un pipeline donné via
+ * /search?limit=1 → renvoie data.total fiable sans charger les rows.
+ */
+async function countDealsForPipeline(
+  token: string,
+  pipelineId: string,
+  isWon: boolean,
+): Promise<number> {
+  try {
+    const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filterGroups: [{
+          filters: [
+            { propertyName: "pipeline", operator: "EQ", value: pipelineId },
+            { propertyName: "hs_is_closed", operator: "EQ", value: "true" },
+            { propertyName: "hs_is_closed_won", operator: "EQ", value: isWon ? "true" : "false" },
+          ],
+        }],
+        limit: 1,
+      }),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return typeof data.total === "number" ? data.total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Fetch atomique de TOUTES les données d'un pipeline en parallèle.
+ * Une fois cette fonction appelée pour TOUS les pipelines en parallèle,
+ * on a la totalité des données nécessaires pour buildPipelineAnalytics
+ * — sans pagination géante.
+ */
+export async function fetchPipelineDataAtomic(
+  token: string,
+  pipeline: HsPipeline,
+): Promise<{
+  pipeline: HsPipeline;
+  openDeals: HsDealRow[];
+  wonCount: number;
+  lostCount: number;
+}> {
+  const [openDeals, wonCount, lostCount] = await Promise.all([
+    fetchOpenDealsForPipeline(token, pipeline.id, 500),
+    countDealsForPipeline(token, pipeline.id, true),
+    countDealsForPipeline(token, pipeline.id, false),
+  ]);
+  return { pipeline, openDeals, wonCount, lostCount };
+}
+
+/**
  * Fetch closed deals (won + lost) grouped by pipeline.
  */
 export async function fetchClosedDealsByPipeline(

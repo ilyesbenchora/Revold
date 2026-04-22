@@ -11,13 +11,11 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import {
-  fetchOpenDeals,
-  fetchClosedDealsByPipeline,
+  fetchPipelineDataAtomic,
   buildPipelineAnalytics,
   type HsPipeline,
   type PipelineAnalytics,
 } from "@/lib/integrations/hubspot-pipelines";
-import type { PipelineInfo } from "@/lib/integrations/hubspot-snapshot";
 
 const fmtK = (n: number) =>
   n >= 1000
@@ -96,21 +94,18 @@ export default async function PerformanceCommercialePage() {
   const snapshot = await getHubspotSnapshot();
 
   // ── Pipeline analytics ──
-  // BUG FIX : on n'appelle PLUS fetchPipelines(token) — on utilise
-  // snapshot.pipelines qui est déjà cached (5 min TTL via getHubspotSnapshot).
-  // Avant : double appel à /crm/v3/pipelines/deals (1 ici + 1 dans le snapshot).
-  // Sur les comptes lents ou pendant un timeout, fetchPipelines retournait []
-  // → buildPipelineAnalytics([], ...) retournait [] → "Aucun pipeline détecté"
-  // alors que snapshot.pipelines avait les données.
+  // FIX RACINE 2 : on n'appelle PLUS fetchOpenDeals(token) qui paginait
+  // jusqu'à 5000 deals tous pipelines confondus puis filtrait en mémoire
+  // → timeout fréquent → deals=[] → totalDeals=0 par pipeline (le bug
+  // "0 deal en cours" même quand il y en a 100+).
   //
-  // Les deals open + closed restent en fetch dynamique car ils peuvent évoluer
-  // entre les appels — mais on les rend résilients aux échecs (try/catch
-  // séparé) pour ne JAMAIS perdre l'affichage des pipelines.
+  // Nouveau : fetchPipelineDataAtomic appelé en parallèle pour chaque
+  // pipeline → 3 requêtes atomiques par pipeline (open deals max 500 +
+  // count won + count lost), toutes parallélisables.
   let pipelineAnalytics: PipelineAnalytics[] = [];
   let openDealsList: DealLite[] = [];
   if (token) {
-    // Convertit snapshot.pipelines (PipelineInfo) → HsPipeline pour
-    // buildPipelineAnalytics. Aucun fetch supplémentaire.
+    // Convertit snapshot.pipelines (PipelineInfo) → HsPipeline. Cached.
     const hsPipelines: HsPipeline[] = snapshot.pipelines.map((p) => ({
       id: p.id,
       label: p.label,
@@ -122,15 +117,31 @@ export default async function PerformanceCommercialePage() {
       })),
     }));
 
-    // Les 3 fetches deals tournent en parallèle, mais les échecs sont
-    // catchés indépendamment pour que les pipelines s'affichent toujours.
-    const [openDealRows, closedByPipeline, deals] = await Promise.all([
-      fetchOpenDeals(token).catch(() => []),
-      fetchClosedDealsByPipeline(token).catch(() => ({ won: {}, lost: {} })),
+    // Fetch atomique par pipeline en parallèle (pas de pagination géante).
+    const [pipelineDataList, dealsForLists] = await Promise.all([
+      Promise.all(
+        hsPipelines.map((p) =>
+          fetchPipelineDataAtomic(token, p).catch(() => ({
+            pipeline: p,
+            openDeals: [],
+            wonCount: 0,
+            lostCount: 0,
+          })),
+        ),
+      ),
       fetchOpenDealsForLists(token).catch(() => []),
     ]);
-    pipelineAnalytics = buildPipelineAnalytics(hsPipelines, openDealRows, closedByPipeline);
-    openDealsList = deals;
+
+    // Reconstruit l'input attendu par buildPipelineAnalytics :
+    //  - tous les deals ouverts agrégés (toutes pipelines confondues)
+    //  - closedByPipeline : { won: { pipelineId → count }, lost: { ... } }
+    const allOpenDeals = pipelineDataList.flatMap((p) => p.openDeals);
+    const closedByPipeline = {
+      won: Object.fromEntries(pipelineDataList.map((p) => [p.pipeline.id, p.wonCount])),
+      lost: Object.fromEntries(pipelineDataList.map((p) => [p.pipeline.id, p.lostCount])),
+    };
+    pipelineAnalytics = buildPipelineAnalytics(hsPipelines, allOpenDeals, closedByPipeline);
+    openDealsList = dealsForLists;
   }
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
