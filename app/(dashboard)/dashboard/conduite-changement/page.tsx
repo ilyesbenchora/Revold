@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchOwners, searchCount, batchedFetch } from "./context";
+import { RecommendationCard } from "@/components/recommendation-card";
+import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -14,7 +16,11 @@ export default async function AdoptionOverviewPage() {
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
 
-  const owners = await fetchOwners(token);
+  const [snapshot, owners] = await Promise.all([
+    getHubspotSnapshot(),
+    fetchOwners(token),
+  ]);
+  const recommendations = buildAuditRecommendations(snapshot).adoption;
 
   // Quick summary counts (batched)
   const fns = owners.slice(0, 10).map((o) => () =>
@@ -34,20 +40,52 @@ export default async function AdoptionOverviewPage() {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      {cards.map((c) => (
-        <Link key={c.href} href={c.href} className="card group flex flex-col gap-3 p-5 transition hover:border-accent/30 hover:shadow-md">
-          <div className="flex items-center justify-between">
-            {c.icon}
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-accent transition"><polyline points="9 18 15 12 9 6" /></svg>
+    <div className="space-y-6">
+      {/* ── RECOMMANDATIONS CRO/REVOPS — ADOPTION ── */}
+      {recommendations.length > 0 && (
+        <section className="space-y-4">
+          <header className="flex items-baseline justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                <span className="inline-flex h-7 items-center rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3 text-xs font-bold uppercase tracking-wide text-white">
+                  ✨ Recommandations IA
+                </span>
+                Adoption
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {recommendations.length} recommandation{recommendations.length > 1 ? "s" : ""} CRO/RevOps détectée{recommendations.length > 1 ? "s" : ""} sur l&apos;adoption équipe.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/audit/recommandations/adoption"
+              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+            >
+              Voir toutes les recommandations →
+            </Link>
+          </header>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {recommendations.slice(0, 4).map((reco) => (
+              <RecommendationCard key={reco.id} reco={reco} />
+            ))}
           </div>
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 group-hover:text-accent transition">{c.label}</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{c.description}</p>
-          </div>
-          <p className={`text-sm font-semibold ${c.color}`}>{c.stat}</p>
-        </Link>
-      ))}
+        </section>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {cards.map((c) => (
+          <Link key={c.href} href={c.href} className="card group flex flex-col gap-3 p-5 transition hover:border-accent/30 hover:shadow-md">
+            <div className="flex items-center justify-between">
+              {c.icon}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-accent transition"><polyline points="9 18 15 12 9 6" /></svg>
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 group-hover:text-accent transition">{c.label}</h3>
+              <p className="mt-0.5 text-xs text-slate-500">{c.description}</p>
+            </div>
+            <p className={`text-sm font-semibold ${c.color}`}>{c.stat}</p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

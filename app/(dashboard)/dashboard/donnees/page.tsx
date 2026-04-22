@@ -7,6 +7,8 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { RecommendationCard } from "@/components/recommendation-card";
+import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import Link from "next/link";
 
 type ToolEntityCount = {
@@ -243,6 +245,9 @@ export default async function DonneesPage() {
     });
   }
 
+  // ── Recommandations CRO/RevOps spécifiques à la catégorie Données ──
+  const recommendations = buildAuditRecommendations(snapshot).donnees;
+
   // Tous les gaps consolidés, triés par sévérité (les pires d'abord)
   const allGaps = hubs.flatMap((h) =>
     h.gaps.map((g) => ({ ...g, hubLabel: h.label, hubDomain: h.domain, hubIcon: h.icon })),
@@ -309,6 +314,37 @@ export default async function DonneesPage() {
             <Link href="/dashboard/integration" className="ml-1 font-semibold underline">Intégrations →</Link>
           </p>
         </div>
+      )}
+
+      {/* ── RECOMMANDATIONS CRO/REVOPS — VUE D'ENSEMBLE ── */}
+      {recommendations.length > 0 && (
+        <section className="space-y-4">
+          <header className="flex items-baseline justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                <span className="inline-flex h-7 items-center rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3 text-xs font-bold uppercase tracking-wide text-white">
+                  ✨ Recommandations IA
+                </span>
+                Données
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {recommendations.length} recommandation{recommendations.length > 1 ? "s" : ""} CRO/RevOps détectée{recommendations.length > 1 ? "s" : ""} sur la qualité des données.
+                Activez-en une pour la transformer en coaching IA dans votre tableau de bord.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/audit/recommandations/donnees"
+              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+            >
+              Voir toutes les recommandations →
+            </Link>
+          </header>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {recommendations.slice(0, 4).map((reco) => (
+              <RecommendationCard key={reco.id} reco={reco} />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ── ENRICHISSEMENTS À PRIORISER ── */}
