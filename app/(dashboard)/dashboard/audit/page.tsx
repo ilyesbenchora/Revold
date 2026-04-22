@@ -19,7 +19,7 @@ const modules = [
   },
   {
     href: "/dashboard/process",
-    title: "Process & Alignement",
+    title: "Automatisations",
     description: "Cohérence des cycles, handoffs, règles de qualification, alignement sales-marketing.",
     objective: "Supprimer les frictions entre équipes pour fluidifier le parcours prospect → client.",
     icon: (

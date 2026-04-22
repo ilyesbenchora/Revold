@@ -1,12 +1,14 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { auditHubSpotWorkflows } from "@/lib/integrations/hubspot-workflows";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 
-export default async function ProcessPage() {
+export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -43,75 +45,19 @@ export default async function ProcessPage() {
     } catch {}
   }
 
-  // Workflows (v3 + v4 mergés depuis snapshot.ecosystem est partiel,
-  // ici on a besoin de la liste détaillée pour l'analyse par type)
-  let workflows: Array<{ id: string; name: string; enabled: boolean; type: string; objectType?: string }> = [];
-  let workflowError: string | null = null;
-  if (hsToken) {
-    try {
-      const [v3Res, v4Res] = await Promise.all([
-        fetch("https://api.hubapi.com/automation/v3/workflows", {
-          headers: { Authorization: `Bearer ${hsToken}` },
-        }),
-        fetch("https://api.hubapi.com/automation/v4/flows?limit=200", {
-          headers: { Authorization: `Bearer ${hsToken}` },
-        }),
-      ]);
-      const seen = new Set<string>();
-      if (v3Res.ok) {
-        const data = await v3Res.json();
-        for (const w of (data.workflows ?? []) as Array<Record<string, unknown>>) {
-          const id = String(w.id);
-          if (seen.has(id)) continue;
-          seen.add(id);
-          workflows.push({
-            id,
-            name: (w.name as string) || "Sans nom",
-            enabled: w.enabled === true,
-            type: (w.type as string) || "unknown",
-            objectType: w.objectTypeId as string | undefined,
-          });
-        }
-      }
-      if (v4Res.ok) {
-        const data = await v4Res.json();
-        for (const w of (data.results ?? []) as Array<Record<string, unknown>>) {
-          const id = String(w.id);
-          if (seen.has(id)) continue;
-          seen.add(id);
-          workflows.push({
-            id,
-            name: (w.name as string) || "Sans nom",
-            enabled: w.isEnabled === true || w.enabled === true,
-            type: (w.type as string) || "unknown",
-            objectType: w.objectTypeId as string | undefined,
-          });
-        }
-      }
-      if (workflows.length === 0) {
-        workflowError = "Scope automation manquant ou aucun workflow";
-      }
-    } catch {
-      workflowError = "Impossible de récupérer les workflows";
-    }
-  }
+  // ── Audit workflows complet (v4 prioritaire + détail v3 + actions) ──
+  const audit = hsToken
+    ? await auditHubSpotWorkflows(hsToken)
+    : { workflows: [], active: [], inactive: [], countsByObject: { contact: 0, company: 0, deal: 0, ticket: 0, lead: 0, custom: 0, unknown: 0 }, actionStats: { totalActions: 0, byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 }, outgoingWebhookHosts: [] }, error: undefined };
 
-  const activeWorkflows = workflows.filter((w) => w.enabled);
-  const inactiveWorkflows = workflows.filter((w) => !w.enabled);
+  const workflows = audit.workflows;
+  const activeWorkflows = audit.active;
+  const inactiveWorkflows = audit.inactive;
+  const workflowError = audit.error ?? null;
 
-  // Workflows par type d'objet
-  const workflowsByObject: Record<string, number> = { "Contact": 0, "Entreprise": 0, "Transaction": 0, "Autre": 0 };
-  activeWorkflows.forEach((w) => {
-    const obj = w.objectType || "";
-    if (obj.includes("0-1") || obj.toLowerCase().includes("contact")) workflowsByObject.Contact++;
-    else if (obj.includes("0-2") || obj.toLowerCase().includes("compan")) workflowsByObject.Entreprise++;
-    else if (obj.includes("0-3") || obj.toLowerCase().includes("deal")) workflowsByObject.Transaction++;
-    else workflowsByObject.Autre++;
-  });
-
-  // Workflows sans objectif (proxy: workflows sans nom descriptif ou marqués sans goal)
+  // Workflows sans nom descriptif (proxy "objectif manquant")
   const workflowsNoGoal = activeWorkflows.filter((w) =>
-    !w.name || w.name.toLowerCase().includes("test") || w.name.toLowerCase().includes("brouillon") || w.name === "Sans nom"
+    !w.name || w.name.toLowerCase().includes("test") || w.name.toLowerCase().includes("brouillon") || w.name === "Sans nom",
   ).length;
 
   const contacts = totalContacts;
@@ -119,29 +65,32 @@ export default async function ProcessPage() {
   const opportunities = opportunitiesCount;
   const lifecycleRate = contacts > 0 ? Math.round((opportunities / contacts) * 100) : 0;
 
-  // Detect missing workflow types by analyzing existing workflow names
-  const wfNames = workflows.map((w) => w.name.toLowerCase());
-  const hasAttribution = wfNames.some((n) => n.includes("attribut") || n.includes("assign") || n.includes("round") || n.includes("routing"));
-  const hasLeadScoring = wfNames.some((n) => n.includes("scoring") || n.includes("score") || n.includes("mql") || n.includes("sql") || n.includes("qualif"));
-  const hasRelance = wfNames.some((n) => n.includes("relance") || n.includes("nurturing") || n.includes("dormant") || n.includes("inactif"));
-  const hasSLA = wfNames.some((n) => n.includes("sla") || n.includes("premier contact") || n.includes("first contact") || n.includes("response time"));
-  const hasRiskAlert = wfNames.some((n) => n.includes("risque") || n.includes("at risk") || n.includes("at-risk") || n.includes("alerte deal"));
-  const hasFormFollowUp = wfNames.some((n) => n.includes("formul") || n.includes("post-form") || n.includes("form submit"));
-  const hasReengagement = wfNames.some((n) => n.includes("reengage") || n.includes("re-engage") || n.includes("réengage") || n.includes("réveil"));
-  const inactiveCreationWorkflows = workflows.filter((w) => !w.enabled && (w.name.toLowerCase().includes("création") || w.name.toLowerCase().includes("creation")));
+  const a = audit.actionStats;
+  const actionRows: Array<{ key: string; label: string; count: number; color: string; description: string }> = [
+    { key: "set_property", label: "Set property", count: a.byCategory.set_property, color: "bg-indigo-500", description: "Modification automatique d'un champ CRM" },
+    { key: "send_email", label: "Email envoyé", count: a.byCategory.send_email, color: "bg-blue-500", description: "Email marketing ou notification interne" },
+    { key: "create_task", label: "Tâche créée", count: a.byCategory.create_task, color: "bg-amber-500", description: "Tâche commerciale assignée à un owner" },
+    { key: "webhook", label: "Webhook sortant", count: a.byCategory.webhook, color: "bg-fuchsia-500", description: "Appel HTTP vers un outil externe (Zapier, Slack…)" },
+    { key: "branch", label: "Branche if/then", count: a.byCategory.branch, color: "bg-violet-500", description: "Logique conditionnelle dans le flow" },
+    { key: "delay", label: "Délai d'attente", count: a.byCategory.delay, color: "bg-slate-500", description: "Pause programmée entre 2 actions" },
+    { key: "create_engagement", label: "Engagement / Note", count: a.byCategory.create_engagement, color: "bg-emerald-500", description: "Note ou call loggué" },
+    { key: "update_owner", label: "Update owner", count: a.byCategory.update_owner, color: "bg-orange-500", description: "Réassignation d'owner / round-robin" },
+    { key: "other", label: "Autres", count: a.byCategory.other, color: "bg-slate-400", description: "Actions non catégorisées" },
+  ].filter((r) => r.count > 0);
 
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Process & Alignement</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Workflows d&apos;automatisation et conversion lifecycle.
+          Workflows HubSpot, actions internes et conversion lifecycle.
+          {workflows.length > 0 && ` (${activeWorkflows.length} actifs / ${workflows.length} total — ${a.totalActions} actions analysées)`}
         </p>
       </header>
 
       <InsightLockedBlock />
 
-      {/* Workflows */}
+      {/* ── Synthèse workflows ── */}
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -153,7 +102,7 @@ export default async function ProcessPage() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <p className="text-sm font-medium text-amber-800">{workflowError}</p>
             <p className="mt-1 text-xs text-amber-700">
-              Pour afficher les workflows, ajoutez le scope <code>automation</code> à votre app privée HubSpot.
+              Pour afficher les workflows, ajoutez le scope <code>automation</code> à votre app HubSpot.
             </p>
           </div>
         ) : workflows.length === 0 ? (
@@ -161,7 +110,7 @@ export default async function ProcessPage() {
             <p className="text-sm text-slate-500">Aucun workflow détecté dans votre portail HubSpot.</p>
           </div>
         ) : (
-          <>
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <article className="card p-5 text-center">
                 <p className="text-xs text-slate-500">Workflows actifs</p>
@@ -181,33 +130,85 @@ export default async function ProcessPage() {
               </article>
             </div>
 
-            {/* Par type d'objet */}
+            {/* Par type d'objet (FIX : maintenant correct grâce à v4 + détail v3) */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-slate-700">Workflows actifs par type d&apos;objet</h3>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <article className="card p-4">
-                  <p className="text-xs text-slate-500">Contact</p>
-                  <p className="mt-1 text-2xl font-bold text-blue-600">{workflowsByObject.Contact}</p>
-                </article>
-                <article className="card p-4">
-                  <p className="text-xs text-slate-500">Entreprise</p>
-                  <p className="mt-1 text-2xl font-bold text-violet-600">{workflowsByObject.Entreprise}</p>
-                </article>
-                <article className="card p-4">
-                  <p className="text-xs text-slate-500">Transaction</p>
-                  <p className="mt-1 text-2xl font-bold text-indigo-600">{workflowsByObject.Transaction}</p>
-                </article>
-                <article className="card p-4">
-                  <p className="text-xs text-slate-500">Autre</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-600">{workflowsByObject.Autre}</p>
-                </article>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+                <ObjectCard label="Contact" count={audit.countsByObject.contact} color="text-blue-600" />
+                <ObjectCard label="Entreprise" count={audit.countsByObject.company} color="text-violet-600" />
+                <ObjectCard label="Transaction" count={audit.countsByObject.deal} color="text-indigo-600" />
+                <ObjectCard label="Ticket" count={audit.countsByObject.ticket} color="text-fuchsia-600" />
+                <ObjectCard label="Lead" count={audit.countsByObject.lead} color="text-amber-600" />
+                <ObjectCard label="Custom Object" count={audit.countsByObject.custom} color="text-emerald-600" />
+                <ObjectCard label="Inconnu" count={audit.countsByObject.unknown} color="text-slate-400" />
               </div>
             </div>
-          </>
+          </div>
         )}
       </CollapsibleBlock>
 
-      {/* Lifecycle */}
+      {/* ── Analyse des actions à l'intérieur des workflows actifs ── */}
+      {activeWorkflows.length > 0 && a.totalActions > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Actions à l&apos;intérieur des workflows actifs
+              <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
+                {a.totalActions}
+              </span>
+            </h2>
+          }
+        >
+          <p className="text-xs text-slate-500">
+            Décomposition des {a.totalActions} actions trouvées dans vos {Math.min(activeWorkflows.length, 25)} premiers
+            workflows actifs (audit limité aux 25 plus récents pour rester sous le timeout serveur).
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {actionRows.map((r) => {
+              const pct = a.totalActions > 0 ? Math.round((r.count / a.totalActions) * 100) : 0;
+              return (
+                <div key={r.key} className="card p-4">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">{r.label}</p>
+                      <p className="text-[11px] text-slate-500">{r.description}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-base font-bold text-slate-900 tabular-nums">{r.count}</span>
+                      <span className="ml-1 text-[11px] text-slate-400">{pct}%</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${r.color}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {a.outgoingWebhookHosts.length > 0 && (
+            <div className="mt-5 rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-fuchsia-700">
+                🔗 Webhooks sortants détectés ({a.outgoingWebhookHosts.length})
+              </p>
+              <p className="mt-1 text-[11px] text-fuchsia-800">
+                Domaines vers lesquels vos workflows envoient des données. Permet d&apos;auditer les intégrations
+                externes branchées en sortie de HubSpot (Zapier, Make, n8n, Slack, services maison…).
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {a.outgoingWebhookHosts.map((h) => (
+                  <span key={h} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-fuchsia-200">
+                    {h}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </CollapsibleBlock>
+      )}
+
+      {/* ── Lifecycle ── */}
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -235,6 +236,46 @@ export default async function ProcessPage() {
           </article>
         </div>
       </CollapsibleBlock>
+
+      {/* Deals sans owner */}
+      {totalDeals > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />Attribution deals
+            </h2>
+          }
+        >
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <article className="card p-5 text-center">
+              <p className="text-xs text-slate-500">Deals sans owner</p>
+              <p className={`mt-1 text-3xl font-bold ${dealsNoOwner > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                {dealsNoOwner.toLocaleString("fr-FR")}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">{dealsNoOwnerPct}% du total</p>
+            </article>
+            <article className="card p-5 text-center">
+              <p className="text-xs text-slate-500">Deals attribués</p>
+              <p className="mt-1 text-3xl font-bold text-emerald-600">{(totalDeals - dealsNoOwner).toLocaleString("fr-FR")}</p>
+            </article>
+            <article className="card p-5 text-center">
+              <p className="text-xs text-slate-500">Taux d&apos;attribution</p>
+              <p className="mt-1 text-3xl font-bold text-slate-900">
+                {totalDeals > 0 ? `${100 - dealsNoOwnerPct}%` : "—"}
+              </p>
+            </article>
+          </div>
+        </CollapsibleBlock>
+      )}
     </section>
+  );
+}
+
+function ObjectCard({ label, count, color }: { label: string; count: number; color: string }) {
+  return (
+    <article className="card p-4">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-bold ${color} tabular-nums`}>{count}</p>
+    </article>
   );
 }

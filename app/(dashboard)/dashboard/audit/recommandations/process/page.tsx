@@ -11,7 +11,7 @@ export default async function RecommandationsProcessPage() {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
-        <p className="text-sm font-semibold text-indigo-900">⚙️ Process & Alignement — fluidifier le funnel</p>
+        <p className="text-sm font-semibold text-indigo-900">⚙️ Automatisations — fluidifier le funnel</p>
         <p className="mt-1 text-xs text-indigo-800">
           {recs.length} recommandation{recs.length > 1 ? "s" : ""} sur les workflows, lifecycle stages, MEDDIC/BANT, handoff Marketing→Sales et rituels.
         </p>
