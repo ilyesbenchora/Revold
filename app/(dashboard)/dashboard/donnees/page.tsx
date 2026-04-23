@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
@@ -7,6 +8,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
 import Link from "next/link";
 
 type ToolEntityCount = {
@@ -95,8 +97,16 @@ export default async function DonneesPage() {
   const connectedTools = await getConnectedTools(supabase, orgId);
   const hubs: ToolHub[] = [];
 
-  // HubSpot hub : tous les objets natifs synchronisés
-  if (hubspotToken) {
+  // HubSpot hub : on l'affiche dès que le snapshot est OK ou qu'on a au moins
+  // une métrique HubSpot non nulle. NE PAS dépendre uniquement de hubspotToken
+  // (qui peut renvoyer null si le refresh échoue, alors que le snapshot est
+  // déjà mis en cache request-scope plus tôt — c'est ce qui faisait
+  // disparaître la carte HubSpot pendant que la page Settings continuait à
+  // afficher les données live).
+  const hubspotConnected =
+    snapshot.status === "ok" ||
+    (snapshot.totalContacts + snapshot.totalCompanies + snapshot.totalDeals) > 0;
+  if (hubspotConnected) {
     const hsGaps: ToolHub["gaps"] = [];
     const phonePct = pct(contactsPhone, contactsTotal);
     const companyPct = pct(contactsCompany, contactsTotal);
@@ -163,40 +173,81 @@ export default async function DonneesPage() {
     const gaps: ToolHub["gaps"] = [];
 
     if (tool.key === "stripe") {
+      // 1. On lit d'abord ce qu'on a en local (source_links) — rapide.
       const [stripeContacts, stripeInvoices, stripeSubs] = await Promise.all([
         countCanonicalForProvider(supabase, orgId, "stripe", "contact"),
         countCanonicalForProvider(supabase, orgId, "stripe", "invoice"),
         countCanonicalForProvider(supabase, orgId, "stripe", "subscription"),
       ]);
 
-      // Contacts Stripe sans lien HubSpot — gap critique
-      let orphanCount = 0;
-      try {
-        const { data: links } = await supabase
-          .from("source_links")
-          .select("internal_id")
-          .eq("organization_id", orgId)
-          .eq("provider", "stripe")
-          .eq("entity_type", "contact")
-          .limit(1000);
-        const ids = (links ?? []).map((l) => l.internal_id as string);
-        for (let i = 0; i < ids.length; i += 200) {
-          const chunk = ids.slice(i, i + 200);
-          const { count } = await supabase
-            .from("contacts")
-            .select("id", { count: "exact", head: true })
+      // 2. Si la sync n'a rien produit en local (source_links vide) MAIS
+      //    qu'on a une clé Stripe valide, on va lire LIVE chez Stripe pour
+      //    afficher les vrais volumes — sinon l'utilisateur voit "0 partout"
+      //    alors que des données existent réellement dans Stripe.
+      let liveCounts: { customers: number; invoices: number; subscriptions: number; truncated: boolean; error?: string } | null = null;
+      const localTotal = stripeContacts + stripeInvoices + stripeSubs;
+      if (localTotal === 0) {
+        try {
+          const { data: stripeRow } = await supabase
+            .from("integrations")
+            .select("access_token")
             .eq("organization_id", orgId)
-            .in("id", chunk)
-            .is("hubspot_id", null);
-          orphanCount += count ?? 0;
-        }
-      } catch {}
-      const linkedPct = stripeContacts > 0 ? Math.round(((stripeContacts - orphanCount) / stripeContacts) * 100) : 0;
+            .eq("provider", "stripe")
+            .eq("is_active", true)
+            .maybeSingle();
+          if (stripeRow?.access_token) {
+            liveCounts = await fetchStripeLiveCounts(stripeRow.access_token as string);
+          }
+        } catch {}
+      }
 
+      // 3. On combine : la valeur live l'emporte sur la valeur locale (0)
+      const customersCount = liveCounts ? liveCounts.customers : stripeContacts;
+      const invoicesCount = liveCounts ? liveCounts.invoices : stripeInvoices;
+      const subsCount = liveCounts ? liveCounts.subscriptions : stripeSubs;
+
+      // Contacts Stripe sans lien HubSpot — gap critique (uniquement si on a
+      // synchronisé localement, sinon pas de notion d'orphelin)
+      let orphanCount = 0;
+      let linkedPct = 0;
+      if (stripeContacts > 0) {
+        try {
+          const { data: links } = await supabase
+            .from("source_links")
+            .select("internal_id")
+            .eq("organization_id", orgId)
+            .eq("provider", "stripe")
+            .eq("entity_type", "contact")
+            .limit(1000);
+          const ids = (links ?? []).map((l) => l.internal_id as string);
+          for (let i = 0; i < ids.length; i += 200) {
+            const chunk = ids.slice(i, i + 200);
+            const { count } = await supabase
+              .from("contacts")
+              .select("id", { count: "exact", head: true })
+              .eq("organization_id", orgId)
+              .in("id", chunk)
+              .is("hubspot_id", null);
+            orphanCount += count ?? 0;
+          }
+        } catch {}
+        linkedPct = Math.round(((stripeContacts - orphanCount) / stripeContacts) * 100);
+      }
+
+      const liveSuffix = liveCounts ? " (live Stripe)" : "";
       entities.push(
-        { label: "Customers", count: stripeContacts, enrichmentPct: linkedPct, enrichmentLabel: "liés à HubSpot" },
-        { label: "Invoices", count: stripeInvoices },
-        { label: "Subscriptions", count: stripeSubs },
+        {
+          label: "Customers",
+          count: customersCount,
+          enrichmentPct: stripeContacts > 0 ? linkedPct : undefined,
+          enrichmentLabel: stripeContacts > 0
+            ? "liés à HubSpot"
+            : liveCounts
+              ? "lecture directe Stripe — sync à relancer pour matcher avec HubSpot"
+              : undefined,
+        },
+        { label: "Invoices", count: invoicesCount, enrichmentLabel: liveCounts ? `live Stripe${liveCounts.truncated ? " (≥)" : ""}` : undefined },
+        { label: "Subscriptions", count: subsCount, enrichmentLabel: liveCounts ? `live Stripe${liveCounts.truncated ? " (≥)" : ""}` : undefined },
       );
 
       if (stripeContacts > 0 && linkedPct < 70) {
@@ -207,12 +258,33 @@ export default async function DonneesPage() {
           severity: linkedPct < 40 ? "critical" : "warning",
         });
       }
-      if (stripeContacts === 0 && stripeInvoices === 0 && stripeSubs === 0) {
+      if (liveCounts?.error) {
         gaps.push({
           entity: "Stripe",
-          field: "Aucune donnée synchronisée — relancez la sync",
+          field: `Erreur API Stripe : ${liveCounts.error.slice(0, 80)}`,
           pct: 0,
           severity: "critical",
+        });
+      } else if (
+        customersCount === 0 &&
+        invoicesCount === 0 &&
+        subsCount === 0
+      ) {
+        gaps.push({
+          entity: "Stripe",
+          field: "Aucune donnée détectée dans Stripe — vérifiez la clé secrète",
+          pct: 0,
+          severity: "critical",
+        });
+      } else if (localTotal === 0 && liveCounts) {
+        // Live OK mais sync locale jamais lancée → pas un gap critique,
+        // juste une suggestion de relancer la sync pour activer les
+        // analyses cross-source.
+        gaps.push({
+          entity: "Sync locale",
+          field: `${liveSuffix.trim()} détectée — relancez la sync pour activer les analyses cross-source HubSpot`,
+          pct: 0,
+          severity: "warning",
         });
       }
     } else {
@@ -242,15 +314,6 @@ export default async function DonneesPage() {
       gaps,
     });
   }
-
-  // Tous les gaps consolidés, triés par sévérité (les pires d'abord)
-  const allGaps = hubs.flatMap((h) =>
-    h.gaps.map((g) => ({ ...g, hubLabel: h.label, hubDomain: h.domain, hubIcon: h.icon })),
-  );
-  allGaps.sort((a, b) => {
-    const sev = a.severity === "critical" && b.severity !== "critical" ? -1 : a.severity !== "critical" && b.severity === "critical" ? 1 : 0;
-    return sev !== 0 ? sev : a.pct - b.pct;
-  });
 
   const summaries = [
     {
@@ -308,59 +371,6 @@ export default async function DonneesPage() {
             Connectez votre portail HubSpot via OAuth pour alimenter cette page.
             <Link href="/dashboard/integration" className="ml-1 font-semibold underline">Intégrations →</Link>
           </p>
-        </div>
-      )}
-
-      {/* ── ENRICHISSEMENTS À PRIORISER ── */}
-      {allGaps.length > 0 && (
-        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50/70 to-amber-50/40 p-5">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="flex items-center gap-2 text-base font-bold text-rose-900">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                Enrichissements à prioriser
-              </h2>
-              <p className="mt-0.5 text-xs text-rose-800">
-                Champs et entités à compléter en priorité pour fiabiliser les coachings IA.
-                Plus la donnée est pauvre, moins les recommandations peuvent être précises.
-              </p>
-            </div>
-            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-bold text-rose-700">
-              {allGaps.length} à traiter
-            </span>
-          </div>
-
-          <ul className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-            {allGaps.slice(0, 10).map((g, i) => (
-              <li
-                key={`${g.hubLabel}-${g.entity}-${g.field}-${i}`}
-                className={`flex items-start gap-2.5 rounded-lg bg-white p-3 ring-1 ${
-                  g.severity === "critical" ? "ring-rose-200" : "ring-amber-200"
-                }`}
-              >
-                <BrandLogo domain={g.hubDomain} alt={g.hubLabel} fallback={g.hubIcon} size={22} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-900">
-                    {g.hubLabel} · {g.entity}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-slate-600">{g.field}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    g.severity === "critical"
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-amber-100 text-amber-800"
-                  }`}
-                >
-                  {g.pct}%
-                </span>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 

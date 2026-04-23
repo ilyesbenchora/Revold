@@ -78,12 +78,16 @@ async function listAll<T extends { id: string }>(
 ): Promise<T[]> {
   const all: T[] = [];
   let startingAfter: string | undefined;
+  // Détecte si l'endpoint contient déjà une query string (?status=all par ex.)
+  // — sans ça, on concatène un 2e "?" qui produit /subscriptions?status=all?limit=100
+  // que Stripe parse comme status="all?limit=100" → HTTP 400 (Invalid status).
+  const sep = endpoint.includes("?") ? "&" : "?";
   while (all.length < maxItems) {
     const params = new URLSearchParams({ limit: "100" });
     if (startingAfter) params.set("starting_after", startingAfter);
     const page = await stripeFetch<ListResponse<T>>(
       secretKey,
-      `${endpoint}?${params.toString()}`,
+      `${endpoint}${sep}${params.toString()}`,
     );
     all.push(...page.data);
     if (!page.has_more || page.data.length === 0) break;
@@ -106,6 +110,50 @@ export function listSubscriptions(secretKey: string, max = 1000) {
     "/subscriptions?status=all",
     max,
   );
+}
+
+/**
+ * Compteurs LIVE Stripe pour l'UI (page Données).
+ *
+ * On ne stocke pas localement — on lit directement Stripe. Cap à 5000 par
+ * objet pour rester rapide tout en couvrant la plupart des comptes pilote.
+ * Si l'utilisateur a > 5000 customers/invoices, on retourne `truncated: true`
+ * et le compte est un minorant.
+ */
+export type StripeLiveCounts = {
+  customers: number;
+  invoices: number;
+  subscriptions: number;
+  truncated: boolean;
+  error?: string;
+};
+
+export async function fetchStripeLiveCounts(
+  secretKey: string,
+): Promise<StripeLiveCounts> {
+  const CAP = 5000;
+  try {
+    const [customers, invoices, subscriptions] = await Promise.all([
+      listCustomers(secretKey, CAP).catch(() => [] as StripeCustomer[]),
+      listInvoices(secretKey, CAP).catch(() => [] as StripeInvoice[]),
+      listSubscriptions(secretKey, CAP).catch(() => [] as StripeSubscription[]),
+    ]);
+    return {
+      customers: customers.length,
+      invoices: invoices.length,
+      subscriptions: subscriptions.length,
+      truncated:
+        customers.length === CAP || invoices.length === CAP || subscriptions.length === CAP,
+    };
+  } catch (err) {
+    return {
+      customers: 0,
+      invoices: 0,
+      subscriptions: 0,
+      truncated: false,
+      error: err instanceof Error ? err.message : "Erreur Stripe",
+    };
+  }
 }
 
 /** Validate the Stripe key by hitting /balance (smallest authenticated call). */
