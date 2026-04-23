@@ -5,6 +5,7 @@ import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-
 import { BrandLogo } from "@/components/brand-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
+import { SyncParityBlock, type ParityRow } from "@/components/sync-parity-block";
 import { ToolMappingSettings } from "@/components/tool-mapping-settings";
 import {
   listConnectedTools,
@@ -38,12 +39,18 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: integrations }, snapshot, mappingOptions, mappingValues] = await Promise.all([
+  const [{ data: integrations }, snapshot, mappingOptions, mappingValues, { data: parityRows }] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
     getHubspotSnapshot(),
     listConnectedTools(supabase, orgId),
     getToolKeysBatch(supabase, orgId, ALL_PAGE_KEYS),
+    supabase
+      .from("hubspot_sync_state")
+      .select("object_type, records_in_supabase, records_in_hubspot, parity_drift, parity_status, last_full_sync_at, last_delta_sync_at, last_error")
+      .eq("organization_id", orgId),
   ]);
+
+  const parity: ParityRow[] = (parityRows ?? []) as ParityRow[];
 
   const connected = (integrations ?? []).filter((i) => i.is_active);
   const inactive = (integrations ?? []).filter((i) => !i.is_active);
@@ -298,7 +305,20 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         )}
       </div>
 
-      {/* Synchronisation des blocs (remplace l'historique des syncs) */}
+      {/* Parité HubSpot ↔ Supabase (ETL) */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Parité données HubSpot ↔ Revold
+        </h2>
+        <p className="text-xs text-slate-500">
+          Revold maintient un miroir local de votre portail HubSpot dans Supabase.
+          L&apos;UI lit ce miroir (~50 ms, zéro rate limit) ; un sync delta tourne
+          toutes les 30 min, et une réconciliation complète chaque dimanche à 3 h.
+        </p>
+        <SyncParityBlock rows={parity} />
+      </div>
+
+      {/* Synchronisation des blocs (vue par page Revold) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           <span className="h-2 w-2 rounded-full bg-emerald-500" />Synchronisation des blocs
