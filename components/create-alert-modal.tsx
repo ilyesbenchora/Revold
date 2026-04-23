@@ -34,6 +34,7 @@ const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "weighted_pipeline", label: "Pipeline pondéré", description: "Somme des montants × probabilité de gain — forecast réaliste", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une activité planifiée — discipline commerciale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité — pipeline réellement travaillé", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "pipeline_stage_conversion", label: "Conversion étape→étape", description: "% de deals qui passent d'une étape à la suivante — détecte les goulots d'étranglement du pipeline", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     // ── Vélocité & risque ──
     { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Nombre de jours moyen entre création et closing — indicateur de vélocité", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
     { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours — risque de perte silencieuse", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
@@ -82,6 +83,7 @@ const kpisByTeam: Record<string, KpiDef[]> = {
 };
 
 const datePresets = [
+  { id: "this_week", label: "Cette semaine" },
   { id: "this_month", label: "Ce mois" },
   { id: "this_quarter", label: "Ce trimestre" },
   { id: "this_year", label: "Cette année" },

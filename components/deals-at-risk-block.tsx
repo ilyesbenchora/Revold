@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { DealRiskBuckets, RiskDeal } from "@/lib/integrations/hubspot-deal-risk";
 import { CreateAlertCta } from "./create-alert-cta";
+import {
+  BlockHeaderIcon,
+  DaysCell,
+  SortHeader,
+  useSorter,
+} from "./ventes-ui";
 
 const PAGE_SIZE = 25;
 
@@ -10,6 +16,15 @@ const fmtK = (n: number) =>
   n >= 1000
     ? `${Math.round(n / 1000).toLocaleString("fr-FR")}K€`
     : `${Math.round(n).toLocaleString("fr-FR")}€`;
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("fr-FR");
+  } catch {
+    return "—";
+  }
+}
 
 type PipelineOption = {
   id: string;
@@ -99,13 +114,14 @@ export function DealsAtRiskBlock({
 
       <RiskTable
         title="Deals bloqués"
-        subtitle="Plus de 7 jours dans la même étape"
-        accent="bg-red-500"
-        countBg="bg-red-50 text-red-700"
+        criteria="Plus de 7 jours dans la même étape — risque d'enlisement"
+        icon="lock"
+        tone="red"
         deals={buckets.blocked}
         maps={maps}
+        valueColumn="daysInStage"
         valueLabel="Jours dans étape"
-        formatValue={(d) => `${d.daysInStage}j`}
+        renderValueCell={(d) => <DaysCell days={d.daysInStage} />}
         alert={
           <CreateAlertCta
             team="sales"
@@ -120,13 +136,14 @@ export function DealsAtRiskBlock({
 
       <RiskTable
         title="Deals sans visibilité"
-        subtitle="Aucune prochaine activité planifiée"
-        accent="bg-orange-500"
-        countBg="bg-orange-50 text-orange-700"
+        criteria="Aucune prochaine activité planifiée — pipeline aveugle"
+        icon="eye-off"
+        tone="orange"
         deals={buckets.noVisibility}
         maps={maps}
+        valueColumn={null}
         valueLabel={null}
-        formatValue={null}
+        renderValueCell={null}
         alert={
           <CreateAlertCta
             team="sales"
@@ -141,13 +158,16 @@ export function DealsAtRiskBlock({
 
       <RiskTable
         title="Deals sans activités"
-        subtitle="Aucune activité commerciale loguée depuis plus de 10 jours"
-        accent="bg-amber-500"
-        countBg="bg-amber-50 text-amber-700"
+        criteria="Aucune activité commerciale loguée depuis plus de 10 jours"
+        icon="user-clock"
+        tone="amber"
         deals={buckets.noActivity}
         maps={maps}
-        valueLabel={null}
-        formatValue={null}
+        valueColumn="lastContactedAt"
+        valueLabel="Dernier contact"
+        renderValueCell={(d) => (
+          <span className="text-[11px] text-slate-600">{fmtDate(d.lastContactedAt)}</span>
+        )}
         alert={
           <CreateAlertCta
             team="sales"
@@ -165,56 +185,83 @@ export function DealsAtRiskBlock({
         buckets.noActivity.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
             Aucun deal à risque détecté pour <strong>{selectedLabel}</strong>.
-            Si ce pipeline contient pourtant des deals ouverts, vérifiez que les
-            propriétés <code>notes_last_contacted</code> et <code>notes_next_activity_date</code>
-            sont peuplées dans HubSpot.
           </p>
         )}
     </div>
   );
 }
 
+type RiskSortKey = keyof Pick<
+  RiskDeal,
+  "name" | "amount" | "daysInStage" | "lastContactedAt"
+>;
+
 function RiskTable({
   title,
-  subtitle,
-  accent,
-  countBg,
+  criteria,
+  icon,
+  tone,
   deals,
   maps,
+  valueColumn,
   valueLabel,
-  formatValue,
+  renderValueCell,
   alert,
 }: {
   title: string;
-  subtitle: string;
-  accent: string;
-  countBg: string;
+  criteria: string;
+  icon: "lock" | "eye-off" | "user-clock";
+  tone: "red" | "orange" | "amber";
   deals: RiskDeal[];
   maps: Maps;
+  valueColumn: RiskSortKey | null;
   valueLabel: string | null;
-  formatValue: ((d: RiskDeal) => string) | null;
+  renderValueCell: ((d: RiskDeal) => React.ReactNode) | null;
   alert: React.ReactNode;
 }) {
+  const defaultSortKey: RiskSortKey = valueColumn ?? "amount";
+  const { sorted, sortKey, sortDir, toggle } = useSorter<RiskDeal>(deals, defaultSortKey, "desc");
   const [page, setPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(deals.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
   const start = safePage * PAGE_SIZE;
-  const visible = deals.slice(start, start + PAGE_SIZE);
+  const visible = sorted.slice(start, start + PAGE_SIZE);
+
+  const criteriaBg =
+    tone === "red"
+      ? "bg-red-50 text-red-700 ring-red-200"
+      : tone === "orange"
+        ? "bg-orange-50 text-orange-800 ring-orange-200"
+        : "bg-amber-50 text-amber-800 ring-amber-200";
 
   return (
     <article className="card overflow-hidden">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50 px-5 py-3">
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${accent}`} />
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${countBg}`}>
-            {deals.length}
-          </span>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-white px-5 py-4">
+        <div className="flex items-start gap-3">
+          <BlockHeaderIcon icon={icon} tone={tone} />
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                  tone === "red"
+                    ? "bg-red-100 text-red-700"
+                    : tone === "orange"
+                      ? "bg-orange-100 text-orange-700"
+                      : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {deals.length} deal{deals.length > 1 ? "s" : ""}
+              </span>
+            </div>
+            <span
+              className={`mt-1.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${criteriaBg}`}
+            >
+              Critère : {criteria}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-slate-500">{subtitle}</p>
-          {alert}
-        </div>
+        <div className="flex items-center gap-2">{alert}</div>
       </header>
 
       {deals.length === 0 ? (
@@ -225,19 +272,53 @@ function RiskTable({
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-[10px] font-medium uppercase text-slate-400">
-                  <th className="px-5 py-2">Deal</th>
-                  <th className="px-3 py-2">Pipeline</th>
-                  <th className="px-3 py-2">Étape</th>
-                  <th className="px-3 py-2">Propriétaire</th>
-                  <th className="px-3 py-2 text-right">Montant</th>
-                  {valueLabel && <th className="px-5 py-2 text-right">{valueLabel}</th>}
+              <thead className="bg-slate-50/60">
+                <tr className="border-b border-slate-100 text-left">
+                  <th className="px-5 py-2">
+                    <SortHeader
+                      label="Deal"
+                      active={sortKey === "name"}
+                      direction={sortDir}
+                      onToggle={() => toggle("name")}
+                    />
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Pipeline
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Étape
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Propriétaire
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <SortHeader
+                      label="Montant"
+                      active={sortKey === "amount"}
+                      direction={sortDir}
+                      onToggle={() => toggle("amount")}
+                      align="right"
+                    />
+                  </th>
+                  {valueColumn && valueLabel && (
+                    <th className="px-5 py-2 text-right">
+                      <SortHeader
+                        label={valueLabel}
+                        active={sortKey === valueColumn}
+                        direction={sortDir}
+                        onToggle={() => toggle(valueColumn)}
+                        align="right"
+                      />
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {visible.map((d) => (
-                  <tr key={d.id} className="border-b border-slate-50 last:border-0">
+                  <tr
+                    key={d.id}
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/40"
+                  >
                     <td className="px-5 py-2 font-medium text-slate-700">{d.name}</td>
                     <td className="px-3 py-2 text-slate-600">
                       {maps.pipelineById.get(d.pipelineId) ?? d.pipelineId}
@@ -248,13 +329,11 @@ function RiskTable({
                     <td className="px-3 py-2 text-slate-600">
                       {d.ownerId ? maps.ownerById.get(d.ownerId) ?? d.ownerId : "—"}
                     </td>
-                    <td className="px-3 py-2 text-right text-slate-600">
+                    <td className="px-3 py-2 text-right text-slate-700">
                       {d.amount > 0 ? fmtK(d.amount) : "—"}
                     </td>
-                    {valueLabel && formatValue && (
-                      <td className="px-5 py-2 text-right font-semibold text-slate-700">
-                        {formatValue(d)}
-                      </td>
+                    {valueColumn && renderValueCell && (
+                      <td className="px-5 py-2 text-right">{renderValueCell(d)}</td>
                     )}
                   </tr>
                 ))}
@@ -264,8 +343,8 @@ function RiskTable({
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
               <span>
-                Affichage {start + 1}–{Math.min(start + PAGE_SIZE, deals.length)} sur{" "}
-                {deals.length}
+                Affichage {start + 1}–{Math.min(start + PAGE_SIZE, sorted.length)} sur{" "}
+                {sorted.length}
               </span>
               <div className="flex items-center gap-2">
                 <button

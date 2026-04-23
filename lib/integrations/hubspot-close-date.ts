@@ -1,13 +1,13 @@
 /**
  * Close Date Management — sortie utilisée dans Forecast Management.
  *
- * 2 buckets :
- *   - passedCloseDate : deals OUVERTS dont la close date est dans le passé
- *   - currentQuarter  : deals OUVERTS dont la close date tombe dans le
- *                       trimestre courant
+ * Buckets RevOps :
+ *   - passedCloseDate     : deals OUVERTS dont close date est dans le passé.
+ *   - quarters[T1..T4]    : deals OUVERTS dont close date tombe dans chacun
+ *                           des 4 trimestres de l'année courante.
  *
- * Ne filtre pas sur HAS_PROPERTY closedate (peu fiable selon les portails) ;
- * on filtre directement par date côté Search API HubSpot.
+ * On filtre directement par date côté Search API HubSpot (pas de
+ * HAS_PROPERTY closedate, peu fiable selon les portails).
  */
 
 const HS_API = "https://api.hubapi.com";
@@ -20,29 +20,36 @@ export type CloseDateDeal = {
   amount: number;
   ownerId: string | null;
   closeDate: string | null;
-  daysOverdue: number;
+  daysOverdue: number; // négatif possible (à venir)
+};
+
+export type QuarterBucket = {
+  key: "T1" | "T2" | "T3" | "T4";
+  label: string; // ex: "T1 2026"
+  start: string; // ISO
+  end: string;   // ISO
+  deals: CloseDateDeal[];
 };
 
 export type CloseDateBuckets = {
   pipelineId: string | null;
+  year: number;
   passedCloseDate: CloseDateDeal[];
-  currentQuarter: CloseDateDeal[];
-  quarterLabel: string;
-  quarterStart: string;
-  quarterEnd: string;
+  quarters: QuarterBucket[];
 };
 
-function quarterRange(date = new Date()): {
+function quarterRanges(year: number): Array<{
+  key: "T1" | "T2" | "T3" | "T4";
+  label: string;
   start: Date;
   end: Date;
-  label: string;
-} {
-  const month = date.getMonth();
-  const quarter = Math.floor(month / 3);
-  const year = date.getFullYear();
-  const start = new Date(year, quarter * 3, 1);
-  const end = new Date(year, quarter * 3 + 3, 0, 23, 59, 59, 999);
-  return { start, end, label: `T${quarter + 1} ${year}` };
+}> {
+  return [
+    { key: "T1", label: `T1 ${year}`, start: new Date(year, 0, 1), end: new Date(year, 3, 0, 23, 59, 59, 999) },
+    { key: "T2", label: `T2 ${year}`, start: new Date(year, 3, 1), end: new Date(year, 6, 0, 23, 59, 59, 999) },
+    { key: "T3", label: `T3 ${year}`, start: new Date(year, 6, 1), end: new Date(year, 9, 0, 23, 59, 59, 999) },
+    { key: "T4", label: `T4 ${year}`, start: new Date(year, 9, 1), end: new Date(year, 12, 0, 23, 59, 59, 999) },
+  ];
 }
 
 async function searchDeals(
@@ -111,7 +118,8 @@ export async function fetchCloseDateBuckets(
   token: string,
   pipelineId: string | null,
 ): Promise<CloseDateBuckets> {
-  const { start, end, label } = quarterRange();
+  const year = new Date().getFullYear();
+  const ranges = quarterRanges(year);
   const now = Date.now();
 
   const baseFilters: Array<Record<string, string>> = [
@@ -121,28 +129,43 @@ export async function fetchCloseDateBuckets(
     baseFilters.push({ propertyName: "pipeline", operator: "EQ", value: pipelineId });
   }
 
-  // Filter HubSpot Search API : LT pour les deals en retard, BETWEEN pour
-  // le trimestre courant. Les valeurs sont des timestamps ms (string).
   const passedFilters = [
     ...baseFilters,
     { propertyName: "closedate", operator: "LT", value: String(now) },
   ];
-  const quarterFilters = [
-    ...baseFilters,
-    { propertyName: "closedate", operator: "BETWEEN", value: String(start.getTime()), highValue: String(end.getTime()) } as unknown as Record<string, string>,
-  ];
 
-  const [passedCloseDate, currentQuarter] = await Promise.all([
+  // 1 fetch pour les passés + 1 fetch par trimestre = 5 appels parallèles
+  const [passedCloseDate, ...quarterDeals] = await Promise.all([
     searchDeals(token, [{ filters: passedFilters }], pipelineId, 1000),
-    searchDeals(token, [{ filters: quarterFilters }], pipelineId, 1000),
+    ...ranges.map((r) =>
+      searchDeals(
+        token,
+        [
+          {
+            filters: [
+              ...baseFilters,
+              {
+                propertyName: "closedate",
+                operator: "BETWEEN",
+                value: String(r.start.getTime()),
+                highValue: String(r.end.getTime()),
+              } as unknown as Record<string, string>,
+            ],
+          },
+        ],
+        pipelineId,
+        1000,
+      ),
+    ),
   ]);
 
-  return {
-    pipelineId,
-    passedCloseDate,
-    currentQuarter,
-    quarterLabel: label,
-    quarterStart: start.toISOString(),
-    quarterEnd: end.toISOString(),
-  };
+  const quarters: QuarterBucket[] = ranges.map((r, i) => ({
+    key: r.key,
+    label: r.label,
+    start: r.start.toISOString(),
+    end: r.end.toISOString(),
+    deals: quarterDeals[i] ?? [],
+  }));
+
+  return { pipelineId, year, passedCloseDate, quarters };
 }

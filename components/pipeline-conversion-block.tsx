@@ -57,7 +57,7 @@ export function PipelineConversionBlock({
         </div>
         <CreateAlertCta
           team="sales"
-          kpiId="conversion_rate"
+          kpiId="pipeline_stage_conversion"
           defaultThreshold={50}
           defaultDirection="below"
           defaultUnit="percent"

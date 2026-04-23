@@ -11,6 +11,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { PipelineManagementCarousel } from "@/components/pipeline-management-carousel";
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import {
   fetchPipelineDataAtomic,
   buildPipelineAnalytics,
@@ -91,7 +92,8 @@ export default async function PerformanceCommercialePage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Pipeline Management
+            <BlockHeaderIcon icon="kanban" tone="blue" />
+            Pipeline Management
             <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
               {pipelineAnalytics.length} pipeline{pipelineAnalytics.length > 1 ? "s" : ""}
             </span>
@@ -104,7 +106,8 @@ export default async function PerformanceCommercialePage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Taux de conversion pipeline
+            <BlockHeaderIcon icon="funnel" tone="fuchsia" />
+            Taux de conversion pipeline
           </h2>
         }
       >

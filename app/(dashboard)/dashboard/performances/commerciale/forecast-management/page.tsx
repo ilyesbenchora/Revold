@@ -27,24 +27,20 @@ export default async function ForecastManagementPage() {
     stages: p.stages.map((s) => ({ id: s.id, label: s.label })),
   }));
 
+  const fallbackBuckets = {
+    pipelineId: null as string | null,
+    year: new Date().getFullYear(),
+    passedCloseDate: [],
+    quarters: (["T1", "T2", "T3", "T4"] as const).map((k) => ({
+      key: k,
+      label: `${k} ${new Date().getFullYear()}`,
+      start: "",
+      end: "",
+      deals: [],
+    })),
+  };
   const [initialBuckets, ownersRaw] = await Promise.all([
-    token
-      ? fetchCloseDateBuckets(token, null).catch(() => ({
-          pipelineId: null,
-          passedCloseDate: [],
-          currentQuarter: [],
-          quarterLabel: "—",
-          quarterStart: "",
-          quarterEnd: "",
-        }))
-      : Promise.resolve({
-          pipelineId: null,
-          passedCloseDate: [],
-          currentQuarter: [],
-          quarterLabel: "—",
-          quarterStart: "",
-          quarterEnd: "",
-        }),
+    token ? fetchCloseDateBuckets(token, null).catch(() => fallbackBuckets) : Promise.resolve(fallbackBuckets),
     token ? fetchOwners(token).catch(() => []) : Promise.resolve([]),
   ]);
 
