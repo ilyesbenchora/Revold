@@ -7,6 +7,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 import Link from "next/link";
 
 type ToolEntityCount = {
@@ -290,6 +291,12 @@ export default async function DonneesPage() {
 
   return (
     <div className="space-y-6">
+      <ToolSourceMount
+        pageKey="audit_donnees"
+        pageLabel="Audit — Données"
+        preferredCategories={["crm"]}
+      />
+
       {/* ── BANDEAU DIAGNOSTIC SNAPSHOT (si erreur) ── */}
       {snapshot.status === "error" && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">

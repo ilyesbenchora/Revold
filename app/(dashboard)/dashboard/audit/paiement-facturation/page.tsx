@@ -9,6 +9,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function PaiementFacturationOverviewPage() {
@@ -43,6 +44,12 @@ export default async function PaiementFacturationOverviewPage() {
       </header>
 
       <PaiementFacturationTabs />
+
+      <ToolSourceMount
+        pageKey="audit_paiement_facturation"
+        pageLabel="Audit — Paiement & Facturation"
+        preferredCategories={["billing", "crm"]}
+      />
 
       <CrossToolSelectorBlock
         connectedTools={billingConnected}

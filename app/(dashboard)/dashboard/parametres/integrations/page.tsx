@@ -4,6 +4,7 @@ import { ParametresTabs } from "@/components/parametres-tabs";
 import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
+import { SyncBlocksStatus } from "@/components/sync-blocks-status";
 import Link from "next/link";
 
 // Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel
@@ -19,15 +20,13 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: integrations }, { data: syncLogs }, snapshot] = await Promise.all([
+  const [{ data: integrations }, snapshot] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
-    supabase.from("sync_logs").select("*").eq("organization_id", orgId).order("started_at", { ascending: false }).limit(10),
     getHubspotSnapshot(),
   ]);
 
   const connected = (integrations ?? []).filter((i) => i.is_active);
   const inactive = (integrations ?? []).filter((i) => !i.is_active);
-  const logs = syncLogs ?? [];
 
   // État HubSpot : OAuth réel (refresh_token + portal_id) > env var (legacy) > non configuré.
   // Une ligne avec is_active=true mais sans refresh_token/portal_id est un seed/legacy
@@ -51,7 +50,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
     <section className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
-        <p className="mt-1 text-sm text-slate-500">Gestion des intégrations connectées à Revold et historique de synchronisation.</p>
+        <p className="mt-1 text-sm text-slate-500">Gestion des intégrations connectées à Revold et état de synchronisation par bloc.</p>
       </header>
 
       <ParametresTabs />
@@ -279,45 +278,12 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         )}
       </div>
 
-      {/* Historique de synchronisation */}
+      {/* Synchronisation des blocs (remplace l'historique des syncs) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-slate-400" />Historique de synchronisation
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />Synchronisation des blocs
         </h2>
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                <th className="px-5 py-2">Source</th>
-                <th className="px-5 py-2">Direction</th>
-                <th className="px-5 py-2">Statut</th>
-                <th className="px-5 py-2">Entités</th>
-                <th className="px-5 py-2">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 ? (
-                <tr><td colSpan={5} className="px-5 py-4 text-center text-slate-400">Aucune synchronisation enregistrée.</td></tr>
-              ) : logs.map((log) => (
-                <tr key={log.id} className="border-b border-card-border last:border-0">
-                  <td className="px-5 py-2.5 font-medium capitalize text-slate-800">{log.source}</td>
-                  <td className="px-5 py-2.5 text-slate-500">{log.direction === "inbound" ? "← Import" : "→ Export"}</td>
-                  <td className="px-5 py-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      log.status === "completed" ? "bg-emerald-50 text-emerald-700" :
-                      log.status === "failed" ? "bg-red-50 text-red-700" :
-                      "bg-amber-50 text-amber-700"
-                    }`}>{log.status === "completed" ? "Terminé" : log.status === "failed" ? "Erreur" : log.status}</span>
-                  </td>
-                  <td className="px-5 py-2.5 text-slate-600">{log.entity_count}</td>
-                  <td className="px-5 py-2.5 text-slate-500">
-                    {log.started_at ? new Date(log.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SyncBlocksStatus snapshot={snapshot} />
       </div>
 
       {/* Inactive integrations */}

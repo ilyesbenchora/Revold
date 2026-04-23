@@ -7,6 +7,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 import {
   buildContext,
   fetchDismissals,
@@ -96,6 +97,12 @@ export default async function MesCoachingPage() {
 
   return (
     <div className="space-y-8">
+      <ToolSourceMount
+        pageKey="coaching_ia"
+        pageLabel="Coaching IA"
+        preferredCategories={["crm"]}
+      />
+
       <MultiToolBanner summary={connectedSummary} />
 
       {/* Coaching réalisé — horizontal carousel */}

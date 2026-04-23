@@ -11,6 +11,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import { AuditPageTabs } from "@/components/audit-page-tabs";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -59,6 +60,12 @@ export default async function AutomatisationsPage() {
           { href: "/dashboard/process", label: "Vue d'ensemble" },
           { href: "/dashboard/process/recommandations", label: `Recommandations${recommendations.length > 0 ? ` (${recommendations.length})` : ""}`, highlight: true },
         ]}
+      />
+
+      <ToolSourceMount
+        pageKey="audit_automatisations"
+        pageLabel="Audit — Automatisations"
+        preferredCategories={["crm"]}
       />
 
       <InsightLockedBlock />

@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -150,6 +151,12 @@ export default async function PerformanceMarketingPage() {
       </header>
 
       <PerformancesTabs />
+
+      <ToolSourceMount
+        pageKey="audit_perf_marketing"
+        pageLabel="Performances — Marketing"
+        preferredCategories={["crm"]}
+      />
 
       <InsightLockedBlock
         previewTitle="Analyse IA de votre performance marketing"

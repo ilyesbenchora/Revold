@@ -21,6 +21,7 @@ import { resolvePresetDates } from "@/lib/reports/date-utils";
 import { CreateReportModal } from "@/components/create-report-modal";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
+import { ToolSourceMount } from "@/components/tool-source-mount";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -408,13 +409,19 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Mes rapports</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">KPIs en temps réel depuis votre CRM.</p>
         </div>
         <CreateReportModal />
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
+
+      <ToolSourceMount
+        pageKey="dashboard"
+        pageLabel="Dashboard"
+        preferredCategories={["crm"]}
+      />
 
       <MultiToolBanner summary={connectedSummary} />
 
