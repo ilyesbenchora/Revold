@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationData, fmtK } from "@/lib/audit/paiement-facturation-data";
 
@@ -63,7 +64,7 @@ export default async function ServiceClientCrossSellUpsellPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />Revenue par client (ARPU & LTV)
+            <BlockHeaderIcon icon="euro" tone="emerald" />Revenue par client (ARPU & LTV)
           </h2>
         }
       >
@@ -100,7 +101,7 @@ export default async function ServiceClientCrossSellUpsellPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Potentiel d&apos;expansion
+            <BlockHeaderIcon icon="trending-up" tone="fuchsia" />Potentiel d&apos;expansion
           </h2>
         }
       >
@@ -149,7 +150,7 @@ export default async function ServiceClientCrossSellUpsellPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />Pipeline expansion (deals ouverts sur customers)
+            <BlockHeaderIcon icon="kanban" tone="indigo" />Pipeline expansion (deals ouverts sur customers)
           </h2>
         }
       >

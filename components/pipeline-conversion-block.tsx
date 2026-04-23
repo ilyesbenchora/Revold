@@ -23,10 +23,11 @@ export function PipelineConversionBlock({
 }: {
   conversions: PipelineConversion[];
 }) {
+  // Sélectionne par défaut le pipeline avec le plus de données utilisables
   const [pipelineId, setPipelineId] = useState<string>(
-    conversions.find((c) => c.totalEntries > 0)?.pipeline.id ??
-      conversions[0]?.pipeline.id ??
-      "",
+    [...conversions]
+      .sort((a, b) => b.keyStagesCount - a.keyStagesCount || b.totalEntries - a.totalEntries)[0]
+      ?.pipeline.id ?? conversions[0]?.pipeline.id ?? "",
   );
   const selected = conversions.find((c) => c.pipeline.id === pipelineId) ?? conversions[0];
 
@@ -50,7 +51,8 @@ export function PipelineConversionBlock({
           >
             {conversions.map((c) => (
               <option key={c.pipeline.id} value={c.pipeline.id}>
-                {c.pipeline.label} ({c.totalEntries} deals)
+                {c.pipeline.label} ({c.keyStagesCount}/{c.totalStages} étapes peuplées,{" "}
+                {c.totalEntries} deals)
               </option>
             ))}
           </select>
@@ -68,21 +70,34 @@ export function PipelineConversionBlock({
       <div className="card p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm font-semibold text-slate-700">
-            Funnel de conversion à l&apos;instant T — {selected.pipeline.label}
+            Funnel de conversion — {selected.pipeline.label}
           </p>
-          <p className="text-xs text-slate-500">
-            Conversion globale (1<sup>ère</sup> étape → dernière étape) :{" "}
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-bold ${bgForPct(selected.endToEndPct)}`}
-            >
-              {selected.endToEndPct !== null ? `${selected.endToEndPct}%` : "—"}
-            </span>
-          </p>
+          {selected.endToEndPct !== null && (
+            <p className="text-xs text-slate-500">
+              Conversion globale (1<sup>ère</sup> → dernière étape clé) :{" "}
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-bold ${bgForPct(selected.endToEndPct)}`}
+              >
+                {selected.endToEndPct}%
+              </span>
+            </p>
+          )}
         </div>
+
+        <p className="mt-1 text-[11px] text-slate-500">
+          {selected.keyStagesCount} étape{selected.keyStagesCount > 1 ? "s" : ""} clé
+          {selected.keyStagesCount > 1 ? "s" : ""} sur {selected.totalStages} dans le pipeline
+          (les étapes vides sont ignorées pour produire un taux de conversion réel).
+        </p>
 
         {selected.totalEntries === 0 ? (
           <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
             Aucun deal ouvert dans ce pipeline — impossible de calculer une conversion.
+          </p>
+        ) : selected.insufficientStages ? (
+          <p className="mt-4 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
+            Une seule étape contient des deals ({selected.stages[0]?.stage.label}) —
+            il faut au moins 2 étapes peuplées pour calculer un taux de conversion.
           </p>
         ) : (
           <div className="mt-4 space-y-2">
@@ -128,8 +143,8 @@ export function PipelineConversionBlock({
         )}
 
         <p className="mt-4 text-[11px] text-slate-400">
-          Conversion calculée à partir de la distribution actuelle des deals ouverts dans
-          chaque étape (« ont atteint » = comptés dans cette étape ou une étape suivante).
+          Méthode : on ne retient que les étapes où des deals sont actuellement stockés
+          (étapes clés). « ont atteint » = comptés dans cette étape ou une étape clé suivante.
         </p>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -160,7 +161,7 @@ export default async function PerformanceMarketingPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />Funnel de conversion
+            <BlockHeaderIcon icon="funnel" tone="amber" />Funnel de conversion
           </h2>
         }
       >
@@ -190,7 +191,7 @@ export default async function PerformanceMarketingPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Qualité et attribution des contacts
+            <BlockHeaderIcon icon="users" tone="violet" />Qualité et attribution des contacts
           </h2>
         }
       >
@@ -222,7 +223,7 @@ export default async function PerformanceMarketingPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-orange-500" />Adoption digitale
+              <BlockHeaderIcon icon="trending-up" tone="orange" />Adoption digitale
               <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts analysés</span>
             </h2>
           }
@@ -261,7 +262,7 @@ export default async function PerformanceMarketingPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-violet-500" />Intégrations natives utilisées
+              <BlockHeaderIcon icon="workflow" tone="violet" />Intégrations natives utilisées
               <span className="text-sm font-normal text-slate-400">{totalNative.toLocaleString("fr-FR")} contacts ({nativeShare}%)</span>
             </h2>
           }
@@ -299,7 +300,7 @@ export default async function PerformanceMarketingPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />Toutes les sources d&apos;acquisition
+              <BlockHeaderIcon icon="megaphone" tone="blue" />Toutes les sources d&apos;acquisition
               <span className="text-sm font-normal text-slate-400">{totalSourceContacts.toLocaleString("fr-FR")} contacts</span>
             </h2>
           }
@@ -337,7 +338,7 @@ export default async function PerformanceMarketingPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />Derniers contacts ajoutés
+              <BlockHeaderIcon icon="users" tone="emerald" />Derniers contacts ajoutés
             </h2>
           }
         >

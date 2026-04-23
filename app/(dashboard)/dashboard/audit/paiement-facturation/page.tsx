@@ -9,6 +9,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function PaiementFacturationOverviewPage() {
@@ -59,7 +60,7 @@ export default async function PaiementFacturationOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <BlockHeaderIcon icon="repeat" tone="emerald" />
             Synthèse Revenue récurrent
           </h2>
         }
@@ -101,7 +102,7 @@ export default async function PaiementFacturationOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />
+            <BlockHeaderIcon icon="file-text" tone="indigo" />
             Synthèse Facturation
           </h2>
         }

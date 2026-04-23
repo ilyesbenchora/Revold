@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function FacturationPage() {
@@ -44,7 +45,7 @@ export default async function FacturationPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />
+            <BlockHeaderIcon icon="file-text" tone="indigo" />
             Émission & encaissement
           </h2>
         }
@@ -90,7 +91,7 @@ export default async function FacturationPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <BlockHeaderIcon icon="alert-triangle" tone="rose" />
             Recouvrement & DSO
             {overdueInvoices.length > 0 && (
               <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">
@@ -138,7 +139,7 @@ export default async function FacturationPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            <BlockHeaderIcon icon="trending-up" tone="blue" />
             Pipeline revenue & devis
           </h2>
         }

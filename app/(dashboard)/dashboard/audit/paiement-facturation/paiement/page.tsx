@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function PaiementPage() {
@@ -35,7 +36,7 @@ export default async function PaiementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <BlockHeaderIcon icon="repeat" tone="emerald" />
             Revenus récurrents
           </h2>
         }
@@ -69,7 +70,7 @@ export default async function PaiementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <BlockHeaderIcon icon="alert-triangle" tone="rose" />
             Churn & risque revenue
           </h2>
         }
@@ -117,7 +118,7 @@ export default async function PaiementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            <BlockHeaderIcon icon="credit-card" tone="blue" />
             Santé du portefeuille subscriptions
           </h2>
         }

@@ -1,69 +1,94 @@
 /**
- * Taux de conversion étape par étape — version SNAPSHOT INSTANT-T.
+ * Taux de conversion pipeline — méthode "étapes clés".
  *
- * Méthode (validée RevOps) :
- *   - On part de l'analyse pipeline déjà calculée (PipelineAnalytics) qui
- *     donne, pour chaque étape, le nombre de deals OUVERTS actuellement
- *     dans cette étape.
- *   - "Reached stage[i]" = somme des deals dans stage[i] + tous les stages
- *     suivants (un deal en stage[3] est passé par stage[1] et stage[2]).
- *   - conversion(i → i+1) = reached[i+1] / reached[i].
+ * Le constat CRO : la plupart des pipelines B2B ont 6–10 étapes, mais les
+ * deals ne stationnent en réalité que dans 2–5 d'entre elles (les autres
+ * sont des étapes administratives traversées en quelques heures). Calculer
+ * une conversion "stage par stage" sur le pipeline brut donne des résultats
+ * sans signal (0 deal → 0% conversion partout).
+ *
+ * Méthode :
+ *   1. On ne garde que les étapes "clés" — celles où il y a au moins 1 deal
+ *      ouvert actuellement.
+ *   2. reached[i] = somme des deals dans key_stage[i] et tous les key_stages
+ *      qui suivent (un deal en stage 4 a forcément traversé stage 2 et 3).
+ *   3. conversion(i → i+1) = reached[i+1] / reached[i].
  *
  * Avantages :
- *   - Aucun appel HubSpot supplémentaire (réutilise les données déjà fetchées).
- *   - Pas de dépendance à `hs_date_entered_<stage>` (HAS_PROPERTY peu fiable
- *     sur certains portails et oblige à attendre que HubSpot ait écrit la
- *     propriété — souvent vide pour les deals créés via API).
- *   - Reflète la forme RÉELLE du pipeline à l'instant T — exactement ce
- *     qu'un RevOps regarde pour repérer un goulot d'étranglement.
+ *   - Aucun appel HubSpot supplémentaire (réutilise PipelineAnalytics).
+ *   - Pas de dépendance à `hs_date_entered_<stage>` (peu fiable, vide pour
+ *     les deals créés via API).
+ *   - Affiche le funnel RÉEL — ce qu'un RevOps regarde pour repérer un
+ *     goulot d'étranglement.
  */
 
-import type { HsPipeline, PipelineAnalytics } from "./hubspot-pipelines";
+import type { PipelineAnalytics, HsPipeline } from "./hubspot-pipelines";
 
 export type StageConversion = {
   stage: { id: string; label: string; displayOrder: number };
-  inStageCount: number;       // deals actuellement DANS cette étape
-  reachedCount: number;       // deals dans cette étape OU au-delà (= ont atteint cette étape)
+  inStageCount: number;
+  reachedCount: number;
   conversionToNextPct: number | null;
   nextStageLabel: string | null;
 };
 
 export type PipelineConversion = {
   pipeline: HsPipeline;
+  /** Nombre total d'étapes définies dans le pipeline HubSpot. */
+  totalStages: number;
+  /** Nombre d'étapes "clés" effectivement utilisées (avec au moins 1 deal). */
+  keyStagesCount: number;
   stages: StageConversion[];
-  totalEntries: number;        // = reached[0]
+  /** Volume entré dans la 1ère étape clé. */
+  totalEntries: number;
+  /** Conversion globale 1ère étape clé → dernière étape clé. */
   endToEndPct: number | null;
+  /** True quand on a < 2 étapes peuplées (pas assez pour calculer). */
+  insufficientStages: boolean;
 };
 
-/**
- * Calcule la conversion à partir de l'analyse pipeline (purement local,
- * pas d'appel API). Inclut uniquement les étapes ouvertes (closedWon /
- * closedLost ne sont pas comptées dans le funnel — elles représentent la
- * sortie du pipeline).
- */
 export function buildPipelineConversion(pa: PipelineAnalytics): PipelineConversion {
-  // Ordonner les stages par displayOrder pour avoir un funnel cohérent
-  const orderedStages = [...pa.pipeline.stages].sort(
-    (a, b) => a.displayOrder - b.displayOrder,
-  );
+  const allOrdered = [...pa.pipeline.stages].sort((a, b) => a.displayOrder - b.displayOrder);
 
-  // Map stageId → dealCount (depuis PipelineAnalytics.stages qui filtre déjà
-  // les étapes vides — on remplit à 0 pour les manquantes)
+  // Map stageId → dealCount à partir de PipelineAnalytics.stages (déjà filtré
+  // par dealCount > 0)
   const countByStage = new Map<string, number>();
   for (const s of pa.stages) countByStage.set(s.stage.id, s.dealCount);
 
-  // reachedCount cumulatif depuis la fin
-  const reachedFromEnd: number[] = new Array(orderedStages.length).fill(0);
+  // Étapes clés = celles où des deals sont actuellement stockés
+  const keyStages = allOrdered.filter((s) => (countByStage.get(s.id) ?? 0) > 0);
+
+  if (keyStages.length < 2) {
+    return {
+      pipeline: pa.pipeline,
+      totalStages: allOrdered.length,
+      keyStagesCount: keyStages.length,
+      stages: keyStages.map((s) => ({
+        stage: { id: s.id, label: s.label, displayOrder: s.displayOrder },
+        inStageCount: countByStage.get(s.id) ?? 0,
+        reachedCount: countByStage.get(s.id) ?? 0,
+        conversionToNextPct: null,
+        nextStageLabel: null,
+      })),
+      totalEntries: keyStages[0] ? countByStage.get(keyStages[0].id) ?? 0 : 0,
+      endToEndPct: null,
+      insufficientStages: true,
+    };
+  }
+
+  // Cumul reached depuis la fin (un deal en key_stage[k] est passé par
+  // key_stage[k-1], k-2, ..., 0)
+  const reachedFromEnd: number[] = new Array(keyStages.length).fill(0);
   let cumul = 0;
-  for (let i = orderedStages.length - 1; i >= 0; i--) {
-    cumul += countByStage.get(orderedStages[i].id) ?? 0;
+  for (let i = keyStages.length - 1; i >= 0; i--) {
+    cumul += countByStage.get(keyStages[i].id) ?? 0;
     reachedFromEnd[i] = cumul;
   }
 
-  const stages: StageConversion[] = orderedStages.map((s, i) => {
+  const stages: StageConversion[] = keyStages.map((s, i) => {
     const inStage = countByStage.get(s.id) ?? 0;
     const reached = reachedFromEnd[i];
-    const next = orderedStages[i + 1] ?? null;
+    const next = keyStages[i + 1] ?? null;
     const reachedNext = next ? reachedFromEnd[i + 1] : null;
     const conversionToNextPct =
       next && reached > 0 && reachedNext !== null
@@ -83,5 +108,13 @@ export function buildPipelineConversion(pa: PipelineAnalytics): PipelineConversi
   const endToEndPct =
     totalEntries > 0 ? Math.round((lastReached / totalEntries) * 100) : null;
 
-  return { pipeline: pa.pipeline, stages, totalEntries, endToEndPct };
+  return {
+    pipeline: pa.pipeline,
+    totalStages: allOrdered.length,
+    keyStagesCount: keyStages.length,
+    stages,
+    totalEntries,
+    endToEndPct,
+    insufficientStages: false,
+  };
 }

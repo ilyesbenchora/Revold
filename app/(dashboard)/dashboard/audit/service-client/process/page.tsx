@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 
 export default async function ServiceClientProcessPage() {
@@ -61,7 +62,7 @@ export default async function ServiceClientProcessPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />SLA d&apos;accueil & première réponse
+            <BlockHeaderIcon icon="user-clock" tone="emerald" />SLA d&apos;accueil & première réponse
           </h2>
         }
       >
@@ -132,7 +133,7 @@ export default async function ServiceClientProcessPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />Onboarding & livraison
+            <BlockHeaderIcon icon="briefcase" tone="indigo" />Onboarding & livraison
           </h2>
         }
       >
@@ -170,7 +171,7 @@ export default async function ServiceClientProcessPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />Capacité opérationnelle
+            <BlockHeaderIcon icon="users" tone="amber" />Capacité opérationnelle
           </h2>
         }
       >

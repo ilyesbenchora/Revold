@@ -11,6 +11,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import { AuditPageTabs } from "@/components/audit-page-tabs";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -67,7 +68,7 @@ export default async function AutomatisationsPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-violet-500" />Workflows détectés
+            <BlockHeaderIcon icon="workflow" tone="violet" />Workflows détectés
             {allWorkflows.length > 0 && (
               <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
                 {activeWorkflows.length} actifs / {allWorkflows.length}
@@ -114,7 +115,7 @@ export default async function AutomatisationsPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Analyse exhaustive workflow par workflow
+              <BlockHeaderIcon icon="sparkles" tone="fuchsia" />Analyse exhaustive workflow par workflow
               <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
                 {audit.detailLoadStatus.detailLoaded} / {audit.detailLoadStatus.activeCount}
               </span>

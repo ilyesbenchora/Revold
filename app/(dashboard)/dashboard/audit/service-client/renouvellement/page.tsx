@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationData, fmtK } from "@/lib/audit/paiement-facturation-data";
 
@@ -64,7 +65,7 @@ export default async function ServiceClientRenouvellementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />Taux de renouvellement & rétention
+            <BlockHeaderIcon icon="repeat" tone="emerald" />Taux de renouvellement & rétention
           </h2>
         }
       >
@@ -113,7 +114,7 @@ export default async function ServiceClientRenouvellementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Cohortes par fréquence
+            <BlockHeaderIcon icon="users" tone="blue" />Cohortes par fréquence
           </h2>
         }
       >
@@ -147,7 +148,7 @@ export default async function ServiceClientRenouvellementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />ARR sécurisé vs à risque
+            <BlockHeaderIcon icon="shield" tone="amber" />ARR sécurisé vs à risque
           </h2>
         }
       >
@@ -187,7 +188,7 @@ export default async function ServiceClientRenouvellementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Engagement pré-renouvellement
+            <BlockHeaderIcon icon="user-clock" tone="fuchsia" />Engagement pré-renouvellement
           </h2>
         }
       >

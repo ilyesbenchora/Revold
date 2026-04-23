@@ -9,6 +9,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 
 export default async function ServiceClientOverviewPage() {
@@ -56,7 +57,7 @@ export default async function ServiceClientOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />Volume de tickets
+            <BlockHeaderIcon icon="headset" tone="blue" />Volume de tickets
           </h2>
         }
       >
@@ -92,7 +93,7 @@ export default async function ServiceClientOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Signaux satisfaction & engagement
+            <BlockHeaderIcon icon="message-circle" tone="fuchsia" />Signaux satisfaction & engagement
           </h2>
         }
       >

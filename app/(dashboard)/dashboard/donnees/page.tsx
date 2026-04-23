@@ -9,6 +9,7 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
+import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
 
 type ToolEntityCount = {
@@ -315,12 +316,20 @@ export default async function DonneesPage() {
     });
   }
 
-  const summaries = [
+  const summaries: Array<{
+    label: string;
+    href: string;
+    count: number;
+    icon: "users" | "building" | "briefcase";
+    tone: "blue" | "violet" | "orange";
+    metrics: Array<{ label: string; pct: number }>;
+  }> = [
     {
       label: "Contacts",
       href: "/dashboard/donnees/contacts",
       count: contactsTotal,
-      color: "bg-blue-500",
+      icon: "users",
+      tone: "blue",
       metrics: [
         { label: "Téléphone", pct: pct(contactsPhone, contactsTotal) },
         { label: "Entreprise liée", pct: pct(contactsCompany, contactsTotal) },
@@ -331,7 +340,8 @@ export default async function DonneesPage() {
       label: "Entreprises",
       href: "/dashboard/donnees/entreprises",
       count: companiesTotal,
-      color: "bg-violet-500",
+      icon: "building",
+      tone: "violet",
       metrics: [
         { label: "Domaine", pct: pct(companiesDomain, companiesTotal) },
         { label: "Secteur", pct: pct(companiesIndustry, companiesTotal) },
@@ -342,7 +352,8 @@ export default async function DonneesPage() {
       label: "Transactions",
       href: "/dashboard/donnees/transactions",
       count: dealsTotal,
-      color: "bg-orange-500",
+      icon: "briefcase",
+      tone: "orange",
       metrics: [
         { label: "Montant", pct: pct(dealsAmount, dealsTotal) },
         { label: "Date closing", pct: pct(dealsCloseDate, dealsTotal) },
@@ -379,7 +390,7 @@ export default async function DonneesPage() {
         <div className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <BlockHeaderIcon icon="database" tone="indigo" />
               Hubs synchronisés
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
                 {hubs.length}
@@ -470,7 +481,7 @@ export default async function DonneesPage() {
           <Link key={s.label} href={s.href} className="card p-5 transition hover:shadow-md group">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${s.color}`} />
+                <BlockHeaderIcon icon={s.icon} tone={s.tone} />
                 <span className="text-sm font-semibold text-slate-900 group-hover:text-accent">{s.label}</span>
               </div>
               <span className="text-2xl font-bold text-slate-900 tabular-nums">{s.count.toLocaleString("fr-FR")}</span>
