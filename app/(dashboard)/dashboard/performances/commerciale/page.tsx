@@ -11,6 +11,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { PipelineManagementCarousel } from "@/components/pipeline-management-carousel";
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
 import { ToolSourceMount } from "@/components/tool-source-mount";
+import { CreateAlertModal } from "@/components/create-alert-modal";
 import {
   fetchPipelineDataAtomic,
   buildPipelineAnalytics,
@@ -18,7 +19,7 @@ import {
   type PipelineAnalytics,
 } from "@/lib/integrations/hubspot-pipelines";
 import {
-  fetchPipelineConversion,
+  buildPipelineConversion,
   type PipelineConversion,
 } from "@/lib/integrations/hubspot-pipeline-conversion";
 
@@ -65,17 +66,7 @@ export default async function PerformanceCommercialePage() {
       lost: Object.fromEntries(pipelineDataList.map((p) => [p.pipeline.id, p.lostCount])),
     };
     pipelineAnalytics = buildPipelineAnalytics(hsPipelines, allOpenDeals, closedByPipeline);
-
-    pipelineConversions = await Promise.all(
-      hsPipelines.map((p) =>
-        fetchPipelineConversion(token, p).catch(() => ({
-          pipeline: p,
-          stages: [],
-          totalEntries: 0,
-          endToEndPct: null,
-        })),
-      ),
-    );
+    pipelineConversions = pipelineAnalytics.map(buildPipelineConversion);
   }
 
   const total = snapshot.totalDeals;
@@ -126,6 +117,8 @@ export default async function PerformanceCommercialePage() {
       >
         <PipelineConversionBlock conversions={pipelineConversions} />
       </CollapsibleBlock>
+
+      <CreateAlertModal hideTrigger />
     </section>
   );
 }

@@ -7,7 +7,9 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { DealsAtRiskBlock } from "@/components/deals-at-risk-block";
+import { CreateAlertModal } from "@/components/create-alert-modal";
 import { fetchDealRiskBuckets } from "@/lib/integrations/hubspot-deal-risk";
+import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
 
 export default async function DealsARisquePage() {
   const orgId = await getOrgId();
@@ -25,16 +27,28 @@ export default async function DealsARisquePage() {
     stages: p.stages.map((s) => ({ id: s.id, label: s.label })),
   }));
 
-  const initialPipelineId = pipelines[0]?.id ?? "";
-  const initialBuckets =
-    token && initialPipelineId
-      ? await fetchDealRiskBuckets(token, initialPipelineId).catch(() => ({
-          pipelineId: initialPipelineId,
+  // Charge buckets pour TOUS pipelines par défaut + owners en parallèle
+  const [initialBuckets, ownersRaw] = await Promise.all([
+    token
+      ? fetchDealRiskBuckets(token, null).catch(() => ({
+          pipelineId: null,
           blocked: [],
           noVisibility: [],
           noActivity: [],
         }))
-      : { pipelineId: initialPipelineId, blocked: [], noVisibility: [], noActivity: [] };
+      : Promise.resolve({
+          pipelineId: null,
+          blocked: [],
+          noVisibility: [],
+          noActivity: [],
+        }),
+    token ? fetchOwners(token).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  const owners = ownersRaw.map((o) => ({
+    id: o.id,
+    name: `${o.firstName ?? ""} ${o.lastName ?? ""}`.trim() || o.email || o.id,
+  }));
 
   return (
     <section className="space-y-8">
@@ -55,10 +69,15 @@ export default async function DealsARisquePage() {
       ) : (
         <DealsAtRiskBlock
           pipelines={pipelines}
-          initialPipelineId={initialPipelineId}
+          owners={owners}
+          initialPipelineId={null}
           initialBuckets={initialBuckets}
         />
       )}
+
+      {/* Modal hôte (cachée) qui écoute l'event "revold:open-alert-modal"
+          émis par les CTA "Créer une alerte" sur cette page */}
+      <CreateAlertModal hideTrigger />
     </section>
   );
 }

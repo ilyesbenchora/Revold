@@ -8,10 +8,11 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
 
 export async function GET(req: NextRequest) {
-  const pipelineId = req.nextUrl.searchParams.get("pipelineId");
-  if (!pipelineId) {
+  const raw = req.nextUrl.searchParams.get("pipelineId");
+  if (!raw) {
     return NextResponse.json({ error: "pipelineId required" }, { status: 400 });
   }
+  const pipelineId = raw === "__all__" ? null : raw;
 
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "no org" }, { status: 401 });

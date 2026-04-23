@@ -1,7 +1,13 @@
 /**
- * Récupère les deals pour le bloc "Close Date Management" :
- *   - passedCloseDate : deals OUVERTS dont close date est dans le passé
- *   - currentQuarter  : deals OUVERTS dont close date tombe dans le trimestre courant
+ * Close Date Management — sortie utilisée dans Forecast Management.
+ *
+ * 2 buckets :
+ *   - passedCloseDate : deals OUVERTS dont la close date est dans le passé
+ *   - currentQuarter  : deals OUVERTS dont la close date tombe dans le
+ *                       trimestre courant
+ *
+ * Ne filtre pas sur HAS_PROPERTY closedate (peu fiable selon les portails) ;
+ * on filtre directement par date côté Search API HubSpot.
  */
 
 const HS_API = "https://api.hubapi.com";
@@ -9,36 +15,45 @@ const HS_API = "https://api.hubapi.com";
 export type CloseDateDeal = {
   id: string;
   name: string;
+  pipelineId: string;
   stageId: string;
   amount: number;
   ownerId: string | null;
   closeDate: string | null;
-  daysOverdue: number; // négatif si pas encore arrivé
+  daysOverdue: number;
 };
 
 export type CloseDateBuckets = {
-  pipelineId: string;
+  pipelineId: string | null;
   passedCloseDate: CloseDateDeal[];
   currentQuarter: CloseDateDeal[];
   quarterLabel: string;
+  quarterStart: string;
+  quarterEnd: string;
 };
 
-function quarterRange(date = new Date()): { start: Date; end: Date; label: string } {
+function quarterRange(date = new Date()): {
+  start: Date;
+  end: Date;
+  label: string;
+} {
   const month = date.getMonth();
   const quarter = Math.floor(month / 3);
   const year = date.getFullYear();
   const start = new Date(year, quarter * 3, 1);
   const end = new Date(year, quarter * 3 + 3, 0, 23, 59, 59, 999);
-  const label = `T${quarter + 1} ${year}`;
-  return { start, end, label };
+  return { start, end, label: `T${quarter + 1} ${year}` };
 }
 
-async function fetchOpenDealsWithCloseDate(
+async function searchDeals(
   token: string,
-  pipelineId: string,
+  filterGroups: Array<{ filters: Array<Record<string, string>> }>,
+  pipelineId: string | null,
+  max = 1000,
 ): Promise<CloseDateDeal[]> {
   const properties = [
     "dealname",
+    "pipeline",
     "dealstage",
     "amount",
     "hubspot_owner_id",
@@ -48,22 +63,15 @@ async function fetchOpenDealsWithCloseDate(
   const all: CloseDateDeal[] = [];
   let after: string | undefined;
   const now = Date.now();
+  const batches = Math.ceil(max / 100);
 
-  for (let batch = 0; batch < 10; batch++) {
+  for (let batch = 0; batch < batches; batch++) {
     try {
       const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          filterGroups: [
-            {
-              filters: [
-                { propertyName: "pipeline", operator: "EQ", value: pipelineId },
-                { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
-                { propertyName: "closedate", operator: "HAS_PROPERTY" },
-              ],
-            },
-          ],
+          filterGroups,
           properties,
           sorts: [{ propertyName: "closedate", direction: "ASCENDING" }],
           limit: 100,
@@ -82,6 +90,7 @@ async function fetchOpenDealsWithCloseDate(
         all.push({
           id: r.id as string,
           name: props.dealname || `Deal ${r.id}`,
+          pipelineId: props.pipeline || pipelineId || "default",
           stageId: props.dealstage || "",
           amount: Number(props.amount) || 0,
           ownerId: props.hubspot_owner_id || null,
@@ -100,30 +109,40 @@ async function fetchOpenDealsWithCloseDate(
 
 export async function fetchCloseDateBuckets(
   token: string,
-  pipelineId: string,
+  pipelineId: string | null,
 ): Promise<CloseDateBuckets> {
-  const deals = await fetchOpenDealsWithCloseDate(token, pipelineId);
-  const now = Date.now();
   const { start, end, label } = quarterRange();
+  const now = Date.now();
 
-  const passedCloseDate = deals
-    .filter((d) => {
-      if (!d.closeDate) return false;
-      return new Date(d.closeDate).getTime() < now;
-    })
-    .sort((a, b) => b.daysOverdue - a.daysOverdue);
+  const baseFilters: Array<Record<string, string>> = [
+    { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
+  ];
+  if (pipelineId) {
+    baseFilters.push({ propertyName: "pipeline", operator: "EQ", value: pipelineId });
+  }
 
-  const currentQuarter = deals
-    .filter((d) => {
-      if (!d.closeDate) return false;
-      const t = new Date(d.closeDate).getTime();
-      return t >= start.getTime() && t <= end.getTime();
-    })
-    .sort((a, b) => {
-      const ta = a.closeDate ? new Date(a.closeDate).getTime() : 0;
-      const tb = b.closeDate ? new Date(b.closeDate).getTime() : 0;
-      return ta - tb;
-    });
+  // Filter HubSpot Search API : LT pour les deals en retard, BETWEEN pour
+  // le trimestre courant. Les valeurs sont des timestamps ms (string).
+  const passedFilters = [
+    ...baseFilters,
+    { propertyName: "closedate", operator: "LT", value: String(now) },
+  ];
+  const quarterFilters = [
+    ...baseFilters,
+    { propertyName: "closedate", operator: "BETWEEN", value: String(start.getTime()), highValue: String(end.getTime()) } as unknown as Record<string, string>,
+  ];
 
-  return { pipelineId, passedCloseDate, currentQuarter, quarterLabel: label };
+  const [passedCloseDate, currentQuarter] = await Promise.all([
+    searchDeals(token, [{ filters: passedFilters }], pipelineId, 1000),
+    searchDeals(token, [{ filters: quarterFilters }], pipelineId, 1000),
+  ]);
+
+  return {
+    pipelineId,
+    passedCloseDate,
+    currentQuarter,
+    quarterLabel: label,
+    quarterStart: start.toISOString(),
+    quarterEnd: end.toISOString(),
+  };
 }

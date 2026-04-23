@@ -7,7 +7,9 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { CloseDateManagementBlock } from "@/components/close-date-management-block";
+import { CreateAlertModal } from "@/components/create-alert-modal";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
+import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
 
 export default async function ForecastManagementPage() {
   const orgId = await getOrgId();
@@ -25,21 +27,31 @@ export default async function ForecastManagementPage() {
     stages: p.stages.map((s) => ({ id: s.id, label: s.label })),
   }));
 
-  const initialPipelineId = pipelines[0]?.id ?? "";
-  const initialBuckets =
-    token && initialPipelineId
-      ? await fetchCloseDateBuckets(token, initialPipelineId).catch(() => ({
-          pipelineId: initialPipelineId,
+  const [initialBuckets, ownersRaw] = await Promise.all([
+    token
+      ? fetchCloseDateBuckets(token, null).catch(() => ({
+          pipelineId: null,
           passedCloseDate: [],
           currentQuarter: [],
           quarterLabel: "—",
+          quarterStart: "",
+          quarterEnd: "",
         }))
-      : {
-          pipelineId: initialPipelineId,
+      : Promise.resolve({
+          pipelineId: null,
           passedCloseDate: [],
           currentQuarter: [],
           quarterLabel: "—",
-        };
+          quarterStart: "",
+          quarterEnd: "",
+        }),
+    token ? fetchOwners(token).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  const owners = ownersRaw.map((o) => ({
+    id: o.id,
+    name: `${o.firstName ?? ""} ${o.lastName ?? ""}`.trim() || o.email || o.id,
+  }));
 
   return (
     <section className="space-y-8">
@@ -60,10 +72,13 @@ export default async function ForecastManagementPage() {
       ) : (
         <CloseDateManagementBlock
           pipelines={pipelines}
-          initialPipelineId={initialPipelineId}
+          owners={owners}
+          initialPipelineId={null}
           initialBuckets={initialBuckets}
         />
       )}
+
+      <CreateAlertModal hideTrigger />
     </section>
   );
 }

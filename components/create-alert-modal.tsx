@@ -104,7 +104,7 @@ const CHANNEL_LABELS: Record<string, { label: string; description: string; icon:
   webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
 };
 
-export function CreateAlertModal() {
+export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
@@ -148,6 +148,35 @@ export function CreateAlertModal() {
 
   const kpiList = kpisByTeam[team] ?? [];
   const kpi = kpiList.find((k) => k.id === kpiId);
+
+  // ── Écoute l'event global "revold:open-alert-modal" pour ouvrir la modal
+  // depuis n'importe quel CreateAlertCta avec un preset (équipe + KPI + seuil)
+  useEffect(() => {
+    function onPreset(e: Event) {
+      const detail = (e as CustomEvent).detail as {
+        team?: string;
+        kpiId?: string;
+        defaultThreshold?: number;
+        defaultDirection?: "above" | "below";
+        defaultUnit?: "percent" | "currency" | "count";
+        defaultPipelineIds?: string[];
+        startStep?: number;
+      } | undefined;
+      if (!detail) return;
+      reset();
+      if (detail.team) setTeam(detail.team);
+      if (detail.kpiId) setKpiId(detail.kpiId);
+      if (detail.defaultThreshold !== undefined) setThreshold(String(detail.defaultThreshold));
+      if (detail.defaultDirection) setDirection(detail.defaultDirection);
+      if (detail.defaultUnit) setUnitMode(detail.defaultUnit);
+      if (detail.defaultPipelineIds && detail.defaultPipelineIds.length > 0)
+        setSelectedPipelines(detail.defaultPipelineIds);
+      setStep(detail.startStep ?? 3);
+      setOpen(true);
+    }
+    window.addEventListener("revold:open-alert-modal", onPreset as EventListener);
+    return () => window.removeEventListener("revold:open-alert-modal", onPreset as EventListener);
+  }, []);
 
   // Load pipelines/owners on first open
   useEffect(() => {
@@ -285,13 +314,15 @@ export function CreateAlertModal() {
 
   return (
     <>
-      <button type="button" onClick={() => { reset(); setOpen(true); }}
-        className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" />
-        </svg>
-        Créer une alerte
-      </button>
+      {!hideTrigger && (
+        <button type="button" onClick={() => { reset(); setOpen(true); }}
+          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" />
+          </svg>
+          Créer une alerte
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { if (state !== "loading") { setOpen(false); reset(); } }}>

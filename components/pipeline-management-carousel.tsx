@@ -21,7 +21,7 @@ const STAGE_COLORS = [
 
 function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
   return (
-    <article className="card overflow-hidden h-full flex flex-col">
+    <article className="card overflow-hidden">
       <div className="flex items-start justify-between border-b border-card-border bg-slate-50 px-5 py-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">{pa.pipeline.label}</h3>
@@ -54,17 +54,12 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
               />
             ))}
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
             {pa.stages.map((sa, idx) => (
-              <div
-                key={sa.stage.id}
-                className="flex items-center gap-1.5 text-[10px] text-slate-600"
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${STAGE_COLORS[idx % STAGE_COLORS.length]}`}
-                />
+              <div key={sa.stage.id} className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                <span className={`h-2 w-2 rounded-full ${STAGE_COLORS[idx % STAGE_COLORS.length]}`} />
                 {sa.stage.label} ·{" "}
-                <span className="font-semibold">{sa.weightedPct}%</span>
+                <span className="font-semibold">{sa.weightedPct}%</span> · {sa.dealCount} deal{sa.dealCount > 1 ? "s" : ""}
               </div>
             ))}
           </div>
@@ -76,26 +71,26 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-[10px] font-medium uppercase text-slate-400">
-                <th className="py-1 pr-3">Étape</th>
-                <th className="py-1 pr-3 text-right">Deals</th>
-                <th className="py-1 pr-3 text-right">CA brut</th>
-                <th className="py-1 pr-3 text-right">CA pondéré</th>
-                <th className="py-1 pr-3 text-right">Moy. j</th>
+                <th className="py-1 pr-4">Étape</th>
+                <th className="py-1 pr-4 text-right">Deals</th>
+                <th className="py-1 pr-4 text-right">CA brut</th>
+                <th className="py-1 pr-4 text-right">CA pondéré</th>
+                <th className="py-1 pr-4 text-right">Moy. j</th>
                 <th className="py-1 text-right">Vélocité</th>
               </tr>
             </thead>
             <tbody>
               {pa.stages.map((sa) => (
                 <tr key={sa.stage.id} className="border-t border-slate-100">
-                  <td className="py-1.5 pr-3 font-medium text-slate-700">{sa.stage.label}</td>
-                  <td className="py-1.5 pr-3 text-right text-slate-600">{sa.dealCount}</td>
-                  <td className="py-1.5 pr-3 text-right text-slate-600">
+                  <td className="py-1.5 pr-4 font-medium text-slate-700">{sa.stage.label}</td>
+                  <td className="py-1.5 pr-4 text-right text-slate-600">{sa.dealCount}</td>
+                  <td className="py-1.5 pr-4 text-right text-slate-600">
                     {sa.amount > 0 ? fmtK(sa.amount) : "—"}
                   </td>
-                  <td className="py-1.5 pr-3 text-right font-semibold text-slate-700">
+                  <td className="py-1.5 pr-4 text-right font-semibold text-slate-700">
                     {sa.weightedAmount > 0 ? fmtK(sa.weightedAmount) : "—"}
                   </td>
-                  <td className="py-1.5 pr-3 text-right text-slate-600">{sa.avgDaysInStage}j</td>
+                  <td className="py-1.5 pr-4 text-right text-slate-600">{sa.avgDaysInStage}j</td>
                   <td className="py-1.5 text-right">
                     {sa.avgDaysInStage <= 7 ? (
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
@@ -129,13 +124,13 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
                 <li key={s.label} className="flex items-center justify-between text-xs">
                   <span className="text-slate-700">{s.label}</span>
                   <span className="font-medium text-emerald-600">
-                    {s.avgDays}j · {s.dealCount}
+                    {s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-1 text-xs text-slate-400">Aucune étape rapide.</p>
+            <p className="mt-1 text-xs text-slate-400">Aucune étape rapide détectée.</p>
           )}
         </div>
         <div className="px-5 py-3">
@@ -148,7 +143,7 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
                 <li key={s.label} className="flex items-center justify-between text-xs">
                   <span className="text-slate-700">{s.label}</span>
                   <span className="font-medium text-red-600">
-                    {s.avgDays}j · {s.dealCount}
+                    {s.avgDays}j · {s.dealCount} deal{s.dealCount > 1 ? "s" : ""}
                   </span>
                 </li>
               ))}
@@ -159,7 +154,7 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
         </div>
       </div>
 
-      <div className="border-t border-card-border bg-slate-50/50 px-5 py-3 mt-auto">
+      <div className="border-t border-card-border bg-slate-50/50 px-5 py-3">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             Audit d&apos;attractivité
@@ -248,8 +243,6 @@ export function PipelineManagementCarousel({
   const perPage = 2;
   const totalPages = Math.max(1, Math.ceil(pipelines.length / perPage));
   const safePage = Math.min(page, totalPages - 1);
-  const start = safePage * perPage;
-  const visible = pipelines.slice(start, start + perPage);
 
   if (pipelines.length === 0) {
     return (
@@ -263,7 +256,7 @@ export function PipelineManagementCarousel({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500">
-          Affichage {start + 1}–{Math.min(start + perPage, pipelines.length)} sur {pipelines.length} pipeline{pipelines.length > 1 ? "s" : ""}
+          Page {safePage + 1} sur {totalPages} — {pipelines.length} pipeline{pipelines.length > 1 ? "s" : ""}
         </p>
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
@@ -292,10 +285,34 @@ export function PipelineManagementCarousel({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {visible.map((pa) => (
-          <PipelineCard key={pa.pipeline.id} pa={pa} />
-        ))}
+      {/* Carrousel : chaque page contient 2 pipelines empilés verticalement
+          en pleine largeur. On utilise un overflow-x-hidden + transform pour
+          que les pages glissent horizontalement (effet "scroll vers la
+          droite pour voir la suite"). */}
+      <div className="relative overflow-x-hidden">
+        <div
+          className="flex transition-transform duration-300 ease-out"
+          style={{
+            width: `${totalPages * 100}%`,
+            transform: `translateX(-${(safePage * 100) / totalPages}%)`,
+          }}
+        >
+          {Array.from({ length: totalPages }).map((_, pageIdx) => {
+            const start = pageIdx * perPage;
+            const slice = pipelines.slice(start, start + perPage);
+            return (
+              <div
+                key={pageIdx}
+                className="space-y-4 px-1"
+                style={{ width: `${100 / totalPages}%` }}
+              >
+                {slice.map((pa) => (
+                  <PipelineCard key={pa.pipeline.id} pa={pa} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
