@@ -175,20 +175,25 @@ export default async function DonneesPage() {
 
     if (tool.key === "stripe") {
       // 1. On lit d'abord ce qu'on a en local (source_links) — rapide.
-      const [stripeContacts, stripeInvoices, stripeSubs] = await Promise.all([
-        countCanonicalForProvider(supabase, orgId, "stripe", "contact"),
-        countCanonicalForProvider(supabase, orgId, "stripe", "invoice"),
-        countCanonicalForProvider(supabase, orgId, "stripe", "subscription"),
-      ]);
-
-      // 2. Si la sync n'a rien produit en local (source_links vide) MAIS
-      //    qu'on a une clé Stripe valide, on va lire LIVE chez Stripe pour
-      //    afficher les vrais volumes — sinon l'utilisateur voit "0 partout"
-      //    alors que des données existent réellement dans Stripe.
+      // Wrappé en try/catch global : aucune erreur Stripe ne doit casser
+      // la page Données.
+      let stripeContacts = 0;
+      let stripeInvoices = 0;
+      let stripeSubs = 0;
       let liveCounts: { customers: number; invoices: number; subscriptions: number; truncated: boolean; error?: string } | null = null;
-      const localTotal = stripeContacts + stripeInvoices + stripeSubs;
-      if (localTotal === 0) {
-        try {
+      let stripeBlockError: string | null = null;
+
+      try {
+        [stripeContacts, stripeInvoices, stripeSubs] = await Promise.all([
+          countCanonicalForProvider(supabase, orgId, "stripe", "contact"),
+          countCanonicalForProvider(supabase, orgId, "stripe", "invoice"),
+          countCanonicalForProvider(supabase, orgId, "stripe", "subscription"),
+        ]);
+
+        // 2. Si la sync n'a rien produit en local (source_links vide) MAIS
+        //    qu'on a une clé Stripe valide, on lit LIVE chez Stripe.
+        const localTotal = stripeContacts + stripeInvoices + stripeSubs;
+        if (localTotal === 0) {
           const { data: stripeRow } = await supabase
             .from("integrations")
             .select("access_token")
@@ -199,7 +204,9 @@ export default async function DonneesPage() {
           if (stripeRow?.access_token) {
             liveCounts = await fetchStripeLiveCounts(stripeRow.access_token as string);
           }
-        } catch {}
+        }
+      } catch (err) {
+        stripeBlockError = err instanceof Error ? err.message.slice(0, 200) : "Erreur Stripe";
       }
 
       // 3. On combine : la valeur live l'emporte sur la valeur locale (0)
@@ -259,7 +266,14 @@ export default async function DonneesPage() {
           severity: linkedPct < 40 ? "critical" : "warning",
         });
       }
-      if (liveCounts?.error) {
+      if (stripeBlockError) {
+        gaps.push({
+          entity: "Stripe",
+          field: `Erreur lecture Stripe : ${stripeBlockError.slice(0, 80)}`,
+          pct: 0,
+          severity: "critical",
+        });
+      } else if (liveCounts?.error) {
         gaps.push({
           entity: "Stripe",
           field: `Erreur API Stripe : ${liveCounts.error.slice(0, 80)}`,
@@ -277,7 +291,7 @@ export default async function DonneesPage() {
           pct: 0,
           severity: "critical",
         });
-      } else if (localTotal === 0 && liveCounts) {
+      } else if (stripeContacts + stripeInvoices + stripeSubs === 0 && liveCounts) {
         // Live OK mais sync locale jamais lancée → pas un gap critique,
         // juste une suggestion de relancer la sync pour activer les
         // analyses cross-source.

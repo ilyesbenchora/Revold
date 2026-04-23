@@ -131,7 +131,19 @@ export type StripeLiveCounts = {
 export async function fetchStripeLiveCounts(
   secretKey: string,
 ): Promise<StripeLiveCounts> {
-  const CAP = 5000;
+  // Cap volontairement bas pour rester sous 30s sur l'UI : on veut une
+  // métrique d'ordre de grandeur, pas un export complet (la sync officielle
+  // remplit les tables locales).
+  const CAP = 1000;
+  if (!secretKey || typeof secretKey !== "string") {
+    return {
+      customers: 0,
+      invoices: 0,
+      subscriptions: 0,
+      truncated: false,
+      error: "Clé Stripe absente.",
+    };
+  }
   try {
     const [customers, invoices, subscriptions] = await Promise.all([
       listCustomers(secretKey, CAP).catch(() => [] as StripeCustomer[]),
@@ -151,7 +163,7 @@ export async function fetchStripeLiveCounts(
       invoices: 0,
       subscriptions: 0,
       truncated: false,
-      error: err instanceof Error ? err.message : "Erreur Stripe",
+      error: err instanceof Error ? err.message.slice(0, 200) : "Erreur Stripe",
     };
   }
 }
