@@ -1,12 +1,13 @@
 /**
- * Helpers pour le mapping "outil source par page".
+ * Helpers pour le mapping "outil(s) source par page".
  *
- * Logique :
- *   - Liste les outils ACTUELLEMENT connectés à Revold (table integrations).
- *   - Lit / écrit le choix de l'utilisateur dans la table tool_mappings.
+ * Stockage : table tool_mappings (organization_id, page_key, tool_keys[]).
+ *  - Audit pages → tool_keys contient 1 seul outil (UI single-select).
+ *  - Dashboard / Simulations IA / Coaching IA → tool_keys peut contenir
+ *    plusieurs outils (UI multi-select).
  *
  * Aucune supposition n'est faite : seuls les outils dont l'organisation
- * possède une intégration active sont proposés.
+ * possède une intégration active sont proposés / persistés.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -42,7 +43,6 @@ export async function listConnectedTools(
     if (seen.has(provider)) continue;
     const tool = CONNECTABLE_TOOLS[provider];
     if (!tool) continue;
-    // OAuth-only providers : exiger refresh_token + portal_id
     if (tool.oauth && (!row.refresh_token || !row.portal_id)) continue;
     seen.add(provider);
     out.push({
@@ -56,50 +56,50 @@ export async function listConnectedTools(
   return out;
 }
 
-export async function getToolMapping(
+export async function getToolKeys(
   supabase: SupabaseClient,
   orgId: string,
   pageKey: string,
-): Promise<string | null> {
+): Promise<string[]> {
   const { data } = await supabase
     .from("tool_mappings")
-    .select("tool_key")
+    .select("tool_keys")
     .eq("organization_id", orgId)
     .eq("page_key", pageKey)
     .maybeSingle();
-  return (data?.tool_key as string | undefined) ?? null;
+  return (data?.tool_keys as string[] | undefined) ?? [];
 }
 
-export async function getToolMappings(
+export async function getToolKeysBatch(
   supabase: SupabaseClient,
   orgId: string,
   pageKeys: string[],
-): Promise<Record<string, string>> {
+): Promise<Record<string, string[]>> {
   if (pageKeys.length === 0) return {};
   const { data } = await supabase
     .from("tool_mappings")
-    .select("page_key, tool_key")
+    .select("page_key, tool_keys")
     .eq("organization_id", orgId)
     .in("page_key", pageKeys);
-  const out: Record<string, string> = {};
+  const out: Record<string, string[]> = {};
   for (const r of data ?? []) {
-    out[r.page_key as string] = r.tool_key as string;
+    out[r.page_key as string] = (r.tool_keys as string[]) ?? [];
   }
   return out;
 }
 
-export async function setToolMapping(
+export async function setToolKeys(
   supabase: SupabaseClient,
   orgId: string,
   pageKey: string,
-  toolKey: string,
+  toolKeys: string[],
   userId: string | null,
 ): Promise<void> {
   await supabase.from("tool_mappings").upsert(
     {
       organization_id: orgId,
       page_key: pageKey,
-      tool_key: toolKey,
+      tool_keys: toolKeys,
       updated_at: new Date().toISOString(),
       updated_by: userId,
     },
@@ -108,20 +108,20 @@ export async function setToolMapping(
 }
 
 /**
- * Détermine quel outil utiliser pour une page donnée :
- *   1. Si un mapping explicite existe → on l'utilise (s'il est toujours connecté).
- *   2. Sinon, on retourne le premier outil connecté qui correspond à la
- *      catégorie souhaitée (ex : "crm" pour audit/sales/dashboard).
- *   3. Sinon, on retourne le premier outil connecté.
- *   4. Sinon null.
+ * Détermine quel outil utiliser pour une page donnée.
+ *  1. Si un mapping persisté contient au moins un outil toujours connecté → on
+ *     prend le 1er outil persisté qui matche.
+ *  2. Sinon, on retourne le 1er outil connecté de la catégorie préférée.
+ *  3. Sinon, le 1er outil connecté tout court.
+ *  4. Sinon null.
  */
 export function resolveActiveTool(
   connected: ConnectedToolOption[],
-  mapping: string | null,
+  persistedKeys: string[],
   preferredCategories: ConnectableTool["category"][] = [],
 ): ConnectedToolOption | null {
-  if (mapping) {
-    const explicit = connected.find((t) => t.key === mapping);
+  for (const k of persistedKeys) {
+    const explicit = connected.find((t) => t.key === k);
     if (explicit) return explicit;
   }
   for (const cat of preferredCategories) {

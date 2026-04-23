@@ -21,7 +21,6 @@ import { resolvePresetDates } from "@/lib/reports/date-utils";
 import { CreateReportModal } from "@/components/create-report-modal";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { getConnectedTools, summarizeConnected } from "@/lib/integrations/connected-tools";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 
 type ReportInsight = { headline: string; detail: string | null; caveat: string | null };
 
@@ -416,12 +415,6 @@ export default async function MesRapportsPage({ searchParams }: PageProps) {
       </header>
 
       <RapportsTabs myCount={tabCounts.myCount} singleCount={tabCounts.singleCount} multiCount={tabCounts.multiCount} />
-
-      <ToolSourceMount
-        pageKey="dashboard"
-        pageLabel="Dashboard"
-        preferredCategories={["crm"]}
-      />
 
       <MultiToolBanner summary={connectedSummary} />
 

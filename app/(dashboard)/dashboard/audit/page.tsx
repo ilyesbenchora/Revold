@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 
 const modules = [
   {
@@ -84,12 +83,6 @@ export default async function AuditPage() {
           Diagnostic complet de votre stack revenue : données, process, performances et adoption.
         </p>
       </header>
-
-      <ToolSourceMount
-        pageKey="audit_vue"
-        pageLabel="Audit — Vue d'ensemble"
-        preferredCategories={["crm"]}
-      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {modules.map((m) => (

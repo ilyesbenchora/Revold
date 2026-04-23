@@ -10,7 +10,6 @@ import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { PipelineManagementCarousel } from "@/components/pipeline-management-carousel";
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import {
   fetchPipelineDataAtomic,
@@ -83,12 +82,6 @@ export default async function PerformanceCommercialePage() {
 
       <PerformancesTabs />
       <VentesTabs />
-
-      <ToolSourceMount
-        pageKey="audit_perf_ventes"
-        pageLabel="Performances — Ventes"
-        preferredCategories={["crm"]}
-      />
 
       <InsightLockedBlock
         previewTitle="Analyse IA de votre performance commerciale"

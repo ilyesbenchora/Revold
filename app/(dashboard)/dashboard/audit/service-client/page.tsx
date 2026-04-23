@@ -9,7 +9,6 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 
 export default async function ServiceClientOverviewPage() {
@@ -42,12 +41,6 @@ export default async function ServiceClientOverviewPage() {
       </header>
 
       <ServiceClientTabs />
-
-      <ToolSourceMount
-        pageKey="audit_service_client"
-        pageLabel="Audit — Service Client"
-        preferredCategories={["support", "crm"]}
-      />
 
       <CrossToolSelectorBlock
         connectedTools={supportConnected}

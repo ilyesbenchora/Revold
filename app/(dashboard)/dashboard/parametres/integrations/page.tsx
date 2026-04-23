@@ -5,7 +5,25 @@ import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-
 import { BrandLogo } from "@/components/brand-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
+import { ToolMappingSettings } from "@/components/tool-mapping-settings";
+import {
+  listConnectedTools,
+  getToolKeysBatch,
+} from "@/lib/integrations/tool-mappings";
 import Link from "next/link";
+
+const ALL_PAGE_KEYS = [
+  "audit_donnees",
+  "audit_automatisations",
+  "audit_perf_ventes",
+  "audit_perf_marketing",
+  "audit_paiement_facturation",
+  "audit_service_client",
+  "audit_adoption",
+  "dashboard",
+  "simulation_ia",
+  "coaching_ia",
+];
 
 // Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel
 // après connect/disconnect, on ne veut surtout pas afficher un état mis en cache.
@@ -20,9 +38,11 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: integrations }, snapshot] = await Promise.all([
+  const [{ data: integrations }, snapshot, mappingOptions, mappingValues] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
     getHubspotSnapshot(),
+    listConnectedTools(supabase, orgId),
+    getToolKeysBatch(supabase, orgId, ALL_PAGE_KEYS),
   ]);
 
   const connected = (integrations ?? []).filter((i) => i.is_active);
@@ -284,6 +304,22 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
           <span className="h-2 w-2 rounded-full bg-emerald-500" />Synchronisation des blocs
         </h2>
         <SyncBlocksStatus snapshot={snapshot} />
+      </div>
+
+      {/* Mapping outil source par page Revold */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Outil source par page
+        </h2>
+        <p className="text-xs text-slate-500">
+          Pour chaque page Revold, choisissez l&apos;outil (ou les outils, selon le mode)
+          que Revold utilisera comme source d&apos;analyse principale. Seuls les outils
+          actuellement connectés à Revold sont proposés.
+        </p>
+        <ToolMappingSettings
+          options={mappingOptions}
+          initialMappings={mappingValues}
+        />
       </div>
 
       {/* Inactive integrations */}

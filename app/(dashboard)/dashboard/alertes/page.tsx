@@ -7,7 +7,6 @@ import { SimulationTabs, type SimulationItem, type AlertItem } from "@/component
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { BlockedSimulationsNotice } from "@/components/blocked-simulations-notice";
 import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 import { buildContext, buildScenarios, detectBlockedSimulations } from "../insights-ia/context";
 
 export default async function ScenariosPage() {
@@ -49,12 +48,6 @@ export default async function ScenariosPage() {
         </div>
         <CreateAlertModal />
       </header>
-
-      <ToolSourceMount
-        pageKey="simulation_ia"
-        pageLabel="Simulations IA"
-        preferredCategories={["crm"]}
-      />
 
       <MultiToolBanner summary={connectedSummary} />
 

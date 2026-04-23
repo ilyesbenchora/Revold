@@ -5,7 +5,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchOwners, searchCount, batchedFetch } from "./context";
-import { ToolSourceMount } from "@/components/tool-source-mount";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -35,13 +34,7 @@ export default async function AdoptionOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <ToolSourceMount
-        pageKey="audit_adoption"
-        pageLabel="Audit — Adoption"
-        preferredCategories={["crm"]}
-      />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {cards.map((c) => (
           <Link key={c.href} href={c.href} className="card group flex flex-col gap-3 p-5 transition hover:border-accent/30 hover:shadow-md">
             <div className="flex items-center justify-between">
@@ -56,6 +49,5 @@ export default async function AdoptionOverviewPage() {
           </Link>
         ))}
       </div>
-    </div>
   );
 }
