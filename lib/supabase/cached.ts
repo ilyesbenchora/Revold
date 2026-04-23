@@ -262,6 +262,33 @@ export const getHubspotSnapshot = cache(async (): Promise<HubspotSnapshotResult>
     return { ...EMPTY_SNAPSHOT, status: "no-token", error: "Aucune organisation" };
   }
   const supabase = await createSupabaseServerClient();
+
+  // ── 1. CACHE FIRST : on lit le snapshot pré-calculé en local ──────────
+  // C'est la stratégie pérenne : l'UI ne tape jamais HubSpot live, elle
+  // lit hubspot_snapshot_cache (rempli par /api/sync/hubspot/[full|delta]).
+  // Conséquences :
+  //   - latence ~50 ms au lieu de 2-30 s
+  //   - aucun 429 possible
+  //   - app fonctionnelle même si HubSpot est down
+  try {
+    const { data: cached } = await supabase
+      .from("hubspot_snapshot_cache")
+      .select("snapshot, computed_at")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+
+    if (cached?.snapshot) {
+      const snap = cached.snapshot as unknown as HubSpotSnapshot;
+      return { ...snap, status: "ok" };
+    }
+  } catch (err) {
+    console.warn("[getHubspotSnapshot] cache read failed, falling back to live", err);
+  }
+
+  // ── 2. FALLBACK : live HubSpot (premier run, avant le bootstrap ETL) ──
+  // Ce path ne devrait s'exécuter QU'UNE seule fois par org : la première
+  // fois qu'elle se connecte, avant que le sync initial n'ait peuplé le
+  // cache. Une fois /api/sync/hubspot/full appelé, on passe sur le cache.
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) {
     return { ...EMPTY_SNAPSHOT, status: "no-token" };
@@ -270,7 +297,7 @@ export const getHubspotSnapshot = cache(async (): Promise<HubspotSnapshotResult>
     const snapshot = await fetchHubSpotSnapshot(token);
     return { ...snapshot, status: "ok" };
   } catch (err) {
-    console.error("[getHubspotSnapshot] failed", { orgId, err });
+    console.error("[getHubspotSnapshot] live fallback failed", { orgId, err });
     return {
       ...EMPTY_SNAPSHOT,
       status: "error",
