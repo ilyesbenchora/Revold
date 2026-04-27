@@ -389,21 +389,50 @@ async function upsertTickets(
 }
 
 // ── Sync générique pour pipelines / owners / workflows / forms / lists ──
-// Stocke dans hubspot_objects (jsonb generic)
+// Stocke dans hubspot_objects (jsonb generic).
+//
+// Routing HTTP :
+//   - /search dans le path → POST (avec body adapté au type)
+//   - sinon → GET
+// Routing du response shape :
+//   - /crm/v3/lists/search → data.lists
+//   - sinon → data.results
 
 async function syncGenericList(
   token: string,
   endpoint: string,
   type: HubspotObjectType,
 ): Promise<Array<Record<string, unknown>>> {
-  const res = await hsFetch(token, endpoint);
+  const isSearchEndpoint = endpoint.includes("/search");
+  const isListsEndpoint = endpoint.includes("/lists/search");
+
+  let body: string | undefined;
+  if (isSearchEndpoint) {
+    if (isListsEndpoint) {
+      // Endpoint Lists v3 attend un body spécifique (count + processingTypes)
+      body = JSON.stringify({
+        count: 100,
+        processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"],
+      });
+    } else {
+      // Search standard CRM (invoices, subscriptions, quotes, ...)
+      body = JSON.stringify({ filterGroups: [], limit: 100 });
+    }
+  }
+
+  const res = await hsFetch(token, endpoint, {
+    method: isSearchEndpoint ? "POST" : "GET",
+    body,
+  });
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) return []; // scope manquant → on skip
-    if (res.status === 404) return []; // hub non activé → on skip
+    if (res.status === 401 || res.status === 403) return []; // scope manquant → skip
+    if (res.status === 404 || res.status === 405) return []; // endpoint indisponible → skip
     throw new Error(`HubSpot ${type} ${res.status}`);
   }
   const data = await res.json();
-  return (data.results ?? []) as Array<Record<string, unknown>>;
+  // Lists endpoint renvoie data.lists, tous les autres data.results
+  const records = (isListsEndpoint ? data.lists : data.results) ?? [];
+  return records as Array<Record<string, unknown>>;
 }
 
 async function upsertGeneric(
