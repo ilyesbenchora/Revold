@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/supabase/cached";
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
@@ -11,11 +10,11 @@ import {
   buildContext,
   buildScenarios,
   fetchDismissals,
-  fetchIntegrationInsights,
   fetchCrossSourceInsights,
   fetchDataModelInsights,
   selectInsights,
 } from "./insights-ia/context";
+import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 
 export default async function DashboardOverviewPage() {
@@ -24,7 +23,6 @@ export default async function DashboardOverviewPage() {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
   const supabase = await createSupabaseServerClient();
-  const token = await getHubSpotToken(supabase, orgId);
 
   // Connexion HubSpot OAuth réelle (refresh_token + portal_id présents).
   // Source de vérité pour décider si on affiche le bandeau "Connectez HubSpot".
@@ -37,18 +35,18 @@ export default async function DashboardOverviewPage() {
     .maybeSingle();
   const hubspotConnected = Boolean(hubspotRow?.refresh_token && hubspotRow?.portal_id);
 
-  const [snapshot, connectedTools, ctx, dismissals, integrationInsightsRes, tabCounts] = await Promise.all([
+  const [snapshot, connectedTools, ctx, dismissals, detectedIntegrations, tabCounts] = await Promise.all([
     getHubspotSnapshot(),
     getConnectedTools(supabase, orgId),
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
-    fetchIntegrationInsights(token),
+    getDetectedIntegrations(), // request-cached, partagé avec les autres pages
     getTabCounts(supabase, orgId),
   ]);
 
   const connectedCats = connectedCategoriesSet(connectedTools);
   const { dismissedKeys } = dismissals;
-  const { detectedIntegrations, integrationInsights } = integrationInsightsRes;
+  const integrationInsights = buildIntegrationInsights(detectedIntegrations);
 
   // ── Compteurs dashboard ──
   // Coaching à faire : insights ouverts (non dismissés) toutes catégories.

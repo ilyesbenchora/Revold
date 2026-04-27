@@ -75,3 +75,30 @@ export async function fetchOwners(token: string): Promise<Owner[]> {
     teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
   }));
 }
+
+/**
+ * Lit les owners depuis hubspot_objects (cache Supabase).
+ * Évite l'appel live à HubSpot — utilisé par les pages Adoption.
+ */
+export async function fetchOwnersFromCache(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  orgId: string,
+): Promise<Owner[]> {
+  const { data } = await supabase
+    .from("hubspot_objects")
+    .select("hubspot_id, raw_data")
+    .eq("organization_id", orgId)
+    .eq("object_type", "owners");
+  return ((data ?? []) as Array<{ hubspot_id: string; raw_data: Record<string, unknown> }>)
+    .map((row) => {
+      const o = row.raw_data;
+      return {
+        id: String(o.id ?? row.hubspot_id),
+        email: (o.email as string) || "",
+        firstName: (o.firstName as string) || "",
+        lastName: (o.lastName as string) || "",
+        userId: (o.userId as number) || null,
+        teams: ((o.teams as Array<{ name: string }>) ?? []).map((t) => t.name),
+      };
+    });
+}
