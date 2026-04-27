@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot, getSnapshotMeta } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { SimulationTabs, type SimulationItem, type AlertItem } from "@/components/simulation-tabs";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { BlockedSimulationsNotice } from "@/components/blocked-simulations-notice";
+import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { buildContext, buildScenarios, detectBlockedSimulations } from "../insights-ia/context";
 
@@ -17,7 +18,7 @@ export default async function ScenariosPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [ctx, { data: allAlerts }, snapshot, connectedTools] = await Promise.all([
+  const [ctx, { data: allAlerts }, snapshot, connectedTools, meta] = await Promise.all([
     buildContext(supabase, orgId),
     supabase
       .from("alerts")
@@ -26,6 +27,7 @@ export default async function ScenariosPage() {
       .order("created_at", { ascending: false }),
     getHubspotSnapshot(),
     getConnectedTools(supabase, orgId),
+    getSnapshotMeta(),
   ]);
   const connectedSummary = summarizeConnected(connectedTools);
   const connectedCats = connectedCategoriesSet(connectedTools);
@@ -48,6 +50,8 @@ export default async function ScenariosPage() {
         </div>
         <CreateAlertModal />
       </header>
+
+      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
 
       <MultiToolBanner summary={connectedSummary} />
 

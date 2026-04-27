@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getHubspotSnapshot, getSnapshotMeta } from "@/lib/supabase/cached";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
+import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 
 const SECTIONS = [
   {
@@ -36,7 +37,7 @@ const SECTIONS = [
 ];
 
 export default async function RecommandationsOverviewPage() {
-  const snapshot = await getHubspotSnapshot();
+  const [snapshot, meta] = await Promise.all([getHubspotSnapshot(), getSnapshotMeta()]);
   const recs = buildAuditRecommendations(snapshot);
   const total = recs.donnees.length + recs.process.length + recs.performances.length + recs.adoption.length;
   const critical = [
@@ -48,10 +49,12 @@ export default async function RecommandationsOverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero stats */}
+      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
+
+      {/* Hero stats — 3 KPIs (Source retiré) */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-fuchsia-500 via-indigo-500 to-emerald-500" />
-        <div className="grid grid-cols-2 gap-4 p-6 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Recommandations totales</p>
             <p className="mt-1 text-3xl font-bold text-slate-900">{total}</p>
@@ -63,10 +66,6 @@ export default async function RecommandationsOverviewPage() {
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Sections couvertes</p>
             <p className="mt-1 text-3xl font-bold text-indigo-600">4</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Source</p>
-            <p className="mt-1 text-base font-bold text-slate-900">HubSpot live</p>
           </div>
         </div>
       </div>

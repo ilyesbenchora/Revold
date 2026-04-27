@@ -256,6 +256,28 @@ export type HubspotSnapshotResult = HubSpotSnapshot & {
   error?: string;
 };
 
+/**
+ * Métadonnées du cache snapshot — quand a-t-il été calculé pour la dernière
+ * fois et avec quelle source. Utilisé par DataFreshnessIndicator.
+ */
+export const getSnapshotMeta = cache(async (): Promise<{
+  computedAt: string | null;
+  source: "sync" | "live" | "bootstrap" | null;
+}> => {
+  const orgId = await getOrgId();
+  if (!orgId) return { computedAt: null, source: null };
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("hubspot_snapshot_cache")
+    .select("computed_at, source")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return {
+    computedAt: (data?.computed_at as string | null) ?? null,
+    source: (data?.source as "sync" | "live" | "bootstrap" | null) ?? null,
+  };
+});
+
 export const getHubspotSnapshot = cache(async (): Promise<HubspotSnapshotResult> => {
   const orgId = await getOrgId();
   if (!orgId) {

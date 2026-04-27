@@ -2,10 +2,11 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getSnapshotMeta } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
+import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
@@ -38,11 +39,12 @@ export default async function MesCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
 
-  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }, connectedTools] = await Promise.all([
+  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }, connectedTools, meta] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchIntegrationInsights(token),
     getConnectedTools(supabase, orgId),
+    getSnapshotMeta(),
   ]);
   const connectedSummary = summarizeConnected(connectedTools);
   const connectedCats = connectedCategoriesSet(connectedTools);
@@ -96,6 +98,8 @@ export default async function MesCoachingPage() {
 
   return (
     <div className="space-y-8">
+      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
+
       <MultiToolBanner summary={connectedSummary} />
 
       {/* Coaching réalisé — horizontal carousel */}
