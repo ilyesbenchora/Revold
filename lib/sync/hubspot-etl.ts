@@ -678,6 +678,111 @@ export async function syncGenericObject(
   }
 }
 
+// ── Sync workflows AVEC enrichissement détail per-id ─────────────────────
+// Stratégie :
+//   1. List /automation/v4/flows → tous les workflows (id, name, etc.)
+//   2. Pour CHAQUE workflow : tente /v4/flows/{id} puis fallback /v3/workflows/{id}
+//   3. Si détail dispo, merge dans raw_data (sinon raw_data garde juste la liste)
+//   4. Stocke tout dans hubspot_objects
+// Conséquence : la page /process voit tout (33 workflows) avec un maximum
+// de détail dispo, sans appel HubSpot live à l'affichage.
+
+async function fetchWorkflowDetail(
+  token: string,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  // Tentative v4 d'abord (Workflows 2.0)
+  try {
+    const res = await hsFetch(token, `/automation/v4/flows/${id}`);
+    if (res.ok) {
+      const data = await res.json();
+      return { ...data, _detail_source: "v4" };
+    }
+  } catch {}
+  // Fallback v3 (Classic)
+  try {
+    const res = await hsFetch(token, `/automation/v3/workflows/${id}`);
+    if (res.ok) {
+      const data = await res.json();
+      return { ...data, _detail_source: "v3" };
+    }
+  } catch {}
+  return null;
+}
+
+async function syncWorkflowsEnriched(
+  token: string,
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<SyncResult> {
+  const start = Date.now();
+  await writeSyncState(supabase, orgId, "workflows", { parityStatus: "syncing" });
+
+  try {
+    // 1. List tous les workflows
+    const listRes = await hsFetch(token, "/automation/v4/flows?limit=100");
+    if (!listRes.ok) {
+      throw new Error(`HubSpot workflows list ${listRes.status}`);
+    }
+    const listData = await listRes.json();
+    const baseRecords = (listData.results ?? []) as Array<Record<string, unknown>>;
+
+    // 2. Fetch détail per workflow en parallèle batches de 5 (rate limit safe)
+    const enriched: Array<Record<string, unknown>> = [];
+    const BATCH = 5;
+    for (let i = 0; i < baseRecords.length; i += BATCH) {
+      const chunk = baseRecords.slice(i, i + BATCH);
+      const details = await Promise.all(
+        chunk.map(async (w) => {
+          const id = String(w.id ?? "");
+          if (!id) return w;
+          const detail = await fetchWorkflowDetail(token, id);
+          return detail ? { ...w, ...detail } : w;
+        }),
+      );
+      enriched.push(...details);
+    }
+
+    // 3. Upsert dans hubspot_objects
+    const upserted = await upsertGeneric(supabase, orgId, "workflows", enriched, "id");
+    const localCount = await countLocal(supabase, orgId, "workflows");
+
+    await writeSyncState(supabase, orgId, "workflows", {
+      cursor: new Date().toISOString(),
+      isFullSync: true,
+      recordsInSupabase: localCount,
+      recordsInHubspot: enriched.length,
+      parityStatus: enriched.length === localCount ? "ok" : "drift",
+      error: null,
+    });
+
+    return {
+      ok: true,
+      objectType: "workflows",
+      upserted,
+      scanned: enriched.length,
+      cursor: new Date().toISOString(),
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isNoScope = /401|403|404/.test(message);
+    await writeSyncState(supabase, orgId, "workflows", {
+      parityStatus: isNoScope ? "no_scope" : "error",
+      error: message.slice(0, 500),
+    });
+    return {
+      ok: false,
+      objectType: "workflows",
+      upserted: 0,
+      scanned: 0,
+      cursor: null,
+      durationMs: Date.now() - start,
+      error: message,
+    };
+  }
+}
+
 // ── Orchestration : sync ALL pour une org ────────────────────────────────
 
 export async function syncAllForOrg(
@@ -697,11 +802,13 @@ export async function syncAllForOrg(
     crmTypes.map((t) => syncCrmObject(token, supabase, orgId, t, mode)),
   );
 
+  // Workflows : sync enrichi spécifique (list + détail per id)
+  const workflowsResult = await syncWorkflowsEnriched(token, supabase, orgId);
+
   // Generic lists (full chaque fois car généralement < 100 items)
   const generic: Array<{ type: HubspotObjectType; endpoint: string; idKey?: string }> = [
     { type: "pipelines", endpoint: "/crm/v3/pipelines/deals", idKey: "id" },
     { type: "owners", endpoint: "/crm/v3/owners?limit=100", idKey: "id" },
-    { type: "workflows", endpoint: "/automation/v4/flows?limit=100", idKey: "id" },
     { type: "forms", endpoint: "/marketing/v3/forms?limit=100", idKey: "id" },
     { type: "lists", endpoint: "/crm/v3/lists/search", idKey: "listId" },
     { type: "marketing_campaigns", endpoint: "/marketing/v3/campaigns?limit=100", idKey: "id" },
@@ -718,5 +825,5 @@ export async function syncAllForOrg(
     generic.map((g) => syncGenericObject(token, supabase, orgId, g.type, g.endpoint, { idKey: g.idKey })),
   );
 
-  return [...crmResults, ...genericResults];
+  return [...crmResults, workflowsResult, ...genericResults];
 }

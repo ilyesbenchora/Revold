@@ -1,20 +1,26 @@
 "use client";
 
 /**
- * Carrousel d'analyse exhaustive des workflows actifs HubSpot.
+ * Carrousel d'analyse des workflows HubSpot — TOUS (actifs + inactifs).
  *
- * AFFICHE TOUS LES WORKFLOWS ACTIFS DÉTECTÉS, pas seulement ceux dont
- * le détail (/v4/flows/{id} ou /v3/workflows/{id}) a été chargé. Si un
- * détail n'est pas dispo, on affiche en mode "lite" (nom + ID + source
- * API + lien HubSpot) avec un badge "Détail non chargé".
+ * Filtre Actif / Inactif / Tous (au lieu de v3/v4 qui est de la plomberie
+ * sans valeur RevOps).
  *
- * Navigation flèches gauche/droite (clavier + boutons).
- * Filter Tous / v3 Classic / v4 Workflows 2.0 pour comparer avec
- * HubSpot UI qui mélange les 2 systèmes.
+ * Mode "lite" enrichi : quand le détail (actions/triggers/etc.) n'est pas
+ * dispo, on exploite quand même les méta du raw_data : objet ciblé, dates,
+ * nombre de révisions, type de flow, lien HubSpot.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import type { WorkflowDetail, WorkflowSummaryItem } from "@/lib/integrations/hubspot-workflows";
+
+// On accepte le type étendu retourné par getCachedWorkflows
+type EnrichedSummary = WorkflowSummaryItem & {
+  flowType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  revisionId?: number;
+};
 
 const SEV_STYLE: Record<"critical" | "warning" | "info", { bg: string; text: string; border: string; emoji: string }> = {
   critical: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", emoji: "🔴" },
@@ -45,23 +51,24 @@ const OBJECT_PLURAL: Record<string, string> = {
 };
 
 type Props = {
-  /** TOUS les workflows actifs détectés (avec ou sans détail). */
-  workflows: WorkflowSummaryItem[];
+  /** TOUS les workflows (actifs ET inactifs). */
+  workflows: EnrichedSummary[];
   /** Détails enrichis pour ceux qui ont chargé. */
   details: WorkflowDetail[];
 };
 
+type StatusFilter = "all" | "active" | "inactive";
+
 export function WorkflowCarousel({ workflows, details }: Props) {
-  // On ne garde QUE les actifs (les inactifs ne sont pas dans le carrousel)
-  const allActive = workflows.filter((w) => w.enabled);
-
   const [index, setIndex] = useState(0);
-  const [filter, setFilter] = useState<"all" | "v4" | "v3_inferred">("all");
+  const [filter, setFilter] = useState<StatusFilter>("all");
 
-  // v4 = créé en Workflows 2.0 ; v3_inferred = legacy classic
-  const filtered = allActive.filter((w) => {
-    if (filter === "v4") return w.source === "v4";
-    if (filter === "v3_inferred") return w.source === "v3_inferred" || w.source === "v3_detail";
+  const activeCount = workflows.filter((w) => w.enabled).length;
+  const inactiveCount = workflows.filter((w) => !w.enabled).length;
+
+  const filtered = workflows.filter((w) => {
+    if (filter === "active") return w.enabled;
+    if (filter === "inactive") return !w.enabled;
     return true;
   });
 
@@ -83,9 +90,7 @@ export function WorkflowCarousel({ workflows, details }: Props) {
   if (filtered.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-        <p className="text-sm text-slate-500">
-          {filter === "all" ? "Aucun workflow actif détecté." : `Aucun workflow ${filter} dans la liste.`}
-        </p>
+        <p className="text-sm text-slate-500">Aucun workflow {filter === "active" ? "actif" : filter === "inactive" ? "inactif" : ""} détecté.</p>
       </div>
     );
   }
@@ -95,26 +100,23 @@ export function WorkflowCarousel({ workflows, details }: Props) {
   const detailById = new Map(details.map((d) => [d.id, d]));
   const fullDetail = detailById.get(w.id);
 
-  const v4Count = allActive.filter((w) => w.source === "v4").length;
-  const v3Count = allActive.filter((w) => w.source === "v3_inferred" || w.source === "v3_detail").length;
-
   return (
     <div className="space-y-4">
-      {/* Filter source + navigation + position */}
+      {/* Filter Actif/Inactif + navigation + position */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
         <div className="flex items-center gap-1 text-xs">
           <span className="mr-2 font-semibold text-slate-700">Filtrer :</span>
           {([
-            ["all", `Tous (${allActive.length})`],
-            ["v3_inferred", `Classic v3 (${v3Count})`],
-            ["v4", `Workflows 2.0 v4 (${v4Count})`],
-          ] as const).map(([key, label]) => (
+            ["all", `Tous (${workflows.length})`, "bg-slate-200 text-slate-700"],
+            ["active", `Actifs (${activeCount})`, "bg-emerald-100 text-emerald-700"],
+            ["inactive", `Inactifs (${inactiveCount})`, "bg-slate-200 text-slate-600"],
+          ] as const).map(([key, label, activeBg]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => setFilter(key as StatusFilter)}
               className={`rounded-md px-2.5 py-1 font-medium transition ${
-                filter === key ? "bg-accent text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+                filter === key ? `${activeBg} ring-1 ring-inset ring-current/20` : "bg-white text-slate-600 hover:bg-slate-100"
               }`}
             >
               {label}
@@ -145,8 +147,8 @@ export function WorkflowCarousel({ workflows, details }: Props) {
       </div>
 
       <p className="text-[10px] text-slate-400">
-        💡 Astuce : flèches ← / → du clavier pour naviguer.
-        Affiche TOUS les {allActive.length} workflows actifs détectés via /automation/v3 + /automation/v4.
+        💡 Flèches ← / → du clavier pour naviguer. {workflows.length} workflows
+        détectés ({activeCount} actifs, {inactiveCount} inactifs).
       </p>
 
       <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -159,18 +161,18 @@ export function WorkflowCarousel({ workflows, details }: Props) {
                 {OBJECT_LABEL[w.objectType] ?? w.objectType}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                w.source === "v4" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
+                w.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
               }`}>
-                API {w.source === "v4" ? "v4" : "v3"}
+                {w.enabled ? "✓ Actif" : "✗ Inactif"}
               </span>
-              {w.enabled && (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                  ✓ Actif
+              {w.flowType && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  {w.flowType}
                 </span>
               )}
               {!w.hasDetail && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                  ⚠ Détail non chargé
+                  Mode lite
                 </span>
               )}
               {fullDetail?.isMultiPurpose && (
@@ -203,19 +205,58 @@ export function WorkflowCarousel({ workflows, details }: Props) {
             </div>
           </header>
 
-          {/* Mode lite si pas de détail */}
+          {/* Mode lite si pas de détail : on exploite les méta du raw_data */}
           {!fullDetail && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 text-xs text-amber-900">
-              <p className="font-bold">Détail complet non chargé pour ce workflow</p>
-              <p className="mt-1">
-                Ni <code className="rounded bg-white px-1">/automation/v4/flows/{w.id}</code> ni{" "}
-                <code className="rounded bg-white px-1">/automation/v3/workflows/{w.id}</code> n&apos;ont
-                renvoyé un détail exploitable. Causes possibles : workflow d&apos;un type non supporté
-                par l&apos;API détail (ex: workflow de calculation, workflow imported, custom object workflow),
-                scope automation manquant pour cet objet précis, ou workflow archivé côté HubSpot.
-                Le nom et l&apos;ID viennent de la liste source &mdash; cliquez sur &laquo; Voir dans HubSpot &raquo;
-                pour ouvrir directement le workflow.
-              </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {w.flowType && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Type</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">{w.flowType}</p>
+                  </div>
+                )}
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Objet ciblé</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-800">{OBJECT_LABEL[w.objectType] ?? "Inconnu"}</p>
+                </div>
+                {w.createdAt && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Créé le</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">
+                      {new Date(w.createdAt).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
+                )}
+                {w.updatedAt && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Dernière modif</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">
+                      {new Date(w.updatedAt).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
+                )}
+                {typeof w.revisionId === "number" && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Révisions</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">{w.revisionId}</p>
+                    <p className="text-[9px] text-slate-400">
+                      {w.revisionId > 10 ? "Très modifié" : w.revisionId > 3 ? "Modifié plusieurs fois" : "Stable"}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+                <p className="font-bold">Détail d&apos;analyse (actions / triggers / re-enrollment) non disponible</p>
+                <p className="mt-1 text-[11px]">
+                  Le sync ETL a tenté <code className="rounded bg-white px-1">/v4/flows/{w.id}</code> et{" "}
+                  <code className="rounded bg-white px-1">/v3/workflows/{w.id}</code> sans succès.
+                  Cause probable : workflow d&apos;un type non supporté par l&apos;API détail
+                  (calculation, imported, custom object), scope OAuth manquant, ou workflow archivé.
+                  Les métadonnées ci-dessus sont issues de la liste source. Click &laquo; Voir dans
+                  HubSpot &raquo; pour le détail complet.
+                </p>
+              </div>
             </div>
           )}
 

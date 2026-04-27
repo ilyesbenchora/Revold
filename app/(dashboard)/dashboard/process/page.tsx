@@ -3,8 +3,6 @@ export const maxDuration = 300;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { auditHubSpotWorkflows } from "@/lib/integrations/hubspot-workflows";
 import { getOrgHubspotPortalId } from "@/app/(dashboard)/dashboard/insights-ia/context";
 import { getCachedWorkflows } from "@/lib/sync/get-cached-workflows";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -21,44 +19,40 @@ export default async function AutomatisationsPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const hsToken = await getHubSpotToken(supabase, orgId);
   const snapshot = await getHubspotSnapshot();
   const portalId = await getOrgHubspotPortalId(supabase, orgId);
 
   const recommendations = buildAuditRecommendations(snapshot).process;
 
-  // ── 1. SOURCE PRIMAIRE : cache Supabase ─────────────────────────────
-  // Garantit qu'on affiche TOUS les workflows présents dans HubSpot
-  // (33 dans le cas pilote), sans dépendre du succès des appels live.
-  const cachedWorkflows = await getCachedWorkflows(supabase, orgId, portalId ?? undefined);
-
-  // ── 2. ENRICHISSEMENT : audit live des actifs (best-effort) ─────────
-  // Récupère les détails (actions, triggers, re-enrollment, recommandations)
-  // pour les workflows actifs. Si le live échoue (429, scope manquant, etc.),
-  // on garde au moins la liste cache complète au lieu de tout perdre.
-  const audit = hsToken
-    ? await auditHubSpotWorkflows(hsToken, portalId).catch(() => null)
-    : null;
-
-  // Merge : on part du cache (source vérité du nombre), on enrichit avec
-  // les hasDetail/url du live, on garde toutes les details du live tel quel.
-  const detailMap = new Map<string, true>();
-  for (const d of audit?.details ?? []) detailMap.set(d.id, true);
-
-  const allWorkflows = cachedWorkflows.map((w) => ({
-    ...w,
-    hasDetail: detailMap.has(w.id),
-    hubspotUrl: w.hubspotUrl ?? audit?.workflows.find((aw) => aw.id === w.id)?.hubspotUrl,
-  }));
+  // ── SOURCE UNIQUE : cache Supabase ──────────────────────────────────
+  // Le sync ETL enrichi (syncWorkflowsEnriched) fetch /v4/flows/{id} pour
+  // chaque workflow et merge le détail dans raw_data. Donc le cache contient
+  // TOUT ce qu'on peut savoir d'un workflow, sans appel live à l'affichage.
+  const { workflows: allWorkflows, details } = await getCachedWorkflows(
+    supabase,
+    orgId,
+    portalId ?? undefined,
+  );
 
   const activeWorkflows = allWorkflows.filter((w) => w.enabled);
   const inactiveWorkflows = allWorkflows.filter((w) => !w.enabled);
-  const detailLoaded = audit?.details.length ?? 0;
-  const a = audit?.actionStats ?? {
-    totalActions: 0,
-    byCategory: { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 },
+  const detailLoaded = details.length;
+
+  // Action stats agrégés depuis les détails locaux
+  const a = {
+    totalActions: details.reduce((s, d) => s + d.actions.length, 0),
+    byCategory: details.reduce(
+      (acc, d) => {
+        for (const action of d.actions) acc[action.category] = (acc[action.category] ?? 0) + 1;
+        return acc;
+      },
+      { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 } as Record<string, number>,
+    ),
     outgoingWebhookHosts: [] as string[],
   };
+  const failedDetailIds = activeWorkflows
+    .filter((w) => !w.hasDetail)
+    .map((w) => ({ id: w.id, name: w.name, reason: "Détail non disponible dans le cache (worker enrichi a échoué pour ce workflow)" }));
 
   return (
     <section className="space-y-8">
@@ -142,20 +136,22 @@ export default async function AutomatisationsPage() {
             et l&apos;analyse contextuelle par profil de workflow.
           </p>
 
-          {/* Diagnostic chargement détail — uniquement si l'audit live a tourné et qu'il y a des fails */}
-          {audit && audit.detailLoadStatus.failedIds.length > 0 && (
+          {/* Diagnostic chargement détail */}
+          {failedDetailIds.length > 0 && (
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
               <p className="font-bold">
-                ⚠ {audit.detailLoadStatus.failedIds.length} workflow{audit.detailLoadStatus.failedIds.length > 1 ? "s" : ""} actifs sans détail enrichi
+                ⚠ {failedDetailIds.length} workflow{failedDetailIds.length > 1 ? "s" : ""} actifs sans détail enrichi
               </p>
               <p className="mt-1 text-[11px]">
-                Les workflows sont quand même listés (ID + nom + état). Pour avoir l&apos;analyse
-                complète : scope OAuth automation manquant ou rate limit HubSpot atteint.
+                Les workflows sont quand même listés en mode lite (nom + ID + état + dates +
+                révisions + lien HubSpot). Pour les enrichir : relance &laquo; Resync HubSpot &raquo;
+                qui re-tente le détail per workflow ; si toujours bloqué = workflow d&apos;un type
+                non supporté par l&apos;API détail (calculation, imported, custom object workflow).
               </p>
               <details className="mt-2">
-                <summary className="cursor-pointer font-semibold">Voir les workflows en échec</summary>
+                <summary className="cursor-pointer font-semibold">Voir les workflows sans détail</summary>
                 <ul className="mt-1 space-y-0.5 pl-4">
-                  {audit.detailLoadStatus.failedIds.slice(0, 20).map((f) => (
+                  {failedDetailIds.slice(0, 20).map((f) => (
                     <li key={f.id} className="text-[11px]">
                       <span className="font-mono">{f.id}</span> — {f.name}
                     </li>
@@ -175,7 +171,7 @@ export default async function AutomatisationsPage() {
           )}
 
           <div className="mt-4">
-            <WorkflowCarousel workflows={allWorkflows} details={audit?.details ?? []} />
+            <WorkflowCarousel workflows={allWorkflows} details={details} />
           </div>
         </CollapsibleBlock>
       )}
