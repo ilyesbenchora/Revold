@@ -7,6 +7,7 @@ import { generateDataModelInsights } from "@/lib/insights/data-model-insights";
 import { filterBusinessIntegrations } from "@/lib/integrations/integration-score";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchHubSpotEcosystemCounts, EMPTY_ECOSYSTEM_COUNTS } from "@/lib/integrations/hubspot";
+import { getHubspotSnapshot } from "@/lib/supabase/cached";
 
 const PCT = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
 
@@ -280,67 +281,82 @@ async function fetchHubSpotFullContext(token: string) {
   };
 }
 
-export async function buildContext(supabase: SupabaseClient, orgId: string): Promise<InsightContext> {
-  const token = await getHubSpotToken(supabase, orgId);
+export async function buildContext(_supabase: SupabaseClient, _orgId: string): Promise<InsightContext> {
+  // ═══ STRATÉGIE PÉRENNE : lecture du cache snapshot Supabase ═══
+  //
+  // Avant : 17+ appels HubSpot live (vulnérable au 429, jamais synchro
+  // avec les autres pages, latence 5-30 s).
+  //
+  // Maintenant : lecture du même snapshot pré-calculé que toutes les autres
+  // pages Audit/Dashboard. Cohérence garantie entre les KPIs affichés et
+  // les insights/simulations générés.
+  //
+  // Real-time path :
+  //   1. HubSpot change → webhook /api/webhooks/hubspot
+  //   2. ETL met à jour les tables Supabase + recompute snapshot
+  //   3. Au prochain render de /alertes ou /insights-ia (force-dynamic),
+  //      buildContext lit le snapshot fresh → simulations/coaching IA
+  //      reflètent immédiatement le changement (latence < 5 s avec webhook,
+  //      max 30 min sans webhook)
+  const snap = await getHubspotSnapshot();
 
-  // ═══ STRATÉGIE : HubSpot est la source de vérité ═══
-  // Si OAuth HubSpot connecté, on prend TOUT directement de l'API HubSpot
-  // (deals, contacts, companies stats + ecosystem counts + owners). On ignore
-  // les compteurs Supabase qui peuvent être vides/stales tant que la sync
-  // canonique n'a pas tourné.
-  // Si pas de token HubSpot → fallback Supabase (cas legacy ou avant connexion).
+  return {
+    // Deals
+    totalDeals: snap.totalDeals,
+    openDeals: snap.openDeals,
+    wonDeals: snap.wonDeals,
+    lostDeals: snap.lostDeals,
+    closingRate: snap.closingRate,
+    dealsNoNextActivity: snap.dealsNoNextActivity,
+    dealsNoActivity: 0, // calculable depuis raw_data si nécessaire
+    dealsNoAmount: snap.dealsNoAmount,
+    dealsNoCloseDate: snap.dealsNoCloseDate,
+    stagnantDeals: snap.stagnantDeals,
+    // Contacts
+    totalContacts: snap.totalContacts,
+    leadsCount: snap.leadsCount,
+    opportunitiesCount: snap.opportunitiesCount,
+    conversionRate: snap.conversionRate,
+    orphansCount: snap.orphansCount,
+    orphanRate: snap.orphanRate,
+    contactsNoPhone: snap.contactsNoPhone,
+    contactsNoTitle: snap.contactsNoTitle,
+    contactsNoEmail: snap.contactsNoEmail,
+    // Companies
+    totalCompanies: snap.totalCompanies,
+    companiesNoIndustry: snap.companiesNoIndustry,
+    companiesNoRevenue: snap.companiesNoRevenue,
+    // Ecosystem (depuis hubspot_objects via snapshot)
+    ticketsCount: snap.totalTickets,
+    conversationsCount: snap.totalConversations,
+    feedbackCount: snap.feedbackCount,
+    leadsObjectCount: snap.leadsObjectCount,
+    quotesCount: snap.totalQuotes,
+    lineItemsCount: snap.totalLineItems,
+    sequencesCount: snap.sequencesEnrollments,
+    forecastsCount: snap.forecastsCount,
+    goalsCount: snap.goalsCount,
+    invoicesCount: snap.totalInvoices,
+    subscriptionsCount: snap.totalSubscriptions,
+    marketingCampaignsCount: snap.marketingCampaignsCount,
+    marketingEventsCount: snap.marketingEventsCount,
+    formsCount: snap.formsCount,
+    customObjectsCount: snap.customObjectsCount,
+    listsCount: snap.listsCount,
+    workflowsCount: snap.workflowsCount,
+    workflowsActiveCount: snap.workflowsActiveCount,
+    ownersCount: snap.ownersCount,
+    teamsCount: snap.teamsCount,
+    appointmentsCount: snap.appointmentsCount,
+    // Lifecycle
+    lifecycleByStage: snap.lifecycleByStage,
+    customersCount: snap.customersCount,
+  };
+}
 
-  if (token) {
-    const [hsCore, ecosystem, ownersCount, contactsNoEmail] = await Promise.all([
-      fetchHubSpotFullContext(token),
-      fetchHubSpotEcosystemCounts(token),
-      fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => (r.ok ? r.json() : { results: [] }))
-        .then((d) => (d.results ?? []).length)
-        .catch(() => 0),
-      fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          limit: 1,
-          filterGroups: [{ filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] }],
-        }),
-      })
-        .then((r) => (r.ok ? r.json() : { total: 0 }))
-        .then((d) => d.total ?? 0)
-        .catch(() => 0),
-    ]);
-
-    return {
-      ...hsCore,
-      contactsNoEmail,
-      ticketsCount: ecosystem.tickets,
-      conversationsCount: ecosystem.conversations,
-      feedbackCount: ecosystem.feedbackSubmissions,
-      leadsObjectCount: ecosystem.leads,
-      quotesCount: ecosystem.quotes,
-      lineItemsCount: ecosystem.lineItems,
-      sequencesCount: ecosystem.sequences,
-      forecastsCount: ecosystem.forecasts,
-      goalsCount: ecosystem.goals,
-      invoicesCount: ecosystem.invoices,
-      subscriptionsCount: ecosystem.subscriptions,
-      marketingCampaignsCount: ecosystem.marketingCampaigns,
-      marketingEventsCount: ecosystem.marketingEvents,
-      formsCount: ecosystem.forms,
-      customObjectsCount: ecosystem.customObjects,
-      listsCount: ecosystem.lists,
-      workflowsCount: ecosystem.workflows,
-      workflowsActiveCount: ecosystem.workflowsActive,
-      ownersCount,
-      teamsCount: ecosystem.teams,
-      appointmentsCount: ecosystem.appointments,
-    };
-  }
-
-  // ── FALLBACK SUPABASE (pas de token HubSpot) ──
+/** @deprecated — gardé pour compat mais ne devrait plus être appelé. */
+export async function buildContextLegacy(supabase: SupabaseClient, orgId: string): Promise<InsightContext> {
+  // ── FALLBACK SUPABASE direct (legacy, conservé en cas de bug du cache) ──
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const [
     { count: totalDeals },
