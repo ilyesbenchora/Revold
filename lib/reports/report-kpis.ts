@@ -123,7 +123,10 @@ export type AllKpiData = {
   stageNames: Map<string, string>;
 };
 
-// ── HubSpot list fetch ────────────────────────────────────────────────────
+// ── HubSpot list fetch (live, fallback uniquement si Supabase vide) ──────
+// Note : cette fonction n'est PLUS appelée pour contacts/deals/companies/
+// tickets — on lit Supabase via hsListFromSupabase. Elle reste pour les
+// objets pas encore dans l'ETL (calls/meetings/emails — engagements).
 
 async function hsList(token: string, objectType: string, properties: string[], maxPages = 10): Promise<HSRow[]> {
   const rows: HSRow[] = [];
@@ -140,7 +143,7 @@ async function hsList(token: string, objectType: string, properties: string[], m
       const data = await res.json();
       for (const item of data.results ?? []) {
         const row = item.properties ?? {};
-        row._hs_object_id = item.id; // preserve HubSpot ID for associations
+        row._hs_object_id = item.id;
         rows.push(row);
       }
       after = data.paging?.next?.after;
@@ -150,36 +153,83 @@ async function hsList(token: string, objectType: string, properties: string[], m
   return rows;
 }
 
-async function fetchOwners(token: string): Promise<{ count: number; names: Map<string, string> }> {
-  try {
-    const res = await fetch(`${HS}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) return { count: 1, names: new Map() };
-    const data = await res.json();
-    const names = new Map<string, string>();
-    for (const o of data.results ?? []) {
-      const name = [o.firstName, o.lastName].filter(Boolean).join(" ") || (o.email as string) || String(o.id);
-      names.set(String(o.id), name);
+// ── Supabase cache reader (zéro appel HubSpot, latence ~50 ms) ──────────
+// Lit la table canonique correspondant à l'object_type, transforme la
+// raw_data jsonb pour matcher exactement la shape de hsList :
+//   { property1: "value", property2: "value", _hs_object_id: "123" }
+
+async function hsListFromSupabase(
+  supabase: SupabaseClient,
+  orgId: string,
+  table: "contacts" | "companies" | "deals" | "tickets",
+): Promise<HSRow[]> {
+  const out: HSRow[] = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("hubspot_id, raw_data")
+      .eq("organization_id", orgId)
+      .not("raw_data", "is", null)
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    for (const row of data) {
+      const raw = row.raw_data as { properties?: Record<string, string | null> } | null;
+      const props = (raw?.properties ?? {}) as HSRow;
+      props._hs_object_id = row.hubspot_id as string;
+      out.push(props);
     }
-    return { count: Math.max(1, names.size), names };
-  } catch { return { count: 1, names: new Map() }; }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
 }
 
-async function fetchPipelineNames(token: string): Promise<{ pipelines: Map<string, string>; stages: Map<string, string>; stageProbs: Map<string, number> }> {
+async function fetchOwnersFromCache(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<{ count: number; names: Map<string, string> }> {
+  const names = new Map<string, string>();
+  const { data } = await supabase
+    .from("hubspot_objects")
+    .select("hubspot_id, raw_data")
+    .eq("organization_id", orgId)
+    .eq("object_type", "owners");
+  for (const row of (data ?? []) as Array<{ hubspot_id: string; raw_data: Record<string, unknown> }>) {
+    const r = row.raw_data;
+    const name =
+      [r.firstName, r.lastName].filter(Boolean).join(" ") ||
+      (r.email as string) ||
+      row.hubspot_id;
+    names.set(row.hubspot_id, name);
+  }
+  return { count: Math.max(1, names.size), names };
+}
+
+async function fetchPipelineNamesFromCache(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<{ pipelines: Map<string, string>; stages: Map<string, string>; stageProbs: Map<string, number> }> {
   const pipelines = new Map<string, string>();
   const stages = new Map<string, string>();
   const stageProbs = new Map<string, number>();
-  try {
-    const res = await fetch(`${HS}/crm/v3/pipelines/deals`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) return { pipelines, stages, stageProbs };
-    const data = await res.json();
-    for (const p of data.results ?? []) {
-      pipelines.set(p.id, p.label);
-      for (const s of p.stages ?? []) {
-        stages.set(s.id, s.label);
-        stageProbs.set(s.id, parseFloat(s.metadata?.probability ?? "0"));
-      }
+  const { data } = await supabase
+    .from("hubspot_objects")
+    .select("raw_data")
+    .eq("organization_id", orgId)
+    .eq("object_type", "pipelines");
+  for (const row of (data ?? []) as Array<{ raw_data: Record<string, unknown> }>) {
+    const p = row.raw_data;
+    const pipelineId = (p.pipelineId ?? p.id) as string;
+    pipelines.set(pipelineId, (p.label as string) ?? pipelineId);
+    for (const s of ((p.stages ?? []) as Array<Record<string, unknown>>)) {
+      const stageId = (s.stageId ?? s.id) as string;
+      stages.set(stageId, (s.label as string) ?? stageId);
+      const meta = (s.metadata as Record<string, unknown>) ?? {};
+      stageProbs.set(stageId, parseFloat(String(meta.probability ?? s.probability ?? 0)));
     }
-  } catch {}
+  }
   return { pipelines, stages, stageProbs };
 }
 
@@ -634,27 +684,21 @@ function filterAssoc(assoc: AssocMap, keptDealIds: Set<string>): AssocMap {
 // ── Public: raw fetch (no filtering) ──────────────────────────────────────
 
 export async function fetchRawKpiData(token: string, supabase: SupabaseClient, orgId: string): Promise<RawKpiData> {
+  // ═══ STRATÉGIE CACHE-FIRST ═══
+  // contacts/companies/deals/tickets/owners/pipelines → Supabase (ETL miroir)
+  // calls/meetings/emails → live HubSpot (pas dans l'ETL, scope engagement)
+  //   → low-volume objects, pas de risque 429 vs les CRM objects principaux
+  // invoices/subscriptions/payments → Supabase (déjà cas avant)
   const [ownerData, pipelineData, rawContacts, rawDeals, rawCalls, rawMeetings, rawEmails, rawTickets, rawCompanies, rawInvoices, rawSubs, rawPayments] = await Promise.all([
-    fetchOwners(token).catch(() => ({ count: 1, names: new Map<string, string>() })),
-    fetchPipelineNames(token).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>(), stageProbs: new Map<string, number>() })),
-    hsList(token, "contacts", [
-      "hubspot_owner_id", "hs_analytics_source", "phone", "jobtitle", "email",
-      "lifecyclestage", "associatedcompanyid", "createdate",
-    ], 10).catch(() => []),
-    hsList(token, "deals", [
-      "hubspot_owner_id", "amount", "hs_is_closed", "hs_is_closed_won", "pipeline",
-      "days_to_close", "hs_deal_stage_probability", "dealstage",
-      "hs_analytics_source", "num_associated_contacts", "hs_num_associated_company",
-      "closedate", "createdate", "hs_time_in_latest_deal_stage", "num_notes",
-    ], 5).catch(() => []),
+    fetchOwnersFromCache(supabase, orgId).catch(() => ({ count: 1, names: new Map<string, string>() })),
+    fetchPipelineNamesFromCache(supabase, orgId).catch(() => ({ pipelines: new Map<string, string>(), stages: new Map<string, string>(), stageProbs: new Map<string, number>() })),
+    hsListFromSupabase(supabase, orgId, "contacts").catch(() => []),
+    hsListFromSupabase(supabase, orgId, "deals").catch(() => []),
     hsList(token, "calls", ["hubspot_owner_id", "hs_call_duration", "hs_call_disposition"], 5).catch(() => []),
     hsList(token, "meetings", ["hubspot_owner_id", "hs_meeting_outcome"], 3).catch(() => []),
     hsList(token, "emails", ["hubspot_owner_id", "hs_email_direction"], 5).catch(() => []),
-    hsList(token, "tickets", [
-      "hubspot_owner_id", "hs_ticket_priority", "hs_pipeline_stage",
-      "hs_pipeline", "hs_was_reopened", "hs_ticket_category", "source_type",
-    ], 3).catch(() => []),
-    hsList(token, "companies", ["hubspot_owner_id", "annualrevenue", "industry"], 5).catch(() => []),
+    hsListFromSupabase(supabase, orgId, "tickets").catch(() => []),
+    hsListFromSupabase(supabase, orgId, "companies").catch(() => []),
     sbInvoices(supabase, orgId).catch(() => []),
     sbSubscriptions(supabase, orgId).catch(() => []),
     sbPayments(supabase, orgId).catch(() => []),
