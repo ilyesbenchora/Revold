@@ -18,6 +18,10 @@ export type CloseDateDeal = {
   pipelineId: string;
   stageId: string;
   amount: number;
+  /** Probabilité de l'étape HubSpot (0-100), pour calcul forecast pondéré. */
+  stageProbability: number;
+  /** amount × stageProbability / 100 — forecast pondéré du deal. */
+  weightedAmount: number;
   ownerId: string | null;
   closeDate: string | null;
   daysOverdue: number; // négatif possible (à venir)
@@ -56,6 +60,7 @@ async function searchDeals(
   token: string,
   filterGroups: Array<{ filters: Array<Record<string, string>> }>,
   pipelineId: string | null,
+  stageProbabilities: Map<string, number>,
   max = 1000,
 ): Promise<CloseDateDeal[]> {
   const properties = [
@@ -94,12 +99,18 @@ async function searchDeals(
         const closeDate = props.closedate ?? null;
         const closeTs = closeDate ? new Date(closeDate).getTime() : 0;
         const daysOverdue = closeTs > 0 ? Math.round((now - closeTs) / 86_400_000) : 0;
+        const stageId = props.dealstage || "";
+        const amount = Number(props.amount) || 0;
+        const stageProbability = stageProbabilities.get(stageId) ?? 0;
+        const weightedAmount = Math.round((amount * stageProbability) / 100);
         all.push({
           id: r.id as string,
           name: props.dealname || `Deal ${r.id}`,
           pipelineId: props.pipeline || pipelineId || "default",
-          stageId: props.dealstage || "",
-          amount: Number(props.amount) || 0,
+          stageId,
+          amount,
+          stageProbability,
+          weightedAmount,
           ownerId: props.hubspot_owner_id || null,
           closeDate,
           daysOverdue,
@@ -117,6 +128,7 @@ async function searchDeals(
 export async function fetchCloseDateBuckets(
   token: string,
   pipelineId: string | null,
+  stageProbabilities: Map<string, number> = new Map(),
 ): Promise<CloseDateBuckets> {
   const year = new Date().getFullYear();
   const ranges = quarterRanges(year);
@@ -134,9 +146,8 @@ export async function fetchCloseDateBuckets(
     { propertyName: "closedate", operator: "LT", value: String(now) },
   ];
 
-  // 1 fetch pour les passés + 1 fetch par trimestre = 5 appels parallèles
   const [passedCloseDate, ...quarterDeals] = await Promise.all([
-    searchDeals(token, [{ filters: passedFilters }], pipelineId, 1000),
+    searchDeals(token, [{ filters: passedFilters }], pipelineId, stageProbabilities, 1000),
     ...ranges.map((r) =>
       searchDeals(
         token,
@@ -154,6 +165,7 @@ export async function fetchCloseDateBuckets(
           },
         ],
         pipelineId,
+        stageProbabilities,
         1000,
       ),
     ),

@@ -27,6 +27,8 @@ export type RiskDeal = {
 
 export type DealRiskBuckets = {
   pipelineId: string | null; // null = tous pipelines
+  /** Combiné des 3 critères : ALL of (in stage > 7d, last_activity > 7d, no next_activity) */
+  trueRisk: RiskDeal[];
   blocked: RiskDeal[];
   noVisibility: RiskDeal[];
   noActivity: RiskDeal[];
@@ -131,6 +133,7 @@ export async function fetchDealRiskBuckets(
   pipelineId: string | null,
 ): Promise<DealRiskBuckets> {
   const deals = await fetchOpenDealsForRisk(token, pipelineId);
+  const sevenDaysAgo = Date.now() - 7 * 86_400_000;
   const tenDaysAgo = Date.now() - 10 * 86_400_000;
 
   const blocked = deals
@@ -152,5 +155,22 @@ export async function fetchDealRiskBuckets(
       return ta - tb;
     });
 
-  return { pipelineId, blocked, noVisibility, noActivity };
+  // ── DEAL À RISQUE COMBINÉ (la définition CRO réelle) ──
+  // Un deal est VRAIMENT à risque quand les 3 critères sont réunis :
+  //   1. Dans la même étape depuis > 7 jours (immobilité de stage)
+  //   2. Dernière activité > 7 jours OU aucune (pas d'engagement récent)
+  //   3. Aucune activité planifiée (no next_activity_date)
+  // Un seul de ces signaux peut être un cas légitime — les 3 ensemble
+  // signifient sans ambiguïté "deal qui pourrit, action urgente requise".
+  const trueRisk = deals
+    .filter((d) => {
+      if (d.daysInStage <= 7) return false;
+      if (d.nextActivityDate) return false;
+      const lastTs = d.lastContactedAt ? new Date(d.lastContactedAt).getTime() : 0;
+      if (lastTs > 0 && lastTs >= sevenDaysAgo) return false;
+      return true;
+    })
+    .sort((a, b) => b.amount - a.amount); // sort par montant DESC : focus sur les gros risques
+
+  return { pipelineId, trueRisk, blocked, noVisibility, noActivity };
 }

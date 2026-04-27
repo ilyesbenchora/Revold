@@ -83,6 +83,7 @@ export function CloseDateManagementBlock({
   }, [pipelines, owners]);
 
   const passedTotal = buckets.passedCloseDate.reduce((s, d) => s + d.amount, 0);
+  const passedWeighted = buckets.passedCloseDate.reduce((s, d) => s + d.weightedAmount, 0);
 
   return (
     <div className="space-y-6">
@@ -111,6 +112,7 @@ export function CloseDateManagementBlock({
       <PassedCloseDateTable
         deals={buckets.passedCloseDate}
         totalAmount={passedTotal}
+        weightedAmount={passedWeighted}
         maps={maps}
         alert={
           <CreateAlertCta
@@ -146,11 +148,13 @@ type PassedSortKey = keyof Pick<
 function PassedCloseDateTable({
   deals,
   totalAmount,
+  weightedAmount,
   maps,
   alert,
 }: {
   deals: CloseDateDeal[];
   totalAmount: number;
+  weightedAmount: number;
   maps: Maps;
   alert: React.ReactNode;
 }) {
@@ -194,7 +198,12 @@ function PassedCloseDateTable({
               </span>
               {totalAmount > 0 && (
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                  {fmtK(totalAmount)}
+                  {fmtK(totalAmount)} brut
+                </span>
+              )}
+              {weightedAmount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-semibold text-fuchsia-700">
+                  {fmtK(weightedAmount)} pondéré
                 </span>
               )}
             </div>
@@ -224,6 +233,9 @@ function PassedCloseDateTable({
                     <SortHeader label="Montant" active={sortKey === "amount"} direction={sortDir} onToggle={() => toggle("amount")} align="right" />
                   </th>
                   <th className="px-3 py-2 text-right">
+                    <SortHeader label="Pondéré" active={sortKey === "weightedAmount"} direction={sortDir} onToggle={() => toggle("weightedAmount")} align="right" />
+                  </th>
+                  <th className="px-3 py-2 text-right">
                     <SortHeader label="Date closing" active={sortKey === "closeDate"} direction={sortDir} onToggle={() => toggle("closeDate")} align="right" />
                   </th>
                   <th className="px-5 py-2 text-right">
@@ -239,6 +251,12 @@ function PassedCloseDateTable({
                     <td className="px-3 py-2 text-slate-600">{maps.stageById.get(d.stageId) ?? d.stageId}</td>
                     <td className="px-3 py-2 text-slate-600">{d.ownerId ? maps.ownerById.get(d.ownerId) ?? d.ownerId : "—"}</td>
                     <td className="px-3 py-2 text-right text-slate-700">{d.amount > 0 ? fmtK(d.amount) : "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="inline-flex flex-col items-end">
+                        <span className="font-semibold text-slate-700">{d.weightedAmount > 0 ? fmtK(d.weightedAmount) : "—"}</span>
+                        <span className="text-[9px] text-slate-400">{d.stageProbability}%</span>
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-right text-slate-600">{fmtDate(d.closeDate)}</td>
                     <td className="px-5 py-2 text-right">{lateBadge(d.daysOverdue)}</td>
                   </tr>
@@ -278,6 +296,7 @@ function QuartersTable({
   const [active, setActive] = useState<QuarterKey>(currentQuarter);
   const bucket = quarters.find((q) => q.key === active) ?? quarters[0];
   const totalAmount = bucket?.deals.reduce((s, d) => s + d.amount, 0) ?? 0;
+  const totalWeighted = bucket?.deals.reduce((s, d) => s + d.weightedAmount, 0) ?? 0;
 
   return (
     <article className="card overflow-hidden">
@@ -341,7 +360,7 @@ function QuartersTable({
       </header>
 
       {bucket && bucket.deals.length > 0 ? (
-        <QuarterTableBody bucket={bucket} maps={maps} totalAmount={totalAmount} />
+        <QuarterTableBody bucket={bucket} maps={maps} totalAmount={totalAmount} weightedAmount={totalWeighted} />
       ) : (
         <p className="px-5 py-6 text-sm text-slate-500">
           Aucun deal avec une close date dans <strong>{bucket?.label ?? active}</strong>.
@@ -355,10 +374,12 @@ function QuarterTableBody({
   bucket,
   maps,
   totalAmount,
+  weightedAmount,
 }: {
   bucket: QuarterBucket;
   maps: Maps;
   totalAmount: number;
+  weightedAmount: number;
 }) {
   const { sorted, sortKey, sortDir, toggle } = useSorter<CloseDateDeal>(
     bucket.deals,
@@ -376,7 +397,13 @@ function QuarterTableBody({
       {totalAmount > 0 && (
         <p className="border-b border-slate-100 bg-slate-50/60 px-5 py-2 text-[11px] text-slate-600">
           <strong>{bucket.deals.length}</strong> deal{bucket.deals.length > 1 ? "s" : ""} ·{" "}
-          montant cumulé <strong>{fmtK(totalAmount)}</strong>
+          brut <strong>{fmtK(totalAmount)}</strong> ·{" "}
+          forecast pondéré <strong className="text-fuchsia-700">{fmtK(weightedAmount)}</strong>
+          {totalAmount > 0 && (
+            <span className="ml-1 text-slate-400">
+              (taux moyen {Math.round((weightedAmount / totalAmount) * 100)}%)
+            </span>
+          )}
         </p>
       )}
       <div className="overflow-x-auto">
@@ -392,6 +419,9 @@ function QuarterTableBody({
               <th className="px-3 py-2 text-right">
                 <SortHeader label="Montant" active={sortKey === "amount"} direction={sortDir} onToggle={() => toggle("amount")} align="right" />
               </th>
+              <th className="px-3 py-2 text-right">
+                <SortHeader label="Pondéré" active={sortKey === "weightedAmount"} direction={sortDir} onToggle={() => toggle("weightedAmount")} align="right" />
+              </th>
               <th className="px-5 py-2 text-right">
                 <SortHeader label="Date closing" active={sortKey === "closeDate"} direction={sortDir} onToggle={() => toggle("closeDate")} align="right" />
               </th>
@@ -405,6 +435,12 @@ function QuarterTableBody({
                 <td className="px-3 py-2 text-slate-600">{maps.stageById.get(d.stageId) ?? d.stageId}</td>
                 <td className="px-3 py-2 text-slate-600">{d.ownerId ? maps.ownerById.get(d.ownerId) ?? d.ownerId : "—"}</td>
                 <td className="px-3 py-2 text-right text-slate-700">{d.amount > 0 ? fmtK(d.amount) : "—"}</td>
+                <td className="px-3 py-2 text-right">
+                  <span className="inline-flex flex-col items-end">
+                    <span className="font-semibold text-slate-700">{d.weightedAmount > 0 ? fmtK(d.weightedAmount) : "—"}</span>
+                    <span className="text-[9px] text-slate-400">{d.stageProbability}%</span>
+                  </span>
+                </td>
                 <td className="px-5 py-2 text-right text-slate-700">{fmtDate(d.closeDate)}</td>
               </tr>
             ))}

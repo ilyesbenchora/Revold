@@ -39,8 +39,18 @@ export default async function ForecastManagementPage() {
       deals: [],
     })),
   };
+  // Stage probability map depuis le snapshot pipelines (pour forecast pondéré)
+  const stageProbabilities = new Map<string, number>();
+  for (const p of snapshot.pipelines ?? []) {
+    for (const s of p.stages ?? []) {
+      stageProbabilities.set(s.id, s.probability);
+    }
+  }
+
   const [initialBuckets, ownersRaw] = await Promise.all([
-    token ? fetchCloseDateBuckets(token, null).catch(() => fallbackBuckets) : Promise.resolve(fallbackBuckets),
+    token
+      ? fetchCloseDateBuckets(token, null, stageProbabilities).catch(() => fallbackBuckets)
+      : Promise.resolve(fallbackBuckets),
     token ? fetchOwners(token).catch(() => []) : Promise.resolve([]),
   ]);
 

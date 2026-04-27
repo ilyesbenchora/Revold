@@ -7,6 +7,8 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
+import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
+import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -158,6 +160,16 @@ export default async function PerformanceMarketingPage() {
       />
 
       {/* Funnel */}
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <BlockHeaderIcon icon="funnel" tone="fuchsia" />Lifecycle conversion (Lead → Customer)
+          </h2>
+        }
+      >
+        <LifecycleConversionBlock data={buildLifecycleConversion(snapshot)} />
+      </CollapsibleBlock>
+
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">

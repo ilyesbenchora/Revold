@@ -3,7 +3,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
 
@@ -21,6 +21,15 @@ export async function GET(req: NextRequest) {
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return NextResponse.json({ error: "no hubspot token" }, { status: 400 });
 
-  const buckets = await fetchCloseDateBuckets(token, pipelineId);
+  // Build stage probability map depuis le snapshot cache (pipelines)
+  const snapshot = await getHubspotSnapshot();
+  const stageProbabilities = new Map<string, number>();
+  for (const p of snapshot.pipelines ?? []) {
+    for (const s of p.stages ?? []) {
+      stageProbabilities.set(s.id, s.probability);
+    }
+  }
+
+  const buckets = await fetchCloseDateBuckets(token, pipelineId, stageProbabilities);
   return NextResponse.json(buckets);
 }

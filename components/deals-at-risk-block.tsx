@@ -113,6 +113,28 @@ export function DealsAtRiskBlock({
       </div>
 
       <RiskTable
+        title="Deals à risque (combiné)"
+        criteria="Cumul des 3 signaux : > 7j même étape, dernière activité > 7j, aucune activité planifiée"
+        icon="alarm"
+        tone="red"
+        deals={buckets.trueRisk}
+        maps={maps}
+        valueColumn="daysInStage"
+        valueLabel="Jours dans étape"
+        renderValueCell={(d) => <DaysCell days={d.daysInStage} />}
+        alert={
+          <CreateAlertCta
+            team="sales"
+            kpiId="deals_at_risk"
+            defaultThreshold={3}
+            defaultDirection="below"
+            defaultUnit="count"
+            defaultPipelineIds={pipelineId ? [pipelineId] : []}
+          />
+        }
+      />
+
+      <RiskTable
         title="Deals bloqués"
         criteria="Plus de 7 jours dans la même étape — risque d'enlisement"
         icon="lock"
@@ -180,7 +202,8 @@ export function DealsAtRiskBlock({
         }
       />
 
-      {buckets.blocked.length === 0 &&
+      {buckets.trueRisk.length === 0 &&
+        buckets.blocked.length === 0 &&
         buckets.noVisibility.length === 0 &&
         buckets.noActivity.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
@@ -210,7 +233,7 @@ function RiskTable({
 }: {
   title: string;
   criteria: string;
-  icon: "lock" | "eye-off" | "user-clock";
+  icon: "lock" | "eye-off" | "user-clock" | "alarm";
   tone: "red" | "orange" | "amber";
   deals: RiskDeal[];
   maps: Maps;

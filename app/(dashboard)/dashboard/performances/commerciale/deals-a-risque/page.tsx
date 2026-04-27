@@ -32,12 +32,14 @@ export default async function DealsARisquePage() {
     token
       ? fetchDealRiskBuckets(token, null).catch(() => ({
           pipelineId: null,
+          trueRisk: [],
           blocked: [],
           noVisibility: [],
           noActivity: [],
         }))
       : Promise.resolve({
           pipelineId: null,
+          trueRisk: [],
           blocked: [],
           noVisibility: [],
           noActivity: [],
