@@ -239,8 +239,12 @@ export function PipelineManagementCarousel({
 }: {
   pipelines: PipelineAnalytics[];
 }) {
+  // 1 pipeline par page : meilleure lisibilité (carte pleine largeur),
+  // navigation explicite entre pipelines, et corrige les cas où la
+  // jauge / les données ne s'affichaient pas correctement en grille 2-cols
+  // (race conditions de layout sur certains navigateurs).
   const [page, setPage] = useState(0);
-  const perPage = 2;
+  const perPage = 1;
   const totalPages = Math.max(1, Math.ceil(pipelines.length / perPage));
   const safePage = Math.min(page, totalPages - 1);
 
@@ -254,10 +258,13 @@ export function PipelineManagementCarousel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">
-          Page {safePage + 1} sur {totalPages} — {pipelines.length} pipeline{pipelines.length > 1 ? "s" : ""}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-slate-500">
+            <strong className="text-slate-700">{pipelines[safePage]?.pipeline.label ?? "—"}</strong> ·
+            pipeline {safePage + 1} sur {pipelines.length}
+          </p>
+        </div>
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
@@ -265,10 +272,26 @@ export function PipelineManagementCarousel({
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-30"
-              aria-label="Pipelines précédents"
+              aria-label="Pipeline précédent"
             >
               ←
             </button>
+            {/* Dots indicator (cliquable, jusqu'à 10 max) */}
+            {totalPages <= 10 && (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPage(i)}
+                    aria-label={`Aller au pipeline ${i + 1}`}
+                    className={`h-2 w-2 rounded-full transition ${
+                      i === safePage ? "bg-accent" : "bg-slate-300 hover:bg-slate-400"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
             <span className="text-xs font-medium text-slate-600">
               {safePage + 1} / {totalPages}
             </span>
@@ -277,7 +300,7 @@ export function PipelineManagementCarousel({
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={safePage >= totalPages - 1}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-30"
-              aria-label="Pipelines suivants"
+              aria-label="Pipeline suivant"
             >
               →
             </button>
@@ -285,10 +308,8 @@ export function PipelineManagementCarousel({
         )}
       </div>
 
-      {/* Carrousel : chaque page contient 2 pipelines empilés verticalement
-          en pleine largeur. On utilise un overflow-x-hidden + transform pour
-          que les pages glissent horizontalement (effet "scroll vers la
-          droite pour voir la suite"). */}
+      {/* Carrousel : 1 pipeline par page, pleine largeur. Glissement
+          horizontal via translateX. */}
       <div className="relative overflow-x-hidden">
         <div
           className="flex transition-transform duration-300 ease-out"
