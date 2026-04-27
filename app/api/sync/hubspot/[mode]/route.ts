@@ -23,13 +23,32 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { syncAllForOrg, type SyncResult } from "@/lib/sync/hubspot-etl";
 import { computeSnapshotFromLocal, persistSnapshotCache } from "@/lib/sync/compute-snapshot";
 
 type Mode = "full" | "delta" | "snapshot";
+
+/**
+ * Service-role client pour les opérations ETL.
+ *
+ * Pourquoi ? hubspot_sync_state, hubspot_objects et hubspot_snapshot_cache
+ * n'ont qu'une policy SELECT en RLS — les upsert depuis un client user-scoped
+ * sont silencieusement bloqués (Supabase ne throw pas sur RLS deny).
+ *
+ * L'auth utilisateur est faite via getOrgId() AVANT d'instancier ce client,
+ * donc on contrôle qui peut déclencher la sync sans permettre n'importe
+ * quelle écriture arbitraire.
+ */
+function adminClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } },
+  );
+}
 
 export async function POST(
   _req: NextRequest,
@@ -39,11 +58,15 @@ export async function POST(
   const { mode: rawMode } = await context.params;
   const mode = (["full", "delta", "snapshot"].includes(rawMode) ? rawMode : "delta") as Mode;
 
+  // Auth user-scoped (vérifie que l'utilisateur est bien membre d'une org)
   const orgId = await getOrgId();
   if (!orgId) {
     return NextResponse.json({ error: "no org" }, { status: 401 });
   }
-  const supabase = await createSupabaseServerClient();
+
+  // Une fois l'auth validée, on bascule en service role pour les opérations
+  // ETL (qui doivent pouvoir écrire dans toutes les tables sync).
+  const supabase = adminClient();
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) {
     return NextResponse.json({ error: "HubSpot non connecté" }, { status: 400 });
