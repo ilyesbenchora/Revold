@@ -59,21 +59,31 @@ type Props = {
 };
 
 type StatusFilter = "all" | "active" | "inactive";
+type ObjectFilter = "all" | "contact" | "company" | "deal" | "ticket" | "lead" | "custom";
 
 export function WorkflowCarousel({ workflows, details }: Props) {
   const [index, setIndex] = useState(0);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [objectFilter, setObjectFilter] = useState<ObjectFilter>("all");
 
   const activeCount = workflows.filter((w) => w.enabled).length;
   const inactiveCount = workflows.filter((w) => !w.enabled).length;
 
+  // Counts par object type (calculé sur l'ensemble, pas le filtré)
+  const objectCounts = useMemo(() => {
+    const out: Record<string, number> = { all: workflows.length };
+    for (const w of workflows) out[w.objectType] = (out[w.objectType] ?? 0) + 1;
+    return out;
+  }, [workflows]);
+
   const filtered = workflows.filter((w) => {
-    if (filter === "active") return w.enabled;
-    if (filter === "inactive") return !w.enabled;
+    if (filter === "active" && !w.enabled) return false;
+    if (filter === "inactive" && w.enabled) return false;
+    if (objectFilter !== "all" && w.objectType !== objectFilter) return false;
     return true;
   });
 
-  useEffect(() => { setIndex(0); }, [filter]);
+  useEffect(() => { setIndex(0); }, [filter, objectFilter]);
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(filtered.length - 1, i + 1)), [filtered.length]);
@@ -129,26 +139,54 @@ export function WorkflowCarousel({ workflows, details }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Filter Actif/Inactif + navigation + position */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
-        <div className="flex items-center gap-1 text-xs">
-          <span className="mr-2 font-semibold text-slate-700">Filtrer :</span>
-          {([
-            ["all", `Tous (${workflows.length})`, "bg-slate-200 text-slate-700"],
-            ["active", `Actifs (${activeCount})`, "bg-emerald-100 text-emerald-700"],
-            ["inactive", `Inactifs (${inactiveCount})`, "bg-slate-200 text-slate-600"],
-          ] as const).map(([key, label, activeBg]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key as StatusFilter)}
-              className={`rounded-md px-2.5 py-1 font-medium transition ${
-                filter === key ? `${activeBg} ring-1 ring-inset ring-current/20` : "bg-white text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Filtres + navigation + position */}
+      <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1 text-xs">
+            <span className="mr-2 font-semibold text-slate-700">Statut :</span>
+            {([
+              ["all", `Tous (${workflows.length})`, "bg-slate-200 text-slate-700"],
+              ["active", `Actifs (${activeCount})`, "bg-emerald-100 text-emerald-700"],
+              ["inactive", `Inactifs (${inactiveCount})`, "bg-slate-200 text-slate-600"],
+            ] as const).map(([key, label, activeBg]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key as StatusFilter)}
+                className={`rounded-md px-2.5 py-1 font-medium transition ${
+                  filter === key ? `${activeBg} ring-1 ring-inset ring-current/20` : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Filtre par objet : on n'affiche que les types présents */}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="mr-2 font-semibold text-slate-700">Objet :</span>
+            {([
+              ["all", `Tous (${objectCounts.all ?? 0})`],
+              ...(objectCounts.contact ? [["contact", `Contacts (${objectCounts.contact})`]] : []),
+              ...(objectCounts.deal ? [["deal", `Transactions (${objectCounts.deal})`]] : []),
+              ...(objectCounts.company ? [["company", `Entreprises (${objectCounts.company})`]] : []),
+              ...(objectCounts.ticket ? [["ticket", `Tickets (${objectCounts.ticket})`]] : []),
+              ...(objectCounts.lead ? [["lead", `Leads (${objectCounts.lead})`]] : []),
+              ...(objectCounts.custom ? [["custom", `Custom (${objectCounts.custom})`]] : []),
+            ] as Array<[string, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setObjectFilter(key as ObjectFilter)}
+                className={`rounded-md px-2.5 py-1 font-medium transition ${
+                  objectFilter === key
+                    ? "bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <button
@@ -329,12 +367,71 @@ export function WorkflowCarousel({ workflows, details }: Props) {
                   </p>
                 </div>
                 <div className={`rounded-lg border p-3 ${fullDetail.hasGoal ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Objectif (goal)</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Objectif / Sortie auto</p>
                   <p className={`mt-1 text-sm font-bold ${fullDetail.hasGoal ? "text-emerald-700" : "text-amber-700"}`}>
                     {fullDetail.hasGoal ? "🎯 Défini" : "✗ Aucun"}
                   </p>
+                  {fullDetail.goalDescription && (
+                    <p className="mt-1 text-[10px] text-slate-500">{fullDetail.goalDescription}</p>
+                  )}
                 </div>
               </div>
+
+              {/* Performance HubSpot — affiché uniquement si /performance a répondu */}
+              {(fullDetail.errorCount !== undefined || fullDetail.successCount !== undefined) &&
+                ((fullDetail.errorCount ?? 0) + (fullDetail.successCount ?? 0) + (fullDetail.queuedCount ?? 0) + (fullDetail.droppedCount ?? 0) > 0) && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Performance d&apos;exécution (source : /automation/v3/performance)
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-2">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Succès</p>
+                      <p className="mt-0.5 text-base font-bold text-emerald-800 tabular-nums">
+                        {(fullDetail.successCount ?? 0).toLocaleString("fr-FR")}
+                      </p>
+                    </div>
+                    <div className={`rounded-lg border p-2 ${
+                      (fullDetail.errorRate ?? 0) >= 10
+                        ? "border-rose-200 bg-rose-50/40"
+                        : (fullDetail.errorCount ?? 0) > 0
+                          ? "border-amber-200 bg-amber-50/40"
+                          : "border-slate-200 bg-white"
+                    }`}>
+                      <p className={`text-[9px] font-bold uppercase tracking-wider ${
+                        (fullDetail.errorRate ?? 0) >= 10
+                          ? "text-rose-700"
+                          : (fullDetail.errorCount ?? 0) > 0
+                            ? "text-amber-700"
+                            : "text-slate-500"
+                      }`}>
+                        Erreurs ({fullDetail.errorRate ?? 0}%)
+                      </p>
+                      <p className={`mt-0.5 text-base font-bold tabular-nums ${
+                        (fullDetail.errorRate ?? 0) >= 10
+                          ? "text-rose-800"
+                          : (fullDetail.errorCount ?? 0) > 0
+                            ? "text-amber-800"
+                            : "text-slate-400"
+                      }`}>
+                        {(fullDetail.errorCount ?? 0).toLocaleString("fr-FR")}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">En queue</p>
+                      <p className="mt-0.5 text-base font-bold text-slate-700 tabular-nums">
+                        {(fullDetail.queuedCount ?? 0).toLocaleString("fr-FR")}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Dropped</p>
+                      <p className="mt-0.5 text-base font-bold text-slate-700 tabular-nums">
+                        {(fullDetail.droppedCount ?? 0).toLocaleString("fr-FR")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

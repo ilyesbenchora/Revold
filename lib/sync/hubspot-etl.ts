@@ -692,22 +692,39 @@ async function fetchWorkflowDetail(
   id: string,
 ): Promise<Record<string, unknown> | null> {
   // Tentative v4 d'abord (Workflows 2.0)
+  let detail: Record<string, unknown> | null = null;
   try {
     const res = await hsFetch(token, `/automation/v4/flows/${id}`);
     if (res.ok) {
       const data = await res.json();
-      return { ...data, _detail_source: "v4" };
+      detail = { ...data, _detail_source: "v4" };
     }
   } catch {}
-  // Fallback v3 (Classic)
-  try {
-    const res = await hsFetch(token, `/automation/v3/workflows/${id}`);
-    if (res.ok) {
-      const data = await res.json();
-      return { ...data, _detail_source: "v3" };
-    }
-  } catch {}
-  return null;
+  // Fallback v3 (Classic) si v4 a raté
+  if (!detail) {
+    try {
+      const res = await hsFetch(token, `/automation/v3/workflows/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        detail = { ...data, _detail_source: "v3" };
+      }
+    } catch {}
+  }
+  // Best-effort : on enrichit avec /performance (errors / success counts)
+  // Endpoint v3 = /automation/v3/performance/{workflowId} retourne :
+  //   { success: number, error: number, queued: number, ... }
+  // Marche sur la plupart des workflows (v3 et v4) mais peut renvoyer 404
+  // sur certains types custom — on swallow.
+  if (detail) {
+    try {
+      const perfRes = await hsFetch(token, `/automation/v3/performance/${id}`);
+      if (perfRes.ok) {
+        const perf = await perfRes.json();
+        detail._performance = perf;
+      }
+    } catch {}
+  }
+  return detail;
 }
 
 async function syncWorkflowsEnriched(

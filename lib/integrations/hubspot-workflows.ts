@@ -104,6 +104,13 @@ export type WorkflowDetail = {
 
   /** Recommandations CRO/RevOps spécifiques à ce workflow. */
   recommendations: WorkflowRecommendation[];
+
+  /** Performance HubSpot (depuis /automation/v3/performance/{id}). */
+  errorCount?: number;
+  errorRate?: number; // %
+  successCount?: number;
+  queuedCount?: number;
+  droppedCount?: number;
 };
 
 export type WorkflowActionStats = {

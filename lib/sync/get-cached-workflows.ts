@@ -167,21 +167,43 @@ function buildDetailFromRaw(
   });
   const uniqueActionCategories = Array.from(new Set(actions.map((a) => a.category)));
 
-  // Re-enrollment : v4 = isReenrollmentEnabled, v3 = canEnrollFromSalesforce / re-enrollment in segmentCriteria
-  const reenrollmentEnabled = Boolean(
-    raw.isReenrollmentEnabled || raw.canReenroll || raw.allowContactToTriggerMultipleTimes,
-  );
-
-  // Goal : v4 = goalCriteria, v3 = goal in workflow
-  const goalCriteria = raw.goalCriteria as Record<string, unknown> | undefined;
-  const hasGoal = Boolean(goalCriteria && Object.keys(goalCriteria).length > 0);
-  const goalDescription = hasGoal ? "Objectif paramétré (sortie auto sur condition)" : "Aucun objectif";
-
-  // Trigger description
+  // ─── Re-enrollment ─────────────────────────────────────────────────
+  // v4 réel : enrollmentCriteria.shouldReEnroll (boolean)
+  // v3 réel : allowContactToTriggerMultipleTimes (boolean)
   const enrollmentCriteria = raw.enrollmentCriteria as Record<string, unknown> | undefined;
+  const reenrollmentEnabled = Boolean(
+    enrollmentCriteria?.shouldReEnroll ||
+      raw.allowContactToTriggerMultipleTimes ||
+      raw.canReenroll,
+  );
+  const reenrollTriggers = (enrollmentCriteria?.reEnrollmentTriggersFilterBranches as unknown[]) ?? [];
+
+  // ─── Goal / Sortie automatique ─────────────────────────────────────
+  // v4 réel : enrollmentCriteria.unEnrollObjectsNotMeetingCriteria (sortie
+  // quand le contact ne remplit plus les critères) + suppressionListIds
+  //          (sortie via liste de suppression).
+  // v3 réel : goalListId, enrolledIntoGoalList
+  const unEnrollOnExit = Boolean(enrollmentCriteria?.unEnrollObjectsNotMeetingCriteria);
+  const suppressionListIds = (raw.suppressionListIds as unknown[]) ?? [];
+  const goalListId = raw.goalListId;
+  const hasGoal = Boolean(unEnrollOnExit || suppressionListIds.length > 0 || goalListId);
+  const goalDescription = unEnrollOnExit
+    ? "Sortie auto si le contact ne remplit plus les critères d'enrôlement"
+    : suppressionListIds.length > 0
+      ? `Sortie via ${suppressionListIds.length} liste${suppressionListIds.length > 1 ? "s" : ""} de suppression`
+      : goalListId
+        ? "Goal list paramétrée (HubSpot v3)"
+        : "Aucun objectif de sortie défini — risque d'accumulation indéfinie";
+
+  // ─── Trigger description ──────────────────────────────────────────
   const segmentCriteria = raw.segmentCriteria as Record<string, unknown> | undefined;
+  const enrollmentType = enrollmentCriteria?.type as string | undefined;
   const triggerDescription = enrollmentCriteria
-    ? "Enrôlement basé sur des filtres (enrollmentCriteria)"
+    ? `Enrôlement ${enrollmentType ? enrollmentType.toLowerCase().replace("_", " ") : "basé sur des filtres"}${
+        reenrollTriggers.length > 0
+          ? ` · ${reenrollTriggers.length} trigger(s) de re-enrollment`
+          : ""
+      }`
     : segmentCriteria
       ? "Enrôlement basé sur des segments (segmentCriteria)"
       : "Déclencheur non décrit dans la donnée brute";
@@ -191,23 +213,81 @@ function buildDetailFromRaw(
   const currentlyEnrolledCount = typeof contactCounts.active === "number" ? contactCounts.active : undefined;
   const lifetimeEnrolledCount = typeof contactCounts.completed === "number" ? contactCounts.completed : undefined;
 
-  // Recommendations (build basique selon l'analyse)
+  // ─── Performance HubSpot ──────────────────────────────────────────
+  // /automation/v3/performance/{id} renvoie typiquement :
+  //   { success, error, queued, dropped, ... }
+  const perf = (raw._performance ?? {}) as Record<string, unknown>;
+  const errorCount = typeof perf.error === "number" ? perf.error : 0;
+  const successCount = typeof perf.success === "number" ? perf.success : 0;
+  const queuedCount = typeof perf.queued === "number" ? perf.queued : 0;
+  const droppedCount = typeof perf.dropped === "number" ? perf.dropped : 0;
+  const totalExec = errorCount + successCount + queuedCount + droppedCount;
+  const errorRate = totalExec > 0 ? Math.round((errorCount / totalExec) * 100) : 0;
+
+  // Recommendations basées sur les vrais signaux extraits
   const recommendations: WorkflowRecommendation[] = [];
   const isMultiPurpose = uniqueActionCategories.length >= 3;
+
   if (isMultiPurpose) {
     recommendations.push({
       severity: "warning",
       title: "Workflow multi-purpose",
-      body: `Ce workflow combine ${uniqueActionCategories.length} types d'actions. La règle CRO est "1 workflow = 1 objectif précis".`,
+      body: `Ce workflow combine ${uniqueActionCategories.length} types d'actions différents. La règle CRO est "1 workflow = 1 objectif précis".`,
       recommendation: "Splitter en workflows dédiés par objectif pour faciliter le debug et le maintien.",
     });
   }
+
   if (!reenrollmentEnabled && /relance|nurturing|scoring|reactivat|réveil|re-engage/i.test((raw.name as string) ?? "")) {
     recommendations.push({
       severity: "warning",
-      title: "Re-enrollment désactivé sur workflow de relance",
-      body: "Ce workflow semble être un workflow de relance / nurturing mais le re-enrollment est désactivé.",
-      recommendation: "Activer le re-enrollment pour que les contacts repassent dans le workflow s'ils retombent dans les critères.",
+      title: "🔁 Re-enrollment désactivé sur workflow de relance",
+      body: "Le nom suggère un workflow de relance/nurturing, mais shouldReEnroll = false dans enrollmentCriteria.",
+      recommendation: "Activer le re-enrollment dans HubSpot — sinon les contacts qui sortent ne reviennent jamais, même s'ils retombent dans les critères.",
+    });
+  }
+
+  if (!hasGoal && raw.isEnabled) {
+    recommendations.push({
+      severity: "warning",
+      title: "🎯 Aucune sortie automatique paramétrée",
+      body: `Ni unEnrollObjectsNotMeetingCriteria, ni suppression list, ni goalListId. Les ${objectType === "deal" ? "deals" : objectType === "contact" ? "contacts" : "records"} enrôlés vont s'accumuler indéfiniment dans le workflow.`,
+      recommendation: "Paramétrer dans HubSpot soit (1) « Unenroll objects when they no longer meet enrollment criteria » dans Settings, soit (2) une suppression list, soit (3) un goal explicite. C'est essentiel pour que le workflow se nettoie tout seul.",
+    });
+  }
+
+  if (errorCount > 0 && totalExec > 0) {
+    recommendations.push({
+      severity: errorRate >= 10 ? "critical" : "warning",
+      title: `⚠️ ${errorCount} erreur${errorCount > 1 ? "s" : ""} d'exécution détectée${errorCount > 1 ? "s" : ""} (${errorRate}% du total)`,
+      body: `D'après /automation/v3/performance/${id}, ce workflow a accumulé ${errorCount} échecs d'action sur ${totalExec} exécutions. Les causes typiques : webhook URL morte, propriété supprimée, owner désactivé, scope OAuth perdu.`,
+      recommendation: "Ouvrir le workflow dans HubSpot → onglet « Action history » pour identifier l'action qui plante et la corriger.",
+    });
+  }
+
+  if (queuedCount > 100) {
+    recommendations.push({
+      severity: "warning",
+      title: `⏳ ${queuedCount.toLocaleString("fr-FR")} actions en queue`,
+      body: `Ce workflow a ${queuedCount.toLocaleString("fr-FR")} actions en attente d'exécution — soit un délai paramétré (delay step), soit un blocage HubSpot (rate limit interne, dépendances).`,
+      recommendation: "Vérifier que les délais paramétrés sont volontaires. Si non : checker les action types (webhook, branch, calculation) qui peuvent ralentir tout le workflow.",
+    });
+  }
+
+  if (droppedCount > 0 && totalExec > 0 && (droppedCount / totalExec) >= 0.05) {
+    recommendations.push({
+      severity: "warning",
+      title: `🚮 ${droppedCount} record${droppedCount > 1 ? "s" : ""} dropped (${Math.round((droppedCount / totalExec) * 100)}%)`,
+      body: "Des records ont été supprimés du workflow avant la fin de leur parcours (suppression list, désinscription manuelle, archivage objet). Taux > 5% = signal à investiguer.",
+      recommendation: "Vérifier que les suppression lists ne sont pas trop larges et que les unsubscribes massifs ne sont pas dus à une comm mal ciblée.",
+    });
+  }
+
+  if (reenrollmentEnabled && reenrollTriggers.length === 0) {
+    recommendations.push({
+      severity: "info",
+      title: "🔁 Re-enrollment activé sans trigger spécifique",
+      body: "shouldReEnroll = true mais aucun reEnrollmentTriggersFilterBranches paramétré. HubSpot va re-enrôler dès que tous les critères d'enrôlement sont à nouveau remplis (comportement par défaut).",
+      recommendation: "Vérifier si c'est volontaire. Sinon, paramétrer des triggers explicites pour contrôler quand le re-enrollment se déclenche (ex: changement de stage, nouvelle activité).",
     });
   }
 
@@ -231,5 +311,10 @@ function buildDetailFromRaw(
     hubspotUrl: portalId
       ? `https://app.hubspot.com/workflows/${portalId}/platform/flow/${id}/edit`
       : undefined,
+    errorCount,
+    errorRate,
+    successCount,
+    queuedCount,
+    droppedCount,
   };
 }
