@@ -433,26 +433,74 @@ export function WorkflowCarousel({ workflows, details }: Props) {
                 </div>
               )}
 
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Séquence d&apos;actions ({fullDetail.actions.length})
-                </p>
-                <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-                  <ol className="divide-y divide-slate-100">
-                    {fullDetail.actions.map((a, i) => (
-                      <li key={i} className="flex items-center gap-3 px-3 py-2">
-                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                          {i + 1}
+              {/* Breakdown des actions par catégorie + signaux complexité */}
+              {(() => {
+                const breakdown = fullDetail.actions.reduce((acc, a) => {
+                  acc[a.category] = (acc[a.category] ?? 0) + 1;
+                  return acc;
+                }, {} as Record<string, number>);
+                const sortedCats = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+                const businessCats = fullDetail.uniqueActionCategories.filter(
+                  (c) => c !== "delay" && c !== "branch" && c !== "other",
+                );
+                const complexityLevel =
+                  businessCats.length >= 3 ? "critical" : businessCats.length === 2 ? "warning" : "ok";
+                return (
+                  <div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Séquence d&apos;actions ({fullDetail.actions.length})
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          complexityLevel === "critical"
+                            ? "bg-rose-100 text-rose-700"
+                            : complexityLevel === "warning"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-700"
+                        }`}
+                      >
+                        {businessCats.length === 0
+                          ? "Plomberie pure"
+                          : businessCats.length === 1
+                            ? "✓ Mono-objectif"
+                            : businessCats.length === 2
+                              ? `⚠ Multi-objectif (${businessCats.length} catégories)`
+                              : `🚨 Ultra-complexe (${businessCats.length} catégories)`}
+                      </span>
+                    </div>
+
+                    {/* Breakdown par catégorie */}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {sortedCats.map(([cat, count]) => (
+                        <span
+                          key={cat}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${ACTION_COLOR[cat] ?? ACTION_COLOR.other}`}
+                          title={`${count} action${count > 1 ? "s" : ""} de type ${cat}`}
+                        >
+                          {cat} × {count}
                         </span>
-                        <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${ACTION_COLOR[a.category] ?? ACTION_COLOR.other}`}>
-                          {a.category}
-                        </span>
-                        <p className="min-w-0 flex-1 truncate text-xs text-slate-700">{a.description}</p>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                      <ol className="divide-y divide-slate-100">
+                        {fullDetail.actions.map((a, i) => (
+                          <li key={i} className="flex items-center gap-3 px-3 py-2">
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                              {i + 1}
+                            </span>
+                            <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${ACTION_COLOR[a.category] ?? ACTION_COLOR.other}`}>
+                              {a.category}
+                            </span>
+                            <p className="min-w-0 flex-1 truncate text-xs text-slate-700">{a.description}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                );
+              })()}
 
             </>
           )}

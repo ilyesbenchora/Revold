@@ -104,6 +104,19 @@ export async function getCachedWorkflows(
 
 // ── Construction d'un WorkflowDetail à partir du raw_data ───────────────
 
+// Labels FR pour les catégories d'action — utilisés dans les recos
+const CATEGORY_LABEL_FR: Record<string, string> = {
+  set_property: "modification de propriété",
+  send_email: "envoi d'email",
+  create_task: "création de tâche",
+  webhook: "webhook sortant",
+  branch: "branche conditionnelle",
+  delay: "délai",
+  create_engagement: "engagement (note/call)",
+  update_owner: "réassignation owner",
+  other: "action diverse",
+};
+
 const ACTION_TYPE_TO_CATEGORY: Record<string, WorkflowActionCategory> = {
   SET_PROPERTY: "set_property",
   SINGLE_CONNECTION: "set_property",
@@ -224,16 +237,104 @@ function buildDetailFromRaw(
   const totalExec = errorCount + successCount + queuedCount + droppedCount;
   const errorRate = totalExec > 0 ? Math.round((errorCount / totalExec) * 100) : 0;
 
+  // ─── DÉTECTION MULTI-ACTION / MULTI-PURPOSE / COMPLEXITÉ ─────────
+  // Les "actions métier" = celles qui produisent un effet business
+  // observable (vs delay/branch qui sont juste de la plomberie de flow)
+  const businessActionCategories = uniqueActionCategories.filter(
+    (c) => c !== "delay" && c !== "branch" && c !== "other",
+  );
+  const businessActionCount = actions.filter(
+    (a) => a.category !== "delay" && a.category !== "branch" && a.category !== "other",
+  ).length;
+  const branchCount = actions.filter((a) => a.category === "branch").length;
+  const delayCount = actions.filter((a) => a.category === "delay").length;
+  const totalActions = actions.length;
+
+  // Multi-purpose si > 1 catégorie business différente
+  const isMultiPurpose = businessActionCategories.length >= 2;
+
   // Recommendations basées sur les vrais signaux extraits
   const recommendations: WorkflowRecommendation[] = [];
-  const isMultiPurpose = uniqueActionCategories.length >= 3;
 
-  if (isMultiPurpose) {
+  // 1. Multi-purpose modéré : 2 catégories business
+  if (businessActionCategories.length === 2) {
+    const catNames = businessActionCategories
+      .map((c) => CATEGORY_LABEL_FR[c] ?? c)
+      .join(" + ");
     recommendations.push({
       severity: "warning",
-      title: "Workflow multi-purpose",
-      body: `Ce workflow combine ${uniqueActionCategories.length} types d'actions différents. La règle CRO est "1 workflow = 1 objectif précis".`,
-      recommendation: "Splitter en workflows dédiés par objectif pour faciliter le debug et le maintien.",
+      title: `🔀 Workflow multi-objectif : ${catNames}`,
+      body: `Ce workflow combine 2 types d'actions business (${catNames}) — la règle RevOps est "1 workflow = 1 objectif précis". Quand ça plante, impossible de savoir quelle partie est en cause sans débugger les ${totalActions} actions une par une.`,
+      recommendation: `Splitter en 2 workflows dédiés (1 par catégorie). Chaque workflow devient mesurable individuellement (taux de succès email vs taux de tâches créées) et plus facile à maintenir.`,
+    });
+  }
+
+  // 2. Multi-purpose grave : 3+ catégories business
+  if (businessActionCategories.length >= 3) {
+    const catNames = businessActionCategories
+      .map((c) => CATEGORY_LABEL_FR[c] ?? c)
+      .join(", ");
+    recommendations.push({
+      severity: "critical",
+      title: `🚨 Workflow ultra-complexe : ${businessActionCategories.length} types d'actions business`,
+      body: `Ce workflow exécute ${businessActionCategories.length} types d'actions business différents (${catNames}) répartis sur ${totalActions} actions au total. C'est un anti-pattern RevOps majeur : impossible de mesurer ce qu'il fait, impossible de débugger en cas d'erreur, impossible de faire évoluer une partie sans risquer de casser le reste.`,
+      recommendation: `Refactor obligatoire : créer ${businessActionCategories.length} workflows dédiés (un par catégorie) avec un objectif business clair pour chaque. Documenter qui consomme la sortie de chaque workflow avant la migration.`,
+    });
+  }
+
+  // 3. Trop d'actions au total (même catégorie unique)
+  if (totalActions > 30) {
+    recommendations.push({
+      severity: "warning",
+      title: `📚 Workflow très long : ${totalActions} actions`,
+      body: `Ce workflow contient ${totalActions} actions au total (dont ${branchCount} branches conditionnelles et ${delayCount} delays). À cette taille, le risque de bug silencieux explose : un branch qui rate sa condition, un delay mal paramétré, et tout le funnel en aval ne s'exécute jamais.`,
+      recommendation: `Casser ce workflow en 2-3 workflows enchaînés : chacun fait une étape et déclenche le suivant via une propriété de tracking ("step1_completed" → enrôlement workflow 2). Plus facile à monitorer et à maintenir.`,
+    });
+  } else if (totalActions > 15) {
+    recommendations.push({
+      severity: "info",
+      title: `📋 Workflow long : ${totalActions} actions`,
+      body: `${totalActions} actions au total (${branchCount} branches, ${delayCount} delays). Approche la limite de complexité gérable.`,
+      recommendation: `Audit : peut-être splittable en 2 workflows enchaînés ? Documenter au minimum la logique métier dans un README interne ou la description HubSpot du workflow.`,
+    });
+  }
+
+  // 4. Branches excessives = arbre de décision complexe = bug magnet
+  if (branchCount >= 5) {
+    recommendations.push({
+      severity: "warning",
+      title: `🌳 Arbre de décision complexe : ${branchCount} branches conditionnelles`,
+      body: `Ce workflow contient ${branchCount} branches if/then. À ce niveau de branching, la couverture des cas devient quasi impossible à tester exhaustivement — il y a 2^${branchCount} chemins théoriques possibles.`,
+      recommendation: `Modéliser l'arbre sur papier (ou en draw.io) pour identifier les chemins morts ou redondants. Idéalement, simplifier en 1 workflow par persona/segment au lieu de mélanger toutes les conditions dans un seul.`,
+    });
+  }
+
+  // 5. Mix dangereux : webhook sortant + actions métier
+  if (uniqueActionCategories.includes("webhook") && businessActionCategories.length > 1) {
+    recommendations.push({
+      severity: "warning",
+      title: "🔗 Mix webhook + actions métier dans le même workflow",
+      body: `Ce workflow envoie un webhook sortant ET exécute d'autres actions métier (email, propriété, etc.). Si le webhook tombe (URL morte, timeout), HubSpot peut bloquer ou retry tout le workflow — y compris les actions métier qui n'ont rien à voir avec le webhook.`,
+      recommendation: `Isoler le webhook dans son propre workflow (déclenché en parallèle ou en aval). Comme ça le webhook qui plante n'impacte pas les actions métier critiques.`,
+    });
+  }
+
+  // 6. Pas de delay sur un workflow long = pression brutale sur le user
+  if (totalActions > 5 && delayCount === 0 && uniqueActionCategories.includes("send_email")) {
+    recommendations.push({
+      severity: "info",
+      title: "⚡ Workflow sans aucun delay entre les actions",
+      body: `${totalActions} actions enchaînées sans delay — y compris des envois d'email. Risque : tout part en quelques secondes, le destinataire reçoit un mail puis 3 tâches/changements de stage immédiatement, ce qui peut sembler intrusif et casser la confiance.`,
+      recommendation: `Ajouter au moins 1 delay (ex: 1h ou 1 jour) entre les actions critiques pour respecter le rythme du destinataire. Standard email nurturing : 3-7 jours entre 2 envois.`,
+    });
+  }
+
+  if (!reenrollmentEnabled && /relance|nurturing|scoring|reactivat|réveil|re-engage/i.test((raw.name as string) ?? "")) {
+    recommendations.push({
+      severity: "warning",
+      title: "🔁 Re-enrollment désactivé sur workflow de relance",
+      body: "Le nom suggère un workflow de relance/nurturing, mais shouldReEnroll = false dans enrollmentCriteria.",
+      recommendation: "Activer le re-enrollment dans HubSpot — sinon les contacts qui sortent ne reviennent jamais, même s'ils retombent dans les critères.",
     });
   }
 
