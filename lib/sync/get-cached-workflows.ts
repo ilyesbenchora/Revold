@@ -117,45 +117,165 @@ const CATEGORY_LABEL_FR: Record<string, string> = {
   other: "action diverse",
 };
 
-const ACTION_TYPE_TO_CATEGORY: Record<string, WorkflowActionCategory> = {
-  SET_PROPERTY: "set_property",
-  SINGLE_CONNECTION: "set_property",
-  PROPERTY_VALUE_UPDATE: "set_property",
-  EMAIL: "send_email",
-  AUTOMATION_EMAIL: "send_email",
-  CREATE_TASK: "create_task",
-  TASK: "create_task",
-  WEBHOOK: "webhook",
-  HTTP_REQUEST: "webhook",
-  BRANCH: "branch",
-  IF_BRANCH: "branch",
-  DELAY: "delay",
-  TIME_DELAY: "delay",
-  CREATE_ENGAGEMENT: "create_engagement",
-  UPDATE_OWNER: "update_owner",
+/**
+ * Catégorisation des actions HubSpot v4.
+ *
+ * STRUCTURE RÉELLE des actions v4 :
+ *   - type: "SINGLE_CONNECTION" = WRAPPER d'action (la majorité). Le VRAI
+ *     type est dans actionTypeId ("0-1" = email, "0-2" = property, etc.)
+ *     OU inféré depuis fields (subscriptionId, propertyName, taskTitle...)
+ *   - type: "LIST_BRANCH" / "VALUE_BRANCH" = branche if/then
+ *   - type: "CUSTOM_CODE" = code custom (catégorie "other")
+ *
+ * actionTypeId standards HubSpot (format "0-X") :
+ *   0-1   = Send email (marketing email)
+ *   0-2   = Set contact property
+ *   0-3   = Send internal email notification
+ *   0-4   = Create task
+ *   0-5   = Webhook
+ *   0-7   = Add to static list
+ *   0-8   = Remove from static list
+ *   0-9   = If/then branch (rare en v4 — utilisé via type=LIST_BRANCH)
+ *   0-12  = Delay (timer)
+ *   0-13  = Trigger another workflow
+ *   0-19  = Approval
+ *
+ * Custom action types ("0-XXXXXXXX" avec ID > 100) :
+ *   - subscription preferences (opt-in/opt-out) — categorisé via fields
+ *   - autres apps marketplace
+ */
+
+const HUBSPOT_ACTION_TYPE_MAP: Record<string, WorkflowActionCategory> = {
+  "0-1": "send_email",
+  "0-2": "set_property",
+  "0-3": "create_engagement", // notification interne
+  "0-4": "create_task",
+  "0-5": "webhook",
+  "0-7": "set_property", // add to list
+  "0-8": "set_property", // remove from list
+  "0-9": "branch",
+  "0-12": "delay",
+  "0-13": "other", // trigger workflow
+  "0-19": "create_task", // approval
 };
 
-function categorizeAction(actionTypeId: string): WorkflowActionCategory {
-  if (!actionTypeId) return "other";
-  // Format: "0-1" pour les actions natives — on normalise en uppercase comparable
-  for (const [prefix, cat] of Object.entries(ACTION_TYPE_TO_CATEGORY)) {
-    if (actionTypeId.toUpperCase().includes(prefix)) return cat;
+function categorizeAction(action: Record<string, unknown>): WorkflowActionCategory {
+  const wrapperType = (action.type as string) ?? "";
+  const actionTypeId = (action.actionTypeId as string) ?? "";
+  const fields = (action.fields ?? {}) as Record<string, unknown>;
+
+  // 1. Wrapper types directs (branch / delay / custom)
+  if (/BRANCH/.test(wrapperType)) return "branch";
+  if (/DELAY/.test(wrapperType)) return "delay";
+  if (wrapperType === "CUSTOM_CODE") return "other";
+
+  // 2. SINGLE_CONNECTION → on regarde l'actionTypeId
+  if (HUBSPOT_ACTION_TYPE_MAP[actionTypeId]) {
+    return HUBSPOT_ACTION_TYPE_MAP[actionTypeId];
   }
+
+  // 3. Inférence depuis les fields (custom actions, marketplace apps)
+  if (fields.subscriptionId !== undefined || fields.optState !== undefined) {
+    return "set_property"; // changement de subscription = modification de "préférences"
+  }
+  if (fields.emailContent !== undefined || fields.subject !== undefined || fields.emailId !== undefined) {
+    return "send_email";
+  }
+  if (fields.taskTitle !== undefined || fields.taskBody !== undefined) {
+    return "create_task";
+  }
+  if (fields.url !== undefined || fields.method !== undefined || fields.webhookUrl !== undefined) {
+    return "webhook";
+  }
+  if (fields.propertyName !== undefined || fields.targetProperty !== undefined) {
+    return "set_property";
+  }
+  if (fields.ownerId !== undefined || fields.assigneeId !== undefined || fields.targetOwner !== undefined) {
+    return "update_owner";
+  }
+  if (fields.callDirection !== undefined || fields.meetingTitle !== undefined || fields.engagementType !== undefined) {
+    return "create_engagement";
+  }
+
   return "other";
 }
 
 function describeAction(action: Record<string, unknown>): string {
-  const type = (action.actionTypeId ?? action.type ?? "") as string;
-  if (type.toLowerCase().includes("delay")) {
-    const fields = (action.fields ?? {}) as Record<string, unknown>;
-    return `Délai (${JSON.stringify(fields).slice(0, 80)})`;
+  const wrapperType = (action.type as string) ?? "";
+  const actionTypeId = (action.actionTypeId as string) ?? "";
+  const fields = (action.fields ?? {}) as Record<string, unknown>;
+  const cat = categorizeAction(action);
+
+  // Branches : décrire la condition si possible
+  if (cat === "branch") {
+    const branchCount = Array.isArray(action.connections) ? (action.connections as unknown[]).length : 0;
+    return branchCount > 0 ? `Branche conditionnelle (${branchCount} sortie${branchCount > 1 ? "s" : ""})` : "Branche conditionnelle";
   }
-  if (type.toLowerCase().includes("email")) return "Envoi d'un email automation";
-  if (type.toLowerCase().includes("task")) return "Création d'une tâche";
-  if (type.toLowerCase().includes("webhook") || type.toLowerCase().includes("http")) return "Webhook sortant";
-  if (type.toLowerCase().includes("property")) return "Modification d'une propriété";
-  if (type.toLowerCase().includes("branch")) return "Branche conditionnelle (if/then)";
-  return type || "Action sans type identifié";
+
+  // Delays : décrire la durée
+  if (cat === "delay") {
+    const delayMillis = Number(fields.delayMillis ?? fields.duration ?? 0);
+    if (delayMillis > 0) {
+      const days = Math.round(delayMillis / 86_400_000);
+      const hours = Math.round(delayMillis / 3_600_000);
+      const mins = Math.round(delayMillis / 60_000);
+      if (days >= 1) return `Délai de ${days} jour${days > 1 ? "s" : ""}`;
+      if (hours >= 1) return `Délai de ${hours} heure${hours > 1 ? "s" : ""}`;
+      if (mins >= 1) return `Délai de ${mins} minute${mins > 1 ? "s" : ""}`;
+    }
+    return "Délai d'attente";
+  }
+
+  // Emails
+  if (cat === "send_email") {
+    const subject = (fields.subject as string) ?? (fields.emailSubject as string) ?? "";
+    return subject ? `Envoi email : « ${subject.slice(0, 50)} »` : "Envoi d'un email automation";
+  }
+
+  // Tasks
+  if (cat === "create_task") {
+    const title = (fields.taskTitle as string) ?? "";
+    return title ? `Création tâche : « ${title.slice(0, 50)} »` : "Création d'une tâche";
+  }
+
+  // Webhooks
+  if (cat === "webhook") {
+    const url = (fields.url as string) ?? (fields.webhookUrl as string) ?? "";
+    if (url) {
+      try {
+        const host = new URL(url).hostname;
+        return `Webhook → ${host}`;
+      } catch {}
+    }
+    return "Webhook sortant";
+  }
+
+  // Property modifications
+  if (cat === "set_property") {
+    const prop = (fields.propertyName as string) ?? (fields.targetProperty as string) ?? "";
+    const value = fields.value !== undefined ? String(fields.value).slice(0, 30) : "";
+    if (prop) {
+      return value ? `Set ${prop} = ${value}` : `Modification propriété ${prop}`;
+    }
+    if (fields.subscriptionId !== undefined) {
+      const optState = (fields.optState as string) ?? "";
+      return `Subscription preference (${optState || "modification"})`;
+    }
+    return "Modification d'une propriété CRM";
+  }
+
+  // Owner update
+  if (cat === "update_owner") {
+    return "Réassignation d'owner";
+  }
+
+  // Engagement
+  if (cat === "create_engagement") {
+    return "Création d'engagement (note/call/meeting)";
+  }
+
+  // Fallback : afficher le type connu pour debug
+  return wrapperType || actionTypeId || "Action sans type identifié";
 }
 
 function buildDetailFromRaw(
@@ -174,7 +294,7 @@ function buildDetailFromRaw(
     const typeId = (a.actionTypeId ?? a.type ?? "") as string;
     return {
       rawType: typeId,
-      category: categorizeAction(typeId),
+      category: categorizeAction(a),
       description: describeAction(a),
     };
   });
