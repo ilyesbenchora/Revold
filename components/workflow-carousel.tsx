@@ -11,8 +11,9 @@
  * nombre de révisions, type de flow, lien HubSpot.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { WorkflowDetail, WorkflowSummaryItem } from "@/lib/integrations/hubspot-workflows";
+import { buildBasicWorkflowAudit } from "@/lib/sync/audit-workflow-basic";
 
 // On accepte le type étendu retourné par getCachedWorkflows
 type EnrichedSummary = WorkflowSummaryItem & {
@@ -99,6 +100,32 @@ export function WorkflowCarousel({ workflows, details }: Props) {
   const w = filtered[safeIndex];
   const detailById = new Map(details.map((d) => [d.id, d]));
   const fullDetail = detailById.get(w.id);
+
+  // Audit RevOps minimal basé sur les métadonnées (toujours dispo).
+  // Quand le détail est dispo, on FUSIONNE avec les recos détaillées —
+  // de cette façon chaque workflow a un minimum de valeur ajoutée audit.
+  const basicAudit = useMemo(
+    () =>
+      buildBasicWorkflowAudit({
+        id: w.id,
+        name: w.name,
+        enabled: w.enabled,
+        objectType: w.objectType,
+        flowType: w.flowType,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+        revisionId: w.revisionId,
+      }),
+    [w],
+  );
+
+  // Dedup avec les recos détaillées (titre commun = on garde la version
+  // détaillée car plus contextuelle)
+  const detailedTitles = new Set((fullDetail?.recommendations ?? []).map((r) => r.title));
+  const mergedRecos = [
+    ...(fullDetail?.recommendations ?? []),
+    ...basicAudit.filter((r) => !detailedTitles.has(r.title)),
+  ];
 
   return (
     <div className="space-y-4">
@@ -330,30 +357,39 @@ export function WorkflowCarousel({ workflows, details }: Props) {
                 </div>
               </div>
 
-              {fullDetail.recommendations.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-700">
-                    ✨ Analyse du workflow
-                  </p>
-                  {fullDetail.recommendations.map((r, i) => {
-                    const sev = SEV_STYLE[r.severity];
-                    return (
-                      <div key={i} className={`rounded-lg border ${sev.border} ${sev.bg} p-3`}>
-                        <p className={`text-xs font-bold ${sev.text}`}>
-                          {sev.emoji} {r.title}
-                        </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-slate-700">{r.body}</p>
-                        {r.recommendation && (
-                          <p className="mt-1.5 text-[11px] font-medium text-slate-900">
-                            → {r.recommendation}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </>
+          )}
+
+          {/* ── AUDIT REVOPS — toujours affiché (rich + basic mergés) ── */}
+          {mergedRecos.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-fuchsia-700">
+                  ✨ Analyse RevOps ({mergedRecos.length})
+                </p>
+                {!fullDetail && (
+                  <p className="text-[10px] text-slate-400">
+                    Audit basé sur les métadonnées (nom, dates, révisions, objet)
+                  </p>
+                )}
+              </div>
+              {mergedRecos.map((r, i) => {
+                const sev = SEV_STYLE[r.severity];
+                return (
+                  <div key={i} className={`rounded-lg border ${sev.border} ${sev.bg} p-3`}>
+                    <p className={`text-xs font-bold ${sev.text}`}>
+                      {sev.emoji} {r.title}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-700">{r.body}</p>
+                    {r.recommendation && (
+                      <p className="mt-1.5 text-[11px] font-medium text-slate-900">
+                        → {r.recommendation}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </article>
