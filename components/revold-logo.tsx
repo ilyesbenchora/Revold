@@ -26,70 +26,52 @@ export function RevoldLogo({
 
   return (
     <div className="flex items-center gap-2.5">
-      {/* Logo mark — sablier réaliste avec sable amber + R subtil sur le côté */}
+      {/* Logo mark — R dominant blanc + petit sablier accent en haut-droite,
+          style cohérent avec les BlockHeaderIcon (stroke 2.4, rounded caps) */}
       <div className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
-        {/* Glossy highlight pour profondeur 3D */}
-        <span className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-tr from-white/0 via-white/5 to-white/25" />
-        <span className="pointer-events-none absolute inset-x-1 top-0.5 h-2 rounded-t-[8px] bg-gradient-to-b from-white/30 to-transparent" />
+        {/* Highlight glossy subtil */}
+        <span className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-tr from-white/0 to-white/15" />
 
         <svg
           viewBox="0 0 24 24"
-          className="relative h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="relative h-[22px] w-[22px] text-white"
           aria-hidden
         >
-          <defs>
-            {/* Sable amber/orange comme l'emoji ⏳ */}
-            <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fde047" />
-              <stop offset="50%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#ea580c" />
-            </linearGradient>
-            {/* Frame blanc avec subtle gradient pour profondeur */}
-            <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#f1f5f9" />
-            </linearGradient>
-          </defs>
+          {/* ═══ R DOMINANT — letterform avec strokes épais ═══ */}
+          {/* Spine vertical épais */}
+          <line x1="5" y1="4" x2="5" y2="20" strokeWidth="2.6" />
+          {/* Barre haute */}
+          <line x1="5" y1="4" x2="12" y2="4" strokeWidth="2.6" />
+          {/* Côté droit du bowl (vertical court) */}
+          <line x1="12" y1="4" x2="12" y2="11" strokeWidth="2.6" />
+          {/* Barre milieu (ferme le bowl) */}
+          <line x1="5" y1="11" x2="12" y2="11" strokeWidth="2.6" />
+          {/* Jambe diagonale */}
+          <line x1="11" y1="11" x2="18" y2="20" strokeWidth="2.6" />
 
-          {/* Cap supérieur arrondi — frame blanc */}
-          <rect x="2.5" y="2.5" width="19" height="1.8" rx="0.9" fill="url(#frame)" />
-
-          {/* Cap inférieur arrondi — frame blanc */}
-          <rect x="2.5" y="19.7" width="19" height="1.8" rx="0.9" fill="url(#frame)" />
-
-          {/* Verre du sablier — outline blanc subtil (les 2 triangles qui se rejoignent) */}
-          <path
-            d="M3.5 4.3 L20.5 4.3 L12.5 11.7 L20.5 19.7 L3.5 19.7 L11.5 11.7 Z"
-            fill="none"
-            stroke="white"
-            strokeWidth="0.6"
-            strokeOpacity="0.5"
-          />
-
-          {/* SABLE — triangle haut rempli en amber gradient */}
-          <path d="M4.5 4.7 L19.5 4.7 L12 11.4 Z" fill="url(#sand)" />
-
-          {/* SABLE qui coule — colonne fine du pinch vers le bas */}
-          <rect x="11.4" y="11.4" width="1.2" height="3.6" fill="url(#sand)" />
-
-          {/* SABLE accumulé en bas — petit triangle pile */}
-          <path d="M6.5 19.4 L12 15 L17.5 19.4 Z" fill="url(#sand)" />
-
-          {/* R subtil — spine vertical à gauche, opacity 0.85 pour discret */}
-          <rect
-            x="3.2"
-            y="4.3"
-            width="1.5"
-            height="15.4"
-            fill="white"
-            fillOpacity="0.92"
-          />
-          {/* Petite jambe diagonale du R sur le bas-droit, subtil */}
-          <path
-            d="M12 13.5 L19.2 18.5 L18.5 19.5 L11.4 14.5 Z"
-            fill="white"
-            fillOpacity="0.88"
-          />
+          {/* ═══ PETIT SABLIER — accent en haut-droite, traits doux ═══ */}
+          <g transform="translate(15.5, 1.5)" strokeWidth="1.1">
+            {/* Cap supérieur arrondi */}
+            <line x1="0.3" y1="0.5" x2="6" y2="0.5" strokeLinecap="round" />
+            {/* Verre = 2 diagonales qui se croisent au pinch */}
+            <line x1="0.5" y1="1" x2="3.15" y2="3.5" />
+            <line x1="5.85" y1="1" x2="3.15" y2="3.5" />
+            <line x1="0.5" y1="6" x2="3.15" y2="3.5" />
+            <line x1="5.85" y1="6" x2="3.15" y2="3.5" />
+            {/* Sable rempli dans le triangle haut (subtle fill) */}
+            <path
+              d="M0.7 1.1 L5.65 1.1 L3.15 3.4 Z"
+              fill="currentColor"
+              fillOpacity="0.85"
+              strokeWidth="0"
+            />
+            {/* Cap inférieur arrondi */}
+            <line x1="0.3" y1="6.5" x2="6" y2="6.5" strokeLinecap="round" />
+          </g>
         </svg>
       </div>
 

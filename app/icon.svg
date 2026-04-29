@@ -5,36 +5,26 @@
       <stop offset="50%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#4f46e5"/>
     </linearGradient>
-    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fde047"/>
-      <stop offset="50%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#ea580c"/>
-    </linearGradient>
-    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f1f5f9"/>
-    </linearGradient>
   </defs>
   <rect width="48" height="48" rx="12" fill="url(#bg)"/>
 
-  <!-- Caps blancs arrondis -->
-  <rect x="6" y="6" width="36" height="3.6" rx="1.8" fill="url(#frame)"/>
-  <rect x="6" y="38.4" width="36" height="3.6" rx="1.8" fill="url(#frame)"/>
+  <!-- R dominant - strokes blancs épais -->
+  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="10" y1="8" x2="10" y2="40" stroke-width="5.2"/>
+    <line x1="10" y1="8" x2="24" y2="8" stroke-width="5.2"/>
+    <line x1="24" y1="8" x2="24" y2="22" stroke-width="5.2"/>
+    <line x1="10" y1="22" x2="24" y2="22" stroke-width="5.2"/>
+    <line x1="22" y1="22" x2="36" y2="40" stroke-width="5.2"/>
+  </g>
 
-  <!-- Verre - outline subtil -->
-  <path d="M8 9.6 L40 9.6 L25 24 L40 38.4 L8 38.4 L23 24 Z"
-        fill="none" stroke="white" stroke-width="1.2" stroke-opacity="0.5"/>
-
-  <!-- Sable amber - triangle haut -->
-  <path d="M9.5 10.2 L38.5 10.2 L24 23.5 Z" fill="url(#sand)"/>
-
-  <!-- Sable qui coule -->
-  <rect x="22.7" y="23.5" width="2.6" height="7" fill="url(#sand)"/>
-
-  <!-- Sable accumulé bas -->
-  <path d="M13 37.8 L24 29.5 L35 37.8 Z" fill="url(#sand)"/>
-
-  <!-- R subtil - spine + jambe -->
-  <rect x="7.4" y="9.6" width="3" height="29" fill="white" fill-opacity="0.92"/>
-  <path d="M24 27 L38 36.5 L36.5 38.5 L22.6 29 Z" fill="white" fill-opacity="0.88"/>
+  <!-- Petit sablier accent en haut-droite, traits doux -->
+  <g transform="translate(31, 3)" stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="2.2">
+    <line x1="0.6" y1="1" x2="12" y2="1"/>
+    <line x1="1" y1="2" x2="6.3" y2="7"/>
+    <line x1="11.7" y1="2" x2="6.3" y2="7"/>
+    <line x1="1" y1="12" x2="6.3" y2="7"/>
+    <line x1="11.7" y1="12" x2="6.3" y2="7"/>
+    <path d="M1.4 2.2 L11.3 2.2 L6.3 6.8 Z" fill="white" fill-opacity="0.85" stroke-width="0"/>
+    <line x1="0.6" y1="13" x2="12" y2="13"/>
+  </g>
 </svg>
