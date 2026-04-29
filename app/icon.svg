@@ -7,5 +7,16 @@
     </linearGradient>
   </defs>
   <rect width="48" height="48" rx="12" fill="url(#g)"/>
-  <text x="24" y="33" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="900" font-size="28" fill="white">R</text>
+  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Spine vertical du R -->
+    <line x1="11" y1="9" x2="11" y2="39" stroke-width="4.5"/>
+    <!-- Barre horizontale haute = cap supérieur du sablier -->
+    <line x1="10" y1="9" x2="38" y2="9" stroke-width="4.2"/>
+    <!-- Triangle supérieur rempli (sable) -->
+    <path d="M11 10 L37 10 L24 23 Z" fill="white" stroke-width="0"/>
+    <!-- Triangle inférieur outline -->
+    <path d="M11 38 L24 23 L37 38" stroke-width="3.8"/>
+    <!-- Trait fin bas qui ferme le sablier -->
+    <line x1="10.5" y1="39" x2="38" y2="39" stroke-width="1.6"/>
+  </g>
 </svg>
