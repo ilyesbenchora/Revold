@@ -76,13 +76,15 @@ export function RevoldLogo({
 
       {!compact && (
         <span
-          className={`flex items-baseline font-[var(--font-space-grotesk),system-ui,sans-serif] text-[17px] font-bold ${labelClass}`}
-          style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" }}
+          className={`flex items-baseline text-[17px] font-bold ${labelClass}`}
+          style={{
+            fontFamily: "var(--font-space-grotesk), system-ui, sans-serif",
+            letterSpacing: "-0.04em",
+          }}
         >
           {/* Premier caractère : le R en gradient (couleurs du logo) */}
           <span
             className="bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent"
-            aria-hidden
           >
             {companyName.slice(0, 1)}
           </span>
