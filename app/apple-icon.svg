@@ -1,22 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d946ef"/>
       <stop offset="50%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#4f46e5"/>
     </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="40" fill="url(#g)"/>
-  <g fill="white">
-    <!-- Cap haut full-width -->
-    <rect x="22" y="30" width="136" height="12"/>
-    <!-- Sable : triangle haut + colonne + pile bas -->
-    <path d="M28 42 L152 42 L98 88 L98 105 L111 120 L70 120 L83 105 L83 88 Z"/>
-    <!-- Spine vertical R -->
-    <rect x="22" y="82" width="16" height="64"/>
-    <!-- Jambe diagonale R -->
-    <path d="M72 102 L154 150 L141 163 L59 115 Z"/>
-    <!-- Trait fin bas full-width -->
-    <rect x="22" y="150" width="136" height="6"/>
-  </g>
+  <rect width="180" height="180" rx="40" fill="url(#bg)"/>
+
+  <!-- Caps blancs arrondis -->
+  <rect x="22" y="22" width="136" height="14" rx="7" fill="url(#frame)"/>
+  <rect x="22" y="144" width="136" height="14" rx="7" fill="url(#frame)"/>
+
+  <!-- Verre - outline subtil -->
+  <path d="M30 36 L150 36 L93 90 L150 144 L30 144 L87 90 Z"
+        fill="none" stroke="white" stroke-width="4" stroke-opacity="0.5"/>
+
+  <!-- Sable amber - triangle haut -->
+  <path d="M36 38 L144 38 L90 88 Z" fill="url(#sand)"/>
+
+  <!-- Sable qui coule -->
+  <rect x="85" y="88" width="10" height="26" fill="url(#sand)"/>
+
+  <!-- Sable accumulé bas -->
+  <path d="M48 142 L90 110 L132 142 Z" fill="url(#sand)"/>
+
+  <!-- R subtil -->
+  <rect x="28" y="36" width="11" height="108" fill="white" fill-opacity="0.92"/>
+  <path d="M90 100 L143 136 L137 144 L84 108 Z" fill="white" fill-opacity="0.88"/>
 </svg>

@@ -1,22 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d946ef"/>
       <stop offset="50%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#4f46e5"/>
     </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
   </defs>
-  <rect width="48" height="48" rx="12" fill="url(#g)"/>
-  <g fill="white">
-    <!-- Cap haut full-width -->
-    <rect x="6" y="8" width="36" height="3.2"/>
-    <!-- Sable : triangle haut + colonne + pile bas -->
-    <path d="M8 11.2 L40 11.2 L26 23.5 L26 28.5 L29.5 32 L18.5 32 L22 28.5 L22 23.5 Z"/>
-    <!-- Spine vertical R -->
-    <rect x="6" y="22" width="4.2" height="17"/>
-    <!-- Jambe diagonale R -->
-    <path d="M19 27 L41 40 L37.5 43.5 L15.5 30.5 Z"/>
-    <!-- Trait fin bas full-width -->
-    <rect x="6" y="40" width="36" height="1.6"/>
-  </g>
+  <rect width="48" height="48" rx="12" fill="url(#bg)"/>
+
+  <!-- Caps blancs arrondis -->
+  <rect x="6" y="6" width="36" height="3.6" rx="1.8" fill="url(#frame)"/>
+  <rect x="6" y="38.4" width="36" height="3.6" rx="1.8" fill="url(#frame)"/>
+
+  <!-- Verre - outline subtil -->
+  <path d="M8 9.6 L40 9.6 L25 24 L40 38.4 L8 38.4 L23 24 Z"
+        fill="none" stroke="white" stroke-width="1.2" stroke-opacity="0.5"/>
+
+  <!-- Sable amber - triangle haut -->
+  <path d="M9.5 10.2 L38.5 10.2 L24 23.5 Z" fill="url(#sand)"/>
+
+  <!-- Sable qui coule -->
+  <rect x="22.7" y="23.5" width="2.6" height="7" fill="url(#sand)"/>
+
+  <!-- Sable accumulé bas -->
+  <path d="M13 37.8 L24 29.5 L35 37.8 Z" fill="url(#sand)"/>
+
+  <!-- R subtil - spine + jambe -->
+  <rect x="7.4" y="9.6" width="3" height="29" fill="white" fill-opacity="0.92"/>
+  <path d="M24 27 L38 36.5 L36.5 38.5 L22.6 29 Z" fill="white" fill-opacity="0.88"/>
 </svg>
