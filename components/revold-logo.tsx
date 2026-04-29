@@ -4,6 +4,12 @@ type RevoldLogoProps = {
   tone?: "light" | "dark";
 };
 
+/**
+ * Revold logo — fuchsia → purple → indigo gradient with a stylised "R"
+ * mark and a small right-pointing arrow accent reinforcing the
+ * revenue-acceleration idea (forward momentum).
+ * Distinct visual identity, no overlap with the underlying AI vendor.
+ */
 export function RevoldLogo({
   companyName = "Revold",
   compact = false,
@@ -13,42 +19,36 @@ export function RevoldLogo({
 
   return (
     <div className="flex items-center gap-2.5">
+      {/* Logo mark */}
       <div className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
+        {/* Subtle inner highlight for depth */}
         <span className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-tr from-white/0 to-white/15" />
-
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="relative h-[22px] w-[22px] text-white"
-          aria-hidden
-        >
-          <line x1="6" y1="4" x2="6" y2="20" strokeWidth="2.6" />
-          <line x1="6" y1="4" x2="14" y2="4" strokeWidth="2.6" />
-          <line x1="14" y1="4" x2="14" y2="11" strokeWidth="2.6" />
-          <line x1="6" y1="11" x2="14" y2="11" strokeWidth="2.6" />
-          <line x1="13" y1="11" x2="19" y2="20" strokeWidth="2.6" />
-        </svg>
+        {/* Bold "R" letterform */}
+        <span className="relative text-base font-black tracking-tighter text-white">
+          R
+        </span>
+        {/* Right-pointing arrow accent — forward momentum signature */}
+        <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-2 w-2 text-fuchsia-600"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M6 18 L18 6" />
+            <path d="M9 6 L18 6 L18 15" />
+          </svg>
+        </span>
       </div>
-
       {!compact && (
         <span
-          className={`flex items-baseline text-[17px] font-bold ${labelClass}`}
-          style={{
-            fontFamily: "var(--font-space-grotesk), system-ui, sans-serif",
-            letterSpacing: "-0.04em",
-          }}
+          className={`text-base font-bold tracking-tight ${labelClass}`}
+          style={{ letterSpacing: "-0.02em" }}
         >
-          {/* Premier caractère : le R en gradient (couleurs du logo) */}
-          <span
-            className="bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent"
-          >
-            {companyName.slice(0, 1)}
-          </span>
-          {/* Reste du wordmark — couleur neutre, tracking serré */}
-          <span>{companyName.slice(1)}</span>
+          {companyName}
         </span>
       )}
     </div>
