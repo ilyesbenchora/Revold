@@ -8,23 +8,11 @@
   </defs>
   <rect width="180" height="180" rx="40" fill="url(#bg)"/>
 
-  <!-- R dominant - strokes blancs épais -->
-  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <line x1="38" y1="30" x2="38" y2="150" stroke-width="19.5"/>
-    <line x1="38" y1="30" x2="90" y2="30" stroke-width="19.5"/>
-    <line x1="90" y1="30" x2="90" y2="83" stroke-width="19.5"/>
-    <line x1="38" y1="83" x2="90" y2="83" stroke-width="19.5"/>
-    <line x1="83" y1="83" x2="135" y2="150" stroke-width="19.5"/>
-  </g>
-
-  <!-- Petit sablier accent en haut-droite, traits doux -->
-  <g transform="translate(116, 11)" stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="8">
-    <line x1="2.3" y1="3.8" x2="45" y2="3.8"/>
-    <line x1="3.8" y1="7.5" x2="23.6" y2="26.3"/>
-    <line x1="43.9" y1="7.5" x2="23.6" y2="26.3"/>
-    <line x1="3.8" y1="45" x2="23.6" y2="26.3"/>
-    <line x1="43.9" y1="45" x2="23.6" y2="26.3"/>
-    <path d="M5.3 8.3 L42.4 8.3 L23.6 25.5 Z" fill="white" fill-opacity="0.85" stroke-width="0"/>
-    <line x1="2.3" y1="48.8" x2="45" y2="48.8"/>
+  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="19.5">
+    <line x1="45" y1="30" x2="45" y2="150"/>
+    <line x1="45" y1="30" x2="105" y2="30"/>
+    <line x1="105" y1="30" x2="105" y2="83"/>
+    <line x1="45" y1="83" x2="105" y2="83"/>
+    <line x1="98" y1="83" x2="142" y2="150"/>
   </g>
 </svg>
