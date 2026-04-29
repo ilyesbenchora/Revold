@@ -7,18 +7,16 @@
     </linearGradient>
   </defs>
   <rect width="180" height="180" rx="40" fill="url(#g)"/>
-  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- HAUT : sablier complet -->
-    <line x1="32" y1="33" x2="142" y2="33" stroke-width="19"/>
-    <path d="M37 38 L138 38 L88 86 Z" fill="white" stroke="none"/>
-    <line x1="37" y1="38" x2="88" y2="86" stroke-width="7" stroke-opacity="0.5"/>
-    <line x1="138" y1="38" x2="88" y2="86" stroke-width="7" stroke-opacity="0.5"/>
-    <circle cx="88" cy="93" r="5" fill="white"/>
-    <!-- BAS : R classique -->
-    <line x1="40" y1="89" x2="40" y2="146" stroke-width="20"/>
-    <line x1="88" y1="98" x2="144" y2="150" stroke-width="19"/>
-    <!-- TOUCHES MODERNES -->
-    <line x1="37" y1="153" x2="142" y2="153" stroke-width="6.5" stroke-opacity="0.85"/>
-    <circle cx="151" cy="152" r="7.2" fill="white"/>
+  <g fill="white">
+    <!-- Cap haut full-width -->
+    <rect x="22" y="30" width="136" height="12"/>
+    <!-- Sable : triangle haut + colonne + pile bas -->
+    <path d="M28 42 L152 42 L98 88 L98 105 L111 120 L70 120 L83 105 L83 88 Z"/>
+    <!-- Spine vertical R -->
+    <rect x="22" y="82" width="16" height="64"/>
+    <!-- Jambe diagonale R -->
+    <path d="M72 102 L154 150 L141 163 L59 115 Z"/>
+    <!-- Trait fin bas full-width -->
+    <rect x="22" y="150" width="136" height="6"/>
   </g>
 </svg>

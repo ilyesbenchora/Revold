@@ -31,46 +31,41 @@ export function RevoldLogo({
         {/* Subtle inner highlight for depth */}
         <span className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-tr from-white/0 to-white/15" />
 
-        {/* HAUT = SABLIER complet (cap + 2 diagonales + sable rempli)
-            BAS  = R classique (spine vertical + jambe diagonale)
-            Touches modernes : opacity layering, dot accent, gradient fill */}
+        {/* HAUT = sablier net (trait full-width + sable qui coule)
+            BAS  = R géométrique (spine + jambe en formes pleines, edges nets)
+            Modernité : aucun arrondi, aucun dot, full-width edges */}
         <svg
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
           className="relative h-5 w-5 text-white"
           aria-hidden
         >
           {/* ═══ HAUT : SABLIER ═══ */}
-          {/* Cap supérieur épais */}
-          <line x1="3.5" y1="3.5" x2="18.5" y2="3.5" strokeWidth="2.6" />
-          {/* Sable rempli (triangle pointant vers le centre) */}
+          {/* Cap supérieur édge-to-edge (full-width sans coupure) */}
+          <rect x="0" y="2.4" width="24" height="2" fill="currentColor" />
+
+          {/* Sable rempli : triangle haut + colonne qui descend + pile basse */}
           <path
-            d="M4 4 L18 4 L11 11 Z"
+            d="M1.5 4.4
+               L22.5 4.4
+               L13 12
+               L13 15.5
+               L15 17.5
+               L9 17.5
+               L11 15.5
+               L11 12
+               Z"
             fill="currentColor"
-            fillOpacity="0.95"
-            stroke="none"
           />
-          {/* Diagonale gauche (renforce silhouette sablier) */}
-          <line x1="4" y1="4" x2="11" y2="11" strokeWidth="1" opacity="0.5" />
-          {/* Diagonale droite (renforce silhouette sablier) */}
-          <line x1="18" y1="4" x2="11" y2="11" strokeWidth="1" opacity="0.5" />
-          {/* Petit point au pinch — grain de sable qui passe (touche moderne) */}
-          <circle cx="11" cy="12" r="0.7" fill="currentColor" />
 
-          {/* ═══ BAS : R CLASSIQUE ═══ */}
-          {/* Spine vertical du R — du pinch au bas */}
-          <line x1="4.5" y1="11.5" x2="4.5" y2="19.5" strokeWidth="2.8" />
-          {/* Jambe diagonale du R — du pinch vers bas-droite */}
-          <line x1="11" y1="13" x2="19" y2="20" strokeWidth="2.6" />
+          {/* ═══ BAS : R GÉOMÉTRIQUE ═══ */}
+          {/* Spine vertical du R — rectangle plein, edges nets */}
+          <rect x="2.5" y="11" width="2.6" height="9" fill="currentColor" />
 
-          {/* ═══ TOUCHES MODERNES ═══ */}
-          {/* Trait fin de base qui ferme le sablier */}
-          <line x1="4" y1="20.5" x2="18.5" y2="20.5" strokeWidth="0.9" opacity="0.85" />
-          {/* Dot accent en bas-droite — signature moderne (style i moderne) */}
-          <circle cx="20.2" cy="20.4" r="1" fill="currentColor" />
+          {/* Jambe diagonale du R — parallélogramme plein, edges nets */}
+          <path d="M10 14 L20.8 20.5 L19 22 L8.2 15.5 Z" fill="currentColor" />
+
+          {/* ═══ BASE : trait fin full-width ═══ */}
+          <rect x="0" y="20.7" width="24" height="0.8" fill="currentColor" />
         </svg>
       </div>
 
