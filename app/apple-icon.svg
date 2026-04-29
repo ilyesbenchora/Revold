@@ -8,15 +8,17 @@
   </defs>
   <rect width="180" height="180" rx="40" fill="url(#g)"/>
   <g stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- Spine vertical du R -->
-    <line x1="42" y1="34" x2="42" y2="146" stroke-width="17"/>
-    <!-- Barre horizontale haute = cap supérieur du sablier -->
-    <line x1="38" y1="34" x2="142" y2="34" stroke-width="16"/>
-    <!-- Triangle supérieur rempli (sable) -->
-    <path d="M42 38 L138 38 L90 88 Z" fill="white" stroke-width="0"/>
-    <!-- Triangle inférieur outline -->
-    <path d="M42 142 L90 88 L138 142" stroke-width="14"/>
-    <!-- Trait fin bas qui ferme le sablier -->
-    <line x1="40" y1="146" x2="142" y2="146" stroke-width="6"/>
+    <!-- Spine vertical du R - dominant -->
+    <line x1="42" y1="34" x2="42" y2="142" stroke-width="21"/>
+    <!-- Barre horizontale haute -->
+    <line x1="42" y1="34" x2="132" y2="34" stroke-width="20"/>
+    <!-- Diagonale du bowl (top-right -> centre) -->
+    <line x1="132" y1="34" x2="83" y2="88" stroke-width="18"/>
+    <!-- Barre horizontale milieu -->
+    <line x1="42" y1="88" x2="83" y2="88" stroke-width="18"/>
+    <!-- Jambe du R -->
+    <line x1="83" y1="88" x2="138" y2="142" stroke-width="18"/>
+    <!-- Trait fin bas - base du sablier -->
+    <line x1="42" y1="150" x2="138" y2="150" stroke-width="6.5"/>
   </g>
 </svg>

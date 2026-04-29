@@ -31,7 +31,7 @@ export function RevoldLogo({
         {/* Subtle inner highlight for depth */}
         <span className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-tr from-white/0 to-white/15" />
 
-        {/* R-sablier en SVG (blanc sur le gradient) */}
+        {/* R DOMINANT — sablier suggéré par la géométrie bowl + leg + base */}
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -41,34 +41,40 @@ export function RevoldLogo({
           className="relative h-5 w-5 text-white"
           aria-hidden
         >
-          {/* Spine vertical du R (gauche) */}
-          <line x1="4.5" y1="3.5" x2="4.5" y2="20.5" strokeWidth="2.4" />
+          {/* Spine vertical du R — épais et dominant */}
+          <line x1="5" y1="3.5" x2="5" y2="19.5" strokeWidth="2.8" />
 
-          {/* Barre horizontale haute du R (= cap supérieur du sablier) */}
-          <line x1="4" y1="3.5" x2="19.5" y2="3.5" strokeWidth="2.2" />
+          {/* Barre horizontale haute du R */}
+          <line x1="5" y1="3.5" x2="17.5" y2="3.5" strokeWidth="2.6" />
 
-          {/* Triangle supérieur du sablier — REMPLI (sable) */}
-          <path
-            d="M4.5 4 L19 4 L12 12 Z"
-            fill="currentColor"
-            fillOpacity="0.85"
-            strokeWidth="0"
-          />
+          {/* Diagonale droite du bowl (top-right → centre) — forme le haut du sablier */}
+          <line x1="17.5" y1="3.5" x2="11" y2="11.5" strokeWidth="2.4" />
 
-          {/* Triangle inférieur du sablier — outline (vide / temps restant) */}
-          <path d="M4.5 20 L12 12 L19 20" strokeWidth="2" />
+          {/* Barre horizontale du milieu (ferme le bowl du R) */}
+          <line x1="5" y1="11.5" x2="11" y2="11.5" strokeWidth="2.4" />
 
-          {/* Trait FIN bas qui ferme le sablier (la ligne demandée) */}
-          <line x1="4.5" y1="20.5" x2="19.5" y2="20.5" strokeWidth="0.9" />
+          {/* Jambe diagonale du R (centre → bas-droite) — forme le bas du sablier */}
+          <line x1="11" y1="11.5" x2="18.5" y2="19.5" strokeWidth="2.4" />
+
+          {/* Trait FIN bas — base du sablier qui ferme la silhouette */}
+          <line x1="5" y1="20" x2="18.5" y2="20" strokeWidth="0.9" />
         </svg>
       </div>
 
       {!compact && (
         <span
-          className={`text-base font-bold tracking-tight ${labelClass}`}
-          style={{ letterSpacing: "-0.02em" }}
+          className={`flex items-baseline font-[var(--font-space-grotesk),system-ui,sans-serif] text-[17px] font-bold ${labelClass}`}
+          style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" }}
         >
-          {companyName}
+          {/* Premier caractère : le R en gradient (couleurs du logo) */}
+          <span
+            className="bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent"
+            aria-hidden
+          >
+            {companyName.slice(0, 1)}
+          </span>
+          {/* Reste du wordmark — couleur neutre, tracking serré */}
+          <span>{companyName.slice(1)}</span>
         </span>
       )}
     </div>
