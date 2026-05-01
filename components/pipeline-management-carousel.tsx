@@ -39,32 +39,51 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
         </div>
       </div>
 
-      {pa.stages.length > 0 && pa.weightedAmount > 0 && (
-        <div className="px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Répartition CA pondéré par étape
-          </p>
-          <div className="mt-2 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
-            {pa.stages.map((sa, idx) => (
-              <div
-                key={sa.stage.id}
-                className={`${STAGE_COLORS[idx % STAGE_COLORS.length]} transition-all`}
-                style={{ width: `${Math.max(2, sa.weightedPct)}%` }}
-                title={`${sa.stage.label} : ${sa.weightedPct}%`}
-              />
-            ))}
+      {pa.stages.length > 0 && (() => {
+        // Si weightedAmount > 0, on affiche la jauge en CA pondéré.
+        // Sinon (pipelines de financement / projets sans amount, ou tous closed)
+        // on tombe sur le dealCount pour ne pas laisser le pipeline orphelin
+        // sans visualisation alors que les 5 autres en ont une.
+        const usesWeighted = pa.weightedAmount > 0;
+        const totalDeals = pa.stages.reduce((s, sa) => s + sa.dealCount, 0);
+        if (!usesWeighted && totalDeals === 0) return null;
+
+        const segments = pa.stages.map((sa) => {
+          const pct = usesWeighted
+            ? sa.weightedPct
+            : totalDeals > 0
+              ? Math.round((sa.dealCount / totalDeals) * 100)
+              : 0;
+          return { sa, pct };
+        });
+
+        return (
+          <div className="px-5 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              {usesWeighted ? "Répartition CA pondéré par étape" : "Répartition deals par étape"}
+            </p>
+            <div className="mt-2 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+              {segments.map(({ sa, pct }, idx) => (
+                <div
+                  key={sa.stage.id}
+                  className={`${STAGE_COLORS[idx % STAGE_COLORS.length]} transition-all`}
+                  style={{ width: `${Math.max(2, pct)}%` }}
+                  title={`${sa.stage.label} : ${pct}%`}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {segments.map(({ sa, pct }, idx) => (
+                <div key={sa.stage.id} className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                  <span className={`h-2 w-2 rounded-full ${STAGE_COLORS[idx % STAGE_COLORS.length]}`} />
+                  {sa.stage.label} ·{" "}
+                  <span className="font-semibold">{pct}%</span> · {sa.dealCount} deal{sa.dealCount > 1 ? "s" : ""}
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            {pa.stages.map((sa, idx) => (
-              <div key={sa.stage.id} className="flex items-center gap-1.5 text-[10px] text-slate-600">
-                <span className={`h-2 w-2 rounded-full ${STAGE_COLORS[idx % STAGE_COLORS.length]}`} />
-                {sa.stage.label} ·{" "}
-                <span className="font-semibold">{sa.weightedPct}%</span> · {sa.dealCount} deal{sa.dealCount > 1 ? "s" : ""}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="border-t border-card-border px-5 py-3">
         <div className="overflow-x-auto">

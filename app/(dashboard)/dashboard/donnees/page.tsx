@@ -463,26 +463,6 @@ export default async function DonneesPage() {
                     </li>
                   ))}
                 </ul>
-                {h.gaps.length > 0 && (
-                  <div className="border-t border-rose-100 bg-rose-50/40 px-4 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
-                      ⚠ À enrichir ({h.gaps.length})
-                    </p>
-                    <ul className="mt-1 space-y-0.5">
-                      {h.gaps.slice(0, 3).map((g, i) => (
-                        <li key={i} className="text-[11px] text-slate-700">
-                          <span className="font-medium">{g.entity}</span> — {g.field}{" "}
-                          <span className={`font-bold ${g.severity === "critical" ? "text-rose-700" : "text-amber-700"}`}>
-                            {g.pct}%
-                          </span>
-                        </li>
-                      ))}
-                      {h.gaps.length > 3 && (
-                        <li className="text-[10px] text-slate-400">+{h.gaps.length - 3} autres</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
               </article>
             ))}
           </div>
