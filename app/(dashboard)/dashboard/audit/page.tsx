@@ -59,9 +59,9 @@ const modules = [
   },
   {
     href: "/dashboard/conduite-changement",
-    title: "Adoption",
-    description: "Usage de la stack, connexions utilisateurs, activités loguées, discipline CRM.",
-    objective: "Mesurer l'adoption réelle des outils pour maximiser le ROI de la stack.",
+    title: "Équipes",
+    description: "Usage de la stack par équipe, connexions utilisateurs, activités loguées, discipline CRM.",
+    objective: "Mesurer l'adoption réelle des outils par les équipes pour maximiser le ROI de la stack.",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />

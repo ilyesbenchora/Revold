@@ -31,7 +31,7 @@ const SECTIONS: Section[] = [
       { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "single" },
       { key: "audit_paiement_facturation", label: "Paiement & Facturation", description: "Invoices, subscriptions, quotes", mode: "single" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "single" },
-      { key: "audit_adoption", label: "Adoption", description: "Owners, équipes, discipline d'usage", mode: "single" },
+      { key: "audit_adoption", label: "Équipes", description: "Owners, équipes, discipline d'usage", mode: "single" },
     ],
   },
   {

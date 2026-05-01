@@ -23,7 +23,7 @@ export function RecommandationsTabs({ counts = {} }: Props) {
     { href: "/dashboard/audit/recommandations/performances", label: "Performances", emoji: "📈", count: counts.performances },
     { href: "/dashboard/audit/recommandations/paiement-facturation", label: "Paiement & Facturation", emoji: "💰", count: counts.paiement },
     { href: "/dashboard/audit/recommandations/service-client", label: "Service Client", emoji: "🎧", count: counts.service_client },
-    { href: "/dashboard/audit/recommandations/adoption", label: "Adoption", emoji: "🚀", count: counts.adoption },
+    { href: "/dashboard/audit/recommandations/adoption", label: "Équipes", emoji: "🚀", count: counts.adoption },
   ];
 
   return (

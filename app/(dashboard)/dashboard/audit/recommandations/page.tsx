@@ -30,7 +30,7 @@ const SECTIONS = [
   {
     href: "/dashboard/audit/recommandations/adoption",
     emoji: "🚀",
-    label: "Adoption",
+    label: "Équipes",
     description: "Owners, custom objects, workflows, pipelines. Gouverner pour scaler.",
     gradient: "from-amber-500 to-violet-600",
   },
