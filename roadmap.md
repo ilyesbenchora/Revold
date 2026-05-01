@@ -1,7 +1,7 @@
 # Roadmap Revold
 
-> **Dernière mise à jour** : 2026-04-19
-> **Statut global** : Phase 6 finalisée (Reports / Coaching IA / Simulations IA refonte complète) — Phase 7 amorcée — Phase 8 (GTM-critical foundations) à attaquer pour atteindre le PMF face à Clari
+> **Dernière mise à jour** : 2026-04-30
+> **Statut global** : Phase 6 finalisée — Phase 7 amorcée — Phase 8 démarrée : sync engine durci (cleanup orphans, parity drift = 0, webhook deletions), data fetching multi-source par mapping (Stripe live ↔ HubSpot pour Paiement & Facturation). Reste bloquant pour onboarder un 2e client réel : OAuth HubSpot multi-tenant (8.1) + Stripe billing (8.2) + email/Slack digest (8.4) + RBAC équipe (8.5).
 > Ce fichier est mis à jour après chaque session de travail.
 
 ---
@@ -251,3 +251,10 @@ Le reste (cross-source full, LLM coaching, verticalisation SaaS) = ce qui fait g
 | 2026-04-18 | DB | Migration manquante | Découverte tracking schema_migrations désynchronisé sur 16 migrations — colonnes is_custom/team/filters de activated_reports manquaient en réalité, ajoutées à la volée + audit complet 0 colonne manquante restante |
 | 2026-04-19 | Phase 6 | 6.19-6.21 | Renames UI Commercial → Ventes / RevOps → Revenue, Simulations IA (ex-Scénarios) en 4 onglets avec activation → refresh, sidebar Coaching IA en dropdown groupé, hover gradient amber→fuchsia sur les pages IA |
 | 2026-04-19 | GTM | Diagnostic concurrentiel | Analyse honnête vs Clari : 80 % de l'iceberg manquant pour shipper en prod. Phase 8 (10 fondations critiques) + 5 angles concurrentiels + plan GTM 3-12 mois ajoutés à la roadmap |
+| 2026-04-26 | DB sync | Webhook HubSpot merge + deletion (cleanup local actif), Bootstrap fix NOT NULL relaxées + POST /search | Cleanup local des records mergés/supprimés via webhook HubSpot ; corrige les endpoints POST /search bloqués par contraintes NOT NULL |
+| 2026-04-27 | Cache | Dashboard + Adoption lus depuis Supabase cache, Pipeline carousel, Freshness indicator | Sync route en service-role (RLS bloquait silencieusement) ; sim/coaching IA buildContext lit le snapshot cache → real-time ; Lifecycle conversion + Deal risk combiné + Forecast pondéré ; suppression KPI Source sur recos/sim/coaching |
+| 2026-04-28 | Audit Workflows | ETL workflows enrichi par-id + audit RevOps détaillé pour CHAQUE workflow | Lite mode + carousel Actif/Inactif ; détection re-enrollment/goal/erreurs + filtre par objet ; détection multi-action/complexité + breakdown UI ; fix catégorisation HubSpot v4 (SINGLE_CONNECTION wrapper) |
+| 2026-04-29 | Logo | Itérations Logo Revold | 9 itérations (sablier ⏳ + R + flèche ↗) atterries sur R + flèche forward momentum |
+| 2026-04-30 | Sync engine 8.3/8.6 | Full sync : cleanup orphans → parity drift = 0 partout | DELETE WHERE hubspot_id NOT IN HubSpot après upsert (corrige drift permanent que la full sync ne résolvait pas) ; pagination .range() (Supabase JS limite à 1000 rows par défaut) ; countLocal filtre hubspot_id ; NovaTech (org seed legacy mélangeant seed + sync HubSpot) supprimée intégralement |
+| 2026-04-30 | Phase 8.1 partiel | Tool mapping → routing data fetching multi-source | UI + data layer respectent désormais "Outil source par page" (`tool_mappings.audit_paiement_facturation`, `audit_service_client`) ; fetcher Stripe live mappé au format commun PaiementFacturationData (Vue d'ensemble + sous-pages /paiement /facturation + Service Client churn/renouvellement/cross-sell) ; fallback HubSpot si pas de mapping. Reste à écrire les fetchers live Zendesk/Intercom/Freshdesk/Crisp pour Service Client |
+| 2026-04-30 | UX Navigation | Renames + réordonnance dropdown principal | Audit → Données (parent), Données → Propriétés (sous-page), Adoption → Équipes ; ordre dropdown : Vue d'ensemble → Performances → Automatisations → Paiement & Facturation → Service Client → Équipes → Propriétés ; Vue d'ensemble Données affiche les 7 modules (ajout Paiement & Facturation + Service Client manquants) |
