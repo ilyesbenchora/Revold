@@ -20,6 +20,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
             <Link href="/legal/cgu" className="hover:text-slate-900">CGU</Link>
             <Link href="/legal/securite" className="hover:text-slate-900">Sécurité</Link>
             <Link href="/legal/rgpd" className="hover:text-slate-900">RGPD</Link>
+            <Link href="/legal/dpa" className="hover:text-slate-900">DPA</Link>
           </div>
           <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Revold. Tous droits réservés.</p>
         </div>

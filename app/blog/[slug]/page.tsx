@@ -140,6 +140,7 @@ export default async function ArticlePage({ params }: Props) {
                 <li><Link href="/legal/cgu" className="text-sm text-slate-500 transition hover:text-slate-700">CGU</Link></li>
                 <li><Link href="/legal/securite" className="text-sm text-slate-500 transition hover:text-slate-700">Sécurité</Link></li>
                 <li><Link href="/legal/rgpd" className="text-sm text-slate-500 transition hover:text-slate-700">RGPD</Link></li>
+                <li><Link href="/legal/dpa" className="text-sm text-slate-500 transition hover:text-slate-700">DPA</Link></li>
               </ul>
             </div>
           </div>

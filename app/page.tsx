@@ -88,6 +88,7 @@ const FOOTER_LINKS = {
     { label: "CGU", href: "/legal/cgu" },
     { label: "Sécurité", href: "/legal/securite" },
     { label: "RGPD", href: "/legal/rgpd" },
+    { label: "DPA", href: "/legal/dpa" },
   ],
 };
 

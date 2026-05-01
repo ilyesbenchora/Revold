@@ -32,6 +32,7 @@ const STATIC_PAGES = [
   "/legal/cgu",
   "/legal/securite",
   "/legal/rgpd",
+  "/legal/dpa",
 ];
 
 export async function GET() {
