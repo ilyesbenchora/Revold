@@ -174,14 +174,27 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
       } | undefined;
       if (!detail) return;
       reset();
-      if (detail.team) setTeam(detail.team);
-      if (detail.kpiId) setKpiId(detail.kpiId);
+
+      // Résout team + kpiId. Si l'un manque ou n'est pas dans le catalogue,
+      // on fallback à un step antérieur pour que l'utilisateur choisisse,
+      // au lieu d'afficher une étape vide (step 3 demande `kpi` valide).
+      const teamOk = detail.team && (detail.team in kpisByTeam);
+      const kpisForTeam = teamOk ? kpisByTeam[detail.team!] : [];
+      const kpiOk = detail.kpiId && kpisForTeam.some((k) => k.id === detail.kpiId);
+
+      if (teamOk) setTeam(detail.team!);
+      if (kpiOk) setKpiId(detail.kpiId!);
+
       if (detail.defaultThreshold !== undefined) setThreshold(String(detail.defaultThreshold));
       if (detail.defaultDirection) setDirection(detail.defaultDirection);
       if (detail.defaultUnit) setUnitMode(detail.defaultUnit);
       if (detail.defaultPipelineIds && detail.defaultPipelineIds.length > 0)
         setSelectedPipelines(detail.defaultPipelineIds);
-      setStep(detail.startStep ?? 3);
+
+      // Step demandé OU step minimal possible selon ce qui est résolu
+      const requestedStep = detail.startStep ?? 3;
+      const safeStep = !teamOk ? 1 : !kpiOk ? 2 : requestedStep;
+      setStep(safeStep);
       setOpen(true);
     }
     window.addEventListener("revold:open-alert-modal", onPreset as EventListener);
