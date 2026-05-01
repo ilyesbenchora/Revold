@@ -16,6 +16,7 @@ import {
 } from "./insights-ia/context";
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
+import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -23,6 +24,11 @@ export default async function DashboardOverviewPage() {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
   const supabase = await createSupabaseServerClient();
+
+  // Onboarding : si pas complete et pas skipped, on affiche un banner d'invitation
+  const onboardingState = await getOnboardingState(supabase, orgId);
+  const showOnboardingBanner = shouldShowOnboarding(onboardingState);
+  const onboardingPct = onboardingProgress(onboardingState);
 
   // Connexion HubSpot OAuth réelle (refresh_token + portal_id présents).
   // Source de vérité pour décider si on affiche le bandeau "Connectez HubSpot".
@@ -172,6 +178,37 @@ export default async function DashboardOverviewPage() {
             : "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."}
         </p>
       </header>
+
+      {/* Onboarding banner — visible tant que l'org n'a pas terminé le wizard */}
+      {showOnboardingBanner && (
+        <Link
+          href="/dashboard/onboarding"
+          className="block rounded-2xl border border-fuchsia-200 bg-gradient-to-r from-fuchsia-50 via-white to-indigo-50 p-5 transition hover:border-fuchsia-300 hover:shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-fuchsia-700">
+                Onboarding {onboardingPct}% terminé
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Activez votre Revenue Intelligence en moins de 5 minutes
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                4 étapes : connecter HubSpot, choisir vos équipes, lancer le sync, voir votre 1er insight.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white">
+              Continuer →
+            </span>
+          </div>
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-white">
+            <div
+              className="h-full bg-gradient-to-r from-fuchsia-500 to-indigo-500"
+              style={{ width: `${onboardingPct}%` }}
+            />
+          </div>
+        </Link>
+      )}
 
       {/* Bandeau erreur snapshot (panne API HubSpot, token expiré, etc.) */}
       {snapshot.status === "error" && (
