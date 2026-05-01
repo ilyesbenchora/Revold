@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "POSTGRES_URL_NON_POOLING missing" }, { status: 500 });
   }
 
+  // Self-signed cert sur Supabase pooler — désactive la validation TLS le temps de la migration.
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
   const start = Date.now();
   try {
