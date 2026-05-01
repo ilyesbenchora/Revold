@@ -526,10 +526,14 @@ async function countLocal(
   };
   const table = tables[type];
   if (table) {
+    // Ne compte QUE les rows HubSpot-sourced (avec hubspot_id) pour matcher la
+    // sémantique de countHubspot. Sinon les seed/démo sans hubspot_id polluent
+    // le drift sur des orgs qui mélangent données seed + sync HubSpot.
     const { count } = await supabase
       .from(table)
       .select("id", { count: "exact", head: true })
-      .eq("organization_id", orgId);
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null);
     return count ?? 0;
   }
   // Pour les types stockés dans hubspot_objects
