@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { AlertButton } from "@/components/alert-button";
 import { CycleVentesSimulations } from "@/components/cycle-ventes-simulations";
-import { RevenueSimulations } from "@/components/revenue-simulations";
 
 type Pipeline = {
   id: string;
@@ -68,10 +67,14 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type TabId = "cycle_ventes" | "marketing_cycle" | "revenue" | "data_quality";
 
+// Onglets alignés sur les équipes du funnel de création d'alerte
+// (Ventes / Marketing / Revenue & Finance / Customer Success).
+// "Données" reste un onglet transverse car les sims data servent toutes
+// les équipes (associations contacts/comptes/deals).
 const TABS: { id: TabId; label: string; emoji: string }[] = [
-  { id: "cycle_ventes", label: "Cycle de ventes", emoji: "🚀" },
-  { id: "marketing_cycle", label: "Marketing cycle", emoji: "🔄" },
-  { id: "revenue", label: "Revenue", emoji: "💰" },
+  { id: "cycle_ventes", label: "Ventes", emoji: "💼" },
+  { id: "marketing_cycle", label: "Marketing", emoji: "📣" },
+  { id: "revenue", label: "Revenue / Finance", emoji: "💰" },
   { id: "data_quality", label: "Données", emoji: "🛡️" },
 ];
 
@@ -373,11 +376,6 @@ export function SimulationTabs({
         // Onglet Cycle de ventes : composant dédié avec sélecteurs pipeline + stages
         // qui génère 4 sections (velocity, risk, forecast, analytics) dynamiquement.
         <CycleVentesSimulations pipelines={pipelines} />
-      ) : tab === "revenue" ? (
-        // Onglet Revenue : sélecteur pipeline single (les simulations s'adaptent
-        // au type détecté : new_business / renewal / upsell). 4 sections :
-        // growth / ticket / forecast / retention.
-        <RevenueSimulations pipelines={pipelines} />
       ) : (
         filteredScenarios.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">

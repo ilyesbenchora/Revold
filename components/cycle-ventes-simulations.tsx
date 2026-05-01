@@ -25,6 +25,8 @@ type SmartSim = {
   selectedStageIds: string[];
 };
 
+// On garde les 4 keys côté API pour compat ascendante mais l'UI n'en rend
+// plus que 2 : velocity + risk. Forecast/Analytics relèvent de l'onglet Revenue.
 type Sections = {
   velocity: SmartSim[];
   risk: SmartSim[];
@@ -36,7 +38,10 @@ type Props = {
   pipelines: Pipeline[];
 };
 
-const SECTION_META: Record<keyof Sections, { label: string; emoji: string; gradient: string; description: string }> = {
+type VisibleKey = "velocity" | "risk";
+const VISIBLE_SECTIONS: VisibleKey[] = ["velocity", "risk"];
+
+const SECTION_META: Record<VisibleKey, { label: string; emoji: string; gradient: string; description: string }> = {
   velocity: {
     label: "Vélocité Pipeline",
     emoji: "🚀",
@@ -48,18 +53,6 @@ const SECTION_META: Record<keyof Sections, { label: string; emoji: string; gradi
     emoji: "⚠️",
     gradient: "from-rose-500 to-orange-600",
     description: "Identifier et traiter les deals en danger (stagnation, faible probabilité, sans suivi)",
-  },
-  forecast: {
-    label: "Forecast CA",
-    emoji: "📊",
-    gradient: "from-emerald-500 to-teal-600",
-    description: "Prévision du chiffre d'affaires sur 30j / 90j / quarter avec discipline forecast",
-  },
-  analytics: {
-    label: "CA Analytics",
-    emoji: "💰",
-    gradient: "from-fuchsia-500 to-emerald-600",
-    description: "Analyse de la performance revenue : ticket moyen, win rate, concentration, drop-off",
   },
 };
 
@@ -164,65 +157,24 @@ export function CycleVentesSimulations({ pipelines }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Sélecteur compact + résumé (même carte) ── */}
-      <div className="card flex flex-wrap items-center gap-3 p-3">
-        <label htmlFor="pipeline-select" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-          </svg>
-          Pipeline
+      {/* ── Sélecteur pipeline discret ── */}
+      <div className="flex items-center gap-2 text-xs">
+        <label htmlFor="pipeline-select" className="text-slate-500">
+          Pipeline :
         </label>
         <select
           id="pipeline-select"
           value={pipelineId}
           onChange={(e) => setPipelineId(e.target.value)}
-          className="min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-slate-300 focus:outline-none"
         >
           {pipelines.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.label} ({p.stages.length} étapes)
+              {p.label}
             </option>
           ))}
         </select>
-
-        {/* Compteurs inline */}
-        {counts && (
-          <div className="ml-auto flex flex-wrap items-center gap-4 text-xs">
-            <div>
-              <span className="text-slate-500">Deals : </span>
-              <span className="font-bold text-slate-900 tabular-nums">{counts.totalDeals.toLocaleString("fr-FR")}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">CA : </span>
-              <span className="font-bold text-slate-900 tabular-nums">
-                {counts.totalAmount >= 1000
-                  ? `${Math.round(counts.totalAmount / 1000).toLocaleString("fr-FR")}K€`
-                  : `${Math.round(counts.totalAmount)}€`}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500">À risque : </span>
-              <span className={`font-bold tabular-nums ${counts.atRiskCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
-                {counts.atRiskCount}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500">Stagnants : </span>
-              <span className={`font-bold tabular-nums ${counts.stagnantCount > 0 ? "text-orange-600" : "text-slate-400"}`}>
-                {counts.stagnantCount}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
-
-      {/* ── Info étapes du pipeline sélectionné (compact) ── */}
-      {currentPipeline && (
-        <p className="text-[11px] text-slate-500">
-          Les simulations sont générées automatiquement pour chaque étape du pipeline (bottleneck, vélocité, drop-off,
-          forecast contributor, activity gap) à partir des données temps réel HubSpot.
-        </p>
-      )}
 
       {/* ── Sections de simulations ── */}
       {loading && (
@@ -233,7 +185,7 @@ export function CycleVentesSimulations({ pipelines }: Props) {
 
       {!loading && sections && (
         <div className="space-y-8">
-          {(Object.keys(SECTION_META) as Array<keyof Sections>).map((key) => {
+          {VISIBLE_SECTIONS.map((key) => {
             const meta = SECTION_META[key];
             const sims = sections[key] ?? [];
             return (
