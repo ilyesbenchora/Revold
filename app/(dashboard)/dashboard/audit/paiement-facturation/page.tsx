@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getToolKeys } from "@/lib/integrations/tool-mappings";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -21,17 +22,28 @@ export default async function PaiementFacturationOverviewPage() {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
 
-  const [data, allConnectedTools] = await Promise.all([
+  const [data, allConnectedTools, mappedKeys] = await Promise.all([
     fetchPaiementFacturationData(token),
     getConnectedTools(supabase, orgId),
+    getToolKeys(supabase, orgId, "audit_paiement_facturation"),
   ]);
 
-  // Filtre uniquement les outils pertinents pour billing/paiement
-  const billingConnected = allConnectedTools.filter((t) => t.category === "billing");
-  // Suggestions = autres outils billing du catalogue non encore connectés
-  const billingSuggestions = Object.values(CONNECTABLE_TOOLS)
-    .filter((t) => t.category === "billing" && !t.comingSoon)
-    .map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }));
+  const billingCategory = allConnectedTools.filter((t) => t.category === "billing");
+
+  // Si l'utilisateur a configuré un outil source pour cette page (Paramètres
+  // → Intégrations → "Outil source par page"), on n'affiche que celui-là.
+  // Sinon fallback : tous les outils billing connectés.
+  const hasMapping = mappedKeys.length > 0;
+  const billingConnected = hasMapping
+    ? billingCategory.filter((t) => mappedKeys.includes(t.key))
+    : billingCategory;
+
+  // Pas de suggestions à connecter si l'utilisateur a déjà fait son choix.
+  const billingSuggestions = hasMapping
+    ? []
+    : Object.values(CONNECTABLE_TOOLS)
+        .filter((t) => t.category === "billing" && !t.comingSoon)
+        .map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }));
 
   return (
     <section className="space-y-6">
@@ -48,7 +60,11 @@ export default async function PaiementFacturationOverviewPage() {
       <CrossToolSelectorBlock
         connectedTools={billingConnected}
         suggestedTools={billingSuggestions}
-        description="Sélectionnez les outils pour filtrer les facturations & paiements pertinents."
+        description={
+          hasMapping
+            ? "Outil source défini dans Paramètres → Intégrations. Modifiable depuis cette page."
+            : "Sélectionnez les outils pour filtrer les facturations & paiements pertinents."
+        }
       />
 
       <InsightLockedBlock
