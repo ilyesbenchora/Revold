@@ -1,7 +1,7 @@
 # Roadmap Revold
 
 > **Dernière mise à jour** : 2026-04-30
-> **Statut global** : Phase 6 finalisée — Phase 7 amorcée — Phase 8 démarrée : sync engine durci (cleanup orphans, parity drift = 0, webhook deletions), data fetching multi-source par mapping (Stripe live ↔ HubSpot pour Paiement & Facturation). Reste bloquant pour onboarder un 2e client réel : OAuth HubSpot multi-tenant (8.1) + Stripe billing (8.2) + email/Slack digest (8.4) + RBAC équipe (8.5).
+> **Statut global** : Phase 6 finalisée — Phase 7 amorcée — Phase 8 bien avancée : 8.1 OAuth HubSpot multi-tenant ✅, 8.3 sync engine robuste ✅, 8.4 notifications email + Slack/Teams ✅. Restent bloquants pour le scale : 8.2 Stripe billing, 8.5 RBAC équipe, 8.7 activity capture, 8.8 tests + monitoring, 8.9 page sécurité, 8.10 onboarding wizard, **8.11 marketplace listings (HubSpot App + Stripe Partner)** = canal d'acquisition organique vs Clari.
 > Ce fichier est mis à jour après chaque session de travail.
 
 ---
@@ -155,16 +155,17 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 
 | # | Tâche | Effort | Statut |
 |---|---|---|---|
-| 8.1 | **OAuth HubSpot multi-tenant** — remplacer `HUBSPOT_ACCESS_TOKEN` env var par OAuth flow + token chiffré stocké par org dans `integrations`. **Bloquant pour onboarder un 2e client.** | M | [ ] |
+| 8.1 | **OAuth HubSpot multi-tenant** — OAuth flow `/api/integrations/hubspot/callback` qui stocke `access_token` + `refresh_token` + `portal_id` par org dans `integrations` ; rotation auto via `getHubSpotToken` (refresh < 5 min restantes) ; fallback env var supprimé (faille multi-tenant fermée) ; cleanup orphans + parity drift = 0 garantissent l'exactitude des données par org. | M | [x] |
 | 8.2 | **Stripe billing + 3 plans (Starter / Growth / Scale)** + trial 14j + paywall sur features lourdes (cross-source, AI coaching premium, > X users). | L | [ ] |
-| 8.3 | **Sync engine robuste** — refactor des crons en jobs Inngest ou Trigger.dev avec retries, DLQ, observabilité. Sync incrémental basé sur `updated_at` HubSpot. | L | [ ] |
-| 8.4 | **Notifications email (Resend) + Slack/Teams** — daily digest des coachings IA + alertes objectifs atteints + nouveaux insights critiques. **Sans ça, plateforme invisible côté commerciaux.** | M | [ ] |
+| 8.3 | **Sync engine robuste** — webhook HubSpot merge + deletion (cleanup local actif), full sync avec DELETE WHERE hubspot_id NOT IN HubSpot, pagination cursor-based, retry exponentiel sur 429, service-role client (bypass RLS), cache Supabase fast-read (UI à zéro HubSpot live), parity drift = 0 garanti après chaque sync. | L | [x] |
+| 8.4 | **Notifications email + Slack/Teams** — table `notification_channels` + API CRUD `/api/notifications/channels` ; cron `daily-digest` + cron `check-alerts` ; activation par alerte depuis Simulations IA (Cycle de ventes / Marketing / Deals à risques / Revenue / Données) et depuis Performances Ventes (sélection objectif + canal de notification). | M | [x] |
 | 8.5 | **Auth équipe + invitations + RBAC** — Supabase magic link invite, 3 rôles (admin / manager / rep), audit log. **Bloquant pour vendre à toute boîte > 20 personnes.** | M | [ ] |
 | 8.6 | **Performance scaling** — pagination des fetches HubSpot, materialized views Supabase, cache pré-calculé via cron pour les CRMs > 50k contacts. | M | [ ] |
 | 8.7 | **Activity capture** — extension Chrome ou intégration Aircall/Ringover pour auto-logger les calls. Pain point #1 que Clari/Gong résolvent. | XL | [ ] |
 | 8.8 | **Tests + monitoring** — Vitest sur le moteur KPI critique (lib/reports/), Sentry pour les erreurs runtime, Vercel Analytics pour usage produit. | M | [ ] |
 | 8.9 | **Page Sécurité publique + DPA + hébergement EU explicite** — pour adresser RSSI/DSI européens dès le pitch. SOC 2 Type 1 visé à 6 mois. | S | [ ] |
 | 8.10 | **Self-serve onboarding wizard** — connexion HubSpot one-click + tour guidé en 5 min jusqu'au premier insight visible. Time-to-value < 1h vs Clari à 3 mois. | L | [ ] |
+| 8.11 | **Marketplace listings** — Revold publié sur HubSpot App Marketplace + Stripe Partner Directory (et au moins 1 connecteur secondaire : Pennylane / Sellsy / Pipedrive). Conditions de validation : OAuth scopes minimum, page de pricing publique, doc d'installation, support email, conformité RGPD. **Distribution organique = canal d'acquisition #1 face à Clari (Marketplace HubSpot = 200k+ portails français).** Garder la même qualité de sync (cleanup orphans, drift = 0, retry, observabilité) sur chaque connecteur listé. | XL | [ ] |
 
 ---
 
@@ -200,17 +201,18 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 - [ ] **Partenariats** : intégrateurs HubSpot Solutions Partners FR, agences RevOps françaises
 - [ ] **Free tier** : 1 user / 1000 contacts pour entrer dans les bases CRM des PME
 - [ ] **Premier hire** : 1 SDR + 1 CSM, pas de marketing massif tant que la rétention n'est pas > 80 % à 90j
-- [ ] **Slack/Teams + email digest** quotidien (8.4) — invisible sans ça pour les commerciaux
+- [x] **Slack/Teams + email digest** quotidien (8.4) — activable par alerte depuis Simulations IA + Performances Ventes
 - [ ] **Activity capture** (8.7) — débloque des KPIs activité fiables
 
 ### Quick wins prioritaires cette semaine
 
-1. **OAuth HubSpot multi-tenant** (8.1) — 1 sprint
-2. **Stripe + 3 plans + trial 14j** (8.2) — 1 sprint
-3. **Page Sécurité publique** (8.9) — 3 jours
-4. **Slack/Email digest quotidien** (8.4) — 1 sprint
+1. **Page Sécurité publique + DPA + EU hosting** (8.9) — 3 jours, débloque le pitch DSI européens
+2. **Stripe billing + 3 plans + trial 14j** (8.2) — 1 sprint, débloque la monétisation
+3. **RBAC équipe + invitations magic link** (8.5) — 1 sprint, débloque les boîtes > 20 personnes
+4. **Tests + Sentry monitoring** (8.8) — 1 sprint, prérequis pour ouvrir au public
 
 Cela fait passer Revold de "demo qui impressionne" à "produit qu'on signe".
+Le **gros levier d'acquisition organique** (8.11 Marketplace HubSpot/Stripe) demande 8.2 + 8.9 + 8.10 en pré-requis (validation HubSpot impose pricing public + page sécurité + onboarding fluide).
 Le reste (cross-source full, LLM coaching, verticalisation SaaS) = ce qui fait gagner contre Clari sur le long terme.
 
 ---
