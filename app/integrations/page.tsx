@@ -13,6 +13,7 @@ type Integration = {
   desc: string;
   domain: string;
   available: boolean;
+  href?: string;
 };
 
 const CATEGORIES: { name: string; color: string; integrations: Integration[] }[] = [
@@ -20,7 +21,7 @@ const CATEGORIES: { name: string; color: string; integrations: Integration[] }[]
     name: "CRM",
     color: "bg-blue-50 text-blue-700 border-blue-200",
     integrations: [
-      { name: "HubSpot", desc: "CRM, Marketing Hub, Sales Hub", domain: "hubspot.com", available: true },
+      { name: "HubSpot", desc: "CRM, Marketing Hub, Sales Hub", domain: "hubspot.com", available: true, href: "/integrations/hubspot" },
       { name: "Salesforce", desc: "CRM, Sales Cloud", domain: "salesforce.com", available: false },
       { name: "Pipedrive", desc: "CRM orienté pipeline", domain: "pipedrive.com", available: true },
       { name: "Zoho CRM", desc: "CRM tout-en-un", domain: "zoho.com", available: true },
@@ -30,7 +31,7 @@ const CATEGORIES: { name: string; color: string; integrations: Integration[] }[]
     name: "Facturation & Paiement",
     color: "bg-emerald-50 text-emerald-700 border-emerald-200",
     integrations: [
-      { name: "Stripe", desc: "Paiements, abonnements, factures", domain: "stripe.com", available: true },
+      { name: "Stripe", desc: "Paiements, abonnements, factures", domain: "stripe.com", available: true, href: "/integrations/stripe" },
       { name: "Pennylane", desc: "Comptabilité et facturation", domain: "pennylane.com", available: true },
       { name: "Sellsy", desc: "CRM et facturation", domain: "sellsy.com", available: true },
       { name: "Axonaut", desc: "ERP et facturation PME", domain: "axonaut.com", available: true },
@@ -89,29 +90,43 @@ export default function IntegrationsPage() {
               <span className="text-xs text-slate-400">{cat.integrations.length} intégration{cat.integrations.length > 1 ? "s" : ""}</span>
             </div>
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {cat.integrations.map((integ) => (
-                <div key={integ.name} className="card flex items-start gap-4 p-5 transition hover:shadow-lg hover:shadow-accent/5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://www.google.com/s2/favicons?domain=${integ.domain}&sz=64`}
-                    alt={integ.name}
-                    width={32}
-                    height={32}
-                    className="mt-0.5 shrink-0 rounded-lg"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">{integ.name}</p>
-                      {integ.available ? (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Connecter</span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">Bientôt</span>
-                      )}
+              {cat.integrations.map((integ) => {
+                const inner = (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${integ.domain}&sz=64`}
+                      alt={integ.name}
+                      width={32}
+                      height={32}
+                      className="mt-0.5 shrink-0 rounded-lg"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-900">{integ.name}</p>
+                        {integ.available ? (
+                          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                            {integ.href ? "Voir détails" : "Connecter"}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">Bientôt</span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{integ.desc}</p>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">{integ.desc}</p>
+                  </>
+                );
+                const className = "card flex items-start gap-4 p-5 transition hover:shadow-lg hover:shadow-accent/5";
+                return integ.href ? (
+                  <Link key={integ.name} href={integ.href} className={className}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={integ.name} className={className}>
+                    {inner}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

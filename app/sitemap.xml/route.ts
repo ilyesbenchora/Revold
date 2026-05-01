@@ -9,6 +9,8 @@ const STATIC_PAGES = [
   "/essai-gratuit",
   "/contact",
   "/integrations",
+  "/integrations/hubspot",
+  "/integrations/stripe",
   "/blog",
   "/produits/synchronisation",
   "/produits/reporting-cross-source",
