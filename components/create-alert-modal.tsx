@@ -110,7 +110,7 @@ const CHANNEL_LABELS: Record<
   email: { label: "Email", description: "Email aux destinataires configurés", icon: "✉️" },
   slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬", brandDomain: "slack.com" },
   teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥", brandDomain: "microsoft.com" },
-  hubspot: { label: "HubSpot CRM", description: "Crée une notification (note) dans le CRM connecté", icon: "🔶", brandDomain: "hubspot.com" },
+  hubspot: { label: "HubSpot CRM", description: "Notification interne HubSpot (cloche du propriétaire) — task assignée", icon: "🔶", brandDomain: "hubspot.com" },
   webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
 };
 

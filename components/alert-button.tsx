@@ -25,7 +25,7 @@ const CHANNEL_META: Record<
   email: { label: "Email", icon: "✉️", description: "Aux destinataires configurés" },
   slack: { label: "Slack", icon: "💬", description: "Canal Slack configuré", brandDomain: "slack.com" },
   teams: { label: "Microsoft Teams", icon: "👥", description: "Canal Teams configuré", brandDomain: "microsoft.com" },
-  hubspot: { label: "HubSpot CRM", icon: "🔶", description: "Notification (note) dans le CRM", brandDomain: "hubspot.com" },
+  hubspot: { label: "HubSpot CRM", icon: "🔶", description: "Notification interne HubSpot (task assignée)", brandDomain: "hubspot.com" },
   webhook: { label: "Webhook custom", icon: "🔌", description: "POST JSON vers votre URL" },
 };
 

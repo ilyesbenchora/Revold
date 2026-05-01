@@ -201,10 +201,29 @@ async function sendTeamsMessage(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// HUBSPOT — création d'une note dans le CRM (visible dans timeline contact/owner)
+// HUBSPOT — task assignée à un owner. La task assignée déclenche la
+// notification interne HubSpot (cloche dans le header de l'user owner) +
+// elle apparaît dans son Tasks list. C'est l'équivalent le plus proche
+// d'une "notification dans l'app HubSpot" via API publique.
 // ────────────────────────────────────────────────────────────────────────────
 
-async function sendHubSpotNote(
+/** Récupère l'ID du premier owner HubSpot (synced localement). */
+async function getDefaultHubspotOwnerId(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("hubspot_objects")
+    .select("hubspot_id")
+    .eq("organization_id", orgId)
+    .eq("object_type", "owners")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return (data?.hubspot_id as string | undefined) ?? null;
+}
+
+async function sendHubSpotNotification(
   supabase: SupabaseClient,
   orgId: string,
   subject: string,
@@ -222,25 +241,30 @@ async function sendHubSpotNote(
       ? link
       : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`
     : null;
-  // HubSpot Note body supporte le HTML simple — on injecte un titre + le contenu
-  const noteBody = [
-    `<h3>${subject.slice(0, 200)}</h3>`,
-    `<p>${bodyText.slice(0, 65000).replace(/\n/g, "<br/>")}</p>`,
-    fullLink ? `<p><a href="${fullLink}">Ouvrir dans Revold →</a></p>` : "",
-  ].join("");
+  const body = `${bodyText}${fullLink ? `\n\n→ ${fullLink}` : ""}`;
+  const ownerId = await getDefaultHubspotOwnerId(supabase, orgId);
+
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/notes", {
+    const properties: Record<string, unknown> = {
+      hs_task_subject: subject.slice(0, 200),
+      hs_task_body: body.slice(0, 65535),
+      hs_task_priority: "HIGH",
+      hs_task_status: "NOT_STARTED",
+      hs_task_type: "TODO",
+      hs_timestamp: Date.now(),
+    };
+    // Sans owner_id, la task apparaît dans la liste mais ne déclenche pas
+    // de notification utilisateur. Avec owner_id, l'owner reçoit la notif
+    // dans la cloche HubSpot.
+    if (ownerId) properties.hubspot_owner_id = ownerId;
+
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        properties: {
-          hs_note_body: noteBody,
-          hs_timestamp: Date.now(),
-        },
-      }),
+      body: JSON.stringify({ properties }),
     });
     if (!res.ok) {
       const err = await res.text();
@@ -377,7 +401,7 @@ export async function sendNotification(
     // HubSpot : pas de config user-level, utilise le token OAuth de l'org.
     // On saute la lookup dans notification_channels et on appelle directement.
     if (channel === "hubspot") {
-      const result = await sendHubSpotNote(supabase, orgId, subject, bodyText, link);
+      const result = await sendHubSpotNotification(supabase, orgId, subject, bodyText, link);
       await logNotification(supabase, {
         orgId,
         channelType: "hubspot",
@@ -385,7 +409,7 @@ export async function sendNotification(
         sourceId,
         status: result.ok ? "sent" : "failed",
         error: result.error,
-        recipient: "HubSpot Note",
+        recipient: "HubSpot Notification",
         subject,
       });
       results.push({ channel: "hubspot", ...result });
