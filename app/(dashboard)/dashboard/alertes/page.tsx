@@ -1,12 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot, getSnapshotMeta } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { SimulationTabs, type SimulationItem, type AlertItem } from "@/components/simulation-tabs";
 import { MultiToolBanner } from "@/components/multi-tool-banner";
 import { BlockedSimulationsNotice } from "@/components/blocked-simulations-notice";
-import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { buildContext, buildScenarios, detectBlockedSimulations } from "../insights-ia/context";
 
@@ -18,7 +17,7 @@ export default async function ScenariosPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const [ctx, { data: allAlerts }, snapshot, connectedTools, meta] = await Promise.all([
+  const [ctx, { data: allAlerts }, snapshot, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     supabase
       .from("alerts")
@@ -27,7 +26,6 @@ export default async function ScenariosPage() {
       .order("created_at", { ascending: false }),
     getHubspotSnapshot(),
     getConnectedTools(supabase, orgId),
-    getSnapshotMeta(),
   ]);
   const connectedSummary = summarizeConnected(connectedTools);
   const connectedCats = connectedCategoriesSet(connectedTools);
@@ -45,13 +43,11 @@ export default async function ScenariosPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Simulations IA</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Simulez l&apos;impact d&apos;améliorations sur vos KPIs et activez des objectifs pour les suivre dans « Mes alertes ».
+            Suggestions d&apos;objectifs SMART à modifier puis activer comme alertes pour vos équipes.
           </p>
         </div>
         <CreateAlertModal />
       </header>
-
-      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
 
       <MultiToolBanner summary={connectedSummary} />
 

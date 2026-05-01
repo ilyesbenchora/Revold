@@ -1107,6 +1107,14 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   const safeRate = (top: number, bottom: number): number =>
     bottom > 0 ? Math.round((top / bottom) * 1000) / 10 : 0;
 
+  // Ratios d'associations (réutilisés par marketing_cycle ET data_quality)
+  const associatedContactsRate = tContacts > 0
+    ? PCT(tContacts - orphans, tContacts)
+    : 0;
+  const companiesWithDealRate = totalCompanies > 0
+    ? PCT(Math.min(tDeals, totalCompanies), totalCompanies)
+    : 0;
+
   // ════════════════════════════════════════════════════════════════
   // MARKETING CYCLE — refonte 2026-04 : focus 1-2 stages lifecycle clés
   // (l'user duplique sur les autres stages dans Mes alertes), titre court
@@ -1136,7 +1144,7 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
     ...bestStages.map<Sim>((s) => ({
       show: true,
       title: `${s.label} : ${s.current}% → ${s.targetPct}% en ${s.days} jours`,
-      description: `${s.to.toLocaleString("fr-FR")} sur ${s.from.toLocaleString("fr-FR")}. Activable en 1 clic — duplicable sur les autres stages depuis Mes alertes.`,
+      description: `${s.to.toLocaleString("fr-FR")} sur ${s.from.toLocaleString("fr-FR")}. Duplicable sur les autres stages depuis chaque page Revold.`,
       impact: `+${Math.max(1, Math.round(s.from * Math.max(0, s.targetPct - s.current) / 100)).toLocaleString("fr-FR")} ${s.label.split(" → ")[1]}/an`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
@@ -1146,62 +1154,86 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
       direction: "above",
     })),
 
-    // Outillage marketing — sims qui ont un constat mesurable
+    // Associations marketing — pas de simulation sur l'usage des features
+    // (forms, campaigns, listes, workflows) car les raisons de non-utilisation
+    // peuvent être justifiées. On reste sur des constats data-driven mesurés.
     {
-      show: (ctx.formsCount ?? 0) < 8,
-      title: `Forms HubSpot : ${ctx.formsCount ?? 0} → 8 en 60 jours`,
-      description: `1 form par persona × intent. Capture leads ×1.5 vs setup actuel.`,
-      impact: `+${Math.max(20, Math.round(tContacts * 0.1)).toLocaleString("fr-FR")} leads/mois`,
+      show: associatedContactsRate < 95 && tContacts > 50,
+      title: `Contacts marketing rattachés à un compte : ${associatedContactsRate}% → 95% en 30 jours`,
+      description: `${orphans.toLocaleString("fr-FR")} contacts orphelins — l'attribution ABM et le scoring entreprise ne fonctionnent pas sans cette association.`,
+      impact: `+${Math.max(1, Math.round(orphans * 0.7)).toLocaleString("fr-FR")} contacts attribués à leur entreprise`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-orange-500",
-      forecastType: "forms_setup",
-      threshold: 8,
+      forecastType: "marketing_contact_company_assoc",
+      threshold: 95,
       direction: "above",
     },
     {
-      show: (ctx.listsCount ?? 0) < 15,
-      title: `Listes segmentation : ${ctx.listsCount ?? 0} → 15 en 30 jours`,
-      description: `Lifecycle, persona, intent, engagement récent. Personnalisation = +60% open rate.`,
-      impact: `Segmentation activée sur ${tContacts.toLocaleString("fr-FR")} contacts`,
+      show: companiesWithDealRate < 60 && totalCompanies > 20,
+      title: `Comptes marketing convertis en pipeline : ${companiesWithDealRate}% → 70% en 60 jours`,
+      description: `${totalCompanies.toLocaleString("fr-FR")} comptes en base, ratio deal/company faible. Activer ABM workflow MQL → handoff sales pour les comptes ICP.`,
+      impact: `+${Math.max(1, Math.round(totalCompanies * (70 - companiesWithDealRate) / 100)).toLocaleString("fr-FR")} comptes en cycle d'opportunité`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-rose-500 to-amber-500",
-      forecastType: "lists_setup",
-      threshold: 15,
+      forecastType: "marketing_company_pipeline_assoc",
+      threshold: 70,
       direction: "above",
     },
     {
-      show: (ctx.marketingCampaignsCount ?? 0) < 10,
-      title: `Campaigns trackées : ${ctx.marketingCampaignsCount ?? 0} → 10 en 90 jours`,
-      description: `Tagger toutes actions marketing pour ROI par canal.`,
-      impact: `ROI mesurable sur 10 campagnes / quarter`,
+      show: tDeals > 10,
+      title: `Deals avec contact marketing source : 100% en 14 jours`,
+      description: `Workflow Original Source obligatoire à la création du deal — sinon attribution marketing cassée et ROI campagnes invisible.`,
+      impact: `Attribution fiable sur ${tDeals.toLocaleString("fr-FR")} deals`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-fuchsia-500",
-      forecastType: "campaigns_setup",
-      threshold: 10,
-      direction: "above",
-    },
-    {
-      show: (ctx.workflowsActiveCount ?? 0) < 5,
-      title: `Workflows marketing actifs : ${ctx.workflowsActiveCount ?? 0} → 5 en 14 jours`,
-      description: `MQL→SQL auto, nurturing TOFU, re-engagement, post-event, lead scoring.`,
-      impact: `+30-50% conversion lead→opp à 12 mois`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-yellow-600",
-      forecastType: "workflows_marketing_setup",
-      threshold: 5,
+      forecastType: "deal_marketing_source",
+      threshold: 100,
       direction: "above",
     },
   ];
 
 
   // ════════════════════════════════════════════════════════════════
-  // REVENUE (15 simulations SMART)
+  // REVENUE — focus cross-source CRM × Facturation
+  // Les 2 premières sims sont des cross-source CRM × Stripe (déclenchent
+  // uniquement si billing connecté).
   // ════════════════════════════════════════════════════════════════
+  const wonNoInvoice = Math.max(0, won - (ctx.invoicesCount ?? 0));
+  const matchRate = won > 0 ? PCT(Math.min(won, ctx.invoicesCount ?? 0), won) : 0;
+
   const revenue: Sim[] = [
+    // ── CROSS-SOURCE CRM × Facturation ─────────────────────────────
+    {
+      show: won > 0,
+      title: `Forecast vs CA encaissé : ${matchRate}% rapprochés → 100% en 30 jours`,
+      description: `${won} deals gagnés CRM, ${ctx.invoicesCount ?? 0} factures Stripe. Réconcilier pour mesurer l'écart prévision / CA réel et identifier les fuites.`,
+      impact: `Forecast fiabilisé sur ${won} deals signés`,
+      category: "csm",
+      simulationCategory: "revenue",
+      color: "from-cyan-500 to-emerald-600",
+      forecastType: "forecast_vs_revenue_match",
+      threshold: 100,
+      direction: "above",
+      requires: ["billing"],
+    },
+    {
+      show: wonNoInvoice > 0,
+      title: `Fuite revenue : ${wonNoInvoice} deals Closed Won sans facture → 0 en 60 jours`,
+      description: `Du CA déjà signé qui ne rentre pas. Workflow facturation auto post-Won + alerte CFO si invoice non créée sous 7j.`,
+      impact: `~${wonNoInvoice} factures à émettre, cash récupérable`,
+      category: "csm",
+      simulationCategory: "revenue",
+      color: "from-rose-500 to-emerald-600",
+      forecastType: "won_without_invoice",
+      threshold: 0,
+      direction: "below",
+      requires: ["billing"],
+    },
+
+    // ── Revenue récurrent ─────────────────────────────────────────
     {
       show: true,
       title: `MRR : croissance +10% en 90 jours`,
@@ -1410,17 +1442,8 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   const onlineRate = tContacts > 0 ? PCT(onlineContactsEst, tContacts) : 0;
   const offlineEst = Math.max(0, tContacts - onlineContactsEst);
   const customObjects = ctx.customObjectsCount ?? 0;
-
-  // Ratios associations
-  // - companies sans deal (proxy) : on n'a pas le count exact, on estime via
-  //   totalDeals / totalCompanies. Si une company a en moyenne 0 deal, c'est
-  //   qu'on n'a pas mappé la relation contractuelle.
-  const companiesWithDealRate = totalCompanies > 0
-    ? PCT(Math.min(tDeals, totalCompanies), totalCompanies)
-    : 0;
-  const associatedContactsRate = tContacts > 0
-    ? PCT(tContacts - orphans, tContacts)
-    : 0;
+  // associatedContactsRate / companiesWithDealRate sont déjà calculés plus haut
+  // (réutilisés par marketing_cycle ET data_quality).
 
   const dataQuality: Sim[] = [
     // ── 1. Attribution / Sources de trafic ───────────────────────
@@ -1529,14 +1552,25 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   // de données revenue/MRR/NRR sans billing branché, ni de churn signals
   // sans support, etc. Filtre silencieux ; un CTA dédié est ajouté dans
   // la liste cross-source des coachings.
-  const gated = [...cycleVentes, ...lifecycle, ...revenue, ...dataQuality].filter((s) => {
-    if (!s.show) return false;
-    if (!isMeaningful(s)) return false;
-    if (!s.requires || s.requires.length === 0) return true;
-    if (!connectedCats) return true; // Pas de gate si l'appelant ne fournit pas l'info
-    return s.requires.every((req) => connectedCats.has(req));
-  });
-  return gated;
+  function applyGating(arr: Sim[]): Sim[] {
+    return arr.filter((s) => {
+      if (!s.show) return false;
+      if (!isMeaningful(s)) return false;
+      if (!s.requires || s.requires.length === 0) return true;
+      if (!connectedCats) return true;
+      return s.requires.every((req) => connectedCats.has(req));
+    });
+  }
+
+  // Cap par catégorie pour ne pas noyer l'utilisateur. L'user créé ses propres
+  // alertes sur des KPI précis depuis chaque page Revold ; les simulations sont
+  // des suggestions, pas un catalogue exhaustif.
+  const cycleVentesCapped = applyGating(cycleVentes).slice(0, 5);
+  const lifecycleCapped = applyGating(lifecycle); // déjà filtré côté builder
+  const revenueCapped = applyGating(revenue);
+  const dataQualityCapped = applyGating(dataQuality);
+
+  return [...cycleVentesCapped, ...lifecycleCapped, ...revenueCapped, ...dataQualityCapped];
 }
 
 /**

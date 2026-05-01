@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 
 // ── Team definitions ──
 const teams = [
@@ -98,12 +99,18 @@ type Pipeline = { id: string; label: string };
 type Owner = { id: string; name: string; email: string; team: string | null };
 type ConfiguredChannel = { type: "email" | "slack" | "teams" | "webhook"; enabled: boolean };
 
-const CHANNEL_LABELS: Record<string, { label: string; description: string; icon: string }> = {
+// Pour les canaux qui correspondent à un produit (Slack, Teams, HubSpot), on
+// utilise le logo de marque via Google s2 favicons (BrandLogo). Pour les
+// canaux génériques (in_app, email, webhook) on garde une icône emoji.
+const CHANNEL_LABELS: Record<
+  string,
+  { label: string; description: string; icon: string; brandDomain?: string }
+> = {
   in_app: { label: "Cloche in-app", description: "Notification dans le header + page Alertes", icon: "🔔" },
   email: { label: "Email", description: "Email aux destinataires configurés", icon: "✉️" },
-  slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬" },
-  teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥" },
-  hubspot: { label: "HubSpot CRM", description: "Crée une task HubSpot dans le CRM connecté", icon: "🔶" },
+  slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬", brandDomain: "slack.com" },
+  teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥", brandDomain: "microsoft.com" },
+  hubspot: { label: "HubSpot CRM", description: "Crée une notification (note) dans le CRM connecté", icon: "🔶", brandDomain: "hubspot.com" },
   webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
 };
 
@@ -709,7 +716,18 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                                 : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
                             }`}
                           >
-                            <span className="text-xl shrink-0">{meta.icon}</span>
+                            <span className="shrink-0">
+                              {meta.brandDomain ? (
+                                <BrandLogo
+                                  domain={meta.brandDomain}
+                                  alt={meta.label}
+                                  fallback={meta.icon}
+                                  size={22}
+                                />
+                              ) : (
+                                <span className="text-xl">{meta.icon}</span>
+                              )}
+                            </span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-sm font-semibold text-slate-900">{meta.label}</p>

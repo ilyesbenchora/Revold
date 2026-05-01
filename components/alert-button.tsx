@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { BrandLogo } from "@/components/brand-logo";
 
 type AlertButtonProps = {
   title: string;
@@ -16,12 +17,15 @@ type AlertButtonProps = {
 
 type ConfiguredChannel = { type: "email" | "slack" | "teams" | "webhook"; enabled: boolean };
 
-const CHANNEL_META: Record<string, { label: string; icon: string; description: string }> = {
+const CHANNEL_META: Record<
+  string,
+  { label: string; icon: string; description: string; brandDomain?: string }
+> = {
   in_app: { label: "Cloche in-app", icon: "🔔", description: "Header + page Alertes" },
   email: { label: "Email", icon: "✉️", description: "Aux destinataires configurés" },
-  slack: { label: "Slack", icon: "💬", description: "Canal Slack configuré" },
-  teams: { label: "Microsoft Teams", icon: "👥", description: "Canal Teams configuré" },
-  hubspot: { label: "HubSpot CRM", icon: "🔶", description: "Crée une task dans le CRM" },
+  slack: { label: "Slack", icon: "💬", description: "Canal Slack configuré", brandDomain: "slack.com" },
+  teams: { label: "Microsoft Teams", icon: "👥", description: "Canal Teams configuré", brandDomain: "microsoft.com" },
+  hubspot: { label: "HubSpot CRM", icon: "🔶", description: "Notification (note) dans le CRM", brandDomain: "hubspot.com" },
   webhook: { label: "Webhook custom", icon: "🔌", description: "POST JSON vers votre URL" },
 };
 
@@ -172,7 +176,18 @@ export function AlertButton({ title, description, impact, category, forecastType
                     : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
                 }`}
               >
-                <span className="text-lg shrink-0">{meta.icon}</span>
+                <span className="shrink-0">
+                  {meta.brandDomain ? (
+                    <BrandLogo
+                      domain={meta.brandDomain}
+                      alt={meta.label}
+                      fallback={meta.icon}
+                      size={20}
+                    />
+                  ) : (
+                    <span className="text-lg">{meta.icon}</span>
+                  )}
+                </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium text-slate-900">{meta.label}</p>
@@ -242,10 +257,10 @@ export function AlertButton({ title, description, impact, category, forecastType
         className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:opacity-50"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>
-        Suivre cet objectif
+        Modifier cette alerte
       </button>
 
       {/* Portal vers document.body pour échapper aux containers parents

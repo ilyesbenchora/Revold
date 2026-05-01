@@ -66,10 +66,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   csm: "CSM",
 };
 
-type TabId = "mine" | "cycle_ventes" | "marketing_cycle" | "revenue" | "data_quality";
+type TabId = "cycle_ventes" | "marketing_cycle" | "revenue" | "data_quality";
 
 const TABS: { id: TabId; label: string; emoji: string }[] = [
-  { id: "mine", label: "Mes alertes", emoji: "✨" },
   { id: "cycle_ventes", label: "Cycle de ventes", emoji: "🚀" },
   { id: "marketing_cycle", label: "Marketing cycle", emoji: "🔄" },
   { id: "revenue", label: "Revenue", emoji: "💰" },
@@ -273,43 +272,33 @@ export function SimulationTabs({
   alerts: AlertItem[];
   pipelines?: Pipeline[];
 }) {
-  const [tab, setTab] = useState<TabId>("mine");
+  const [tab, setTab] = useState<TabId>("cycle_ventes");
   const [teamFilter, setTeamFilter] = useState<string>("all");
 
   // Counts par onglet
   const counts = useMemo(() => ({
-    mine: alerts.length,
     cycle_ventes: scenarios.filter((s) => s.simulationCategory === "cycle_ventes").length,
     marketing_cycle: scenarios.filter((s) => s.simulationCategory === "marketing_cycle").length,
     revenue: scenarios.filter((s) => s.simulationCategory === "revenue").length,
     data_quality: scenarios.filter((s) => s.simulationCategory === "data_quality").length,
-  }), [alerts, scenarios]);
+  }), [scenarios]);
 
   // Items affichables selon l'onglet
   const tabScenarios = useMemo(() => {
-    if (tab === "mine") return [];
     return scenarios.filter((s) => s.simulationCategory === tab);
   }, [tab, scenarios]);
 
   // Equipes disponibles dans l'onglet courant pour le filtre
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
-    if (tab === "mine") {
-      for (const a of alerts) set.add(a.category);
-    } else {
-      for (const s of tabScenarios) set.add(s.category);
-    }
+    for (const s of tabScenarios) set.add(s.category);
     return [...set];
-  }, [tab, alerts, tabScenarios]);
+  }, [tabScenarios]);
 
   // Filtrage par équipe
   const filteredScenarios = useMemo(
     () => (teamFilter === "all" ? tabScenarios : tabScenarios.filter((s) => s.category === teamFilter)),
     [tabScenarios, teamFilter],
-  );
-  const filteredAlerts = useMemo(
-    () => (teamFilter === "all" ? alerts : alerts.filter((a) => a.category === teamFilter)),
-    [alerts, teamFilter],
   );
 
   function onTabChange(t: TabId) {
@@ -358,11 +347,11 @@ export function SimulationTabs({
               teamFilter === "all" ? "bg-accent text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            Toutes ({tab === "mine" ? alerts.length : tabScenarios.length})
+            Toutes ({tabScenarios.length})
           </button>
           {availableTeams.map((t) => {
             const selected = teamFilter === t;
-            const cnt = (tab === "mine" ? alerts : tabScenarios).filter((x) => x.category === t).length;
+            const cnt = tabScenarios.filter((x) => x.category === t).length;
             return (
               <button
                 key={t}
@@ -380,19 +369,7 @@ export function SimulationTabs({
       )}
 
       {/* Contenu */}
-      {tab === "mine" ? (
-        filteredAlerts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-            <p className="text-sm text-slate-500">
-              Aucune alerte activée pour l&apos;instant. Activez un objectif depuis les onglets Cycle de ventes / Marketing / Deals à risques / Revenue / Données.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredAlerts.map((a) => <AlertCard key={a.id} alert={a} />)}
-          </div>
-        )
-      ) : tab === "cycle_ventes" ? (
+      {tab === "cycle_ventes" ? (
         // Onglet Cycle de ventes : composant dédié avec sélecteurs pipeline + stages
         // qui génère 4 sections (velocity, risk, forecast, analytics) dynamiquement.
         <CycleVentesSimulations pipelines={pipelines} />

@@ -201,10 +201,10 @@ async function sendTeamsMessage(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// HUBSPOT — création d'une task dans le CRM connecté
+// HUBSPOT — création d'une note dans le CRM (visible dans timeline contact/owner)
 // ────────────────────────────────────────────────────────────────────────────
 
-async function sendHubSpotTask(
+async function sendHubSpotNote(
   supabase: SupabaseClient,
   orgId: string,
   subject: string,
@@ -222,9 +222,14 @@ async function sendHubSpotTask(
       ? link
       : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`
     : null;
-  const body = `${bodyText}${fullLink ? `\n\n→ ${fullLink}` : ""}`;
+  // HubSpot Note body supporte le HTML simple — on injecte un titre + le contenu
+  const noteBody = [
+    `<h3>${subject.slice(0, 200)}</h3>`,
+    `<p>${bodyText.slice(0, 65000).replace(/\n/g, "<br/>")}</p>`,
+    fullLink ? `<p><a href="${fullLink}">Ouvrir dans Revold →</a></p>` : "",
+  ].join("");
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/notes", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -232,11 +237,7 @@ async function sendHubSpotTask(
       },
       body: JSON.stringify({
         properties: {
-          hs_task_subject: subject.slice(0, 200),
-          hs_task_body: body.slice(0, 65535),
-          hs_task_priority: "HIGH",
-          hs_task_status: "NOT_STARTED",
-          hs_task_type: "TODO",
+          hs_note_body: noteBody,
           hs_timestamp: Date.now(),
         },
       }),
@@ -376,7 +377,7 @@ export async function sendNotification(
     // HubSpot : pas de config user-level, utilise le token OAuth de l'org.
     // On saute la lookup dans notification_channels et on appelle directement.
     if (channel === "hubspot") {
-      const result = await sendHubSpotTask(supabase, orgId, subject, bodyText, link);
+      const result = await sendHubSpotNote(supabase, orgId, subject, bodyText, link);
       await logNotification(supabase, {
         orgId,
         channelType: "hubspot",
@@ -384,7 +385,7 @@ export async function sendNotification(
         sourceId,
         status: result.ok ? "sent" : "failed",
         error: result.error,
-        recipient: "HubSpot Task",
+        recipient: "HubSpot Note",
         subject,
       });
       results.push({ channel: "hubspot", ...result });
