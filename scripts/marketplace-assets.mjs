@@ -17,6 +17,17 @@
 import puppeteer from "puppeteer-core";
 import { mkdir, readFile } from "node:fs/promises";
 
+// Charge .env.local pour les creds de login Puppeteer
+try {
+  const env = await readFile(".env.local", "utf8");
+  for (const line of env.split(/\r?\n/)) {
+    const m = line.match(/^([A-Z_]+)\s*=\s*(.+)$/);
+    if (m) process.env[m[1]] = m[2].replace(/^"(.*)"$/, "$1");
+  }
+} catch {
+  /* pas de .env.local — les vars d'env doivent venir du shell */
+}
+
 const BASE = "https://revold.io";
 const OUT = "public/marketplace";
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -30,11 +41,18 @@ const SCREENSHOT_PAGES = [
 ];
 
 async function login(page) {
-  console.log("→ Login");
+  // Lit les credentials depuis .env.local (REVOLD_SCREENSHOT_EMAIL/PASSWORD)
+  // pour ne pas hardcoder dans le repo. Fallback sur env directes.
+  const email = process.env.REVOLD_SCREENSHOT_EMAIL;
+  const password = process.env.REVOLD_SCREENSHOT_PASSWORD;
+  if (!email || !password) {
+    throw new Error("REVOLD_SCREENSHOT_EMAIL / REVOLD_SCREENSHOT_PASSWORD manquants dans .env.local");
+  }
+  console.log(`→ Login (${email})`);
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle2", timeout: 30000 });
   await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-  await page.type('input[name="email"]', "Ilyes@lomed.fr");
-  await page.type('input[name="password"]', "Lomed974!");
+  await page.type('input[name="email"]', email);
+  await page.type('input[name="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 }).catch(() => {});
   await new Promise((r) => setTimeout(r, 2500));

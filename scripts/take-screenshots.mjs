@@ -28,10 +28,15 @@ async function main() {
   console.log("Logging in...");
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle2", timeout: 30000 });
 
-  // Fill login form
+  // Fill login form (creds via env REVOLD_SCREENSHOT_EMAIL/PASSWORD dans .env.local)
+  const email = process.env.REVOLD_SCREENSHOT_EMAIL;
+  const password = process.env.REVOLD_SCREENSHOT_PASSWORD;
+  if (!email || !password) {
+    throw new Error("REVOLD_SCREENSHOT_EMAIL / REVOLD_SCREENSHOT_PASSWORD manquants — voir .env.local");
+  }
   await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-  await page.type('input[name="email"]', "Ilyes@lomed.fr");
-  await page.type('input[name="password"]', "Lomed974!");
+  await page.type('input[name="email"]', email);
+  await page.type('input[name="password"]', password);
   await page.click('button[type="submit"]');
 
   // Wait for redirect to dashboard
