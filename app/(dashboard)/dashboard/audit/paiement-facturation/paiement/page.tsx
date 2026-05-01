@@ -6,7 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
-import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function PaiementPage() {
   const orgId = await getOrgId();
@@ -16,7 +16,7 @@ export default async function PaiementPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const data = await fetchPaiementFacturationData(token);
+  const data = await fetchPaiementFacturationFor(supabase, orgId, token);
 
   // Comptage par statut subscription
   const trialingSubs = data.subscriptions.filter((s) => s.properties.hs_subscription_status === "trialing").length;

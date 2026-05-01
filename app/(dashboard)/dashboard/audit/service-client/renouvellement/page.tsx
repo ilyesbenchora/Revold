@@ -7,7 +7,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationData, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function ServiceClientRenouvellementPage() {
   const orgId = await getOrgId();
@@ -19,7 +19,7 @@ export default async function ServiceClientRenouvellementPage() {
   const token = await getHubSpotToken(supabase, orgId);
   const [scData, billing, snapshot] = await Promise.all([
     fetchServiceClientData(token),
-    fetchPaiementFacturationData(token),
+    fetchPaiementFacturationFor(supabase, orgId, token),
     getHubspotSnapshot(),
   ]);
 

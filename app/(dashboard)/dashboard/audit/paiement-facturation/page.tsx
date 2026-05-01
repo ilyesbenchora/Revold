@@ -11,7 +11,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
-import { fetchPaiementFacturationData, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
 export default async function PaiementFacturationOverviewPage() {
   const orgId = await getOrgId();
@@ -23,7 +23,7 @@ export default async function PaiementFacturationOverviewPage() {
   const token = await getHubSpotToken(supabase, orgId);
 
   const [data, allConnectedTools, mappedKeys] = await Promise.all([
-    fetchPaiementFacturationData(token),
+    fetchPaiementFacturationFor(supabase, orgId, token),
     getConnectedTools(supabase, orgId),
     getToolKeys(supabase, orgId, "audit_paiement_facturation"),
   ]);

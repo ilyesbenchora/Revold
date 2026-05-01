@@ -1,14 +1,21 @@
 /**
  * Shared data layer for the Audit > Paiement & Facturation section.
  *
- * Fetches HubSpot invoices + subscriptions in parallel and returns
- * pre-computed KPIs (MRR, ARR, churn, paid/unpaid totals, etc.).
+ * Fetches invoices + subscriptions and returns pre-computed KPIs (MRR, ARR,
+ * churn, paid/unpaid totals, etc.).
+ *
+ * Source data : routée selon `tool_mappings.audit_paiement_facturation`
+ * (Paramètres → Intégrations → "Outil source par page"). Si l'utilisateur a
+ * choisi `stripe`, on lit Stripe live ; sinon fallback HubSpot.
  *
  * Used by:
  *   - /dashboard/audit/paiement-facturation (Vue d'ensemble)
  *   - /dashboard/audit/paiement-facturation/facturation
  *   - /dashboard/audit/paiement-facturation/paiement
  */
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getToolKeys } from "@/lib/integrations/tool-mappings";
 
 export type InvoiceHS = {
   id: string;
@@ -120,6 +127,8 @@ export type PaiementFacturationData = {
   avgInvoice: number | null;
   // Score global de la section
   score: number;
+  /** Outil source utilisé pour ce fetch (debug / UI hint). */
+  source?: string;
 };
 
 export async function fetchPaiementFacturationData(
@@ -205,3 +214,40 @@ export async function fetchPaiementFacturationData(
 export const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 });
 export const fmtK = (n: number) =>
   n >= 1000 ? `${Math.round(n / 1000).toLocaleString("fr-FR")}K €` : `${fmt(n)} €`;
+
+/**
+ * Orchestrateur : route le fetch vers la bonne source selon `tool_mappings`.
+ *
+ * - `stripe` → fetchPaiementFacturationFromStripe (clé via integrations.access_token)
+ * - tout le reste / aucun mapping → HubSpot (fallback historique)
+ *
+ * Utilisé par les 3 pages de la section. Évite que les pages dupliquent la
+ * logique de résolution de source.
+ */
+export async function fetchPaiementFacturationFor(
+  supabase: SupabaseClient,
+  orgId: string,
+  hubspotToken: string | null,
+): Promise<PaiementFacturationData> {
+  const mappedKeys = await getToolKeys(supabase, orgId, "audit_paiement_facturation");
+  const sourceKey = mappedKeys[0]; // mode "single" → 1 seul outil
+
+  if (sourceKey === "stripe") {
+    const { data: stripeInt } = await supabase
+      .from("integrations")
+      .select("access_token")
+      .eq("organization_id", orgId)
+      .eq("provider", "stripe")
+      .eq("is_active", true)
+      .maybeSingle();
+    const stripeKey = (stripeInt?.access_token as string | undefined) ?? null;
+    // Import dynamique pour éviter de charger le module Stripe quand HubSpot est utilisé
+    const { fetchPaiementFacturationFromStripe } = await import("./paiement-facturation-stripe");
+    const result = await fetchPaiementFacturationFromStripe(stripeKey);
+    return { ...result, source: "stripe" };
+  }
+
+  // Fallback HubSpot (comportement historique)
+  const result = await fetchPaiementFacturationData(hubspotToken);
+  return { ...result, source: "hubspot" };
+}
