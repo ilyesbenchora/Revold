@@ -68,9 +68,12 @@ export function SyncParityBlock({ rows }: { rows: ParityRow[] }) {
       const res = await fetch(`/api/sync/hubspot/${mode}`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
+        const cleanedSuffix = data.objects.cleaned
+          ? ` · ${data.objects.cleaned} orphelins purgés`
+          : "";
         setLastResult(
           `✓ ${mode.toUpperCase()} terminé en ${Math.round(data.durationMs / 1000)} s — ` +
-          `${data.objects.upserted} records mis à jour sur ${data.objects.total} object types.`,
+          `${data.objects.upserted} records mis à jour sur ${data.objects.total} object types${cleanedSuffix}.`,
         );
         router.refresh();
       } else {

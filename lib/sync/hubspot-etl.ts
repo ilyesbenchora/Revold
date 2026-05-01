@@ -53,6 +53,8 @@ export type SyncResult = {
   /** Nouveau watermark écrit dans sync_state. */
   cursor: string | null;
   durationMs: number;
+  /** Records locaux supprimés car absents de HubSpot (mode full uniquement). */
+  cleaned?: number;
   error?: string;
 };
 
@@ -561,6 +563,93 @@ async function countHubspot(
   return null;
 }
 
+// ── Cleanup des orphelins locaux (mode full uniquement) ─────────────────
+//
+// La full sync HubSpot ramène l'intégralité des records existants. Tout
+// record local avec hubspot_id non-null absent de cette liste = supprimé
+// ou mergé côté HubSpot → on doit le purger localement (sinon parity drift
+// permanent : delta sync ne ramène jamais les deletions).
+//
+// Les rows sans hubspot_id (seed/démo) sont préservées.
+//
+// Avant DELETE on nullifie les FK sortantes des autres tables, car le
+// schéma initial (initial_schema.sql) n'a pas d'ON DELETE SET NULL sur
+// contacts.company_id / deals.company_id / activities.deal_id /
+// activities.contact_id / ai_insights.deal_id.
+
+async function cleanupCrmOrphans(
+  supabase: SupabaseClient,
+  orgId: string,
+  type: "contacts" | "companies" | "deals" | "tickets",
+  hubspotRecords: Array<Record<string, unknown>>,
+): Promise<number> {
+  const tables: Record<typeof type, string> = {
+    contacts: "contacts",
+    companies: "companies",
+    deals: "deals",
+    tickets: "tickets",
+  };
+  const table = tables[type];
+  const seenIds = new Set(hubspotRecords.map((r) => r.id as string));
+
+  const { data: localRows, error: selectErr } = await supabase
+    .from(table)
+    .select("id, hubspot_id")
+    .eq("organization_id", orgId)
+    .not("hubspot_id", "is", null);
+
+  if (selectErr) throw new Error(`Select orphans ${type}: ${selectErr.message}`);
+  if (!localRows || localRows.length === 0) return 0;
+
+  const orphans = localRows.filter(
+    (r) => r.hubspot_id && !seenIds.has(r.hubspot_id as string),
+  );
+  if (orphans.length === 0) return 0;
+
+  const orphanIds = orphans.map((r) => r.id as string);
+
+  // Nullifie les FK entrantes (tables qui référencent celle-ci)
+  const nullifyFk = async (refTable: string, fkCol: string) => {
+    for (let i = 0; i < orphanIds.length; i += 200) {
+      const chunk = orphanIds.slice(i, i + 200);
+      const { error } = await supabase
+        .from(refTable)
+        .update({ [fkCol]: null })
+        .eq("organization_id", orgId)
+        .in(fkCol, chunk);
+      if (error) {
+        // On continue même si une table optionnelle n'existe pas
+        console.warn(`[cleanup ${type}] nullify ${refTable}.${fkCol}: ${error.message}`);
+      }
+    }
+  };
+
+  if (type === "companies") {
+    await nullifyFk("contacts", "company_id");
+    await nullifyFk("deals", "company_id");
+  } else if (type === "contacts") {
+    await nullifyFk("activities", "contact_id");
+  } else if (type === "deals") {
+    await nullifyFk("activities", "deal_id");
+    await nullifyFk("ai_insights", "deal_id");
+  }
+
+  // Delete par chunks
+  let totalDeleted = 0;
+  for (let i = 0; i < orphanIds.length; i += 500) {
+    const chunk = orphanIds.slice(i, i + 500);
+    const { error, count } = await supabase
+      .from(table)
+      .delete({ count: "exact" })
+      .eq("organization_id", orgId)
+      .in("id", chunk);
+    if (error) throw new Error(`Delete orphans ${type}: ${error.message}`);
+    totalDeleted += count ?? chunk.length;
+  }
+
+  return totalDeleted;
+}
+
 // ── Sync principal pour CRM objects (contacts/companies/deals/tickets) ──
 
 export async function syncCrmObject(
@@ -583,7 +672,13 @@ export async function syncCrmObject(
     else if (type === "deals") upserted = await upsertDeals(supabase, orgId, records);
     else if (type === "tickets") upserted = await upsertTickets(supabase, orgId, records);
 
-    // Recalcule la parité
+    // Cleanup orphans : uniquement en full sync, où `records` contient tout HubSpot
+    let cleaned = 0;
+    if (mode === "full") {
+      cleaned = await cleanupCrmOrphans(supabase, orgId, type, records);
+    }
+
+    // Recalcule la parité (après cleanup pour être exact)
     const [localCount, hubspotCount] = await Promise.all([
       countLocal(supabase, orgId, type),
       countHubspot(token, type),
@@ -607,6 +702,7 @@ export async function syncCrmObject(
       scanned: records.length,
       cursor: latest,
       durationMs: Date.now() - start,
+      cleaned,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

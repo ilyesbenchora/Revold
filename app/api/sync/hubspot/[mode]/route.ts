@@ -104,6 +104,7 @@ export async function POST(
   const okCount = syncResults.filter((r) => r.ok).length;
   const failCount = syncResults.length - okCount;
   const upsertedTotal = syncResults.reduce((s, r) => s + r.upserted, 0);
+  const cleanedTotal = syncResults.reduce((s, r) => s + (r.cleaned ?? 0), 0);
 
   return NextResponse.json({
     mode,
@@ -113,6 +114,7 @@ export async function POST(
       failed: failCount,
       total: syncResults.length,
       upserted: upsertedTotal,
+      cleaned: cleanedTotal,
     },
     results: syncResults,
     snapshot: {
