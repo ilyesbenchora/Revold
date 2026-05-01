@@ -592,21 +592,31 @@ async function cleanupCrmOrphans(
   const table = tables[type];
   const seenIds = new Set(hubspotRecords.map((r) => r.id as string));
 
-  const { data: localRows, error: selectErr } = await supabase
-    .from(table)
-    .select("id, hubspot_id")
-    .eq("organization_id", orgId)
-    .not("hubspot_id", "is", null);
+  // Pagination obligatoire : Supabase JS limite à 1000 rows par requête
+  // (sinon on rate seulement les 1000 premiers contacts pour les gros CRMs)
+  const PAGE = 1000;
+  const allLocalRows: Array<{ id: string; hubspot_id: string }> = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("id, hubspot_id")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`Select orphans ${type}: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allLocalRows.push(...(data as Array<{ id: string; hubspot_id: string }>));
+    if (data.length < PAGE) break;
+  }
 
-  if (selectErr) throw new Error(`Select orphans ${type}: ${selectErr.message}`);
-  if (!localRows || localRows.length === 0) return 0;
+  if (allLocalRows.length === 0) return 0;
 
-  const orphans = localRows.filter(
-    (r) => r.hubspot_id && !seenIds.has(r.hubspot_id as string),
+  const orphans = allLocalRows.filter(
+    (r) => r.hubspot_id && !seenIds.has(r.hubspot_id),
   );
   if (orphans.length === 0) return 0;
 
-  const orphanIds = orphans.map((r) => r.id as string);
+  const orphanIds = orphans.map((r) => r.id);
 
   // Nullifie les FK entrantes (tables qui référencent celle-ci)
   const nullifyFk = async (refTable: string, fkCol: string) => {
