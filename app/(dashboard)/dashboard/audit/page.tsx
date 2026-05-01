@@ -4,18 +4,16 @@ import Link from "next/link";
 
 const modules = [
   {
-    href: "/dashboard/donnees",
-    title: "Propriétés",
-    description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
-    objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
+    href: "/dashboard/performances",
+    title: "Performances",
+    description: "Closing rate, cycle de vente, vélocité pipeline, pilotage commercial & marketing.",
+    objective: "Identifier les leviers de croissance et les goulots d'étranglement business.",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
-        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
       </svg>
     ),
-    color: "from-sky-500 to-indigo-500",
+    color: "from-emerald-500 to-teal-500",
   },
   {
     href: "/dashboard/process",
@@ -33,16 +31,31 @@ const modules = [
     color: "from-amber-500 to-rose-500",
   },
   {
-    href: "/dashboard/performances",
-    title: "Performances",
-    description: "Closing rate, cycle de vente, vélocité pipeline, pilotage commercial & marketing.",
-    objective: "Identifier les leviers de croissance et les goulots d'étranglement business.",
+    href: "/dashboard/audit/paiement-facturation",
+    title: "Paiement & Facturation",
+    description: "Factures, subscriptions, MRR/ARR, churn revenue et recouvrement.",
+    objective: "Sécuriser le revenu récurrent et accélérer l'encaissement.",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
       </svg>
     ),
-    color: "from-emerald-500 to-teal-500",
+    color: "from-cyan-500 to-blue-600",
+  },
+  {
+    href: "/dashboard/audit/service-client",
+    title: "Service Client",
+    description: "Tickets, satisfaction, signaux d'engagement et risque de churn.",
+    objective: "Détecter les risques de churn et activer les bons leviers CSM avant qu'il soit trop tard.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1v-7h3v5z" />
+        <path d="M3 19a2 2 0 0 0 2 2h1v-7H3v5z" />
+      </svg>
+    ),
+    color: "from-blue-500 to-indigo-500",
   },
   {
     href: "/dashboard/conduite-changement",
@@ -58,6 +71,20 @@ const modules = [
       </svg>
     ),
     color: "from-fuchsia-500 to-purple-500",
+  },
+  {
+    href: "/dashboard/donnees",
+    title: "Propriétés",
+    description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
+    objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+      </svg>
+    ),
+    color: "from-sky-500 to-indigo-500",
   },
   {
     href: "/dashboard/audit/recommandations",
