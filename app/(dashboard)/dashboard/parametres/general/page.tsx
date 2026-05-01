@@ -16,14 +16,12 @@ export default async function ParametresGeneralPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: org }, { data: profiles }, { data: stages }] = await Promise.all([
+  const [{ data: org }, { data: profiles }] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", orgId).single(),
     supabase.from("profiles").select("id, full_name, role, created_at").eq("organization_id", orgId).order("created_at"),
-    supabase.from("pipeline_stages").select("*").eq("organization_id", orgId).order("position"),
   ]);
 
   const team = profiles ?? [];
-  const pipelineStages = stages ?? [];
 
   return (
     <section className="space-y-8">
@@ -178,46 +176,6 @@ export default async function ParametresGeneralPage() {
         </div>
       </div>
 
-      {/* Pipeline */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Pipeline de vente
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{pipelineStages.length} étapes</span>
-        </h2>
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                <th className="px-5 py-2">Position</th>
-                <th className="px-5 py-2">Nom</th>
-                <th className="px-5 py-2">Probabilité</th>
-                <th className="px-5 py-2">Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pipelineStages.map((s) => (
-                <tr key={s.id} className="border-b border-card-border last:border-0">
-                  <td className="px-5 py-2.5 text-slate-500">{s.position}</td>
-                  <td className="px-5 py-2.5 font-medium text-slate-800">{s.name}</td>
-                  <td className="px-5 py-2.5 text-slate-600">{Number(s.probability)}%</td>
-                  <td className="px-5 py-2.5">
-                    {s.is_closed_won ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Gagné</span>
-                    ) : s.is_closed_lost ? (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Perdu</span>
-                    ) : (
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">En cours</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {pipelineStages.length === 0 && (
-                <tr><td colSpan={4} className="px-5 py-4 text-center text-slate-400">Aucune étape configurée. Synchronisez HubSpot pour importer votre pipeline.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </section>
   );
 }
