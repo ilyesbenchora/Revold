@@ -9,7 +9,7 @@ const SECTIONS = [
   {
     href: "/dashboard/audit/recommandations/donnees",
     emoji: "🗂️",
-    label: "Données",
+    label: "Propriétés",
     description: "Qualité, complétude, enrichissement, dédoublonnage. Fiabiliser la base avant tout.",
     gradient: "from-emerald-500 to-teal-600",
   },

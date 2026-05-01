@@ -28,7 +28,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     // ── Audit ──
     {
       id: "audit_donnees",
-      label: "Audit — Données",
+      label: "Données — Propriétés",
       href: "/dashboard/donnees",
       description: "Contacts, entreprises, transactions et qualité de la base CRM",
       diagKeys: [
@@ -47,7 +47,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_automatisations",
-      label: "Audit — Automatisations",
+      label: "Données — Automatisations",
       href: "/dashboard/process",
       description: "Workflows actifs et règles d'automatisation HubSpot",
       diagKeys: [],
@@ -55,7 +55,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_perf_ventes",
-      label: "Audit — Performances Ventes",
+      label: "Données — Performances Ventes",
       href: "/dashboard/performances/commerciale",
       description: "Pipeline, deals, closing rate, forecast",
       diagKeys: [
@@ -74,7 +74,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_perf_marketing",
-      label: "Audit — Performances Marketing",
+      label: "Données — Performances Marketing",
       href: "/dashboard/performances/marketing",
       description: "Funnel d'acquisition, formulaires et campagnes marketing",
       diagKeys: ["totalContacts", "forms", "marketing_campaigns", "marketing_events"],
@@ -82,7 +82,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_paiement_facturation",
-      label: "Audit — Paiement & Facturation",
+      label: "Données — Paiement & Facturation",
       href: "/dashboard/audit/paiement-facturation",
       description: "Invoices, subscriptions, quotes et line items",
       diagKeys: [
@@ -99,7 +99,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_adoption",
-      label: "Audit — Adoption",
+      label: "Données — Adoption",
       href: "/dashboard/conduite-changement",
       description: "Owners, équipes, utilisateurs et discipline d'usage",
       diagKeys: ["ownersCount", "users", "goals"],

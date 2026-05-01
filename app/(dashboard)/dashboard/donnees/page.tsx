@@ -176,7 +176,7 @@ export default async function DonneesPage() {
     if (tool.key === "stripe") {
       // 1. On lit d'abord ce qu'on a en local (source_links) — rapide.
       // Wrappé en try/catch global : aucune erreur Stripe ne doit casser
-      // la page Données.
+      // la page Propriétés.
       let stripeContacts = 0;
       let stripeInvoices = 0;
       let stripeSubs = 0;

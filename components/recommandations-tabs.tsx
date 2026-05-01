@@ -18,7 +18,7 @@ export function RecommandationsTabs({ counts = {} }: Props) {
   const pathname = usePathname();
   const tabs: Array<{ href: string; label: string; emoji: string; count?: number }> = [
     { href: "/dashboard/audit/recommandations", label: "Vue d'ensemble", emoji: "🎯", count: undefined },
-    { href: "/dashboard/audit/recommandations/donnees", label: "Données", emoji: "🗂️", count: counts.donnees },
+    { href: "/dashboard/audit/recommandations/donnees", label: "Propriétés", emoji: "🗂️", count: counts.donnees },
     { href: "/dashboard/audit/recommandations/process", label: "Automatisations", emoji: "⚙️", count: counts.process },
     { href: "/dashboard/audit/recommandations/performances", label: "Performances", emoji: "📈", count: counts.performances },
     { href: "/dashboard/audit/recommandations/paiement-facturation", label: "Paiement & Facturation", emoji: "💰", count: counts.paiement },

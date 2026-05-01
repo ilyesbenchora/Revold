@@ -91,10 +91,10 @@ export default async function DashboardOverviewPage() {
   // ── Cards des sections principales — actionables, sans badge score ──
   const sections = [
     {
-      label: "Audit",
-      description: "Diagnostiquez la santé de votre CRM : données, process, performances, adoption.",
+      label: "Données",
+      description: "Diagnostiquez la santé de votre CRM : propriétés, process, performances, adoption.",
       href: "/dashboard/audit",
-      cta: "Lancer l'audit",
+      cta: "Lancer le diagnostic",
       gradient: "from-blue-500 to-indigo-500",
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

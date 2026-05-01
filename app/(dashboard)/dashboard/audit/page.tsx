@@ -5,7 +5,7 @@ import Link from "next/link";
 const modules = [
   {
     href: "/dashboard/donnees",
-    title: "Données",
+    title: "Propriétés",
     description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
     objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
     icon: (
@@ -78,7 +78,7 @@ export default async function AuditPage() {
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Audit</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Données</h1>
         <p className="mt-1 text-sm text-slate-500">
           Diagnostic complet de votre stack revenue : données, process, performances et adoption.
         </p>

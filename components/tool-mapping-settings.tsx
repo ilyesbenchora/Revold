@@ -22,10 +22,10 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     id: "audit",
-    title: "Audit",
-    hint: "1 outil principal d'analyse par page d'audit (sauf Vue d'ensemble).",
+    title: "Données",
+    hint: "1 outil principal d'analyse par page (sauf Vue d'ensemble).",
     pages: [
-      { key: "audit_donnees", label: "Données", description: "Qualité base CRM (contacts, entreprises, deals)", mode: "single" },
+      { key: "audit_donnees", label: "Propriétés", description: "Qualité base CRM (contacts, entreprises, deals)", mode: "single" },
       { key: "audit_automatisations", label: "Automatisations", description: "Workflows et règles d'automatisation", mode: "single" },
       { key: "audit_perf_ventes", label: "Performances Ventes", description: "Pipeline, deals, closing, forecast", mode: "single" },
       { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "single" },
