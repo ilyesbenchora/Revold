@@ -103,6 +103,7 @@ const CHANNEL_LABELS: Record<string, { label: string; description: string; icon:
   email: { label: "Email", description: "Email aux destinataires configurés", icon: "✉️" },
   slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬" },
   teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥" },
+  hubspot: { label: "HubSpot CRM", description: "Crée une task HubSpot dans le CRM connecté", icon: "🔶" },
   webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
 };
 
@@ -685,9 +686,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                     </p>
 
                     <div className="mt-5 space-y-2">
-                      {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
+                      {(["in_app", "email", "slack", "teams", "hubspot", "webhook"] as const).map((ch) => {
                         const isInApp = ch === "in_app";
-                        const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
+                        const isHubspot = ch === "hubspot";
+                        // HubSpot ne demande pas de config user-level : utilise le token OAuth de l'org.
+                        // Le canal est dispo dès qu'une intégration HubSpot est active (vérif côté serveur).
+                        const isConfigured = isInApp || isHubspot || configuredChannels.some((c) => c.type === ch && c.enabled);
                         const meta = CHANNEL_LABELS[ch];
                         const isSelected = selectedChannels.includes(ch);
 
@@ -714,7 +718,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                                     Toujours actif
                                   </span>
                                 )}
-                                {!isConfigured && !isInApp && (
+                                {isHubspot && (
+                                  <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-bold text-orange-700">
+                                    OAuth org
+                                  </span>
+                                )}
+                                {!isConfigured && !isInApp && !isHubspot && (
                                   <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
                                     Non configuré
                                   </span>

@@ -21,6 +21,7 @@ const CHANNEL_META: Record<string, { label: string; icon: string; description: s
   email: { label: "Email", icon: "✉️", description: "Aux destinataires configurés" },
   slack: { label: "Slack", icon: "💬", description: "Canal Slack configuré" },
   teams: { label: "Microsoft Teams", icon: "👥", description: "Canal Teams configuré" },
+  hubspot: { label: "HubSpot CRM", icon: "🔶", description: "Crée une task dans le CRM" },
   webhook: { label: "Webhook custom", icon: "🔌", description: "POST JSON vers votre URL" },
 };
 
@@ -150,9 +151,10 @@ export function AlertButton({ title, description, impact, category, forecastType
         </p>
 
         <div className="mt-4 space-y-1.5">
-          {(["in_app", "email", "slack", "teams", "webhook"] as const).map((ch) => {
+          {(["in_app", "email", "slack", "teams", "hubspot", "webhook"] as const).map((ch) => {
             const isInApp = ch === "in_app";
-            const isConfigured = isInApp || configuredChannels.some((c) => c.type === ch && c.enabled);
+            const isHubspot = ch === "hubspot";
+            const isConfigured = isInApp || isHubspot || configuredChannels.some((c) => c.type === ch && c.enabled);
             const meta = CHANNEL_META[ch];
             const isSelected = selectedChannels.includes(ch);
 

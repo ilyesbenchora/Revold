@@ -1107,87 +1107,51 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   const safeRate = (top: number, bottom: number): number =>
     bottom > 0 ? Math.round((top / bottom) * 1000) / 10 : 0;
 
+  // ════════════════════════════════════════════════════════════════
+  // MARKETING CYCLE — refonte 2026-04 : focus 1-2 stages lifecycle clés
+  // (l'user duplique sur les autres stages dans Mes alertes), titre court
+  // SMART (current → target en X jours + impact), pas de simulations sans
+  // constat actuel mesurable.
+  // ════════════════════════════════════════════════════════════════
+  const stages: Array<{ key: string; from: number; to: number; targetPct: number; days: number; label: string }> = [
+    { key: "lead_to_mql", from: leadCount, to: mqlCount, targetPct: 15, days: 60, label: "Lead → MQL" },
+    { key: "mql_to_sql", from: mqlCount, to: sqlCount, targetPct: 50, days: 60, label: "MQL → SQL" },
+    { key: "sql_to_opp", from: sqlCount, to: opportunityCount, targetPct: 70, days: 30, label: "SQL → Opportunité" },
+    { key: "opp_to_customer", from: opportunityCount, to: customerCount, targetPct: 35, days: 90, label: "Opportunité → Client" },
+  ];
+
+  // On garde les 2 stages les plus impactants (volume × écart au target)
+  // pour ne pas noyer l'user. Il pourra dupliquer manuellement les autres.
+  const bestStages = stages
+    .map((s) => {
+      const current = safeRate(s.to, s.from);
+      const gap = Math.max(0, s.targetPct - current);
+      return { ...s, current, gap, score: gap * Math.log10(Math.max(10, s.from)) };
+    })
+    .filter((s) => s.from > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
   const lifecycle: Sim[] = [
-    // ── Conversions stage-to-stage (5 sims) ──
-    {
+    ...bestStages.map<Sim>((s) => ({
       show: true,
-      title: `Conversion Subscriber → Lead : ${safeRate(leadCount, subscriberCount)}% actuellement (${leadCount.toLocaleString("fr-FR")}/${subscriberCount.toLocaleString("fr-FR")}) → 30% en 60 jours via lead magnet + nurturing email 4 touches`,
-      description: `Subscriber = newsletter/blog opt-in. Sans nurturing actif, 90% restent froids. 4 emails progressifs sur 21j (valeur → cas client → contenu pédago → CTA démo) = +25 pts conversion.`,
-      impact: `+${Math.max(1, Math.round(subscriberCount * 0.25)).toLocaleString("fr-FR")} Leads générés sur ${subscriberCount.toLocaleString("fr-FR")} Subscribers`,
+      title: `${s.label} : ${s.current}% → ${s.targetPct}% en ${s.days} jours`,
+      description: `${s.to.toLocaleString("fr-FR")} sur ${s.from.toLocaleString("fr-FR")}. Activable en 1 clic — duplicable sur les autres stages depuis Mes alertes.`,
+      impact: `+${Math.max(1, Math.round(s.from * Math.max(0, s.targetPct - s.current) / 100)).toLocaleString("fr-FR")} ${s.label.split(" → ")[1]}/an`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-orange-600",
-      forecastType: "conv_subscriber_lead",
-      threshold: 30,
+      forecastType: `conv_${s.key}`,
+      threshold: s.targetPct,
       direction: "above",
-    },
-    {
-      show: true,
-      title: `Conversion Lead → MQL : ${safeRate(mqlCount, leadCount)}% actuellement (${mqlCount.toLocaleString("fr-FR")}/${leadCount.toLocaleString("fr-FR")}) → 15% en 60 jours via lead scoring + workflow auto`,
-      description: `Sans lead scoring composite (engagement + firmographic), les MQL sont produits manuellement et inconsistants. Workflow scoring + handoff auto SDR < 5min = +12 pts.`,
-      impact: `+${Math.max(1, Math.round(leadCount * 0.12)).toLocaleString("fr-FR")} MQL/an sur ${leadCount.toLocaleString("fr-FR")} Leads`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-yellow-600",
-      forecastType: "conv_lead_mql",
-      threshold: 15,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Conversion MQL → SQL : ${safeRate(sqlCount, mqlCount)}% actuellement (${sqlCount.toLocaleString("fr-FR")}/${mqlCount.toLocaleString("fr-FR")}) → 50% en 60 jours via SLA SDR 5min + critère BANT`,
-      description: `Top quartile B2B SaaS : 50% des MQL deviennent SQL. Action : SLA contact SDR < 5min (workflow round-robin) + critères SQL stricts (Budget, Authority, Need, Timeline).`,
-      impact: `+${Math.max(1, Math.round(mqlCount * 0.4)).toLocaleString("fr-FR")} SQL/an sur ${mqlCount.toLocaleString("fr-FR")} MQL`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-yellow-500 to-amber-600",
-      forecastType: "conv_mql_sql",
-      threshold: 50,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Conversion SQL → Opportunity : ${safeRate(opportunityCount, sqlCount)}% actuellement (${opportunityCount.toLocaleString("fr-FR")}/${sqlCount.toLocaleString("fr-FR")}) → 70% en 30 jours via Discovery rapide`,
-      description: `Top quartile : 70% des SQL créent une opportunité sous 14j. Action : 1er meeting Discovery < 7j post-handoff, taux RDV honorés > 80%, qualification MEDDIC stricte.`,
-      impact: `+${Math.max(1, Math.round(sqlCount * 0.5)).toLocaleString("fr-FR")} opportunités/an sur ${sqlCount.toLocaleString("fr-FR")} SQL`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-orange-500 to-amber-600",
-      forecastType: "conv_sql_opp",
-      threshold: 70,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Conversion Opportunity → Customer : ${safeRate(customerCount, opportunityCount)}% actuellement (${customerCount.toLocaleString("fr-FR")}/${opportunityCount.toLocaleString("fr-FR")}) → 35% en 90 jours via process closing standardisé`,
-      description: `Top quartile B2B SaaS : 30-40%. Workflow Won → set lifecycle Customer auto. E-sign + relances post-quote. Audit pourquoi opps stagnent (souvent prix ou no decision).`,
-      impact: `+${Math.max(1, Math.round(opportunityCount * 0.25)).toLocaleString("fr-FR")} Customers/an sur ${opportunityCount.toLocaleString("fr-FR")} Opportunities`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-emerald-600",
-      forecastType: "conv_opp_customer",
-      threshold: 35,
-      direction: "above",
-    },
+    })),
 
-    // ── Setup marketing (10 sims SMART) ──
+    // Outillage marketing — sims qui ont un constat mesurable
     {
-      show: true,
-      title: `Lifecycle stages : ${Object.values(ctx.lifecycleByStage ?? {}).filter((s) => s.count > 0).length}/6 utilisés actuellement → 6/6 en 14 jours via workflow progression auto`,
-      description: `Sans lifecycle stages activés et maintenus, funnel marketing invisible. 6 stages standard : Subscriber → Lead → MQL → SQL → Opportunity → Customer. Workflow scoring pour transitions auto.`,
-      impact: `Funnel marketing/sales aligné, conversion mesurable par stage`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-yellow-600",
-      forecastType: "lifecycle_stages_setup",
-      threshold: 6,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Forms HubSpot : ${ctx.formsCount ?? 0} actuellement → 8 en 60 jours via création par persona × intent`,
-      description: `8 forms par persona × intent : démo (BOFU), fiche commerciale, guide TOFU, webinar (MOFU), newsletter, contact, partenaires, careers. Chaque form augmente la capture leads de ~10%.`,
-      impact: `+${Math.max(20, Math.round(tContacts * 0.1)).toLocaleString("fr-FR")} leads/mois cible`,
+      show: (ctx.formsCount ?? 0) < 8,
+      title: `Forms HubSpot : ${ctx.formsCount ?? 0} → 8 en 60 jours`,
+      description: `1 form par persona × intent. Capture leads ×1.5 vs setup actuel.`,
+      impact: `+${Math.max(20, Math.round(tContacts * 0.1)).toLocaleString("fr-FR")} leads/mois`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-orange-500",
@@ -1196,10 +1160,10 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
       direction: "above",
     },
     {
-      show: true,
-      title: `Listes segmentation : ${ctx.listsCount ?? 0} actuellement → 15 en 30 jours via segmentation lifecycle/persona/intent/engagement`,
-      description: `15 listes intelligentes minimum (lifecycle, persona, secteur, taille, engagement récent, intent pricing 7j). Personnalisation campagnes par segment = +60% engagement vs broadcast.`,
-      impact: `Personnalisation activée sur 100% de ${tContacts.toLocaleString("fr-FR")} contacts`,
+      show: (ctx.listsCount ?? 0) < 15,
+      title: `Listes segmentation : ${ctx.listsCount ?? 0} → 15 en 30 jours`,
+      description: `Lifecycle, persona, intent, engagement récent. Personnalisation = +60% open rate.`,
+      impact: `Segmentation activée sur ${tContacts.toLocaleString("fr-FR")} contacts`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-rose-500 to-amber-500",
@@ -1208,10 +1172,10 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
       direction: "above",
     },
     {
-      show: true,
-      title: `Marketing campaigns : ${ctx.marketingCampaignsCount ?? 0} actuellement → 10 trackées en 90 jours via taggage systématique`,
-      description: `Sans tag Campaign HubSpot, ROI marketing invisible. Tagger TOUTES les actions (email, landing, ads, events). Reporting mensuel revenue par campagne.`,
-      impact: `ROI mesurable sur 10 campagnes/quarter`,
+      show: (ctx.marketingCampaignsCount ?? 0) < 10,
+      title: `Campaigns trackées : ${ctx.marketingCampaignsCount ?? 0} → 10 en 90 jours`,
+      description: `Tagger toutes actions marketing pour ROI par canal.`,
+      impact: `ROI mesurable sur 10 campagnes / quarter`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-fuchsia-500",
@@ -1220,63 +1184,15 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
       direction: "above",
     },
     {
-      show: true,
-      title: `Marketing events : ${ctx.marketingEventsCount ?? 0} actuellement → 3/an en 90 jours via tracking webinars/conférences`,
-      description: `Webinars, conférences, salons trackés via HubSpot Events. Connecter Zoom/On24/Eventbrite = attribution event-driven (souvent leads les plus chauds).`,
-      impact: `ROI events mesurable + lead gen attribué`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-rose-500 to-fuchsia-500",
-      forecastType: "events_setup",
-      threshold: 3,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Workflows marketing actifs : ${ctx.workflowsActiveCount ?? 0} actuellement → 5 critiques en 14 jours`,
-      description: `5 workflows critiques : MQL→SQL auto, nurturing TOFU, re-engagement dormants, post-event follow-up, lead scoring composite. Sans automation, 80% des leads non-immédiats sont perdus.`,
-      impact: `+30 à 50% de conversion totale lead→opp à 12 mois`,
+      show: (ctx.workflowsActiveCount ?? 0) < 5,
+      title: `Workflows marketing actifs : ${ctx.workflowsActiveCount ?? 0} → 5 en 14 jours`,
+      description: `MQL→SQL auto, nurturing TOFU, re-engagement, post-event, lead scoring.`,
+      impact: `+30-50% conversion lead→opp à 12 mois`,
       category: "marketing",
       simulationCategory: "marketing_cycle",
       color: "from-amber-500 to-yellow-600",
       forecastType: "workflows_marketing_setup",
       threshold: 5,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Réactivation dormants : ${(tContacts - opps).toLocaleString("fr-FR")} contacts non-opp actuellement → 5% réactivés en 60 jours via campagne dédiée`,
-      description: `Sur ${(tContacts - opps).toLocaleString("fr-FR")} contacts non-opportunités, statistiquement 5% sont réactivables avec une bonne campagne (offre + content + scoring). Coût d'opportunité gratuit.`,
-      impact: `+${Math.max(1, Math.round((tContacts - opps) * 0.05)).toLocaleString("fr-FR")} opportunités gratuites identifiées`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-rose-500",
-      forecastType: "dormant_reactivation",
-      threshold: Math.max(1, Math.round((tContacts - opps) * 0.05)),
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Source attribution : 100% nouveaux contacts en 30 jours via workflow Original Source obligatoire`,
-      description: `Workflow obligeant Original Source à la création. Fallback heuristique sur referrer/UTM si vide. Reporting ROI par canal d'acquisition.`,
-      impact: `Attribution marketing fiable sur 100% des nouveaux leads`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-orange-500 to-amber-600",
-      forecastType: "source_attribution_marketing",
-      threshold: 100,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Email validation : 100% nouveaux leads validés en 7 jours via NeverBounce/ZeroBounce intégré`,
-      description: `Brancher service email verification sur tous nouveaux leads. Délivrabilité protégée, sender reputation maintenue, 0 bounce sur campagnes.`,
-      impact: `Délivrabilité optimale sur ~${Math.max(20, Math.round(tContacts * 0.05)).toLocaleString("fr-FR")} nouveaux leads/mois`,
-      category: "marketing",
-      simulationCategory: "marketing_cycle",
-      color: "from-amber-500 to-orange-500",
-      forecastType: "email_validation",
-      threshold: 100,
       direction: "above",
     },
   ];
@@ -1478,190 +1394,136 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   ];
 
   // ════════════════════════════════════════════════════════════════
-  // DONNÉES (15 simulations SMART)
+  // DONNÉES — refonte 2026-04 : focus 3 thèmes impactants
+  //   1. Sources de trafic d'origine (baisser ratio offline / non-tracké)
+  //   2. Propriétés personnalisées peu exploitées (custom props sous-utilisées)
+  //   3. Ratios d'associations (contacts ↔ companies ↔ deals)
+  //
+  // Plus AUCUNE simulation d'enrichissement HubSpot (phone, jobtitle, industry,
+  // revenue) — on les retire car non actionnables au niveau plateforme.
   // ════════════════════════════════════════════════════════════════
+
+  // Estimations attribution (proxy : on n'a pas le breakdown par source dans
+  // le ctx pour l'instant ; on travaille sur le ratio orphelins comme proxy
+  // de tracking incomplet, et sur les counts custom_objects / lifecycle).
+  const onlineContactsEst = ctx.onlineContacts ?? Math.max(0, tContacts - orphans);
+  const onlineRate = tContacts > 0 ? PCT(onlineContactsEst, tContacts) : 0;
+  const offlineEst = Math.max(0, tContacts - onlineContactsEst);
+  const customObjects = ctx.customObjectsCount ?? 0;
+
+  // Ratios associations
+  // - companies sans deal (proxy) : on n'a pas le count exact, on estime via
+  //   totalDeals / totalCompanies. Si une company a en moyenne 0 deal, c'est
+  //   qu'on n'a pas mappé la relation contractuelle.
+  const companiesWithDealRate = totalCompanies > 0
+    ? PCT(Math.min(tDeals, totalCompanies), totalCompanies)
+    : 0;
+  const associatedContactsRate = tContacts > 0
+    ? PCT(tContacts - orphans, tContacts)
+    : 0;
+
   const dataQuality: Sim[] = [
+    // ── 1. Attribution / Sources de trafic ───────────────────────
     {
-      show: true,
-      title: `Orphelins : ${orphanRate}% → ${Math.max(5, orphanRate - 20)}% en 30 jours`,
-      description: `${orphans.toLocaleString("fr-FR")} contacts sans entreprise. Workflow auto-association par domaine email + batch enrichissement Clearbit/Dropcontact.`,
-      impact: `${Math.max(1, Math.round(orphans * 0.6)).toLocaleString("fr-FR")} contacts ré-attribués`,
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-teal-600",
-      forecastType: "orphan_rate",
-      threshold: Math.max(5, orphanRate - 20),
-      direction: "below",
-    },
-    {
-      show: true,
-      title: `Téléphone : ${phoneRate}% → 80% en 60 jours`,
-      description: `${contactsNoPhone.toLocaleString("fr-FR")} contacts sans phone. Enrichissement Dropcontact (~0,30€/contact) + champ obligatoire forms futurs.`,
-      impact: `+${Math.max(1, Math.round(contactsNoPhone * 0.6)).toLocaleString("fr-FR")} contacts joignables outbound`,
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-green-600",
-      forecastType: "phone_enrichment",
-      threshold: 80,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Poste (jobtitle) : ${titleRate}% → 90% en 60 jours`,
-      description: `${contactsNoTitle.toLocaleString("fr-FR")} contacts sans jobtitle. Enrichissement LinkedIn Sales Navigator + champ obligatoire BOFU.`,
-      impact: `Personnalisation par fonction sur ${Math.max(1, Math.round(contactsNoTitle * 0.7)).toLocaleString("fr-FR")} contacts`,
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-teal-500 to-cyan-600",
-      forecastType: "title_enrichment",
-      threshold: 90,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Secteur entreprise : ${industryRate}% → 90% en 30 jours`,
-      description: `${companiesNoIndustry.toLocaleString("fr-FR")} companies sans industry. HubSpot Insights (gratuit) ou Clearbit = enrichissement auto.`,
-      impact: `Segmentation industry sur +${Math.max(1, Math.round(companiesNoIndustry * 0.8)).toLocaleString("fr-FR")} comptes`,
+      show: offlineEst > 5 && tContacts > 0,
+      title: `Sources offline : ${offlineEst.toLocaleString("fr-FR")} contacts → 0 en 60 jours`,
+      description: `${offlineEst.toLocaleString("fr-FR")} contacts sans Original Source ou tracking incomplet. Workflow Original Source obligatoire à la création + fallback UTM/referrer.`,
+      impact: `Attribution fiable sur 100% des nouveaux leads`,
       category: "data",
       simulationCategory: "data_quality",
       color: "from-cyan-500 to-blue-600",
-      forecastType: "industry_enrichment",
-      threshold: 90,
-      direction: "above",
+      forecastType: "offline_sources_reduce",
+      threshold: 0,
+      direction: "below",
     },
     {
-      show: true,
-      title: `CA entreprise : ${revenueRate}% → 80% en 60 jours`,
-      description: `${companiesNoRevenue.toLocaleString("fr-FR")} companies sans annualrevenue. Enrichissement Clearbit/Société.com pour ICP scoring.`,
-      impact: `ICP scoring activé sur +${Math.max(1, Math.round(companiesNoRevenue * 0.7)).toLocaleString("fr-FR")} comptes`,
+      show: onlineRate < 90 && tContacts > 0,
+      title: `Online tracking : ${onlineRate}% → 95% en 30 jours`,
+      description: `Sur ${tContacts.toLocaleString("fr-FR")} contacts, ${onlineRate}% sont trackés via canal online identifié. Cible top quartile : 95%.`,
+      impact: `+${Math.max(1, Math.round(tContacts * (95 - onlineRate) / 100)).toLocaleString("fr-FR")} contacts attribués correctement`,
       category: "data",
       simulationCategory: "data_quality",
       color: "from-blue-500 to-indigo-600",
-      forecastType: "revenue_enrichment",
+      forecastType: "online_attribution_rate",
+      threshold: 95,
+      direction: "above",
+    },
+
+    // ── 2. Propriétés personnalisées peu exploitées ──────────────
+    {
+      show: customObjects > 0,
+      title: `Propriétés custom < 30% remplies : audit + cleanup en 30 jours`,
+      description: `${customObjects} schemas custom détectés. Identifier les propriétés < 30% fill rate à supprimer ou rendre obligatoires.`,
+      impact: `CRM allégé, propriétés exploitables pour reporting et scoring`,
+      category: "data",
+      simulationCategory: "data_quality",
+      color: "from-indigo-500 to-purple-600",
+      forecastType: "custom_props_audit",
+      threshold: 30,
+      direction: "above",
+    },
+    {
+      show: customObjects > 0,
+      title: `Custom properties top 20 à 80% remplies en 60 jours`,
+      description: `Workflow de complétion auto + champ obligatoire à la progression lifecycle pour les 20 propriétés les plus importantes.`,
+      impact: `Data CRM exploitable pour reporting + AI scoring`,
+      category: "data",
+      simulationCategory: "data_quality",
+      color: "from-purple-500 to-fuchsia-600",
+      forecastType: "top20_props_fill",
       threshold: 80,
       direction: "above",
     },
+
+    // ── 3. Ratios associations contacts ↔ companies ↔ deals ──────
     {
-      show: true,
-      title: `Dédoublonnage : 0 doublons en 30 jours`,
-      description: "Audit HubSpot Manage Duplicates ce mois. Activer détection auto sur email comme clé unique. Process trimestriel ensuite.",
-      impact: "Reporting fiable + sender reputation préservée",
+      show: associatedContactsRate < 90 && tContacts > 0,
+      title: `Contacts associés à une entreprise : ${associatedContactsRate}% → 95% en 30 jours`,
+      description: `${orphans.toLocaleString("fr-FR")} contacts orphelins sur ${tContacts.toLocaleString("fr-FR")}. Workflow auto-association par domaine email = +${Math.max(1, Math.round(orphans * 0.7)).toLocaleString("fr-FR")} contacts ré-attachés.`,
+      impact: `+${Math.max(1, Math.round(orphans * 0.7)).toLocaleString("fr-FR")} contacts liés à un compte`,
       category: "data",
       simulationCategory: "data_quality",
       color: "from-emerald-500 to-teal-600",
-      forecastType: "dedup",
-      threshold: 0,
-      direction: "below",
-    },
-    {
-      show: true,
-      title: `Email valide : 100% nouveaux leads en 7 jours`,
-      description: "Branchement service email verification sur tous nouveaux leads. Délivrabilité protégée, sender reputation préservée.",
-      impact: "0 bounce sur campagnes + délivrabilité optimale",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-green-600",
-      forecastType: "email_validation",
-      threshold: 100,
+      forecastType: "contact_company_assoc",
+      threshold: 95,
       direction: "above",
     },
     {
-      show: true,
-      title: `Custom objects audit : ${ctx.customObjectsCount ?? 0} schemas gouvernés en 30 jours`,
-      description: `${ctx.customObjectsCount ?? 0} schemas custom dans HubSpot. Sans gouvernance, le CRM devient illisible. Audit + documentation Notion.`,
-      impact: "CRM gouverné, équipes alignées sur les définitions",
+      show: companiesWithDealRate < 60 && totalCompanies > 0,
+      title: `Entreprises avec deal : ${companiesWithDealRate}% → 70% en 60 jours`,
+      description: `${totalCompanies.toLocaleString("fr-FR")} comptes en base mais ratio deals/companies bas. Audit comptes dormants + ré-engagement ABM ou archivage.`,
+      impact: `Pipeline ABM actif sur ${totalCompanies.toLocaleString("fr-FR")} comptes`,
       category: "data",
       simulationCategory: "data_quality",
-      color: "from-teal-500 to-emerald-600",
-      forecastType: "custom_audit",
-      threshold: 0,
+      color: "from-teal-500 to-cyan-600",
+      forecastType: "company_deal_assoc",
+      threshold: 70,
       direction: "above",
     },
     {
-      show: true,
-      title: `Teams : ${ctx.teamsCount ?? 0} → ${Math.max(2, Math.ceil((ctx.ownersCount ?? 1) / 5))} équipes en 14 jours`,
-      description: `${ctx.ownersCount ?? 0} owners actifs. Sans Teams, reporting par équipe impossible + round-robin par segment cassé.`,
-      impact: "Reporting par team activé, attribution fine possible",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-cyan-600",
-      forecastType: "teams_setup",
-      threshold: Math.max(2, Math.ceil((ctx.ownersCount ?? 1) / 5)),
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Lifecycle stage tracking : 100% contacts catégorisés en 14 jours`,
-      description: "Audit : tous les contacts doivent avoir un lifecycle stage. Workflow auto pour assigner stage par défaut à la création.",
-      impact: "Funnel marketing/sales mesurable de bout en bout",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-cyan-500 to-emerald-600",
-      forecastType: "lifecycle_coverage",
-      threshold: 100,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Country normalization : 0 doublons orthographiques en 30 jours`,
-      description: "« France », « FR », « FRANCE » comptent comme 3 valeurs. Forcer listes déroulantes + workflow normalisation rétroactive.",
-      impact: "Reporting géographique enfin propre",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-teal-600",
-      forecastType: "country_normalize",
-      threshold: 0,
-      direction: "below",
-    },
-    {
-      show: true,
-      title: `Workflows actifs : ${ctx.workflowsActiveCount ?? 0} → ${Math.max(5, ctx.workflowsActiveCount ?? 5)} en 14 jours`,
-      description: "5 workflows critiques minimum : attribution, lifecycle progression, MQL→SQL, relance, alerte stagnation.",
-      impact: "Sales & marketing sur autopilote pour les actions répétitives",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-blue-600",
-      forecastType: "workflows_active",
-      threshold: Math.max(5, ctx.workflowsActiveCount ?? 5),
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Listes minimum : ${ctx.listsCount ?? 0} → 5 listes setup en 14 jours`,
-      description: "5 listes minimales : tous-contacts, MQL actifs, customers, dormants 90j, opt-out. Base pour campagnes ciblées + audit RGPD.",
-      impact: "Segmentation marketing activée",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-emerald-500 to-teal-600",
-      forecastType: "lists_starter",
-      threshold: 5,
-      direction: "above",
-    },
-    {
-      show: true,
-      title: `Source originale tracking : 100% nouveaux contacts en 14 jours`,
-      description: "Workflow obligeant Original Source à la création (sinon fallback heuristique sur referrer/UTM).",
-      impact: "Attribution marketing fiable par canal",
+      show: tDeals > 0,
+      title: `Deals associés à un contact : 100% en 14 jours`,
+      description: `Workflow bloquant la sauvegarde d'un deal sans contact associé. Sans contact, aucun follow-up possible et attribution cassée.`,
+      impact: `Tous les ${tDeals.toLocaleString("fr-FR")} deals exploitables pour suivi`,
       category: "data",
       simulationCategory: "data_quality",
       color: "from-cyan-500 to-blue-600",
-      forecastType: "source_tracking",
+      forecastType: "deal_contact_assoc",
       threshold: 100,
       direction: "above",
     },
-    {
-      show: true,
-      title: `Property fill rate audit : top 20 propriétés à 80%+ en 60 jours`,
-      description: "Identifier les 20 propriétés les plus importantes pour le business + workflow de complétion auto / champ obligatoire à la progression lifecycle.",
-      impact: "Data CRM exploitable pour reporting + scoring",
-      category: "data",
-      simulationCategory: "data_quality",
-      color: "from-blue-500 to-emerald-600",
-      forecastType: "property_completeness",
-      threshold: 80,
-      direction: "above",
-    },
   ];
+
+  // Filtre supplémentaire : drop les sims "0 → 0" ou "0% → 0%" qui n'ont pas
+  // de constat actuel mesurable (l'user a explicitement demandé de ne plus
+  // proposer d'alertes sans valeur de départ).
+  function isMeaningful(s: Sim): boolean {
+    // Pattern "0 → 0" ou "0% → 0%" ou "0/0 →" → la sim est creuse
+    if (/:\s*0[%]?\s*\([^)]*0[%/]?[^)]*\)\s*→\s*\d+[%]?\s/.test(s.title)) return false;
+    if (/:\s*0[%]?\s*→\s*0[%]?/.test(s.title)) return false;
+    if (/:\s*0\/0\s*→/.test(s.title)) return false;
+    return true;
+  }
 
   // Gate les sims qui requièrent un outil non connecté : on n'invente pas
   // de données revenue/MRR/NRR sans billing branché, ni de churn signals
@@ -1669,6 +1531,7 @@ export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCat
   // la liste cross-source des coachings.
   const gated = [...cycleVentes, ...lifecycle, ...revenue, ...dataQuality].filter((s) => {
     if (!s.show) return false;
+    if (!isMeaningful(s)) return false;
     if (!s.requires || s.requires.length === 0) return true;
     if (!connectedCats) return true; // Pas de gate si l'appelant ne fournit pas l'info
     return s.requires.every((req) => connectedCats.has(req));

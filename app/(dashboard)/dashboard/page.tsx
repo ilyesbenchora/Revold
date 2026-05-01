@@ -241,39 +241,30 @@ export default async function DashboardOverviewPage() {
             <Link href="/dashboard/audit/recommandations" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Recommandations Audit</p>
               <p className="mt-1 text-2xl font-bold text-blue-600 tabular-nums group-hover:text-blue-700">{auditTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">CRO/RevOps détectées</p>
             </Link>
 
             {/* 3. Coachings à faire */}
             <Link href="/dashboard/insights-ia" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Coachings à faire</p>
               <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Insights IA actifs</p>
             </Link>
 
             {/* 4. Simulations IA */}
             <Link href="/dashboard/alertes" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Simulations IA</p>
               <p className="mt-1 text-2xl font-bold text-amber-600 tabular-nums group-hover:text-amber-700">{simulationsTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">Scénarios disponibles</p>
             </Link>
 
             {/* 5. Rapports actionnables */}
             <Link href="/dashboard/rapports" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Rapports actionnables</p>
               <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums group-hover:text-emerald-700">{reportsTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
-                {tabCounts.myCount} activés · {tabCounts.singleCount + tabCounts.multiCount} dispo
-              </p>
             </Link>
 
             {/* 6. Données Revenue analysées */}
             <Link href="/dashboard/performances" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Données Revenue analysées</p>
               <p className="mt-1 text-2xl font-bold text-teal-600 tabular-nums group-hover:text-teal-700">{revenueRecordsTotal.toLocaleString("fr-FR")}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
-                Deals + factures + abonnements
-              </p>
             </Link>
           </div>
 

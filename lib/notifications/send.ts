@@ -24,7 +24,7 @@ const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "Revold <noreply@revold.io>
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-export type NotificationChannelType = "in_app" | "email" | "slack" | "teams" | "webhook";
+export type NotificationChannelType = "in_app" | "email" | "slack" | "teams" | "webhook" | "hubspot";
 
 export type SendNotificationParams = {
   orgId: string;
@@ -200,6 +200,57 @@ async function sendTeamsMessage(
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// HUBSPOT — création d'une task dans le CRM connecté
+// ────────────────────────────────────────────────────────────────────────────
+
+async function sendHubSpotTask(
+  supabase: SupabaseClient,
+  orgId: string,
+  subject: string,
+  bodyText: string,
+  link?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  // Lazy import pour éviter de charger la lib HubSpot quand le canal n'est pas utilisé
+  const { getHubSpotToken } = await import("@/lib/integrations/get-hubspot-token");
+  const token = await getHubSpotToken(supabase, orgId);
+  if (!token) {
+    return { ok: false, error: "HubSpot non connecté pour cette org" };
+  }
+  const fullLink = link
+    ? link.startsWith("http")
+      ? link
+      : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`
+    : null;
+  const body = `${bodyText}${fullLink ? `\n\n→ ${fullLink}` : ""}`;
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        properties: {
+          hs_task_subject: subject.slice(0, 200),
+          hs_task_body: body.slice(0, 65535),
+          hs_task_priority: "HIGH",
+          hs_task_status: "NOT_STARTED",
+          hs_task_type: "TODO",
+          hs_timestamp: Date.now(),
+        },
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return { ok: false, error: `HubSpot ${res.status}: ${err.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function sendCustomWebhook(
   url: string,
   payload: object,
@@ -319,6 +370,24 @@ export async function sendNotification(
         await logNotification(supabase, { orgId, channelType: "in_app", sourceType, sourceId, status: "failed", error, subject });
         results.push({ channel: "in_app", ok: false, error });
       }
+      continue;
+    }
+
+    // HubSpot : pas de config user-level, utilise le token OAuth de l'org.
+    // On saute la lookup dans notification_channels et on appelle directement.
+    if (channel === "hubspot") {
+      const result = await sendHubSpotTask(supabase, orgId, subject, bodyText, link);
+      await logNotification(supabase, {
+        orgId,
+        channelType: "hubspot",
+        sourceType,
+        sourceId,
+        status: result.ok ? "sent" : "failed",
+        error: result.error,
+        recipient: "HubSpot Task",
+        subject,
+      });
+      results.push({ channel: "hubspot", ...result });
       continue;
     }
 
