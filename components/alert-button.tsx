@@ -10,11 +10,13 @@ type AlertButtonProps = {
   direction?: "above" | "below";
 };
 
-// category (de la sim) → team (CreateAlertModal funnel)
+// category (de la sim) → team (CreateAlertModal funnel).
+// On mappe csm → revops car les sims "csm" sont des KPIs Revenue/Finance
+// (MRR, ARR, churn, factures). La team "cs" pure n'a pas revenue_won au catalogue.
 const TEAM_MAP: Record<string, string> = {
   sales: "sales",
   marketing: "marketing",
-  csm: "cs",
+  csm: "revops",
   data: "revops",
   process: "revops",
 };
@@ -52,12 +54,22 @@ const KPI_MAP: Record<string, string> = {
   online_attribution_rate: "contacts_by_source",
   custom_props_audit: "data_completeness",
   top20_props_fill: "data_completeness",
-  // Revenue
+  // Revenue (sims category="csm" → team revops via TEAM_MAP)
   forecast_vs_revenue_match: "revenue_won",
   won_without_invoice: "deals_won_count",
   mrr_growth: "revenue_won",
   pipeline_3x_revenue: "weighted_pipeline",
   churn_rate: "deals_at_risk",
+  nrr: "revenue_won",
+  expansion_mrr: "revenue_won",
+  ltv_growth: "revenue_won",
+  deals_invoices_match: "revenue_won",
+  subscriptions_growth: "revenue_won",
+  invoice_recovery: "revenue_won",
+  quote_cycle: "sales_cycle_days",
+  forecast_accuracy_revenue: "weighted_pipeline",
+  cross_sell: "avg_deal_size",
+  referral_revenue: "revenue_won",
 };
 
 /**

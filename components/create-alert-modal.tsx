@@ -72,6 +72,8 @@ const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines — efficacité commerciale globale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "weighted_pipeline", label: "Forecast pondéré", description: "Pipeline × probabilité — prévision revenue la plus fiable", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert — capacité de croissance", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deals_won_count", label: "Deals gagnés", description: "Volume de deals signés — base pour réconciliation forecast vs facturation", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "deals_at_risk", label: "Comptes à risque", description: "Deals/comptes flagués à risque — proxy churn signal", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
     // ── Efficacité process ──
     { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Jours entre création et closing — vélocité du process", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
     { id: "conversion_rate", label: "Conversion Lead→Opp", description: "Taux de conversion global — santé du funnel", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
@@ -80,6 +82,7 @@ const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "data_completeness", label: "Complétude deals", description: "% de deals avec montant + date de closing + propriétaire — fiabilité du forecast", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: true },
     { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise — intégrité de la donnée", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
     { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone — capacité opérationnelle", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false, contactRelated: true },
+    { id: "contacts_by_source", label: "Contacts par source", description: "Volume de contacts par source d'origine — base attribution multi-canal", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
   ],
 };
 
