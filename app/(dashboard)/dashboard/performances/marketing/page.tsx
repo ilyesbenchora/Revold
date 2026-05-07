@@ -9,6 +9,7 @@ import { PerformancesTabs } from "@/components/performances-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
 import { CreateAlertCta } from "@/components/create-alert-cta";
+import { CreateAlertModal } from "@/components/create-alert-modal";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
 const sourceLabels: Record<string, string> = {
@@ -150,6 +151,8 @@ export default async function PerformanceMarketingPage() {
           </div>
         </CollapsibleBlock>
       )}
+
+      <CreateAlertModal hideTrigger />
     </section>
   );
 }
