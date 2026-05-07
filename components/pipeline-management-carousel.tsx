@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
+import { CreateAlertCta } from "./create-alert-cta";
 
 const fmtK = (n: number) =>
   n >= 1000
@@ -22,20 +23,40 @@ const STAGE_COLORS = [
 function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
   return (
     <article className="card overflow-hidden">
-      <div className="flex items-start justify-between border-b border-card-border bg-slate-50 px-5 py-3">
+      <div className="flex items-start justify-between gap-4 border-b border-card-border bg-slate-50 px-5 py-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">{pa.pipeline.label}</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             {pa.totalDeals} deal{pa.totalDeals > 1 ? "s" : ""} en cours · {pa.pipeline.stages.length} étapes
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-slate-900">
-            {pa.totalAmount > 0 ? fmtK(pa.totalAmount) : "—"}
-          </p>
-          <p className="text-[10px] text-slate-400">
-            Pondéré : {pa.weightedAmount > 0 ? fmtK(pa.weightedAmount) : "—"}
-          </p>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <p className="text-lg font-bold text-slate-900">
+              {pa.totalAmount > 0 ? fmtK(pa.totalAmount) : "—"}
+            </p>
+            <CreateAlertCta
+              team="sales"
+              kpiId="pipeline_value"
+              defaultDirection="above"
+              defaultUnit="currency"
+              defaultPipelineIds={[pa.pipeline.id]}
+              label="Alerte"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-slate-400">
+              Pondéré : {pa.weightedAmount > 0 ? fmtK(pa.weightedAmount) : "—"}
+            </p>
+            <CreateAlertCta
+              team="sales"
+              kpiId="weighted_pipeline"
+              defaultDirection="above"
+              defaultUnit="currency"
+              defaultPipelineIds={[pa.pipeline.id]}
+              label="Alerte"
+            />
+          </div>
         </div>
       </div>
 
@@ -153,9 +174,19 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
           )}
         </div>
         <div className="px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-red-600">
-            Étapes stagnantes (&gt; 21j moy.)
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-red-600">
+              Étapes stagnantes (&gt; 21j moy.)
+            </p>
+            <CreateAlertCta
+              team="sales"
+              kpiId="stagnant_deals"
+              defaultDirection="below"
+              defaultUnit="count"
+              defaultPipelineIds={[pa.pipeline.id]}
+              label="Alerte"
+            />
+          </div>
           {pa.stagnantStages.length > 0 ? (
             <ul className="mt-1 space-y-1">
               {pa.stagnantStages.map((s) => (
