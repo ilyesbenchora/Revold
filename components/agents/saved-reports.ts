@@ -13,7 +13,7 @@ export type SavedReport = {
   summary?: string;
   report: ReportSpec | null;
   chart: ChartProposal | null;
-  alert: { title: string; description: string; impact?: string; category?: string };
+  alert: { title: string; description: string; impact?: string; category?: string; channels?: string[] };
   alertId?: string;
   savedAt: number;
 };

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { SAVED_REPORTS_KEY, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
+import { AlertBody } from "./alert-ui";
 
 type Alert = {
   id: string;
@@ -90,12 +91,17 @@ export function MesRapports({ alerts }: { alerts: Alert[] }) {
                 {r.report && <AgentReport spec={r.report} />}
                 {r.chart && <ChartPicker proposal={r.chart} />}
 
-                <div className="mt-3 rounded-lg border border-fuchsia-200 bg-fuchsia-50/50 p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-                    Alerte activée
+                <div className="mt-3 rounded-lg border border-fuchsia-200 bg-fuchsia-50/40 p-3.5">
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
+                    <span>✨</span> Alerte de suivi activée
                   </div>
-                  <div className="text-sm font-medium text-slate-800">{r.alert.title}</div>
-                  <p className="mt-0.5 text-xs text-slate-600">{r.alert.description}</p>
+                  <AlertBody
+                    title={r.alert.title}
+                    description={r.alert.description}
+                    impact={r.alert.impact}
+                    category={r.alert.category}
+                    channels={r.alert.channels}
+                  />
                 </div>
               </div>
             ))}
@@ -116,15 +122,18 @@ export function MesRapports({ alerts }: { alerts: Alert[] }) {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {alerts.map((a) => (
               <div key={a.id} className="card p-4">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-fuchsia-700">
-                    {a.category ?? "revops"}
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
+                    <span>✨</span> Alerte de suivi
                   </span>
                   <span className="text-xs text-slate-400">{fmtDate(a.created_at)}</span>
                 </div>
-                <h3 className="mt-1 text-sm font-semibold text-slate-900">{a.title}</h3>
-                <p className="mt-0.5 text-xs text-slate-600">{a.description}</p>
-                {a.impact && <p className="mt-1 text-[11px] text-slate-500">Impact : {a.impact}</p>}
+                <AlertBody
+                  title={a.title}
+                  description={a.description}
+                  impact={a.impact}
+                  category={a.category}
+                />
               </div>
             ))}
           </div>

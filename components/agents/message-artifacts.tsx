@@ -5,12 +5,13 @@ import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { addSavedReport } from "./saved-reports";
+import { ALERT_CHANNELS, SectionLabel } from "./alert-ui";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
  * Artefacts attachés à un message d'agent : rapport, proposition de graphique,
- * et suggestion d'alerte confirmable. Persistent dans le message (donc dans
- * l'historique) et ne disparaissent plus au message suivant.
+ * et suggestion d'alerte confirmable (avec choix des canaux de notification).
+ * Persistent dans le message (donc dans l'historique).
  */
 export function MessageArtifacts({
   agentKey,
@@ -26,10 +27,10 @@ export function MessageArtifacts({
   action?: ProposedAction | null;
 }) {
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [channels, setChannels] = useState<string[]>(["app"]);
 
   const hasReport = !!(report || chart);
   const reportTitle = report?.title || chart?.title || "ce rapport";
-  // Bloc TOUJOURS présent sous un rapport : l'alerte proposée par l'agent, ou une par défaut.
   const effectiveAction: ProposedAction | null =
     action ??
     (hasReport
@@ -41,11 +42,14 @@ export function MessageArtifacts({
         }
       : null);
 
+  function toggleChannel(key: string) {
+    setChannels((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  }
+
   async function confirm() {
     if (!effectiveAction) return;
     setState("saving");
-    // 1) Enregistre TOUJOURS le rapport en premier (localStorage) → visible sur Mes rapports,
-    //    même si la création de l'alerte côté serveur échoue.
+    const chosen = channels.length ? channels : ["app"];
     if (hasReport) {
       addSavedReport({
         agentKey,
@@ -59,26 +63,26 @@ export function MessageArtifacts({
           description: effectiveAction.description,
           impact: effectiveAction.impact,
           category: effectiveAction.category,
+          channels: chosen,
         },
       });
     }
-    // 2) Crée l'alerte côté Supabase (best-effort).
     try {
       const res = await fetch(`/api/agents/${agentKey}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: effectiveAction }),
+        body: JSON.stringify({ action: effectiveAction, channels: chosen }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec");
       setState("done");
     } catch {
-      // Le rapport est déjà enregistré ; on signale juste l'échec de l'alerte.
       setState(hasReport ? "done" : "error");
     }
   }
 
   if (!report && !chart && !effectiveAction) return null;
+  const done = state === "done";
 
   return (
     <div className="ml-9 space-y-2">
@@ -86,35 +90,76 @@ export function MessageArtifacts({
       {chart && <ChartPicker proposal={chart} />}
 
       {effectiveAction && (
-        <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-3.5">
-          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-            <span>✨</span> Suggestion Revold · enregistrer + alerte de suivi
+        <div className="overflow-hidden rounded-xl border border-fuchsia-200 bg-white shadow-sm">
+          {/* En-tête */}
+          <div className="flex items-center gap-1.5 border-b border-fuchsia-100 bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
+            <span>✨</span> Suggestion Revold · alerte de suivi
           </div>
-          <div className="text-sm font-semibold text-slate-800">{effectiveAction.title}</div>
-          <p className="mt-0.5 text-sm text-slate-600">{effectiveAction.description}</p>
-          {effectiveAction.impact && <p className="mt-1 text-xs text-slate-500">Impact : {effectiveAction.impact}</p>}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {state === "done" ? (
-              <span className="text-sm font-medium text-emerald-600">
-                ✓ Alerte activée{hasReport ? " · rapport enregistré" : ""} —{" "}
-                <Link href="/dashboard/mes-rapports" className="underline hover:text-emerald-700">
-                  voir mes rapports
-                </Link>
-              </span>
-            ) : (
-              <button
-                onClick={confirm}
-                disabled={state === "saving"}
-                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
-              >
-                {state === "saving"
-                  ? "Enregistrement…"
-                  : hasReport
-                    ? "Activer l'alerte et enregistrer le rapport"
-                    : "Activer l'alerte"}
-              </button>
+
+          <div className="space-y-3 p-3.5">
+            <div>
+              <SectionLabel>Objectif</SectionLabel>
+              <div className="mt-0.5 text-sm font-semibold text-slate-900">{effectiveAction.title}</div>
+            </div>
+            <div>
+              <SectionLabel>Description</SectionLabel>
+              <p className="mt-0.5 text-sm text-slate-600">{effectiveAction.description}</p>
+            </div>
+            {effectiveAction.impact && (
+              <div>
+                <SectionLabel>Impact attendu</SectionLabel>
+                <p className="mt-0.5 text-sm text-slate-600">{effectiveAction.impact}</p>
+              </div>
             )}
-            {state === "error" && <span className="text-xs text-red-500">Échec.</span>}
+
+            <div>
+              <SectionLabel>Recevoir l&apos;alerte via</SectionLabel>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {ALERT_CHANNELS.map((c) => {
+                  const on = channels.includes(c.key);
+                  return (
+                    <button
+                      key={c.key}
+                      onClick={() => toggleChannel(c.key)}
+                      disabled={done || state === "saving"}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-70 ${
+                        on
+                          ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200"
+                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="text-sm">{c.icon}</span>
+                      {c.label}
+                      {on && <span className="text-[10px]">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              {done ? (
+                <span className="text-sm font-medium text-emerald-600">
+                  ✓ Alerte activée{hasReport ? " · rapport enregistré" : ""} —{" "}
+                  <Link href="/dashboard/mes-rapports" className="underline hover:text-emerald-700">
+                    voir mes rapports
+                  </Link>
+                </span>
+              ) : (
+                <button
+                  onClick={confirm}
+                  disabled={state === "saving"}
+                  className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {state === "saving"
+                    ? "Enregistrement…"
+                    : hasReport
+                      ? "Activer l'alerte et enregistrer le rapport"
+                      : "Activer l'alerte"}
+                </button>
+              )}
+              {state === "error" && <span className="text-xs text-red-500">Échec de la création.</span>}
+            </div>
           </div>
         </div>
       )}
