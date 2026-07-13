@@ -2,12 +2,10 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getSnapshotMeta } from "@/lib/supabase/cached";
+import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
-import { MultiToolBanner } from "@/components/multi-tool-banner";
-import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
-import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
   fetchDismissals,
@@ -39,14 +37,12 @@ export default async function MesCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
 
-  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }, connectedTools, meta] = await Promise.all([
+  const [ctx, { dismissedKeys }, { detectedIntegrations, integrationInsights }, connectedTools] = await Promise.all([
     buildContext(supabase, orgId),
     fetchDismissals(supabase, orgId),
     fetchIntegrationInsights(token),
     getConnectedTools(supabase, orgId),
-    getSnapshotMeta(),
   ]);
-  const connectedSummary = summarizeConnected(connectedTools);
   const connectedCats = connectedCategoriesSet(connectedTools);
 
   const tracking = await fetchTrackingStats(token);
@@ -59,17 +55,17 @@ export default async function MesCoachingPage() {
   const dataModelInsights = await fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys);
 
   const categories = [
-    { id: "commercial", agentKey: "coaching-ventes", label: "Agent Ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
+    { id: "commercial", agentKey: "coaching-ventes", label: "Coach des ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg> },
-    { id: "marketing", agentKey: "coaching-marketing", label: "Agent Marketing", description: "Leads, conversion, sources, acquisition", sev: countSeverities(insightsByCategory.marketing),
+    { id: "marketing", agentKey: "coaching-marketing", label: "Coach marketing", description: "Leads, conversion, sources, acquisition", sev: countSeverities(insightsByCategory.marketing),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
-    { id: "data", agentKey: "coaching-data", label: "Agent Data", description: "Qualité et enrichissement des données", sev: countSeverities(insightsByCategory.data),
+    { id: "data", agentKey: "coaching-data", label: "Coach data", description: "Qualité et enrichissement des données", sev: countSeverities(insightsByCategory.data),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" /></svg> },
-    { id: "integration", agentKey: "coaching-integration", label: "Agent Intégration", description: "Adoption outils et rapports suggérés", sev: countSeverities(visibleIntegrationInsights),
+    { id: "integration", agentKey: "coaching-integration", label: "Coach intégration", description: "Adoption outils et rapports suggérés", sev: countSeverities(visibleIntegrationInsights),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></svg> },
-    { id: "cross-source", agentKey: "coaching-cross-source", label: "Agent Cross-Source", description: "Insights multi-sources", sev: countSeverities(crossSourceInsights),
+    { id: "cross-source", agentKey: "coaching-cross-source", label: "Coach cross-source", description: "Insights multi-sources", sev: countSeverities(crossSourceInsights),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.59 13.51l6.83 3.98" /><path d="M15.41 6.51l-6.82 3.98" /></svg> },
-    { id: "data-model", agentKey: "coaching-data-model", label: "Agent Modèle de données", description: "Audit CRM et recommandations", sev: countSeverities(dataModelInsights),
+    { id: "data-model", agentKey: "coaching-data-model", label: "Coach modèle de données", description: "Audit CRM et recommandations", sev: countSeverities(dataModelInsights),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> },
   ];
 
@@ -98,43 +94,7 @@ export default async function MesCoachingPage() {
 
   return (
     <div className="space-y-8">
-      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
-
-      <MultiToolBanner summary={connectedSummary} />
-
-      {/* Coaching réalisé — horizontal carousel */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-          Coaching réalisé
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{doneInsights.length}</span>
-        </h2>
-        {doneInsights.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
-            <p className="text-sm text-slate-500">Aucun coaching réalisé pour le moment.</p>
-          </div>
-        ) : (
-          <DismissedCoachingCarousel items={doneInsights} variant="done" />
-        )}
-      </div>
-
-      {/* Coaching retiré — horizontal carousel */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
-          Coaching retiré
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{removedInsights.length}</span>
-        </h2>
-        {removedInsights.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
-            <p className="text-sm text-slate-500">Aucun coaching retiré.</p>
-          </div>
-        ) : (
-          <DismissedCoachingCarousel items={removedInsights} variant="removed" />
-        )}
-      </div>
-
-      {/* Category navigation cards */}
+      {/* Agents de coaching — en tête de section */}
       <div className="space-y-3">
         <h2 className="text-base font-semibold text-slate-900">Agents de coaching</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -180,6 +140,39 @@ export default async function MesCoachingPage() {
           })}
         </div>
       </div>
+
+      {/* Coaching réalisé — horizontal carousel */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+          Coaching réalisé
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{doneInsights.length}</span>
+        </h2>
+        {doneInsights.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
+            <p className="text-sm text-slate-500">Aucun coaching réalisé pour le moment.</p>
+          </div>
+        ) : (
+          <DismissedCoachingCarousel items={doneInsights} variant="done" />
+        )}
+      </div>
+
+      {/* Coaching retiré — horizontal carousel */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
+          Coaching retiré
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{removedInsights.length}</span>
+        </h2>
+        {removedInsights.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
+            <p className="text-sm text-slate-500">Aucun coaching retiré.</p>
+          </div>
+        ) : (
+          <DismissedCoachingCarousel items={removedInsights} variant="removed" />
+        )}
+      </div>
+
     </div>
   );
 }

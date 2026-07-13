@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getSnapshotMeta } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
+import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 import { HubSpotSyncOrchestrator } from "@/components/hubspot-sync-orchestrator";
 import { ToolSyncOrchestrator } from "@/components/tool-sync-orchestrator";
 import { CollapsibleBlock } from "@/components/collapsible-block";
@@ -76,6 +77,7 @@ export default async function IntegrationPage({
   const supabase = await createSupabaseServerClient();
   const hsToken = await getHubSpotToken(supabase, orgId);
   const hubspotTokenConfigured = !!hsToken;
+  const meta = await getSnapshotMeta();
 
   let detectedIntegrations: DetectedIntegration[] = [];
   let portalApps: { privateApps: PortalApp[]; publicApps: PortalApp[]; totalApps: number } = {
@@ -142,6 +144,8 @@ export default async function IntegrationPage({
           Tout converge dans Revold.
         </p>
       </header>
+
+      <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
 
       <InsightLockedBlock />
 

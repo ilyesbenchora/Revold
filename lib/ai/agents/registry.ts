@@ -167,7 +167,7 @@ const AGENT_LIST: AgentDef[] = [
   // ══════════════ Section COACHING ══════════════
   {
     key: "coaching-ventes",
-    label: "Agent Ventes",
+    label: "Coach des ventes",
     section: "coaching",
     tagline: "Coaching commercial : deals, pipeline, closing, workflows.",
     expertise:
@@ -182,7 +182,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "coaching-marketing",
-    label: "Agent Marketing",
+    label: "Coach marketing",
     section: "coaching",
     tagline: "Coaching acquisition : leads, conversion, sources.",
     expertise:
@@ -197,7 +197,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "coaching-data",
-    label: "Agent Data",
+    label: "Coach data",
     section: "coaching",
     tagline: "Coaching qualité & enrichissement des données.",
     expertise:
@@ -212,7 +212,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "coaching-integration",
-    label: "Agent Intégration",
+    label: "Coach intégration",
     section: "coaching",
     tagline: "Coaching adoption des outils et rapports suggérés.",
     expertise:
@@ -227,7 +227,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "coaching-cross-source",
-    label: "Agent Cross-Source",
+    label: "Coach cross-source",
     section: "coaching",
     tagline: "Insights multi-sources impossibles avec un seul outil.",
     expertise:
@@ -242,7 +242,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "coaching-data-model",
-    label: "Agent Modèle de données",
+    label: "Coach modèle de données",
     section: "coaching",
     tagline: "Audit CRM et recommandations de modèle de données.",
     expertise:
