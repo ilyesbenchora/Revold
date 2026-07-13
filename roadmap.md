@@ -1,7 +1,7 @@
 # Roadmap Revold
 
-> **Dernière mise à jour** : 2026-05-05
-> **Statut global** : Phase 6 finalisée — Phase 7 amorcée — Phase 8 quasi terminée (8.1, 8.2, 8.3, 8.4, 8.5, 8.8, 8.9, 8.10 ✅). Restent : 8.6 perf > 50k contacts, 8.7 activity capture, **8.11 marketplace listings**. Couche d'observabilité auto ajoutée 2026-05-03/04 : 4 subagents Claude Code (roadmap-keeper, cto-revold, revenue-strategist, marketplace-reviewer) + 2 routines remote CCR quotidienne/hebdo qui auditent l'app et notifient Slack via GitHub Actions (workaround sandbox CCR qui bloque outbound).
+> **Dernière mise à jour** : 2026-07-13
+> **Statut global** : Phase 6 finalisée — Phase 7 amorcée — Phase 8 quasi terminée (8.1, 8.2, 8.3, 8.4, 8.5, 8.8, 8.9, 8.10 ✅). Restent : 8.6 perf > 50k contacts, 8.7 activity capture, **8.11 marketplace listings**. **PIVOT PRODUIT (Phase 9, en cours depuis 2026-07-12) : passage agent-first.** L'app devient une plateforme d'agents experts conversationnels + agentiques par section, au-dessus de la couche déterministe existante (les fetchers/KPIs deviennent les tools des agents). POC Paiement & Facturation livré puis généralisé à 17 agents sur 4 sections (Données, Coaching, Simulations, Dashboard). Couche d'observabilité auto ajoutée 2026-05-03/04 : 4 subagents Claude Code (roadmap-keeper, cto-revold, revenue-strategist, marketplace-reviewer) + 2 routines remote CCR quotidienne/hebdo qui auditent l'app et notifient Slack via GitHub Actions (workaround sandbox CCR qui bloque outbound).
 > Ce fichier est mis à jour après chaque session de travail.
 
 ---
@@ -169,6 +169,27 @@ RLS sur chaque table via `organization_id` pour isolation tenant.
 
 ---
 
+## Phase 9 : Pivot agent-first (agent-orchestrateur au-dessus de la couche déterministe)
+
+> Décision produit 2026-07-12 : repositionner Revold d'un agrégateur multi-source + analytics (API-first, IA en bout de chaîne) vers **une plateforme d'agents experts conversationnels + agentiques**, un agent par item de section, multi-source. **Positionnement défendable = pas « 100% IA » (copiable) mais « le seul agent d'intelligence revenue qui raisonne sur un stack européen réconcilié — CRM + facturation + support — et agit dessus ».** L'IA amplifie le moat (modèle canonique cross-source), elle ne le remplace pas.
+>
+> **Principe d'archi** : agent-orchestrateur. Les tools des agents APPELLENT les fetchers/KPIs/tables canoniques existants (aucun chiffre inventé, rapide, moins cher). Sortie = texte + actions confirmables (human-in-the-loop). Modèle : `claude-opus-4-8`, boucle tool-use via `@anthropic-ai/sdk`.
+
+| # | Tâche | Statut |
+|---|---|---|
+| 9.1 | **Runtime d'agent générique** (`lib/ai/agents/agent-runtime.ts`) — boucle tool-use, tools serveur + tool d'action confirmable (`propose_action` capturé, non exécuté), trace des tools | [x] |
+| 9.2 | **POC Agent Paiement & Facturation** — 4 tools sur données réelles (`get_billing_overview` via `fetchPaiementFacturationFor`, `list_unpaid_invoices`, `get_churn_detail`, `compare_crm_vs_billed_revenue`) + chat UI (multi-source, suggestions, action confirmable → insert `alerts`) | [x] |
+| 9.3 | **Historique de conversations** — onglet Historique + persistance (localStorage par agent), restauration auto, nouvelle/supprimer | [x] |
+| 9.4 | **Généralisation en framework** — `lib/ai/agents/tool-library.ts` (tools réutilisables) + `registry.ts` (17 agents : Données ×6, Coaching ×6, Simulations ×4, Dashboard ×1) ; page + route dynamiques `[agentKey]` ; overviews renommées « Agent X » (Données, Coaching) + nouvelles overviews (Simulations `/dashboard/simulations`, Dashboard `/dashboard/reporting`) via `AgentSectionGrid` ; sidebar repointée ; nettoyage markdown dans le chat | [x] |
+| 9.5 | **Persistance Supabase de l'historique** (table `agent_conversations`, multi-appareils) — remplace le localStorage | [ ] |
+| 9.6 | **Enrichir les tools** des agents à socle partagé (Automatisations = workflows HubSpot, Service Client = fetchers Zendesk/Intercom live, Modèle de données, Prévisions = vrais modèles stat/ML sur l'historique) | [ ] |
+| 9.7 | **Streaming** des réponses d'agent (SSE) + affichage de la trace des tools (« l'agent a consulté X ») | [ ] |
+| 9.8 | **Repositionnement marketing** de la home sur l'angle agent cross-source réconcilié (vs « 100% IA ») | [ ] |
+
+> **Reste manuel côté user** : `ANTHROPIC_API_KEY` en env Vercel (clé avec accès `claude-opus-4-8`) + crédits sur le compte Anthropic. Clé initiale exposée en clair → **à régénérer/rotater**.
+
+---
+
 ## Avantages concurrentiels à durcir vs Clari
 
 > Clari = leader US Revenue Intelligence ($60k/an typical, 3 mois de mise en place, Salesforce-first). Voici les angles où Revold peut gagner sur le marché européen.
@@ -272,3 +293,6 @@ Le reste (cross-source full, LLM coaching, verticalisation SaaS) = ce qui fait g
 | 2026-05-04 | GitHub Action audit-slack | Workflow `.github/workflows/audit-slack-notify.yml` triggered on push de `audits/*.md` | Lit fichier markdown (titre H1 + 1500 chars excerpt), poste sur Slack via `SLACK_WEBHOOK_URL` (GitHub Secret) avec bouton "Voir le rapport complet" lien GitHub. Détection type d'audit via filename (`*cto*`, `*revenue*`, `*marketplace*`). Test manuel validé : workflow → Slack OK |
 | 2026-05-04 | Routines update | Stratégie publishing : `gh api PUT contents` au lieu de git push | Découverte 2 : sandbox CCR bloque aussi `git push origin main` (proxy local 127.0.0.1:41721 retourne 403 sur write). Solution : utiliser GitHub API officielle `api.github.com` via `gh api -X PUT /repos/.../contents/...` avec base64 du fichier. Bypasse le proxy local. Routines updated avec cette stratégie. **À valider** : routines tournent ce matin 10h Paris (cron quotidien CTO) — voir si le 1er audit auto-published apparait dans `audits/` |
 | 2026-05-04 | Auth cleanup | User `ilyes@lomed.fr` (orphelin sans profile) supprimé | Réduction à 1 user unique `ilyes@keiopa.com` (admin sur Storee retail) ; mots de passe rotés ; scripts `take-screenshots.mjs` et `marketplace-assets.mjs` lisent maintenant les creds depuis `.env.local` (REVOLD_SCREENSHOT_EMAIL/PASSWORD) au lieu de hardcoded |
+| 2026-07-12 | Phase 9.1-9.3 | Décision pivot agent-first + POC Agent Paiement & Facturation + historique | Runtime d'agent générique (boucle tool-use `claude-opus-4-8`, human-in-the-loop) ; agent P&F avec 4 tools sur données réelles + tool cross-source `compare_crm_vs_billed_revenue` ; chat UI (multi-source, suggestions, action confirmable → `alerts`) ; onglet Historique + persistance localStorage. Déployé. |
+| 2026-07-13 | Phase 9.4 | Généralisation en framework — 17 agents / 4 sections | `tool-library.ts` + `registry.ts` (17 agents experts) ; page/route dynamiques `[agentKey]` ; overviews Données + Coaching renommées « Agent X », nouvelles overviews Simulations + Dashboard, sidebar repointée ; nettoyage markdown (plus de `**`). tsc + eslint OK. |
+| 2026-07-13 | Ops | `ANTHROPIC_API_KEY` ajoutée en env Vercel (prod/preview/dev) + crédits Anthropic | Diagnostic « rien ne passe » = clé absente puis solde crédits à zéro (la chaîne agent fonctionnait de bout en bout). **Découverte : le push git auto-déploie désormais (intégration Git Vercel active) et promeut sur revold.io — `vercel --prod` CLI en doublon crée un déploiement non promu.** Mémoire de déploiement corrigée. Clé API exposée en clair dans le chat → à rotater. |
