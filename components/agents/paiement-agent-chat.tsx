@@ -19,7 +19,15 @@ type Conversation = {
   updatedAt: number;
 };
 
-const STORAGE_KEY = "revold:agent:paiement-facturation:v1";
+/** Nettoie le markdown résiduel pour un rendu texte propre (pas de ** ni #). */
+function cleanText(t: string): string {
+  return t
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[*+]\s+/gm, "- ");
+}
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -45,12 +53,15 @@ function relativeDate(ts: number): string {
 }
 
 export function PaiementAgentChat({
+  agentKey,
   sources,
   suggestions,
 }: {
+  agentKey: string;
   sources: SourceOption[];
   suggestions: string[];
 }) {
+  const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -68,7 +79,7 @@ export function PaiementAgentChat({
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Conversation[];
         if (Array.isArray(parsed)) {
@@ -86,17 +97,17 @@ export function PaiementAgentChat({
       /* localStorage indisponible / corrompu → on démarre à vide */
     }
     setHydrated(true);
-  }, []);
+  }, [storageKey]);
 
   // Persistance : réécrit localStorage à chaque changement (après hydratation).
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      localStorage.setItem(storageKey, JSON.stringify(conversations));
     } catch {
       /* quota / mode privé → on ignore */
     }
-  }, [conversations, hydrated]);
+  }, [conversations, hydrated, storageKey]);
 
   function upsertConversation(id: string, msgs: Msg[], srcs: string[]) {
     setConversations((prev) => {
@@ -158,7 +169,7 @@ export function PaiementAgentChat({
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }));
 
     try {
-      const res = await fetch("/api/agents/paiement-facturation", {
+      const res = await fetch(`/api/agents/${agentKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next, sources: selected }),
@@ -181,7 +192,7 @@ export function PaiementAgentChat({
     if (!pending) return;
     setActionState("saving");
     try {
-      const res = await fetch("/api/agents/paiement-facturation/execute", {
+      const res = await fetch(`/api/agents/${agentKey}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: pending }),
@@ -321,7 +332,7 @@ export function PaiementAgentChat({
                       : "border border-[var(--card-border)] bg-white text-slate-700"
                   }`}
                 >
-                  {m.content}
+                  {m.role === "assistant" ? cleanText(m.content) : m.content}
                 </div>
               </div>
             ))}

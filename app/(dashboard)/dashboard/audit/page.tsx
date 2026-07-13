@@ -4,8 +4,8 @@ import Link from "next/link";
 
 const modules = [
   {
-    href: "/dashboard/performances",
-    title: "Performances",
+    href: "/dashboard/agents/performance",
+    title: "Agent Performance",
     description: "Closing rate, cycle de vente, vélocité pipeline, pilotage commercial & marketing.",
     objective: "Identifier les leviers de croissance et les goulots d'étranglement business.",
     icon: (
@@ -16,8 +16,8 @@ const modules = [
     color: "from-emerald-500 to-teal-500",
   },
   {
-    href: "/dashboard/process",
-    title: "Automatisations",
+    href: "/dashboard/agents/automatisations",
+    title: "Agent Automatisations",
     description: "Cohérence des cycles, handoffs, règles de qualification, alignement sales-marketing.",
     objective: "Supprimer les frictions entre équipes pour fluidifier le parcours prospect → client.",
     icon: (
@@ -31,8 +31,8 @@ const modules = [
     color: "from-amber-500 to-rose-500",
   },
   {
-    href: "/dashboard/audit/paiement-facturation",
-    title: "Paiement & Facturation",
+    href: "/dashboard/agents/paiement-facturation",
+    title: "Agent Paiement & Facturation",
     description: "Factures, subscriptions, MRR/ARR, churn revenue et recouvrement.",
     objective: "Sécuriser le revenu récurrent et accélérer l'encaissement.",
     icon: (
@@ -44,8 +44,8 @@ const modules = [
     color: "from-cyan-500 to-blue-600",
   },
   {
-    href: "/dashboard/audit/service-client",
-    title: "Service Client",
+    href: "/dashboard/agents/service-client",
+    title: "Agent Service Client",
     description: "Tickets, satisfaction, signaux d'engagement et risque de churn.",
     objective: "Détecter les risques de churn et activer les bons leviers CSM avant qu'il soit trop tard.",
     icon: (
@@ -58,8 +58,8 @@ const modules = [
     color: "from-blue-500 to-indigo-500",
   },
   {
-    href: "/dashboard/conduite-changement",
-    title: "Équipes",
+    href: "/dashboard/agents/equipes",
+    title: "Agent Équipes",
     description: "Usage de la stack par équipe, connexions utilisateurs, activités loguées, discipline CRM.",
     objective: "Mesurer l'adoption réelle des outils par les équipes pour maximiser le ROI de la stack.",
     icon: (
@@ -73,8 +73,8 @@ const modules = [
     color: "from-fuchsia-500 to-purple-500",
   },
   {
-    href: "/dashboard/donnees",
-    title: "Propriétés",
+    href: "/dashboard/agents/proprietes",
+    title: "Agent Propriétés",
     description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
     objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
     icon: (
@@ -86,19 +86,6 @@ const modules = [
     ),
     color: "from-sky-500 to-indigo-500",
   },
-  {
-    href: "/dashboard/audit/recommandations",
-    title: "Recommandations IA",
-    description: "Diagnostic CRO/RevOps complet : pain points, plans d'action, activation coachings IA.",
-    objective: "Transformer l'audit en plans d'action concrets et activables en 1 clic.",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
-        <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
-      </svg>
-    ),
-    color: "from-fuchsia-500 to-indigo-600",
-  },
 ];
 
 export default async function AuditPage() {
@@ -107,7 +94,7 @@ export default async function AuditPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Données</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Diagnostic complet de votre stack revenue : données, process, performances et adoption.
+          Choisis un agent expert pour analyser ta donnée en conversationnel et cross-source.
         </p>
       </header>
 
