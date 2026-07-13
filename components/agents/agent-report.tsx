@@ -20,7 +20,7 @@ import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
 
-function Chart({ block }: { block: ReportBlock }) {
+export function ReportChart({ block }: { block: ReportBlock }) {
   const data = block.data ?? [];
   if (data.length === 0) return null;
 
@@ -150,7 +150,7 @@ export function AgentReport({ spec }: { spec: ReportSpec }) {
           return (
             <div key={gi}>
               {b.title && <div className="mb-1 text-xs font-medium text-slate-600">{b.title}</div>}
-              <Chart block={b} />
+              <ReportChart block={b} />
             </div>
           );
         })}

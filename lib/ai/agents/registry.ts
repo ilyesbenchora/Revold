@@ -13,7 +13,9 @@ import {
   getChurnDetail,
   compareCrmVsBilled,
   getSupportOverview,
+  aggregateCanonical,
   renderReportTool,
+  proposeChartTool,
   proposeActionTool,
 } from "./tool-library";
 
@@ -57,7 +59,7 @@ BENCHMARKS B2B SaaS (repères à adapter au contexte, cite-les quand utile) :
 - DSO < 45 j. Complétude données > 90 %. Doublons < 2 %.
 
 EXÉCUTION — tu ne fais pas que conseiller, tu EXÉCUTES la tâche demandée :
-- Rapports : quand on te demande un rapport ou une visualisation, appelle render_report avec des blocs (kpi, bar, line, area, donut, table) remplis des VRAIS chiffres récupérés. Choisis la viz adaptée à chaque donnée.
+- Rapports & graphiques : récupère d'abord les vrais chiffres. Si aucun outil dédié ne convient, utilise aggregate_canonical pour grouper/compter/sommer n'importe quelle entité (deals, invoices, subscriptions, tickets, companies, contacts) par mois, étape, statut, source, segment, etc. Pour UN graphique où l'utilisateur peut préférer un format, appelle propose_chart (il choisira le type par icône, puis l'UI le rend). Pour un rapport figé multi-blocs, appelle render_report avec des blocs (kpi, bar, line, area, donut, table) remplis des vrais chiffres. Ne mets jamais de donnée inventée.
 - Prévisions : produis des scénarios (bas / base / haut) avec les hypothèses explicitées ; un LLM projette sur des hypothèses, il ne remplace pas un modèle statistique — sois transparent là-dessus.
 - Coaching : diagnostic chiffré → cause racine → plan d'action priorisé et exécutable.
 - Rapprochement de données : croise les sources, chiffre les écarts, pointe les enregistrements non réconciliés.
@@ -338,6 +340,15 @@ const AGENT_LIST: AgentDef[] = [
     sourceCategories: ["crm", "billing", "support"],
   },
 ];
+
+// Capacités universelles : tout agent peut agréger la donnée canonique,
+// proposer un type de graphique et rendre un rapport. Ajoutées sans doublon.
+const UNIVERSAL_TOOLS = [aggregateCanonical, proposeChartTool, report];
+for (const a of AGENT_LIST) {
+  for (const t of UNIVERSAL_TOOLS) {
+    if (!a.tools.some((x) => x.def.name === t.def.name)) a.tools.push(t);
+  }
+}
 
 export const AGENTS: Record<string, AgentDef> = Object.fromEntries(
   AGENT_LIST.map((a) => [a.key, a]),

@@ -64,6 +64,16 @@ export type ReportSpec = {
   blocks: ReportBlock[];
 };
 
+/** Proposition de graphique : l'utilisateur choisit le type, l'UI rend la data. */
+export type ChartProposal = {
+  title: string;
+  summary?: string;
+  data: { name: string; value: number }[];
+  /** Types proposés parmi bar | line | area | donut | table. */
+  suggestedTypes: string[];
+  defaultType: string;
+};
+
 /** Trace d'un appel de tool, pour affichage "l'agent a fait X". */
 export type ToolTraceEntry = {
   name: string;
@@ -74,6 +84,7 @@ export type AgentTurnResult = {
   text: string;
   proposedAction: ProposedAction | null;
   report: ReportSpec | null;
+  chartProposal: ChartProposal | null;
   toolTrace: ToolTraceEntry[];
 };
 
@@ -81,10 +92,11 @@ export type AgentMessage = { role: "user" | "assistant"; content: string };
 
 /**
  * Noms réservés des tools "capturés" : leur input n'est pas exécuté côté
- * serveur mais renvoyé à l'UI (action confirmable, rapport à rendre).
+ * serveur mais renvoyé à l'UI (action confirmable, rapport, proposition de graphe).
  */
 export const PROPOSE_ACTION_TOOL = "propose_action";
 export const RENDER_REPORT_TOOL = "render_report";
+export const PROPOSE_CHART_TOOL = "propose_chart";
 
 /**
  * Joue un tour d'agent : boucle tool-use jusqu'à `end_turn` (ou `maxSteps`).
@@ -112,6 +124,7 @@ export async function runAgentTurn(opts: {
   const toolTrace: ToolTraceEntry[] = [];
   let proposedAction: ProposedAction | null = null;
   let report: ReportSpec | null = null;
+  let chartProposal: ChartProposal | null = null;
 
   for (let step = 0; step < maxSteps; step++) {
     const res = await client.messages.create({
@@ -123,7 +136,7 @@ export async function runAgentTurn(opts: {
     });
 
     if (res.stop_reason !== "tool_use") {
-      return { text: extractText(res.content), proposedAction, report, toolTrace };
+      return { text: extractText(res.content), proposedAction, report, chartProposal, toolTrace };
     }
 
     // On rejoue le tour assistant (blocs tool_use inclus) avant de répondre.
@@ -161,6 +174,19 @@ export async function runAgentTurn(opts: {
           content: report
             ? "Rapport rendu à l'utilisateur (graphiques affichés). Conclus par une courte synthèse des points clés."
             : "Rapport invalide (aucun bloc). Reconstruis-le avec des blocs et des données réelles.",
+        });
+        continue;
+      }
+
+      // Proposition de graphique → capturée ; l'utilisateur choisira le type dans l'UI.
+      if (block.name === PROPOSE_CHART_TOOL) {
+        chartProposal = normalizeChartProposal(input);
+        results.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: chartProposal
+            ? "Types de graphique proposés à l'utilisateur (il choisira l'icône). Conclus en une phrase, sans re-décrire les chiffres."
+            : "Proposition invalide (aucune donnée). Récupère d'abord de vraies données puis repropose.",
         });
         continue;
       }
@@ -212,7 +238,7 @@ export async function runAgentTurn(opts: {
     ],
   });
 
-  return { text: extractText(final.content), proposedAction, report, toolTrace };
+  return { text: extractText(final.content), proposedAction, report, chartProposal, toolTrace };
 }
 
 function extractText(content: Anthropic.ContentBlock[]): string {
@@ -255,6 +281,28 @@ function normalizeReport(input: Record<string, unknown>): ReportSpec | null {
   }
   if (blocks.length === 0) return null;
   return { title, summary, blocks };
+}
+
+function normalizeChartProposal(input: Record<string, unknown>): ChartProposal | null {
+  const title = typeof input.title === "string" ? input.title : "Graphique";
+  const summary = typeof input.summary === "string" ? input.summary : undefined;
+  const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
+  const data = Array.isArray(input.data)
+    ? input.data
+        .filter((d): d is Record<string, unknown> => !!d && typeof d === "object")
+        .map((d) => ({ name: String(d.name ?? ""), value: num(d.value) }))
+    : [];
+  if (data.length === 0) return null;
+  const allowed = new Set(["bar", "line", "area", "donut", "table"]);
+  let suggestedTypes = Array.isArray(input.suggestedTypes)
+    ? input.suggestedTypes.map((t) => String(t)).filter((t) => allowed.has(t))
+    : [];
+  if (suggestedTypes.length === 0) suggestedTypes = ["bar", "line", "donut", "table"];
+  const defaultType =
+    typeof input.defaultType === "string" && suggestedTypes.includes(input.defaultType)
+      ? input.defaultType
+      : suggestedTypes[0];
+  return { title, summary, data, suggestedTypes, defaultType };
 }
 
 function normalizeProposedAction(input: Record<string, unknown>): ProposedAction {

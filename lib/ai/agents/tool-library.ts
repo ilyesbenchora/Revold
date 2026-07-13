@@ -284,6 +284,155 @@ export const getRevenueTimeseries: AgentTool = {
   },
 };
 
+/** Agrégation générique sur les tables canoniques (anticipe les analyses non prévues). */
+type AggSpec = {
+  columns: string;
+  hasSource?: boolean;
+  dims: Record<string, (r: Record<string, unknown>) => string | null>;
+  numeric: Record<string, (r: Record<string, unknown>) => number>;
+};
+function monthOf(v: unknown): string | null {
+  const s = String(v ?? "");
+  return s.length >= 7 ? s.slice(0, 7) : null;
+}
+function relName(rel: unknown): string {
+  if (!rel) return "Sans étape";
+  const o = (Array.isArray(rel) ? rel[0] : rel) as { name?: string } | undefined;
+  return o?.name ?? "Sans étape";
+}
+const AGG_SPECS: Record<string, AggSpec> = {
+  deals: {
+    columns: "amount, created_date, close_date, pipeline_stages(name)",
+    dims: {
+      month_created: (r) => monthOf(r.created_date),
+      month_closed: (r) => monthOf(r.close_date),
+      stage: (r) => relName(r.pipeline_stages),
+    },
+    numeric: { amount: (r) => Number(r.amount) || 0 },
+  },
+  invoices: {
+    columns: "amount_total, amount_paid, amount_due, status, primary_source, issued_at, paid_at",
+    hasSource: true,
+    dims: {
+      status: (r) => String(r.status ?? "inconnu"),
+      source: (r) => String(r.primary_source ?? "inconnu"),
+      month_issued: (r) => monthOf(r.issued_at),
+      month_paid: (r) => monthOf(r.paid_at),
+    },
+    numeric: {
+      amount_total: (r) => Number(r.amount_total) || 0,
+      amount_paid: (r) => Number(r.amount_paid) || 0,
+      amount_due: (r) => Number(r.amount_due) || 0,
+    },
+  },
+  subscriptions: {
+    columns: "mrr, status, primary_source, started_at, canceled_at",
+    hasSource: true,
+    dims: {
+      status: (r) => String(r.status ?? "inconnu"),
+      source: (r) => String(r.primary_source ?? "inconnu"),
+      month_started: (r) => monthOf(r.started_at),
+      month_canceled: (r) => monthOf(r.canceled_at),
+    },
+    numeric: { mrr: (r) => Number(r.mrr) || 0 },
+  },
+  tickets: {
+    columns: "status",
+    dims: { status: (r) => String(r.status ?? "inconnu") },
+    numeric: {},
+  },
+  companies: {
+    columns: "segment, industry, country_code",
+    dims: {
+      segment: (r) => String(r.segment ?? "inconnu"),
+      industry: (r) => String(r.industry ?? "inconnu"),
+      country: (r) => String(r.country_code ?? "inconnu"),
+    },
+    numeric: {},
+  },
+  contacts: {
+    columns: "is_mql, is_sql",
+    dims: {
+      mql: (r) => (r.is_mql ? "MQL" : "non-MQL"),
+      sql: (r) => (r.is_sql ? "SQL" : "non-SQL"),
+    },
+    numeric: {},
+  },
+};
+
+export const aggregateCanonical: AgentTool = {
+  def: {
+    name: "aggregate_canonical",
+    description:
+      "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Renvoie une liste {group, value} prête à visualiser.",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity: { type: "string", enum: Object.keys(AGG_SPECS), description: "Table canonique à agréger." },
+        groupBy: { type: "string", description: "Dimension de regroupement (voir la liste par entité)." },
+        measure: { type: "string", enum: ["count", "sum", "avg"], description: "Mesure (défaut count)." },
+        field: { type: "string", description: "Champ numérique pour sum/avg (voir la liste par entité)." },
+        months: { type: "integer", description: "Fenêtre en mois pour les dimensions month_* (défaut 12)." },
+      },
+      required: ["entity", "groupBy"],
+    },
+  },
+  run: async (input, ctx: AgentContext) => {
+    const entity = String(input.entity ?? "");
+    const spec = AGG_SPECS[entity];
+    if (!spec) return { error: `Entité non supportée: ${entity}. Choisir parmi: ${Object.keys(AGG_SPECS).join(", ")}.` };
+    const groupBy = String(input.groupBy ?? "");
+    const dimFn = spec.dims[groupBy];
+    if (!dimFn)
+      return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
+    const measure = ["count", "sum", "avg"].includes(String(input.measure)) ? String(input.measure) : "count";
+    let numFn: ((r: Record<string, unknown>) => number) | null = null;
+    const field = input.field ? String(input.field) : null;
+    if (measure !== "count") {
+      if (!field || !spec.numeric[field])
+        return {
+          error: `Champ numérique requis pour ${measure} sur ${entity}. Choisir: ${Object.keys(spec.numeric).join(", ") || "(aucun)"}.`,
+        };
+      numFn = spec.numeric[field];
+    }
+    const months = Math.min(Math.max(Number(input.months) || 12, 1), 36);
+
+    let q = ctx.supabase.from(entity).select(spec.columns).eq("organization_id", ctx.orgId).limit(10000);
+    const src = billingSourceFilter(ctx.sources);
+    if (src && spec.hasSource) q = q.in("primary_source", src);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    if (rows.length === 0) return { hasData: false, note: `Aucune donnée dans ${entity}.` };
+
+    const isMonth = groupBy.startsWith("month_");
+    const acc: Record<string, { sum: number; count: number }> = {};
+    for (const r of rows) {
+      const key = dimFn(r);
+      if (key == null || key === "") continue;
+      const e = (acc[key] ??= { sum: 0, count: 0 });
+      e.count++;
+      if (numFn) e.sum += numFn(r);
+    }
+    const valueOf = (e: { sum: number; count: number }) =>
+      measure === "count" ? e.count : measure === "sum" ? Math.round(e.sum) : e.count ? Math.round(e.sum / e.count) : 0;
+
+    let out: { group: string; value: number }[];
+    if (isMonth) {
+      const keys = monthKeys(months);
+      out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0 }) }));
+    } else {
+      out = Object.entries(acc)
+        .map(([group, e]) => ({ group, value: valueOf(e) }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 50);
+    }
+    return { hasData: true, entity, groupBy, measure, field: field ?? undefined, rows: out, totalRows: rows.length };
+  },
+};
+
 /** Liste des sources actuellement connectées à l'org. */
 export const listConnectedSources: AgentTool = {
   def: {
@@ -595,6 +744,43 @@ export const renderReportTool: AgentTool = {
         },
       },
       required: ["title", "blocks"],
+    },
+  },
+};
+
+/**
+ * Tool de proposition de graphique (nom réservé "propose_chart").
+ * Capturé par le runtime : l'agent fournit la donnée réelle + les types
+ * suggérés, l'UI affiche des icônes de type et rend le graphe au choix de
+ * l'utilisateur. Pour un rapport multi-blocs figé, utiliser render_report.
+ */
+export const proposeChartTool: AgentTool = {
+  def: {
+    name: "propose_chart",
+    description:
+      "Propose à l'utilisateur de CHOISIR le type de graphique (barres, courbe, aire, donut, table) pour une donnée. À utiliser dès qu'un graphique est demandé et que plusieurs visualisations conviennent : récupère d'abord la vraie donnée via tes outils, puis fournis-la ici avec les types suggérés — l'utilisateur clique l'icône et l'UI rend le graphe. Pour un rapport figé multi-blocs, utilise render_report à la place.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Titre du graphique." },
+        summary: { type: "string", description: "Contexte en une phrase (optionnel)." },
+        data: {
+          type: "array",
+          description: "Les points de données réels à visualiser.",
+          items: {
+            type: "object",
+            properties: { name: { type: "string" }, value: { type: "number" } },
+            required: ["name", "value"],
+          },
+        },
+        suggestedTypes: {
+          type: "array",
+          description: "Types de graphique adaptés à cette donnée.",
+          items: { type: "string", enum: ["bar", "line", "area", "donut", "table"] },
+        },
+        defaultType: { type: "string", enum: ["bar", "line", "area", "donut", "table"], description: "Type mis en avant par défaut." },
+      },
+      required: ["title", "data"],
     },
   },
 };

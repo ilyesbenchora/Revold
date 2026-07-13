@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AgentReport } from "./agent-report";
-import type { ReportSpec } from "@/lib/ai/agents/agent-runtime";
+import { ChartPicker } from "./chart-picker";
+import type { ReportSpec, ChartProposal } from "@/lib/ai/agents/agent-runtime";
 
 type SourceOption = { key: string; label: string; icon: string };
 type ProposedAction = {
@@ -77,6 +78,7 @@ export function PaiementAgentChat({
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
   const [pending, setPending] = useState<ProposedAction | null>(null);
   const [report, setReport] = useState<ReportSpec | null>(null);
+  const [chart, setChart] = useState<ChartProposal | null>(null);
   const [actionState, setActionState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -137,6 +139,7 @@ export function PaiementAgentChat({
     setMessages([]);
     setPending(null);
     setReport(null);
+    setChart(null);
     setActionState("idle");
     setError(null);
     setTab("chat");
@@ -148,6 +151,7 @@ export function PaiementAgentChat({
     setSelected(c.sources.length ? c.sources : sources.map((s) => s.key));
     setPending(null);
     setReport(null);
+    setChart(null);
     setActionState("idle");
     setError(null);
     setTab("chat");
@@ -164,6 +168,7 @@ export function PaiementAgentChat({
     setError(null);
     setPending(null);
     setReport(null);
+    setChart(null);
     setActionState("idle");
 
     const id = currentId ?? newId();
@@ -189,6 +194,7 @@ export function PaiementAgentChat({
       upsertConversation(id, finalMsgs, selected);
       if (data.proposedAction) setPending(data.proposedAction);
       if (data.report) setReport(data.report);
+      if (data.chartProposal) setChart(data.chartProposal);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -359,6 +365,9 @@ export function PaiementAgentChat({
 
             {/* Rapport rendu par l'agent (Dashboard/Reporting) */}
             {report && <AgentReport spec={report} />}
+
+            {/* Proposition de graphique — l'utilisateur choisit le type */}
+            {chart && <ChartPicker proposal={chart} />}
 
             {/* Carte d'action confirmable */}
             {pending && (

@@ -65,6 +65,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       message: result.text,
       proposedAction: result.proposedAction,
       report: result.report,
+      chartProposal: result.chartProposal,
       toolTrace: result.toolTrace.map((t) => t.name),
     });
   } catch (err) {
