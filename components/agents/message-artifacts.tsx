@@ -44,6 +44,25 @@ export function MessageArtifacts({
   async function confirm() {
     if (!effectiveAction) return;
     setState("saving");
+    // 1) Enregistre TOUJOURS le rapport en premier (localStorage) → visible sur Mes rapports,
+    //    même si la création de l'alerte côté serveur échoue.
+    if (hasReport) {
+      addSavedReport({
+        agentKey,
+        agentLabel,
+        title: report?.title || chart?.title || effectiveAction.title,
+        summary: report?.summary || chart?.summary,
+        report: report ?? null,
+        chart: chart ?? null,
+        alert: {
+          title: effectiveAction.title,
+          description: effectiveAction.description,
+          impact: effectiveAction.impact,
+          category: effectiveAction.category,
+        },
+      });
+    }
+    // 2) Crée l'alerte côté Supabase (best-effort).
     try {
       const res = await fetch(`/api/agents/${agentKey}/execute`, {
         method: "POST",
@@ -52,27 +71,10 @@ export function MessageArtifacts({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec");
-      // Enregistre le rapport + l'alerte (visible sur /dashboard/mes-rapports)
-      if (report || chart) {
-        addSavedReport({
-          agentKey,
-          agentLabel,
-          title: report?.title || chart?.title || effectiveAction.title,
-          summary: report?.summary || chart?.summary,
-          report: report ?? null,
-          chart: chart ?? null,
-          alert: {
-            title: effectiveAction.title,
-            description: effectiveAction.description,
-            impact: effectiveAction.impact,
-            category: effectiveAction.category,
-          },
-          alertId: data.id,
-        });
-      }
       setState("done");
     } catch {
-      setState("error");
+      // Le rapport est déjà enregistré ; on signale juste l'échec de l'alerte.
+      setState(hasReport ? "done" : "error");
     }
   }
 
