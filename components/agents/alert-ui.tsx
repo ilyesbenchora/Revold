@@ -14,6 +14,7 @@ export function channelLabel(key: string): { icon: string; label: string } {
 /** Normalise le texte d'une alerte pour un rendu lisible (espaces exotiques, point médian, markdown). */
 export function readable(t: string): string {
   return (t ?? "")
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))) // décode \uXXXX littéral
     .replace(/[    ⁠]/g, " ") // espaces insécables / fines → espace normale
     .replace(/([A-Za-z0-9])·([€$A-Za-z0-9])/g, "$1 $2") // "10 M·€" → "10 M €"
     .replace(/\*\*(.*?)\*\*/g, "$1")
