@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AgentReport } from "./agent-report";
-import { ChartPicker } from "./chart-picker";
-import type { ReportSpec, ChartProposal } from "@/lib/ai/agents/agent-runtime";
+import { MessageArtifacts } from "./message-artifacts";
+import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 type SourceOption = { key: string; label: string; icon: string };
-type ProposedAction = {
-  action_type: string;
-  title: string;
-  description: string;
-  category?: string;
-  impact?: string;
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  report?: ReportSpec | null;
+  chart?: ChartProposal | null;
+  action?: ProposedAction | null;
 };
-type Msg = { role: "user" | "assistant"; content: string };
 type Conversation = {
   id: string;
   title: string;
@@ -76,10 +74,6 @@ export function PaiementAgentChat({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
-  const [pending, setPending] = useState<ProposedAction | null>(null);
-  const [report, setReport] = useState<ReportSpec | null>(null);
-  const [chart, setChart] = useState<ChartProposal | null>(null);
-  const [actionState, setActionState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +85,6 @@ export function PaiementAgentChat({
         const parsed = JSON.parse(raw) as Conversation[];
         if (Array.isArray(parsed)) {
           setConversations(parsed);
-          // Restaure la conversation la plus récente.
           const latest = [...parsed].sort((a, b) => b.updatedAt - a.updatedAt)[0];
           if (latest) {
             setCurrentId(latest.id);
@@ -137,10 +130,6 @@ export function PaiementAgentChat({
   function startNew() {
     setCurrentId(null);
     setMessages([]);
-    setPending(null);
-    setReport(null);
-    setChart(null);
-    setActionState("idle");
     setError(null);
     setTab("chat");
   }
@@ -149,10 +138,6 @@ export function PaiementAgentChat({
     setCurrentId(c.id);
     setMessages(c.messages);
     setSelected(c.sources.length ? c.sources : sources.map((s) => s.key));
-    setPending(null);
-    setReport(null);
-    setChart(null);
-    setActionState("idle");
     setError(null);
     setTab("chat");
   }
@@ -166,15 +151,11 @@ export function PaiementAgentChat({
     const content = text.trim();
     if (!content || loading) return;
     setError(null);
-    setPending(null);
-    setReport(null);
-    setChart(null);
-    setActionState("idle");
 
     const id = currentId ?? newId();
     if (!currentId) setCurrentId(id);
 
-    const next = [...messages, { role: "user" as const, content }];
+    const next: Msg[] = [...messages, { role: "user", content }];
     setMessages(next);
     upsertConversation(id, next, selected);
     setInput("");
@@ -182,41 +163,32 @@ export function PaiementAgentChat({
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }));
 
     try {
+      // On n'envoie que le texte au serveur (les artefacts sont locaux au rendu).
       const res = await fetch(`/api/agents/${agentKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, sources: selected }),
+        body: JSON.stringify({
+          messages: next.map((m) => ({ role: m.role, content: m.content })),
+          sources: selected,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur agent");
-      const finalMsgs = [...next, { role: "assistant" as const, content: data.message || "(réponse vide)" }];
+      const assistant: Msg = {
+        role: "assistant",
+        content: data.message || "(réponse vide)",
+        report: data.report ?? null,
+        chart: data.chartProposal ?? null,
+        action: data.proposedAction ?? null,
+      };
+      const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
       upsertConversation(id, finalMsgs, selected);
-      if (data.proposedAction) setPending(data.proposedAction);
-      if (data.report) setReport(data.report);
-      if (data.chartProposal) setChart(data.chartProposal);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }));
-    }
-  }
-
-  async function confirmAction() {
-    if (!pending) return;
-    setActionState("saving");
-    try {
-      const res = await fetch(`/api/agents/${agentKey}/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: pending }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
-      setActionState("done");
-    } catch {
-      setActionState("error");
     }
   }
 
@@ -334,21 +306,32 @@ export function PaiementAgentChat({
             )}
 
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                {m.role === "assistant" && (
-                  <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
-                    ✨
+              <div key={i} className="space-y-2">
+                <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {m.role === "assistant" && (
+                    <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
+                      ✨
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm ${
+                      m.role === "user"
+                        ? "bg-accent text-white"
+                        : "border border-[var(--card-border)] bg-white text-slate-700"
+                    }`}
+                  >
+                    {m.role === "assistant" ? cleanText(m.content) : m.content}
                   </div>
-                )}
-                <div
-                  className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm ${
-                    m.role === "user"
-                      ? "bg-accent text-white"
-                      : "border border-[var(--card-border)] bg-white text-slate-700"
-                  }`}
-                >
-                  {m.role === "assistant" ? cleanText(m.content) : m.content}
                 </div>
+                {m.role === "assistant" && (m.report || m.chart || m.action) && (
+                  <MessageArtifacts
+                    agentKey={agentKey}
+                    agentLabel={agentLabel}
+                    report={m.report}
+                    chart={m.chart}
+                    action={m.action}
+                  />
+                )}
               </div>
             ))}
 
@@ -359,46 +342,6 @@ export function PaiementAgentChat({
                 </div>
                 <div className="rounded-2xl border border-[var(--card-border)] bg-white px-3.5 py-2.5 text-sm text-slate-400">
                   L&apos;agent analyse tes données…
-                </div>
-              </div>
-            )}
-
-            {/* Rapport rendu par l'agent (Dashboard/Reporting) */}
-            {report && <AgentReport spec={report} />}
-
-            {/* Proposition de graphique — l'utilisateur choisit le type */}
-            {chart && <ChartPicker proposal={chart} />}
-
-            {/* Carte d'action confirmable */}
-            {pending && (
-              <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-3.5">
-                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-                  Action proposée · à confirmer
-                </div>
-                <div className="text-sm font-semibold text-slate-800">{pending.title}</div>
-                <p className="mt-0.5 text-sm text-slate-600">{pending.description}</p>
-                {pending.impact && <p className="mt-1 text-xs text-slate-500">Impact : {pending.impact}</p>}
-                <div className="mt-3 flex items-center gap-2">
-                  {actionState === "done" ? (
-                    <span className="text-sm font-medium text-emerald-600">✓ Alerte créée</span>
-                  ) : (
-                    <>
-                      <button
-                        onClick={confirmAction}
-                        disabled={actionState === "saving"}
-                        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
-                      >
-                        {actionState === "saving" ? "Création…" : "Confirmer et créer l'alerte"}
-                      </button>
-                      <button
-                        onClick={() => setPending(null)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                      >
-                        Ignorer
-                      </button>
-                    </>
-                  )}
-                  {actionState === "error" && <span className="text-xs text-red-500">Échec de la création.</span>}
                 </div>
               </div>
             )}
