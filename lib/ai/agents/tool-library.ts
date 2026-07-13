@@ -26,6 +26,17 @@ function billingSourceFilter(sources: string[]): string[] | null {
   return billing.length > 0 ? billing : null;
 }
 
+/** Clés "YYYY-MM" des N derniers mois (mois courant inclus, ordre chronologique). */
+function monthKeys(n: number): string[] {
+  const out: string[] = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return out;
+}
+
 /** KPI snapshot matérialisé (kpi_snapshots) — vue chiffrée transverse. */
 export const getKpiSnapshot: AgentTool = {
   def: {
@@ -119,6 +130,156 @@ export const getCanonicalCounts: AgentTool = {
       activeSubscriptions: n(activeSubs),
       payments: n(payments),
       tickets: n(tickets),
+    };
+  },
+};
+
+/** Série temporelle des deals : créés par mois + gagnés par mois (sur les tables canoniques). */
+export const getDealsTimeseries: AgentTool = {
+  def: {
+    name: "get_deals_timeseries",
+    description:
+      "Ventile les deals par mois à partir de la table canonique deals (synchronisée) : nombre et montant des deals CRÉÉS par mois (sur created_date) et des deals GAGNÉS par mois (sur close_date, étape closed_won). Utilise pour tout graphique/série temporelle de transactions par mois, tendance de création, ou revenue signé par mois. Ne dépend PAS du snapshot KPI.",
+    input_schema: {
+      type: "object",
+      properties: { months: { type: "integer", description: "Nombre de mois d'historique (défaut 6, max 24)." } },
+    },
+  },
+  run: async (input, ctx: AgentContext) => {
+    const months = Math.min(Math.max(Number(input.months) || 6, 1), 24);
+    const { data, error } = await ctx.supabase
+      .from("deals")
+      .select("created_date, close_date, amount, pipeline_stages(is_closed_won)")
+      .eq("organization_id", ctx.orgId)
+      .limit(8000);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    if (rows.length === 0) return { hasData: false, note: "Aucun deal dans la table canonique." };
+    const keys = monthKeys(months);
+    const created: Record<string, { deals: number; amount: number }> = {};
+    const won: Record<string, { deals: number; amount: number }> = {};
+    for (const k of keys) {
+      created[k] = { deals: 0, amount: 0 };
+      won[k] = { deals: 0, amount: 0 };
+    }
+    for (const r of rows) {
+      const amount = Number(r.amount) || 0;
+      const cm = String(r.created_date ?? "").slice(0, 7);
+      if (created[cm]) {
+        created[cm].deals++;
+        created[cm].amount += amount;
+      }
+      const st = r.pipeline_stages;
+      const stage = (Array.isArray(st) ? st[0] : st) as { is_closed_won?: boolean } | null;
+      if (stage?.is_closed_won && r.close_date) {
+        const wm = String(r.close_date).slice(0, 7);
+        if (won[wm]) {
+          won[wm].deals++;
+          won[wm].amount += amount;
+        }
+      }
+    }
+    return {
+      hasData: true,
+      months,
+      totalDeals: rows.length,
+      createdByMonth: keys.map((k) => ({ month: k, deals: created[k].deals, amount: Math.round(created[k].amount) })),
+      wonByMonth: keys.map((k) => ({ month: k, deals: won[k].deals, amount: Math.round(won[k].amount) })),
+    };
+  },
+};
+
+/** Répartition du pipeline par étape (count, montant, montant pondéré). */
+export const getPipelineByStage: AgentTool = {
+  def: {
+    name: "get_pipeline_by_stage",
+    description:
+      "Répartit les deals par étape de pipeline : nombre, montant total et montant pondéré par la probabilité de l'étape. Étapes ordonnées. Pour analyser la structure du pipeline, la couverture, et alimenter un graphique par étape (funnel/bar).",
+    input_schema: { type: "object", properties: {} },
+  },
+  run: async (_input, ctx: AgentContext) => {
+    const { data, error } = await ctx.supabase
+      .from("deals")
+      .select("amount, pipeline_stages(name, position, probability, is_closed_won, is_closed_lost)")
+      .eq("organization_id", ctx.orgId)
+      .limit(8000);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    if (rows.length === 0) return { hasData: false, note: "Aucun deal dans la table canonique." };
+    const byStage: Record<string, { position: number; deals: number; amount: number; weighted: number; closed: boolean }> = {};
+    for (const r of rows) {
+      const st = (Array.isArray(r.pipeline_stages) ? r.pipeline_stages[0] : r.pipeline_stages) as
+        | { name?: string; position?: number; probability?: number; is_closed_won?: boolean; is_closed_lost?: boolean }
+        | null;
+      const name = st?.name ?? "Sans étape";
+      const prob = (Number(st?.probability) || 0) / 100;
+      const e = (byStage[name] ??= {
+        position: Number(st?.position) || 99,
+        deals: 0,
+        amount: 0,
+        weighted: 0,
+        closed: !!(st?.is_closed_won || st?.is_closed_lost),
+      });
+      const a = Number(r.amount) || 0;
+      e.deals++;
+      e.amount += a;
+      e.weighted += a * prob;
+    }
+    const stages = Object.entries(byStage)
+      .map(([name, e]) => ({
+        stage: name,
+        deals: e.deals,
+        amount: Math.round(e.amount),
+        weightedAmount: Math.round(e.weighted),
+        closed: e.closed,
+      }))
+      .sort((a, b) => byStage[a.stage].position - byStage[b.stage].position);
+    return {
+      hasData: true,
+      stages,
+      openPipelineAmount: Math.round(stages.filter((s) => !s.closed).reduce((s2, s) => s2 + s.amount, 0)),
+      openWeightedAmount: Math.round(stages.filter((s) => !s.closed).reduce((s2, s) => s2 + s.weightedAmount, 0)),
+    };
+  },
+};
+
+/** Série temporelle du revenu facturé / encaissé par mois (tables canoniques). */
+export const getRevenueTimeseries: AgentTool = {
+  def: {
+    name: "get_revenue_timeseries",
+    description:
+      "Ventile le revenu par mois à partir de la table canonique invoices : montant facturé par mois (sur issued_at) et montant encaissé par mois (sur paid_at). Pour tout graphique/série temporelle de facturation, d'encaissement ou de tendance revenue. Ne dépend PAS du snapshot KPI.",
+    input_schema: {
+      type: "object",
+      properties: { months: { type: "integer", description: "Nombre de mois d'historique (défaut 6, max 24)." } },
+    },
+  },
+  run: async (input, ctx: AgentContext) => {
+    const months = Math.min(Math.max(Number(input.months) || 6, 1), 24);
+    let q = ctx.supabase
+      .from("invoices")
+      .select("issued_at, paid_at, amount_total, amount_paid, primary_source")
+      .eq("organization_id", ctx.orgId)
+      .limit(8000);
+    const src = billingSourceFilter(ctx.sources);
+    if (src) q = q.in("primary_source", src);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    if (rows.length === 0) return { hasData: false, note: "Aucune facture dans la table canonique pour ces sources." };
+    const keys = monthKeys(months);
+    const acc: Record<string, { invoiced: number; paid: number }> = {};
+    for (const k of keys) acc[k] = { invoiced: 0, paid: 0 };
+    for (const r of rows) {
+      const im = String(r.issued_at ?? "").slice(0, 7);
+      if (acc[im]) acc[im].invoiced += Number(r.amount_total) || 0;
+      const pm = String(r.paid_at ?? "").slice(0, 7);
+      if (acc[pm]) acc[pm].paid += Number(r.amount_paid) || Number(r.amount_total) || 0;
+    }
+    return {
+      hasData: true,
+      months,
+      byMonth: keys.map((k) => ({ month: k, invoiced: Math.round(acc[k].invoiced), paid: Math.round(acc[k].paid) })),
     };
   },
 };

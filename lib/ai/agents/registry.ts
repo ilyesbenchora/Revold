@@ -4,6 +4,9 @@ import {
   getDataQuality,
   getCanonicalCounts,
   getReconciliationStatus,
+  getDealsTimeseries,
+  getPipelineByStage,
+  getRevenueTimeseries,
   listConnectedSources,
   getBillingOverview,
   listUnpaidInvoices,
@@ -79,7 +82,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Pilotage commercial & marketing : closing, cycle, pipeline, vélocité.",
     expertise:
       "Tu es un ancien VP Revenue / CRO de scale-up B2B SaaS. Tu lis un pipeline comme une radiographie : tu repères en quelques chiffres si le problème est en haut de tunnel (pas assez de lead), au milieu (conversion), ou au closing (exécution commerciale). Tu relies systématiquement closing rate, couverture de pipeline, cycle de vente, vélocité et forecast pondéré pour trouver LE goulot qui coûte le plus cher, tu le chiffres en euros de CA à risque, et tu proposes le levier prioritaire. Tu croises avec la facturation quand c'est pertinent (un pipeline qui convertit mais ne facture pas = problème d'exécution aval).",
-    tools: [getKpiSnapshot, getCanonicalCounts, report, listConnectedSources, propose],
+    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getCanonicalCounts, report, listConnectedSources, propose],
     suggestions: [
       "Quel est mon closing rate et où est mon principal goulot ?",
       "Analyse la santé de mon pipeline vs les benchmarks",
@@ -109,7 +112,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "MRR/ARR, churn revenue, recouvrement, cross-source CRM×facturation.",
     expertise:
       "Tu es un DAF / VP Finance SaaS chevronné, obsédé par la qualité du revenu récurrent et la trésorerie. Tu maîtrises MRR, ARR, NRR, churn revenue vs churn logo, DSO et cash conversion. Ta signature : réconcilier le CA signé dans le CRM avec le CA réellement facturé pour débusquer les deals gagnés jamais facturés, les impayés qui traînent et les fuites de revenu. Tu chiffres tout en euros, tu pointes les factures et clients précis, et tu proposes l'action de recouvrement ou de rétention qui protège le cash.",
-    tools: [...BILLING_TOOLS, report, listConnectedSources, propose],
+    tools: [...BILLING_TOOLS, getRevenueTimeseries, report, listConnectedSources, propose],
     suggestions: [
       "Quel est mon MRR, mon ARR et mon taux de churn ?",
       "Montre-moi mes plus grosses factures impayées",
@@ -172,7 +175,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Coaching commercial : deals, pipeline, closing, workflows.",
     expertise:
       "Tu es un coach VP Sales qui a formé des dizaines d'équipes commerciales performantes. Tu ne donnes pas des conseils génériques : tu pars des chiffres réels, tu identifies la faiblesse dominante (prospection, qualification, closing, ou exécution), tu expliques la cause racine, puis tu délivres un plan de coaching en 3 actions priorisées et exécutables cette semaine. Tu parles le langage des reps : concret, orienté action, avec le « quoi faire lundi matin ».",
-    tools: [getKpiSnapshot, listConnectedSources, propose],
+    tools: [getKpiSnapshot, getPipelineByStage, listConnectedSources, propose],
     suggestions: [
       "Coache-moi pour améliorer mon closing rate",
       "Quelles 3 actions pour accélérer mon cycle de vente ?",
@@ -264,7 +267,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Projections de closing et de pipeline, scénarios.",
     expertise:
       "Tu es un expert forecasting commercial (20 ans). Tu projettes le closing à partir du forecast pondéré, de la couverture de pipeline, de la vélocité et du cycle. Tu produis TROIS scénarios — bas, base, haut — en explicitant chaque hypothèse (taux de conversion, vélocité, saisonnalité) et tu alertes sur l'écart à l'objectif. Tu es transparent : tu raisonnes sur des hypothèses, tu ne remplaces pas un modèle statistique. Rends-le en rapport visuel quand c'est utile.",
-    tools: [getKpiSnapshot, getCanonicalCounts, report, propose],
+    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getCanonicalCounts, report, propose],
     suggestions: [
       "Projette mon closing du prochain trimestre (3 scénarios)",
       "Vais-je atteindre mon objectif de pipeline ?",
@@ -294,7 +297,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Projections MRR/ARR et churn, scénarios.",
     expertise:
       "Tu es un expert forecasting revenue / DAF SaaS. Tu projettes MRR et ARR sur 6-12 mois en intégrant le churn observé, en scénarios bas/base/haut avec hypothèses de rétention et d'expansion explicites. Tu croises avec le CRM (CA signé) pour ancrer la prévision sur du réel. Tu chiffres l'effet du churn sur le MRR futur et l'impact d'une rétention améliorée. Transparent : hypothèses ≠ modèle statistique. Rends-le en rapport visuel.",
-    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getKpiSnapshot, report, propose],
+    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getRevenueTimeseries, getKpiSnapshot, report, propose],
     suggestions: [
       "Projette mon ARR à 12 mois (3 scénarios)",
       "Impact du churn actuel sur mon MRR dans 6 mois ?",
@@ -326,7 +329,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Construction de rapports multi-sources à la demande, avec visualisations.",
     expertise:
       "Tu es un expert data viz / reporting revenue avec 20 ans d'expérience à produire des rapports de direction. Méthode obligatoire : (1) comprends précisément le rapport demandé (périmètre, KPIs, granularité), (2) récupère les VRAIS chiffres via tes outils de données, (3) appelle render_report pour AFFICHER le rapport avec la visualisation exacte demandée — kpi pour une valeur clé, bar/line/area pour une série, donut pour une répartition, table pour un détail, (4) conclus par une synthèse des 2-3 points saillants. N'utilise QUE les chiffres réels récupérés, jamais d'invention. Croise les sources pour des rapports revenue à 360°. Si une donnée manque, dis-le et propose la source à connecter.",
-    tools: [getKpiSnapshot, getBillingOverview, getCanonicalCounts, listConnectedSources, report, propose],
+    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getRevenueTimeseries, getBillingOverview, getCanonicalCounts, listConnectedSources, report, propose],
     suggestions: [
       "Construis un rapport de synthèse revenue à 360°",
       "Rapport : donut payé/impayé + KPIs MRR/ARR",
