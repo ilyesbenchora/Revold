@@ -45,6 +45,25 @@ export type ProposedAction = {
   impact?: string;
 };
 
+/** Bloc d'un rapport rendu par l'UI (KPI, graphique, table). */
+export type ReportBlock = {
+  type: "kpi" | "bar" | "line" | "area" | "donut" | "table";
+  title?: string;
+  label?: string;
+  value?: string;
+  hint?: string;
+  data?: { name: string; value: number }[];
+  columns?: string[];
+  rows?: string[][];
+};
+
+/** Spécification d'un rapport construit par l'agent (Dashboard/Reporting). */
+export type ReportSpec = {
+  title: string;
+  summary?: string;
+  blocks: ReportBlock[];
+};
+
 /** Trace d'un appel de tool, pour affichage "l'agent a fait X". */
 export type ToolTraceEntry = {
   name: string;
@@ -54,16 +73,18 @@ export type ToolTraceEntry = {
 export type AgentTurnResult = {
   text: string;
   proposedAction: ProposedAction | null;
+  report: ReportSpec | null;
   toolTrace: ToolTraceEntry[];
 };
 
 export type AgentMessage = { role: "user" | "assistant"; content: string };
 
 /**
- * Nom réservé du tool d'action confirmable. Quand l'agent l'appelle, on capture
- * l'input comme `proposedAction` sans l'exécuter, puis on laisse l'agent conclure.
+ * Noms réservés des tools "capturés" : leur input n'est pas exécuté côté
+ * serveur mais renvoyé à l'UI (action confirmable, rapport à rendre).
  */
 export const PROPOSE_ACTION_TOOL = "propose_action";
+export const RENDER_REPORT_TOOL = "render_report";
 
 /**
  * Joue un tour d'agent : boucle tool-use jusqu'à `end_turn` (ou `maxSteps`).
@@ -90,6 +111,7 @@ export async function runAgentTurn(opts: {
 
   const toolTrace: ToolTraceEntry[] = [];
   let proposedAction: ProposedAction | null = null;
+  let report: ReportSpec | null = null;
 
   for (let step = 0; step < maxSteps; step++) {
     const res = await client.messages.create({
@@ -101,7 +123,7 @@ export async function runAgentTurn(opts: {
     });
 
     if (res.stop_reason !== "tool_use") {
-      return { text: extractText(res.content), proposedAction, toolTrace };
+      return { text: extractText(res.content), proposedAction, report, toolTrace };
     }
 
     // On rejoue le tour assistant (blocs tool_use inclus) avant de répondre.
@@ -126,6 +148,19 @@ export async function runAgentTurn(opts: {
           content:
             "Action proposée et affichée à l'utilisateur pour confirmation. " +
             "Ne pas la considérer comme exécutée. Conclus en une phrase.",
+        });
+        continue;
+      }
+
+      // Tool de rendu de rapport → capturé, rendu par l'UI (graphiques).
+      if (block.name === RENDER_REPORT_TOOL) {
+        report = normalizeReport(input);
+        results.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: report
+            ? "Rapport rendu à l'utilisateur (graphiques affichés). Conclus par une courte synthèse des points clés."
+            : "Rapport invalide (aucun bloc). Reconstruis-le avec des blocs et des données réelles.",
         });
         continue;
       }
@@ -177,7 +212,7 @@ export async function runAgentTurn(opts: {
     ],
   });
 
-  return { text: extractText(final.content), proposedAction, toolTrace };
+  return { text: extractText(final.content), proposedAction, report, toolTrace };
 }
 
 function extractText(content: Anthropic.ContentBlock[]): string {
@@ -186,6 +221,40 @@ function extractText(content: Anthropic.ContentBlock[]): string {
     .map((b) => b.text)
     .join("\n")
     .trim();
+}
+
+function normalizeReport(input: Record<string, unknown>): ReportSpec | null {
+  const title = typeof input.title === "string" ? input.title : "Rapport";
+  const summary = typeof input.summary === "string" ? input.summary : undefined;
+  const rawBlocks = Array.isArray(input.blocks) ? input.blocks : [];
+  const allowed = new Set(["kpi", "bar", "line", "area", "donut", "table"]);
+  const blocks: ReportBlock[] = [];
+  for (const b of rawBlocks) {
+    if (!b || typeof b !== "object") continue;
+    const o = b as Record<string, unknown>;
+    if (typeof o.type !== "string" || !allowed.has(o.type)) continue;
+    const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
+    const data = Array.isArray(o.data)
+      ? o.data
+          .filter((d): d is Record<string, unknown> => !!d && typeof d === "object")
+          .map((d) => ({ name: String(d.name ?? ""), value: num(d.value) }))
+      : undefined;
+    const rows = Array.isArray(o.rows)
+      ? o.rows.map((r) => (Array.isArray(r) ? r.map((c) => String(c)) : [])).filter((r) => r.length > 0)
+      : undefined;
+    blocks.push({
+      type: o.type as ReportBlock["type"],
+      title: typeof o.title === "string" ? o.title : undefined,
+      label: typeof o.label === "string" ? o.label : undefined,
+      value: o.value != null ? String(o.value) : undefined,
+      hint: typeof o.hint === "string" ? o.hint : undefined,
+      data,
+      columns: Array.isArray(o.columns) ? o.columns.map((c) => String(c)) : undefined,
+      rows,
+    });
+  }
+  if (blocks.length === 0) return null;
+  return { title, summary, blocks };
 }
 
 function normalizeProposedAction(input: Record<string, unknown>): ProposedAction {

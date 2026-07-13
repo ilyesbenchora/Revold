@@ -64,6 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     return NextResponse.json({
       message: result.text,
       proposedAction: result.proposedAction,
+      report: result.report,
       toolTrace: result.toolTrace.map((t) => t.name),
     });
   } catch (err) {

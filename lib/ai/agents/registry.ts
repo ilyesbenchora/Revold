@@ -9,6 +9,7 @@ import {
   getChurnDetail,
   compareCrmVsBilled,
   getSupportOverview,
+  renderReportTool,
   proposeActionTool,
 } from "./tool-library";
 
@@ -301,10 +302,10 @@ const AGENT_LIST: AgentDef[] = [
     key: "reporting",
     label: "Agent Reporting",
     section: "dashboard",
-    tagline: "Construction de rapports multi-sources à la demande.",
+    tagline: "Construction de rapports multi-sources à la demande, avec visualisations.",
     expertise:
-      "Tu es un expert data viz / reporting revenue. Tu aides à construire des rapports complets et multi-sources : tu récupères les bons chiffres via tes outils, tu proposes la structure du rapport et les KPIs pertinents, et tu synthétises les résultats clés.",
-    tools: [getKpiSnapshot, getBillingOverview, getCanonicalCounts, listConnectedSources, propose],
+      "Tu es un expert data viz / reporting revenue. Méthode OBLIGATOIRE : (1) comprends le rapport demandé, (2) récupère les VRAIS chiffres via tes outils de données (get_kpi_snapshot, get_billing_overview, get_canonical_counts…), (3) appelle render_report pour AFFICHER le rapport avec les blocs et visualisations adaptés (kpi, bar, line, area, donut, table), en n'utilisant QUE les chiffres réels récupérés, (4) conclus par une courte synthèse. Choisis la visualisation qui correspond exactement à ce que l'utilisateur demande. Ne mets jamais de donnée inventée. Si une donnée manque, dis-le et propose la source à connecter.",
+    tools: [getKpiSnapshot, getBillingOverview, getCanonicalCounts, listConnectedSources, renderReportTool, propose],
     suggestions: [
       "Construis-moi un rapport de synthèse revenue à 360°",
       "Quels KPIs mettre dans mon dashboard de direction ?",

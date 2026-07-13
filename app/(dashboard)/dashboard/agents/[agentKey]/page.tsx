@@ -29,7 +29,12 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         <p className="mt-1 text-sm text-slate-500">{agent.tagline}</p>
       </div>
 
-      <PaiementAgentChat agentKey={agent.key} sources={sources} suggestions={agent.suggestions} />
+      <PaiementAgentChat
+        agentKey={agent.key}
+        agentLabel={agent.label}
+        sources={sources}
+        suggestions={agent.suggestions}
+      />
     </div>
   );
 }

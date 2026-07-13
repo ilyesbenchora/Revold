@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AgentReport } from "./agent-report";
+import type { ReportSpec } from "@/lib/ai/agents/agent-runtime";
 
 type SourceOption = { key: string; label: string; icon: string };
 type ProposedAction = {
@@ -54,10 +56,12 @@ function relativeDate(ts: number): string {
 
 export function PaiementAgentChat({
   agentKey,
+  agentLabel,
   sources,
   suggestions,
 }: {
   agentKey: string;
+  agentLabel: string;
   sources: SourceOption[];
   suggestions: string[];
 }) {
@@ -72,6 +76,7 @@ export function PaiementAgentChat({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
   const [pending, setPending] = useState<ProposedAction | null>(null);
+  const [report, setReport] = useState<ReportSpec | null>(null);
   const [actionState, setActionState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -131,6 +136,7 @@ export function PaiementAgentChat({
     setCurrentId(null);
     setMessages([]);
     setPending(null);
+    setReport(null);
     setActionState("idle");
     setError(null);
     setTab("chat");
@@ -141,6 +147,7 @@ export function PaiementAgentChat({
     setMessages(c.messages);
     setSelected(c.sources.length ? c.sources : sources.map((s) => s.key));
     setPending(null);
+    setReport(null);
     setActionState("idle");
     setError(null);
     setTab("chat");
@@ -156,6 +163,7 @@ export function PaiementAgentChat({
     if (!content || loading) return;
     setError(null);
     setPending(null);
+    setReport(null);
     setActionState("idle");
 
     const id = currentId ?? newId();
@@ -180,6 +188,7 @@ export function PaiementAgentChat({
       setMessages(finalMsgs);
       upsertConversation(id, finalMsgs, selected);
       if (data.proposedAction) setPending(data.proposedAction);
+      if (data.report) setReport(data.report);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -308,12 +317,12 @@ export function PaiementAgentChat({
             {empty && (
               <div className="mx-auto max-w-md pt-6 text-center">
                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-lg text-white">
-                  💳
+                  ✨
                 </div>
-                <h3 className="text-sm font-semibold text-slate-800">Agent Paiement &amp; Facturation</h3>
+                <h3 className="text-sm font-semibold text-slate-800">{agentLabel}</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Quelle performance paiement &amp; facturation veux-tu analyser aujourd&apos;hui ? Sélectionne tes
-                  sources et pose ta question.
+                  Que veux-tu analyser aujourd&apos;hui ? Sélectionne tes sources et pose ta question, ou choisis une
+                  suggestion.
                 </p>
               </div>
             )}
@@ -322,7 +331,7 @@ export function PaiementAgentChat({
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
                   <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
-                    💳
+                    ✨
                   </div>
                 )}
                 <div
@@ -340,13 +349,16 @@ export function PaiementAgentChat({
             {loading && (
               <div className="flex justify-start">
                 <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
-                  💳
+                  ✨
                 </div>
                 <div className="rounded-2xl border border-[var(--card-border)] bg-white px-3.5 py-2.5 text-sm text-slate-400">
                   L&apos;agent analyse tes données…
                 </div>
               </div>
             )}
+
+            {/* Rapport rendu par l'agent (Dashboard/Reporting) */}
+            {report && <AgentReport spec={report} />}
 
             {/* Carte d'action confirmable */}
             {pending && (
@@ -411,7 +423,7 @@ export function PaiementAgentChat({
                   send(input);
                 }
               }}
-              placeholder="Pose ta question sur le paiement & la facturation…"
+              placeholder="Pose ta question à l'agent…"
               disabled={loading}
               className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
             />

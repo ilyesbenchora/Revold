@@ -331,6 +331,65 @@ export const getSupportOverview: AgentTool = {
   },
 };
 
+/**
+ * Tool de rendu de rapport (nom réservé "render_report").
+ * Capturé par le runtime et rendu par l'UI en graphiques — pas d'exécution
+ * serveur. L'agent DOIT d'abord récupérer les vrais chiffres via ses autres
+ * outils, puis remplir les blocs avec ces données réelles.
+ */
+export const renderReportTool: AgentTool = {
+  def: {
+    name: "render_report",
+    description:
+      "Construit et affiche un rapport visuel à l'utilisateur (KPIs, graphiques, tables). À utiliser APRÈS avoir récupéré les chiffres réels via tes autres outils. Ne mets JAMAIS de données inventées dans un bloc. Choisis le type de visualisation adapté à chaque donnée (kpi pour une valeur clé, bar/line/area pour une série, donut pour une répartition, table pour un détail).",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Titre du rapport." },
+        summary: { type: "string", description: "Synthèse en une ou deux phrases." },
+        blocks: {
+          type: "array",
+          description: "Blocs du rapport, dans l'ordre d'affichage.",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["kpi", "bar", "line", "area", "donut", "table"],
+                description: "Type de bloc / visualisation.",
+              },
+              title: { type: "string", description: "Titre du bloc (graphiques/tables)." },
+              label: { type: "string", description: "Libellé (bloc kpi)." },
+              value: { type: "string", description: "Valeur formatée (bloc kpi), ex '124 500 €'." },
+              hint: { type: "string", description: "Précision courte (bloc kpi)." },
+              data: {
+                type: "array",
+                description: "Points de données (bar/line/area/donut).",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    value: { type: "number" },
+                  },
+                  required: ["name", "value"],
+                },
+              },
+              columns: { type: "array", items: { type: "string" }, description: "En-têtes (table)." },
+              rows: {
+                type: "array",
+                description: "Lignes (table), chaque ligne = tableau de cellules texte.",
+                items: { type: "array", items: { type: "string" } },
+              },
+            },
+            required: ["type"],
+          },
+        },
+      },
+      required: ["title", "blocks"],
+    },
+  },
+};
+
 /** Fabrique le tool d'action confirmable (nom réservé "propose_action"). */
 export function proposeActionTool(categories: string[]): AgentTool {
   return {
