@@ -1,6 +1,7 @@
 import type { AgentTool, AgentContext } from "./agent-runtime";
 import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 
 /**
  * Bibliothèque de tools réutilisables par les agents experts.
@@ -194,7 +195,7 @@ export const getPipelineByStage: AgentTool = {
   def: {
     name: "get_pipeline_by_stage",
     description:
-      "Répartit les deals par étape de pipeline : nombre, montant total et montant pondéré par la probabilité de l'étape. Étapes ordonnées. Pour analyser la structure du pipeline, la couverture, et alimenter un graphique par étape (funnel/bar).",
+      "Répartit les deals par étape depuis la table canonique (count, montant, montant pondéré). ATTENTION : renvoie « Sans étape » si le dealstage n'est pas mappé dans la synchro. Pour les vraies phases NOMMÉES du pipeline HubSpot, préfère get_pipeline_stage_breakdown (lecture directe HubSpot).",
     input_schema: { type: "object", properties: {} },
   },
   run: async (_input, ctx: AgentContext) => {
@@ -239,6 +240,113 @@ export const getPipelineByStage: AgentTool = {
       stages,
       openPipelineAmount: Math.round(stages.filter((s) => !s.closed).reduce((s2, s) => s2 + s.amount, 0)),
       openWeightedAmount: Math.round(stages.filter((s) => !s.closed).reduce((s2, s) => s2 + s.weightedAmount, 0)),
+    };
+  },
+};
+
+/**
+ * Répartition des deals par ÉTAPE de pipeline, lue EN DIRECT depuis HubSpot
+ * (vraies étapes nommées, comme les dashboards). Contourne le cas où la table
+ * canonique n'a pas mappé le dealstage (tous les deals en « Sans étape »).
+ */
+export const getPipelineStageBreakdown: AgentTool = {
+  def: {
+    name: "get_pipeline_stage_breakdown",
+    description:
+      "Répartition des deals par ÉTAPE de pipeline lue EN DIRECT depuis HubSpot (les vraies étapes nommées, source des dashboards) — à PRÉFÉRER à get_pipeline_by_stage quand on veut les phases réelles du pipeline. Retourne, par pipeline, le nombre de deals et le montant par étape, filtrés sur les N derniers mois (date de création). À utiliser pour tout rapport « deals/transactions par phase/étape ».",
+    input_schema: {
+      type: "object",
+      properties: {
+        months: { type: "integer", description: "Fenêtre en mois sur la date de création (défaut 3, max 24)." },
+        pipeline: { type: "string", description: "Filtre optionnel par nom de pipeline (sous-chaîne)." },
+      },
+    },
+  },
+  run: async (input, ctx: AgentContext) => {
+    if (!ctx.hubspotToken) return { hasData: false, note: "HubSpot n'est pas connecté sur cette org." };
+    const token = ctx.hubspotToken;
+    const months = Math.min(Math.max(Number(input.months) || 3, 1), 24);
+
+    const pipelines = (await fetchDealsPipelines(token)).filter((p) => !p.archived);
+    if (pipelines.length === 0)
+      return { hasData: false, note: "Aucun pipeline deals accessible dans HubSpot (scope OAuth manquant ?)." };
+
+    const nameFilter = typeof input.pipeline === "string" ? input.pipeline.toLowerCase().trim() : "";
+    let selected = nameFilter ? pipelines.filter((p) => p.label.toLowerCase().includes(nameFilter)) : pipelines;
+    let matched = true;
+    if (selected.length === 0) {
+      selected = pipelines;
+      matched = false;
+    }
+    const pipelineIds = selected.map((p) => p.id);
+
+    // Deals créés sur les N derniers mois dans les pipelines sélectionnés.
+    const cutoff = Date.now() - months * 30 * 86_400_000;
+    const props: Record<string, string>[] = [];
+    let after: string | undefined;
+    let page = 0;
+    do {
+      const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filterGroups: [
+            {
+              filters: [
+                { propertyName: "createdate", operator: "GTE", value: String(cutoff) },
+                { propertyName: "pipeline", operator: "IN", values: pipelineIds },
+              ],
+            },
+          ],
+          properties: ["dealstage", "pipeline", "amount"],
+          limit: 100,
+          ...(after ? { after } : {}),
+        }),
+      });
+      if (!res.ok) break;
+      const data = await res.json();
+      for (const r of (data.results ?? []) as Array<{ properties?: Record<string, string> }>) {
+        props.push(r.properties ?? {});
+      }
+      after = data.paging?.next?.after;
+      page++;
+    } while (after && page < 25);
+
+    if (props.length === 0)
+      return {
+        hasData: false,
+        months,
+        note: `Aucun deal créé sur les ${months} derniers mois dans ${matched ? "ce pipeline" : "les pipelines HubSpot"}.`,
+      };
+
+    const agg = new Map<string, { count: number; amount: number }>();
+    for (const r of props) {
+      const sid = r.dealstage;
+      if (!sid) continue;
+      const e = agg.get(sid) ?? { count: 0, amount: 0 };
+      e.count++;
+      e.amount += Number(r.amount) || 0;
+      agg.set(sid, e);
+    }
+
+    const byPipeline = selected.map((p) => ({
+      pipeline: p.label,
+      stages: [...p.stages]
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map((s) => {
+          const e = agg.get(s.id) ?? { count: 0, amount: 0 };
+          return { stage: s.label, deals: e.count, amount: Math.round(e.amount), probability: s.probability };
+        }),
+    }));
+
+    return {
+      hasData: true,
+      source: "hubspot_live",
+      months,
+      pipelineNameMatched: matched,
+      availablePipelines: pipelines.map((p) => p.label),
+      pipelines: byPipeline,
+      totalDeals: props.length,
     };
   },
 };
