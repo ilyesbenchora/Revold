@@ -301,6 +301,54 @@ export const compareCrmVsBilled: AgentTool = {
   },
 };
 
+/** Rapprochement cross-source : couverture des source_links, entités multi vs mono-source. */
+export const getReconciliationStatus: AgentTool = {
+  def: {
+    name: "get_reconciliation_status",
+    description:
+      "État du rapprochement (réconciliation) cross-source de l'org : par type d'entité (company, contact, invoice…), combien d'enregistrements sont liés à plusieurs sources (réconciliés) vs une seule source, et la répartition par fournisseur. Pour auditer la qualité du croisement des données et repérer les entités non rapprochées.",
+    input_schema: { type: "object", properties: {} },
+  },
+  run: async (_input, ctx: AgentContext) => {
+    const { data, error } = await ctx.supabase
+      .from("source_links")
+      .select("provider, entity_type, internal_id")
+      .eq("organization_id", ctx.orgId)
+      .limit(8000);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { provider: string; entity_type: string; internal_id: string }[];
+    if (rows.length === 0)
+      return {
+        hasData: false,
+        note: "Aucun source_link : aucune donnée réconciliée cross-source. Connecter/synchroniser au moins 2 sources pour activer le rapprochement.",
+      };
+    // Regroupe par entité : providers distincts par internal_id.
+    const byEntity: Record<string, { providers: Record<string, number>; entities: Map<string, Set<string>> }> = {};
+    for (const r of rows) {
+      const e = (byEntity[r.entity_type] ??= { providers: {}, entities: new Map() });
+      e.providers[r.provider] = (e.providers[r.provider] ?? 0) + 1;
+      const set = e.entities.get(r.internal_id) ?? new Set<string>();
+      set.add(r.provider);
+      e.entities.set(r.internal_id, set);
+    }
+    const summary = Object.entries(byEntity).map(([entityType, e]) => {
+      const total = e.entities.size;
+      let multi = 0;
+      for (const providers of e.entities.values()) if (providers.size >= 2) multi++;
+      return {
+        entityType,
+        totalEntities: total,
+        multiSource: multi,
+        monoSource: total - multi,
+        reconciledPct: total ? Math.round((multi / total) * 100) : 0,
+        byProvider: e.providers,
+      };
+    });
+    const providers = Array.from(new Set(rows.map((r) => r.provider)));
+    return { hasData: true, providers, byEntityType: summary, sampledLinks: rows.length };
+  },
+};
+
 /** Vue d'ensemble support / service client (tickets canoniques). */
 export const getSupportOverview: AgentTool = {
   def: {

@@ -99,7 +99,7 @@ export async function runAgentTurn(opts: {
   maxSteps?: number;
 }): Promise<AgentTurnResult> {
   const { client, system, tools, messages, ctx } = opts;
-  const maxSteps = opts.maxSteps ?? 6;
+  const maxSteps = opts.maxSteps ?? 8;
 
   const toolDefs = tools.map((t) => t.def);
   const byName = new Map(tools.map((t) => [t.def.name, t]));
