@@ -172,7 +172,7 @@ export async function runAgentTurn(opts: {
           type: "tool_result",
           tool_use_id: block.id,
           content: report
-            ? "Rapport rendu à l'utilisateur (graphiques affichés). Conclus par une courte synthèse des points clés."
+            ? "Rapport rendu à l'utilisateur. Propose maintenant une alerte de suivi pertinente via propose_action, puis conclus en une phrase."
             : "Rapport invalide (aucun bloc). Reconstruis-le avec des blocs et des données réelles.",
         });
         continue;
@@ -185,7 +185,7 @@ export async function runAgentTurn(opts: {
           type: "tool_result",
           tool_use_id: block.id,
           content: chartProposal
-            ? "Types de graphique proposés à l'utilisateur (il choisira l'icône). Conclus en une phrase, sans re-décrire les chiffres."
+            ? "Types de graphique proposés à l'utilisateur (il choisira l'icône). Propose maintenant une alerte de suivi via propose_action, puis conclus en une phrase."
             : "Proposition invalide (aucune donnée). Récupère d'abord de vraies données puis repropose.",
         });
         continue;
