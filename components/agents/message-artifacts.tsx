@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { addSavedReport } from "./saved-reports";
-import { ALERT_CHANNELS, SectionLabel } from "./alert-ui";
+import { ALERT_CHANNELS, SectionLabel, readable } from "./alert-ui";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
@@ -99,16 +99,22 @@ export function MessageArtifacts({
           <div className="space-y-3 p-3.5">
             <div>
               <SectionLabel>Objectif</SectionLabel>
-              <div className="mt-0.5 text-sm font-semibold text-slate-900">{effectiveAction.title}</div>
+              <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900 break-words">
+                {readable(effectiveAction.title)}
+              </div>
             </div>
             <div>
               <SectionLabel>Description</SectionLabel>
-              <p className="mt-0.5 text-sm text-slate-600">{effectiveAction.description}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
+                {readable(effectiveAction.description)}
+              </p>
             </div>
             {effectiveAction.impact && (
               <div>
                 <SectionLabel>Impact attendu</SectionLabel>
-                <p className="mt-0.5 text-sm text-slate-600">{effectiveAction.impact}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
+                  {readable(effectiveAction.impact)}
+                </p>
               </div>
             )}
 

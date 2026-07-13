@@ -11,6 +11,17 @@ export function channelLabel(key: string): { icon: string; label: string } {
   return ALERT_CHANNELS.find((c) => c.key === key) ?? { icon: "🔔", label: key };
 }
 
+/** Normalise le texte d'une alerte pour un rendu lisible (espaces exotiques, point médian, markdown). */
+export function readable(t: string): string {
+  return (t ?? "")
+    .replace(/[    ⁠]/g, " ") // espaces insécables / fines → espace normale
+    .replace(/([A-Za-z0-9])·([€$A-Za-z0-9])/g, "$1 $2") // "10 M·€" → "10 M €"
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 /** Petit intitulé de section (titre au-dessus d'un contenu d'alerte). */
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{children}</div>;
@@ -55,8 +66,8 @@ export function AlertBody({
     <div className="space-y-3">
       <div>
         <SectionLabel>Objectif</SectionLabel>
-        <div className="mt-0.5 flex items-center gap-2">
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <div className="text-sm font-semibold leading-snug text-slate-900 break-words">{readable(title)}</div>
           {category && (
             <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-fuchsia-700">
               {category}
@@ -66,12 +77,12 @@ export function AlertBody({
       </div>
       <div>
         <SectionLabel>Description</SectionLabel>
-        <p className="mt-0.5 text-sm text-slate-600">{description}</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">{readable(description)}</p>
       </div>
       {impact && (
         <div>
           <SectionLabel>Impact attendu</SectionLabel>
-          <p className="mt-0.5 text-sm text-slate-600">{impact}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">{readable(impact)}</p>
         </div>
       )}
       <div>
