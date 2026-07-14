@@ -63,6 +63,7 @@ export function CoachAgenda({
   initial,
   availableSources = [],
   onSaved,
+  onStart,
 }: {
   category: string;
   label: string;
@@ -76,6 +77,7 @@ export function CoachAgenda({
     sources: string[];
     attachments: Attachment[];
   }) => void;
+  onStart?: () => void;
 }) {
   const [objectives, setObjectives] = useState(initial.objectives ?? "");
   const [pains, setPains] = useState(initial.pains ?? "");
@@ -85,6 +87,8 @@ export function CoachAgenda({
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Replié dès qu'un RDV est enregistré (au chargement ou après sauvegarde).
+  const [collapsed, setCollapsed] = useState(Boolean(initial.next_meeting_at));
 
   function toggleSource(key: string) {
     setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
@@ -113,6 +117,8 @@ export function CoachAgenda({
       }
       setState("done");
       onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments });
+      // RDV enregistré → on replie le bloc en confirmation compacte.
+      if (nextMeeting) setCollapsed(true);
       setTimeout(() => setState("idle"), 2500);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Erreur réseau");
@@ -131,6 +137,44 @@ export function CoachAgenda({
         `Séance de coaching (${cadenceLabel(cadence)}).\nObjectifs : ${objectives}\nPains : ${pains}`,
       )
     : null;
+
+  // ── Vue repliée : confirmation compacte du RDV + démarrage du coaching ──
+  if (collapsed) {
+    return (
+      <div className="card flex flex-wrap items-center gap-3 p-4">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">✓</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900">Rendez-vous de coaching enregistré</p>
+          <p className="text-xs text-slate-500">
+            {nextMeeting ? fmtDate(nextMeeting) : "Date à définir"} · {cadenceLabel(cadence)}
+            {attachments.length > 0 ? ` · ${attachments.length} fichier(s) joint(s)` : ""}
+          </p>
+        </div>
+        {links && (
+          <a
+            href={links.google}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+          >
+            📅 Agenda
+          </a>
+        )}
+        <button
+          onClick={() => setCollapsed(false)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Modifier
+        </button>
+        <button
+          onClick={() => onStart?.()}
+          className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+        >
+          Démarrer un nouveau coaching
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="card p-5">

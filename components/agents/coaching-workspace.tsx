@@ -37,6 +37,9 @@ export function CoachingWorkspace({
   suggestionSets?: SuggestionSets;
 }) {
   const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
+  // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
+  // lancer une séance sur une conversation vierge côté chat.
+  const [startNonce, setStartNonce] = useState(0);
 
   const coachingCtx = { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
   // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
@@ -62,6 +65,7 @@ export function CoachingWorkspace({
               attachments: a.attachments,
             })
           }
+          onStart={() => setStartNonce((n) => n + 1)}
         />
       </div>
 
@@ -76,6 +80,7 @@ export function CoachingWorkspace({
         sessionTracking={hasMeeting}
         preselectedSources={preselectedSources}
         initialAttachments={initialAttachments}
+        startSignal={startNonce}
       />
     </>
   );

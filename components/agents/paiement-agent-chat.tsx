@@ -82,6 +82,7 @@ export function PaiementAgentChat({
   sessionTracking,
   preselectedSources,
   initialAttachments,
+  startSignal,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -93,6 +94,7 @@ export function PaiementAgentChat({
   sessionTracking?: boolean;
   preselectedSources?: string[] | null;
   initialAttachments?: Attachment[] | null;
+  startSignal?: number;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -119,9 +121,12 @@ export function PaiementAgentChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedRef = useRef(0);
 
   const INACT_MS = 5 * 60 * 1000; // 5 min d'inactivité → propose de terminer
   const AUTO_MS = 2 * 60 * 1000; // 2 min sans réponse → terminaison auto
+  const CLOSE_MS = 10 * 60 * 1000; // 10 min d'inactivité → ferme le chat (→ historique)
 
   function clearSessionTimers() {
     if (inactRef.current) clearTimeout(inactRef.current);
@@ -159,6 +164,28 @@ export function PaiementAgentChat({
     return () => clearSessionTimers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, loading, sessionEnd, coachingCategory, sessionTracking]);
+
+  // Démarrage de séance déclenché depuis l'agenda (bouton « Démarrer un nouveau
+  // coaching ») : le parent incrémente startSignal → on lance sur une conv vierge.
+  useEffect(() => {
+    if (!startSignal || startSignal === startedRef.current) return;
+    startedRef.current = startSignal;
+    if (!hydrated) return;
+    startCoachingSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal, hydrated]);
+
+  // Fermeture auto : après 10 min sans activité, on ferme le chat (la conversation
+  // reste dans l'historique) et on revient à une page blanche.
+  useEffect(() => {
+    if (messages.length === 0 || loading) return;
+    if (closeRef.current) clearTimeout(closeRef.current);
+    closeRef.current = setTimeout(() => startNew(), CLOSE_MS);
+    return () => {
+      if (closeRef.current) clearTimeout(closeRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, input, loading]);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
@@ -255,15 +282,33 @@ export function PaiementAgentChat({
     if (id === currentId) startNew();
   }
 
-  async function send(text: string) {
+  const START_TEXT = "Démarrer ma séance de coaching du jour";
+
+  function send(text: string) {
     const content = text.trim();
     if (!content || loading) return;
-    setError(null);
-
     const id = currentId ?? newId();
     if (!currentId) setCurrentId(id);
+    void runSend(messages, content, id);
+  }
 
-    const next: Msg[] = [...messages, { role: "user", content }];
+  // Démarre une séance de coaching sur une conversation vierge (bouton agenda).
+  function startCoachingSession() {
+    if (loading) return;
+    const id = newId();
+    setCurrentId(id);
+    setMessages([]);
+    setSessionEnd("none");
+    setError(null);
+    setTab("chat");
+    void runSend([], START_TEXT, id);
+  }
+
+  async function runSend(base: Msg[], content: string, id: string) {
+    if (loading) return;
+    setError(null);
+
+    const next: Msg[] = [...base, { role: "user", content }];
     setMessages(next);
     upsertConversation(id, next, selected, attachments);
     setInput("");
