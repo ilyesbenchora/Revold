@@ -17,6 +17,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sourceWinsField } from "./field-authority";
 
 export type MatchMethod =
   | "existing_link"
@@ -343,10 +344,26 @@ export async function resolveCompany(
     method = "created";
     score = 1;
   } else {
+    // Merge par AUTORITÉ DE CHAMP : la source n'écrase un champ que si elle en a
+    // l'autorité (matrice configurée) ; sinon elle ne remplit que les trous.
+    const { data: cur } = await supabase
+      .from("companies")
+      .select("name, domain, siren, siret, vat_number")
+      .eq("id", resolvedId)
+      .maybeSingle();
     const updates: Record<string, string> = {};
-    if (siren) updates.siren = siren;
-    if (input.siret) updates.siret = input.siret.replace(/\D/g, "");
-    if (input.vatNumber) updates.vat_number = normalizeVat(input.vatNumber)!;
+    const consider = async (field: string, value: string | null, curVal: unknown) => {
+      if (!value) return;
+      const empty = curVal == null || String(curVal).trim() === "";
+      if (empty || (await sourceWinsField(supabase, orgId, "Company", field, provider))) {
+        updates[field] = value;
+      }
+    };
+    await consider("name", input.name?.trim() || null, cur?.name);
+    await consider("domain", normalizeDomain(input.domain), cur?.domain);
+    await consider("siren", siren, cur?.siren);
+    await consider("siret", input.siret?.replace(/\D/g, "") || null, cur?.siret);
+    await consider("vat_number", normalizeVat(input.vatNumber), cur?.vat_number);
     if (Object.keys(updates).length > 0) {
       await supabase.from("companies").update(updates).eq("id", resolvedId).eq("organization_id", orgId);
     }
