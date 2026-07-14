@@ -3,16 +3,30 @@
  * Pipedrive contact, …) to an existing canonical Revold contact/company, or
  * creates a new one if no match is found.
  *
- * Resolution strategy (by priority):
- *   Company: source_link → SIREN → VAT → domain → create
- *   Contact: source_link → exact email → create
+ * PILOTÉ PAR LA CONFIG : l'ordre et l'activation des règles de matching sont
+ * lus depuis `entity_resolution_config` (page Paramètres → Modèle de données).
+ * Si aucune config n'existe pour l'org, on retombe sur un ordre par défaut sûr
+ * (SIREN → VAT → domaine) pour ne jamais casser la synchro.
  *
- * Each call writes a `source_links` row so future syncs are O(1).
+ * Règles disponibles :
+ *   Company : siren_match, vat_match, siret_match, domain_match, name_match
+ *   Contact : exact_email
+ *   (external_id_match = source_links, toujours actif via existing_link)
+ *
+ * Chaque call écrit une ligne `source_links` → les syncs suivantes sont O(1).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type MatchMethod = "existing_link" | "siren" | "vat_number" | "exact_email" | "domain" | "created";
+export type MatchMethod =
+  | "existing_link"
+  | "siren"
+  | "siret"
+  | "vat_number"
+  | "exact_email"
+  | "domain"
+  | "name"
+  | "created";
 
 export type ResolvedEntity = {
   id: string;
@@ -39,7 +53,6 @@ type CompanyInput = {
 function normalizeSiren(raw?: string | null): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
-  // SIREN = 9 digits, SIRET = 14 digits (extract SIREN from first 9)
   if (digits.length === 14) return digits.slice(0, 9);
   if (digits.length === 9) return digits;
   return null;
@@ -55,6 +68,23 @@ function normalizeDomain(raw?: string | null): string | null {
   let d = raw.toLowerCase().trim();
   d = d.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   return d || null;
+}
+
+const LEGAL_SUFFIXES =
+  /\b(sasu|sas|sarl|eurl|sci|snc|selarl|scop|sa|gmbh|ltd|llc|inc|corp|co|sl|srl|bv|ab|oy|plc)\b/gi;
+
+/** Nom d'entreprise normalisé (minuscules, sans accents/forme juridique/ponctuation). */
+function normalizeName(raw?: string | null): string | null {
+  if (!raw) return null;
+  const n = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(LEGAL_SUFFIXES, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return n || null;
 }
 
 export function emailDomain(email?: string | null): string | null {
@@ -100,6 +130,104 @@ async function writeSourceLink(sb: SupabaseClient, orgId: string, provider: stri
   );
 }
 
+// ── Config-driven resolution ───────────────────────────────────────────────
+
+type ResolutionConfig = { company: string[]; contact: string[]; hasConfig: boolean };
+
+const COMPANY_RULE_IDS = ["siren_match", "vat_match", "siret_match", "domain_match", "name_match"];
+const CONTACT_RULE_IDS = ["exact_email"];
+
+// Cache mémoire court (60 s) : une sync traite les entités en rafale, on évite
+// de requêter la config à chaque entité.
+const _cfgCache = new Map<string, { cfg: ResolutionConfig; at: number }>();
+
+async function loadResolutionConfig(sb: SupabaseClient, orgId: string): Promise<ResolutionConfig> {
+  const cached = _cfgCache.get(orgId);
+  if (cached && Date.now() - cached.at < 60_000) return cached.cfg;
+  const empty: ResolutionConfig = { company: [], contact: [], hasConfig: false };
+  try {
+    const { data } = await sb
+      .from("entity_resolution_config")
+      .select("rule_id, enabled, priority")
+      .eq("organization_id", orgId);
+    const rows = ((data ?? []) as { rule_id: string; enabled: boolean; priority: number | null }[]).filter(
+      (r) => typeof r.rule_id === "string" && !r.rule_id.startsWith("dedup_"),
+    );
+    if (rows.length === 0) {
+      _cfgCache.set(orgId, { cfg: empty, at: Date.now() });
+      return empty;
+    }
+    // Ordre = priorité configurée, tiebreak par rang canonique (fiable d'abord).
+    const RANK: Record<string, number> = {
+      siren_match: 1, vat_match: 2, siret_match: 3, domain_match: 4, name_match: 5, exact_email: 1,
+    };
+    const enabled = rows
+      .filter((r) => r.enabled)
+      .sort((a, b) => (a.priority ?? RANK[a.rule_id] ?? 999) - (b.priority ?? RANK[b.rule_id] ?? 999));
+    const cfg: ResolutionConfig = {
+      company: enabled.map((r) => r.rule_id).filter((id) => COMPANY_RULE_IDS.includes(id)),
+      contact: enabled.map((r) => r.rule_id).filter((id) => CONTACT_RULE_IDS.includes(id)),
+      hasConfig: true,
+    };
+    _cfgCache.set(orgId, { cfg, at: Date.now() });
+    return cfg;
+  } catch {
+    return empty;
+  }
+}
+
+type Match = { id: string; method: MatchMethod; score: number };
+
+async function runCompanyRule(sb: SupabaseClient, orgId: string, ruleId: string, input: CompanyInput): Promise<Match | null> {
+  const findExact = async (col: string, val: string): Promise<string | null> => {
+    const { data } = await sb.from("companies").select("id").eq("organization_id", orgId).eq(col, val).limit(1).maybeSingle();
+    return (data?.id as string | undefined) ?? null;
+  };
+  switch (ruleId) {
+    case "siren_match": {
+      const siren = normalizeSiren(input.siren) ?? normalizeSiren(input.siret);
+      if (!siren) return null;
+      const id = await findExact("siren", siren);
+      return id ? { id, method: "siren", score: 0.99 } : null;
+    }
+    case "vat_match": {
+      const vat = normalizeVat(input.vatNumber);
+      if (!vat) return null;
+      const id = await findExact("vat_number", vat);
+      return id ? { id, method: "vat_number", score: 0.97 } : null;
+    }
+    case "siret_match": {
+      const siret = input.siret?.replace(/\D/g, "") ?? "";
+      if (siret.length !== 14) return null;
+      const id = await findExact("siret", siret);
+      return id ? { id, method: "siret", score: 0.9 } : null;
+    }
+    case "domain_match": {
+      const domain = normalizeDomain(input.domain);
+      if (!domain || PERSONAL_DOMAINS.has(domain)) return null;
+      const { data } = await sb.from("companies").select("id").eq("organization_id", orgId).ilike("domain", domain).limit(1).maybeSingle();
+      const id = (data?.id as string | undefined) ?? null;
+      return id ? { id, method: "domain", score: 0.75 } : null;
+    }
+    case "name_match": {
+      const core = normalizeName(input.name);
+      if (!core || core.length < 4) return null; // garde-fou anti-faux-match (noms courts/génériques)
+      const { data } = await sb
+        .from("companies")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .ilike("name", `%${core}%`)
+        .limit(25);
+      for (const c of (data ?? []) as { id: string; name: string }[]) {
+        if (normalizeName(c.name) === core) return { id: c.id, method: "name", score: 0.65 };
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
 // ── Public: resolve contact ─────────────────────────────────────────────
 
 export async function resolveContact(
@@ -109,16 +237,21 @@ export async function resolveContact(
   externalId: string,
   input: ContactInput,
 ): Promise<ResolvedEntity | null> {
-  // 1. Existing source link?
+  // 1. Existing source link (external_id) — toujours actif
   const linked = await findBySourceLink(supabase, orgId, provider, externalId, "contact");
   if (linked) return { id: linked, matchMethod: "existing_link", matchScore: 1 };
 
-  // 2. Match by email
+  const cfg = await loadResolutionConfig(supabase, orgId);
+  // Sécurité : email = seul matching contact ; on le garde actif par défaut
+  // (un set vide ne doit pas créer de doublons de contacts).
+  const emailEnabled = !cfg.hasConfig || cfg.contact.length === 0 || cfg.contact.includes("exact_email");
+
   const normalizedEmail = input.email?.trim().toLowerCase() || null;
   let resolvedId: string | null = null;
   let method: MatchMethod = "created";
 
-  if (normalizedEmail) {
+  // 2. Match par email (si activé)
+  if (emailEnabled && normalizedEmail) {
     const { data: existing } = await supabase
       .from("contacts")
       .select("id")
@@ -163,7 +296,7 @@ export async function resolveCompany(
   externalId: string,
   input: CompanyInput,
 ): Promise<ResolvedEntity | null> {
-  // 1. Existing source link?
+  // 1. Existing source link (external_id) — toujours actif
   const linked = await findBySourceLink(supabase, orgId, provider, externalId, "company");
   if (linked) return { id: linked, matchMethod: "existing_link", matchScore: 1 };
 
@@ -171,62 +304,25 @@ export async function resolveCompany(
   let method: MatchMethod = "created";
   let score = 1;
 
-  // 2. Match by SIREN (99% confidence — best identifier for French B2B)
+  // 2. Matching piloté par la config (ordre = priorité configurée),
+  //    fallback sûr si aucune config n'existe pour l'org.
+  const cfg = await loadResolutionConfig(supabase, orgId);
+  // Sécurité : jamais de matching à zéro (créerait des doublons). Un set vide
+  // retombe sur l'ordre par défaut sûr.
+  const order = cfg.hasConfig && cfg.company.length > 0 ? cfg.company : ["siren_match", "vat_match", "domain_match"];
+  for (const ruleId of order) {
+    const m = await runCompanyRule(supabase, orgId, ruleId, input);
+    if (m) {
+      resolvedId = m.id;
+      method = m.method;
+      score = m.score;
+      break;
+    }
+  }
+
   const siren = normalizeSiren(input.siren) ?? normalizeSiren(input.siret);
-  if (siren) {
-    const { data: existing } = await supabase
-      .from("companies")
-      .select("id")
-      .eq("organization_id", orgId)
-      .eq("siren", siren)
-      .limit(1)
-      .maybeSingle();
-    if (existing?.id) {
-      resolvedId = existing.id;
-      method = "siren";
-      score = 0.99;
-    }
-  }
 
-  // 3. Match by VAT number (97% confidence)
-  if (!resolvedId) {
-    const vat = normalizeVat(input.vatNumber);
-    if (vat) {
-      const { data: existing } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("organization_id", orgId)
-        .eq("vat_number", vat)
-        .limit(1)
-        .maybeSingle();
-      if (existing?.id) {
-        resolvedId = existing.id;
-        method = "vat_number";
-        score = 0.97;
-      }
-    }
-  }
-
-  // 4. Match by domain (75% confidence)
-  if (!resolvedId) {
-    const domain = normalizeDomain(input.domain);
-    if (domain && !PERSONAL_DOMAINS.has(domain)) {
-      const { data: existing } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("organization_id", orgId)
-        .ilike("domain", domain)
-        .limit(1)
-        .maybeSingle();
-      if (existing?.id) {
-        resolvedId = existing.id;
-        method = "domain";
-        score = 0.75;
-      }
-    }
-  }
-
-  // 5. Create canonical company
+  // 3. Create canonical company (ou enrichit les identifiants si match)
   if (!resolvedId) {
     if (!input.name && !input.domain) return null;
     const domain = normalizeDomain(input.domain);
@@ -247,17 +343,12 @@ export async function resolveCompany(
     method = "created";
     score = 1;
   } else {
-    // Update identifiers on matched company if we have new data
     const updates: Record<string, string> = {};
     if (siren) updates.siren = siren;
     if (input.siret) updates.siret = input.siret.replace(/\D/g, "");
     if (input.vatNumber) updates.vat_number = normalizeVat(input.vatNumber)!;
     if (Object.keys(updates).length > 0) {
-      await supabase
-        .from("companies")
-        .update(updates)
-        .eq("id", resolvedId)
-        .eq("organization_id", orgId);
+      await supabase.from("companies").update(updates).eq("id", resolvedId).eq("organization_id", orgId);
     }
   }
 

@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
-import { PROVIDER_IDENTIFIERS, CANONICAL_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
+import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import { ResolutionRules, type Rule } from "@/components/resolution-rules";
 import { IdentifierMappingForm } from "@/components/identifier-mapping-form";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
@@ -34,7 +34,7 @@ const DEFAULT_FIELD_AUTHORITY = [
 // ── Default resolution rules ──
 const DEFAULT_RESOLUTION_RULES: Rule[] = [
   {
-    id: "siren_match", rule: "Match par SIREN", entity: "Company", confidence: 99, enabled: false,
+    id: "siren_match", rule: "Match par SIREN", entity: "Company", confidence: 99, enabled: true,
     description: "Le SIREN (9 chiffres INSEE) identifie une personne morale française de manière unique et permanente.",
     warning: "Un même groupe peut avoir plusieurs SIRENs (1 par entité juridique : holding, filiale, SCI…).",
     configFields: [
@@ -43,7 +43,7 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     ],
   },
   {
-    id: "vat_match", rule: "Match par n° TVA intracommunautaire", entity: "Company", confidence: 97, enabled: false,
+    id: "vat_match", rule: "Match par n° TVA intracommunautaire", entity: "Company", confidence: 97, enabled: true,
     description: "Le n° TVA (FR + 11 chiffres) est attribué par l'administration fiscale. Fiable sauf micro-entreprises et restructurations.",
     warning: "Les micro-entreprises et associations n'ont pas de TVA. Formats incohérents entre outils.",
     configFields: [
@@ -52,7 +52,7 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     ],
   },
   {
-    id: "siret_match", rule: "Match par SIRET", entity: "Company", confidence: 90, enabled: false,
+    id: "siret_match", rule: "Match par SIRET", entity: "Company", confidence: 90, enabled: true,
     description: "SIRET (14 chiffres = SIREN + NIC). Moins stable que le SIREN. Utilisé en complément.",
     warning: "Préférer le SIREN. Le SIRET sert de fallback (9 premiers chiffres = SIREN).",
     configFields: [
@@ -60,7 +60,7 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     ],
   },
   {
-    id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: false,
+    id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: true,
     description: "Match sur email lowercase normalisé. Fiable entre CRM et support. Entre CRM et billing, l'email facturé ≠ email commercial.",
     warning: "facturation@acme.com (Stripe) ≠ jean@acme.com (HubSpot).",
     configFields: [
@@ -84,6 +84,14 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     configFields: [
       { label: "Exclure domaines personnels", type: "select", options: ["Oui (gmail, hotmail, yahoo, outlook, orange, free…)", "Non"], value: "Oui (gmail, hotmail, yahoo, outlook, orange, free…)" },
       { label: "Exiger un second identifiant", type: "select", options: ["Oui (domaine + SIREN ou TVA)", "Non (domaine seul)"], value: "Oui (domaine + SIREN ou TVA)" },
+    ],
+  },
+  {
+    id: "name_match", rule: "Match par nom d'entreprise", entity: "Company", confidence: 65, enabled: false,
+    description: "Match sur le nom d'entreprise normalisé (minuscules, sans forme juridique ni ponctuation). Dernier recours quand aucun identifiant fort n'est disponible.",
+    warning: "Risque de faux positifs (homonymes, filiales). À activer avec prudence, idéalement combiné au domaine.",
+    configFields: [
+      { label: "Exigence de correspondance", type: "select", options: ["Nom normalisé exact", "Nom + domaine", "Nom + pays"], value: "Nom normalisé exact" },
     ],
   },
 ];
@@ -115,8 +123,8 @@ export default async function ParametresModeleDonneesPage() {
   let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string }> = [];
   let savedAuthority: Array<{ entity: string; field: string; priority: string[] }> = [];
-  let savedFrequencies: Record<string, string> = {};
-  let matchStats: Record<string, number> = {};
+  const savedFrequencies: Record<string, string> = {};
+  const matchStats: Record<string, number> = {};
 
   try {
     const [sl, integ, ruleConfigs, mappings, authority, freqs, matchData] = await Promise.all([
@@ -280,46 +288,6 @@ export default async function ParametresModeleDonneesPage() {
         ) : (
           <IdentifierMappingForm rows={identifierRows} savedMappings={savedMappings} />
         )}
-      </div>
-
-      {/* ── Identifiants canoniques ── */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Identifiants de rapprochement
-        </h2>
-        <p className="text-sm text-slate-500">
-          Hiérarchie des identifiants fiables (&gt;75% confiance) utilisés pour rapprocher les entreprises.
-        </p>
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                <th className="px-5 py-2">Priorité</th>
-                <th className="px-5 py-2">Identifiant</th>
-                <th className="px-5 py-2">Confiance</th>
-                <th className="px-5 py-2">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CANONICAL_IDENTIFIERS.map((ci, idx) => (
-                <tr key={ci.field} className="border-b border-card-border last:border-0">
-                  <td className="px-5 py-3">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{idx + 1}</span>
-                  </td>
-                  <td className="px-5 py-3 font-semibold text-slate-900">{ci.label}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      ci.confidence >= 97 ? "bg-emerald-100 text-emerald-700" :
-                      ci.confidence >= 90 ? "bg-blue-100 text-blue-700" :
-                      "bg-amber-100 text-amber-700"
-                    }`}>{ci.confidence} %</span>
-                  </td>
-                  <td className="px-5 py-3 text-slate-600">{ci.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       {/* ── Règles de résolution ── */}
