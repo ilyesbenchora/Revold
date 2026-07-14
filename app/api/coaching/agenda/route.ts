@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 
 const CATEGORIES = new Set(["commercial", "marketing", "data", "integration", "cross-source", "data-model"]);
-const CADENCES = new Set(["weekly", "biweekly", "monthly", "quarterly"]);
+const CADENCES = new Set(["once", "weekly", "biweekly", "monthly", "quarterly"]);
 
 /** Upsert de l'agenda de coaching d'une catégorie (objectifs, pains, cadence, prochain RDV). */
 export async function POST(request: Request) {
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     pains?: string;
     cadence?: string;
     next_meeting_at?: string | null;
+    sources?: unknown;
   };
   try {
     body = await request.json();
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
   }
   const cadence = CADENCES.has(String(body.cadence)) ? String(body.cadence) : "monthly";
   const nextMeeting = body.next_meeting_at && /^\d{4}-\d{2}-\d{2}$/.test(body.next_meeting_at) ? body.next_meeting_at : null;
+  // Outils à croiser : liste de clés de sources, nettoyée (strings, ≤ 40 entrées).
+  const sources = Array.isArray(body.sources)
+    ? body.sources.filter((s): s is string => typeof s === "string").slice(0, 40)
+    : [];
 
   const { error } = await supabase.from("coaching_agendas").upsert(
     {
@@ -44,6 +49,7 @@ export async function POST(request: Request) {
       pains: (body.pains ?? "").slice(0, 4000),
       cadence,
       next_meeting_at: nextMeeting,
+      sources,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "organization_id,category" },

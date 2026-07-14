@@ -49,22 +49,32 @@ export type CoachAgendaInitial = {
   pains?: string | null;
   cadence?: string | null;
   next_meeting_at?: string | null;
+  sources?: string[] | null;
 };
+
+export type AgendaSource = { key: string; label: string; icon: string };
 
 export function CoachAgenda({
   category,
   label,
   initial,
+  availableSources = [],
 }: {
   category: string;
   label: string;
   initial: CoachAgendaInitial;
+  availableSources?: AgendaSource[];
 }) {
   const [objectives, setObjectives] = useState(initial.objectives ?? "");
   const [pains, setPains] = useState(initial.pains ?? "");
   const [cadence, setCadence] = useState(initial.cadence ?? "monthly");
   const [nextMeeting, setNextMeeting] = useState(initial.next_meeting_at ?? "");
+  const [sources, setSources] = useState<string[]>(initial.sources ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+
+  function toggleSource(key: string) {
+    setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
 
   async function save() {
     setState("saving");
@@ -72,7 +82,7 @@ export function CoachAgenda({
       const res = await fetch("/api/coaching/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null }),
+        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources }),
       });
       if (!res.ok) throw new Error();
       setState("done");
@@ -146,6 +156,35 @@ export function CoachAgenda({
             <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className={field} />
           </div>
         </div>
+        {availableSources.length > 0 && (
+          <div>
+            <label className={lbl}>Outils à croiser pendant la séance</label>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Pré-sélectionnés automatiquement au démarrage du coaching — plus besoin de les choisir à la main.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {availableSources.map((s) => {
+                const active = sources.includes(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => toggleSource(s.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      active
+                        ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>{s.icon}</span>
+                    {s.label}
+                    {active && <span className="text-fuchsia-500">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-1.5">
           {QUICK_MEETINGS.map((q) => {
             const date = offsetDate(q.days);

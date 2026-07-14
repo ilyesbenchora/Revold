@@ -26,7 +26,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
   if (coachingCategory && orgId) {
     const { data } = await supabase
       .from("coaching_agendas")
-      .select("objectives, pains, cadence, next_meeting_at")
+      .select("objectives, pains, cadence, next_meeting_at, sources")
       .eq("organization_id", orgId)
       .eq("category", coachingCategory)
       .maybeSingle();
@@ -52,7 +52,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
 
       {coachingCategory && (
         <div className="mb-6">
-          <CoachAgenda category={coachingCategory} label={coachLabel} initial={agenda ?? {}} />
+          <CoachAgenda category={coachingCategory} label={coachLabel} initial={agenda ?? {}} availableSources={sources} />
         </div>
       )}
 
@@ -65,6 +65,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         coaching={coachingCtx}
         coachingCategory={coachingCategory}
         sessionTracking={hasMeeting}
+        preselectedSources={agenda?.sources ?? null}
       />
     </div>
   );

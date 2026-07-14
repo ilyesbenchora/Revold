@@ -24,7 +24,7 @@ export type ConnectableTool = {
   icon: string;
   // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
   domain: string;
-  category: "crm" | "billing" | "phone" | "support" | "communication" | "conv_intel";
+  category: "crm" | "billing" | "phone" | "support" | "communication" | "conv_intel" | "files";
   /** True si la connexion passe par OAuth (URL spéciale) au lieu du flow API key. */
   oauth?: boolean;
   /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
@@ -367,6 +367,23 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
       { key: "webhook_secret", label: "Webhook Secret (Bearer token)", placeholder: "gen via openssl rand -hex 32", type: "password", helper: "Secret partagé que Praiz inclura dans le header Authorization de chaque webhook. Vérifié côté Revold pour bloquer les requêtes non-authentifiées." },
     ],
   },
+
+  // ── Fichiers & Tableurs ─────────────────────────────────────────
+  spreadsheet: {
+    key: "spreadsheet",
+    label: "Excel / Google Sheets",
+    vendor: "Fichier / Tableur",
+    icon: "🟩",
+    domain: "google.com",
+    category: "files",
+    // Flux d'import dédié (upload CSV/Excel ou lien Google Sheets), pas le
+    // formulaire générique clé API.
+    connectUrl: "/dashboard/integration/import-fichier",
+    description: "Importez vos données depuis un fichier Excel/CSV ou un Google Sheets. Idéal si vos données vivent encore dans des tableurs — Revold les croise avec vos autres sources.",
+    helpUrl: "https://support.google.com/docs/answer/37579",
+    helpText: "Deux options : (1) exportez votre fichier Excel en .csv puis déposez-le ici, ou (2) partagez le lien de votre Google Sheets (accès « toute personne disposant du lien »).",
+    fields: [],
+  },
 };
 
 export function getConnectableTool(key: string): ConnectableTool | null {
@@ -380,6 +397,7 @@ const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   support: "Service client",
   communication: "Communication",
   conv_intel: "Conversation Intelligence",
+  files: "Fichiers & Tableurs",
 };
 
 export function getCategoryLabel(cat: ConnectableTool["category"]): string {

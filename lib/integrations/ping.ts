@@ -143,6 +143,10 @@ export async function pingTool(
           ? { ok: true }
           : { ok: false, reason: "Secret webhook trop court — utilisez 32+ caractères (openssl rand -hex 32)." };
 
+      // ── Fichiers & tableurs passent par le flux d'import dédié ───
+      case "spreadsheet":
+        return { ok: true };
+
       // ── HubSpot passe par OAuth, jamais ici ──────────────────────
       case "hubspot":
         return { ok: false, reason: "HubSpot utilise OAuth — passez par /api/integrations/hubspot/connect." };

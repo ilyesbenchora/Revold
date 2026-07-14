@@ -56,9 +56,15 @@ const CATEGORY_META: Record<ConnectableTool["category"], { label: string; emoji:
     gradient: "from-rose-500 to-fuchsia-500",
     description: "Transcription + analyse IA des appels commerciaux. Talk ratio, objections, sentiment, scoring deal — auto-enrichis dans Revold.",
   },
+  files: {
+    label: "Fichiers & Tableurs",
+    emoji: "🟩",
+    gradient: "from-green-500 to-emerald-500",
+    description: "Vos données vivent encore dans Excel ou Google Sheets ? Importez-les et Revold les croise avec vos CRM, facturation et support.",
+  },
 };
 
-const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "conv_intel", "communication"];
+const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "files", "phone", "support", "conv_intel", "communication"];
 
 export default async function IntegrationPage({
   searchParams,
@@ -113,6 +119,7 @@ export default async function IntegrationPage({
     crm: [],
     billing: [],
     phone: [],
+    files: [],
     support: [],
     communication: [],
     conv_intel: [],

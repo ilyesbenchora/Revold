@@ -292,8 +292,8 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                         {int.updated_at ? new Date(int.updated_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </td>
                       <td className="px-5 py-2.5">
-                        <Link href={`/dashboard/integration/connect/${int.provider}`} className="text-xs font-medium text-accent hover:underline">
-                          Reconfigurer
+                        <Link href={tool?.connectUrl ?? `/dashboard/integration/connect/${int.provider}`} className="text-xs font-medium text-accent hover:underline">
+                          {int.provider === "spreadsheet" ? "Importer / gérer" : "Reconfigurer"}
                         </Link>
                       </td>
                     </tr>

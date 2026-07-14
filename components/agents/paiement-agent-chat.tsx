@@ -77,6 +77,7 @@ export function PaiementAgentChat({
   coaching,
   coachingCategory,
   sessionTracking,
+  preselectedSources,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -86,6 +87,7 @@ export function PaiementAgentChat({
   coaching?: { objectives: string; pains: string } | null;
   coachingCategory?: string | null;
   sessionTracking?: boolean;
+  preselectedSources?: string[] | null;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -96,7 +98,15 @@ export function PaiementAgentChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
+  // Sources pré-cochées : celles choisies dans l'agenda de coaching (« outils à
+  // croiser »), filtrées sur les sources réellement disponibles. Sinon, tout.
+  const initialSelected =
+    preselectedSources && preselectedSources.length
+      ? sources.filter((s) => preselectedSources.includes(s.key)).map((s) => s.key)
+      : sources.map((s) => s.key);
+  const [selected, setSelected] = useState<string[]>(
+    initialSelected.length ? initialSelected : sources.map((s) => s.key),
+  );
   const [error, setError] = useState<string | null>(null);
   const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
   const scrollRef = useRef<HTMLDivElement>(null);

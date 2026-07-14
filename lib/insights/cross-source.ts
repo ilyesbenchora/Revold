@@ -54,7 +54,7 @@ export type CrossSourceInsight = {
  * integrations). Sert à filtrer les insights/sims qui inventeraient de la
  * donnée sur des outils absents.
  */
-export type ConnectedCategorySet = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication">;
+export type ConnectedCategorySet = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication" | "files">;
 
 /**
  * Build the cross-source context. Returns null if the canonical tables don't
