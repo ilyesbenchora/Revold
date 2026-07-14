@@ -569,18 +569,6 @@ export function PaiementAgentChat({
 
           {/* Zone de saisie */}
           <div className="border-t border-[var(--card-border)] px-4 py-3">
-            {contextFiles.length > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Contexte du coaching</span>
-                {contextFiles.map((a) => (
-                  <span key={a.id} className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800">
-                    <span>{a.source === "gsheet" ? "🟩" : "📄"}</span>
-                    <span className="max-w-[160px] truncate">{a.name}</span>
-                    <span className="text-emerald-500">· {a.rowCount} l.</span>
-                  </span>
-                ))}
-              </div>
-            )}
             {attachments.length > 0 && (
               <div className="mb-2">
                 <AttachmentChips items={attachments} onRemove={removeAttachment} />
