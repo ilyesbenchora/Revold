@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 const CADENCES = [
+  { key: "once", label: "Une seule fois" },
   { key: "weekly", label: "Hebdomadaire" },
   { key: "biweekly", label: "Toutes les 2 semaines" },
   { key: "monthly", label: "Mensuel" },
@@ -11,6 +12,21 @@ const CADENCES = [
 function cadenceLabel(k: string): string {
   return CADENCES.find((c) => c.key === k)?.label ?? "Mensuel";
 }
+
+/** Date (YYYY-MM-DD) à J+days, pour les raccourcis de prochain RDV. */
+function offsetDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+const QUICK_MEETINGS = [
+  { label: "Maintenant", days: 0 },
+  { label: "Dans 2 jours", days: 2 },
+  { label: "Dans 4 jours", days: 4 },
+  { label: "Dans 6 jours", days: 6 },
+];
 
 function calendarLinks(title: string, dateStr: string, details: string) {
   const start = `${dateStr}T10:00:00`;
@@ -129,6 +145,26 @@ export function CoachAgenda({
             <label className={lbl}>Prochain RDV</label>
             <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className={field} />
           </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_MEETINGS.map((q) => {
+            const date = offsetDate(q.days);
+            const active = nextMeeting === date;
+            return (
+              <button
+                key={q.label}
+                type="button"
+                onClick={() => setNextMeeting(date)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                  active
+                    ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {q.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

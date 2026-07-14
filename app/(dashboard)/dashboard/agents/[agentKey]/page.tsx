@@ -34,6 +34,10 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
   }
   const coachingCtx =
     coachingCategory && agenda ? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" } : null;
+  // Le coaching interactif (séance guidée) est toujours disponible. En revanche,
+  // la clôture en « coaching réalisé » n'est enregistrée que lorsqu'un rendez-vous
+  // est programmé ; sans RDV, l'échange reste simplement dans l'historique du chat.
+  const hasMeeting = Boolean(agenda?.next_meeting_at);
   const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
 
   return (
@@ -60,6 +64,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         suggestionSets={agent.suggestionSets ?? null}
         coaching={coachingCtx}
         coachingCategory={coachingCategory}
+        sessionTracking={hasMeeting}
       />
     </div>
   );

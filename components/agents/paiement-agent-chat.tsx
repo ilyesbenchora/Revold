@@ -76,6 +76,7 @@ export function PaiementAgentChat({
   suggestionSets,
   coaching,
   coachingCategory,
+  sessionTracking,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -84,6 +85,7 @@ export function PaiementAgentChat({
   suggestionSets?: SuggestionSets;
   coaching?: { objectives: string; pains: string } | null;
   coachingCategory?: string | null;
+  sessionTracking?: boolean;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -129,7 +131,7 @@ export function PaiementAgentChat({
   // Inactivité (agents coach) : 5 min sans message → propose de terminer ; sans
   // réponse pendant 2 min → terminaison automatique.
   useEffect(() => {
-    if (!coaching || !coachingCategory) return;
+    if (!coaching || !coachingCategory || !sessionTracking) return;
     if (sessionEnd === "ended" || sessionEnd === "asking") return;
     if (messages.length === 0 || loading) return;
     clearSessionTimers();
@@ -139,7 +141,7 @@ export function PaiementAgentChat({
     }, INACT_MS);
     return () => clearSessionTimers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, loading, sessionEnd, coachingCategory]);
+  }, [messages.length, loading, sessionEnd, coachingCategory, sessionTracking]);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
