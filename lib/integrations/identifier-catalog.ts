@@ -7,7 +7,7 @@
  */
 
 export type IdentifierDef = {
-  canonicalField: "siren" | "siret" | "vat_number" | "external_id";
+  canonicalField: "siren" | "siret" | "vat_number" | "external_id" | "email" | "domain" | "company_name";
   label: string;
   /** Default field name in the provider (user can override) */
   defaultProviderField: string;
@@ -21,17 +21,25 @@ export type IdentifierDef = {
 export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
   // ── CRM ──
   hubspot: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Champ natif HubSpot (company)", native: true },
+    { canonicalField: "domain", label: "Domaine web", defaultProviderField: "domain", hint: "Champ natif HubSpot (company)", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du contact HubSpot", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Propriété custom HubSpot (à créer si inexistant)", native: false },
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "external_id", label: "ID Company", defaultProviderField: "hs_object_id", hint: "ID natif HubSpot (automatique)", native: true },
   ],
   salesforce: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "Name", hint: "Champ natif Salesforce (Account)", native: true },
+    { canonicalField: "domain", label: "Domaine web", defaultProviderField: "Website", hint: "Champ natif Salesforce (Account)", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "Email", hint: "Email natif du contact Salesforce", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "SIREN__c", hint: "Champ custom Salesforce", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "VAT_Number__c", hint: "Champ custom Salesforce", native: false },
     { canonicalField: "external_id", label: "Account ID", defaultProviderField: "Id", hint: "ID natif Salesforce (automatique)", native: true },
   ],
   pipedrive: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Nom natif de l'organisation Pipedrive", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif de la personne Pipedrive", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Champ custom Pipedrive", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Champ custom Pipedrive", native: false },
     { canonicalField: "external_id", label: "Organization ID", defaultProviderField: "id", hint: "ID natif Pipedrive (automatique)", native: true },
@@ -47,11 +55,15 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
 
   // ── Billing / ERP ──
   stripe: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Nom natif du customer Stripe", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer Stripe", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "metadata.siren", hint: "Stocké dans customer.metadata.siren", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "tax_id", hint: "Tax ID natif Stripe (si configuré)", native: true },
     { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "cus_XXXXX (automatique)", native: true },
   ],
   pennylane: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Nom natif du client Pennylane", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du client Pennylane", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "registration_number", hint: "Champ natif Pennylane — toujours renseigné", native: true },
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Champ natif Pennylane", native: true },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Champ natif Pennylane", native: true },

@@ -154,6 +154,10 @@ export default async function ParametresModeleDonneesPage() {
   const hsToken = await getHubSpotToken(supabase, orgId);
   const hasHubSpot = connectedProviders.includes("hubspot") || !!hsToken;
   const allProviders = hasHubSpot ? ["hubspot", ...connectedProviders.filter((p) => p !== "hubspot")] : connectedProviders;
+  // Labels des outils connectés — pour la matrice d'autorité (ajout de sources).
+  const connectedToolLabels = allProviders.map(
+    (p) => CONNECTABLE_TOOLS[p]?.label ?? (p === "hubspot" ? "HubSpot" : p),
+  );
 
   // Resolution rules: merge saved enabled/config into defaults
   const mergedRules: Rule[] = DEFAULT_RESOLUTION_RULES.map((rule) => {
@@ -310,7 +314,7 @@ export default async function ParametresModeleDonneesPage() {
           Quand deux outils ont une valeur différente pour le même champ, lequel gagne ?
           Utilisez les flèches ▲▼ pour réordonner.
         </p>
-        <FieldAuthorityEditor rows={mergedAuthority} />
+        <FieldAuthorityEditor rows={mergedAuthority} connectedTools={connectedToolLabels} />
       </div>
 
       {/* ── Déduplication ── */}
