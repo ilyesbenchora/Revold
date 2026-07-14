@@ -11,8 +11,9 @@ import { BreezePromptDrawer } from "@/components/breeze-prompt-drawer";
 
 type TabId = "mine" | "critical" | "warning" | "info";
 
+// "Mes coachings IA" est désormais affiché sur la vue d'ensemble (pas sur les
+// pages catégorie) pour éviter la redondance.
 const TABS: { id: TabId; label: string; emoji: string }[] = [
-  { id: "mine", label: "Mes coachings IA", emoji: "✨" },
   { id: "critical", label: "Critiques", emoji: "🔴" },
   { id: "warning", label: "Vigilance", emoji: "🟠" },
   { id: "info", label: "Infos", emoji: "🔵" },
@@ -281,7 +282,7 @@ function CoachingCard({
 
 export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>("mine");
+  const [tab, setTab] = useState<TabId>("critical");
   const [actionFilter, setActionFilter] = useState<CoachingActionType | "all">("all");
 
   // Items affichables selon l'onglet courant
@@ -395,14 +396,11 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 scroll-smooth">
           {filteredItems.map((c) => (
-            <CoachingCard
-              key={c.id}
-              item={c}
-              category={apiCategory}
-              onChange={() => router.refresh()}
-            />
+            <div key={c.id} className="snap-start shrink-0" style={{ width: "min(440px, 90vw)" }}>
+              <CoachingCard item={c} category={apiCategory} onChange={() => router.refresh()} />
+            </div>
           ))}
         </div>
       )}

@@ -28,6 +28,28 @@ function countSeverities(items: Array<{ severity: string }>): SeverityCounts {
   return { critical, warning, info };
 }
 
+const CAT_LABELS: Record<string, string> = {
+  commercial: "Ventes",
+  marketing: "Marketing",
+  data: "Data",
+  integration: "Intégration",
+  "cross-source": "Cross-source",
+  "data-model": "Modèle de données",
+};
+function catLabel(c: string): string {
+  return CAT_LABELS[c] ?? c;
+}
+function sevBadge(s: string): string {
+  if (s === "critical") return "bg-red-50 text-red-700";
+  if (s === "warning") return "bg-amber-50 text-amber-700";
+  return "bg-blue-50 text-blue-700";
+}
+function sevLabel(s: string): string {
+  if (s === "critical") return "Critique";
+  if (s === "warning") return "Vigilance";
+  return "Info";
+}
+
 export default async function MesCoachingPage() {
   const orgId = await getOrgId();
   if (!orgId) {
@@ -92,6 +114,25 @@ export default async function MesCoachingPage() {
   const doneInsights = dismissalsList.filter((d) => !d.status || d.status === "done");
   const removedInsights = dismissalsList.filter((d) => d.status === "removed");
 
+  // Mes coachings IA (activés depuis les rapports) — toutes catégories, actifs.
+  const { data: manualCoachingsRaw } = await supabase
+    .from("report_coachings")
+    .select("id, category, title, body, recommendation, severity, kpi_label, created_at")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(60);
+  const myCoachings = (manualCoachingsRaw ?? []) as {
+    id: string;
+    category: string;
+    title: string;
+    body: string;
+    recommendation: string | null;
+    severity: string;
+    kpi_label: string | null;
+    created_at: string;
+  }[];
+
   return (
     <div className="space-y-8">
       {/* Agents de coaching — en tête de section */}
@@ -139,6 +180,39 @@ export default async function MesCoachingPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* Mes coachings IA — toutes catégories, activés depuis les rapports */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <span>✨</span> Mes coachings IA
+          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{myCoachings.length}</span>
+        </h2>
+        {myCoachings.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+            <p className="text-sm text-slate-500">
+              Aucun coaching IA activé pour l&apos;instant. Active-en depuis tes rapports ou tes agents.
+            </p>
+          </div>
+        ) : (
+          <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 scroll-smooth">
+            {myCoachings.map((m) => (
+              <div key={m.id} className="card snap-start shrink-0 p-4" style={{ width: "min(360px, 88vw)" }}>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${sevBadge(m.severity)}`}>
+                    {sevLabel(m.severity)}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                    {catLabel(m.category)}
+                  </span>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900">{m.title}</h3>
+                <p className="mt-1 line-clamp-3 text-xs text-slate-600">{m.recommendation || m.body}</p>
+                {m.kpi_label && <p className="mt-2 text-[11px] text-slate-400">KPI : {m.kpi_label}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Coaching réalisé — horizontal carousel */}
