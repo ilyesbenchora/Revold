@@ -81,7 +81,7 @@ export function PaiementAgentChat({
   coachingCategory,
   sessionTracking,
   preselectedSources,
-  initialAttachments,
+  contextAttachments,
   startSignal,
 }: {
   agentKey: string;
@@ -93,9 +93,16 @@ export function PaiementAgentChat({
   coachingCategory?: string | null;
   sessionTracking?: boolean;
   preselectedSources?: string[] | null;
-  initialAttachments?: Attachment[] | null;
+  /** Fichiers issus du coaching : épinglés (vert, en bas), contexte permanent. */
+  contextAttachments?: Attachment[] | null;
   startSignal?: number;
 }) {
+  // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
+  // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
+  const coachingMode = Boolean(coachingCategory);
+  const preselList = preselectedSources ?? [];
+  const contextFiles = contextAttachments ?? [];
+  const exactCoachingSources = () => sources.filter((s) => preselList.includes(s.key)).map((s) => s.key);
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -105,18 +112,19 @@ export function PaiementAgentChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  // Sources pré-cochées : celles choisies dans l'agenda de coaching (« outils à
-  // croiser »), filtrées sur les sources réellement disponibles. Sinon, tout.
-  const initialSelected =
-    preselectedSources && preselectedSources.length
-      ? sources.filter((s) => preselectedSources.includes(s.key)).map((s) => s.key)
+  // Sources initiales : en coaching, reflet EXACT de l'agenda (peut être vide) ;
+  // sinon, les sources pré-cochées, à défaut toutes.
+  const initialSelected = coachingMode
+    ? exactCoachingSources()
+    : preselList.length
+      ? sources.filter((s) => preselList.includes(s.key)).map((s) => s.key)
       : sources.map((s) => s.key);
   const [selected, setSelected] = useState<string[]>(
-    initialSelected.length ? initialSelected : sources.map((s) => s.key),
+    coachingMode ? initialSelected : initialSelected.length ? initialSelected : sources.map((s) => s.key),
   );
   const [error, setError] = useState<string | null>(null);
-  // Fichiers joints à la conversation (Excel/CSV/Google Sheets) injectés en contexte.
-  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments ?? []);
+  // Fichiers ajoutés dans le chat (via +), supprimables, propres à la conversation.
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,19 +228,16 @@ export function PaiementAgentChat({
     }
   }, [conversations, hydrated, storageKey]);
 
-  // Coaching : quand l'agenda est mis à jour (RDV du jour, outils, fichiers) et
-  // qu'aucune conversation n'est en cours, on resynchronise le contexte pré-chargé
-  // pour que « Démarrer ma séance de coaching du jour » reflète le dernier RDV.
-  const preselKey = (preselectedSources ?? []).join(",");
-  const attachKey = (initialAttachments ?? []).map((a) => a.id).join(",");
+  // Coaching : quand l'agenda est mis à jour (outils à croiser) et qu'aucune
+  // conversation n'est en cours, on resynchronise les sources sélectionnées pour
+  // qu'elles restent le reflet EXACT du coaching enregistré (même vide).
+  const preselKey = preselList.join(",");
   useEffect(() => {
     if (!hydrated || messages.length > 0) return;
-    if (preselectedSources && preselectedSources.length) {
-      setSelected(sources.filter((s) => preselectedSources.includes(s.key)).map((s) => s.key));
-    }
-    setAttachments(initialAttachments ?? []);
+    if (coachingMode) setSelected(exactCoachingSources());
+    else if (preselList.length) setSelected(sources.filter((s) => preselList.includes(s.key)).map((s) => s.key));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preselKey, attachKey, hydrated, messages.length]);
+  }, [preselKey, hydrated, messages.length]);
 
   function upsertConversation(id: string, msgs: Msg[], srcs: string[], atts: Attachment[]) {
     setConversations((prev) => {
@@ -263,7 +268,11 @@ export function PaiementAgentChat({
   function startNew() {
     setCurrentId(null);
     setMessages([]);
-    setAttachments(initialAttachments ?? []);
+    setAttachments([]);
+    // Les fichiers du coaching restent épinglés (contextFiles) ; on remet juste
+    // les sources au reflet du coaching.
+    if (coachingMode) setSelected(exactCoachingSources());
+    setSessionEnd("none");
     setError(null);
     setTab("chat");
   }
@@ -271,7 +280,7 @@ export function PaiementAgentChat({
   function openConversation(c: Conversation) {
     setCurrentId(c.id);
     setMessages(c.messages);
-    setSelected(c.sources.length ? c.sources : sources.map((s) => s.key));
+    setSelected(c.sources.length ? c.sources : coachingMode ? exactCoachingSources() : sources.map((s) => s.key));
     setAttachments(c.attachments ?? []);
     setError(null);
     setTab("chat");
@@ -325,7 +334,8 @@ export function PaiementAgentChat({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           sources: selected,
           coaching: coaching ?? null,
-          attachments,
+          // Fichiers du coaching (épinglés) + fichiers ajoutés dans le chat.
+          attachments: [...contextFiles, ...attachments],
         }),
       });
       const data = await res.json();
@@ -559,6 +569,18 @@ export function PaiementAgentChat({
 
           {/* Zone de saisie */}
           <div className="border-t border-[var(--card-border)] px-4 py-3">
+            {contextFiles.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Contexte du coaching</span>
+                {contextFiles.map((a) => (
+                  <span key={a.id} className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800">
+                    <span>{a.source === "gsheet" ? "🟩" : "📄"}</span>
+                    <span className="max-w-[160px] truncate">{a.name}</span>
+                    <span className="text-emerald-500">· {a.rowCount} l.</span>
+                  </span>
+                ))}
+              </div>
+            )}
             {attachments.length > 0 && (
               <div className="mb-2">
                 <AttachmentChips items={attachments} onRemove={removeAttachment} />

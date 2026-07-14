@@ -170,7 +170,7 @@ export function CoachAgenda({
           onClick={() => onStart?.()}
           className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
         >
-          Démarrer un nouveau coaching
+          Démarrer le coaching
         </button>
       </div>
     );

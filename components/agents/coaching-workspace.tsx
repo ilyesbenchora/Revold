@@ -45,7 +45,7 @@ export function CoachingWorkspace({
   // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
   const hasMeeting = Boolean(agenda.next_meeting_at);
   const preselectedSources = agenda.sources ?? null;
-  const initialAttachments = (agenda.attachments as Attachment[] | null) ?? null;
+  const contextAttachments = (agenda.attachments as Attachment[] | null) ?? null;
 
   return (
     <>
@@ -79,7 +79,7 @@ export function CoachingWorkspace({
         coachingCategory={category}
         sessionTracking={hasMeeting}
         preselectedSources={preselectedSources}
-        initialAttachments={initialAttachments}
+        contextAttachments={contextAttachments}
         startSignal={startNonce}
       />
     </>
