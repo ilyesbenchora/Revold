@@ -193,6 +193,20 @@ export function PaiementAgentChat({
     }
   }, [conversations, hydrated, storageKey]);
 
+  // Coaching : quand l'agenda est mis à jour (RDV du jour, outils, fichiers) et
+  // qu'aucune conversation n'est en cours, on resynchronise le contexte pré-chargé
+  // pour que « Démarrer ma séance de coaching du jour » reflète le dernier RDV.
+  const preselKey = (preselectedSources ?? []).join(",");
+  const attachKey = (initialAttachments ?? []).map((a) => a.id).join(",");
+  useEffect(() => {
+    if (!hydrated || messages.length > 0) return;
+    if (preselectedSources && preselectedSources.length) {
+      setSelected(sources.filter((s) => preselectedSources.includes(s.key)).map((s) => s.key));
+    }
+    setAttachments(initialAttachments ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselKey, attachKey, hydrated, messages.length]);
+
   function upsertConversation(id: string, msgs: Msg[], srcs: string[], atts: Attachment[]) {
     setConversations((prev) => {
       const rest = prev.filter((c) => c.id !== id);
@@ -293,9 +307,11 @@ export function PaiementAgentChat({
   const sortedHistory = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const selectedCats = new Set(sources.filter((s) => selected.includes(s.key)).map((s) => s.category));
   const baseSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
-  // Agent coach : propose de démarrer la séance (sans la lancer automatiquement).
+  // Agent coach : propose de démarrer la séance du jour (sans la lancer
+  // automatiquement). Le contexte (objectifs/pains/RDV) est celui de l'agenda
+  // à jour grâce à la resynchro des props ci-dessus.
   const activeSuggestions = coaching
-    ? ["Démarrer ma séance de coaching sur mes objectifs et mes pains", ...baseSuggestions]
+    ? ["Démarrer ma séance de coaching du jour", ...baseSuggestions]
     : baseSuggestions;
 
   return (

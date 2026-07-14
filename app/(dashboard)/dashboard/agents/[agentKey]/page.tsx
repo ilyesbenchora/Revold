@@ -3,7 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
-import { CoachAgenda, type CoachAgendaInitial } from "@/components/agents/coach-agenda";
+import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
+import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 
 export const dynamic = "force-dynamic";
@@ -32,12 +33,6 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
       .maybeSingle();
     agenda = (data as CoachAgendaInitial | null) ?? {};
   }
-  const coachingCtx =
-    coachingCategory && agenda ? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" } : null;
-  // Le coaching interactif (séance guidée) est toujours disponible. En revanche,
-  // la clôture en « coaching réalisé » n'est enregistrée que lorsqu'un rendez-vous
-  // est programmé ; sans RDV, l'échange reste simplement dans l'historique du chat.
-  const hasMeeting = Boolean(agenda?.next_meeting_at);
   const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
 
   return (
@@ -50,24 +45,27 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         <p className="mt-1 text-sm text-slate-500">{agent.tagline}</p>
       </div>
 
-      {coachingCategory && (
-        <div className="mb-6">
-          <CoachAgenda category={coachingCategory} label={coachLabel} initial={agenda ?? {}} availableSources={sources} />
-        </div>
+      {coachingCategory ? (
+        <CoachingWorkspace
+          category={coachingCategory}
+          coachLabel={coachLabel}
+          initialAgenda={agenda ?? {}}
+          availableSources={sources}
+          agentKey={agent.key}
+          agentLabel={agent.label}
+          sources={sources}
+          suggestions={agent.suggestions}
+          suggestionSets={agent.suggestionSets ?? null}
+        />
+      ) : (
+        <PaiementAgentChat
+          agentKey={agent.key}
+          agentLabel={agent.label}
+          sources={sources}
+          suggestions={agent.suggestions}
+          suggestionSets={agent.suggestionSets ?? null}
+        />
       )}
-
-      <PaiementAgentChat
-        agentKey={agent.key}
-        agentLabel={agent.label}
-        sources={sources}
-        suggestions={agent.suggestions}
-        suggestionSets={agent.suggestionSets ?? null}
-        coaching={coachingCtx}
-        coachingCategory={coachingCategory}
-        sessionTracking={hasMeeting}
-        preselectedSources={agenda?.sources ?? null}
-        initialAttachments={agenda?.attachments ?? null}
-      />
     </div>
   );
 }

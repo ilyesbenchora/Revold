@@ -62,11 +62,20 @@ export function CoachAgenda({
   label,
   initial,
   availableSources = [],
+  onSaved,
 }: {
   category: string;
   label: string;
   initial: CoachAgendaInitial;
   availableSources?: AgendaSource[];
+  onSaved?: (agenda: {
+    objectives: string;
+    pains: string;
+    cadence: string;
+    next_meeting_at: string | null;
+    sources: string[];
+    attachments: Attachment[];
+  }) => void;
 }) {
   const [objectives, setObjectives] = useState(initial.objectives ?? "");
   const [pains, setPains] = useState(initial.pains ?? "");
@@ -103,6 +112,7 @@ export function CoachAgenda({
         return;
       }
       setState("done");
+      onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments });
       setTimeout(() => setState("idle"), 2500);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Erreur réseau");
