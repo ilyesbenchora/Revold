@@ -75,6 +75,7 @@ export function CoachAgenda({
   const [sources, setSources] = useState<string[]>(initial.sources ?? []);
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   function toggleSource(key: string) {
     setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
@@ -82,16 +83,29 @@ export function CoachAgenda({
 
   async function save() {
     setState("saving");
+    setErrMsg(null);
     try {
       const res = await fetch("/api/coaching/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        let reason = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          if (data?.error) reason = data.error;
+        } catch {
+          /* réponse non-JSON */
+        }
+        setErrMsg(reason);
+        setState("error");
+        return;
+      }
       setState("done");
       setTimeout(() => setState("idle"), 2500);
-    } catch {
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Erreur réseau");
       setState("error");
     }
   }
@@ -234,7 +248,9 @@ export function CoachAgenda({
           {state === "saving" ? "Enregistrement…" : "Enregistrer l'agenda"}
         </button>
         {state === "done" && <span className="text-xs font-medium text-emerald-600">✓ Enregistré — ajoute le RDV à ton agenda ci-dessus</span>}
-        {state === "error" && <span className="text-xs text-red-500">Échec — la table coaching_agendas est-elle créée ?</span>}
+        {state === "error" && (
+          <span className="text-xs text-red-500">Échec : {errMsg ?? "erreur inconnue"}</span>
+        )}
       </div>
     </div>
   );
