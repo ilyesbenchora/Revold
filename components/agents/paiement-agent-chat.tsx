@@ -75,6 +75,7 @@ export function PaiementAgentChat({
   suggestions,
   suggestionSets,
   coaching,
+  coachingCategory,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -82,6 +83,7 @@ export function PaiementAgentChat({
   suggestions: string[];
   suggestionSets?: SuggestionSets;
   coaching?: { objectives: string; pains: string } | null;
+  coachingCategory?: string | null;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -94,7 +96,50 @@ export function PaiementAgentChat({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
   const [error, setError] = useState<string | null>(null);
+  const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const INACT_MS = 5 * 60 * 1000; // 5 min d'inactivité → propose de terminer
+  const AUTO_MS = 2 * 60 * 1000; // 2 min sans réponse → terminaison auto
+
+  function clearSessionTimers() {
+    if (inactRef.current) clearTimeout(inactRef.current);
+    if (autoRef.current) clearTimeout(autoRef.current);
+    inactRef.current = null;
+    autoRef.current = null;
+  }
+
+  async function completeSession(auto: boolean) {
+    clearSessionTimers();
+    setSessionEnd("ended");
+    if (!coachingCategory) return;
+    try {
+      await fetch("/api/coaching/session/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: coachingCategory, auto }),
+      });
+    } catch {
+      /* silencieux */
+    }
+  }
+
+  // Inactivité (agents coach) : 5 min sans message → propose de terminer ; sans
+  // réponse pendant 2 min → terminaison automatique.
+  useEffect(() => {
+    if (!coaching || !coachingCategory) return;
+    if (sessionEnd === "ended" || sessionEnd === "asking") return;
+    if (messages.length === 0 || loading) return;
+    clearSessionTimers();
+    inactRef.current = setTimeout(() => {
+      setSessionEnd("asking");
+      autoRef.current = setTimeout(() => completeSession(true), AUTO_MS);
+    }, INACT_MS);
+    return () => clearSessionTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, loading, sessionEnd, coachingCategory]);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
@@ -369,6 +414,35 @@ export function PaiementAgentChat({
                 <div className="rounded-2xl border border-[var(--card-border)] bg-white px-3.5 py-2.5 text-sm text-slate-400">
                   L&apos;agent analyse tes données…
                 </div>
+              </div>
+            )}
+
+            {sessionEnd === "asking" && (
+              <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-3.5">
+                <p className="text-sm text-slate-700">Souhaites-tu terminer la séance de coaching du jour ?</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => completeSession(false)}
+                    className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+                  >
+                    Oui, terminer
+                  </button>
+                  <button
+                    onClick={() => {
+                      clearSessionTimers();
+                      setSessionEnd("none");
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Non, continuer
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">Sans réponse, la séance sera clôturée automatiquement dans 2 min.</p>
+              </div>
+            )}
+            {sessionEnd === "ended" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-sm font-medium text-emerald-700">
+                ✓ Séance de coaching terminée et enregistrée dans « Coaching réalisé par les agents ».
               </div>
             )}
 

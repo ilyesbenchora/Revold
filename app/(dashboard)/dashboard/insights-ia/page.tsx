@@ -111,7 +111,42 @@ export default async function MesCoachingPage() {
     dismissed_at: string;
   };
   const dismissalsList = (allDismissals ?? []) as Dismissal[];
-  const doneInsights = dismissalsList.filter((d) => !d.status || d.status === "done");
+  const dismissedDone = dismissalsList.filter((d) => !d.status || d.status === "done");
+
+  // Séances de coaching clôturées par un agent coach (terminées manuellement
+  // ou automatiquement après inactivité).
+  const { data: sessionsRaw } = await supabase
+    .from("coaching_sessions")
+    .select("id, category, ended_at, auto")
+    .eq("organization_id", orgId)
+    .order("ended_at", { ascending: false })
+    .limit(60);
+  const carouselCat: Record<string, string> = {
+    commercial: "commercial",
+    marketing: "marketing",
+    data: "data",
+    integration: "integration",
+    "cross-source": "cross_source",
+    "data-model": "data_model",
+  };
+  const sessionInsights: Dismissal[] = (sessionsRaw ?? []).map(
+    (s: { id: string; category: string; ended_at: string; auto: boolean }) => ({
+      id: `session-${s.id}`,
+      template_key: "coaching_session",
+      status: "done",
+      title: `Séance de coaching ${catLabel(s.category)}`,
+      body: s.auto
+        ? "Séance clôturée automatiquement après inactivité."
+        : "Séance de coaching menée avec l'agent et clôturée.",
+      severity: "info",
+      category: carouselCat[s.category] ?? s.category,
+      dismissed_at: s.ended_at,
+    }),
+  );
+
+  const doneInsights = [...sessionInsights, ...dismissedDone].sort(
+    (a, b) => new Date(b.dismissed_at).getTime() - new Date(a.dismissed_at).getTime(),
+  );
 
   // Mes coachings IA (activés depuis les rapports) — toutes catégories, actifs.
   const { data: manualCoachingsRaw } = await supabase

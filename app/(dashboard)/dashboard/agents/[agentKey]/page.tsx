@@ -59,6 +59,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         suggestions={agent.suggestions}
         suggestionSets={agent.suggestionSets ?? null}
         coaching={coachingCtx}
+        coachingCategory={coachingCategory}
       />
     </div>
   );
