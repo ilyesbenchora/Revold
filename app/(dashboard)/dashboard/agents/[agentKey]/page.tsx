@@ -46,6 +46,12 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         <p className="mt-1 text-sm text-slate-500">{agent.tagline}</p>
       </div>
 
+      {coachingCategory && (
+        <div className="mb-6">
+          <CoachAgenda category={coachingCategory} label={coachLabel} initial={agenda ?? {}} />
+        </div>
+      )}
+
       <PaiementAgentChat
         agentKey={agent.key}
         agentLabel={agent.label}
@@ -54,12 +60,6 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         suggestionSets={agent.suggestionSets ?? null}
         coaching={coachingCtx}
       />
-
-      {coachingCategory && (
-        <div className="mt-6">
-          <CoachAgenda category={coachingCategory} label={coachLabel} initial={agenda ?? {}} />
-        </div>
-      )}
     </div>
   );
 }

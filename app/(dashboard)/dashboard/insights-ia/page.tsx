@@ -112,7 +112,6 @@ export default async function MesCoachingPage() {
   };
   const dismissalsList = (allDismissals ?? []) as Dismissal[];
   const doneInsights = dismissalsList.filter((d) => !d.status || d.status === "done");
-  const removedInsights = dismissalsList.filter((d) => d.status === "removed");
 
   // Mes coachings IA (activés depuis les rapports) — toutes catégories, actifs.
   const { data: manualCoachingsRaw } = await supabase
@@ -132,7 +131,7 @@ export default async function MesCoachingPage() {
     kpi_label: string | null;
     created_at: string;
   }[];
-
+  const catToAgent: Record<string, string> = Object.fromEntries(categories.map((c) => [c.id, c.agentKey]));
 
   return (
     <div className="space-y-8">
@@ -210,6 +209,20 @@ export default async function MesCoachingPage() {
                 <h3 className="text-sm font-semibold text-slate-900">{m.title}</h3>
                 <p className="mt-1 line-clamp-3 text-xs text-slate-600">{m.recommendation || m.body}</p>
                 {m.kpi_label && <p className="mt-2 text-[11px] text-slate-400">KPI : {m.kpi_label}</p>}
+                <div className="mt-3 flex gap-2">
+                  <Link
+                    href={`/dashboard/agents/${catToAgent[m.category] ?? "coaching-ventes"}`}
+                    className="rounded-lg bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500"
+                  >
+                    Faire le coaching
+                  </Link>
+                  <Link
+                    href={`/dashboard/agents/${catToAgent[m.category] ?? "coaching-ventes"}`}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Planifier un RDV
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
@@ -220,7 +233,7 @@ export default async function MesCoachingPage() {
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-          Coaching réalisé
+          Coaching réalisé par les agents
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{doneInsights.length}</span>
         </h2>
         {doneInsights.length === 0 ? (
@@ -229,22 +242,6 @@ export default async function MesCoachingPage() {
           </div>
         ) : (
           <DismissedCoachingCarousel items={doneInsights} variant="done" />
-        )}
-      </div>
-
-      {/* Coaching retiré — horizontal carousel */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
-          Coaching fait
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{removedInsights.length}</span>
-        </h2>
-        {removedInsights.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center">
-            <p className="text-sm text-slate-500">Aucun coaching retiré.</p>
-          </div>
-        ) : (
-          <DismissedCoachingCarousel items={removedInsights} variant="removed" />
         )}
       </div>
 

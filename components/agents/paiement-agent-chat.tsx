@@ -95,7 +95,6 @@ export function PaiementAgentChat({
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const coachStartedRef = useRef(false);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
@@ -118,18 +117,6 @@ export function PaiementAgentChat({
     }
     setHydrated(true);
   }, [storageKey]);
-
-  // Session de coaching : démarre automatiquement avec le contexte objectifs/pains
-  // si aucune conversation n'existe encore (une seule fois).
-  useEffect(() => {
-    if (!hydrated || coachStartedRef.current) return;
-    const hasCtx = !!coaching && !!((coaching.objectives ?? "").trim() || (coaching.pains ?? "").trim());
-    if (hasCtx && messages.length === 0) {
-      coachStartedRef.current = true;
-      send("Démarre ma séance de coaching sur mes objectifs et mes pains.");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
 
   // Persistance : réécrit localStorage à chaque changement (après hydratation).
   useEffect(() => {
@@ -228,7 +215,11 @@ export function PaiementAgentChat({
   const empty = messages.length === 0;
   const sortedHistory = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const selectedCats = new Set(sources.filter((s) => selected.includes(s.key)).map((s) => s.category));
-  const activeSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
+  const baseSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
+  // Agent coach : propose de démarrer la séance (sans la lancer automatiquement).
+  const activeSuggestions = coaching
+    ? ["Démarrer ma séance de coaching sur mes objectifs et mes pains", ...baseSuggestions]
+    : baseSuggestions;
 
   return (
     <div className="card flex h-[calc(100vh-13rem)] min-h-[32rem] flex-col overflow-hidden">
