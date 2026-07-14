@@ -64,6 +64,9 @@ export function CoachAgenda({
   availableSources = [],
   onSaved,
   onStart,
+  collapsed,
+  onCollapsedChange,
+  sessionStatus = "idle",
 }: {
   category: string;
   label: string;
@@ -78,6 +81,11 @@ export function CoachAgenda({
     attachments: Attachment[];
   }) => void;
   onStart?: () => void;
+  /** État replié/déplié contrôlé par le workspace. */
+  collapsed: boolean;
+  onCollapsedChange: (v: boolean) => void;
+  /** État de la séance côté chat : idle | active | ended. */
+  sessionStatus?: "idle" | "active" | "ended";
 }) {
   const [objectives, setObjectives] = useState(initial.objectives ?? "");
   const [pains, setPains] = useState(initial.pains ?? "");
@@ -87,8 +95,6 @@ export function CoachAgenda({
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  // Replié dès qu'un RDV est enregistré (au chargement ou après sauvegarde).
-  const [collapsed, setCollapsed] = useState(Boolean(initial.next_meeting_at));
 
   function toggleSource(key: string) {
     setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
@@ -118,7 +124,7 @@ export function CoachAgenda({
       setState("done");
       onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments });
       // RDV enregistré → on replie le bloc en confirmation compacte.
-      if (nextMeeting) setCollapsed(true);
+      if (nextMeeting) onCollapsedChange(true);
       setTimeout(() => setState("idle"), 2500);
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Erreur réseau");
@@ -161,17 +167,31 @@ export function CoachAgenda({
           </a>
         )}
         <button
-          onClick={() => setCollapsed(false)}
+          onClick={() => onCollapsedChange(false)}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
         >
           Modifier
         </button>
-        <button
-          onClick={() => onStart?.()}
-          className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-        >
-          Démarrer le coaching
-        </button>
+        {sessionStatus === "active" ? (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-700">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" /> Coaching en cours
+          </span>
+        ) : sessionStatus === "ended" ? (
+          <button
+            onClick={() => onStart?.()}
+            title="Démarrer une nouvelle séance"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+          >
+            ✓ Coaching terminé
+          </button>
+        ) : (
+          <button
+            onClick={() => onStart?.()}
+            className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+          >
+            Démarrer le coaching
+          </button>
+        )}
       </div>
     );
   }

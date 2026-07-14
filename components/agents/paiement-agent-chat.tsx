@@ -83,6 +83,7 @@ export function PaiementAgentChat({
   preselectedSources,
   contextAttachments,
   startSignal,
+  onSessionStatusChange,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -93,9 +94,11 @@ export function PaiementAgentChat({
   coachingCategory?: string | null;
   sessionTracking?: boolean;
   preselectedSources?: string[] | null;
-  /** Fichiers issus du coaching : épinglés (vert, en bas), contexte permanent. */
+  /** Fichiers issus du coaching : contexte permanent injecté à l'agent. */
   contextAttachments?: Attachment[] | null;
   startSignal?: number;
+  /** Remonte l'état de la séance de coaching (bouton de l'agenda). */
+  onSessionStatusChange?: (status: "idle" | "active" | "ended") => void;
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -126,6 +129,8 @@ export function PaiementAgentChat({
   // Fichiers ajoutés dans le chat (via +), supprimables, propres à la conversation.
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
+  // Séance de coaching effectivement démarrée dans cette vue (pas via historique).
+  const [sessionStarted, setSessionStarted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,6 +187,15 @@ export function PaiementAgentChat({
     startCoachingSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSignal, hydrated]);
+
+  // Statut de la séance de coaching, remonté à l'agenda pour le libellé du bouton :
+  // idle (pas démarrée) → active (en cours) → ended (terminée). On s'appuie sur un
+  // flag explicite (démarrage effectif dans cette vue), pas sur l'historique chargé.
+  const coachingStatus: "idle" | "active" | "ended" =
+    sessionEnd === "ended" ? "ended" : sessionStarted ? "active" : "idle";
+  useEffect(() => {
+    onSessionStatusChange?.(coachingStatus);
+  }, [coachingStatus, onSessionStatusChange]);
 
   // Fermeture auto : après 10 min sans activité, on ferme le chat (la conversation
   // reste dans l'historique) et on revient à une page blanche.
@@ -269,10 +283,11 @@ export function PaiementAgentChat({
     setCurrentId(null);
     setMessages([]);
     setAttachments([]);
-    // Les fichiers du coaching restent épinglés (contextFiles) ; on remet juste
-    // les sources au reflet du coaching.
+    // Les fichiers du coaching restent en contexte ; on remet les sources au
+    // reflet du coaching et le statut de séance à zéro.
     if (coachingMode) setSelected(exactCoachingSources());
     setSessionEnd("none");
+    setSessionStarted(false);
     setError(null);
     setTab("chat");
   }
@@ -316,6 +331,7 @@ export function PaiementAgentChat({
   async function runSend(base: Msg[], content: string, id: string) {
     if (loading) return;
     setError(null);
+    if (coachingMode) setSessionStarted(true);
 
     const next: Msg[] = [...base, { role: "user", content }];
     setMessages(next);
