@@ -6,7 +6,7 @@ export default function SimulationsOverviewPage() {
   return (
     <AgentSectionGrid
       section="simulations"
-      title="Simulations IA"
+      title="Prévisions"
       subtitle="Choisis un agent de prévisions pour projeter ta performance à partir de tes données historiques."
       classicHref="/dashboard/alertes"
       classicLabel="Simulations classiques"

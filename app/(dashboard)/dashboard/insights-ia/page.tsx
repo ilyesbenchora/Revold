@@ -161,7 +161,7 @@ export default async function MesCoachingPage() {
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
-          Coaching retiré
+          Coaching fait
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{removedInsights.length}</span>
         </h2>
         {removedInsights.length === 0 ? (

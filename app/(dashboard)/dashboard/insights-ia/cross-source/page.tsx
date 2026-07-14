@@ -3,8 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
-import { MultiToolBanner } from "@/components/multi-tool-banner";
-import { getConnectedTools, summarizeConnected, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { fetchDismissals, fetchCrossSourceInsights } from "../context";
@@ -18,7 +17,6 @@ export default async function CrossSourceCoachingPage() {
   const supabase = await createSupabaseServerClient();
   const { dismissedKeys } = await fetchDismissals(supabase, orgId);
   const connectedTools = await getConnectedTools(supabase, orgId);
-  const connectedSummary = summarizeConnected(connectedTools);
   const connectedCats = connectedCategoriesSet(connectedTools);
   const [crossSourceInsights, manualCoachings] = await Promise.all([
     fetchCrossSourceInsights(supabase, orgId, dismissedKeys, connectedCats),
@@ -59,7 +57,6 @@ export default async function CrossSourceCoachingPage() {
 
   return (
     <div className="space-y-6">
-      <MultiToolBanner summary={connectedSummary} />
       <CoachingPageTabs allItems={allItems} categoryLabel="cross-sources" />
     </div>
   );
