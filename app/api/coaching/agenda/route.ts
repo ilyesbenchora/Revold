@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { sanitizeAttachments } from "@/lib/attachments";
 
 const CATEGORIES = new Set(["commercial", "marketing", "data", "integration", "cross-source", "data-model"]);
 const CADENCES = new Set(["once", "weekly", "biweekly", "monthly", "quarterly"]);
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
     cadence?: string;
     next_meeting_at?: string | null;
     sources?: unknown;
+    attachments?: unknown;
   };
   try {
     body = await request.json();
@@ -40,6 +42,7 @@ export async function POST(request: Request) {
   const sources = Array.isArray(body.sources)
     ? body.sources.filter((s): s is string => typeof s === "string").slice(0, 40)
     : [];
+  const attachments = sanitizeAttachments(body.attachments);
 
   const { error } = await supabase.from("coaching_agendas").upsert(
     {
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
       cadence,
       next_meeting_at: nextMeeting,
       sources,
+      attachments,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "organization_id,category" },

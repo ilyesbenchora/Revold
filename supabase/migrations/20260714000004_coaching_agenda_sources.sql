@@ -3,3 +3,8 @@
 -- au démarrage du chat de coaching.
 ALTER TABLE coaching_agendas
   ADD COLUMN IF NOT EXISTS sources jsonb NOT NULL DEFAULT '[]';
+
+-- Fichiers de contexte joints à l'agenda (Excel/CSV/Google Sheets) : nom,
+-- colonnes, aperçu, nb de lignes. Repris par l'agent coach dans la séance.
+ALTER TABLE coaching_agendas
+  ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]';

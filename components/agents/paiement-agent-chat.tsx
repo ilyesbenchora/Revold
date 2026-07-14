@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MessageArtifacts } from "./message-artifacts";
+import { AttachMenu, AttachmentChips } from "./attach-menu";
+import type { Attachment } from "@/lib/attachments";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 type SourceOption = { key: string; label: string; icon: string; category: string };
@@ -32,6 +34,7 @@ type Conversation = {
   title: string;
   sources: string[];
   messages: Msg[];
+  attachments?: Attachment[];
   updatedAt: number;
 };
 
@@ -78,6 +81,7 @@ export function PaiementAgentChat({
   coachingCategory,
   sessionTracking,
   preselectedSources,
+  initialAttachments,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -88,6 +92,7 @@ export function PaiementAgentChat({
   coachingCategory?: string | null;
   sessionTracking?: boolean;
   preselectedSources?: string[] | null;
+  initialAttachments?: Attachment[] | null;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -108,6 +113,8 @@ export function PaiementAgentChat({
     initialSelected.length ? initialSelected : sources.map((s) => s.key),
   );
   const [error, setError] = useState<string | null>(null);
+  // Fichiers joints à la conversation (Excel/CSV/Google Sheets) injectés en contexte.
+  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments ?? []);
   const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,6 +173,7 @@ export function PaiementAgentChat({
             setCurrentId(latest.id);
             setMessages(latest.messages);
             if (latest.sources.length) setSelected(latest.sources);
+            if (latest.attachments?.length) setAttachments(latest.attachments);
           }
         }
       }
@@ -185,7 +193,7 @@ export function PaiementAgentChat({
     }
   }, [conversations, hydrated, storageKey]);
 
-  function upsertConversation(id: string, msgs: Msg[], srcs: string[]) {
+  function upsertConversation(id: string, msgs: Msg[], srcs: string[], atts: Attachment[]) {
     setConversations((prev) => {
       const rest = prev.filter((c) => c.id !== id);
       const conv: Conversation = {
@@ -193,10 +201,18 @@ export function PaiementAgentChat({
         title: titleFrom(msgs),
         sources: srcs,
         messages: msgs,
+        attachments: atts,
         updatedAt: Date.now(),
       };
       return [conv, ...rest];
     });
+  }
+
+  function addAttachment(att: Attachment) {
+    setAttachments((prev) => [...prev, att]);
+  }
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   function toggleSource(key: string) {
@@ -206,6 +222,7 @@ export function PaiementAgentChat({
   function startNew() {
     setCurrentId(null);
     setMessages([]);
+    setAttachments(initialAttachments ?? []);
     setError(null);
     setTab("chat");
   }
@@ -214,6 +231,7 @@ export function PaiementAgentChat({
     setCurrentId(c.id);
     setMessages(c.messages);
     setSelected(c.sources.length ? c.sources : sources.map((s) => s.key));
+    setAttachments(c.attachments ?? []);
     setError(null);
     setTab("chat");
   }
@@ -233,13 +251,14 @@ export function PaiementAgentChat({
 
     const next: Msg[] = [...messages, { role: "user", content }];
     setMessages(next);
-    upsertConversation(id, next, selected);
+    upsertConversation(id, next, selected, attachments);
     setInput("");
     setLoading(true);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }));
 
     try {
-      // On n'envoie que le texte au serveur (les artefacts sont locaux au rendu).
+      // On n'envoie que le texte + les fichiers joints au serveur (les artefacts
+      // de rendu restent locaux).
       const res = await fetch(`/api/agents/${agentKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -247,6 +266,7 @@ export function PaiementAgentChat({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           sources: selected,
           coaching: coaching ?? null,
+          attachments,
         }),
       });
       const data = await res.json();
@@ -260,7 +280,7 @@ export function PaiementAgentChat({
       };
       const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
-      upsertConversation(id, finalMsgs, selected);
+      upsertConversation(id, finalMsgs, selected, attachments);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -477,27 +497,35 @@ export function PaiementAgentChat({
           )}
 
           {/* Zone de saisie */}
-          <div className="flex items-center gap-2 border-t border-[var(--card-border)] px-4 py-3">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send(input);
-                }
-              }}
-              placeholder="Pose ta question à l'agent…"
-              disabled={loading}
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
-            />
-            <button
-              onClick={() => send(input)}
-              disabled={loading || !input.trim()}
-              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              Envoyer
-            </button>
+          <div className="border-t border-[var(--card-border)] px-4 py-3">
+            {attachments.length > 0 && (
+              <div className="mb-2">
+                <AttachmentChips items={attachments} onRemove={removeAttachment} />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <AttachMenu onAdd={addAttachment} disabled={loading} />
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send(input);
+                  }
+                }}
+                placeholder="Pose ta question à l'agent…"
+                disabled={loading}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
+              />
+              <button
+                onClick={() => send(input)}
+                disabled={loading || !input.trim()}
+                className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Envoyer
+              </button>
+            </div>
           </div>
         </>
       )}

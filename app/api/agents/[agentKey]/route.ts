@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
+import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 
 export const maxDuration = 60;
 
@@ -12,6 +13,7 @@ type Body = {
   messages?: AgentMessage[];
   sources?: string[];
   coaching?: { objectives?: string; pains?: string } | null;
+  attachments?: unknown;
 };
 
 export async function POST(request: Request, { params }: { params: Promise<{ agentKey: string }> }) {
@@ -60,6 +62,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   // Session de coaching : injecte les objectifs/pains si fournis (agents coach).
   if (agent.section === "coaching" && body.coaching && (body.coaching.objectives || body.coaching.pains)) {
     system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");
+  }
+
+  // Fichiers joints (Excel / CSV / Google Sheets) → contexte pour l'agent.
+  const attachments = sanitizeAttachments(body.attachments);
+  if (attachments.length) {
+    system += attachmentsSystemBlock(attachments);
   }
 
   try {

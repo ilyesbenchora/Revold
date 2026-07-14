@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { AttachMenu, AttachmentChips } from "./attach-menu";
+import type { Attachment } from "@/lib/attachments";
 
 const CADENCES = [
   { key: "once", label: "Une seule fois" },
@@ -50,6 +52,7 @@ export type CoachAgendaInitial = {
   cadence?: string | null;
   next_meeting_at?: string | null;
   sources?: string[] | null;
+  attachments?: Attachment[] | null;
 };
 
 export type AgendaSource = { key: string; label: string; icon: string };
@@ -70,6 +73,7 @@ export function CoachAgenda({
   const [cadence, setCadence] = useState(initial.cadence ?? "monthly");
   const [nextMeeting, setNextMeeting] = useState(initial.next_meeting_at ?? "");
   const [sources, setSources] = useState<string[]>(initial.sources ?? []);
+  const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
 
   function toggleSource(key: string) {
@@ -82,7 +86,7 @@ export function CoachAgenda({
       const res = await fetch("/api/coaching/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources }),
+        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments }),
       });
       if (!res.ok) throw new Error();
       setState("done");
@@ -185,6 +189,23 @@ export function CoachAgenda({
             </div>
           </div>
         )}
+        <div>
+          <label className={lbl}>Fichiers de contexte (Excel / Google Sheets)</label>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Joins un ou plusieurs fichiers : l&apos;agent les reprendra dans la séance pour un coaching mieux contextualisé.
+          </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <AttachMenu onAdd={(a) => setAttachments((p) => [...p, a])} size="sm" />
+            <span className="text-[11px] text-slate-400">
+              {attachments.length ? `${attachments.length} fichier(s) joint(s)` : "Aucun fichier joint"}
+            </span>
+          </div>
+          {attachments.length > 0 && (
+            <div className="mt-2">
+              <AttachmentChips items={attachments} onRemove={(id) => setAttachments((p) => p.filter((a) => a.id !== id))} />
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {QUICK_MEETINGS.map((q) => {
             const date = offsetDate(q.days);

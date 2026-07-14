@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getConnectableTool, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { BrandLogo } from "@/components/brand-logo";
+import { SpreadsheetLogo } from "@/components/spreadsheet-logo";
 import { ImportSpreadsheetForm } from "@/components/connect-wizards/import-spreadsheet-form";
 import { importSpreadsheetAction } from "./actions";
 
@@ -56,7 +56,7 @@ export default async function ImportSpreadsheetPage({
 
       <div className="card p-6">
         <div className="flex items-start gap-4">
-          <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={56} />
+          <SpreadsheetLogo size={56} />
           <div className="flex-1">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{getCategoryLabel(tool.category)}</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-900">Importer un fichier Excel / Google Sheets</h1>

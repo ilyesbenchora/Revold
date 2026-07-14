@@ -3,6 +3,7 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
+import { SpreadsheetLogo } from "@/components/spreadsheet-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
 import { SyncParityBlock, type ParityRow } from "@/components/sync-parity-block";
@@ -278,7 +279,11 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                     <tr key={int.id} className="border-b border-card-border last:border-0">
                       <td className="px-5 py-2.5">
                         <div className="flex items-center gap-2">
-                          {tool && <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={24} />}
+                          {int.provider === "spreadsheet" ? (
+                            <SpreadsheetLogo size={24} />
+                          ) : (
+                            tool && <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={24} />
+                          )}
                           <span className="font-medium text-slate-800">{tool?.label ?? int.provider}</span>
                         </div>
                       </td>

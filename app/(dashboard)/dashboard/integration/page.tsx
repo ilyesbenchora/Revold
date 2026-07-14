@@ -14,6 +14,7 @@ import { type DetectedIntegration } from "@/lib/integrations/detect-integrations
 import { type PortalApp } from "@/lib/integrations/detect-portal-apps";
 import { getCanonicalIntegrationData } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
+import { IntegrationImportDropdown } from "@/components/integration-import-dropdown";
 import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/connect-catalog";
 import { guessDomain } from "@/lib/integrations/guess-domain";
 import { Suspense } from "react";
@@ -64,7 +65,8 @@ const CATEGORY_META: Record<ConnectableTool["category"], { label: string; emoji:
   },
 };
 
-const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "files", "phone", "support", "conv_intel", "communication"];
+// "files" est présenté à part via le dropdown Import (sous-page dédiée).
+const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "conv_intel", "communication"];
 
 export default async function IntegrationPage({
   searchParams,
@@ -114,6 +116,16 @@ export default async function IntegrationPage({
   );
   if (hubspotOAuthConnected) connectedKeys.add("hubspot");
 
+  // Historique des imports de fichiers (Excel / Google Sheets) pour le dropdown Import.
+  const { data: importedDatasets } = await supabase
+    .from("imported_datasets")
+    .select("name, source_type, row_count, created_at")
+    .eq("organization_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const datasetCount = importedDatasets?.length ?? 0;
+  const lastImport = importedDatasets?.[0] ?? null;
+
   // Group tools by category
   const toolsByCategory: Record<ConnectableTool["category"], ConnectableTool[]> = {
     crm: [],
@@ -153,6 +165,16 @@ export default async function IntegrationPage({
       </header>
 
       <DataFreshnessIndicator computedAt={meta.computedAt} source={meta.source ?? "sync"} />
+
+      {/* Import de données (Excel / Google Sheets) — sous-page dédiée avec historique */}
+      <div className="space-y-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-green-500 to-emerald-500 text-xs text-white">🟩</span>
+          Import de données
+        </h2>
+        <p className="text-xs text-slate-500">Vos données sont encore dans Excel ou Google Sheets ? Importez-les — Revold les croise avec vos autres sources.</p>
+        <IntegrationImportDropdown datasetCount={datasetCount} lastImport={lastImport} />
+      </div>
 
       <InsightLockedBlock />
 
