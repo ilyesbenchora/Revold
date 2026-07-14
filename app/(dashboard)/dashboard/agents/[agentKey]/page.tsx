@@ -17,7 +17,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
   const tools = orgId ? await getConnectedTools(supabase, orgId) : [];
   const sources = tools
     .filter((t) => agent.sourceCategories.includes(t.category))
-    .map((t) => ({ key: t.key, label: t.label, icon: t.icon }));
+    .map((t) => ({ key: t.key, label: t.label, icon: t.icon, category: t.category }));
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-6">
@@ -34,6 +34,7 @@ export default async function AgentPage({ params }: { params: Promise<{ agentKey
         agentLabel={agent.label}
         sources={sources}
         suggestions={agent.suggestions}
+        suggestionSets={agent.suggestionSets ?? null}
       />
     </div>
   );

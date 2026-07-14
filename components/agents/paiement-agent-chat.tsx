@@ -4,7 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { MessageArtifacts } from "./message-artifacts";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
-type SourceOption = { key: string; label: string; icon: string };
+type SourceOption = { key: string; label: string; icon: string; category: string };
+type SuggestionSets = { crm?: string[]; billing?: string[]; support?: string[]; cross?: string[] } | null;
+
+/** Choisit les suggestions selon les catégories de sources cochées (1 → set dédié, 2+ → croisé). */
+function resolveSuggestions(def: string[], sets: SuggestionSets, cats: Set<string>): string[] {
+  if (!sets) return def;
+  const list = [...cats];
+  if (list.length >= 2 && sets.cross?.length) return sets.cross;
+  if (list.length === 1) {
+    const c = list[0];
+    if (c === "crm" && sets.crm?.length) return sets.crm;
+    if (c === "billing" && sets.billing?.length) return sets.billing;
+    if (c === "support" && sets.support?.length) return sets.support;
+  }
+  return def;
+}
 type Msg = {
   role: "user" | "assistant";
   content: string;
@@ -58,11 +73,13 @@ export function PaiementAgentChat({
   agentLabel,
   sources,
   suggestions,
+  suggestionSets,
 }: {
   agentKey: string;
   agentLabel: string;
   sources: SourceOption[];
   suggestions: string[];
+  suggestionSets?: SuggestionSets;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -194,6 +211,8 @@ export function PaiementAgentChat({
 
   const empty = messages.length === 0;
   const sortedHistory = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const selectedCats = new Set(sources.filter((s) => selected.includes(s.key)).map((s) => s.category));
+  const activeSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
 
   return (
     <div className="card flex h-[calc(100vh-13rem)] min-h-[32rem] flex-col overflow-hidden">
@@ -352,7 +371,7 @@ export function PaiementAgentChat({
           {/* Suggestions */}
           {empty && (
             <div className="flex flex-wrap gap-2 border-t border-[var(--card-border)] px-4 py-3">
-              {suggestions.map((s) => (
+              {activeSuggestions.map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}

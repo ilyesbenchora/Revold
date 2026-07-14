@@ -31,6 +31,8 @@ export type AgentDef = {
   expertise: string;
   tools: AgentTool[];
   suggestions: string[];
+  /** Suggestions dynamiques selon la/les source(s) cochée(s) : 1 catégorie → set dédié, 2+ → set croisé. */
+  suggestionSets?: { crm?: string[]; billing?: string[]; support?: string[]; cross?: string[] };
   /** Catégories de sources proposées à la sélection dans l'UI. */
   sourceCategories: string[];
 };
@@ -91,6 +93,22 @@ const AGENT_LIST: AgentDef[] = [
       "Analyse la santé de mon pipeline vs les benchmarks",
       "Fais-moi un rapport de performance commerciale",
     ],
+    suggestionSets: {
+      crm: [
+        "Quel est mon closing rate et où est mon goulot ?",
+        "Répartis mes deals par étape de pipeline (3 mois)",
+        "Mon cycle de vente est-il trop long ?",
+      ],
+      billing: [
+        "Mon revenu récurrent est-il en croissance ?",
+        "Quelle est la santé de mon encaissement ?",
+      ],
+      cross: [
+        "Mon CA signé se transforme-t-il bien en CA facturé ?",
+        "Où je perds du revenu entre le closing et l'encaissement ?",
+        "Rapport performance : pipeline (CRM) croisé au facturé",
+      ],
+    },
     sourceCategories: ["crm", "billing"],
   },
   {
@@ -122,6 +140,23 @@ const AGENT_LIST: AgentDef[] = [
       "Compare mon CA signé (CRM) vs mon CA facturé",
       "Fais un rapport revenue avec la répartition payé/impayé",
     ],
+    suggestionSets: {
+      crm: [
+        "Quel CA ai-je signé dans le CRM ce trimestre ?",
+        "Combien de deals gagnés et pour quel montant ?",
+        "Quels deals gagnés sont sans montant ou incohérents ?",
+      ],
+      billing: [
+        "Quel est mon MRR, mon ARR et mon taux de churn ?",
+        "Montre-moi mes plus grosses factures impayées",
+        "Répartis mes factures par statut",
+      ],
+      cross: [
+        "Compare mon CA signé (CRM) vs mon CA facturé",
+        "Quels deals gagnés ne sont pas encore facturés ?",
+        "Où sont les écarts entre pipeline gagné et encaissement ?",
+      ],
+    },
     sourceCategories: ["billing", "crm"],
   },
   {
@@ -137,6 +172,21 @@ const AGENT_LIST: AgentDef[] = [
       "Quelle est ma charge de tickets et combien sont ouverts ?",
       "Croise mon support et mon MRR pour prioriser la rétention",
     ],
+    suggestionSets: {
+      support: [
+        "Quelle est ma charge de tickets et combien sont ouverts ?",
+        "Où sont mes principaux signaux d'insatisfaction ?",
+      ],
+      billing: [
+        "Quel MRR est exposé à un risque de churn ?",
+        "Quels clients à fort MRR dois-je sécuriser ?",
+      ],
+      cross: [
+        "Quels clients à fort MRR ont des tickets ouverts ?",
+        "Croise support et facturation pour prioriser la rétention",
+        "Où est mon MRR le plus à risque côté support ?",
+      ],
+    },
     sourceCategories: ["support", "crm", "billing"],
   },
   {
@@ -244,6 +294,24 @@ const AGENT_LIST: AgentDef[] = [
       "Quels clients à fort MRR ont des tickets support ouverts ?",
       "Quels écarts entre mes sources dois-je corriger en priorité ?",
     ],
+    suggestionSets: {
+      crm: [
+        "Mon pipeline reflète-t-il la réalité du revenu ?",
+        "Quels deals gagnés méritent une revue de cohérence ?",
+      ],
+      billing: [
+        "Quels clients pèsent le plus de MRR ?",
+        "Où est mon risque de churn revenue ?",
+      ],
+      support: [
+        "Quels clients ont le plus de tickets ouverts ?",
+      ],
+      cross: [
+        "Compare mon CA signé (CRM) vs mon CA facturé",
+        "Quels clients à fort MRR ont des tickets support ouverts ?",
+        "Quels écarts entre mes sources dois-je corriger en priorité ?",
+      ],
+    },
     sourceCategories: ["crm", "billing", "support"],
   },
   {
@@ -306,6 +374,21 @@ const AGENT_LIST: AgentDef[] = [
       "Impact du churn actuel sur mon MRR dans 6 mois ?",
       "Scénario si je réduis le churn de moitié ?",
     ],
+    suggestionSets: {
+      billing: [
+        "Projette mon ARR à 12 mois (3 scénarios)",
+        "Impact du churn actuel sur mon MRR dans 6 mois ?",
+        "Scénario : si je réduis le churn de moitié, quel ARR ?",
+      ],
+      crm: [
+        "Projette le CA signable depuis mon pipeline",
+        "Vais-je atteindre mon objectif de revenue signé ?",
+      ],
+      cross: [
+        "Projette mon revenue en croisant pipeline (CRM) et facturation",
+        "Combien de pipeline gagné va réellement se facturer ?",
+      ],
+    },
     sourceCategories: ["billing", "crm"],
   },
   {
@@ -338,6 +421,23 @@ const AGENT_LIST: AgentDef[] = [
       "Rapport : donut payé/impayé + KPIs MRR/ARR",
       "Quels KPIs mettre dans mon dashboard de direction ?",
     ],
+    suggestionSets: {
+      crm: [
+        "Rapport pipeline : deals par étape (3 derniers mois)",
+        "Rapport de performance commerciale",
+      ],
+      billing: [
+        "Rapport revenue : MRR/ARR + payé vs impayé",
+        "Rapport d'encaissement par mois",
+      ],
+      support: [
+        "Rapport service client : tickets ouverts/résolus",
+      ],
+      cross: [
+        "Rapport revenue à 360° : CRM + facturation",
+        "Rapport : CA signé (CRM) vs CA facturé par mois",
+      ],
+    },
     sourceCategories: ["crm", "billing", "support"],
   },
 ];
