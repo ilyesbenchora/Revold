@@ -481,7 +481,9 @@ Méthode de séance :
 2. Propose 2 à 4 pistes de travail concrètes pour CETTE séance (numérotées) et demande-lui laquelle creuser — laisse-le orienter la session.
 3. Sur la piste choisie : va chercher les chiffres réels via tes outils, pose un diagnostic, remonte à la cause, puis donne 1 à 3 ACTIONS concrètes et exécutables pour avancer sur ce pain et se rapprocher de l'objectif.
 4. À chaque étape, termine en proposant les prochaines options possibles pour qu'il choisisse la suite. Ne fais jamais un monologue : avance par petits pas guidés.
-5. En fin de séance, récapitule le plan d'action retenu.`;
+5. En fin de séance, récapitule le plan d'action retenu.
+
+Si des fichiers de données sont joints (voir la section « Fichier joint » plus bas), exploite-les EN PRIORITÉ comme contexte : analyse-les, croise-les avec les autres sources, et appuie ton diagnostic et tes actions dessus. Mentionne explicitement que tu t'appuies sur le(s) fichier(s) fourni(s).`;
 }
 
 export function listAgentsBySection(section: AgentSection): AgentDef[] {
