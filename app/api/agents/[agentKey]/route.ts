@@ -4,11 +4,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
-import { getAgent, buildSystemPrompt } from "@/lib/ai/agents/registry";
+import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
 
 export const maxDuration = 60;
 
-type Body = { messages?: AgentMessage[]; sources?: string[] };
+type Body = {
+  messages?: AgentMessage[];
+  sources?: string[];
+  coaching?: { objectives?: string; pains?: string } | null;
+};
 
 export async function POST(request: Request, { params }: { params: Promise<{ agentKey: string }> }) {
   const { agentKey } = await params;
@@ -49,9 +53,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const hubspotToken = await getHubSpotToken(supabase, orgId);
   const client = new Anthropic({ apiKey: anthropicKey });
 
-  const system =
+  let system =
     buildSystemPrompt(agent) +
     `\n\nSources sélectionnées pour cette conversation : ${sources.length ? sources.join(", ") : "aucune sélection explicite (utilise la source configurée par défaut)"}.`;
+
+  // Session de coaching : injecte les objectifs/pains si fournis (agents coach).
+  if (agent.section === "coaching" && body.coaching && (body.coaching.objectives || body.coaching.pains)) {
+    system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");
+  }
 
   try {
     const result = await runAgentTurn({

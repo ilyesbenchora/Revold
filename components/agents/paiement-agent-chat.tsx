@@ -74,12 +74,14 @@ export function PaiementAgentChat({
   sources,
   suggestions,
   suggestionSets,
+  coaching,
 }: {
   agentKey: string;
   agentLabel: string;
   sources: SourceOption[];
   suggestions: string[];
   suggestionSets?: SuggestionSets;
+  coaching?: { objectives: string; pains: string } | null;
 }) {
   const storageKey = `revold:agent:${agentKey}:v1`;
   const [hydrated, setHydrated] = useState(false);
@@ -93,6 +95,7 @@ export function PaiementAgentChat({
   const [selected, setSelected] = useState<string[]>(sources.map((s) => s.key));
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const coachStartedRef = useRef(false);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
@@ -115,6 +118,18 @@ export function PaiementAgentChat({
     }
     setHydrated(true);
   }, [storageKey]);
+
+  // Session de coaching : démarre automatiquement avec le contexte objectifs/pains
+  // si aucune conversation n'existe encore (une seule fois).
+  useEffect(() => {
+    if (!hydrated || coachStartedRef.current) return;
+    const hasCtx = !!coaching && !!((coaching.objectives ?? "").trim() || (coaching.pains ?? "").trim());
+    if (hasCtx && messages.length === 0) {
+      coachStartedRef.current = true;
+      send("Démarre ma séance de coaching sur mes objectifs et mes pains.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   // Persistance : réécrit localStorage à chaque changement (après hydratation).
   useEffect(() => {
@@ -187,6 +202,7 @@ export function PaiementAgentChat({
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           sources: selected,
+          coaching: coaching ?? null,
         }),
       });
       const data = await res.json();

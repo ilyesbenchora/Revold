@@ -5,7 +5,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
-import { CoachingAgenda, type Agenda } from "@/components/coaching-agenda";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
@@ -134,16 +133,6 @@ export default async function MesCoachingPage() {
     created_at: string;
   }[];
 
-  // Agendas de coaching (objectifs + RDV par coach) — tolère l'absence de table.
-  const { data: agendaRows } = await supabase
-    .from("coaching_agendas")
-    .select("category, objectives, pains, cadence, next_meeting_at")
-    .eq("organization_id", orgId);
-  const agendas: Record<string, Agenda> = {};
-  for (const r of (agendaRows ?? []) as Array<Agenda & { category: string }>) {
-    agendas[r.category] = { objectives: r.objectives, pains: r.pains, cadence: r.cadence, next_meeting_at: r.next_meeting_at };
-  }
-  const coaches = categories.map((c) => ({ id: c.id, label: c.label, agentKey: c.agentKey }));
 
   return (
     <div className="space-y-8">
@@ -192,16 +181,6 @@ export default async function MesCoachingPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* Agenda de coaching — objectifs + RDV par coach */}
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-slate-900">Objectifs &amp; rendez-vous de coaching</h2>
-        <p className="text-sm text-slate-500">
-          Fixe des objectifs et des points de vigilance par coach, et programme tes rendez-vous de suivi récurrents
-          (hebdo, bi-mensuel, mensuel, trimestriel).
-        </p>
-        <CoachingAgenda coaches={coaches} agendas={agendas} />
       </div>
 
       {/* Mes coachings IA — toutes catégories, activés depuis les rapports */}

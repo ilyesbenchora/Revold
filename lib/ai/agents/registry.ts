@@ -459,6 +459,31 @@ export function getAgent(key: string): AgentDef | null {
   return AGENTS[key] ?? null;
 }
 
+/** Mapping agent coach → catégorie de coaching (pour charger l'agenda/objectifs). */
+export const COACHING_CATEGORY: Record<string, string> = {
+  "coaching-ventes": "commercial",
+  "coaching-marketing": "marketing",
+  "coaching-data": "data",
+  "coaching-integration": "integration",
+  "coaching-cross-source": "cross-source",
+  "coaching-data-model": "data-model",
+};
+
+/** Directive de session de coaching injectée quand des objectifs/pains sont définis. */
+export function coachingDirective(objectives: string, pains: string): string {
+  return `\n\nSESSION DE COACHING (pas un simple chat — sois interactif et guidant).
+Contexte de l'utilisateur :
+- Objectifs : ${objectives || "(non renseignés)"}
+- Pains / points de vigilance : ${pains || "(non renseignés)"}
+
+Méthode de séance :
+1. Ouvre en reformulant brièvement ses objectifs et ses pains (1-2 phrases, ton de coach).
+2. Propose 2 à 4 pistes de travail concrètes pour CETTE séance (numérotées) et demande-lui laquelle creuser — laisse-le orienter la session.
+3. Sur la piste choisie : va chercher les chiffres réels via tes outils, pose un diagnostic, remonte à la cause, puis donne 1 à 3 ACTIONS concrètes et exécutables pour avancer sur ce pain et se rapprocher de l'objectif.
+4. À chaque étape, termine en proposant les prochaines options possibles pour qu'il choisisse la suite. Ne fais jamais un monologue : avance par petits pas guidés.
+5. En fin de séance, récapitule le plan d'action retenu.`;
+}
+
 export function listAgentsBySection(section: AgentSection): AgentDef[] {
   return AGENT_LIST.filter((a) => a.section === section);
 }
