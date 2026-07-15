@@ -7,6 +7,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   buildContext,
   fetchDismissals,
@@ -226,7 +227,7 @@ export default async function MesCoachingPage() {
                 <span aria-hidden className="pointer-events-none absolute -right-3 -bottom-4 select-none text-[5.5rem] leading-none opacity-[0.07] transition group-hover:opacity-[0.13]">
                   {persona.emoji}
                 </span>
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-lg shadow-sm ring-1 ring-black/5 transition group-hover:bg-white">{persona.emoji}</div>
+                <AgentAvatar name={persona.name} emoji={persona.emoji} size={38} className="mt-0.5" />
                 <div className="relative z-10 flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">

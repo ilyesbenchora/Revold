@@ -5,6 +5,7 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 
@@ -72,14 +73,14 @@ export default async function AgentPage({
           {persona.emoji}
         </span>
         <div className="relative z-10 flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-2xl shadow-sm ring-1 ring-black/5">
-            {persona.emoji}
-          </span>
+          <AgentAvatar name={persona.name} emoji={persona.emoji} size={48} />
           <div>
             <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-              <span>✨</span> {persona.name} · {coachingCategory ? "Coach IA" : "Agent IA"}
+              <span>✨</span> {coachingCategory ? "Coach IA" : "Agent IA"} · augmenté par l&apos;IA
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">{agent.label}</h1>
+            <h1 className="text-xl font-semibold text-slate-900">
+              {persona.name}, ton {persona.role.toLowerCase()}
+            </h1>
             <p className="mt-0.5 text-sm text-slate-600">{agent.tagline}</p>
           </div>
         </div>
