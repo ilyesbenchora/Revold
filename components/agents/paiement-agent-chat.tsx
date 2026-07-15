@@ -610,7 +610,7 @@ export function PaiementAgentChat({
                   </div>
                 )}
                 <div className="rounded-2xl border border-[var(--card-border)] bg-white px-3.5 py-2.5 text-sm text-slate-400">
-                  L&apos;agent analyse tes données…
+                  {persona ? `${persona.name} analyse tes données…` : "L'agent analyse tes données…"}
                 </div>
               </div>
             )}

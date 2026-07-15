@@ -29,6 +29,15 @@ export function MessageArtifacts({
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [channels, setChannels] = useState<string[]>(["app"]);
   const [saved, setSaved] = useState(false);
+  // Édition inline de l'alerte suggérée.
+  const [editing, setEditing] = useState(false);
+  const [kpiValue, setKpiValue] = useState("");
+  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">("percent");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [continuous, setContinuous] = useState(true);
+  const [descEdit, setDescEdit] = useState<string | null>(null);
+  const [impactEdit, setImpactEdit] = useState<string | null>(null);
 
   const hasReport = !!(report || chart);
   const reportTitle = report?.title || chart?.title || "ce rapport";
@@ -72,12 +81,24 @@ export function MessageArtifacts({
     if (!effectiveAction) return;
     setState("saving");
     const chosen = channels.length ? channels : ["app"];
-    // L'alerte est indépendante de l'enregistrement du rapport (blocs séparés).
+    // Action finale = suggestion Revold + éventuelles modifications utilisateur.
+    const finalAction = {
+      ...effectiveAction,
+      description: descEdit ?? effectiveAction.description,
+      impact: impactEdit ?? effectiveAction.impact,
+    };
     try {
       const res = await fetch(`/api/agents/${agentKey}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: effectiveAction, channels: chosen }),
+        body: JSON.stringify({
+          action: finalAction,
+          channels: chosen,
+          threshold: kpiValue ? Number(kpiValue) : null,
+          unit_mode: kpiFormat,
+          date_from: dateFrom || null,
+          date_to: continuous ? null : dateTo || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec");
@@ -132,24 +153,89 @@ export function MessageArtifacts({
           </div>
 
           <div className="space-y-3 p-3.5">
-            <div>
-              <SectionLabel>Objectif</SectionLabel>
-              <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900 break-words">
-                {readable(effectiveAction.title)}
+            {/* Objectif (gauche) + KPIs attendus (droite) */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <SectionLabel>Objectif</SectionLabel>
+                <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900 break-words">
+                  {readable(effectiveAction.title)}
+                </div>
+              </div>
+              <div>
+                <SectionLabel>KPI attendu</SectionLabel>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    value={kpiValue}
+                    onChange={(e) => setKpiValue(e.target.value)}
+                    disabled={done}
+                    placeholder="Ex : 30"
+                    className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
+                  />
+                  <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                    {(["percent", "count"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setKpiFormat(f)}
+                        disabled={done}
+                        className={`px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60 ${
+                          kpiFormat === f ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+                        {f === "percent" ? "%" : "Nombre"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Période : date de début / fin (ou en continu) */}
+            <div>
+              <SectionLabel>Période de suivi</SectionLabel>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <label className="text-[11px] text-slate-400">
+                  Début
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} disabled={done}
+                    className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-fuchsia-300 disabled:opacity-60" />
+                </label>
+                {!continuous && (
+                  <label className="text-[11px] text-slate-400">
+                    Fin
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} disabled={done}
+                      className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-fuchsia-300 disabled:opacity-60" />
+                  </label>
+                )}
+                <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} disabled={done} />
+                  En continu (sans date de fin)
+                </label>
+              </div>
+            </div>
+
             <div>
               <SectionLabel>Description</SectionLabel>
-              <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
-                {readable(effectiveAction.description)}
-              </p>
+              {editing ? (
+                <textarea rows={2} value={descEdit ?? ""} onChange={(e) => setDescEdit(e.target.value)}
+                  className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+              ) : (
+                <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
+                  {descEdit ?? readable(effectiveAction.description)}
+                </p>
+              )}
             </div>
-            {effectiveAction.impact && (
+            {(editing || effectiveAction.impact) && (
               <div>
                 <SectionLabel>Impact attendu</SectionLabel>
-                <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
-                  {readable(effectiveAction.impact)}
-                </p>
+                {editing ? (
+                  <textarea rows={2} value={impactEdit ?? ""} onChange={(e) => setImpactEdit(e.target.value)}
+                    className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+                ) : (
+                  <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
+                    {impactEdit ?? (effectiveAction.impact ? readable(effectiveAction.impact) : "")}
+                  </p>
+                )}
               </div>
             )}
 
@@ -187,13 +273,28 @@ export function MessageArtifacts({
                   </Link>
                 </span>
               ) : (
-                <button
-                  onClick={confirm}
-                  disabled={state === "saving"}
-                  className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                >
-                  {state === "saving" ? "Activation…" : "Activer l'alerte"}
-                </button>
+                <>
+                  <button
+                    onClick={confirm}
+                    disabled={state === "saving"}
+                    className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {state === "saving" ? "Activation…" : "Activer l'alerte"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editing) {
+                        setDescEdit(descEdit ?? readable(effectiveAction.description));
+                        setImpactEdit(impactEdit ?? (effectiveAction.impact ? readable(effectiveAction.impact) : ""));
+                      }
+                      setEditing((v) => !v);
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    {editing ? "✓ Terminer la modification" : "Modifier l'alerte"}
+                  </button>
+                </>
               )}
               {state === "error" && <span className="text-xs text-red-500">Échec de la création.</span>}
             </div>
