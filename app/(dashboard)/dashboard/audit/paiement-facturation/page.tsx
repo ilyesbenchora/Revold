@@ -9,7 +9,6 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 
@@ -56,16 +55,6 @@ export default async function PaiementFacturationOverviewPage() {
       </header>
 
       <PaiementFacturationTabs />
-
-      <CrossToolSelectorBlock
-        connectedTools={billingConnected}
-        suggestedTools={billingSuggestions}
-        description={
-          hasMapping
-            ? "Outil source défini dans Paramètres → Intégrations. Modifiable depuis cette page."
-            : "Sélectionnez les outils pour filtrer les facturations & paiements pertinents."
-        }
-      />
 
       <InsightLockedBlock
         previewTitle={`Analyse IA paiements & facturation (score ${data.score}/100)`}

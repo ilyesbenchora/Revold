@@ -9,7 +9,6 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { CrossToolSelectorBlock } from "@/components/cross-tool-selector-block";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 
@@ -55,16 +54,6 @@ export default async function ServiceClientOverviewPage() {
       </header>
 
       <ServiceClientTabs />
-
-      <CrossToolSelectorBlock
-        connectedTools={supportConnected}
-        suggestedTools={supportSuggestions}
-        description={
-          hasMapping
-            ? "Outil source défini dans Paramètres → Intégrations. Modifiable depuis cette page."
-            : "Sélectionnez les outils pour filtrer les tickets, conversations et signaux de satisfaction pertinents."
-        }
-      />
 
       <InsightLockedBlock
         previewTitle={`Analyse IA service client (score ${data.score}/100)`}

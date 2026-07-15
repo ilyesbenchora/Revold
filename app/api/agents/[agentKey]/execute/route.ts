@@ -36,22 +36,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const allowed = new Set(["finance", "sales", "revops", "marketing", "csm"]);
   const category = allowed.has(action.category ?? "") ? action.category! : "revops";
 
-  const { data, error } = await supabase
-    .from("alerts")
-    .insert({
-      organization_id: orgId,
-      title: action.title.slice(0, 200),
-      description: action.description || action.title,
-      impact: action.impact || "Impact à préciser",
-      category,
-      status: "active",
-    })
-    .select("id")
-    .single();
+  const row = {
+    organization_id: orgId,
+    title: action.title.slice(0, 200),
+    description: action.description || action.title,
+    impact: action.impact || "Impact à préciser",
+    category,
+    status: "active",
+  };
+
+  let { data, error } = await supabase.from("alerts").insert({ ...row, agent_key: agentKey }).select("id").single();
+  // Résilience : colonne agent_key absente (migration non appliquée).
+  if (error && /agent_key/.test(error.message)) {
+    ({ data, error } = await supabase.from("alerts").insert(row).select("id").single());
+  }
 
   if (error) {
     console.error(`[agent:${agentKey}] execute failed`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, id: data.id });
+  return NextResponse.json({ ok: true, id: data?.id });
 }

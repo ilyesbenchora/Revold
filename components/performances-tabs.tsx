@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/performances/commerciale", label: "Ventes" },
   { href: "/dashboard/performances/marketing", label: "Marketing" },
-  { href: "/dashboard/performances/recommandations", label: "Recommandations", highlight: true },
 ];
 
 export function PerformancesTabs() {

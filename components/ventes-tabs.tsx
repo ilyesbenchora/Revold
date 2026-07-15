@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 export function VentesTabs() {
   const pathname = usePathname();
   const tabs: Array<{ href: string; label: string }> = [
-    { href: "/dashboard/performances/commerciale", label: "Vue d'ensemble" },
-    { href: "/dashboard/performances/commerciale/deals-a-risque", label: "Deals à risque" },
-    { href: "/dashboard/performances/commerciale/forecast-management", label: "Forecast Management" },
+    { href: "/dashboard/performances/commerciale", label: "Cycle de ventes" },
+    { href: "/dashboard/performances/commerciale/deals-a-risque", label: "Transactions à risque" },
+    { href: "/dashboard/performances/commerciale/forecast-management", label: "Transactions expirées" },
     { href: "/dashboard/performances/commerciale/mes-alertes", label: "Mes alertes" },
   ];
 
