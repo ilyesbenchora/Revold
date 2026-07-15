@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CoachAgenda, type CoachAgendaInitial, type AgendaSource } from "./coach-agenda";
 import { PaiementAgentChat } from "./paiement-agent-chat";
+import { SavedReportsCarousel } from "./saved-reports-carousel";
 import type { Attachment } from "@/lib/attachments";
 
 type SourceOption = { key: string; label: string; icon: string; category: string };
@@ -173,6 +174,9 @@ export function CoachingWorkspace({
         openConversationSignal={openConv}
         persona={persona}
       />
+
+      {/* Rapports enregistrés depuis le coaching, en carrousel */}
+      <SavedReportsCarousel agentKey={agentKey} />
 
       {/* Historique des rendez-vous de coaching (conversations passées) */}
       <div className="mt-6 card p-5">
