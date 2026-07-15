@@ -34,13 +34,24 @@ export default async function AgentPage({
   const coachingCategory = COACHING_CATEGORY[agentKey] ?? null;
   let agenda: CoachAgendaInitial | null = null;
   if (coachingCategory && orgId) {
-    const { data } = await supabase
+    const first = await supabase
       .from("coaching_agendas")
       .select("objectives, pains, cadence, next_meeting_at, next_meeting_time, sources, attachments")
       .eq("organization_id", orgId)
       .eq("category", coachingCategory)
       .maybeSingle();
-    agenda = (data as CoachAgendaInitial | null) ?? {};
+    let data: CoachAgendaInitial | null = (first.data as CoachAgendaInitial | null) ?? null;
+    // Résilience : colonne next_meeting_time absente (migration non appliquée).
+    if (first.error && /next_meeting_time/.test(first.error.message)) {
+      const fb = await supabase
+        .from("coaching_agendas")
+        .select("objectives, pains, cadence, next_meeting_at, sources, attachments")
+        .eq("organization_id", orgId)
+        .eq("category", coachingCategory)
+        .maybeSingle();
+      data = (fb.data as CoachAgendaInitial | null) ?? null;
+    }
+    agenda = data ?? {};
   }
 
   // Coaching issu d'un rapport (?rc=…) : on récupère la donnée du rapport pour

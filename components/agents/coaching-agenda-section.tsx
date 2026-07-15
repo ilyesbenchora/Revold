@@ -30,13 +30,23 @@ export async function CoachingAgendaSection({ category }: { category: string }) 
 
   let agenda: CoachAgendaInitial = {};
   if (orgId) {
-    const { data } = await supabase
+    const first = await supabase
       .from("coaching_agendas")
       .select("objectives, pains, cadence, next_meeting_at, next_meeting_time, sources, attachments")
       .eq("organization_id", orgId)
       .eq("category", category)
       .maybeSingle();
-    agenda = (data as CoachAgendaInitial | null) ?? {};
+    let data: CoachAgendaInitial | null = (first.data as CoachAgendaInitial | null) ?? null;
+    if (first.error && /next_meeting_time/.test(first.error.message)) {
+      const fb = await supabase
+        .from("coaching_agendas")
+        .select("objectives, pains, cadence, next_meeting_at, sources, attachments")
+        .eq("organization_id", orgId)
+        .eq("category", category)
+        .maybeSingle();
+      data = (fb.data as CoachAgendaInitial | null) ?? null;
+    }
+    agenda = data ?? {};
   }
 
   const tools = orgId ? await getConnectedTools(supabase, orgId) : [];

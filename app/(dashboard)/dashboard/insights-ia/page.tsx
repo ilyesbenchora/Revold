@@ -105,12 +105,22 @@ export default async function MesCoachingPage() {
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const nowMs = now.getTime();
-  const { data: plannedRaw } = await supabase
+  const plannedFirst = await supabase
     .from("coaching_agendas")
     .select("category, objectives, cadence, next_meeting_at, next_meeting_time")
     .eq("organization_id", orgId)
     .gte("next_meeting_at", todayStr)
     .order("next_meeting_at", { ascending: true });
+  let plannedRaw: unknown[] | null = plannedFirst.data;
+  if (plannedFirst.error && /next_meeting_time/.test(plannedFirst.error.message)) {
+    const fb = await supabase
+      .from("coaching_agendas")
+      .select("category, objectives, cadence, next_meeting_at")
+      .eq("organization_id", orgId)
+      .gte("next_meeting_at", todayStr)
+      .order("next_meeting_at", { ascending: true });
+    plannedRaw = fb.data;
+  }
   const plannedCoachings = ((plannedRaw ?? []) as {
     category: string;
     objectives: string | null;

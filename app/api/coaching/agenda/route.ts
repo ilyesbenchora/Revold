@@ -46,24 +46,29 @@ export async function POST(request: Request) {
     : [];
   const attachments = sanitizeAttachments(body.attachments);
 
-  const { error } = await supabase.from("coaching_agendas").upsert(
-    {
-      organization_id: orgId,
-      category,
-      objectives: (body.objectives ?? "").slice(0, 4000),
-      pains: (body.pains ?? "").slice(0, 4000),
-      cadence,
-      next_meeting_at: nextMeeting,
-      next_meeting_time: nextTime,
-      sources,
-      attachments,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "organization_id,category" },
-  );
+  const base = {
+    organization_id: orgId,
+    category,
+    objectives: (body.objectives ?? "").slice(0, 4000),
+    pains: (body.pains ?? "").slice(0, 4000),
+    cadence,
+    next_meeting_at: nextMeeting,
+    sources,
+    attachments,
+    updated_at: new Date().toISOString(),
+  };
+
+  let { error } = await supabase
+    .from("coaching_agendas")
+    .upsert({ ...base, next_meeting_time: nextTime }, { onConflict: "organization_id,category" });
+
+  // Résilience : si la colonne next_meeting_time n'existe pas encore (migration
+  // non appliquée), on réenregistre sans elle pour ne pas bloquer la prise de RDV.
+  if (error && /next_meeting_time/.test(error.message)) {
+    ({ error } = await supabase.from("coaching_agendas").upsert(base, { onConflict: "organization_id,category" }));
+  }
 
   if (error) {
-    // Table absente (migration non appliquée) → message explicite.
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
