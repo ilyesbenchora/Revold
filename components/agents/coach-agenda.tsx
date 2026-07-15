@@ -334,7 +334,7 @@ export function CoachAgenda({
       <div className="mt-4 flex items-center gap-2">
         <button onClick={save} disabled={state === "saving"}
           className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60">
-          {state === "saving" ? "Enregistrement…" : "Enregistrer l'agenda"}
+          {state === "saving" ? "Enregistrement…" : "Enregistrer le rendez-vous"}
         </button>
         {state === "done" && <span className="text-xs font-medium text-emerald-600">✓ Enregistré — ajoute le RDV à ton agenda ci-dessus</span>}
         {state === "error" && (
