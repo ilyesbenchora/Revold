@@ -5,25 +5,9 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { CreateAlertModal } from "@/components/create-alert-modal";
-import { AlertBody } from "@/components/agents/alert-ui";
+import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
 
-type AlertRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  impact: string | null;
-  category: string | null;
-  status: string | null;
-  team: string | null;
-  created_at: string | null;
-  date_from: string | null;
-  date_to: string | null;
-  notification_channels: string[] | null;
-};
-
-function fmt(d: string | null): string {
-  return d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "";
-}
+type AlertRow = EditableAlert & { status: string | null; team: string | null };
 
 export default async function VentesAlertesPage() {
   const orgId = await getOrgId();
@@ -32,7 +16,7 @@ export default async function VentesAlertesPage() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("alerts")
-    .select("id, title, description, impact, category, status, team, created_at, date_from, date_to, notification_channels")
+    .select("id, title, description, impact, category, status, team, threshold, unit_mode, created_at, date_from, date_to, notification_channels")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -63,23 +47,7 @@ export default async function VentesAlertesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {alerts.map((a) => (
-            <div key={a.id} className="card p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-                  <span>✨</span> Alerte performance
-                </span>
-                <span className="text-xs text-slate-400">
-                  {a.date_from || a.date_to ? `${fmt(a.date_from)} → ${fmt(a.date_to)}` : fmt(a.created_at)}
-                </span>
-              </div>
-              <AlertBody
-                title={a.title}
-                description={a.description ?? ""}
-                impact={a.impact}
-                category={a.category}
-                channels={a.notification_channels ?? undefined}
-              />
-            </div>
+            <EditableAlertCard key={a.id} alert={a} badge="Alerte performance" />
           ))}
         </div>
       )}
