@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot, getSnapshotMeta } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
+import { DataFreshnessIndicator } from "@/components/data-freshness-indicator";
 import { CONNECTABLE_TOOLS, getCategoryLabel } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
 import { SpreadsheetLogo } from "@/components/spreadsheet-logo";
@@ -40,6 +41,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
   const supabase = await createSupabaseServerClient();
+  const snapMeta = await getSnapshotMeta();
   const [{ data: integrations }, snapshot, mappingOptions, mappingValues, { data: parityRows }] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
     getHubspotSnapshot(),
@@ -82,6 +84,9 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       </header>
 
       <ParametresTabs />
+
+      {/* État de fraîcheur des données + actions de resync (déplacé ici) */}
+      <DataFreshnessIndicator computedAt={snapMeta.computedAt} source={snapMeta.source ?? "sync"} />
 
       {/* Banners post-OAuth */}
       {params.hs_connected && (

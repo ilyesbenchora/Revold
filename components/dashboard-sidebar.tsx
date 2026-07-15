@@ -244,6 +244,30 @@ const previsionsChildren: LeafLink[] = [
   },
 ];
 
+const integrationsChildren: LeafLink[] = [
+  {
+    href: "/dashboard/integration/mes-outils",
+    label: "Mes outils connectés",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+    ),
+  },
+  {
+    href: "/dashboard/integration/bibliotheque",
+    label: "Bibliothèque d’outils",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+    ),
+  },
+  {
+    href: "/dashboard/integration/import-fichier",
+    label: "Import de données",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+    ),
+  },
+];
+
 const sidebarLinks: SidebarItem[] = [
   {
     href: "/dashboard",
@@ -309,8 +333,8 @@ const sidebarLinks: SidebarItem[] = [
     children: previsionsChildren,
   },
   {
-    href: "/dashboard/integration",
-    label: "Intégration",
+    id: "integrations",
+    label: "Intégrations",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 11a9 9 0 0 1 9 9" />
@@ -318,6 +342,7 @@ const sidebarLinks: SidebarItem[] = [
         <circle cx="5" cy="19" r="1" />
       </svg>
     ),
+    children: integrationsChildren,
   },
   {
     href: "/dashboard/parametres",
