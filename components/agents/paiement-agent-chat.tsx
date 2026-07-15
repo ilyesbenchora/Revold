@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MessageArtifacts } from "./message-artifacts";
+import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
 import type { Attachment } from "@/lib/attachments";
@@ -124,7 +125,7 @@ export function PaiementAgentChat({
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"chat" | "history">("chat");
+  const [tab, setTab] = useState<"chat" | "history" | "alerts">("chat");
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -429,6 +430,11 @@ export function PaiementAgentChat({
   }
 
   const empty = messages.length === 0;
+  // Suggestions d'alerte de la conversation courante (accumulées au fil des
+  // réponses). Reléguées dans l'onglet « Alertes » pour ne pas casser le flux.
+  const suggestedAlerts = messages
+    .map((m, i) => (m.role === "assistant" && m.action ? { i, action: m.action } : null))
+    .filter((x): x is { i: number; action: ProposedAction } => x !== null);
   const sortedHistory = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const selectedCats = new Set(sources.filter((s) => selected.includes(s.key)).map((s) => s.category));
   const baseSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
@@ -458,6 +464,19 @@ export function PaiementAgentChat({
           }`}
         >
           Historique{conversations.length > 0 ? ` (${conversations.length})` : ""}
+        </button>
+        <button
+          onClick={() => setTab("alerts")}
+          className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+            tab === "alerts" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <span>✨</span> Alertes
+          {suggestedAlerts.length > 0 && (
+            <span className="rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-700">
+              {suggestedAlerts.length}
+            </span>
+          )}
         </button>
         <div className="flex-1" />
         {coachingMode && coachingStatus === "active" && (
@@ -508,6 +527,35 @@ export function PaiementAgentChat({
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {/* ── Onglet Alertes (suggestions accumulées au fil de la conversation) ── */}
+      {tab === "alerts" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {suggestedAlerts.length === 0 ? (
+            <div className="mx-auto max-w-md pt-8 text-center">
+              <p className="text-sm text-slate-500">
+                Aucune suggestion d&apos;alerte pour l&apos;instant. Quand l&apos;agent estime qu&apos;un suivi chiffré
+                est pertinent, il l&apos;ajoute ici — sans interrompre la discussion.
+              </p>
+              <button
+                onClick={() => setTab("chat")}
+                className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                ← Retour à la discussion
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                Suggestions d&apos;alerte de cette conversation. Ajuste et active celles qui t&apos;intéressent.
+              </p>
+              {suggestedAlerts.map(({ i, action }) => (
+                <AlertSuggestionCard key={i} agentKey={agentKey} action={action} />
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -586,14 +634,23 @@ export function PaiementAgentChat({
                     {m.role === "assistant" ? cleanText(m.content) : m.content}
                   </div>
                 </div>
-                {m.role === "assistant" && (m.report || m.chart || m.action) && (
+                {m.role === "assistant" && (m.report || m.chart) && (
                   <MessageArtifacts
                     agentKey={agentKey}
                     agentLabel={agentLabel}
                     report={m.report}
                     chart={m.chart}
-                    action={m.action}
                   />
+                )}
+                {/* Pastille discrète : une alerte a été suggérée → onglet Alertes.
+                    Non-intrusive, préserve le flux de lecture. */}
+                {m.role === "assistant" && m.action && (
+                  <button
+                    onClick={() => setTab("alerts")}
+                    className="ml-9 inline-flex items-center gap-1.5 rounded-full border border-fuchsia-200 bg-fuchsia-50/70 px-3 py-1 text-[11px] font-medium text-fuchsia-700 transition hover:bg-fuchsia-100"
+                  >
+                    <span>✨</span> Suggestion d&apos;alerte ajoutée — voir l&apos;onglet Alertes →
+                  </button>
                 )}
               </div>
             ))}

@@ -5,49 +5,30 @@ import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { addSavedReport } from "./saved-reports";
-import { ALERT_CHANNELS, SectionLabel, readable } from "./alert-ui";
-import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
+import type { ReportSpec, ChartProposal } from "@/lib/ai/agents/agent-runtime";
 
 /**
- * Artefacts attachés à un message d'agent : rapport, proposition de graphique,
- * et suggestion d'alerte confirmable (avec choix des canaux de notification).
- * Persistent dans le message (donc dans l'historique).
+ * Artefacts attachés à un message d'agent dans le FIL de discussion : rapport et
+ * proposition de graphique, plus un bouton discret « Enregistrer le rapport ».
+ *
+ * La suggestion d'alerte n'apparaît PAS ici (elle serait intrusive et casserait
+ * le flux) : elle est reléguée dans l'onglet « Alertes » du chat via
+ * AlertSuggestionCard. Voir paiement-agent-chat.tsx.
  */
 export function MessageArtifacts({
   agentKey,
   agentLabel,
   report,
   chart,
-  action,
 }: {
   agentKey: string;
   agentLabel: string;
   report?: ReportSpec | null;
   chart?: ChartProposal | null;
-  action?: ProposedAction | null;
 }) {
-  const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
-  const [channels, setChannels] = useState<string[]>(["app"]);
   const [saved, setSaved] = useState(false);
-  // Édition inline de l'alerte suggérée.
-  const [editing, setEditing] = useState(false);
-  const [kpiValue, setKpiValue] = useState("");
-  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">("percent");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [continuous, setContinuous] = useState(true);
-  const [descEdit, setDescEdit] = useState<string | null>(null);
-  const [impactEdit, setImpactEdit] = useState<string | null>(null);
 
   const hasReport = !!(report || chart);
-  // L'alerte est secondaire et a posteriori : on n'affiche le bloc que si
-  // l'agent a JUGÉ un suivi pertinent (proposedAction réel). Pas de fallback
-  // qui fabriquerait une alerte sur chaque rapport.
-  const effectiveAction: ProposedAction | null = action ?? null;
-
-  function toggleChannel(key: string) {
-    setChannels((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
-  }
 
   // Enregistrement direct du rapport (sans alerte) — alimente les pages de
   // projection (Prévisions) et « Mes rapports ».
@@ -70,230 +51,39 @@ export function MessageArtifacts({
     setSaved(true);
   }
 
-  async function confirm() {
-    if (!effectiveAction) return;
-    setState("saving");
-    const chosen = channels.length ? channels : ["app"];
-    // Action finale = suggestion Revold + éventuelles modifications utilisateur.
-    const finalAction = {
-      ...effectiveAction,
-      description: descEdit ?? effectiveAction.description,
-      impact: impactEdit ?? effectiveAction.impact,
-    };
-    try {
-      const res = await fetch(`/api/agents/${agentKey}/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: finalAction,
-          channels: chosen,
-          threshold: kpiValue ? Number(kpiValue) : null,
-          unit_mode: kpiFormat,
-          date_from: dateFrom || null,
-          date_to: continuous ? null : dateTo || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
-      setState("done");
-    } catch {
-      setState("error");
-    }
-  }
-
-  if (!report && !chart && !effectiveAction) return null;
-  const done = state === "done";
+  if (!hasReport) return null;
 
   return (
     <div className="ml-9 space-y-2">
       {report && <AgentReport spec={report} />}
       {chart && <ChartPicker proposal={chart} />}
 
-      {/* Bloc 1 — Enregistrer le rapport (indépendant de l'alerte) */}
-      {hasReport && (
-        <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
-          <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
-            <span>💾</span> Enregistrer le rapport
-          </div>
-          <div className="flex items-center justify-between gap-3 p-3.5">
-            <p className="text-xs text-slate-500">
-              Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — sans créer d&apos;alerte.
-            </p>
-            {saved ? (
-              <Link
-                href="/dashboard/mes-rapports"
-                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-              >
-                ✓ Enregistré — voir
-              </Link>
-            ) : (
-              <button
-                onClick={saveReportOnly}
-                className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
-              >
-                Enregistrer le rapport
-              </button>
-            )}
-          </div>
+      {/* Enregistrer le rapport (indépendant de l'alerte) */}
+      <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+        <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+          <span>💾</span> Enregistrer le rapport
         </div>
-      )}
-
-      {effectiveAction && (
-        <div className="overflow-hidden rounded-xl border border-fuchsia-200 bg-white shadow-sm">
-          {/* En-tête */}
-          <div className="flex items-center gap-1.5 border-b border-fuchsia-100 bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-            <span>✨</span> Activer une alerte de suivi (optionnel)
-          </div>
-
-          <div className="space-y-3 p-3.5">
-            {/* Objectif (gauche) + KPIs attendus (droite) */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <SectionLabel>Objectif</SectionLabel>
-                <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900 break-words">
-                  {readable(effectiveAction.title)}
-                </div>
-              </div>
-              <div>
-                <SectionLabel>KPI attendu</SectionLabel>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    value={kpiValue}
-                    onChange={(e) => setKpiValue(e.target.value)}
-                    disabled={done}
-                    placeholder="Ex : 30"
-                    className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
-                  />
-                  <div className="flex overflow-hidden rounded-lg border border-slate-200">
-                    {(["percent", "count"] as const).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setKpiFormat(f)}
-                        disabled={done}
-                        className={`px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-60 ${
-                          kpiFormat === f ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
-                        }`}
-                      >
-                        {f === "percent" ? "%" : "Nombre"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Période : date de début / fin (ou en continu) */}
-            <div>
-              <SectionLabel>Période de suivi</SectionLabel>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <label className="text-[11px] text-slate-400">
-                  Début
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} disabled={done}
-                    className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-fuchsia-300 disabled:opacity-60" />
-                </label>
-                {!continuous && (
-                  <label className="text-[11px] text-slate-400">
-                    Fin
-                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} disabled={done}
-                      className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-fuchsia-300 disabled:opacity-60" />
-                  </label>
-                )}
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} disabled={done} />
-                  En continu (sans date de fin)
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Description</SectionLabel>
-              {editing ? (
-                <textarea rows={2} value={descEdit ?? ""} onChange={(e) => setDescEdit(e.target.value)}
-                  className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
-              ) : (
-                <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
-                  {descEdit ?? readable(effectiveAction.description)}
-                </p>
-              )}
-            </div>
-            {(editing || effectiveAction.impact) && (
-              <div>
-                <SectionLabel>Impact attendu</SectionLabel>
-                {editing ? (
-                  <textarea rows={2} value={impactEdit ?? ""} onChange={(e) => setImpactEdit(e.target.value)}
-                    className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
-                ) : (
-                  <p className="mt-0.5 text-sm leading-relaxed text-slate-700 break-words">
-                    {impactEdit ?? (effectiveAction.impact ? readable(effectiveAction.impact) : "")}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div>
-              <SectionLabel>Recevoir l&apos;alerte via</SectionLabel>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {ALERT_CHANNELS.map((c) => {
-                  const on = channels.includes(c.key);
-                  return (
-                    <button
-                      key={c.key}
-                      onClick={() => toggleChannel(c.key)}
-                      disabled={done || state === "saving"}
-                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-70 ${
-                        on
-                          ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200"
-                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="text-sm">{c.icon}</span>
-                      {c.label}
-                      {on && <span className="text-[10px]">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-              {done ? (
-                <span className="text-sm font-medium text-emerald-600">
-                  ✓ Alerte activée —{" "}
-                  <Link href="/dashboard/alertes" className="underline hover:text-emerald-700">
-                    voir mes alertes
-                  </Link>
-                </span>
-              ) : (
-                <>
-                  <button
-                    onClick={confirm}
-                    disabled={state === "saving"}
-                    className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                  >
-                    {state === "saving" ? "Activation…" : "Activer l'alerte"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!editing) {
-                        setDescEdit(descEdit ?? readable(effectiveAction.description));
-                        setImpactEdit(impactEdit ?? (effectiveAction.impact ? readable(effectiveAction.impact) : ""));
-                      }
-                      setEditing((v) => !v);
-                    }}
-                    className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    {editing ? "✓ Terminer la modification" : "Modifier l'alerte"}
-                  </button>
-                </>
-              )}
-              {state === "error" && <span className="text-xs text-red-500">Échec de la création.</span>}
-            </div>
-          </div>
+        <div className="flex items-center justify-between gap-3 p-3.5">
+          <p className="text-xs text-slate-500">
+            Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — sans créer d&apos;alerte.
+          </p>
+          {saved ? (
+            <Link
+              href="/dashboard/mes-rapports"
+              className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              ✓ Enregistré — voir
+            </Link>
+          ) : (
+            <button
+              onClick={saveReportOnly}
+              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+            >
+              Enregistrer le rapport
+            </button>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
