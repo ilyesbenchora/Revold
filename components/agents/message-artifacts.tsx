@@ -40,17 +40,10 @@ export function MessageArtifacts({
   const [impactEdit, setImpactEdit] = useState<string | null>(null);
 
   const hasReport = !!(report || chart);
-  const reportTitle = report?.title || chart?.title || "ce rapport";
-  const effectiveAction: ProposedAction | null =
-    action ??
-    (hasReport
-      ? {
-          action_type: "create_alert",
-          title: `Suivi : ${reportTitle}`.slice(0, 120),
-          description: `Être alerté sur l'évolution de : ${reportTitle}.`,
-          category: "revops",
-        }
-      : null);
+  // L'alerte est secondaire et a posteriori : on n'affiche le bloc que si
+  // l'agent a JUGÉ un suivi pertinent (proposedAction réel). Pas de fallback
+  // qui fabriquerait une alerte sur chaque rapport.
+  const effectiveAction: ProposedAction | null = action ?? null;
 
   function toggleChannel(key: string) {
     setChannels((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
