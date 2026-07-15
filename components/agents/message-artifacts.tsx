@@ -72,23 +72,7 @@ export function MessageArtifacts({
     if (!effectiveAction) return;
     setState("saving");
     const chosen = channels.length ? channels : ["app"];
-    if (hasReport) {
-      addSavedReport({
-        agentKey,
-        agentLabel,
-        title: report?.title || chart?.title || effectiveAction.title,
-        summary: report?.summary || chart?.summary,
-        report: report ?? null,
-        chart: chart ?? null,
-        alert: {
-          title: effectiveAction.title,
-          description: effectiveAction.description,
-          impact: effectiveAction.impact,
-          category: effectiveAction.category,
-          channels: chosen,
-        },
-      });
-    }
+    // L'alerte est indépendante de l'enregistrement du rapport (blocs séparés).
     try {
       const res = await fetch(`/api/agents/${agentKey}/execute`, {
         method: "POST",
@@ -99,7 +83,7 @@ export function MessageArtifacts({
       if (!res.ok) throw new Error(data.error || "Échec");
       setState("done");
     } catch {
-      setState(hasReport ? "done" : "error");
+      setState("error");
     }
   }
 
@@ -111,25 +95,40 @@ export function MessageArtifacts({
       {report && <AgentReport spec={report} />}
       {chart && <ChartPicker proposal={chart} />}
 
+      {/* Bloc 1 — Enregistrer le rapport (indépendant de l'alerte) */}
       {hasReport && (
-        <button
-          onClick={saveReportOnly}
-          disabled={saved}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-            saved
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50"
-          }`}
-        >
-          {saved ? "✓ Projection enregistrée" : "📌 Enregistrer cette projection"}
-        </button>
+        <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+          <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+            <span>💾</span> Enregistrer le rapport
+          </div>
+          <div className="flex items-center justify-between gap-3 p-3.5">
+            <p className="text-xs text-slate-500">
+              Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — sans créer d&apos;alerte.
+            </p>
+            {saved ? (
+              <Link
+                href="/dashboard/mes-rapports"
+                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                ✓ Enregistré — voir
+              </Link>
+            ) : (
+              <button
+                onClick={saveReportOnly}
+                className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+              >
+                Enregistrer le rapport
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {effectiveAction && (
         <div className="overflow-hidden rounded-xl border border-fuchsia-200 bg-white shadow-sm">
           {/* En-tête */}
           <div className="flex items-center gap-1.5 border-b border-fuchsia-100 bg-gradient-to-r from-fuchsia-50 to-indigo-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-            <span>✨</span> Suggestion Revold · alerte de suivi
+            <span>✨</span> Activer une alerte de suivi (optionnel)
           </div>
 
           <div className="space-y-3 p-3.5">
@@ -182,9 +181,9 @@ export function MessageArtifacts({
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
               {done ? (
                 <span className="text-sm font-medium text-emerald-600">
-                  ✓ Alerte activée{hasReport ? " · rapport enregistré" : ""} —{" "}
-                  <Link href="/dashboard/mes-rapports" className="underline hover:text-emerald-700">
-                    voir mes rapports
+                  ✓ Alerte activée —{" "}
+                  <Link href="/dashboard/alertes" className="underline hover:text-emerald-700">
+                    voir mes alertes
                   </Link>
                 </span>
               ) : (
@@ -193,11 +192,7 @@ export function MessageArtifacts({
                   disabled={state === "saving"}
                   className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
                 >
-                  {state === "saving"
-                    ? "Enregistrement…"
-                    : hasReport
-                      ? "Activer l'alerte et enregistrer le rapport"
-                      : "Activer l'alerte"}
+                  {state === "saving" ? "Activation…" : "Activer l'alerte"}
                 </button>
               )}
               {state === "error" && <span className="text-xs text-red-500">Échec de la création.</span>}

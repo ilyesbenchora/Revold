@@ -9,6 +9,7 @@ export function VentesTabs() {
     { href: "/dashboard/performances/commerciale", label: "Vue d'ensemble" },
     { href: "/dashboard/performances/commerciale/deals-a-risque", label: "Deals à risque" },
     { href: "/dashboard/performances/commerciale/forecast-management", label: "Forecast Management" },
+    { href: "/dashboard/performances/commerciale/mes-alertes", label: "Mes alertes" },
   ];
 
   return (
