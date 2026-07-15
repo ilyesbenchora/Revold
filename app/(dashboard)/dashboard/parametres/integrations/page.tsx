@@ -33,7 +33,7 @@ const ALL_PAGE_KEYS = [
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type SearchParams = Promise<{ hs_connected?: string; hs_error?: string }>;
+type SearchParams = Promise<{ hs_connected?: string; hs_error?: string; oauth_error?: string }>;
 
 export default async function ParametresIntegrationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
@@ -97,6 +97,11 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {params.hs_error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Erreur HubSpot : {params.hs_error}
+        </div>
+      )}
+      {params.oauth_error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Erreur de connexion : {params.oauth_error}
         </div>
       )}
 

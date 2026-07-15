@@ -50,7 +50,7 @@ export default async function MesOutilsPage({
   }
 
   const toolsByCategory: Record<ConnectableTool["category"], ConnectableTool[]> = {
-    crm: [], billing: [], phone: [], files: [], support: [], communication: [], conv_intel: [],
+    crm: [], billing: [], phone: [], files: [], support: [], communication: [], conv_intel: [], ads: [],
   };
   for (const tool of Object.values(CONNECTABLE_TOOLS)) toolsByCategory[tool.category].push(tool);
 

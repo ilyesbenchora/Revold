@@ -44,7 +44,13 @@ export const CATEGORY_META: Record<ConnectableTool["category"], { label: string;
     gradient: "from-green-500 to-emerald-500",
     description: "Vos données vivent encore dans Excel ou Google Sheets ? Importez-les et Revold les croise avec vos CRM, facturation et support.",
   },
+  ads: {
+    label: "Publicité & Web",
+    emoji: "📣",
+    gradient: "from-sky-500 to-blue-600",
+    description: "Analytics et régies publicitaires (Google, Meta, LinkedIn) : reliez la dépense marketing au revenu réel encaissé.",
+  },
 };
 
 /** Ordre d'affichage des catégories (files présenté à part via l'import). */
-export const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "phone", "support", "conv_intel", "communication"];
+export const CATEGORY_ORDER: ConnectableTool["category"][] = ["crm", "billing", "ads", "phone", "support", "conv_intel", "communication"];

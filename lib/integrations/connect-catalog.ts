@@ -24,7 +24,7 @@ export type ConnectableTool = {
   icon: string;
   // Domain used to fetch the brand logo via logo.clearbit.com/{domain}
   domain: string;
-  category: "crm" | "billing" | "phone" | "support" | "communication" | "conv_intel" | "files";
+  category: "crm" | "billing" | "phone" | "support" | "communication" | "conv_intel" | "files" | "ads";
   /** True si la connexion passe par OAuth (URL spéciale) au lieu du flow API key. */
   oauth?: boolean;
   /** URL de connexion override (ex: /api/integrations/hubspot/connect). */
@@ -397,6 +397,64 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     ],
   },
 
+  // ── Publicité & Web (OAuth) ─────────────────────────────────────
+  google_analytics: {
+    key: "google_analytics",
+    label: "Google Analytics",
+    vendor: "Google",
+    icon: "📈",
+    domain: "analytics.google.com",
+    category: "ads",
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/google_analytics/connect",
+    description: "Trafic site web, sources d'acquisition, conversions — croisés avec vos deals et revenus dans Revold.",
+    helpUrl: "https://developers.google.com/analytics",
+    helpText: "Connexion en un clic via OAuth Google (lecture seule). Vous serez redirigé vers Google pour autoriser l'accès.",
+    fields: [],
+  },
+  google_ads: {
+    key: "google_ads",
+    label: "Google Ads",
+    vendor: "Google",
+    icon: "🅰️",
+    domain: "ads.google.com",
+    category: "ads",
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/google_ads/connect",
+    description: "Campagnes, coûts et conversions Google Ads — pour mesurer le vrai ROAS jusqu'au revenu encaissé.",
+    helpUrl: "https://developers.google.com/google-ads/api/docs/start",
+    helpText: "Connexion via OAuth Google. Un developer token Google Ads est requis pour l'exploitation avancée des données.",
+    fields: [],
+  },
+  meta_ads: {
+    key: "meta_ads",
+    label: "Meta Ads",
+    vendor: "Meta",
+    icon: "📘",
+    domain: "facebook.com",
+    category: "ads",
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/meta_ads/connect",
+    description: "Campagnes Facebook & Instagram Ads : dépenses, résultats, audiences — reliés à votre pipeline.",
+    helpUrl: "https://developers.facebook.com/docs/marketing-apis",
+    helpText: "Connexion via OAuth Meta (Facebook Login). Autorisez l'accès en lecture aux données publicitaires (ads_read).",
+    fields: [],
+  },
+  linkedin_ads: {
+    key: "linkedin_ads",
+    label: "LinkedIn Ads",
+    vendor: "LinkedIn",
+    icon: "💼",
+    domain: "linkedin.com",
+    category: "ads",
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/linkedin_ads/connect",
+    description: "Campagnes LinkedIn Ads B2B : coût par lead, conversions — croisés avec le closing réel.",
+    helpUrl: "https://learn.microsoft.com/en-us/linkedin/marketing/",
+    helpText: "Connexion via OAuth LinkedIn. Autorisez l'accès en lecture aux rapports publicitaires (r_ads_reporting).",
+    fields: [],
+  },
+
   // ── Fichiers & Tableurs ─────────────────────────────────────────
   spreadsheet: {
     key: "spreadsheet",
@@ -427,6 +485,7 @@ const CATEGORY_LABELS: Record<ConnectableTool["category"], string> = {
   communication: "Communication",
   conv_intel: "Conversation Intelligence",
   files: "Fichiers & Tableurs",
+  ads: "Publicité & Web",
 };
 
 export function getCategoryLabel(cat: ConnectableTool["category"]): string {

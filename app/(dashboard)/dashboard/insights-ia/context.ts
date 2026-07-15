@@ -840,7 +840,7 @@ export async function fetchDataModelInsights(
 
 // ── Scenarios ──
 
-type ConnectedCats = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication" | "files">;
+type ConnectedCats = Set<"crm" | "billing" | "support" | "phone" | "conv_intel" | "communication" | "files" | "ads">;
 
 export function buildScenarios(ctx: InsightContext, connectedCats?: ConnectedCats) {
   const {

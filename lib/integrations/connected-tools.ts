@@ -81,7 +81,7 @@ export function connectedCategoriesSet(tools: ConnectedTool[]): Set<ConnectableT
 
 export function summarizeConnected(tools: ConnectedTool[]): ConnectedSummary {
   const byCategory: ConnectedSummary["byCategory"] = {
-    crm: [], billing: [], phone: [], support: [], communication: [], conv_intel: [], files: [],
+    crm: [], billing: [], phone: [], support: [], communication: [], conv_intel: [], files: [], ads: [],
   };
   for (const t of tools) byCategory[t.category].push(t);
 
