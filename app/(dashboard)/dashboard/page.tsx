@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/supabase/cached";
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
+import { AgentsFamily } from "@/components/agents/agents-family";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import {
@@ -222,6 +223,9 @@ export default async function DashboardOverviewPage() {
           </p>
         </div>
       )}
+
+      {/* Photo de famille des agents IA — présente l'équipe dès la home */}
+      <AgentsFamily />
 
       {/* Hero — KPIs essentiels (6 tuiles dynamiques, layout adaptatif) */}
       <div className="card overflow-hidden">

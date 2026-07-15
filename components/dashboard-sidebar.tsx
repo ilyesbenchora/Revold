@@ -211,17 +211,10 @@ const previsionsChildren: LeafLink[] = [
     ),
   },
   {
-    href: "/dashboard/simulations/marketing",
-    label: "Marketing",
+    href: "/dashboard/simulations/mes-previsions",
+    label: "Mes prévisions",
     icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>
-    ),
-  },
-  {
-    href: "/dashboard/simulations/revenue",
-    label: "Revenue & Ventes",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
     ),
   },
 ];
@@ -353,6 +346,7 @@ function isChildActive(pathname: string, href: string): boolean {
   // "Vue d’ensemble" entries must match exactly so they don't light up on sub-pages
   if (href === "/dashboard/audit") return pathname === "/dashboard/audit";
   if (href === "/dashboard/insights-ia") return pathname === "/dashboard/insights-ia";
+  if (href === "/dashboard/simulations") return pathname === "/dashboard/simulations";
   return pathname.startsWith(href);
 }
 
