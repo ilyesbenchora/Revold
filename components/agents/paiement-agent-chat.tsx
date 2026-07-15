@@ -85,6 +85,7 @@ export function PaiementAgentChat({
   contextAttachments,
   startSignal,
   onSessionStatusChange,
+  onSessionComplete,
   onConversationsChange,
   openConversationSignal,
   persona,
@@ -103,6 +104,8 @@ export function PaiementAgentChat({
   startSignal?: number;
   /** Remonte l'état de la séance de coaching (bouton de l'agenda). */
   onSessionStatusChange?: (status: "idle" | "active" | "ended") => void;
+  /** Appelé quand une séance de coaching est clôturée (efface le RDV). */
+  onSessionComplete?: () => void;
   /** Remonte la liste des conversations (pour le bloc historique des rendez-vous). */
   onConversationsChange?: (list: { id: string; title: string; updatedAt: number; count: number }[]) => void;
   /** Signal pour rouvrir une conversation donnée depuis l'historique. */
@@ -166,6 +169,7 @@ export function PaiementAgentChat({
   async function completeSession(auto: boolean) {
     clearSessionTimers();
     setSessionEnd("ended");
+    onSessionComplete?.();
     if (!coachingCategory) return;
     try {
       await fetch("/api/coaching/session/complete", {

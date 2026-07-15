@@ -8,19 +8,15 @@ import type { Attachment } from "@/lib/attachments";
 type SourceOption = { key: string; label: string; icon: string; category: string };
 type SuggestionSets = { crm?: string[]; billing?: string[]; support?: string[]; cross?: string[] } | null;
 
-/** RDV aujourd'hui ou plus tard. */
-function isUpcoming(d?: string | null): boolean {
-  if (!d) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${d}T00:00:00`).getTime() >= today.getTime();
+/** Date+heure du RDV (heure par défaut 09:00 si absente). */
+function meetingDate(d?: string | null, t?: string | null): Date | null {
+  if (!d) return null;
+  return new Date(`${d}T${t && /^\d{2}:\d{2}$/.test(t) ? t : "09:00"}:00`);
 }
-/** RDV strictement après aujourd'hui. */
-function isStrictFuture(d?: string | null): boolean {
-  if (!d) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${d}T00:00:00`).getTime() > today.getTime();
+/** RDV échu : l'heure est atteinte ou dépassée. */
+function isDue(d?: string | null, t?: string | null): boolean {
+  const dt = meetingDate(d, t);
+  return dt ? dt.getTime() <= Date.now() : false;
 }
 
 /**
@@ -61,28 +57,59 @@ export function CoachingWorkspace({
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
   // lancer une séance sur une conversation vierge côté chat. Si le coaching vient
   // d'un rapport, on démarre automatiquement (nonce initial à 1).
-  const [startNonce, setStartNonce] = useState(reportBrief ? 1 : 0);
+  // RDV échu au chargement → on démarre automatiquement la séance (le message
+  // de l'agent part à l'arrivée sur la page) ; sinon selon reportBrief.
+  const meetingDueAtLoad = isDue(initialAgenda.next_meeting_at, initialAgenda.next_meeting_time);
+  const [startNonce, setStartNonce] = useState(reportBrief || meetingDueAtLoad ? 1 : 0);
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
-  // Bloc replié affiché uniquement pour un RDV à venir (aujourd'hui ou plus tard).
-  const [collapsed, setCollapsed] = useState(isUpcoming(initialAgenda.next_meeting_at));
+  // Bloc replié (confirmation) affiché tant qu'un RDV existe.
+  const [collapsed, setCollapsed] = useState(Boolean(initialAgenda.next_meeting_at));
   // Formulaire d'agenda ouvert par le bouton « + Créer un RDV… » (masqué sinon).
   const [formOpen, setFormOpen] = useState(false);
   // Conversations remontées par le chat (bloc historique des rendez-vous).
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   // Contexte de coaching : celui du rapport s'il est fourni, sinon l'agenda.
   const coachingCtx = reportBrief ?? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
-  // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
+  // Un RDV programmé active le suivi de séance « coaching réalisé ».
   const hasMeeting = Boolean(agenda.next_meeting_at);
-  // Bloc de confirmation dynamique : visible pour un RDV strictement futur, ou
-  // pour un RDV du jour tant que la séance n'est pas terminée. Disparaît sinon.
-  const effectiveCollapsed = collapsed && (isStrictFuture(agenda.next_meeting_at) || sessionStatus !== "ended");
+  // RDV échu → CTA rouge + démarrage direct.
+  const meetingDue = isDue(agenda.next_meeting_at, agenda.next_meeting_time);
+  // Confirmation visible tant qu'un RDV existe (disparaît quand il est effacé à
+  // la clôture de la séance).
+  const effectiveCollapsed = collapsed && hasMeeting;
   const preselectedSources = agenda.sources ?? null;
   const contextAttachments = (agenda.attachments as Attachment[] | null) ?? null;
   // Agenda masqué par défaut : il s'ouvre via le bouton « + Créer un RDV… », ou
-  // s'affiche en confirmation quand un RDV à venir existe.
+  // s'affiche en confirmation quand un RDV existe.
   const showAgenda = effectiveCollapsed || formOpen;
+
+  // Clôture de séance : on efface le RDV (cadence ponctuelle) pour que le bloc
+  // disparaisse, et on persiste l'effacement en base.
+  async function handleSessionComplete() {
+    if (!hasMeeting) return;
+    setAgenda((a) => ({ ...a, next_meeting_at: null, next_meeting_time: null }));
+    try {
+      await fetch("/api/coaching/agenda", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category,
+          objectives: agenda.objectives ?? "",
+          pains: agenda.pains ?? "",
+          cadence: agenda.cadence ?? "monthly",
+          next_meeting_at: null,
+          next_meeting_time: null,
+          sources: agenda.sources ?? [],
+          attachments: agenda.attachments ?? [],
+        }),
+      });
+    } catch {
+      /* silencieux */
+    }
+  }
 
   return (
     <>
@@ -111,12 +138,14 @@ export function CoachingWorkspace({
             if (!v) setFormOpen(true);
           }}
           sessionStatus={sessionStatus}
+          overdue={meetingDue}
           onSaved={(a) =>
             setAgenda({
               objectives: a.objectives,
               pains: a.pains,
               cadence: a.cadence,
               next_meeting_at: a.next_meeting_at,
+              next_meeting_time: a.next_meeting_time,
               sources: a.sources,
               attachments: a.attachments,
             })
@@ -139,6 +168,7 @@ export function CoachingWorkspace({
         contextAttachments={contextAttachments}
         startSignal={startNonce}
         onSessionStatusChange={setSessionStatus}
+        onSessionComplete={handleSessionComplete}
         onConversationsChange={setConversations}
         openConversationSignal={openConv}
         persona={persona}
@@ -154,28 +184,39 @@ export function CoachingWorkspace({
         {conversations.length === 0 ? (
           <p className="mt-3 text-xs text-slate-400">Aucune séance pour le moment. Démarre un coaching pour la retrouver ici.</p>
         ) : (
-          <div className="mt-3 divide-y divide-slate-100">
-            {[...conversations]
-              .sort((a, b) => b.updatedAt - a.updatedAt)
-              .map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">{c.title}</p>
-                    <p className="text-[11px] text-slate-400">
-                      {new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })}
-                      {" · "}
-                      {c.count} message(s)
-                    </p>
+          <>
+            <div className="mt-3 divide-y divide-slate-100">
+              {[...conversations]
+                .sort((a, b) => b.updatedAt - a.updatedAt)
+                .slice(0, showAllHistory ? undefined : 3)
+                .map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800">{c.title}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })}
+                        {" · "}
+                        {c.count} message(s)
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setOpenConv({ id: c.id, nonce: Date.now() })}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-accent hover:bg-slate-50"
+                    >
+                      Reprendre →
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setOpenConv({ id: c.id, nonce: Date.now() })}
-                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-accent hover:bg-slate-50"
-                  >
-                    Reprendre la conversation →
-                  </button>
-                </div>
-              ))}
-          </div>
+                ))}
+            </div>
+            {conversations.length > 3 && (
+              <button
+                onClick={() => setShowAllHistory((v) => !v)}
+                className="mt-2 text-xs font-medium text-accent hover:underline"
+              >
+                {showAllHistory ? "Réduire" : `Voir l'ensemble des rendez-vous (${conversations.length})`}
+              </button>
+            )}
+          </>
         )}
       </div>
     </>

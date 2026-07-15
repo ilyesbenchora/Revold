@@ -101,20 +101,26 @@ export default async function MesCoachingPage() {
   const crossSourceInsights = await fetchCrossSourceInsights(supabase, orgId, dismissedKeys, connectedCats);
   const dataModelInsights = await fetchDataModelInsights(supabase, orgId, detectedIntegrations, ctx, dismissedKeys);
 
-  // Coachings planifiés à une date ultérieure (RDV strictement dans le futur).
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Coachings planifiés : RDV dont la date + heure sont strictement dans le futur.
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const nowMs = now.getTime();
   const { data: plannedRaw } = await supabase
     .from("coaching_agendas")
-    .select("category, objectives, cadence, next_meeting_at")
+    .select("category, objectives, cadence, next_meeting_at, next_meeting_time")
     .eq("organization_id", orgId)
-    .gt("next_meeting_at", todayStr)
+    .gte("next_meeting_at", todayStr)
     .order("next_meeting_at", { ascending: true });
-  const plannedCoachings = (plannedRaw ?? []) as {
+  const plannedCoachings = ((plannedRaw ?? []) as {
     category: string;
     objectives: string | null;
     cadence: string | null;
     next_meeting_at: string;
-  }[];
+    next_meeting_time: string | null;
+  }[]).filter((p) => {
+    const t = p.next_meeting_time && /^\d{2}:\d{2}$/.test(p.next_meeting_time) ? p.next_meeting_time : "09:00";
+    return new Date(`${p.next_meeting_at}T${t}:00`).getTime() > nowMs;
+  });
 
   const categories = [
     { id: "commercial", agentKey: "coaching-ventes", label: "Coach des ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
@@ -324,7 +330,9 @@ export default async function MesCoachingPage() {
                     {CADENCE_LABELS[p.cadence ?? ""] ?? "Mensuel"}
                   </span>
                 </div>
-                <p className="mt-2 text-sm font-semibold capitalize text-slate-900">{fmtPlannedDate(p.next_meeting_at)}</p>
+                <p className="mt-2 text-sm font-semibold capitalize text-slate-900">
+                  {fmtPlannedDate(p.next_meeting_at)}{p.next_meeting_time ? ` à ${p.next_meeting_time}` : ""}
+                </p>
                 {p.objectives ? (
                   <p className="mt-1 line-clamp-2 text-xs text-slate-600">🎯 {p.objectives}</p>
                 ) : (

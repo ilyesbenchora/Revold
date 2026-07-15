@@ -51,6 +51,7 @@ export type CoachAgendaInitial = {
   pains?: string | null;
   cadence?: string | null;
   next_meeting_at?: string | null;
+  next_meeting_time?: string | null;
   sources?: string[] | null;
   attachments?: Attachment[] | null;
 };
@@ -67,6 +68,7 @@ export function CoachAgenda({
   collapsed,
   onCollapsedChange,
   sessionStatus = "idle",
+  overdue = false,
 }: {
   category: string;
   label: string;
@@ -77,6 +79,7 @@ export function CoachAgenda({
     pains: string;
     cadence: string;
     next_meeting_at: string | null;
+    next_meeting_time: string | null;
     sources: string[];
     attachments: Attachment[];
   }) => void;
@@ -86,11 +89,14 @@ export function CoachAgenda({
   onCollapsedChange: (v: boolean) => void;
   /** État de la séance côté chat : idle | active | ended. */
   sessionStatus?: "idle" | "active" | "ended";
+  /** RDV échu (heure atteinte/dépassée) → CTA rouge « Démarrer ». */
+  overdue?: boolean;
 }) {
   const [objectives, setObjectives] = useState(initial.objectives ?? "");
   const [pains, setPains] = useState(initial.pains ?? "");
   const [cadence, setCadence] = useState(initial.cadence ?? "monthly");
   const [nextMeeting, setNextMeeting] = useState(initial.next_meeting_at ?? "");
+  const [nextTime, setNextTime] = useState(initial.next_meeting_time ?? "");
   const [sources, setSources] = useState<string[]>(initial.sources ?? []);
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -107,7 +113,7 @@ export function CoachAgenda({
       const res = await fetch("/api/coaching/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments }),
+        body: JSON.stringify({ category, objectives, pains, cadence, next_meeting_at: nextMeeting || null, next_meeting_time: nextTime || null, sources, attachments }),
       });
       if (!res.ok) {
         let reason = `HTTP ${res.status}`;
@@ -122,7 +128,7 @@ export function CoachAgenda({
         return;
       }
       setState("done");
-      onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, sources, attachments });
+      onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, next_meeting_time: nextTime || null, sources, attachments });
       // RDV enregistré → on replie le bloc en confirmation compacte.
       if (nextMeeting) onCollapsedChange(true);
       setTimeout(() => setState("idle"), 2500);
@@ -152,9 +158,13 @@ export function CoachAgenda({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900">Rendez-vous de coaching enregistré</p>
           <p className="text-xs text-slate-500">
-            {nextMeeting ? fmtDate(nextMeeting) : "Date à définir"} · {cadenceLabel(cadence)}
+            {nextMeeting ? fmtDate(nextMeeting) : "Date à définir"}
+            {nextTime ? ` à ${nextTime}` : ""} · {cadenceLabel(cadence)}
             {attachments.length > 0 ? ` · ${attachments.length} fichier(s) joint(s)` : ""}
           </p>
+          {overdue && sessionStatus !== "active" && (
+            <p className="mt-0.5 text-[11px] font-semibold text-red-500">⏰ C&apos;est l&apos;heure — démarre ta séance</p>
+          )}
         </div>
         {links && (
           <a
@@ -187,7 +197,9 @@ export function CoachAgenda({
         ) : (
           <button
             onClick={() => onStart?.()}
-            className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 ${
+              overdue ? "bg-red-500" : "bg-gradient-to-r from-fuchsia-500 to-indigo-600"
+            }`}
           >
             Démarrer le coaching
           </button>
@@ -245,7 +257,10 @@ export function CoachAgenda({
           </div>
           <div>
             <label className={lbl}>Prochain RDV</label>
-            <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className={field} />
+            <div className="mt-1 flex gap-1.5">
+              <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+              <input type="time" value={nextTime ?? ""} onChange={(e) => setNextTime(e.target.value)} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+            </div>
           </div>
         </div>
         {availableSources.length > 0 && (

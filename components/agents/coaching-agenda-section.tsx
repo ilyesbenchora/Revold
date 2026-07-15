@@ -32,7 +32,7 @@ export async function CoachingAgendaSection({ category }: { category: string }) 
   if (orgId) {
     const { data } = await supabase
       .from("coaching_agendas")
-      .select("objectives, pains, cadence, next_meeting_at, sources, attachments")
+      .select("objectives, pains, cadence, next_meeting_at, next_meeting_time, sources, attachments")
       .eq("organization_id", orgId)
       .eq("category", category)
       .maybeSingle();

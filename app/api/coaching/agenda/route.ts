@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     pains?: string;
     cadence?: string;
     next_meeting_at?: string | null;
+    next_meeting_time?: string | null;
     sources?: unknown;
     attachments?: unknown;
   };
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
   }
   const cadence = CADENCES.has(String(body.cadence)) ? String(body.cadence) : "monthly";
   const nextMeeting = body.next_meeting_at && /^\d{4}-\d{2}-\d{2}$/.test(body.next_meeting_at) ? body.next_meeting_at : null;
+  const nextTime = body.next_meeting_time && /^\d{2}:\d{2}$/.test(body.next_meeting_time) ? body.next_meeting_time : null;
   // Outils à croiser : liste de clés de sources, nettoyée (strings, ≤ 40 entrées).
   const sources = Array.isArray(body.sources)
     ? body.sources.filter((s): s is string => typeof s === "string").slice(0, 40)
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
       pains: (body.pains ?? "").slice(0, 4000),
       cadence,
       next_meeting_at: nextMeeting,
+      next_meeting_time: nextTime,
       sources,
       attachments,
       updated_at: new Date().toISOString(),
