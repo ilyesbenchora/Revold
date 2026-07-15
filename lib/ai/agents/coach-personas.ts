@@ -52,3 +52,12 @@ export function getAgentPersona(agentKey: string | null | undefined): CoachPerso
   if (!agentKey) return FALLBACK;
   return AGENT_PERSONAS[agentKey] ?? FALLBACK;
 }
+
+/**
+ * URL de l'avatar photoréaliste du personnage — une vraie photo humaine,
+ * déterministe (même personnage = même visage). Utilisé pour l'avatar et pour
+ * le filigrane de fond des blocs.
+ */
+export function personaAvatarUrl(name: string, size = 128): string {
+  return `https://i.pravatar.cc/${size}?u=${encodeURIComponent(`revold-${name}`)}`;
+}

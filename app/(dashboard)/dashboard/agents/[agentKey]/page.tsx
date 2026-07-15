@@ -7,7 +7,7 @@ import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
-import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { getAgentPersona, personaAvatarUrl } from "@/lib/ai/agents/coach-personas";
 
 export const dynamic = "force-dynamic";
 
@@ -68,10 +68,14 @@ export default async function AgentPage({
   return (
     <div className="mx-auto max-w-4xl px-6 py-6">
       <div className={`relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
-        {/* Silhouette de l'agent en filigrane, discrète et propre à cet agent */}
-        <span aria-hidden className="pointer-events-none absolute -right-2 -bottom-5 select-none text-[6.5rem] leading-none opacity-[0.09]">
-          {persona.emoji}
-        </span>
+        {/* Visage de l'agent en filigrane, discret et propre à cet agent */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={personaAvatarUrl(persona.name, 240)}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -right-6 -bottom-10 h-40 w-40 select-none rounded-full object-cover opacity-[0.12] blur-[0.5px]"
+        />
         <div className="relative z-10 flex items-start gap-3">
           <AgentAvatar name={persona.name} emoji={persona.emoji} size={48} />
           <div>

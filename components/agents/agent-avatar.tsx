@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { personaAvatarUrl } from "@/lib/ai/agents/coach-personas";
 
 /**
- * Avatar illustré d'un personnage d'agent. Utilise DiceBear (illustration
- * vectorielle déterministe à partir du prénom) pour un rendu « humain » réaliste,
- * avec repli sur l'emoji du persona si l'image ne charge pas.
+ * Avatar photoréaliste d'un personnage d'agent — une vraie photo humaine,
+ * déterministe (même personnage = même visage), pour un rendu 100 % humain.
+ * Repli sur l'emoji du persona si l'image ne charge pas.
  */
 export function AgentAvatar({
   name,
@@ -19,12 +20,12 @@ export function AgentAvatar({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const src = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(name)}&backgroundColor=transparent`;
+  const src = personaAvatarUrl(name, size * 2);
 
   if (failed) {
     return (
       <span
-        className={`inline-flex shrink-0 items-center justify-center rounded-xl bg-white/80 shadow-sm ring-1 ring-black/5 ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-black/5 ${className}`}
         style={{ width: size, height: size, fontSize: Math.round(size * 0.5) }}
       >
         {emoji}
@@ -40,7 +41,7 @@ export function AgentAvatar({
       width={size}
       height={size}
       onError={() => setFailed(true)}
-      className={`shrink-0 rounded-xl bg-white/80 object-contain shadow-sm ring-1 ring-black/5 ${className}`}
+      className={`shrink-0 rounded-full object-cover shadow-sm ring-1 ring-black/5 ${className}`}
       style={{ width: size, height: size }}
     />
   );
