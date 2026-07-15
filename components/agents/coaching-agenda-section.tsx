@@ -2,7 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getAgent } from "@/lib/ai/agents/registry";
-import { personaImagePath } from "@/lib/ai/agents/coach-personas";
+import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
+import { AgentAvatar } from "./agent-avatar";
 import { type CoachAgendaInitial } from "./coach-agenda";
 import { CategoryAgendaBlock } from "./category-agenda-block";
 
@@ -44,17 +45,26 @@ export async function CoachingAgendaSection({ category }: { category: string }) 
     .map((t) => ({ key: t.key, label: t.label, icon: t.icon }));
 
   const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
+  const persona = getAgentPersona(agentKey);
 
   return (
     <section className="mt-8 space-y-3">
-      <h2 className="text-base font-semibold text-slate-900">Créer un rendez-vous & objectif de coaching</h2>
+      {/* En-tête : met en avant le coaching personnalisé avec l'agent adéquat */}
+      <div className={`flex items-center gap-3 rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-4 py-3`}>
+        <AgentAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agentKey)} size={44} />
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Coaching personnalisé</p>
+          <h2 className="text-base font-semibold text-slate-900">Créer un rendez-vous & objectif avec {persona.name}</h2>
+          <p className="text-xs text-slate-500">{persona.name}, ton {persona.role.toLowerCase()} — {persona.pitch}</p>
+        </div>
+      </div>
       <div className="relative overflow-hidden rounded-2xl">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={personaImagePath(agentKey)}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute -right-6 -bottom-10 z-0 h-40 w-40 select-none rounded-full object-cover opacity-[0.1]"
+          className="pointer-events-none absolute -right-6 -bottom-10 z-0 h-40 w-40 select-none rounded-full object-cover opacity-[0.12]"
         />
         <div className="relative z-10">
           <CategoryAgendaBlock

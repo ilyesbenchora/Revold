@@ -8,6 +8,7 @@ import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carou
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
+import { AgentConversationCount } from "@/components/agents/agent-conversation-count";
 import {
   buildContext,
   fetchDismissals,
@@ -218,7 +219,6 @@ export default async function MesCoachingPage() {
         <h2 className="text-base font-semibold text-slate-900">Agents de coaching</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((cat) => {
-            const total = cat.sev.critical + cat.sev.warning + cat.sev.info;
             const persona = getAgentPersona(cat.agentKey);
             return (
               <Link key={cat.id} href={`/dashboard/agents/${cat.agentKey}`}
@@ -241,30 +241,9 @@ export default async function MesCoachingPage() {
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300 group-hover:text-accent transition"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">{cat.description}</p>
-                  {total > 0 ? (
-                    <div className="mt-2 flex items-center gap-2">
-                      {cat.sev.critical > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                          {cat.sev.critical}
-                        </span>
-                      )}
-                      {cat.sev.warning > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                          {cat.sev.warning}
-                        </span>
-                      )}
-                      {cat.sev.info > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
-                          {cat.sev.info}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-[10px] text-emerald-600 font-medium">Tout est en ordre</p>
-                  )}
+                  <div className="mt-2">
+                    <AgentConversationCount agentKey={cat.agentKey} />
+                  </div>
                 </div>
               </Link>
             );

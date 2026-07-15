@@ -65,6 +65,8 @@ export function CoachingWorkspace({
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
   // Bloc replié affiché uniquement pour un RDV à venir (aujourd'hui ou plus tard).
   const [collapsed, setCollapsed] = useState(isUpcoming(initialAgenda.next_meeting_at));
+  // Formulaire d'agenda ouvert par le bouton « + Créer un RDV… » (masqué sinon).
+  const [formOpen, setFormOpen] = useState(false);
   // Conversations remontées par le chat (bloc historique des rendez-vous).
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
@@ -78,18 +80,25 @@ export function CoachingWorkspace({
   const effectiveCollapsed = collapsed && (isStrictFuture(agenda.next_meeting_at) || sessionStatus !== "ended");
   const preselectedSources = agenda.sources ?? null;
   const contextAttachments = (agenda.attachments as Attachment[] | null) ?? null;
+  // Agenda masqué par défaut : il s'ouvre via le bouton « + Créer un RDV… », ou
+  // s'affiche en confirmation quand un RDV à venir existe.
+  const showAgenda = effectiveCollapsed || formOpen;
 
   return (
     <>
       <div className="mb-3 flex justify-end">
         <button
-          onClick={() => setCollapsed(false)}
+          onClick={() => {
+            setFormOpen(true);
+            setCollapsed(false);
+          }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-200 bg-white px-3 py-1.5 text-xs font-semibold text-fuchsia-700 transition hover:bg-fuchsia-50"
         >
           <span className="text-sm leading-none">＋</span> Créer un rendez-vous &amp; objectif de coaching
         </button>
       </div>
 
+      {showAgenda && (
       <div className="mb-6">
         <CoachAgenda
           category={category}
@@ -97,7 +106,10 @@ export function CoachingWorkspace({
           initial={initialAgenda}
           availableSources={availableSources}
           collapsed={effectiveCollapsed}
-          onCollapsedChange={setCollapsed}
+          onCollapsedChange={(v) => {
+            setCollapsed(v);
+            if (!v) setFormOpen(true);
+          }}
           sessionStatus={sessionStatus}
           onSaved={(a) =>
             setAgenda({
@@ -112,6 +124,7 @@ export function CoachingWorkspace({
           onStart={() => setStartNonce((n) => n + 1)}
         />
       </div>
+      )}
 
       <PaiementAgentChat
         agentKey={agentKey}
