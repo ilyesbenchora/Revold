@@ -41,7 +41,7 @@ export const AGENT_PERSONAS: Record<string, CoachPersona> = {
   // Prévisions
   "prev-ventes": { name: "Emma", emoji: "🧑‍🚀", role: "Prévisionniste ventes", pitch: "Je projette ton atterrissage commercial à partir de ton historique pour anticiper — au lieu de subir.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
   "prev-marketing": { name: "Lucas", emoji: "👨‍🚀", role: "Prévisionniste marketing", pitch: "Je modélise tes leads et conversions futurs pour caler budget et objectifs d'acquisition avec confiance.", gradient: "from-orange-50 via-white to-white", tint: "text-orange-200" },
-  "prev-revenue": { name: "Maya", emoji: "👩‍💼", role: "Prévisionniste revenue", pitch: "Je projette ton MRR/ARR et ton churn pour sécuriser ta trajectoire de revenus et repérer les risques tôt.", gradient: "from-teal-50 via-white to-white", tint: "text-teal-200" },
+  "prev-revenue": { name: "Maya", emoji: "👩‍💼", role: "Prévisionniste revenue & ventes", pitch: "Je projette ton MRR/ARR, ton churn ET ton closing/pipeline en 3 scénarios pour sécuriser ta trajectoire de revenus et anticiper l'atterrissage commercial.", gradient: "from-teal-50 via-white to-white", tint: "text-teal-200" },
   "prev-donnees": { name: "Noah", emoji: "👨‍🔬", role: "Prévisionniste données", pitch: "J'anticipe la dérive de qualité de tes données pour agir avant qu'elle n'impacte tes décisions.", gradient: "from-sky-50 via-white to-white", tint: "text-sky-200" },
   // Dashboard
   reporting: { name: "Alix", emoji: "🧑‍💻", role: "Analyste reporting", pitch: "Je transforme tes données cross-source en rapports clairs et visuels, prêts à décider en un coup d'œil.", gradient: "from-slate-50 via-white to-white", tint: "text-slate-200" },

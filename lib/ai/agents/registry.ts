@@ -333,21 +333,6 @@ const AGENT_LIST: AgentDef[] = [
 
   // ══════════════ Section SIMULATIONS (prévisions) ══════════════
   {
-    key: "prev-ventes",
-    label: "Agent Prévisions Ventes",
-    section: "simulations",
-    tagline: "Projections de closing et de pipeline, scénarios.",
-    expertise:
-      "Tu es un expert forecasting commercial (20 ans). Tu projettes le closing à partir du forecast pondéré, de la couverture de pipeline, de la vélocité et du cycle. Tu produis TROIS scénarios — bas, base, haut — en explicitant chaque hypothèse (taux de conversion, vélocité, saisonnalité) et tu alertes sur l'écart à l'objectif. Tu es transparent : tu raisonnes sur des hypothèses, tu ne remplaces pas un modèle statistique. Rends-le en rapport visuel quand c'est utile.",
-    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, report, propose],
-    suggestions: [
-      "Projette mon closing du prochain trimestre (3 scénarios)",
-      "Vais-je atteindre mon objectif de pipeline ?",
-      "Simule l'impact d'un cycle de vente réduit de 20 %",
-    ],
-    sourceCategories: ["crm"],
-  },
-  {
     key: "prev-marketing",
     label: "Agent Prévisions Marketing",
     section: "simulations",
@@ -364,16 +349,17 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "prev-revenue",
-    label: "Agent Prévisions Revenue",
+    label: "Agent Prévisions Revenue & Ventes",
     section: "simulations",
-    tagline: "Projections MRR/ARR et churn, scénarios.",
+    tagline: "Projections revenue (MRR/ARR, churn) ET closing/pipeline, scénarios.",
     expertise:
-      "Tu es un expert forecasting revenue / DAF SaaS. Tu projettes MRR et ARR sur 6-12 mois en intégrant le churn observé, en scénarios bas/base/haut avec hypothèses de rétention et d'expansion explicites. Tu croises avec le CRM (CA signé) pour ancrer la prévision sur du réel. Tu chiffres l'effet du churn sur le MRR futur et l'impact d'une rétention améliorée. Transparent : hypothèses ≠ modèle statistique. Rends-le en rapport visuel.",
-    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getRevenueTimeseries, getKpiSnapshot, report, propose],
+      "Tu es un expert forecasting revenue ET commercial (DAF + VP Sales SaaS, 20 ans). Tu couvres deux volets complémentaires : (1) REVENUE — tu projettes MRR et ARR sur 6-12 mois en intégrant le churn observé, avec hypothèses de rétention et d'expansion explicites, et tu chiffres l'effet du churn sur le MRR futur ; (2) VENTES — tu projettes le closing à partir du forecast pondéré, de la couverture de pipeline, de la vélocité et du cycle. Tu produis TOUJOURS trois scénarios (bas/base/haut) en explicitant chaque hypothèse (conversion, vélocité, rétention, saisonnalité) et tu alertes sur l'écart à l'objectif. Tu croises CRM (CA signé, pipeline) et facturation (MRR/ARR) pour ancrer la prévision sur du réel et relier le pipeline gagné au revenu réellement facturé. Transparent : hypothèses ≠ modèle statistique. Rends-le en rapport visuel.",
+    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getRevenueTimeseries, getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, report, propose],
     suggestions: [
       "Projette mon ARR à 12 mois (3 scénarios)",
+      "Projette mon closing du prochain trimestre (3 scénarios)",
       "Impact du churn actuel sur mon MRR dans 6 mois ?",
-      "Scénario si je réduis le churn de moitié ?",
+      "Vais-je atteindre mon objectif de pipeline / de revenue ?",
     ],
     suggestionSets: {
       billing: [
@@ -391,21 +377,6 @@ const AGENT_LIST: AgentDef[] = [
       ],
     },
     sourceCategories: ["billing", "crm"],
-  },
-  {
-    key: "prev-donnees",
-    label: "Agent Prévisions Données",
-    section: "simulations",
-    tagline: "Impact projeté de la qualité de données sur le revenue.",
-    expertise:
-      "Tu es un expert de l'impact de la donnée sur le revenue. Tu estimes comment la qualité (complétude, doublons, non-réconciliation) dégrade la fiabilité des prévisions et fait perdre du revenue (mauvaise attribution, deals mal comptés, relances manquées). Tu chiffres le coût de l'inaction et tu priorises les chantiers data par impact revenue. Transparent sur les hypothèses ; rends-le en rapport visuel.",
-    tools: [getDataQuality, getReconciliationStatus, report, propose],
-    suggestions: [
-      "Quel est l'impact de ma qualité de données sur mes prévisions ?",
-      "Combien de revenue je perds à cause des doublons/non-réconciliation ?",
-      "Priorise mes chantiers data par impact revenue",
-    ],
-    sourceCategories: ["crm", "billing", "support"],
   },
 
   // ══════════════ Section DASHBOARD (reporting) ══════════════

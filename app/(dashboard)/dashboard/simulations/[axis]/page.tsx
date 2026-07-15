@@ -13,10 +13,8 @@ export const dynamic = "force-dynamic";
 
 // Axe de prévision (slug) → clé d'agent.
 const AXIS_AGENT: Record<string, string> = {
-  ventes: "prev-ventes",
   marketing: "prev-marketing",
   revenue: "prev-revenue",
-  donnees: "prev-donnees",
 };
 
 export default async function PrevisionAxisPage({ params }: { params: Promise<{ axis: string }> }) {

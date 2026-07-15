@@ -50,7 +50,7 @@ export function SavedProjections({ agentKey }: { agentKey: string }) {
       {hydrated && reports.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
           Aucune projection enregistrée. Lance une projection dans le chat ci-dessus, puis clique sur
-          <span className="font-medium text-slate-700"> « 📌 Enregistrer cette projection »</span> sous le rapport.
+          <span className="font-medium text-slate-700"> « 💾 Enregistrer le rapport »</span> sous le rapport.
         </div>
       ) : (
         <div className="space-y-4">

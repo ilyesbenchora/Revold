@@ -36,6 +36,22 @@ export default async function MesAlertesPage() {
   const alerts = (data ?? []) as AlertRow[];
   const active = alerts.filter((a) => (a.status ?? "active") === "active");
 
+  // Regroupement par catégorie (navigation en carrousel horizontal).
+  const CAT_LABELS: Record<string, string> = {
+    sales: "Ventes",
+    commercial: "Ventes",
+    marketing: "Marketing",
+    revops: "RevOps",
+    finance: "Finance",
+    csm: "Service client",
+  };
+  const byCat = new Map<string, AlertRow[]>();
+  for (const a of active) {
+    const key = a.category ?? "revops";
+    if (!byCat.has(key)) byCat.set(key, []);
+    byCat.get(key)!.push(a);
+  }
+
   return (
     <section className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -53,24 +69,34 @@ export default async function MesAlertesPage() {
           <p className="text-sm text-slate-500">Aucune alerte active. Crée-en une avec le bouton ci-dessus.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {active.map((a) => (
-            <div key={a.id} className="card p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
-                  <span>✨</span> Alerte de suivi
-                </span>
-                <span className="text-xs text-slate-400">
-                  {a.date_from || a.date_to ? `${fmt(a.date_from)} → ${fmt(a.date_to)}` : fmt(a.created_at)}
-                </span>
+        <div className="space-y-6">
+          {[...byCat.entries()].map(([cat, catAlerts]) => (
+            <div key={cat} className="space-y-2">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                {CAT_LABELS[cat] ?? cat}
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">{catAlerts.length}</span>
+              </h2>
+              <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
+                {catAlerts.map((a) => (
+                  <div key={a.id} className="card snap-start shrink-0 p-4" style={{ width: "min(360px, 88vw)" }}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
+                        <span>✨</span> Alerte de suivi
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {a.date_from || a.date_to ? `${fmt(a.date_from)} → ${fmt(a.date_to)}` : fmt(a.created_at)}
+                      </span>
+                    </div>
+                    <AlertBody
+                      title={a.title}
+                      description={a.description ?? ""}
+                      impact={a.impact}
+                      category={a.category}
+                      channels={a.notification_channels ?? undefined}
+                    />
+                  </div>
+                ))}
               </div>
-              <AlertBody
-                title={a.title}
-                description={a.description ?? ""}
-                impact={a.impact}
-                category={a.category}
-                channels={a.notification_channels ?? undefined}
-              />
             </div>
           ))}
         </div>
