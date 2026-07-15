@@ -337,6 +337,22 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
       { key: "recipients", label: "Adresses Gmail destinataires", placeholder: "alice@gmail.com, bob@workspace.fr", type: "text", helper: "Séparées par virgule. Acceptent aussi Google Workspace." },
     ],
   },
+  whatsapp: {
+    key: "whatsapp",
+    label: "WhatsApp",
+    vendor: "Meta",
+    icon: "🟢",
+    domain: "whatsapp.com",
+    category: "communication",
+    description: "Discutez avec vos agents Revold directement depuis WhatsApp (offre Business). Connectez votre numéro WhatsApp Business, puis choisissez l'agent à qui parler.",
+    helpUrl: "https://developers.facebook.com/docs/whatsapp/cloud-api/get-started",
+    helpText: "Depuis Meta for Developers → WhatsApp → API Cloud : récupérez le Phone Number ID, un token d'accès permanent, et définissez un Verify Token (chaîne au choix). Configurez ensuite l'URL de webhook fournie par Revold.",
+    fields: [
+      { key: "phone_number_id", label: "Phone Number ID", placeholder: "1234567890", type: "text", helper: "ID du numéro WhatsApp Business (Meta API Cloud)" },
+      { key: "access_token", label: "Token d'accès permanent", placeholder: "EAAG…", type: "password", helper: "Token système (permanent) avec la permission whatsapp_business_messaging" },
+      { key: "verify_token", label: "Verify Token (webhook)", placeholder: "chaîne au choix (32+ car.)", type: "password", helper: "Doit correspondre au Verify Token saisi dans la config webhook Meta" },
+    ],
+  },
   google_calendar: {
     key: "google_calendar",
     label: "Google Calendar",

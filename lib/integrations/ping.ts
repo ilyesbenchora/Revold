@@ -131,6 +131,10 @@ export async function pingTool(
         return looksLikeHttpsUrl(creds.webhook_url)
           ? { ok: true }
           : { ok: false, reason: "URL invalide — attendu l'URL HTTPS du connecteur Incoming Webhook Teams." };
+      case "whatsapp":
+        return creds.phone_number_id && creds.access_token && creds.verify_token && creds.verify_token.length >= 16
+          ? { ok: true }
+          : { ok: false, reason: "Renseignez Phone Number ID, token d'accès et un Verify Token de 16+ caractères." };
       case "gmail":
       case "outlook":
         return validRecipients(creds.recipients)
