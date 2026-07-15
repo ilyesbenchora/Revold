@@ -86,16 +86,6 @@ const kpisByTeam: Record<string, KpiDef[]> = {
   ],
 };
 
-const datePresets = [
-  { id: "this_week", label: "Cette semaine" },
-  { id: "this_month", label: "Ce mois" },
-  { id: "this_quarter", label: "Ce trimestre" },
-  { id: "this_year", label: "Cette année" },
-  { id: "last_30d", label: "30 derniers jours" },
-  { id: "last_90d", label: "90 derniers jours" },
-  { id: "all_time", label: "Depuis toujours" },
-];
-
 const unitLabels: Record<string, string> = { percent: "%", currency: "€", count: "" };
 
 type Pipeline = { id: string; label: string };
@@ -140,7 +130,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [threshold, setThreshold] = useState("");
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [unitMode, setUnitMode] = useState<"percent" | "currency" | "count">("percent");
-  const [datePreset, setDatePreset] = useState("all_time");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [customKpi, setCustomKpi] = useState("");
   const [selectedPipelines, setSelectedPipelines] = useState<string[]>([]);
   // Step 3 — marketing
   const [lifecycleStage, setLifecycleStage] = useState("");
@@ -160,7 +152,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
 
   const kpiList = kpisByTeam[team] ?? [];
-  const kpi = kpiList.find((k) => k.id === kpiId);
+  const kpi =
+    kpiId === "custom"
+      ? { id: "custom", label: customKpi.trim() || "KPI personnalisé", description: "", defaultUnit: unitMode, defaultDirection: direction, category: team || "revops", dealRelated: false, contactRelated: false, sourceRelated: false }
+      : kpiList.find((k) => k.id === kpiId);
 
   // ── Écoute l'event global "revold:open-alert-modal" pour ouvrir la modal
   // depuis n'importe quel CreateAlertCta avec un preset (équipe + KPI + seuil)
@@ -229,7 +224,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
   function reset() {
     setStep(1); setTeam(""); setKpiId(""); setThreshold(""); setDirection("above");
-    setUnitMode("percent"); setDatePreset("all_time"); setSelectedPipelines([]);
+    setUnitMode("percent"); setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]);
     setLifecycleStage(""); setSelectedSources([]);
     setShowAdvanced(false); setSeverity("info"); setFrequency("every_check");
     setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
@@ -294,8 +289,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
       const propLabel = customContactProps.find((p) => p.name === customProp)?.label ?? customProp;
       parts.push(`Propriété custom : ${propLabel} = ${customPropValue}`);
     }
-    const periodLabel = datePresets.find((d) => d.id === datePreset)?.label ?? "Toujours";
-    parts.push(`Période : ${periodLabel}`);
+    const periodLabel = dateFrom || dateTo ? `${dateFrom || "…"} → ${dateTo || "…"}` : "Toute la période";
+    parts.push(`Période d'analyse : ${periodLabel}`);
 
     try {
       const res = await fetch("/api/alerts", {
@@ -306,13 +301,15 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           description: parts.join(". ") + ".",
           impact: `Notification quand l'objectif de ${threshold}${unit} sera atteint`,
           category: kpi.category,
-          forecast_type: kpi.id,
+          forecast_type: kpiId === "custom" ? null : kpi.id,
           threshold: Number(threshold),
           direction,
           team,
           pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
           owner_filter: ownerFilter || null,
-          date_preset: datePreset === "all_time" ? null : datePreset,
+          date_preset: null,
+          date_from: dateFrom || null,
+          date_to: dateTo || null,
           unit_mode: unitMode,
           severity,
           frequency,
@@ -412,6 +409,37 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                     <h2 className="text-lg font-semibold text-slate-900">Quel KPI surveiller ?</h2>
                     <p className="mt-1 text-sm text-slate-500">KPIs disponibles pour l&apos;équipe {teams.find((t) => t.id === team)?.label}.</p>
                     <div className="mt-4 space-y-2">
+                      {/* KPI personnalisé (en premier) */}
+                      <div className={`rounded-lg border px-4 py-3 transition ${kpiId === "custom" ? "border-accent bg-accent/5" : "border-dashed border-slate-300"}`}>
+                        <button
+                          type="button"
+                          onClick={() => setKpiId("custom")}
+                          className="flex w-full items-center justify-between text-left"
+                        >
+                          <div>
+                            <p className={`text-sm font-medium ${kpiId === "custom" ? "text-accent" : "text-slate-900"}`}>✏️ KPI personnalisé</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">Un indicateur qui n&apos;est pas dans la liste.</p>
+                          </div>
+                        </button>
+                        {kpiId === "custom" && (
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              value={customKpi}
+                              onChange={(e) => setCustomKpi(e.target.value)}
+                              placeholder="Ex : taux de no-show démo, NPS…"
+                              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => customKpi.trim() && setStep(3)}
+                              disabled={!customKpi.trim()}
+                              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                            >
+                              Continuer
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       {kpiList.map((k) => (
                         <button key={k.id} type="button" onClick={() => selectKpi(k)}
                           className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition hover:border-accent/30 ${kpiId === k.id ? "border-accent bg-accent/5" : "border-slate-200"}`}>
@@ -547,17 +575,22 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       )}
 
-                      {/* Date range */}
+                      {/* Période d'analyse : date de début / date de fin */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">Période d&apos;analyse</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {datePresets.map((d) => (
-                            <button key={d.id} type="button" onClick={() => setDatePreset(d.id)}
-                              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                                datePreset === d.id ? "bg-accent text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}>{d.label}</button>
-                          ))}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400">Date de début</span>
+                            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400">Date de fin</span>
+                            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                          </div>
                         </div>
+                        <p className="mt-1 text-[10px] text-slate-400">Laisse vide pour analyser toute la période.</p>
                       </div>
 
                       {/* ── Advanced ── */}
