@@ -8,7 +8,15 @@ import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/conn
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/integrations/category-meta";
 import Link from "next/link";
 
-export default async function BibliothequeOutilsPage() {
+export default async function BibliothequeOutilsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const errParam = typeof sp.error === "string" ? sp.error : null;
+  const oauthEnvMissing = errParam?.startsWith("oauth_env_") ? errParam.replace("oauth_env_", "") : null;
+
   const orgId = await getOrgId();
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
@@ -37,6 +45,14 @@ export default async function BibliothequeOutilsPage() {
           dans <Link href="/dashboard/integration/mes-outils" className="font-medium text-accent hover:underline">Mes outils connectés</Link>.
         </p>
       </header>
+
+      {oauthEnvMissing && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ⚙️ La connexion <strong>{oauthEnvMissing.replace(/_/g, " ")}</strong> nécessite d&apos;abord la configuration de
+          l&apos;app OAuth (identifiants client dans les variables d&apos;environnement). Contactez l&apos;administrateur
+          Revold pour l&apos;activer.
+        </div>
+      )}
 
       <div className="space-y-6">
         {CATEGORY_ORDER.map((cat) => {
@@ -78,16 +94,16 @@ export default async function BibliothequeOutilsPage() {
                     );
                   }
                   const url = tool.connectUrl ?? `/dashboard/integration/connect/${tool.key}`;
-                  return (
-                    <Link
-                      key={tool.key}
-                      href={url}
-                      className={`group relative flex items-center gap-3 rounded-xl border p-4 transition ${
-                        isConnected
-                          ? "border-emerald-200 bg-emerald-50/40 hover:border-emerald-300"
-                          : "border-slate-200 bg-white hover:border-accent/40 hover:bg-slate-50/50"
-                      }`}
-                    >
+                  // Les routes API (OAuth) nécessitent une vraie navigation <a> :
+                  // le routeur client de Next ne sait pas naviguer vers /api/*.
+                  const isApi = url.startsWith("/api");
+                  const cls = `group relative flex items-center gap-3 rounded-xl border p-4 transition ${
+                    isConnected
+                      ? "border-emerald-200 bg-emerald-50/40 hover:border-emerald-300"
+                      : "border-slate-200 bg-white hover:border-accent/40 hover:bg-slate-50/50"
+                  }`;
+                  const inner = (
+                    <>
                       <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
@@ -98,7 +114,12 @@ export default async function BibliothequeOutilsPage() {
                       ) : (
                         <span className="shrink-0 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent opacity-0 transition group-hover:opacity-100">Connecter</span>
                       )}
-                    </Link>
+                    </>
+                  );
+                  return isApi ? (
+                    <a key={tool.key} href={url} className={cls}>{inner}</a>
+                  ) : (
+                    <Link key={tool.key} href={url} className={cls}>{inner}</Link>
                   );
                 })}
               </div>
