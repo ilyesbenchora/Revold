@@ -2,6 +2,35 @@ import type { AgentTool, AgentContext } from "./agent-runtime";
 import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
+import { fetchAdsPerformance } from "@/lib/integrations/sources/ads";
+
+/**
+ * Performance publicité & web (Google Analytics/Ads, Meta Ads, LinkedIn Ads) sur
+ * 30 jours pour les régies connectées. Sert à croiser la dépense marketing avec
+ * le revenu réel (ROAS jusqu'à l'encaissement).
+ */
+export const getAdsPerformance: AgentTool = {
+  def: {
+    name: "get_ads_performance",
+    description:
+      "Récupère les métriques (30 derniers jours) des régies publicité/web connectées : dépense, impressions, clics, conversions, par plateforme (Google Analytics, Google Ads, Meta Ads, LinkedIn Ads). À croiser avec le pipeline et le revenu encaissé pour évaluer le ROAS réel.",
+    input_schema: { type: "object", properties: {} },
+  },
+  run: async (_input, ctx: AgentContext) => {
+    const metrics = await fetchAdsPerformance(ctx.supabase, ctx.orgId);
+    if (metrics.length === 0) {
+      return { connected: false, message: "Aucune régie publicité/web connectée (Google Analytics/Ads, Meta, LinkedIn)." };
+    }
+    const totalSpend = metrics.reduce((s, m) => s + m.spend, 0);
+    const totalConv = metrics.reduce((s, m) => s + m.conversions, 0);
+    return {
+      connected: true,
+      period: "30 derniers jours",
+      byPlatform: metrics,
+      totals: { spend: Math.round(totalSpend), conversions: Math.round(totalConv), costPerConversion: totalConv > 0 ? Math.round(totalSpend / totalConv) : null },
+    };
+  },
+};
 
 /**
  * Bibliothèque de tools réutilisables par les agents experts.

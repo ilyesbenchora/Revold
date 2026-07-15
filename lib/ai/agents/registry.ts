@@ -18,6 +18,7 @@ import {
   renderReportTool,
   proposeChartTool,
   proposeActionTool,
+  getAdsPerformance,
 } from "./tool-library";
 
 export type AgentSection = "donnees" | "coaching" | "simulations" | "dashboard";
@@ -444,7 +445,7 @@ const AGENT_LIST: AgentDef[] = [
 
 // Capacités universelles : tout agent peut agréger la donnée canonique,
 // proposer un type de graphique et rendre un rapport. Ajoutées sans doublon.
-const UNIVERSAL_TOOLS = [aggregateCanonical, proposeChartTool, report];
+const UNIVERSAL_TOOLS = [aggregateCanonical, proposeChartTool, report, getAdsPerformance];
 for (const a of AGENT_LIST) {
   for (const t of UNIVERSAL_TOOLS) {
     if (!a.tools.some((x) => x.def.name === t.def.name)) a.tools.push(t);
