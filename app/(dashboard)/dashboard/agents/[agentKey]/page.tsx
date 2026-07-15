@@ -5,7 +5,7 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
-import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -77,7 +77,7 @@ export default async function AgentPage({
           className="pointer-events-none absolute -right-6 -bottom-10 h-40 w-40 select-none rounded-full object-cover opacity-[0.14]"
         />
         <div className="relative z-10 flex items-start gap-3">
-          <AgentAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} size={48} />
+          <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} role={persona.role} pitch={persona.pitch} size={48} />
           <div>
             <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
               <span>✨</span> {coachingCategory ? "Coach IA" : "Agent IA"} · augmenté par l&apos;IA
