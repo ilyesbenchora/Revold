@@ -77,7 +77,7 @@ export default async function AgentPage({
           </span>
           <div>
             <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-              <span>✨</span> {coachingCategory ? "Coach" : "Agent expert"}
+              <span>✨</span> {persona.name} · {coachingCategory ? "Coach IA" : "Agent IA"}
             </div>
             <h1 className="text-xl font-semibold text-slate-900">{agent.label}</h1>
             <p className="mt-0.5 text-sm text-slate-600">{agent.tagline}</p>
