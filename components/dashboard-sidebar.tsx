@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
 type LeafLink = { href: string; label: string; icon: React.ReactNode; ai?: boolean };
 type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[]; ai?: boolean };
@@ -361,128 +360,85 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const isAccountActive = pathname.startsWith(accountLink.href);
 
-  // Groups open state (default: auto-open if any child is active)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const next: Record<string, boolean> = {};
-    for (const item of sidebarLinks) {
-      if (isGroup(item)) {
-        const anyActive = item.children.some((c) => isChildActive(pathname, c.href));
-        if (anyActive) next[item.id] = true;
-      }
-    }
-    setOpenGroups((prev) => ({ ...next, ...prev }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  function toggleGroup(id: string) {
-    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
-
+  // Sidebar réduite : icônes uniquement. Au survol, un menu volant affiche le
+  // libellé (liens simples) ou les sous-pages (groupes). Gain d'espace maximal.
   return (
-    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 flex-col self-start overflow-y-auto border-r border-card-border bg-white px-4 py-6 md:flex">
-      <nav className="flex-1 space-y-1">
+    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-16 flex-col self-start border-r border-card-border bg-white py-4 md:flex">
+      <nav className="flex-1 space-y-1 px-2">
         {sidebarLinks.map((item) => {
           if (isGroup(item)) {
-            const open = !!openGroups[item.id];
             const groupActive = item.children.some((c) => isChildActive(pathname, c.href));
             return (
-              <div key={item.id}>
+              <div key={item.id} className="group relative">
                 <button
                   type="button"
-                  onClick={() => toggleGroup(item.id)}
-                  aria-expanded={open}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                    groupActive
-                      ? "bg-accent-soft text-accent"
-                      : `text-slate-600 hover:text-slate-900 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
+                  aria-label={item.label}
+                  className={`flex w-full items-center justify-center rounded-lg p-2.5 transition ${
+                    groupActive ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
                   }`}
                 >
-                  <span className={groupActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
-                  <span className="flex-1 text-left">{item.label}</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`shrink-0 transition-transform ${open ? "rotate-180" : ""} ${
-                      groupActive ? "text-accent" : "text-slate-400"
-                    }`}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
+                  {item.icon}
                 </button>
-                <div
-                  className={`overflow-hidden transition-[max-height,opacity] duration-200 ${
-                    open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                  }`}
-                >
-                  <div className="mt-1 ml-3 border-l border-slate-200 pl-3 space-y-0.5">
-                    {item.children.map((child) => {
-                      const active = isChildActive(pathname, child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
-                            active
-                              ? "bg-accent-soft text-accent"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                          }`}
-                        >
-                          <span className={active ? "text-accent" : "text-slate-400"}>{child.icon}</span>
-                          {child.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
+                {/* Menu volant : sous-pages */}
+                <div className="invisible absolute left-full top-0 z-50 ml-1 min-w-52 rounded-xl border border-card-border bg-white p-1.5 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
+                  {item.children.map((child) => {
+                    const active = isChildActive(pathname, child.href);
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
+                          active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <span className={active ? "text-accent" : "text-slate-400"}>{child.icon}</span>
+                        {child.label}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             );
           }
 
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+          const isActive = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                isActive
-                  ? "bg-accent-soft text-accent"
-                  : `text-slate-600 hover:text-slate-900 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
-              }`}
-            >
-              <span className={isActive ? "text-accent" : "text-slate-400"}>{item.icon}</span>
-              {item.label}
-            </Link>
+            <div key={item.href} className="group relative">
+              <Link
+                href={item.href}
+                aria-label={item.label}
+                className={`flex items-center justify-center rounded-lg p-2.5 transition ${
+                  isActive ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
+                }`}
+              >
+                {item.icon}
+              </Link>
+              {/* Tooltip volant : libellé */}
+              <div className="invisible absolute left-full top-1/2 z-50 ml-1 -translate-y-1/2 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                {item.label}
+              </div>
+            </div>
           );
         })}
       </nav>
 
-      {/* Mon compte — pinned at bottom */}
-      <div className="mt-4 border-t border-card-border pt-4">
-        <Link
-          href={accountLink.href}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-            isAccountActive
-              ? "bg-accent-soft text-accent"
-              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-          }`}
-        >
-          <span className={isAccountActive ? "text-accent" : "text-slate-400"}>
+      {/* Mon compte — épinglé en bas */}
+      <div className="mt-4 border-t border-card-border px-2 pt-4">
+        <div className="group relative">
+          <Link
+            href={accountLink.href}
+            aria-label={accountLink.label}
+            className={`flex items-center justify-center rounded-lg p-2.5 transition ${
+              isAccountActive ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-50"
+            }`}
+          >
             {accountLink.icon}
-          </span>
-          {accountLink.label}
-        </Link>
+          </Link>
+          <div className="invisible absolute bottom-0 left-full z-50 ml-1 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+            {accountLink.label}
+          </div>
+        </div>
       </div>
     </aside>
   );
