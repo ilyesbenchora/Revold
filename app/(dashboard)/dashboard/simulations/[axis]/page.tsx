@@ -5,7 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
-import { SavedProjections } from "@/components/agents/saved-projections";
+import { SavedReportsCarousel } from "@/components/agents/saved-reports-carousel";
 import { getAgent } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -69,7 +69,7 @@ export default async function PrevisionAxisPage({ params }: { params: Promise<{ 
         persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
       />
 
-      <SavedProjections agentKey={agent.key} />
+      <SavedReportsCarousel agentKey={agent.key} title="Prévisions enregistrées" />
     </div>
   );
 }

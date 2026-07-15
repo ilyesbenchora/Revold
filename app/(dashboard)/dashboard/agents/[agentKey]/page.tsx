@@ -6,7 +6,7 @@ import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
-import { AgentAlertsSection } from "@/components/agents/agent-alerts-section";
+import { SavedReportsCarousel } from "@/components/agents/saved-reports-carousel";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -132,7 +132,7 @@ export default async function AgentPage({
             suggestionSets={agent.suggestionSets ?? null}
             persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
           />
-          <AgentAlertsSection agentKey={agent.key} />
+          <SavedReportsCarousel agentKey={agent.key} />
         </>
       )}
     </div>
