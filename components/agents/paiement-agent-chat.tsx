@@ -138,15 +138,19 @@ export function PaiementAgentChat({
   const [sessionEnd, setSessionEnd] = useState<"none" | "asking" | "ended">("none");
   // Séance de coaching effectivement démarrée dans cette vue (pas via historique).
   const [sessionStarted, setSessionStarted] = useState(false);
+  // Agents non-coach : relance « Avez-vous une autre question ? » après 2 min.
+  const [askAnother, setAskAnother] = useState(false);
+  const askRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inactRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRef = useRef(0);
 
-  const INACT_MS = 5 * 60 * 1000; // 5 min d'inactivité → propose de terminer
-  const AUTO_MS = 2 * 60 * 1000; // 2 min sans réponse → terminaison auto
-  const CLOSE_MS = 10 * 60 * 1000; // 10 min d'inactivité → ferme le chat (→ historique)
+  const INACT_MS = 5 * 60 * 1000; // 5 min d'inactivité → propose de terminer (coaching)
+  const AUTO_MS = 2 * 60 * 1000; // 2 min sans réponse → terminaison auto (coaching)
+  const ASK_MS = 2 * 60 * 1000; // 2 min d'inactivité → « Avez-vous une autre question ? » (non-coach)
+  const CLOSE_MS = 10 * 60 * 1000; // 10 min d'inactivité → ferme le chat (→ page blanche)
 
   function clearSessionTimers() {
     if (inactRef.current) clearTimeout(inactRef.current);
@@ -214,17 +218,25 @@ export function PaiementAgentChat({
     }
   }, [coachingStatus, onSessionStatusChange, hydrated, coachingMode, statusKey]);
 
-  // Fermeture auto (agents non-coach) : après 10 min sans activité, on ferme le
-  // chat (la conversation reste dans l'historique) → page blanche. Pour les agents
-  // coach, la clôture passe par le flux « terminer la séance » (5+2 min).
+  // Inactivité (agents non-coach) : à 2 min l'agent relance « Avez-vous une autre
+  // question ? » ; sans activité au bout de 10 min, le chat se ferme (la conv
+  // reste dans l'historique) et repart sur une page blanche avec les suggestions.
+  function clearIdleTimers() {
+    if (askRef.current) clearTimeout(askRef.current);
+    if (closeRef.current) clearTimeout(closeRef.current);
+    askRef.current = null;
+    closeRef.current = null;
+  }
   useEffect(() => {
     if (coachingMode) return;
     if (messages.length === 0 || loading) return;
-    if (closeRef.current) clearTimeout(closeRef.current);
-    closeRef.current = setTimeout(() => startNew(), CLOSE_MS);
-    return () => {
-      if (closeRef.current) clearTimeout(closeRef.current);
-    };
+    clearIdleTimers();
+    askRef.current = setTimeout(() => setAskAnother(true), ASK_MS);
+    closeRef.current = setTimeout(() => {
+      setAskAnother(false);
+      startNew();
+    }, CLOSE_MS);
+    return () => clearIdleTimers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, input, loading, coachingMode]);
 
@@ -236,12 +248,17 @@ export function PaiementAgentChat({
         const parsed = JSON.parse(raw) as Conversation[];
         if (Array.isArray(parsed)) {
           setConversations(parsed);
-          const latest = [...parsed].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-          if (latest) {
-            setCurrentId(latest.id);
-            setMessages(latest.messages);
-            if (latest.sources.length) setSelected(latest.sources);
-            if (latest.attachments?.length) setAttachments(latest.attachments);
+          // Coaching : on rouvre la dernière conversation (statut « en cours »).
+          // Autres agents : on démarre sur une conversation vierge (l'historique
+          // reste accessible via l'onglet Historique).
+          if (coachingMode) {
+            const latest = [...parsed].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+            if (latest) {
+              setCurrentId(latest.id);
+              setMessages(latest.messages);
+              if (latest.sources.length) setSelected(latest.sources);
+              if (latest.attachments?.length) setAttachments(latest.attachments);
+            }
           }
         }
       }
@@ -253,6 +270,7 @@ export function PaiementAgentChat({
       /* localStorage indisponible / corrompu → on démarre à vide */
     }
     setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, statusKey]);
 
   // Remonte la liste des conversations au parent (bloc historique des rendez-vous).
@@ -329,6 +347,7 @@ export function PaiementAgentChat({
     if (coachingMode) setSelected(exactCoachingSources());
     setSessionEnd("none");
     setSessionStarted(false);
+    setAskAnother(false);
     setError(null);
     setTab("chat");
   }
@@ -372,6 +391,7 @@ export function PaiementAgentChat({
   async function runSend(base: Msg[], content: string, id: string) {
     if (loading) return;
     setError(null);
+    setAskAnother(false);
     if (coachingMode) setSessionStarted(true);
 
     const next: Msg[] = [...base, { role: "user", content }];
@@ -611,6 +631,14 @@ export function PaiementAgentChat({
             {sessionEnd === "ended" && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-sm font-medium text-emerald-700">
                 ✓ Séance de coaching terminée et enregistrée dans « Coaching réalisé par les agents ».
+              </div>
+            )}
+            {askAnother && !coachingMode && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5">
+                <p className="text-sm text-slate-700">Avez-vous une autre question ?</p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Sans activité, cette conversation se fermera automatiquement et repartira à zéro.
+                </p>
               </div>
             )}
 
