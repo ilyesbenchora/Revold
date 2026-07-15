@@ -40,7 +40,7 @@ export function CoachingWorkspace({
   /** Coaching issu d'un rapport : contexte prêt à l'emploi, démarrage auto. */
   reportBrief?: { objectives: string; pains: string } | null;
   /** Personnage de l'agent (avatar dans les bulles). */
-  persona?: { name: string; emoji: string } | null;
+  persona?: { name: string; emoji: string; image?: string | null } | null;
 }) {
   const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour

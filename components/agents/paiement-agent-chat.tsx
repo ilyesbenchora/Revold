@@ -108,7 +108,7 @@ export function PaiementAgentChat({
   /** Signal pour rouvrir une conversation donnée depuis l'historique. */
   openConversationSignal?: { id: string; nonce: number } | null;
   /** Personnage de l'agent (avatar dans les bulles de réponse). */
-  persona?: { name: string; emoji: string } | null;
+  persona?: { name: string; emoji: string; image?: string | null } | null;
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -574,7 +574,7 @@ export function PaiementAgentChat({
                   {m.role === "assistant" &&
                     (persona ? (
                       <div className="mr-2 mt-0.5">
-                        <AgentAvatar name={persona.name} emoji={persona.emoji} size={28} />
+                        <AgentAvatar name={persona.name} emoji={persona.emoji} image={persona.image} size={28} />
                       </div>
                     ) : (
                       <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">

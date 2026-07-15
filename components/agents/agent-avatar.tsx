@@ -11,18 +11,22 @@ import { personaAvatarUrl } from "@/lib/ai/agents/coach-personas";
 export function AgentAvatar({
   name,
   emoji,
+  image,
   size = 44,
   className = "",
 }: {
   name: string;
   emoji: string;
+  /** Portrait sur-mesure hébergé (essayé en priorité). */
+  image?: string | null;
   size?: number;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const src = personaAvatarUrl(name, size * 2);
+  // Cascade : portrait sur-mesure → illustration déterministe → emoji.
+  const sources = [image, personaAvatarUrl(name, size * 2)].filter(Boolean) as string[];
+  const [stage, setStage] = useState(0);
 
-  if (failed) {
+  if (stage >= sources.length) {
     return (
       <span
         className={`inline-flex shrink-0 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-black/5 ${className}`}
@@ -36,11 +40,11 @@ export function AgentAvatar({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={sources[stage]}
       alt={name}
       width={size}
       height={size}
-      onError={() => setFailed(true)}
+      onError={() => setStage((s) => s + 1)}
       className={`shrink-0 rounded-full object-cover shadow-sm ring-1 ring-black/5 ${className}`}
       style={{ width: size, height: size }}
     />

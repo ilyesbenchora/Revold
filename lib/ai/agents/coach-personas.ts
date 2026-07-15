@@ -54,10 +54,20 @@ export function getAgentPersona(agentKey: string | null | undefined): CoachPerso
 }
 
 /**
- * URL de l'avatar photoréaliste du personnage — une vraie photo humaine,
- * déterministe (même personnage = même visage). Utilisé pour l'avatar et pour
- * le filigrane de fond des blocs.
+ * URL de l'avatar illustré du personnage — un personnage humain stylisé
+ * (déterministe : même personnage = même visage), au rendu moderne et coloré.
+ * Utilisé pour l'avatar ET le filigrane de fond des blocs.
+ *
+ * Pour coller pixel-près à une charte de portraits 3D sur-mesure : déposer les
+ * images dans /public/personas/<clé-agent>.png et faire pointer cette fonction
+ * (ou personaImagePath) dessus.
  */
 export function personaAvatarUrl(name: string, size = 128): string {
-  return `https://i.pravatar.cc/${size}?u=${encodeURIComponent(`revold-${name}`)}`;
+  const seed = encodeURIComponent(`revold-${name}`);
+  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${seed}&size=${size}&radius=50&backgroundType=gradientLinear&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+}
+
+/** Chemin d'un portrait sur-mesure hébergé (si fourni), par clé d'agent. */
+export function personaImagePath(agentKey: string): string {
+  return `/personas/${agentKey}.png`;
 }
