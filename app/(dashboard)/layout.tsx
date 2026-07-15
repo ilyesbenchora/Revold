@@ -50,7 +50,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader companyName={orgName} connectedTools={connectedTools} />
-      <div className="mx-auto flex w-full max-w-[1400px]">
+      <div className="flex w-full">
         <DashboardSidebar />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>

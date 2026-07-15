@@ -363,7 +363,7 @@ export function DashboardSidebar() {
   // Sidebar réduite : icônes uniquement. Au survol, un menu volant affiche le
   // libellé (liens simples) ou les sous-pages (groupes). Gain d'espace maximal.
   return (
-    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-16 flex-col self-start border-r border-card-border bg-white py-4 md:flex">
+    <aside className="sticky top-16 z-30 hidden h-[calc(100vh-4rem)] w-16 flex-col self-start border-r border-card-border bg-white py-4 md:flex">
       <nav className="flex-1 space-y-1 px-2">
         {sidebarLinks.map((item) => {
           if (isGroup(item)) {
