@@ -86,7 +86,7 @@ export default async function AgentPage({
           <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} role={persona.role} pitch={persona.pitch} size={48} />
           <div>
             <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-              <span>✨</span> {coachingCategory ? "Coach IA" : "Agent IA"} · augmenté par l&apos;IA
+              <span>✨</span> {coachingCategory ? "Coach" : "Agent"} · augmenté par l&apos;IA
             </div>
             <h1 className="text-xl font-semibold text-slate-900">
               {persona.name}, ton {persona.role.toLowerCase()}
