@@ -43,6 +43,9 @@ export function CoachingWorkspace({
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
   // Replié dès qu'un RDV existe ; le bouton haut de page le déplie.
   const [collapsed, setCollapsed] = useState(Boolean(initialAgenda.next_meeting_at));
+  // Conversations remontées par le chat (bloc historique des rendez-vous).
+  const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
+  const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
 
   const coachingCtx = { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
   // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
@@ -97,7 +100,44 @@ export function CoachingWorkspace({
         contextAttachments={contextAttachments}
         startSignal={startNonce}
         onSessionStatusChange={setSessionStatus}
+        onConversationsChange={setConversations}
+        openConversationSignal={openConv}
       />
+
+      {/* Historique des rendez-vous de coaching (conversations passées) */}
+      <div className="mt-6 card p-5">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+          Historique des rendez-vous
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">{conversations.length}</span>
+        </h3>
+        {conversations.length === 0 ? (
+          <p className="mt-3 text-xs text-slate-400">Aucune séance pour le moment. Démarre un coaching pour la retrouver ici.</p>
+        ) : (
+          <div className="mt-3 divide-y divide-slate-100">
+            {[...conversations]
+              .sort((a, b) => b.updatedAt - a.updatedAt)
+              .map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800">{c.title}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })}
+                      {" · "}
+                      {c.count} message(s)
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setOpenConv({ id: c.id, nonce: Date.now() })}
+                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-accent hover:bg-slate-50"
+                  >
+                    Reprendre la conversation →
+                  </button>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
     </>
   );
 }

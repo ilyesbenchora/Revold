@@ -84,6 +84,8 @@ export function PaiementAgentChat({
   contextAttachments,
   startSignal,
   onSessionStatusChange,
+  onConversationsChange,
+  openConversationSignal,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -99,6 +101,10 @@ export function PaiementAgentChat({
   startSignal?: number;
   /** Remonte l'état de la séance de coaching (bouton de l'agenda). */
   onSessionStatusChange?: (status: "idle" | "active" | "ended") => void;
+  /** Remonte la liste des conversations (pour le bloc historique des rendez-vous). */
+  onConversationsChange?: (list: { id: string; title: string; updatedAt: number; count: number }[]) => void;
+  /** Signal pour rouvrir une conversation donnée depuis l'historique. */
+  openConversationSignal?: { id: string; nonce: number } | null;
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -107,6 +113,7 @@ export function PaiementAgentChat({
   const contextFiles = contextAttachments ?? [];
   const exactCoachingSources = () => sources.filter((s) => preselList.includes(s.key)).map((s) => s.key);
   const storageKey = `revold:agent:${agentKey}:v1`;
+  const statusKey = `revold:agent:${agentKey}:status`;
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -191,15 +198,27 @@ export function PaiementAgentChat({
   // Statut de la séance de coaching, remonté à l'agenda pour le libellé du bouton :
   // idle (pas démarrée) → active (en cours) → ended (terminée). On s'appuie sur un
   // flag explicite (démarrage effectif dans cette vue), pas sur l'historique chargé.
+  // « en cours » = une conversation de coaching est ouverte et non terminée
+  // (démarrée dans la vue OU rechargée depuis l'historique). « terminé » persiste.
   const coachingStatus: "idle" | "active" | "ended" =
-    sessionEnd === "ended" ? "ended" : sessionStarted ? "active" : "idle";
+    sessionEnd === "ended" ? "ended" : sessionStarted || messages.length > 0 ? "active" : "idle";
   useEffect(() => {
     onSessionStatusChange?.(coachingStatus);
-  }, [coachingStatus, onSessionStatusChange]);
+    // Persistance du statut → CTA fiable au rechargement (en cours / terminé).
+    if (hydrated && coachingMode) {
+      try {
+        localStorage.setItem(statusKey, coachingStatus);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [coachingStatus, onSessionStatusChange, hydrated, coachingMode, statusKey]);
 
-  // Fermeture auto : après 10 min sans activité, on ferme le chat (la conversation
-  // reste dans l'historique) et on revient à une page blanche.
+  // Fermeture auto (agents non-coach) : après 10 min sans activité, on ferme le
+  // chat (la conversation reste dans l'historique) → page blanche. Pour les agents
+  // coach, la clôture passe par le flux « terminer la séance » (5+2 min).
   useEffect(() => {
+    if (coachingMode) return;
     if (messages.length === 0 || loading) return;
     if (closeRef.current) clearTimeout(closeRef.current);
     closeRef.current = setTimeout(() => startNew(), CLOSE_MS);
@@ -207,7 +226,7 @@ export function PaiementAgentChat({
       if (closeRef.current) clearTimeout(closeRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, input, loading]);
+  }, [messages.length, input, loading, coachingMode]);
 
   // Hydratation depuis localStorage (client only).
   useEffect(() => {
@@ -226,11 +245,33 @@ export function PaiementAgentChat({
           }
         }
       }
+      // Restaure le statut de séance persisté (en cours / terminé).
+      const savedStatus = localStorage.getItem(statusKey);
+      if (savedStatus === "ended") setSessionEnd("ended");
+      else if (savedStatus === "active") setSessionStarted(true);
     } catch {
       /* localStorage indisponible / corrompu → on démarre à vide */
     }
     setHydrated(true);
-  }, [storageKey]);
+  }, [storageKey, statusKey]);
+
+  // Remonte la liste des conversations au parent (bloc historique des rendez-vous).
+  useEffect(() => {
+    if (!hydrated) return;
+    onConversationsChange?.(
+      conversations.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, count: c.messages.length })),
+    );
+  }, [conversations, hydrated, onConversationsChange]);
+
+  // Rouvre une conversation depuis le bloc historique (« Reprendre »).
+  const openNonceRef = useRef(0);
+  useEffect(() => {
+    if (!openConversationSignal || openConversationSignal.nonce === openNonceRef.current) return;
+    openNonceRef.current = openConversationSignal.nonce;
+    const conv = conversations.find((c) => c.id === openConversationSignal.id);
+    if (conv) openConversation(conv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openConversationSignal]);
 
   // Persistance : réécrit localStorage à chaque changement (après hydratation).
   useEffect(() => {
@@ -406,6 +447,14 @@ export function PaiementAgentChat({
           Historique{conversations.length > 0 ? ` (${conversations.length})` : ""}
         </button>
         <div className="flex-1" />
+        {coachingMode && coachingStatus === "active" && (
+          <button
+            onClick={() => completeSession(false)}
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            ✓ Terminer le coaching
+          </button>
+        )}
         <button
           onClick={startNew}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
