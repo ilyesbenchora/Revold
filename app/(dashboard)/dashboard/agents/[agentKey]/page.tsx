@@ -98,6 +98,7 @@ export default async function AgentPage({
           suggestions={agent.suggestions}
           suggestionSets={agent.suggestionSets ?? null}
           reportBrief={reportBrief}
+          persona={{ name: persona.name, emoji: persona.emoji }}
         />
       ) : (
         <PaiementAgentChat

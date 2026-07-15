@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageArtifacts } from "./message-artifacts";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
+import { AgentAvatar } from "./agent-avatar";
 import type { Attachment } from "@/lib/attachments";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
@@ -86,6 +87,7 @@ export function PaiementAgentChat({
   onSessionStatusChange,
   onConversationsChange,
   openConversationSignal,
+  persona,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -105,6 +107,8 @@ export function PaiementAgentChat({
   onConversationsChange?: (list: { id: string; title: string; updatedAt: number; count: number }[]) => void;
   /** Signal pour rouvrir une conversation donnée depuis l'historique. */
   openConversationSignal?: { id: string; nonce: number } | null;
+  /** Personnage de l'agent (avatar dans les bulles de réponse). */
+  persona?: { name: string; emoji: string } | null;
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -567,11 +571,16 @@ export function PaiementAgentChat({
             {messages.map((m, i) => (
               <div key={i} className="space-y-2">
                 <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  {m.role === "assistant" && (
-                    <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
-                      ✨
-                    </div>
-                  )}
+                  {m.role === "assistant" &&
+                    (persona ? (
+                      <div className="mr-2 mt-0.5">
+                        <AgentAvatar name={persona.name} emoji={persona.emoji} size={28} className="!rounded-lg" />
+                      </div>
+                    ) : (
+                      <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
+                        ✨
+                      </div>
+                    ))}
                   <div
                     className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm ${
                       m.role === "user"
@@ -596,9 +605,15 @@ export function PaiementAgentChat({
 
             {loading && (
               <div className="flex justify-start">
-                <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
-                  ✨
-                </div>
+                {persona ? (
+                  <div className="mr-2 mt-0.5">
+                    <AgentAvatar name={persona.name} emoji={persona.emoji} size={28} className="!rounded-lg" />
+                  </div>
+                ) : (
+                  <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
+                    ✨
+                  </div>
+                )}
                 <div className="rounded-2xl border border-[var(--card-border)] bg-white px-3.5 py-2.5 text-sm text-slate-400">
                   L&apos;agent analyse tes données…
                 </div>

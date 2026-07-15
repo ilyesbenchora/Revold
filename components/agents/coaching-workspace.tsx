@@ -26,6 +26,7 @@ export function CoachingWorkspace({
   suggestions,
   suggestionSets,
   reportBrief = null,
+  persona,
 }: {
   category: string;
   coachLabel: string;
@@ -38,6 +39,8 @@ export function CoachingWorkspace({
   suggestionSets?: SuggestionSets;
   /** Coaching issu d'un rapport : contexte prêt à l'emploi, démarrage auto. */
   reportBrief?: { objectives: string; pains: string } | null;
+  /** Personnage de l'agent (avatar dans les bulles). */
+  persona?: { name: string; emoji: string } | null;
 }) {
   const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
@@ -107,6 +110,7 @@ export function CoachingWorkspace({
         onSessionStatusChange={setSessionStatus}
         onConversationsChange={setConversations}
         openConversationSignal={openConv}
+        persona={persona}
       />
 
       {/* Historique des rendez-vous de coaching (conversations passées) */}
