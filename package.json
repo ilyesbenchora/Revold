@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "personas": "node scripts/generate-personas.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
