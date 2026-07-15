@@ -6,7 +6,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
-import { getAgentPersona, personaAvatarUrl, personaImagePath } from "@/lib/ai/agents/coach-personas";
+import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   buildContext,
@@ -226,10 +226,10 @@ export default async function MesCoachingPage() {
                 {/* Visage du coach en filigrane — discret, différent par coach */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={personaAvatarUrl(persona.name, 200)}
+                  src={personaImagePath(cat.agentKey)}
                   alt=""
                   aria-hidden
-                  className="pointer-events-none absolute -right-4 -bottom-6 h-28 w-28 select-none rounded-full object-cover opacity-[0.08] transition group-hover:opacity-[0.16]"
+                  className="pointer-events-none absolute -right-4 -bottom-6 h-28 w-28 select-none rounded-full object-cover opacity-[0.1] transition group-hover:opacity-[0.2]"
                 />
                 <AgentAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(cat.agentKey)} size={38} className="mt-0.5" />
                 <div className="relative z-10 flex-1 min-w-0">

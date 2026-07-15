@@ -607,7 +607,7 @@ export function PaiementAgentChat({
               <div className="flex justify-start">
                 {persona ? (
                   <div className="mr-2 mt-0.5">
-                    <AgentAvatar name={persona.name} emoji={persona.emoji} size={28} />
+                    <AgentAvatar name={persona.name} emoji={persona.emoji} image={persona.image} size={28} />
                   </div>
                 ) : (
                   <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-xs text-white">
