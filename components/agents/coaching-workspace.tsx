@@ -25,6 +25,7 @@ export function CoachingWorkspace({
   sources,
   suggestions,
   suggestionSets,
+  reportBrief = null,
 }: {
   category: string;
   coachLabel: string;
@@ -35,11 +36,14 @@ export function CoachingWorkspace({
   sources: SourceOption[];
   suggestions: string[];
   suggestionSets?: SuggestionSets;
+  /** Coaching issu d'un rapport : contexte prêt à l'emploi, démarrage auto. */
+  reportBrief?: { objectives: string; pains: string } | null;
 }) {
   const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
-  // lancer une séance sur une conversation vierge côté chat.
-  const [startNonce, setStartNonce] = useState(0);
+  // lancer une séance sur une conversation vierge côté chat. Si le coaching vient
+  // d'un rapport, on démarre automatiquement (nonce initial à 1).
+  const [startNonce, setStartNonce] = useState(reportBrief ? 1 : 0);
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
   // Replié dès qu'un RDV existe ; le bouton haut de page le déplie.
   const [collapsed, setCollapsed] = useState(Boolean(initialAgenda.next_meeting_at));
@@ -47,7 +51,8 @@ export function CoachingWorkspace({
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
 
-  const coachingCtx = { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
+  // Contexte de coaching : celui du rapport s'il est fourni, sinon l'agenda.
+  const coachingCtx = reportBrief ?? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
   // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
   const hasMeeting = Boolean(agenda.next_meeting_at);
   const preselectedSources = agenda.sources ?? null;
