@@ -251,30 +251,15 @@ export function PaiementAgentChat({
       if (raw) {
         const parsed = JSON.parse(raw) as Conversation[];
         if (Array.isArray(parsed)) {
+          // Tous les agents (coaching inclus) démarrent sur une conversation
+          // vierge avec les suggestions ; l'historique reste dans l'onglet dédié.
           setConversations(parsed);
-          // Coaching : on rouvre la dernière conversation (statut « en cours »).
-          // Autres agents : on démarre sur une conversation vierge (l'historique
-          // reste accessible via l'onglet Historique).
-          if (coachingMode) {
-            const latest = [...parsed].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-            if (latest) {
-              setCurrentId(latest.id);
-              setMessages(latest.messages);
-              if (latest.sources.length) setSelected(latest.sources);
-              if (latest.attachments?.length) setAttachments(latest.attachments);
-            }
-          }
         }
       }
-      // Restaure le statut de séance persisté (en cours / terminé).
-      const savedStatus = localStorage.getItem(statusKey);
-      if (savedStatus === "ended") setSessionEnd("ended");
-      else if (savedStatus === "active") setSessionStarted(true);
     } catch {
       /* localStorage indisponible / corrompu → on démarre à vide */
     }
     setHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, statusKey]);
 
   // Remonte la liste des conversations au parent (bloc historique des rendez-vous).
@@ -557,9 +542,15 @@ export function PaiementAgentChat({
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
             {empty && (
               <div className="mx-auto max-w-md pt-6 text-center">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-lg text-white">
-                  ✨
-                </div>
+                {persona ? (
+                  <div className="mx-auto mb-3 w-fit">
+                    <AgentAvatar name={persona.name} emoji={persona.emoji} image={persona.image} size={56} />
+                  </div>
+                ) : (
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-lg text-white">
+                    ✨
+                  </div>
+                )}
                 <h3 className="text-sm font-semibold text-slate-800">{agentLabel}</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   Que veux-tu analyser aujourd&apos;hui ? Sélectionne tes sources et pose ta question, ou choisis une

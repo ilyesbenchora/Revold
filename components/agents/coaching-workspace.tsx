@@ -8,6 +8,21 @@ import type { Attachment } from "@/lib/attachments";
 type SourceOption = { key: string; label: string; icon: string; category: string };
 type SuggestionSets = { crm?: string[]; billing?: string[]; support?: string[]; cross?: string[] } | null;
 
+/** RDV aujourd'hui ou plus tard. */
+function isUpcoming(d?: string | null): boolean {
+  if (!d) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(`${d}T00:00:00`).getTime() >= today.getTime();
+}
+/** RDV strictement après aujourd'hui. */
+function isStrictFuture(d?: string | null): boolean {
+  if (!d) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(`${d}T00:00:00`).getTime() > today.getTime();
+}
+
 /**
  * Espace de coaching : rend l'agenda (objectifs/pains/RDV/outils/fichiers) au-dessus
  * du chat et partage l'état entre les deux. Quand l'utilisateur enregistre un RDV,
@@ -48,8 +63,8 @@ export function CoachingWorkspace({
   // d'un rapport, on démarre automatiquement (nonce initial à 1).
   const [startNonce, setStartNonce] = useState(reportBrief ? 1 : 0);
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
-  // Replié dès qu'un RDV existe ; le bouton haut de page le déplie.
-  const [collapsed, setCollapsed] = useState(Boolean(initialAgenda.next_meeting_at));
+  // Bloc replié affiché uniquement pour un RDV à venir (aujourd'hui ou plus tard).
+  const [collapsed, setCollapsed] = useState(isUpcoming(initialAgenda.next_meeting_at));
   // Conversations remontées par le chat (bloc historique des rendez-vous).
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
@@ -58,6 +73,9 @@ export function CoachingWorkspace({
   const coachingCtx = reportBrief ?? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
   // Un RDV programmé (aujourd'hui/à venir) active le suivi de séance « coaching réalisé ».
   const hasMeeting = Boolean(agenda.next_meeting_at);
+  // Bloc de confirmation dynamique : visible pour un RDV strictement futur, ou
+  // pour un RDV du jour tant que la séance n'est pas terminée. Disparaît sinon.
+  const effectiveCollapsed = collapsed && (isStrictFuture(agenda.next_meeting_at) || sessionStatus !== "ended");
   const preselectedSources = agenda.sources ?? null;
   const contextAttachments = (agenda.attachments as Attachment[] | null) ?? null;
 
@@ -78,7 +96,7 @@ export function CoachingWorkspace({
           label={coachLabel}
           initial={initialAgenda}
           availableSources={availableSources}
-          collapsed={collapsed}
+          collapsed={effectiveCollapsed}
           onCollapsedChange={setCollapsed}
           sessionStatus={sessionStatus}
           onSaved={(a) =>
