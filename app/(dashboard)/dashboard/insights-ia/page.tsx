@@ -6,6 +6,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carousel";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
+import { getCoachPersona } from "@/lib/ai/agents/coach-personas";
 import {
   buildContext,
   fetchDismissals,
@@ -50,6 +51,17 @@ const CADENCE_LABELS: Record<string, string> = {
 function fmtPlannedDate(d: string): string {
   return new Date(d).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" });
 }
+// Catégorie (id ou variante carousel) → clé d'agent coach, pour le lien « Reprendre ».
+const CAT_AGENT: Record<string, string> = {
+  commercial: "coaching-ventes",
+  marketing: "coaching-marketing",
+  data: "coaching-data",
+  integration: "coaching-integration",
+  "cross-source": "coaching-cross-source",
+  cross_source: "coaching-cross-source",
+  "data-model": "coaching-data-model",
+  data_model: "coaching-data-model",
+};
 function sevBadge(s: string): string {
   if (s === "critical") return "bg-red-50 text-red-700";
   if (s === "warning") return "bg-amber-50 text-amber-700";
@@ -135,9 +147,12 @@ export default async function MesCoachingPage() {
     category?: string;
     hubspot_url?: string;
     dismissed_at: string;
+    agentKey?: string;
   };
   const dismissalsList = (allDismissals ?? []) as Dismissal[];
-  const dismissedDone = dismissalsList.filter((d) => !d.status || d.status === "done");
+  const dismissedDone = dismissalsList
+    .filter((d) => !d.status || d.status === "done")
+    .map((d) => ({ ...d, agentKey: CAT_AGENT[d.category ?? ""] }));
 
   // Séances de coaching clôturées par un agent coach (terminées manuellement
   // ou automatiquement après inactivité).
@@ -167,6 +182,7 @@ export default async function MesCoachingPage() {
       severity: "info",
       category: carouselCat[s.category] ?? s.category,
       dismissed_at: s.ended_at,
+      agentKey: CAT_AGENT[s.category],
     }),
   );
 
@@ -202,11 +218,16 @@ export default async function MesCoachingPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((cat) => {
             const total = cat.sev.critical + cat.sev.warning + cat.sev.info;
+            const persona = getCoachPersona(cat.id);
             return (
               <Link key={cat.id} href={`/dashboard/agents/${cat.agentKey}`}
-                className="card group flex items-start gap-3 p-4 transition hover:border-accent/30 hover:shadow-md">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 group-hover:bg-accent/10 transition">{cat.icon}</div>
-                <div className="flex-1 min-w-0">
+                className={`card group relative flex items-start gap-3 overflow-hidden bg-gradient-to-br ${persona.gradient} p-4 transition hover:border-accent/30 hover:shadow-md`}>
+                {/* Silhouette humaine en filigrane — discrète, différente par coach */}
+                <span aria-hidden className="pointer-events-none absolute -right-3 -bottom-4 select-none text-[5.5rem] leading-none opacity-[0.07] transition group-hover:opacity-[0.13]">
+                  {persona.emoji}
+                </span>
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-lg shadow-sm ring-1 ring-black/5 transition group-hover:bg-white">{persona.emoji}</div>
+                <div className="relative z-10 flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent transition">{cat.label}</h3>
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300 group-hover:text-accent transition"><polyline points="9 18 15 12 9 6" /></svg>

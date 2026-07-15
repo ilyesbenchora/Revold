@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 
 type DismissedItem = {
@@ -11,6 +12,8 @@ type DismissedItem = {
   severity?: string;
   category?: string;
   dismissed_at: string;
+  /** Clé de l'agent coach → lien « Reprendre la conversation ». */
+  agentKey?: string;
 };
 
 const sevConfig: Record<string, { bg: string; border: string; badge: string; label: string }> = {
@@ -102,11 +105,23 @@ export function DismissedCoachingCarousel({ items, variant }: Props) {
 
               {/* Recommendation */}
               {d.recommendation && (
-                <div className="mt-auto pt-3">
+                <div className="pt-3">
                   <div className="rounded-lg bg-white/60 px-3 py-2">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Action à faire</p>
                     <p className="mt-0.5 text-xs font-medium text-slate-800 line-clamp-2">{d.recommendation}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Lien unique vers la conversation du coach */}
+              {variant === "done" && d.agentKey && (
+                <div className="mt-auto pt-3">
+                  <Link
+                    href={`/dashboard/agents/${d.agentKey}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-accent hover:bg-slate-50"
+                  >
+                    Reprendre le coaching →
+                  </Link>
                 </div>
               )}
             </article>
