@@ -19,6 +19,17 @@ export type SavedReport = {
 };
 
 export const SAVED_REPORTS_KEY = "revold:saved-reports:v1";
+/** Événement window émis quand la liste des rapports enregistrés change. */
+export const REPORTS_UPDATED_EVENT = "revold:reports-updated";
+
+function notifyReportsUpdated(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(REPORTS_UPDATED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
 
 export function listSavedReports(): SavedReport[] {
   if (typeof window === "undefined") return [];
@@ -41,6 +52,7 @@ export function addSavedReport(entry: Omit<SavedReport, "id" | "savedAt">): void
   try {
     const cur = listSavedReports();
     localStorage.setItem(SAVED_REPORTS_KEY, JSON.stringify([full, ...cur]));
+    notifyReportsUpdated();
   } catch {
     /* quota / mode privé → ignore */
   }
@@ -50,6 +62,7 @@ export function removeSavedReport(id: string): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(SAVED_REPORTS_KEY, JSON.stringify(listSavedReports().filter((r) => r.id !== id)));
+    notifyReportsUpdated();
   } catch {
     /* ignore */
   }

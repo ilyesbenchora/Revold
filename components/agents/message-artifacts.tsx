@@ -28,6 +28,7 @@ export function MessageArtifacts({
 }) {
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [channels, setChannels] = useState<string[]>(["app"]);
+  const [saved, setSaved] = useState(false);
 
   const hasReport = !!(report || chart);
   const reportTitle = report?.title || chart?.title || "ce rapport";
@@ -44,6 +45,27 @@ export function MessageArtifacts({
 
   function toggleChannel(key: string) {
     setChannels((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  }
+
+  // Enregistrement direct du rapport (sans alerte) — alimente les pages de
+  // projection (Prévisions) et « Mes rapports ».
+  function saveReportOnly() {
+    if (!hasReport || saved) return;
+    addSavedReport({
+      agentKey,
+      agentLabel,
+      title: report?.title || chart?.title || "Projection",
+      summary: report?.summary || chart?.summary,
+      report: report ?? null,
+      chart: chart ?? null,
+      alert: {
+        title: report?.title || chart?.title || "Projection",
+        description: report?.summary || chart?.summary || "Projection enregistrée depuis le chat.",
+        category: "revops",
+        channels: [],
+      },
+    });
+    setSaved(true);
   }
 
   async function confirm() {
@@ -88,6 +110,20 @@ export function MessageArtifacts({
     <div className="ml-9 space-y-2">
       {report && <AgentReport spec={report} />}
       {chart && <ChartPicker proposal={chart} />}
+
+      {hasReport && (
+        <button
+          onClick={saveReportOnly}
+          disabled={saved}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+            saved
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50"
+          }`}
+        >
+          {saved ? "✓ Projection enregistrée" : "📌 Enregistrer cette projection"}
+        </button>
+      )}
 
       {effectiveAction && (
         <div className="overflow-hidden rounded-xl border border-fuchsia-200 bg-white shadow-sm">
