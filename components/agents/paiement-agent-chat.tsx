@@ -447,11 +447,12 @@ export function PaiementAgentChat({
 
   return (
     <div className="card flex h-[calc(100vh-13rem)] min-h-[32rem] flex-col overflow-hidden">
-      {/* Onglets + nouvelle conversation */}
-      <div className="flex items-center gap-1 border-b border-[var(--card-border)] px-3 py-2">
+      {/* Onglets + nouvelle conversation — flex-wrap pour ne JAMAIS rogner un
+          onglet (notamment « Alertes ») sur une largeur réduite. */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--card-border)] px-3 py-2">
         <button
           onClick={() => setTab("chat")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
             tab === "chat" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
           }`}
         >
@@ -459,7 +460,7 @@ export function PaiementAgentChat({
         </button>
         <button
           onClick={() => setTab("history")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
             tab === "history" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
           }`}
         >
@@ -467,7 +468,7 @@ export function PaiementAgentChat({
         </button>
         <button
           onClick={() => setTab("alerts")}
-          className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+          className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
             tab === "alerts" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
           }`}
         >
@@ -482,14 +483,14 @@ export function PaiementAgentChat({
         {coachingMode && coachingStatus === "active" && (
           <button
             onClick={() => completeSession(false)}
-            className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            className="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
           >
             ✓ Terminer le coaching
           </button>
         )}
         <button
           onClick={startNew}
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
         >
           + Nouvelle
         </button>
