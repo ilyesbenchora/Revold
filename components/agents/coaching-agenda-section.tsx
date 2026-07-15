@@ -1,0 +1,71 @@
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
+import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getAgent } from "@/lib/ai/agents/registry";
+import { personaImagePath } from "@/lib/ai/agents/coach-personas";
+import { type CoachAgendaInitial } from "./coach-agenda";
+import { CategoryAgendaBlock } from "./category-agenda-block";
+
+// Catégorie de coaching → clé d'agent.
+const CAT_AGENT: Record<string, string> = {
+  commercial: "coaching-ventes",
+  marketing: "coaching-marketing",
+  data: "coaching-data",
+  integration: "coaching-integration",
+  "data-model": "coaching-data-model",
+};
+
+/**
+ * Section « Créer un rendez-vous & objectif de coaching » à placer en bas d'une
+ * page catégorie, avec l'avatar de l'agent adéquat en filigrane de fond.
+ */
+export async function CoachingAgendaSection({ category }: { category: string }) {
+  const agentKey = CAT_AGENT[category];
+  const agent = agentKey ? getAgent(agentKey) : null;
+  if (!agentKey || !agent) return null;
+
+  const orgId = await getOrgId();
+  const supabase = await createSupabaseServerClient();
+
+  let agenda: CoachAgendaInitial = {};
+  if (orgId) {
+    const { data } = await supabase
+      .from("coaching_agendas")
+      .select("objectives, pains, cadence, next_meeting_at, sources, attachments")
+      .eq("organization_id", orgId)
+      .eq("category", category)
+      .maybeSingle();
+    agenda = (data as CoachAgendaInitial | null) ?? {};
+  }
+
+  const tools = orgId ? await getConnectedTools(supabase, orgId) : [];
+  const availableSources = tools
+    .filter((t) => agent.sourceCategories.includes(t.category))
+    .map((t) => ({ key: t.key, label: t.label, icon: t.icon }));
+
+  const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
+
+  return (
+    <section className="mt-8 space-y-3">
+      <h2 className="text-base font-semibold text-slate-900">Créer un rendez-vous & objectif de coaching</h2>
+      <div className="relative overflow-hidden rounded-2xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={personaImagePath(agentKey)}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -right-6 -bottom-10 z-0 h-40 w-40 select-none rounded-full object-cover opacity-[0.1]"
+        />
+        <div className="relative z-10">
+          <CategoryAgendaBlock
+            category={category}
+            coachLabel={coachLabel}
+            agentKey={agentKey}
+            initial={agenda}
+            availableSources={availableSources}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}

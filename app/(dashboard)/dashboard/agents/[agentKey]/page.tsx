@@ -61,6 +61,12 @@ export default async function AgentPage({
       reportBrief = { objectives: objective, pains };
     }
   }
+  // Coaching lancé depuis une carte (?bt=titre&bp=reco) sans id de rapport.
+  if (!reportBrief) {
+    const bt = typeof sp.bt === "string" ? sp.bt : "";
+    const bp = typeof sp.bp === "string" ? sp.bp : "";
+    if (bt || bp) reportBrief = { objectives: bt, pains: bp };
+  }
 
   const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
   const persona = getAgentPersona(agent.key);

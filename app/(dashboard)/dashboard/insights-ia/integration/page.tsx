@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CoachingPageTabs } from "@/components/coaching-page-tabs";
+import { CoachingAgendaSection } from "@/components/agents/coaching-agenda-section";
 import { fetchReportCoachings } from "@/lib/reports/fetch-report-coachings";
 import { inferActionType, type UnifiedCoaching } from "@/lib/reports/coaching-types";
 import { fetchDismissals, fetchIntegrationInsights } from "../context";
@@ -66,5 +67,10 @@ export default async function IntegrationCoachingPage() {
     })),
   ];
 
-  return <CoachingPageTabs allItems={allItems} categoryLabel="intégration" />;
+  return (
+    <div className="space-y-6">
+      <CoachingPageTabs allItems={allItems} categoryLabel="intégration" />
+      <CoachingAgendaSection category="integration" />
+    </div>
+  );
 }

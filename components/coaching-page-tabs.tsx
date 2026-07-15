@@ -1,13 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ACTION_TYPE_LABELS,
   type CoachingActionType,
   type UnifiedCoaching,
 } from "@/lib/reports/coaching-types";
-import { BreezePromptDrawer } from "@/components/breeze-prompt-drawer";
 
 type TabId = "mine" | "critical" | "warning" | "info";
 
@@ -56,232 +54,67 @@ type Props = {
   categoryLabel: string;
 };
 
-type CardState = "idle" | "busy" | "hidden";
+const CAT_AGENT: Record<string, string> = {
+  commercial: "coaching-ventes",
+  marketing: "coaching-marketing",
+  data: "coaching-data",
+  integration: "coaching-integration",
+  "cross-source": "coaching-cross-source",
+  "data-model": "coaching-data-model",
+};
 
-function CoachingCard({
-  item,
-  category,
-  onChange,
-}: {
-  item: UnifiedCoaching;
-  category: string;
-  onChange: () => void;
-}) {
-  const [state, setState] = useState<CardState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [llmOpen, setLlmOpen] = useState(false);
-
+function CoachingCard({ item, category }: { item: UnifiedCoaching; category: string }) {
   const sev = SEV_STYLE[item.severity];
-  const status = item.status ?? "active";
-  const statusInfo = STATUS_STYLE[status];
   const isManual = item.source === "manual";
-  const isActive = status === "active";
-  const dimmed = status === "removed" || status === "done";
-
-  if (state === "hidden") return null;
-
-  /** Dismiss / restore unifié — route automatique selon source. */
-  async function changeStatus(target: "done" | "removed" | "active") {
-    if (state === "busy") return;
-    setState("busy");
-    setError(null);
-
-    try {
-      let res: Response;
-      if (isManual && item.reportCoachingId) {
-        // Manuel : PATCH report_coachings
-        res = await fetch(`/api/reports/coachings/${item.reportCoachingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: target }),
-        });
-      } else if (target === "active") {
-        // Auto-insight : restore
-        res = await fetch("/api/insights/restore", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateKey: item.templateKey }),
-        });
-      } else {
-        // Auto-insight : dismiss done/removed
-        res = await fetch("/api/insights/dismiss", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            templateKey: item.templateKey,
-            status: target,
-            title: item.title,
-            body: item.body,
-            recommendation: item.recommendation,
-            severity: item.severity,
-            category,
-            hubspotUrl: item.hubspotUrl,
-          }),
-        });
-      }
-
-      const data = await res.json().catch(() => null);
-      if (res.ok && (data?.success || data?.ok)) {
-        setState("hidden");
-        onChange();
-      } else {
-        setError((data?.error as string) || `Erreur ${res.status}`);
-        setState("idle");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur réseau");
-      setState("idle");
-    }
-  }
-
-  const isInternal = !!item.hubspotUrl?.startsWith("/");
-  const ctaLabel =
-    item.actionLabel ?? (item.hubspotUrl
-      ? isInternal
-        ? "Voir dans Revold"
-        : "À faire dans HubSpot"
-      : null);
+  const statusInfo = STATUS_STYLE[item.status ?? "active"];
+  const agentKey = CAT_AGENT[category] ?? "coaching-ventes";
+  const ctx = item.reportCoachingId
+    ? `rc=${encodeURIComponent(item.reportCoachingId)}`
+    : `bt=${encodeURIComponent(item.title)}&bp=${encodeURIComponent(item.recommendation || item.body || "")}`;
+  const coachHref = `/dashboard/agents/${agentKey}?${ctx}`;
 
   return (
-    <article
-      className={`relative rounded-xl border p-5 transition ${sev.border} ${sev.bg} ${state === "busy" ? "opacity-50" : ""} ${dimmed ? "opacity-70" : ""}`}
-    >
-      {/* Cross retirer (top-right) — uniquement sur les actifs */}
-      {isActive && (
-        <button
-          onClick={() => changeStatus("removed")}
-          disabled={state === "busy"}
-          aria-label="Retirer ce coaching"
-          title="Retirer ce coaching"
-          className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-100 disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      )}
-
-      {/* Badges header */}
-      <div className="flex items-center gap-2 pr-6 flex-wrap">
+    <article className={`relative rounded-xl border p-5 transition ${sev.border} ${sev.bg}`}>
+      <div className="flex flex-wrap items-center gap-2 pr-6">
         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${sev.badge}`}>{sev.label}</span>
         <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
           {ACTION_TYPE_LABELS[item.actionType]}
         </span>
         {isManual && (
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusInfo.cls}`}>
-            {statusInfo.label}
-          </span>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusInfo.cls}`}>{statusInfo.label}</span>
         )}
         {item.kpiLabel && (
-          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-            KPI : {item.kpiLabel}
-          </span>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">KPI : {item.kpiLabel}</span>
         )}
         {item.sourceReportTitle && (
           <span className="text-[11px] text-slate-500">issu de « {item.sourceReportTitle} »</span>
         )}
       </div>
 
-      {/* Titre + body */}
       <h3 className="mt-3 text-base font-semibold text-slate-900">{item.title}</h3>
-      <p className="mt-1.5 text-sm text-slate-700 leading-relaxed">{item.body}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{item.body}</p>
 
-      {/* Bloc Coaching à faire (anciennement "Action à faire"/"Recommandation") */}
       {item.recommendation && item.recommendation !== item.body && (
         <div className="mt-3 rounded-lg bg-white/60 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-fuchsia-700">
-            ✨ Coaching à faire
-          </p>
-          <p className="mt-1 text-sm font-medium text-slate-800 leading-relaxed">{item.recommendation}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-fuchsia-700">✨ Coaching à faire</p>
+          <p className="mt-1 text-sm font-medium leading-relaxed text-slate-800">{item.recommendation}</p>
         </div>
       )}
 
-      {/* Erreur API */}
-      {error && (
-        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Footer CTAs */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {/* CTA Aperçu LLM Breeze — couleur alignée sur la sévérité de la card */}
-        <button
-          type="button"
-          onClick={() => setLlmOpen(true)}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${sev.llmBtn}`}
-          title="Voir le prompt LLM prêt à coller dans HubSpot Breeze"
+      <div className="mt-4">
+        <a
+          href={coachHref}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
-            <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
-          </svg>
-          Aperçu du LLM
-        </button>
-
-        {/* CTA principal : ouvrir HubSpot ou page interne Revold */}
-        {item.hubspotUrl && ctaLabel && (
-          <a
-            href={item.hubspotUrl}
-            target={isInternal ? undefined : "_blank"}
-            rel={isInternal ? undefined : "noopener noreferrer"}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500"
-          >
-            {ctaLabel}
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        )}
-
-        {/* Marquer comme fait (vert) — pour tous les actifs */}
-        {isActive && (
-          <button
-            onClick={() => changeStatus("done")}
-            disabled={state === "busy"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 13l4 4L19 7" />
-            </svg>
-            Marquer comme fait
-          </button>
-        )}
-
-        {/* Restaurer — pour done / removed */}
-        {!isActive && (
-          <button
-            onClick={() => changeStatus("active")}
-            disabled={state === "busy"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-card-border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9" />
-              <polyline points="3 4 3 12 11 12" />
-            </svg>
-            Restaurer
-          </button>
-        )}
-
-        {/* Date d'activation pour les manuels */}
-        {item.createdAt && (
-          <span className="ml-auto text-[10px] text-slate-400">
-            Activé le {new Date(item.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-          </span>
-        )}
+          Démarrer mon coaching
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+        </a>
       </div>
-
-      {/* Side drawer : prompt LLM Breeze (rendu via portal sur document.body) */}
-      <BreezePromptDrawer item={item} open={llmOpen} onClose={() => setLlmOpen(false)} />
     </article>
   );
 }
 
 export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
-  const router = useRouter();
   const [tab, setTab] = useState<TabId>("critical");
   const [actionFilter, setActionFilter] = useState<CoachingActionType | "all">("all");
 
@@ -399,7 +232,7 @@ export function CoachingPageTabs({ allItems, categoryLabel }: Props) {
         <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 scroll-smooth">
           {filteredItems.map((c) => (
             <div key={c.id} className="snap-start shrink-0" style={{ width: "min(440px, 90vw)" }}>
-              <CoachingCard item={c} category={apiCategory} onChange={() => router.refresh()} />
+              <CoachingCard item={c} category={apiCategory} />
             </div>
           ))}
         </div>
