@@ -138,10 +138,10 @@ export default async function DashboardOverviewPage() {
       ),
     },
     {
-      label: "Simulations IA",
-      description: "Mesurez l'impact d'objectifs ambitieux et activez des alertes intelligentes.",
-      href: "/dashboard/alertes",
-      cta: "Lancer une simulation",
+      label: "Prévisions",
+      description: "Projetez votre closing, votre revenue et votre pipeline en scénarios bas / base / haut.",
+      href: "/dashboard/simulations",
+      cta: "Lancer une prévision",
       gradient: "from-amber-500 to-orange-500",
       ai: true,
       icon: (
@@ -152,8 +152,8 @@ export default async function DashboardOverviewPage() {
       ),
     },
     {
-      label: "Intégration",
-      description: "Connectez votre CRM, votre facturation, votre téléphonie et votre service client.",
+      label: "Intégrations",
+      description: "Connectez votre CRM, facturation, publicité (Google, Meta, LinkedIn), téléphonie et service client.",
       href: "/dashboard/integration",
       cta: activeIntegrations > 0 ? "Gérer les intégrations" : "Connecter mes outils",
       gradient: "from-violet-500 to-fuchsia-500",
@@ -249,9 +249,9 @@ export default async function DashboardOverviewPage() {
               <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
             </Link>
 
-            {/* 4. Simulations IA */}
-            <Link href="/dashboard/alertes" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Simulations IA</p>
+            {/* 4. Prévisions */}
+            <Link href="/dashboard/simulations" className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Prévisions</p>
               <p className="mt-1 text-2xl font-bold text-amber-600 tabular-nums group-hover:text-amber-700">{simulationsTotal.toLocaleString("fr-FR")}</p>
             </Link>
 
