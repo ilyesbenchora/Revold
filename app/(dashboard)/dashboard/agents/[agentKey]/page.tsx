@@ -117,6 +117,7 @@ export default async function AgentPage({
           sources={sources}
           suggestions={agent.suggestions}
           suggestionSets={agent.suggestionSets ?? null}
+          persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
         />
       )}
     </div>
