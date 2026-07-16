@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Space_Grotesk } from "next/font/google";
+import { DM_Sans, Exo_2 } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
@@ -8,13 +8,12 @@ const dmSans = DM_Sans({
   subsets: ["latin"],
 });
 
-// Space Grotesk = wordmark "Revold" : police géométrique moderne,
-// caractère affirmé, utilisée par Vercel / Linear / Stripe pour leur
-// branding produit.
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+// Exo 2 = wordmark "Revold" : police géométrique futuriste aux traits très
+// fins (poids 100/200), pour un rendu épuré et technologique.
+const wordmark = Exo_2({
+  variable: "--font-wordmark",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["100", "200", "300"],
 });
 
 export const metadata: Metadata = {
@@ -104,7 +103,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${dmSans.variable} ${spaceGrotesk.variable} h-full antialiased`}>
+    <html lang="fr" className={`${dmSans.variable} ${wordmark.variable} h-full antialiased`}>
       <head>
         <script
           type="application/ld+json"
