@@ -10,12 +10,12 @@ const TYPE_META: Record<string, { icon: string; label: string }> = {
   area: { icon: "🌄", label: "Aire" },
   donut: { icon: "🍩", label: "Donut" },
   table: { icon: "▦", label: "Table" },
+  kpi: { icon: "🔢", label: "Indicateur" },
 };
 
-/**
- * Graphique proposé par l'agent : l'UTILISATEUR choisit le format d'affichage
- * parmi les options. `onTypeChange` remonte le choix (pour l'enregistrer tel quel).
- */
+// Tous les formats proposés à l'utilisateur (ordre d'affichage).
+const ALL_TYPES = ["bar", "line", "area", "donut", "table", "kpi"];
+
 export function ChartPicker({
   proposal,
   onTypeChange,
@@ -23,13 +23,19 @@ export function ChartPicker({
   proposal: ChartProposal;
   onTypeChange?: (t: string) => void;
 }) {
-  const types = proposal.suggestedTypes.length ? proposal.suggestedTypes : ["bar"];
-  const [type, setType] = useState(proposal.defaultType || types[0]);
+  // On propose systématiquement TOUS les formats (Courbe et Indicateur inclus),
+  // en gardant en premier ceux suggérés par l'agent.
+  const suggested = proposal.suggestedTypes.filter((t) => ALL_TYPES.includes(t));
+  const types = [...suggested, ...ALL_TYPES.filter((t) => !suggested.includes(t))];
+  const [type, setType] = useState(proposal.defaultType || suggested[0] || types[0]);
 
   function pick(t: string) {
     setType(t);
     onTypeChange?.(t);
   }
+
+  const total = proposal.data.reduce((s, d) => s + (typeof d.value === "number" ? d.value : 0), 0);
+  const avg = proposal.data.length ? total / proposal.data.length : 0;
 
   return (
     <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3.5">
@@ -74,6 +80,21 @@ export function ChartPicker({
               ))}
             </tbody>
           </table>
+        ) : type === "kpi" ? (
+          <div className="grid grid-cols-3 gap-2 p-2">
+            <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Total</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(total).toLocaleString("fr-FR")}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Moyenne</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(avg).toLocaleString("fr-FR")}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Éléments</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{proposal.data.length}</p>
+            </div>
+          </div>
         ) : (
           <ReportChart block={{ type: type as ReportBlock["type"], data: proposal.data }} />
         )}
