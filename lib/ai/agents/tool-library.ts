@@ -224,32 +224,32 @@ export const getPipelineByStage: AgentTool = {
   def: {
     name: "get_pipeline_by_stage",
     description:
-      "Répartit les deals par étape depuis la table canonique (count, montant, montant pondéré). ATTENTION : renvoie « Sans étape » si le dealstage n'est pas mappé dans la synchro. Pour les vraies phases NOMMÉES du pipeline HubSpot, préfère get_pipeline_stage_breakdown (lecture directe HubSpot).",
+      "Répartit les deals par étape (count, montant, montant pondéré). Lit la table canonique et résout automatiquement les VRAIS noms d'étapes via HubSpot quand la synchro n'a pas mappé le dealstage — plus de masse « Sans étape ». Équivalent tous-pipelines confondus ; pour le détail par pipeline nommé sur une fenêtre récente, utilise get_pipeline_stage_breakdown.",
     input_schema: { type: "object", properties: {} },
   },
   run: async (_input, ctx: AgentContext) => {
     const { data, error } = await ctx.supabase
       .from("deals")
-      .select("amount, pipeline_stages(name, position, probability, is_closed_won, is_closed_lost)")
+      .select("amount, stage_external_id, pipeline_stages(name, position, probability, is_closed_won, is_closed_lost)")
       .eq("organization_id", ctx.orgId)
       .limit(8000);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as unknown as Record<string, unknown>[];
     if (rows.length === 0) return { hasData: false, note: "Aucun deal dans la table canonique." };
+    // Résolution fiable des noms d'étapes : canonique si mappé, sinon HubSpot direct.
+    const stageMap = await resolveStageMap(ctx.hubspotToken);
     const byStage: Record<string, { position: number; deals: number; amount: number; weighted: number; closed: boolean }> = {};
     for (const r of rows) {
       const st = (Array.isArray(r.pipeline_stages) ? r.pipeline_stages[0] : r.pipeline_stages) as
         | { name?: string; position?: number; probability?: number; is_closed_won?: boolean; is_closed_lost?: boolean }
         | null;
-      const name = st?.name ?? "Sans étape";
-      const prob = (Number(st?.probability) || 0) / 100;
-      const e = (byStage[name] ??= {
-        position: Number(st?.position) || 99,
-        deals: 0,
-        amount: 0,
-        weighted: 0,
-        closed: !!(st?.is_closed_won || st?.is_closed_lost),
-      });
+      const hs = typeof r.stage_external_id === "string" ? stageMap.get(r.stage_external_id) : undefined;
+      const name = st?.name ?? hs?.label ?? "Sans étape";
+      const position = Number(st?.position) || hs?.position || 99;
+      const probPct = Number(st?.probability) || hs?.probability || 0;
+      const closed = !!(st?.is_closed_won || st?.is_closed_lost) || !!(hs?.closedWon || hs?.closedLost);
+      const prob = probPct / 100;
+      const e = (byStage[name] ??= { position, deals: 0, amount: 0, weighted: 0, closed });
       const a = Number(r.amount) || 0;
       e.deals++;
       e.amount += a;
@@ -437,12 +437,43 @@ function relName(rel: unknown): string {
   const o = (Array.isArray(rel) ? rel[0] : rel) as { name?: string } | undefined;
   return o?.name ?? "Sans étape";
 }
+
+/** Étape de pipeline résolue depuis HubSpot (source de vérité des noms d'étapes). */
+type StageInfo = { label: string; position: number; probability: number; closedWon: boolean; closedLost: boolean };
+
+/**
+ * Map stageId (HubSpot) → infos d'étape, lue en direct depuis HubSpot. Sert de
+ * source fiable des NOMS d'étapes quand la table canonique n'a pas mappé le
+ * dealstage (deals.stage_id non peuplé par l'ETL). Sans token → map vide.
+ */
+async function resolveStageMap(token: string | null): Promise<Map<string, StageInfo>> {
+  const map = new Map<string, StageInfo>();
+  if (!token) return map;
+  try {
+    const pipelines = await fetchDealsPipelines(token);
+    for (const p of pipelines) {
+      for (const s of p.stages) {
+        map.set(s.id, {
+          label: s.label,
+          position: s.displayOrder,
+          probability: s.probability,
+          closedWon: s.closedWon,
+          closedLost: s.closedLost,
+        });
+      }
+    }
+  } catch {
+    /* réseau/scope → map vide, fallback « Sans étape » */
+  }
+  return map;
+}
 const AGG_SPECS: Record<string, AggSpec> = {
   deals: {
-    columns: "amount, created_date, close_date, pipeline_stages(name)",
+    columns: "amount, created_date, close_date, stage_external_id, pipeline_stages(name)",
     dims: {
       month_created: (r) => monthOf(r.created_date),
       month_closed: (r) => monthOf(r.close_date),
+      // Résolu dynamiquement dans run() via HubSpot quand le canonique n'est pas mappé.
       stage: (r) => relName(r.pipeline_stages),
     },
     numeric: { amount: (r) => Number(r.amount) || 0 },
@@ -544,10 +575,23 @@ export const aggregateCanonical: AgentTool = {
     const rows = (data ?? []) as unknown as Record<string, unknown>[];
     if (rows.length === 0) return { hasData: false, note: `Aucune donnée dans ${entity}.` };
 
+    // Répartition des deals par ÉTAPE : résout les vrais noms via HubSpot quand
+    // le mapping canonique manque (deals.stage_id non peuplé par l'ETL).
+    let resolveDim = dimFn;
+    if (entity === "deals" && groupBy === "stage") {
+      const stageMap = await resolveStageMap(ctx.hubspotToken);
+      resolveDim = (r) => {
+        const joined = relName(r.pipeline_stages);
+        if (joined !== "Sans étape") return joined;
+        const ext = typeof r.stage_external_id === "string" ? r.stage_external_id : "";
+        return stageMap.get(ext)?.label ?? "Sans étape";
+      };
+    }
+
     const isMonth = groupBy.startsWith("month_");
     const acc: Record<string, { sum: number; count: number }> = {};
     for (const r of rows) {
-      const key = dimFn(r);
+      const key = resolveDim(r);
       if (key == null || key === "") continue;
       const e = (acc[key] ??= { sum: 0, count: 0 });
       e.count++;
