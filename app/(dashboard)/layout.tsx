@@ -22,6 +22,24 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   const org = profile?.organizations as unknown as { name: string } | null;
   const orgName = org?.name ?? "Mon entreprise";
 
+  // POC espaces de travail : rôle + pôle du membre pour filtrer la navigation.
+  let role: string | null = null;
+  let pole: string | null = null;
+  try {
+    const supa = await createSupabaseServerClient();
+    const first = await supa.from("profiles").select("role, pole").eq("id", user.id).maybeSingle();
+    let prof = first.data as { role?: string | null; pole?: string | null } | null;
+    // Résilience : colonne pole absente (migration non appliquée).
+    if (first.error && /pole/.test(first.error.message)) {
+      const fb = await supa.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      prof = fb.data as { role?: string | null } | null;
+    }
+    role = prof?.role ?? null;
+    pole = prof?.pole ?? null;
+  } catch {
+    /* défaut : accès global */
+  }
+
   // Liste des outils RÉELLEMENT connectés à Revold pour CETTE org.
   // Source unique : table integrations (is_active=true). Aucun fallback
   // env var dans le badge — c'est la vérité multi-tenant par org.
@@ -51,7 +69,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     <div className="min-h-screen bg-background">
       <DashboardHeader companyName={orgName} connectedTools={connectedTools} />
       <div className="flex w-full">
-        <DashboardSidebar />
+        <DashboardSidebar role={role} pole={pole} />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>

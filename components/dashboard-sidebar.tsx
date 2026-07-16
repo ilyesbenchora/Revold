@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  WORKSPACES,
+  availableWorkspaces,
+  workspaceDef,
+  isGroupVisible,
+  isChildVisible,
+  isLeafVisible,
+  type WorkspaceId,
+} from "@/lib/workspaces";
 
 type LeafLink = { href: string; label: string; icon: React.ReactNode; ai?: boolean };
 type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[]; ai?: boolean };
@@ -350,18 +360,102 @@ function isChildActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ role = null, pole = null }: { role?: string | null; pole?: string | null }) {
   const pathname = usePathname();
   const isAccountActive = pathname.startsWith(accountLink.href);
+
+  // Espaces de travail accessibles (POC) : admin → tous ; membre → le sien.
+  const available = availableWorkspaces(role, pole);
+  const [ws, setWs] = useState<WorkspaceId>(available[0]);
+
+  // Hydratation : l'admin retrouve son dernier espace choisi ; le membre reste
+  // verrouillé sur le sien.
+  useEffect(() => {
+    if (available.length <= 1) return;
+    try {
+      const saved = localStorage.getItem("revold:workspace") as WorkspaceId | null;
+      if (saved && available.includes(saved)) setWs(saved);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function pickWorkspace(id: WorkspaceId) {
+    setWs(id);
+    try {
+      localStorage.setItem("revold:workspace", id);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const canSwitch = available.length > 1;
+  const activeWs = workspaceDef(ws);
+
+  // Filtre la navigation selon l'espace actif.
+  const visibleLinks = sidebarLinks.filter((item) =>
+    isGroup(item) ? isGroupVisible(ws, item.id) : isLeafVisible(ws, item.href),
+  );
 
   // Sidebar réduite : icônes uniquement. Au survol, un menu volant affiche le
   // libellé (liens simples) ou les sous-pages (groupes). Gain d'espace maximal.
   return (
     <aside className="sticky top-16 z-30 hidden h-[calc(100vh-4rem)] w-16 flex-col self-start border-r border-card-border bg-white py-4 md:flex">
+      {/* Switcher d'espace de travail (POC) */}
+      <div className="mb-2 border-b border-card-border px-2 pb-3">
+        <div className="group relative">
+          <button
+            type="button"
+            aria-label={`Espace : ${activeWs.label}`}
+            className="flex w-full items-center justify-center rounded-lg p-2.5 text-lg transition hover:bg-slate-50"
+          >
+            <span>{activeWs.icon}</span>
+          </button>
+          {/* Flyout : liste des espaces (ou libellé seul si verrouillé) */}
+          <div className="invisible absolute left-full top-0 z-50 ml-1 min-w-56 rounded-xl border border-card-border bg-white p-1.5 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Espace de travail
+            </p>
+            {canSwitch ? (
+              WORKSPACES.filter((w) => available.includes(w.id)).map((w) => {
+                const active = w.id === ws;
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => pickWorkspace(w.id)}
+                    className={`flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition ${
+                      active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="text-base leading-none">{w.icon}</span>
+                    <span className="min-w-0">
+                      <span className="block">{w.label}</span>
+                      <span className="block text-[10px] font-normal text-slate-400">{w.desc}</span>
+                    </span>
+                    {active && <span className="ml-auto text-[10px] text-accent">✓</span>}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-2.5 py-2">
+                <div className="flex items-center gap-2 text-[13px] font-medium text-slate-700">
+                  <span className="text-base">{activeWs.icon}</span> {activeWs.label}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">Espace dédié à ton pôle.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <nav className="flex-1 space-y-1 px-2">
-        {sidebarLinks.map((item) => {
+        {visibleLinks.map((item) => {
           if (isGroup(item)) {
-            const groupActive = item.children.some((c) => isChildActive(pathname, c.href));
+            const children = item.children.filter((c) => isChildVisible(ws, item.id, c.href));
+            if (children.length === 0) return null;
+            const groupActive = children.some((c) => isChildActive(pathname, c.href));
             return (
               <div key={item.id} className="group relative">
                 <button
@@ -376,7 +470,7 @@ export function DashboardSidebar() {
                 {/* Menu volant : sous-pages */}
                 <div className="invisible absolute left-full top-0 z-50 ml-1 min-w-52 rounded-xl border border-card-border bg-white p-1.5 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
-                  {item.children.map((child) => {
+                  {children.map((child) => {
                     const active = isChildActive(pathname, child.href);
                     return (
                       <Link

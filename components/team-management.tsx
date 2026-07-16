@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { POLE_OPTIONS } from "@/lib/workspaces";
 
 type Member = {
   id: string;
   fullName: string;
   role: string;
   roleLabel: string;
+  pole: string | null;
   createdAt: string | null;
 };
 
@@ -82,6 +84,21 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
     const data = await res.json();
     if (!res.ok) {
       setError(data.error ?? "Erreur changement de rôle.");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function changePole(memberId: string, newPole: string) {
+    setError(null);
+    const res = await fetch(`/api/team/members/${memberId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pole: newPole || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Erreur changement de pôle.");
       return;
     }
     router.refresh();
@@ -172,6 +189,7 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
             <tr className="border-b border-slate-100 text-left text-[10px] font-medium uppercase text-slate-400">
               <th className="px-5 py-2">Nom</th>
               <th className="px-3 py-2">Rôle</th>
+              <th className="px-3 py-2">Pôle / espace</th>
               <th className="px-3 py-2">Ajouté</th>
               {isAdmin && <th className="px-5 py-2 text-right">Actions</th>}
             </tr>
@@ -198,6 +216,24 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
                       </select>
                     ) : (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{m.roleLabel}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    {isAdmin ? (
+                      <select
+                        defaultValue={m.pole ?? ""}
+                        onChange={(e) => changePole(m.id, e.target.value)}
+                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value="">Global (tout)</option>
+                        {POLE_OPTIONS.map((p) => (
+                          <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        {POLE_OPTIONS.find((p) => p.id === m.pole)?.label ?? "Global"}
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-500">

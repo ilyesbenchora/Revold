@@ -68,6 +68,7 @@ export type AuditAction =
   | "member.invitation_accepted"
   | "member.invitation_revoked"
   | "member.role_changed"
+  | "member.pole_changed"
   | "member.removed"
   | "billing.subscribed"
   | "billing.canceled"

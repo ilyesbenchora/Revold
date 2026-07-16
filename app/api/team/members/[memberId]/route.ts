@@ -65,10 +65,17 @@ export async function PATCH(
   const { orgId, userId, supabase } = c;
   const { memberId } = await context.params;
 
-  const { role } = (await req.json().catch(() => ({}))) as { role?: Role };
-  if (!role || !["admin", "manager", "rep"].includes(role)) {
+  const body = (await req.json().catch(() => ({}))) as { role?: Role; pole?: string | null };
+  const hasRole = body.role !== undefined;
+  const hasPole = body.pole !== undefined;
+  if (!hasRole && !hasPole) {
+    return NextResponse.json({ error: "rien à mettre à jour" }, { status: 400 });
+  }
+  if (hasRole && (!body.role || !["admin", "manager", "rep"].includes(body.role))) {
     return NextResponse.json({ error: "rôle invalide" }, { status: 400 });
   }
+  const POLES = ["sales", "marketing", "cs", "finance"];
+  const nextPole = hasPole ? (body.pole && POLES.includes(body.pole) ? body.pole : null) : undefined;
 
   // Vérifie que le membre appartient bien à la même org
   const { data: target } = await supabase
@@ -80,32 +87,30 @@ export async function PATCH(
     return NextResponse.json({ error: "membre introuvable" }, { status: 404 });
   }
 
-  if (target.role === "admin" && role !== "admin") {
+  if (hasRole && target.role === "admin" && body.role !== "admin") {
     const ok = await ensureNotLastAdmin(supabase, orgId, memberId);
     if (!ok) {
-      return NextResponse.json(
-        { error: "Impossible de dégrader le dernier admin." },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Impossible de dégrader le dernier admin." }, { status: 400 });
     }
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ role })
-    .eq("id", memberId);
+  const patch: Record<string, unknown> = {};
+  if (hasRole) patch.role = body.role;
+  if (hasPole) patch.pole = nextPole;
+
+  const { error } = await supabase.from("profiles").update(patch).eq("id", memberId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await logAudit(supabase, {
     orgId,
     actorId: userId,
-    action: "member.role_changed",
+    action: hasRole ? "member.role_changed" : "member.pole_changed",
     targetType: "profile",
     targetId: memberId,
-    metadata: { from: target.role, to: role },
+    metadata: hasRole ? { from: target.role, to: body.role } : { pole: nextPole },
   });
 
-  return NextResponse.json({ ok: true, role });
+  return NextResponse.json({ ok: true, role: body.role, pole: nextPole });
 }
 
 export async function DELETE(
