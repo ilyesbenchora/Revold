@@ -15,7 +15,7 @@ export const WORKSPACES: WorkspaceDef[] = [
   { id: "sales", label: "Ventes", icon: "💼", desc: "Pipeline, closing, prévisions" },
   { id: "marketing", label: "Marketing", icon: "📣", desc: "Acquisition, conversion, data" },
   { id: "cs", label: "Service client", icon: "🤝", desc: "Support, rétention, churn" },
-  { id: "finance", label: "Paiement & Facturation", icon: "💳", desc: "MRR, encaissement, cash" },
+  { id: "finance", label: "Finance/ADV", icon: "💳", desc: "MRR, encaissement, cash" },
 ];
 
 /** Options de pôle proposées dans les réglages Équipe (hors « all »). */

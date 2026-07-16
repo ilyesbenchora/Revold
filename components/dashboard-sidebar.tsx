@@ -447,7 +447,6 @@ export function DashboardSidebar({
                       active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <span className="text-base leading-none">{w.icon}</span>
                     <span className="min-w-0">
                       <span className="block">{w.label}</span>
                       <span className="block text-[10px] font-normal text-slate-400">
@@ -463,9 +462,7 @@ export function DashboardSidebar({
               })
             ) : (
               <div className="px-2.5 py-2">
-                <div className="flex items-center gap-2 text-[13px] font-medium text-slate-700">
-                  <span className="text-base">{activeWs.icon}</span> {activeWs.label}
-                </div>
+                <div className="text-[13px] font-medium text-slate-700">{activeWs.label}</div>
                 <p className="mt-1 text-[10px] text-slate-400">Espace dédié à ton pôle.</p>
               </div>
             )}
