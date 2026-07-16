@@ -168,7 +168,7 @@ export function ReportArtifact({
           tools={tools}
           initialSources={sources}
           initialKpi={currentTotal() ? String(Math.round(currentTotal())) : ""}
-          initialKpiFormat="count"
+          initialKpiFormat="currency"
           initialDateFrom={period?.from ?? ""}
           initialDateTo={period?.to ?? ""}
           baseline={`Valeur actuelle du rapport${period ? ` (${period.label})` : ""} : ${currentTotal().toLocaleString("fr-FR")}`}

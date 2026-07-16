@@ -5,7 +5,7 @@ import { SectionLabel } from "./alert-ui";
 export type ToolOption = { key: string; label: string; icon: string };
 
 /** État « outils à croiser » + second KPI (le KPI principal reste natif à chaque surface). */
-export type CrossState = { sources: string[]; kpi2: string; unit2: "percent" | "count" };
+export type CrossState = { sources: string[]; kpi2: string; unit2: "percent" | "count" | "currency" };
 
 export const emptyCross: CrossState = { sources: [], kpi2: "", unit2: "percent" };
 
@@ -95,7 +95,7 @@ export function AlertCrossTools({
               className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
             />
             <div className="flex overflow-hidden rounded-lg border border-slate-200">
-              {(["percent", "count"] as const).map((f) => (
+              {(["percent", "count", "currency"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -105,7 +105,7 @@ export function AlertCrossTools({
                     value.unit2 === f ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
                   }`}
                 >
-                  {f === "percent" ? "%" : "Nombre"}
+                  {f === "percent" ? "%" : f === "currency" ? "€" : "Nombre"}
                 </button>
               ))}
             </div>
@@ -126,7 +126,7 @@ export function crossSummary(tools: ToolOption[], value: CrossState): string {
   const names = value.sources.map((k) => tools.find((t) => t.key === k)?.label ?? k);
   const parts = [`Outils croisés : ${names.join(", ")}`];
   if (value.sources.length >= 2 && value.kpi2) {
-    const unit = value.unit2 === "count" ? "" : " %";
+    const unit = value.unit2 === "count" ? "" : value.unit2 === "currency" ? " €" : " %";
     const second = tools.find((t) => t.key === value.sources[1])?.label ?? value.sources[1];
     parts.push(`2ᵉ KPI (${second}) : ${value.kpi2}${unit}`);
   }

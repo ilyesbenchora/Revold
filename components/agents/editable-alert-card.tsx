@@ -38,7 +38,9 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
   const [description, setDescription] = useState(alert.description ?? "");
   const [impact, setImpact] = useState(alert.impact ?? "");
   const [kpiValue, setKpiValue] = useState(alert.threshold != null ? String(alert.threshold) : "");
-  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">(alert.unit_mode === "count" ? "count" : "percent");
+  const [kpiFormat, setKpiFormat] = useState<"percent" | "count" | "currency">(
+    alert.unit_mode === "count" ? "count" : alert.unit_mode === "currency" ? "currency" : "percent",
+  );
   const [dateFrom, setDateFrom] = useState(alert.date_from ?? "");
   const [dateTo, setDateTo] = useState(alert.date_to ?? "");
   const [continuous, setContinuous] = useState(!alert.date_to);
@@ -110,10 +112,10 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
             <div>
               <label className={lbl}>Format</label>
               <div className="mt-0.5 flex overflow-hidden rounded-lg border border-slate-200">
-                {(["percent", "count"] as const).map((f) => (
+                {(["percent", "count", "currency"] as const).map((f) => (
                   <button key={f} type="button" onClick={() => setKpiFormat(f)}
                     className={`flex-1 py-1.5 text-xs font-medium transition ${kpiFormat === f ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-                    {f === "percent" ? "%" : "Nombre"}
+                    {f === "percent" ? "%" : f === "currency" ? "€" : "Nombre"}
                   </button>
                 ))}
               </div>
@@ -170,7 +172,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
             channels={alert.notification_channels ?? undefined}
           />
           {alert.threshold != null && (
-            <p className="mt-2 text-[11px] text-slate-400">🎯 KPI attendu : {alert.threshold}{alert.unit_mode === "count" ? "" : " %"}</p>
+            <p className="mt-2 text-[11px] text-slate-400">🎯 KPI attendu : {alert.threshold}{alert.unit_mode === "count" ? "" : alert.unit_mode === "currency" ? " €" : " %"}</p>
           )}
 
           {/* Échéance en temps réel : début, fin (compte à rebours live) ou en continu */}

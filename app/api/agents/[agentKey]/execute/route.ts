@@ -46,6 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
 
   const allowed = new Set(["finance", "sales", "revops", "marketing", "csm"]);
   const category = allowed.has(action.category ?? "") ? action.category! : "revops";
+  const normUnit = (v: unknown) => (v === "count" ? "count" : v === "currency" ? "currency" : v === "percent" ? "percent" : null);
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   const crossSources = Array.isArray(body.cross_sources)
@@ -60,7 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     category,
     status: "active",
     threshold: typeof body.threshold === "number" && Number.isFinite(body.threshold) ? body.threshold : null,
-    unit_mode: body.unit_mode === "count" ? "count" : body.unit_mode === "percent" ? "percent" : null,
+    unit_mode: normUnit(body.unit_mode),
     date_from: body.date_from && dateRe.test(body.date_from) ? body.date_from : null,
     date_to: body.date_to && dateRe.test(body.date_to) ? body.date_to : null,
     cross_sources: crossSources && crossSources.length ? crossSources : null,
@@ -68,8 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       typeof body.threshold_secondary === "number" && Number.isFinite(body.threshold_secondary)
         ? body.threshold_secondary
         : null,
-    unit_mode_secondary:
-      body.unit_mode_secondary === "count" ? "count" : body.unit_mode_secondary === "percent" ? "percent" : null,
+    unit_mode_secondary: normUnit(body.unit_mode_secondary),
   };
 
   // Insert résilient : retire agent_key / cross_sources / *_secondary si la

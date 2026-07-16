@@ -31,7 +31,7 @@ export function AlertSuggestionCard({
   initialSources?: string[];
   /** Valeurs initiales (ex : depuis un rapport historisé). */
   initialKpi?: string;
-  initialKpiFormat?: "percent" | "count";
+  initialKpiFormat?: "percent" | "count" | "currency";
   initialDateFrom?: string;
   initialDateTo?: string;
   /** Note contextuelle (ex : « Valeur actuelle sur la période : 124 500 € »). */
@@ -41,7 +41,7 @@ export function AlertSuggestionCard({
   const [channels, setChannels] = useState<string[]>(["app"]);
   const [editing, setEditing] = useState(false);
   const [kpiValue, setKpiValue] = useState(initialKpi);
-  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">(initialKpiFormat);
+  const [kpiFormat, setKpiFormat] = useState<"percent" | "count" | "currency">(initialKpiFormat);
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
   const [continuous, setContinuous] = useState(!initialDateTo);
@@ -127,7 +127,7 @@ export function AlertSuggestionCard({
                 className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
               />
               <div className="flex overflow-hidden rounded-lg border border-slate-200">
-                {(["percent", "count"] as const).map((f) => (
+                {(["percent", "count", "currency"] as const).map((f) => (
                   <button
                     key={f}
                     type="button"
@@ -137,7 +137,7 @@ export function AlertSuggestionCard({
                       kpiFormat === f ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
                     }`}
                   >
-                    {f === "percent" ? "%" : "Nombre"}
+                    {f === "percent" ? "%" : f === "currency" ? "€" : "Nombre"}
                   </button>
                 ))}
               </div>

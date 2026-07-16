@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     // Outils à croiser + 2ᵉ KPI
     cross_sources: Array.isArray(cross_sources) && cross_sources.length ? cross_sources.slice(0, 12) : null,
     threshold_secondary: threshold_secondary != null ? Number(threshold_secondary) : null,
-    unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "percent" ? "percent" : null,
+    unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "currency" ? "currency" : unit_mode_secondary === "percent" ? "percent" : null,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });

@@ -40,7 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.description === "string") patch.description = body.description.slice(0, 2000);
   if (typeof body.impact === "string") patch.impact = body.impact.slice(0, 2000);
   if (body.threshold === null || typeof body.threshold === "number") patch.threshold = body.threshold;
-  if (body.unit_mode === "percent" || body.unit_mode === "count") patch.unit_mode = body.unit_mode;
+  if (body.unit_mode === "percent" || body.unit_mode === "count" || body.unit_mode === "currency") patch.unit_mode = body.unit_mode;
   if (body.date_from === null || (typeof body.date_from === "string" && dateRe.test(body.date_from))) patch.date_from = body.date_from;
   if (body.date_to === null || (typeof body.date_to === "string" && dateRe.test(body.date_to))) patch.date_to = body.date_to;
   if (Array.isArray(body.notification_channels)) {
@@ -54,7 +54,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.threshold_secondary === null || typeof body.threshold_secondary === "number") {
     patch.threshold_secondary = body.threshold_secondary;
   }
-  if (body.unit_mode_secondary === "percent" || body.unit_mode_secondary === "count" || body.unit_mode_secondary === null) {
+  if (
+    body.unit_mode_secondary === "percent" ||
+    body.unit_mode_secondary === "count" ||
+    body.unit_mode_secondary === "currency" ||
+    body.unit_mode_secondary === null
+  ) {
     patch.unit_mode_secondary = body.unit_mode_secondary;
   }
 
