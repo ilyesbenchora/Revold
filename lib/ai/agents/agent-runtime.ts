@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PROPOSE_DEAL_ACTIONS_TOOL, normalizeDealAction, type DealActionProposal } from "./sales-actions";
 
 /**
  * Runtime générique d'agent conversationnel + agentique pour Revold.
@@ -85,6 +86,7 @@ export type AgentTurnResult = {
   proposedAction: ProposedAction | null;
   report: ReportSpec | null;
   chartProposal: ChartProposal | null;
+  dealAction: DealActionProposal | null;
   toolTrace: ToolTraceEntry[];
 };
 
@@ -128,6 +130,7 @@ export async function runAgentTurn(opts: {
   let proposedAction: ProposedAction | null = null;
   let report: ReportSpec | null = null;
   let chartProposal: ChartProposal | null = null;
+  let proposedDealAction: DealActionProposal | null = null;
 
   // Connecteur MCP : quand des serveurs MCP sont connectés, on utilise l'API
   // beta qui exécute les tools MCP côté Anthropic (en plus de nos fetchers).
@@ -161,7 +164,7 @@ export async function runAgentTurn(opts: {
     }
 
     if (res.stop_reason !== "tool_use") {
-      return { text: extractText(res.content), proposedAction, report, chartProposal, toolTrace };
+      return { text: extractText(res.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, toolTrace };
     }
 
     // On rejoue le tour assistant (blocs tool_use inclus) avant de répondre.
@@ -186,6 +189,19 @@ export async function runAgentTurn(opts: {
           content:
             "Action proposée et affichée à l'utilisateur pour confirmation. " +
             "Ne pas la considérer comme exécutée. Conclus en une phrase.",
+        });
+        continue;
+      }
+
+      // Action pipeline (exécution HubSpot) → capturée, PAS exécutée côté serveur.
+      if (block.name === PROPOSE_DEAL_ACTIONS_TOOL) {
+        proposedDealAction = normalizeDealAction(input);
+        results.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: proposedDealAction
+            ? "Action pipeline proposée à l'utilisateur pour validation (elle sera exécutée dans HubSpot APRÈS son clic, pas par toi). Explique en une phrase l'action et son impact, ne prétends jamais l'avoir déjà exécutée."
+            : "Proposition d'action invalide (deals manquants). Récupère d'abord les deals via list_actionable_deals puis repropose avec leurs id.",
         });
         continue;
       }
@@ -264,7 +280,7 @@ export async function runAgentTurn(opts: {
     ],
   });
 
-  return { text: extractText(final.content), proposedAction, report, chartProposal, toolTrace };
+  return { text: extractText(final.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, toolTrace };
 }
 
 function extractText(content: Anthropic.ContentBlock[]): string {

@@ -7,6 +7,8 @@ import { setActiveChat, clearActiveChat } from "@/lib/chat/active-chat";
 import { MessageArtifacts } from "./message-artifacts";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { ActivatedAlertsContext, type ActivatedAlert } from "./activated-alerts";
+import { DealActionCard } from "./deal-action-card";
+import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
 import type { Attachment } from "@/lib/attachments";
@@ -34,6 +36,7 @@ type Msg = {
   report?: ReportSpec | null;
   chart?: ChartProposal | null;
   action?: ProposedAction | null;
+  dealAction?: DealActionProposal | null;
 };
 type Conversation = {
   id: string;
@@ -442,6 +445,7 @@ export function PaiementAgentChat({
         report: data.report ?? null,
         chart: data.chartProposal ?? null,
         action: data.proposedAction ?? null,
+        dealAction: data.dealAction ?? null,
       };
       const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
@@ -694,6 +698,10 @@ export function PaiementAgentChat({
                     chart={m.chart}
                     sources={selected}
                   />
+                )}
+                {/* Action pipeline exécutable (human-in-the-loop) → inline. */}
+                {m.role === "assistant" && m.dealAction && (
+                  <DealActionCard agentKey={agentKey} action={m.dealAction} />
                 )}
                 {/* Pastille discrète : une alerte a été suggérée → onglet Alertes.
                     Non-intrusive, préserve le flux de lecture. */}

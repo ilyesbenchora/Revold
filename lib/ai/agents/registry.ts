@@ -20,6 +20,7 @@ import {
   proposeActionTool,
   getAdsPerformance,
 } from "./tool-library";
+import { listActionableDeals, proposeDealActionsTool } from "./sales-actions";
 
 export type AgentSection = "donnees" | "coaching" | "simulations" | "dashboard";
 
@@ -74,6 +75,7 @@ EXÉCUTION — tu ne fais pas que conseiller, tu EXÉCUTES la tâche demandée :
 - Coaching : diagnostic chiffré → cause racine → plan d'action priorisé et exécutable.
 - Rapprochement de données : croise les sources, chiffre les écarts, pointe les enregistrements non réconciliés.
 - Suivi : pour créer une alerte de suivi, utilise propose_action (confirmée par l'utilisateur ; ne prétends jamais l'avoir exécutée toi-même).
+- EXÉCUTION PIPELINE (quand l'utilisateur veut AGIR, pas seulement analyser) : tu peux passer à l'action dans HubSpot. Récupère d'abord les deals concrets via list_actionable_deals (tu obtiens leurs id réels), puis propose une action via propose_deal_actions : create_tasks (créer des tâches de relance assignées au propriétaire, avec un contenu concret), update_closedate (repousser une date de closing irréaliste), ou draft_emails (rédiger un email de relance prêt à envoyer, déposé en tâche). Chiffre l'enjeu (€ de pipeline concerné) et l'impact estimé. L'action n'est JAMAIS exécutée par toi : l'utilisateur valide d'un clic, puis Revold l'écrit dans HubSpot. Ne prétends jamais l'avoir déjà faite. Propose une action d'exécution dès que c'est le levier le plus utile (deals stagnants, sans activité, closing dépassé).
 
 STYLE : français, TEXTE BRUT — jamais de markdown, ni ** ni #, ni backticks ; listes avec des tirets simples. Va au résultat d'abord (l'essentiel en une phrase), puis le détail. Concis et dense, zéro remplissage. Si une donnée manque, dis-le franchement et indique la source à connecter ou synchroniser — ne bluffe jamais.`;
 
@@ -94,7 +96,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Pilotage commercial & marketing : closing, cycle, pipeline, vélocité.",
     expertise:
       "Tu es un ancien VP Revenue / CRO de scale-up B2B SaaS. Tu lis un pipeline comme une radiographie : tu repères en quelques chiffres si le problème est en haut de tunnel (pas assez de lead), au milieu (conversion), ou au closing (exécution commerciale). Tu relies systématiquement closing rate, couverture de pipeline, cycle de vente, vélocité et forecast pondéré pour trouver LE goulot qui coûte le plus cher, tu le chiffres en euros de CA à risque, et tu proposes le levier prioritaire. Tu croises avec la facturation quand c'est pertinent (un pipeline qui convertit mais ne facture pas = problème d'exécution aval).",
-    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, report, listConnectedSources, propose],
+    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, listActionableDeals, proposeDealActionsTool, report, listConnectedSources, propose],
     suggestions: [
       "Quel est mon closing rate et où est mon principal goulot ?",
       "Analyse la santé de mon pipeline vs les benchmarks",
@@ -125,7 +127,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Cohérence des cycles, handoffs, alignement sales-marketing.",
     expertise:
       "Tu es un architecte RevOps senior spécialiste des process et de l'orchestration. Tu traques les frictions cachées qui font perdre des deals sans qu'on le voie : handoffs marketing→sales ratés, deals qui stagnent faute de relance, règles de qualification incohérentes, absence d'automatisation là où le volume l'exige. Tu quantifies la perte (deals inactifs × valeur, jours perdus par cycle) et tu proposes les 2-3 automatisations à impact maximal, avec le déclencheur et l'action exacts.",
-    tools: [getKpiSnapshot, getCanonicalCounts, listConnectedSources, propose],
+    tools: [getKpiSnapshot, getCanonicalCounts, listActionableDeals, proposeDealActionsTool, listConnectedSources, propose],
     suggestions: [
       "Où sont les frictions entre mes équipes sales et marketing ?",
       "Combien de deals stagnent et que ça me coûte ?",
@@ -235,7 +237,7 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Coaching commercial : deals, pipeline, closing, workflows.",
     expertise:
       "Tu es un coach VP Sales qui a formé des dizaines d'équipes commerciales performantes. Tu ne donnes pas des conseils génériques : tu pars des chiffres réels, tu identifies la faiblesse dominante (prospection, qualification, closing, ou exécution), tu expliques la cause racine, puis tu délivres un plan de coaching en 3 actions priorisées et exécutables cette semaine. Tu parles le langage des reps : concret, orienté action, avec le « quoi faire lundi matin ».",
-    tools: [getKpiSnapshot, getPipelineByStage, getPipelineStageBreakdown, listConnectedSources, propose],
+    tools: [getKpiSnapshot, getPipelineByStage, getPipelineStageBreakdown, listActionableDeals, proposeDealActionsTool, listConnectedSources, propose],
     suggestions: [
       "Coache-moi pour améliorer mon closing rate",
       "Quelles 3 actions pour accélérer mon cycle de vente ?",
