@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { updateAlertResilient } from "@/lib/alerts/resilient";
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,6 +25,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     date_from?: string | null;
     date_to?: string | null;
     notification_channels?: string[];
+    cross_sources?: string[] | null;
+    threshold_secondary?: number | null;
+    unit_mode_secondary?: string | null;
   };
   try {
     body = await request.json();
@@ -42,9 +46,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (Array.isArray(body.notification_channels)) {
     patch.notification_channels = body.notification_channels.filter((c) => typeof c === "string").slice(0, 8);
   }
+  if (body.cross_sources === null || Array.isArray(body.cross_sources)) {
+    patch.cross_sources = Array.isArray(body.cross_sources)
+      ? body.cross_sources.filter((s) => typeof s === "string").slice(0, 12)
+      : null;
+  }
+  if (body.threshold_secondary === null || typeof body.threshold_secondary === "number") {
+    patch.threshold_secondary = body.threshold_secondary;
+  }
+  if (body.unit_mode_secondary === "percent" || body.unit_mode_secondary === "count" || body.unit_mode_secondary === null) {
+    patch.unit_mode_secondary = body.unit_mode_secondary;
+  }
 
-  const { error } = await supabase.from("alerts").update(patch).eq("id", id).eq("organization_id", orgId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { error } = await updateAlertResilient(supabase, patch, { id, organization_id: orgId });
+  if (error) return NextResponse.json({ error }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 

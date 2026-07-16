@@ -554,7 +554,13 @@ export function PaiementAgentChat({
                 Suggestions d&apos;alerte de cette conversation. Ajuste et active celles qui t&apos;intéressent.
               </p>
               {suggestedAlerts.map(({ i, action }) => (
-                <AlertSuggestionCard key={i} agentKey={agentKey} action={action} />
+                <AlertSuggestionCard
+                  key={i}
+                  agentKey={agentKey}
+                  action={action}
+                  tools={sources.map((s) => ({ key: s.key, label: s.label, icon: s.icon }))}
+                  initialSources={selected}
+                />
               ))}
             </div>
           )}

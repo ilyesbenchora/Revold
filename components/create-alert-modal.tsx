@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
+import { AlertCrossTools, crossSummary, emptyCross, type CrossState, type ToolOption } from "@/components/agents/alert-cross-tools";
 
 // ── Team definitions ──
 const teams = [
@@ -121,6 +122,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [sources, setSources] = useState<Array<{ value: string; label: string }>>([]);
   const [customContactProps, setCustomContactProps] = useState<Array<{ name: string; label: string; type: string }>>([]);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
+  // Outils connectés + « outils à croiser » (+ 2ᵉ KPI si multi-outils).
+  const [connectedTools, setConnectedTools] = useState<ToolOption[]>([]);
+  const [cross, setCross] = useState<CrossState>(emptyCross);
 
   // Step 1
   const [team, setTeam] = useState("");
@@ -209,7 +213,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
         fetch("/api/notifications/channels")
           .then((r) => (r.ok ? r.json() : { channels: [] }))
           .catch(() => ({ channels: [] })),
-      ]).then(([options, notifData]) => {
+        fetch("/api/integrations/connected")
+          .then((r) => (r.ok ? r.json() : { tools: [] }))
+          .catch(() => ({ tools: [] })),
+      ]).then(([options, notifData, connData]) => {
         setPipelines(options.pipelines ?? []);
         setOwners(options.owners ?? []);
         setHsTeams(options.teams ?? []);
@@ -217,6 +224,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
         setSources(options.sources ?? []);
         setCustomContactProps(options.customContactProps ?? []);
         setConfiguredChannels(notifData.channels ?? []);
+        setConnectedTools(connData.tools ?? []);
         setOptionsLoaded(true);
       });
     }
@@ -230,6 +238,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
     setCustomProp(""); setCustomPropValue("");
     setSelectedChannels(["in_app"]);
+    setCross(emptyCross);
     setState("idle"); setResult(null);
   }
 
@@ -291,6 +300,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     }
     const periodLabel = dateFrom || dateTo ? `${dateFrom || "…"} → ${dateTo || "…"}` : "Toute la période";
     parts.push(`Période d'analyse : ${periodLabel}`);
+    const crossText = crossSummary(connectedTools, cross);
+    if (crossText) parts.push(crossText);
 
     try {
       const res = await fetch("/api/alerts", {
@@ -320,6 +331,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           custom_property: customProp || null,
           custom_prop_value: customPropValue || null,
           notification_channels: selectedChannels.length > 0 ? selectedChannels : ["in_app"],
+          cross_sources: cross.sources.length ? cross.sources : null,
+          threshold_secondary: cross.sources.length >= 2 && cross.kpi2 ? Number(cross.kpi2) : null,
+          unit_mode_secondary: cross.sources.length >= 2 && cross.kpi2 ? cross.unit2 : null,
         }),
       });
       if (res.ok) {
@@ -574,6 +588,11 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           )}
                         </div>
                       )}
+
+                      {/* Outils à croiser + 2ᵉ KPI (multi-outils) */}
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                        <AlertCrossTools tools={connectedTools} value={cross} onChange={setCross} />
+                      </div>
 
                       {/* Période d'analyse : date de début / date de fin */}
                       <div>

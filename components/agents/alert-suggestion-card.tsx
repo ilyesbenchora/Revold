@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ALERT_CHANNELS, SectionLabel, readable } from "./alert-ui";
+import { AlertCrossTools, crossSummary, emptyCross, type CrossState, type ToolOption } from "./alert-cross-tools";
 import type { ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
@@ -11,7 +12,19 @@ import type { ProposedAction } from "@/lib/ai/agents/agent-runtime";
  * peut ajuster le KPI, la période, la description, l'impact et les canaux, puis
  * activer l'alerte (écriture Supabase via /execute).
  */
-export function AlertSuggestionCard({ agentKey, action }: { agentKey: string; action: ProposedAction }) {
+export function AlertSuggestionCard({
+  agentKey,
+  action,
+  tools = [],
+  initialSources = [],
+}: {
+  agentKey: string;
+  action: ProposedAction;
+  /** Outils connectés disponibles dans le chat (pour « outils à croiser »). */
+  tools?: ToolOption[];
+  /** Sources déjà sélectionnées dans le chat — reprises dynamiquement. */
+  initialSources?: string[];
+}) {
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [channels, setChannels] = useState<string[]>(["app"]);
   const [editing, setEditing] = useState(false);
@@ -22,6 +35,12 @@ export function AlertSuggestionCard({ agentKey, action }: { agentKey: string; ac
   const [continuous, setContinuous] = useState(true);
   const [descEdit, setDescEdit] = useState<string | null>(null);
   const [impactEdit, setImpactEdit] = useState<string | null>(null);
+  // Outils à croiser : pré-remplis avec la sélection du chat (uniquement ceux
+  // réellement disponibles), + éventuel second KPI.
+  const [cross, setCross] = useState<CrossState>({
+    ...emptyCross,
+    sources: initialSources.filter((k) => tools.some((t) => t.key === k)),
+  });
 
   const done = state === "done";
 
@@ -32,9 +51,11 @@ export function AlertSuggestionCard({ agentKey, action }: { agentKey: string; ac
   async function confirm() {
     setState("saving");
     const chosen = channels.length ? channels : ["app"];
+    const baseDesc = descEdit ?? action.description;
+    const summary = crossSummary(tools, cross);
     const finalAction = {
       ...action,
-      description: descEdit ?? action.description,
+      description: summary ? `${baseDesc} · ${summary}` : baseDesc,
       impact: impactEdit ?? action.impact,
     };
     try {
@@ -48,6 +69,9 @@ export function AlertSuggestionCard({ agentKey, action }: { agentKey: string; ac
           unit_mode: kpiFormat,
           date_from: dateFrom || null,
           date_to: continuous ? null : dateTo || null,
+          cross_sources: cross.sources.length ? cross.sources : null,
+          threshold_secondary: cross.sources.length >= 2 && cross.kpi2 ? Number(cross.kpi2) : null,
+          unit_mode_secondary: cross.sources.length >= 2 && cross.kpi2 ? cross.unit2 : null,
         }),
       });
       const data = await res.json();
@@ -103,6 +127,9 @@ export function AlertSuggestionCard({ agentKey, action }: { agentKey: string; ac
             </div>
           </div>
         </div>
+
+        {/* Outils à croiser (pré-remplis du chat) + 2ᵉ KPI si multi-outils */}
+        <AlertCrossTools tools={tools} value={cross} onChange={setCross} disabled={done} />
 
         {/* Période : date de début / fin (ou en continu) */}
         <div>

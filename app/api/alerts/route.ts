@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveKpiValue, getDefaultDirection } from "@/lib/alerts/kpi-resolver";
+import { insertAlertResilient } from "@/lib/alerts/resilient";
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
     lifecycle_stage, source_filters, custom_property, custom_prop_value,
     // Notifications (Phase 8.4) — canaux à utiliser quand objectif atteint
     notification_channels,
+    // Outils à croiser + 2ᵉ KPI (multi-outils)
+    cross_sources, threshold_secondary, unit_mode_secondary,
   } = body;
 
   if (!title || !description || !impact) {
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const { data, error } = await supabase.from("alerts").insert({
+  const { id, error } = await insertAlertResilient(supabase, {
     organization_id: profile.organization_id,
     created_by: user.id,
     title,
@@ -78,9 +81,13 @@ export async function POST(request: Request) {
     notification_channels: Array.isArray(notification_channels) && notification_channels.length > 0
       ? notification_channels
       : ["in_app"],
-  }).select("id").single();
+    // Outils à croiser + 2ᵉ KPI
+    cross_sources: Array.isArray(cross_sources) && cross_sources.length ? cross_sources.slice(0, 12) : null,
+    threshold_secondary: threshold_secondary != null ? Number(threshold_secondary) : null,
+    unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "percent" ? "percent" : null,
+  });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error }, { status: 500 });
 
-  return NextResponse.json({ success: true, id: data.id, current_value: currentValue });
+  return NextResponse.json({ success: true, id, current_value: currentValue });
 }

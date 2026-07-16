@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import type { ProposedAction } from "@/lib/ai/agents/agent-runtime";
 import { getAgent } from "@/lib/ai/agents/registry";
+import { insertAlertResilient } from "@/lib/alerts/resilient";
 
 /**
  * Exécute une action proposée par un agent APRÈS confirmation utilisateur
@@ -23,7 +24,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { action: ProposedAction; threshold?: number | null; unit_mode?: string; date_from?: string | null; date_to?: string | null };
+  let body: {
+    action: ProposedAction;
+    threshold?: number | null;
+    unit_mode?: string;
+    date_from?: string | null;
+    date_to?: string | null;
+    cross_sources?: string[] | null;
+    threshold_secondary?: number | null;
+    unit_mode_secondary?: string | null;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -38,8 +48,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const category = allowed.has(action.category ?? "") ? action.category! : "revops";
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const crossSources = Array.isArray(body.cross_sources)
+    ? body.cross_sources.filter((s) => typeof s === "string").slice(0, 12)
+    : null;
   const row = {
     organization_id: orgId,
+    agent_key: agentKey,
     title: action.title.slice(0, 200),
     description: action.description || action.title,
     impact: action.impact || "Impact à préciser",
@@ -49,17 +63,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     unit_mode: body.unit_mode === "count" ? "count" : body.unit_mode === "percent" ? "percent" : null,
     date_from: body.date_from && dateRe.test(body.date_from) ? body.date_from : null,
     date_to: body.date_to && dateRe.test(body.date_to) ? body.date_to : null,
+    cross_sources: crossSources && crossSources.length ? crossSources : null,
+    threshold_secondary:
+      typeof body.threshold_secondary === "number" && Number.isFinite(body.threshold_secondary)
+        ? body.threshold_secondary
+        : null,
+    unit_mode_secondary:
+      body.unit_mode_secondary === "count" ? "count" : body.unit_mode_secondary === "percent" ? "percent" : null,
   };
 
-  let { data, error } = await supabase.from("alerts").insert({ ...row, agent_key: agentKey }).select("id").single();
-  // Résilience : colonne agent_key absente (migration non appliquée).
-  if (error && /agent_key/.test(error.message)) {
-    ({ data, error } = await supabase.from("alerts").insert(row).select("id").single());
-  }
-
+  // Insert résilient : retire agent_key / cross_sources / *_secondary si la
+  // colonne n'existe pas encore (migration non appliquée).
+  const { id, error } = await insertAlertResilient(supabase, row);
   if (error) {
     console.error(`[agent:${agentKey}] execute failed`, error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, id: data?.id });
+  return NextResponse.json({ ok: true, id });
 }
