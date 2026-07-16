@@ -496,11 +496,10 @@ export function DashboardSidebar({
                       <Link
                         key={child.href}
                         href={child.href}
-                        className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
+                        className={`flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
                           active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                       >
-                        <span className={active ? "text-accent" : "text-slate-400"}>{child.icon}</span>
                         {child.label}
                       </Link>
                     );
