@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
-import { addSavedReport } from "./saved-reports";
+import { addSavedReport, reportKey, isReportSaved, markReportSaved } from "./saved-reports";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { type ToolOption } from "./alert-cross-tools";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
@@ -37,7 +37,12 @@ export function ReportArtifact({
   const [curReport, setCurReport] = useState<ReportSpec | null>(report ?? null);
   const [curChart, setCurChart] = useState<ChartProposal | null>(chart ?? null);
   const [chartType, setChartType] = useState<string>(chart?.defaultType || chart?.suggestedTypes?.[0] || "bar");
-  const [saved, setSaved] = useState(false);
+  // État « enregistré » persistant : au retour dans la conversation, le CTA
+  // reflète le fait que le rapport a déjà été enregistré.
+  const initialData = chart?.data ?? report?.blocks.find((b) => Array.isArray(b.data) && b.data?.length)?.data ?? [];
+  const [saved, setSaved] = useState(() =>
+    isReportSaved(reportKey(agentKey, report?.title || chart?.title || "", initialData)),
+  );
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +90,7 @@ export function ReportArtifact({
           title: curReport?.title || curChart?.title || "Rapport",
           summary: curReport?.summary || curChart?.summary || "",
           dimensions: currentDimensions(),
+          all: p.preset === "all",
           from: p.from,
           to: p.to,
           periodLabel: p.label,
@@ -130,6 +136,7 @@ export function ReportArtifact({
         channels: [],
       },
     });
+    markReportSaved(reportKey(agentKey, curReport?.title || curChart?.title || "", currentData()));
     setSaved(true);
   }
 
@@ -176,23 +183,24 @@ export function ReportArtifact({
       )}
 
       {showSave && (
-        <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
-          <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
-            <span>💾</span> Enregistrer le rapport
+        saved ? (
+          // Réduit : le rapport a déjà été enregistré (état persistant).
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-700">
+            <span>✓</span> Rapport enregistré —{" "}
+            <Link href="/dashboard/mes-rapports" className="underline hover:text-emerald-800">
+              voir mes rapports
+            </Link>
           </div>
-          <div className="flex items-center justify-between gap-3 p-3.5">
-            <p className="text-xs text-slate-500">
-              Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — format et période choisis
-              conservés.
-            </p>
-            {saved ? (
-              <Link
-                href="/dashboard/mes-rapports"
-                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-              >
-                ✓ Enregistré — voir
-              </Link>
-            ) : (
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+            <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+              <span>💾</span> Enregistrer le rapport
+            </div>
+            <div className="flex items-center justify-between gap-3 p-3.5">
+              <p className="text-xs text-slate-500">
+                Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — format et période
+                choisis conservés.
+              </p>
               <button
                 onClick={saveReportOnly}
                 disabled={loading}
@@ -200,9 +208,9 @@ export function ReportArtifact({
               >
                 Enregistrer le rapport
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        )
       )}
     </div>
   );

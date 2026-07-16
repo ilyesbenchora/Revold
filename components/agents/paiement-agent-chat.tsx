@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { setActiveChat, clearActiveChat } from "@/lib/chat/active-chat";
 import { MessageArtifacts } from "./message-artifacts";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
+import { ActivatedAlertsContext, type ActivatedAlert } from "./activated-alerts";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
 import type { Attachment } from "@/lib/attachments";
@@ -126,6 +130,10 @@ export function PaiementAgentChat({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [tab, setTab] = useState<"chat" | "history" | "alerts">("chat");
+  const pathname = usePathname();
+  // Alertes activées durant la session (suggestion OU depuis un rapport).
+  const [activatedAlerts, setActivatedAlerts] = useState<ActivatedAlert[]>([]);
+  const addActivatedAlert = (a: ActivatedAlert) => setActivatedAlerts((prev) => [a, ...prev]);
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -295,6 +303,22 @@ export function PaiementAgentChat({
     }
   }, [conversations, hydrated, storageKey]);
 
+  // Conversation active en arrière-plan : dès qu'il y a des messages, on publie
+  // un pointeur (href de retour + contexte) pour le bandeau flottant global.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    const snippet = last ? last.content.slice(0, 90) : "";
+    setActiveChat({
+      href: pathname,
+      agentLabel: persona?.name ? `${persona.name} · ${agentLabel}` : agentLabel,
+      personaName: persona?.name,
+      personaEmoji: persona?.emoji,
+      personaImage: persona?.image ?? null,
+      snippet,
+    });
+  }, [messages, pathname, persona, agentLabel]);
+
   // Coaching : quand l'agenda est mis à jour (outils à croiser) et qu'aucune
   // conversation n'est en cours, on resynchronise les sources sélectionnées pour
   // qu'elles restent le reflet EXACT du coaching enregistré (même vide).
@@ -344,6 +368,7 @@ export function PaiementAgentChat({
     setAskAnother(false);
     setError(null);
     setTab("chat");
+    clearActiveChat();
   }
 
   function openConversation(c: Conversation) {
@@ -446,6 +471,7 @@ export function PaiementAgentChat({
     : baseSuggestions;
 
   return (
+    <ActivatedAlertsContext.Provider value={addActivatedAlert}>
     <div className="card flex h-[calc(100vh-13rem)] min-h-[32rem] flex-col overflow-hidden">
       {/* Onglets + nouvelle conversation — flex-wrap pour ne JAMAIS rogner un
           onglet (notamment « Alertes ») sur une largeur réduite. */}
@@ -473,9 +499,9 @@ export function PaiementAgentChat({
           }`}
         >
           <span>✨</span> Alertes
-          {suggestedAlerts.length > 0 && (
+          {suggestedAlerts.length + activatedAlerts.length > 0 && (
             <span className="rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-700">
-              {suggestedAlerts.length}
+              {suggestedAlerts.length + activatedAlerts.length}
             </span>
           )}
         </button>
@@ -532,14 +558,14 @@ export function PaiementAgentChat({
         </div>
       )}
 
-      {/* ── Onglet Alertes (suggestions accumulées au fil de la conversation) ── */}
+      {/* ── Onglet Alertes (suggestions + alertes activées) ── */}
       {tab === "alerts" && (
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {suggestedAlerts.length === 0 ? (
+          {suggestedAlerts.length === 0 && activatedAlerts.length === 0 ? (
             <div className="mx-auto max-w-md pt-8 text-center">
               <p className="text-sm text-slate-500">
-                Aucune suggestion d&apos;alerte pour l&apos;instant. Quand l&apos;agent estime qu&apos;un suivi chiffré
-                est pertinent, il l&apos;ajoute ici — sans interrompre la discussion.
+                Aucune alerte pour l&apos;instant. L&apos;agent ajoute ici ses suggestions de suivi, et tes alertes
+                activées (depuis une suggestion ou un rapport) s&apos;y retrouvent aussi.
               </p>
               <button
                 onClick={() => setTab("chat")}
@@ -549,19 +575,38 @@ export function PaiementAgentChat({
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-400">
-                Suggestions d&apos;alerte de cette conversation. Ajuste et active celles qui t&apos;intéressent.
-              </p>
-              {suggestedAlerts.map(({ i, action }) => (
-                <AlertSuggestionCard
-                  key={i}
-                  agentKey={agentKey}
-                  action={action}
-                  tools={sources.map((s) => ({ key: s.key, label: s.label, icon: s.icon }))}
-                  initialSources={selected}
-                />
-              ))}
+            <div className="space-y-4">
+              {activatedAlerts.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-emerald-700">✓ Alertes activées ({activatedAlerts.length})</p>
+                  {activatedAlerts.map((a, idx) => (
+                    <div key={idx} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                      <span>✓</span>
+                      <span className="min-w-0 flex-1 truncate">{a.title}</span>
+                      <Link href="/dashboard/alertes" className="shrink-0 text-[11px] font-medium underline hover:text-emerald-900">
+                        voir
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {suggestedAlerts.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-400">
+                    Suggestions d&apos;alerte de cette conversation. Ajuste et active celles qui t&apos;intéressent.
+                  </p>
+                  {suggestedAlerts.map(({ i, action }) => (
+                    <AlertSuggestionCard
+                      key={i}
+                      agentKey={agentKey}
+                      action={action}
+                      tools={sources.map((s) => ({ key: s.key, label: s.label, icon: s.icon }))}
+                      initialSources={selected}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -769,5 +814,6 @@ export function PaiementAgentChat({
         </>
       )}
     </div>
+    </ActivatedAlertsContext.Provider>
   );
 }

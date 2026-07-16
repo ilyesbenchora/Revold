@@ -35,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     title?: string;
     summary?: string;
     dimensions?: string[];
+    all?: boolean;
     from?: string;
     to?: string;
     periodLabel?: string;
@@ -46,9 +47,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     return NextResponse.json({ error: "Corps invalide" }, { status: 400 });
   }
 
+  const allData = body.all === true;
   const from = body.from && dateRe.test(body.from) ? body.from : "";
   const to = body.to && dateRe.test(body.to) ? body.to : "";
-  if (!from || !to) return NextResponse.json({ error: "Période invalide (from/to requis)" }, { status: 400 });
+  if (!allData && (!from || !to)) return NextResponse.json({ error: "Période invalide (from/to requis)" }, { status: 400 });
 
   const kind = body.kind === "report" ? "report" : "chart";
   const title = (body.title ?? "Rapport").slice(0, 200);
@@ -64,15 +66,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     `\n\nSources sélectionnées : ${sources.length ? sources.join(", ") : "source par défaut"}.`;
 
   const toolName = kind === "chart" ? "propose_chart" : "render_report";
+  const periodClause = allData
+    ? `Régénère EXACTEMENT ce rapport sur TOUTES les données (aucun filtre de date, tout l'historique disponible).\n` +
+      `Impératif de FIABILITÉ : utilise TES OUTILS SANS filtre de date pour récupérer les VRAIS chiffres sur l'ensemble des données. `
+    : `Régénère EXACTEMENT ce rapport pour la période « ${body.periodLabel ?? `${from} → ${to}`} » (du ${from} au ${to}).\n` +
+      `Impératif de FIABILITÉ : utilise TES OUTILS avec date_from=${from} et date_to=${to} pour récupérer les VRAIS chiffres de cette période. `;
   const prompt =
-    `Régénère EXACTEMENT ce rapport pour la période « ${body.periodLabel ?? `${from} → ${to}`} » (du ${from} au ${to}).\n` +
+    periodClause +
     `Titre du rapport : ${title}.\n` +
     (body.summary ? `Résumé initial : ${body.summary}\n` : "") +
     (dims.length ? `Dimension attendue (mêmes catégories/axe) : ${dims.join(", ")}.\n` : "") +
-    `Impératif de FIABILITÉ : utilise TES OUTILS avec date_from=${from} et date_to=${to} pour récupérer les VRAIS chiffres de cette période. ` +
     `Aucune donnée inventée, estimée ou extrapolée. Garde la même métrique et la même dimension qu'au départ. ` +
-    `Si la donnée manque pour cette période, renvoie un rapport avec des valeurs à 0 plutôt que d'inventer.\n` +
-    `Réponds UNIQUEMENT en appelant ${toolName} avec les données réelles de la période. Ne pose aucune question, n'ajoute pas d'alerte.`;
+    `Si la donnée manque, renvoie un rapport avec des valeurs à 0 plutôt que d'inventer.\n` +
+    `Réponds UNIQUEMENT en appelant ${toolName} avec les données réelles. Ne pose aucune question, n'ajoute pas d'alerte.`;
 
   try {
     const result = await runAgentTurn({

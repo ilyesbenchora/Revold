@@ -6,6 +6,7 @@
  */
 
 export type PeriodPreset =
+  | "all"
   | "this_week"
   | "this_month"
   | "mtd"
@@ -20,6 +21,7 @@ export type PeriodPreset =
 export type Period = { preset: PeriodPreset; from: string; to: string; label: string };
 
 export const PERIOD_PRESETS: { id: PeriodPreset; label: string }[] = [
+  { id: "all", label: "Toutes les données" },
   { id: "this_week", label: "Cette semaine" },
   { id: "this_month", label: "Ce mois-ci" },
   { id: "mtd", label: "Mois à ce jour" },
@@ -53,6 +55,8 @@ export function computePeriod(preset: PeriodPreset, now: Date): { from: string; 
   const today = new Date(y, m, now.getDate());
 
   switch (preset) {
+    case "all":
+      return { from: "", to: "" }; // pas de filtre de date → toutes les données
     case "this_week": {
       // Semaine ISO : lundi → dimanche.
       const dow = (now.getDay() + 6) % 7; // 0 = lundi

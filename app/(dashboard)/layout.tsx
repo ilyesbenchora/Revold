@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { DashboardHeader, type ConnectedBadge } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { ActiveChatBanner } from "@/components/active-chat-banner";
 
 // Les badges du header reflètent l'état réel des connexions par org →
 // pas de cache.
@@ -85,6 +86,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         <DashboardSidebar role={role} pole={pole} memberCounts={memberCounts} />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
+      <ActiveChatBanner />
     </div>
   );
 }

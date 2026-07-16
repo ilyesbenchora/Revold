@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ALERT_CHANNELS, SectionLabel, readable } from "./alert-ui";
 import { AlertCrossTools, crossSummary, emptyCross, type CrossState, type ToolOption } from "./alert-cross-tools";
+import { useNotifyActivatedAlert } from "./activated-alerts";
 import type { ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
@@ -47,6 +48,7 @@ export function AlertSuggestionCard({
   const [continuous, setContinuous] = useState(!initialDateTo);
   const [descEdit, setDescEdit] = useState<string | null>(null);
   const [impactEdit, setImpactEdit] = useState<string | null>(null);
+  const notifyActivated = useNotifyActivatedAlert();
   // Outils à croiser : pré-remplis avec la sélection du chat (uniquement ceux
   // réellement disponibles), + éventuel second KPI.
   const [cross, setCross] = useState<CrossState>({
@@ -89,9 +91,22 @@ export function AlertSuggestionCard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec");
       setState("done");
+      notifyActivated?.({ title: action.title, at: Date.now() });
     } catch {
       setState("error");
     }
+  }
+
+  // Une fois activée, la carte se réduit à une simple confirmation.
+  if (done) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700">
+        <span>✓</span> Alerte activée —{" "}
+        <Link href="/dashboard/alertes" className="underline hover:text-emerald-800">
+          voir mes alertes
+        </Link>
+      </div>
+    );
   }
 
   return (

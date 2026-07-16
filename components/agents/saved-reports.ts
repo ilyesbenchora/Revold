@@ -58,6 +58,43 @@ export function addSavedReport(entry: Omit<SavedReport, "id" | "savedAt">): void
   }
 }
 
+// ── Suivi « ce rapport a déjà été enregistré » (persiste l'état du CTA) ──
+const SAVED_KEYS_KEY = "revold:saved-report-keys:v1";
+
+/** Clé stable d'un rapport (agent + titre + signature des données). */
+export function reportKey(agentKey: string, title: string, data: { name: string; value: number }[]): string {
+  const sig = data
+    .slice(0, 30)
+    .map((d) => `${d.name}:${d.value}`)
+    .join("|");
+  return `${agentKey}::${title}::${sig}`;
+}
+
+function readSavedKeys(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SAVED_KEYS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as string[]) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isReportSaved(key: string): boolean {
+  return readSavedKeys().includes(key);
+}
+
+export function markReportSaved(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const cur = readSavedKeys();
+    if (!cur.includes(key)) localStorage.setItem(SAVED_KEYS_KEY, JSON.stringify([key, ...cur].slice(0, 500)));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function removeSavedReport(id: string): void {
   if (typeof window === "undefined") return;
   try {
