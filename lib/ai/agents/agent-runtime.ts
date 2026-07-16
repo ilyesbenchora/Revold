@@ -203,14 +203,15 @@ export async function runAgentTurn(opts: {
         continue;
       }
 
-      // Proposition de graphique → capturée ; l'utilisateur choisira le type dans l'UI.
+      // Proposition de graphique → capturée ; l'UI rend directement le format
+      // par défaut choisi par l'agent (l'utilisateur ne choisit pas).
       if (block.name === PROPOSE_CHART_TOOL) {
         chartProposal = normalizeChartProposal(input);
         results.push({
           type: "tool_result",
           tool_use_id: block.id,
           content: chartProposal
-            ? "Types de graphique proposés à l'utilisateur (il choisira l'icône). Réponds d'abord au fond de sa question (lecture, diagnostic, recommandation). Ensuite SEULEMENT, et uniquement si un suivi chiffré dans le temps est pertinent, tu PEUX proposer une alerte de suivi via propose_action. Sinon, conclus sans alerte."
+            ? "Graphique rendu à l'utilisateur dans le format que TU as choisi (defaultType). Ne lui demande pas quel type il préfère. Réponds d'abord au fond de sa question (lecture, diagnostic, recommandation). Ensuite SEULEMENT, et uniquement si un suivi chiffré dans le temps est pertinent, tu PEUX proposer une alerte de suivi via propose_action. Sinon, conclus sans alerte."
             : "Proposition invalide (aucune donnée). Récupère d'abord de vraies données puis repropose.",
         });
         continue;
