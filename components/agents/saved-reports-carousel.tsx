@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AgentReport } from "./agent-report";
-import { ChartPicker } from "./chart-picker";
+import { ReportArtifact } from "./report-artifact";
 import { listSavedReports, removeSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 
 function fmtDate(ts: number): string {
@@ -107,8 +106,7 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
                   Supprimer
                 </button>
               </div>
-              {r.report && <AgentReport spec={r.report} />}
-              {r.chart && <ChartPicker proposal={r.chart} />}
+              <ReportArtifact agentKey={r.agentKey} agentLabel={r.agentLabel} report={r.report} chart={r.chart} />
             </div>
           ))}
         </div>

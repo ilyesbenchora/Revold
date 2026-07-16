@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AgentReport } from "./agent-report";
-import { ChartPicker } from "./chart-picker";
+import { ReportArtifact } from "./report-artifact";
 import { SAVED_REPORTS_KEY, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
 import { AgentAvatar } from "./agent-avatar";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
@@ -86,8 +85,7 @@ export function MesRapports() {
                           Supprimer
                         </button>
                       </div>
-                      {r.report && <AgentReport spec={r.report} />}
-                      {r.chart && <ChartPicker proposal={r.chart} />}
+                      <ReportArtifact agentKey={r.agentKey} agentLabel={r.agentLabel} report={r.report} chart={r.chart} />
                     </div>
                   ))}
                 </div>

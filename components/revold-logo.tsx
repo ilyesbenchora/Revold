@@ -17,7 +17,7 @@ export function RevoldLogo({
   const labelClass = tone === "dark" ? "text-white" : "text-slate-900";
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="inline-flex w-max shrink-0 items-center gap-2.5 whitespace-nowrap">
       {/* Marque — avatar rond avec flocon */}
       <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
         <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-tr from-white/0 to-white/20 ring-1 ring-white/20" />
@@ -49,19 +49,19 @@ export function RevoldLogo({
       {!compact && (
         <span
           aria-label={companyName}
-          className={`whitespace-nowrap text-lg leading-none ${labelClass}`}
+          className={`inline-flex shrink-0 items-center whitespace-nowrap text-lg leading-none ${labelClass}`}
           style={{ fontFamily: "var(--font-wordmark)", fontWeight: 200, letterSpacing: "0.02em" }}
         >
           <span aria-hidden>Rev</span>
-          {/* « o » = anneau incomplet, effet chargement */}
+          {/* « o » = anneau incomplet (effet chargement), un peu plus gras */}
           <svg
             viewBox="0 0 32 32"
             aria-hidden
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.6"
+            strokeWidth="3.4"
             strokeLinecap="round"
-            style={{ width: "0.56em", height: "0.56em", margin: "0 0.01em", verticalAlign: "-0.02em" }}
+            style={{ width: "0.6em", height: "0.6em", margin: "0 0.02em" }}
           >
             <circle cx="16" cy="16" r="13" strokeDasharray="63 18" transform="rotate(-58 16 16)" />
           </svg>

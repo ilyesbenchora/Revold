@@ -6,7 +6,6 @@ import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { AgentsFamily } from "@/components/agents/agents-family";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
-import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import {
   buildContext,
   buildScenarios,
@@ -76,15 +75,6 @@ export default async function DashboardOverviewPage() {
 
   // Rapports actionnables : activés + suggestions disponibles.
   const reportsTotal = tabCounts.myCount + tabCounts.singleCount + tabCounts.multiCount;
-
-  // Recommandations Audit : 4 catégories CRO/RevOps (données, process,
-  // performances, adoption) générées par buildAuditRecommendations.
-  const auditRecos = buildAuditRecommendations(snapshot);
-  const auditTotal =
-    auditRecos.donnees.length +
-    auditRecos.process.length +
-    auditRecos.performances.length +
-    auditRecos.adoption.length;
 
   // Données Revenue analysées : volume total d'entités revenue traitées.
   // Deals (HubSpot) + factures + abonnements (Stripe/Pennylane si connecté).
@@ -172,7 +162,7 @@ export default async function DashboardOverviewPage() {
     <section className="space-y-8">
       {/* Header */}
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Vue d&apos;ensemble</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Mon tableau de bord</h1>
         <p className="mt-1 text-sm text-slate-500">
           {hubspotConnected
             ? "Synthèse globale de votre intelligence revenue."
@@ -241,13 +231,7 @@ export default async function DashboardOverviewPage() {
               </p>
             </Link>
 
-            {/* 2. Recommandations Audit */}
-            <Link href="/dashboard/audit/recommandations" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Recommandations Audit</p>
-              <p className="mt-1 text-2xl font-bold text-blue-600 tabular-nums group-hover:text-blue-700">{auditTotal.toLocaleString("fr-FR")}</p>
-            </Link>
-
-            {/* 3. Coachings à faire */}
+            {/* 2. Coachings à faire */}
             <Link href="/dashboard/insights-ia" className="group block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Coachings à faire</p>
               <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
