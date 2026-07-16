@@ -6,6 +6,7 @@ import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
+import { isSoon, daysUntil } from "@/lib/alerts/deadline";
 
 type AlertRow = EditableAlert & { status: string | null; team: string | null };
 
@@ -24,6 +25,10 @@ export default async function VentesAlertesPage() {
   const alerts = ((data ?? []) as AlertRow[]).filter(
     (a) => (a.status ?? "active") === "active" && (a.team === "sales" || ["sales", "commercial", "revops"].includes(a.category ?? "")),
   );
+  // Bientôt à échéance : date de fin dans les 7 jours (triées par urgence).
+  const soon = alerts
+    .filter((a) => isSoon(a.date_to, 7))
+    .sort((x, y) => daysUntil(x.date_to as string) - daysUntil(y.date_to as string));
 
   return (
     <section className="space-y-8">
@@ -39,6 +44,23 @@ export default async function VentesAlertesPage() {
 
       <PerformancesTabs />
       <VentesTabs />
+
+      {soon.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-amber-900">
+            ⏳ Bientôt à échéance
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">{soon.length}</span>
+            <span className="text-[11px] font-normal text-amber-700/70">échéance dans 7 jours ou moins</span>
+          </h2>
+          <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
+            {soon.map((a) => (
+              <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
+                <EditableAlertCard alert={a} badge="Bientôt à échéance" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {alerts.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
