@@ -3,6 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertBody, ALERT_CHANNELS } from "./alert-ui";
+import { AlertDeadline } from "./alert-deadline";
+
+const TYPE_LABELS: Record<string, string> = {
+  sales: "Ventes",
+  commercial: "Ventes",
+  marketing: "Marketing",
+  revops: "RevOps",
+  finance: "Finance",
+  csm: "Service client",
+};
 
 export type EditableAlert = {
   id: string;
@@ -18,9 +28,6 @@ export type EditableAlert = {
   notification_channels: string[] | null;
 };
 
-function fmt(d: string | null): string {
-  return d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "";
-}
 
 /** Carte d'alerte avec édition inline (dates, KPI/format, contenu, canaux) + suppression. */
 export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert: EditableAlert; badge?: string }) {
@@ -84,8 +91,8 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
           <span>✨</span> {badge}
         </span>
-        <span className="text-xs text-slate-400">
-          {alert.date_from || alert.date_to ? `${fmt(alert.date_from)} → ${alert.date_to ? fmt(alert.date_to) : "en continu"}` : fmt(alert.created_at)}
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+          {TYPE_LABELS[alert.category ?? ""] ?? "Suivi"}
         </span>
       </div>
 
@@ -165,6 +172,12 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
           {alert.threshold != null && (
             <p className="mt-2 text-[11px] text-slate-400">🎯 KPI attendu : {alert.threshold}{alert.unit_mode === "count" ? "" : " %"}</p>
           )}
+
+          {/* Échéance en temps réel : début, fin (compte à rebours live) ou en continu */}
+          <div className="mt-2.5">
+            <AlertDeadline dateFrom={alert.date_from} dateTo={alert.date_to} />
+          </div>
+
           <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-2.5">
             <button onClick={() => setEditing(true)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50">
               Modifier
