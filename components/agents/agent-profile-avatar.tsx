@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { AgentAvatar } from "./agent-avatar";
 
 /**
@@ -23,6 +24,7 @@ export function AgentProfileAvatar({
   pitch,
   size = 44,
   className = "",
+  chatHref,
 }: {
   name: string;
   emoji: string;
@@ -31,6 +33,8 @@ export function AgentProfileAvatar({
   pitch: string;
   size?: number;
   className?: string;
+  /** Lien vers le chat de l'agent — affiche un CTA « Discuter avec … » dans la fiche. */
+  chatHref?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -87,6 +91,15 @@ export function AgentProfileAvatar({
               <div className="px-5 py-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Ce que je t&apos;apporte</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-700">{pitch}</p>
+                {chatHref && (
+                  <Link
+                    href={chatHref}
+                    onClick={closeProfile}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+                  >
+                    💬 Discuter avec {name} →
+                  </Link>
+                )}
               </div>
             </div>
           </div>,

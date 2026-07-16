@@ -367,7 +367,15 @@ function isChildActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-export function DashboardSidebar({ role = null, pole = null }: { role?: string | null; pole?: string | null }) {
+export function DashboardSidebar({
+  role = null,
+  pole = null,
+  memberCounts = {},
+}: {
+  role?: string | null;
+  pole?: string | null;
+  memberCounts?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const isAccountActive = pathname.startsWith(accountLink.href);
 
@@ -415,9 +423,12 @@ export function DashboardSidebar({ role = null, pole = null }: { role?: string |
           <button
             type="button"
             aria-label={`Espace : ${activeWs.label}`}
-            className="flex w-full items-center justify-center rounded-lg p-2.5 text-lg transition hover:bg-slate-50"
+            className="flex w-full items-center justify-center rounded-lg p-2.5 text-slate-500 transition hover:bg-slate-50"
           >
-            <span>{activeWs.icon}</span>
+            {/* Marque-page — même design (trait) que les icônes de navigation. */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
           </button>
           {/* Flyout : liste des espaces (ou libellé seul si verrouillé) */}
           <div className="invisible absolute left-full top-0 z-50 ml-1 min-w-56 rounded-xl border border-card-border bg-white p-1.5 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
@@ -439,7 +450,12 @@ export function DashboardSidebar({ role = null, pole = null }: { role?: string |
                     <span className="text-base leading-none">{w.icon}</span>
                     <span className="min-w-0">
                       <span className="block">{w.label}</span>
-                      <span className="block text-[10px] font-normal text-slate-400">{w.desc}</span>
+                      <span className="block text-[10px] font-normal text-slate-400">
+                        {(() => {
+                          const n = memberCounts[w.id] ?? 0;
+                          return `${n} membre${n > 1 ? "s" : ""}`;
+                        })()}
+                      </span>
                     </span>
                     {active && <span className="ml-auto text-[10px] text-accent">✓</span>}
                   </button>

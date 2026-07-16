@@ -22,11 +22,14 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   const org = profile?.organizations as unknown as { name: string } | null;
   const orgName = org?.name ?? "Mon entreprise";
 
-  // POC espaces de travail : rôle + pôle du membre pour filtrer la navigation.
+  // POC espaces de travail : rôle + pôle du membre pour filtrer la navigation,
+  // + effectifs par pôle (affichés dans le switcher d'espace).
   let role: string | null = null;
   let pole: string | null = null;
+  const memberCounts: Record<string, number> = {};
   try {
     const supa = await createSupabaseServerClient();
+    const orgId = await getOrgId();
     const first = await supa.from("profiles").select("role, pole").eq("id", user.id).maybeSingle();
     let prof = first.data as { role?: string | null; pole?: string | null } | null;
     // Résilience : colonne pole absente (migration non appliquée).
@@ -36,6 +39,16 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     }
     role = prof?.role ?? null;
     pole = prof?.pole ?? null;
+
+    if (orgId) {
+      const all = await supa.from("profiles").select("pole").eq("organization_id", orgId);
+      const rows = (all.data as { pole?: string | null }[] | null) ?? [];
+      memberCounts.all = rows.length;
+      for (const r of rows) {
+        const key = r.pole ?? "";
+        if (key) memberCounts[key] = (memberCounts[key] ?? 0) + 1;
+      }
+    }
   } catch {
     /* défaut : accès global */
   }
@@ -69,7 +82,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     <div className="min-h-screen bg-background">
       <DashboardHeader companyName={orgName} connectedTools={connectedTools} />
       <div className="flex w-full">
-        <DashboardSidebar role={role} pole={pole} />
+        <DashboardSidebar role={role} pole={pole} memberCounts={memberCounts} />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>

@@ -64,6 +64,7 @@ export function AgentsFamily() {
                     pitch={p.pitch}
                     size={56}
                     className="ring-2 ring-white"
+                    chatHref={`/dashboard/agents/${key}`}
                   />
                 </div>
                 {/* Étiquette au survol (le clic ouvre la fiche de profil) */}
