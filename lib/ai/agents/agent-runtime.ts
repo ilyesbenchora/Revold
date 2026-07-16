@@ -109,9 +109,12 @@ export async function runAgentTurn(opts: {
   messages: AgentMessage[];
   ctx: AgentContext;
   maxSteps?: number;
+  /** Serveurs MCP distants à exposer à l'agent (POC connecteur MCP). */
+  mcpServers?: { name: string; url: string; token?: string | null }[];
 }): Promise<AgentTurnResult> {
   const { client, system, tools, messages, ctx } = opts;
   const maxSteps = opts.maxSteps ?? 8;
+  const mcpServers = opts.mcpServers ?? [];
 
   const toolDefs = tools.map((t) => t.def);
   const byName = new Map(tools.map((t) => [t.def.name, t]));
@@ -126,14 +129,36 @@ export async function runAgentTurn(opts: {
   let report: ReportSpec | null = null;
   let chartProposal: ChartProposal | null = null;
 
+  // Connecteur MCP : quand des serveurs MCP sont connectés, on utilise l'API
+  // beta qui exécute les tools MCP côté Anthropic (en plus de nos fetchers).
+  async function createTurn(): Promise<Anthropic.Message> {
+    const base = { model: AGENT_MODEL, max_tokens: 4096, system, tools: toolDefs, messages: convo };
+    if (mcpServers.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (await (client as any).beta.messages.create({
+        ...base,
+        betas: ["mcp-client-2025-04-04"],
+        mcp_servers: mcpServers.map((s) => ({
+          type: "url",
+          url: s.url,
+          name: s.name,
+          ...(s.token ? { authorization_token: s.token } : {}),
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      })) as any;
+    }
+    return client.messages.create(base);
+  }
+
   for (let step = 0; step < maxSteps; step++) {
-    const res = await client.messages.create({
-      model: AGENT_MODEL,
-      max_tokens: 4096,
-      system,
-      tools: toolDefs,
-      messages: convo,
-    });
+    const res = await createTurn();
+
+    // pause_turn : l'API a suspendu le tour (ex : tool MCP long) → on rejoue le
+    // contenu déjà produit et on continue la boucle.
+    if ((res.stop_reason as string) === "pause_turn") {
+      convo.push({ role: "assistant", content: res.content as unknown as Anthropic.ContentBlockParam[] });
+      continue;
+    }
 
     if (res.stop_reason !== "tool_use") {
       return { text: extractText(res.content), proposedAction, report, chartProposal, toolTrace };

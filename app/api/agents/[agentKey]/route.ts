@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
 import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
+import { getActiveMcpServers } from "@/lib/mcp/servers";
 
 export const maxDuration = 60;
 
@@ -70,6 +71,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     system += attachmentsSystemBlock(attachments);
   }
 
+  // Serveurs MCP connectés (POC) — exposés à l'agent en plus des fetchers.
+  const mcpServers = await getActiveMcpServers(supabase, orgId);
+
   try {
     const result = await runAgentTurn({
       client,
@@ -77,6 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       tools: agent.tools,
       messages,
       ctx: { supabase, orgId, hubspotToken, sources },
+      mcpServers,
     });
     return NextResponse.json({
       message: result.text,
