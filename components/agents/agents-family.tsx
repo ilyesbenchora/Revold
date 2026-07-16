@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AgentAvatar } from "./agent-avatar";
+import { AgentProfileAvatar } from "./agent-profile-avatar";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
 /**
@@ -56,16 +56,18 @@ export function AgentsFamily() {
             return (
               <div key={key} className="group relative -ml-3 transition hover:z-20">
                 <div className="transition group-hover:-translate-y-1">
-                  <AgentAvatar
+                  <AgentProfileAvatar
                     name={p.name}
                     emoji={p.emoji}
                     image={personaImagePath(key)}
+                    role={p.role}
+                    pitch={p.pitch}
                     size={56}
                     className="ring-2 ring-white"
                   />
                 </div>
-                {/* Étiquette au survol */}
-                <div className="invisible absolute left-1/2 top-full z-30 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1 text-center opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                {/* Étiquette au survol (le clic ouvre la fiche de profil) */}
+                <div className="pointer-events-none invisible absolute left-1/2 top-full z-30 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1 text-center opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
                   <span className="block text-[12px] font-semibold text-slate-900">{p.name}</span>
                   <span className="block text-[10px] text-slate-500">{p.role}</span>
                 </div>

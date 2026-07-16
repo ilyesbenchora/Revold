@@ -99,7 +99,7 @@ export default async function DashboardOverviewPage() {
   const sections = [
     {
       label: "Données",
-      description: "Diagnostiquez la santé de votre CRM : propriétés, process, performances, adoption.",
+      description: "Diagnostiquez la santé de toute votre stack connectée : CRM, facturation, publicité, support — qualité, process, performances, adoption.",
       href: "/dashboard/audit",
       cta: "Lancer le diagnostic",
       gradient: "from-blue-500 to-indigo-500",
