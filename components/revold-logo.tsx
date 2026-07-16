@@ -49,8 +49,8 @@ export function RevoldLogo({
       {!compact && (
         <span
           aria-label={companyName}
-          className={`text-lg ${labelClass}`}
-          style={{ fontFamily: "var(--font-wordmark)", fontWeight: 100, letterSpacing: "0.16em" }}
+          className={`whitespace-nowrap text-lg leading-none ${labelClass}`}
+          style={{ fontFamily: "var(--font-wordmark)", fontWeight: 200, letterSpacing: "0.02em" }}
         >
           <span aria-hidden>Rev</span>
           {/* « o » = anneau incomplet, effet chargement */}
@@ -59,9 +59,9 @@ export function RevoldLogo({
             aria-hidden
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.4"
+            strokeWidth="2.6"
             strokeLinecap="round"
-            style={{ width: "0.58em", height: "0.58em", margin: "0 0.04em", verticalAlign: "-0.02em" }}
+            style={{ width: "0.56em", height: "0.56em", margin: "0 0.01em", verticalAlign: "-0.02em" }}
           >
             <circle cx="16" cy="16" r="13" strokeDasharray="63 18" transform="rotate(-58 16 16)" />
           </svg>
