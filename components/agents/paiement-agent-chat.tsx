@@ -647,6 +647,7 @@ export function PaiementAgentChat({
                     agentLabel={agentLabel}
                     report={m.report}
                     chart={m.chart}
+                    sources={selected}
                   />
                 )}
                 {/* Pastille discrète : une alerte a été suggérée → onglet Alertes.

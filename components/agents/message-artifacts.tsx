@@ -4,46 +4,102 @@ import { useState } from "react";
 import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
+import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
 import { addSavedReport } from "./saved-reports";
 import type { ReportSpec, ChartProposal } from "@/lib/ai/agents/agent-runtime";
 
 /**
- * Artefacts attachés à un message d'agent dans le FIL de discussion : rapport et
- * proposition de graphique, plus un bouton discret « Enregistrer le rapport ».
- *
- * La suggestion d'alerte n'apparaît PAS ici (elle serait intrusive et casserait
- * le flux) : elle est reléguée dans l'onglet « Alertes » du chat via
- * AlertSuggestionCard. Voir paiement-agent-chat.tsx.
+ * Artefacts d'un message d'agent : rapport / graphique (l'utilisateur choisit le
+ * format), avec une VENTILATION TEMPORELLE (dates perso + presets). Changer la
+ * période recalcule les VRAIS chiffres côté serveur (pas de découpage client) →
+ * fiabilité des données. Le bouton « Enregistrer le rapport » garde le format et
+ * la période choisis. La suggestion d'alerte reste dans l'onglet Alertes.
  */
 export function MessageArtifacts({
   agentKey,
   agentLabel,
   report,
   chart,
+  sources = [],
 }: {
   agentKey: string;
   agentLabel: string;
   report?: ReportSpec | null;
   chart?: ChartProposal | null;
+  /** Sources sélectionnées dans le chat — pour recalculer sur les bons connecteurs. */
+  sources?: string[];
 }) {
+  const [curReport, setCurReport] = useState<ReportSpec | null>(report ?? null);
+  const [curChart, setCurChart] = useState<ChartProposal | null>(chart ?? null);
+  const [chartType, setChartType] = useState<string>(chart?.defaultType || chart?.suggestedTypes?.[0] || "bar");
   const [saved, setSaved] = useState(false);
+  const [period, setPeriod] = useState<AppliedPeriod | null>(null);
+  const [loadingPeriod, setLoadingPeriod] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const hasReport = !!(report || chart);
+  const hasReport = !!(curReport || curChart);
 
-  // Enregistrement direct du rapport (sans alerte) — alimente les pages de
-  // projection (Prévisions) et « Mes rapports ».
+  // Dimensions (axe/catégories) pour guider le recalcul sur la même métrique.
+  function currentDimensions(): string[] {
+    if (curChart) return curChart.data.map((d) => d.name);
+    const block = curReport?.blocks.find((b) => Array.isArray(b.data) && b.data.length);
+    return block?.data?.map((d) => d.name) ?? [];
+  }
+
+  async function applyPeriod(p: AppliedPeriod) {
+    setLoadingPeriod(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/agents/${agentKey}/report-period`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: curChart ? "chart" : "report",
+          title: curReport?.title || curChart?.title || "Rapport",
+          summary: curReport?.summary || curChart?.summary || "",
+          dimensions: currentDimensions(),
+          from: p.from,
+          to: p.to,
+          periodLabel: p.label,
+          sources,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec du recalcul");
+      if (data.chartProposal) {
+        setCurChart(data.chartProposal);
+        setChartType(data.chartProposal.defaultType || data.chartProposal.suggestedTypes?.[0] || chartType);
+        setCurReport(null);
+      } else if (data.report) {
+        setCurReport(data.report);
+        setCurChart(null);
+      } else {
+        throw new Error("Aucune donnée renvoyée pour cette période");
+      }
+      setPeriod(p);
+      setSaved(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur de recalcul");
+    } finally {
+      setLoadingPeriod(false);
+    }
+  }
+
   function saveReportOnly() {
     if (!hasReport || saved) return;
+    const baseTitle = curReport?.title || curChart?.title || "Projection";
+    const title = period ? `${baseTitle} — ${period.label}` : baseTitle;
     addSavedReport({
       agentKey,
       agentLabel,
-      title: report?.title || chart?.title || "Projection",
-      summary: report?.summary || chart?.summary,
-      report: report ?? null,
-      chart: chart ?? null,
+      title,
+      summary: curReport?.summary || curChart?.summary,
+      report: curReport ?? null,
+      // On fige le format d'affichage choisi par l'utilisateur.
+      chart: curChart ? { ...curChart, defaultType: chartType } : null,
       alert: {
-        title: report?.title || chart?.title || "Projection",
-        description: report?.summary || chart?.summary || "Projection enregistrée depuis le chat.",
+        title,
+        description: curReport?.summary || curChart?.summary || "Rapport enregistré depuis le chat.",
         category: "revops",
         channels: [],
       },
@@ -55,17 +111,23 @@ export function MessageArtifacts({
 
   return (
     <div className="ml-9 space-y-2">
-      {report && <AgentReport spec={report} />}
-      {chart && <ChartPicker proposal={chart} />}
+      {/* Ventilation temporelle — recalcul fiable côté serveur */}
+      <ReportPeriodBar onApply={applyPeriod} loading={loadingPeriod} activeLabel={period?.label ?? null} />
 
-      {/* Enregistrer le rapport (indépendant de l'alerte) */}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-600">⚠ {error}</div>}
+
+      {curReport && <AgentReport spec={curReport} />}
+      {curChart && <ChartPicker proposal={curChart} onTypeChange={setChartType} />}
+
+      {/* Enregistrer le rapport (format + période conservés) */}
       <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
         <div className="flex items-center gap-1.5 border-b border-indigo-100 bg-indigo-50/60 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
           <span>💾</span> Enregistrer le rapport
         </div>
         <div className="flex items-center justify-between gap-3 p-3.5">
           <p className="text-xs text-slate-500">
-            Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — sans créer d&apos;alerte.
+            Sauvegarde ce rapport dans <strong className="text-slate-700">Mes rapports</strong> — format et période choisis
+            conservés.
           </p>
           {saved ? (
             <Link
@@ -77,7 +139,8 @@ export function MessageArtifacts({
           ) : (
             <button
               onClick={saveReportOnly}
-              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+              disabled={loadingPeriod}
+              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
             >
               Enregistrer le rapport
             </button>
