@@ -17,6 +17,11 @@ export function AlertSuggestionCard({
   action,
   tools = [],
   initialSources = [],
+  initialKpi = "",
+  initialKpiFormat = "percent",
+  initialDateFrom = "",
+  initialDateTo = "",
+  baseline,
 }: {
   agentKey: string;
   action: ProposedAction;
@@ -24,15 +29,22 @@ export function AlertSuggestionCard({
   tools?: ToolOption[];
   /** Sources déjà sélectionnées dans le chat — reprises dynamiquement. */
   initialSources?: string[];
+  /** Valeurs initiales (ex : depuis un rapport historisé). */
+  initialKpi?: string;
+  initialKpiFormat?: "percent" | "count";
+  initialDateFrom?: string;
+  initialDateTo?: string;
+  /** Note contextuelle (ex : « Valeur actuelle sur la période : 124 500 € »). */
+  baseline?: string;
 }) {
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [channels, setChannels] = useState<string[]>(["app"]);
   const [editing, setEditing] = useState(false);
-  const [kpiValue, setKpiValue] = useState("");
-  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">("percent");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [continuous, setContinuous] = useState(true);
+  const [kpiValue, setKpiValue] = useState(initialKpi);
+  const [kpiFormat, setKpiFormat] = useState<"percent" | "count">(initialKpiFormat);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
+  const [continuous, setContinuous] = useState(!initialDateTo);
   const [descEdit, setDescEdit] = useState<string | null>(null);
   const [impactEdit, setImpactEdit] = useState<string | null>(null);
   // Outils à croiser : pré-remplis avec la sélection du chat (uniquement ceux
@@ -90,6 +102,11 @@ export function AlertSuggestionCard({
       </div>
 
       <div className="space-y-3 p-3.5">
+        {baseline && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-2.5 py-1.5 text-[11px] text-slate-600">
+            📊 {baseline}
+          </div>
+        )}
         {/* Objectif (gauche) + KPIs attendus (droite) */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>

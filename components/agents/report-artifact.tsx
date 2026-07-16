@@ -6,7 +6,9 @@ import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
 import { addSavedReport } from "./saved-reports";
-import type { ReportSpec, ChartProposal } from "@/lib/ai/agents/agent-runtime";
+import { AlertSuggestionCard } from "./alert-suggestion-card";
+import { type ToolOption } from "./alert-cross-tools";
+import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
  * Affichage d'un rapport/graphique avec :
@@ -39,13 +41,36 @@ export function ReportArtifact({
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Alerte de suivi créée depuis le rapport (tracking interactif).
+  const [showAlert, setShowAlert] = useState(false);
+  const [tools, setTools] = useState<ToolOption[]>([]);
+  const [toolsLoaded, setToolsLoaded] = useState(false);
 
   const hasReport = !!(curReport || curChart);
 
-  function currentDimensions(): string[] {
-    if (curChart) return curChart.data.map((d) => d.name);
+  function currentData(): { name: string; value: number }[] {
+    if (curChart) return curChart.data;
     const block = curReport?.blocks.find((b) => Array.isArray(b.data) && b.data.length);
-    return block?.data?.map((d) => d.name) ?? [];
+    return block?.data ?? [];
+  }
+  function currentDimensions(): string[] {
+    return currentData().map((d) => d.name);
+  }
+  function currentTotal(): number {
+    return currentData().reduce((s, d) => s + (typeof d.value === "number" ? d.value : 0), 0);
+  }
+
+  async function openAlert() {
+    setShowAlert(true);
+    if (toolsLoaded) return;
+    try {
+      const r = await fetch("/api/integrations/connected");
+      const d = await r.json();
+      setTools(d.tools ?? []);
+    } catch {
+      /* pas d'outils → sélecteur vide */
+    }
+    setToolsLoaded(true);
   }
 
   async function applyPeriod(p: AppliedPeriod) {
@@ -118,6 +143,37 @@ export function ReportArtifact({
 
       {curReport && <AgentReport spec={curReport} />}
       {curChart && <ChartPicker proposal={curChart} onTypeChange={setChartType} />}
+
+      {/* Créer une alerte de suivi directement sur ce rapport (tracking interactif) */}
+      {!showAlert ? (
+        <button
+          onClick={openAlert}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-100"
+        >
+          <span>✨</span> Créer une alerte de suivi sur ce rapport
+        </button>
+      ) : (
+        <AlertSuggestionCard
+          agentKey={agentKey}
+          action={{
+            action_type: "create_alert",
+            title: (curReport?.title || curChart?.title || "Suivi du rapport").slice(0, 120),
+            description:
+              curReport?.summary ||
+              curChart?.summary ||
+              `Suivi de « ${curReport?.title || curChart?.title || "ce rapport"} »`,
+            category: "revops",
+            impact: "",
+          }}
+          tools={tools}
+          initialSources={sources}
+          initialKpi={currentTotal() ? String(Math.round(currentTotal())) : ""}
+          initialKpiFormat="count"
+          initialDateFrom={period?.from ?? ""}
+          initialDateTo={period?.to ?? ""}
+          baseline={`Valeur actuelle du rapport${period ? ` (${period.label})` : ""} : ${currentTotal().toLocaleString("fr-FR")}`}
+        />
+      )}
 
       {showSave && (
         <div className="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
