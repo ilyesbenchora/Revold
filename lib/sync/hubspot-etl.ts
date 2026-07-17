@@ -18,6 +18,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 
 const HS_API = "https://api.hubapi.com";
 const PAGE_SIZE = 100;
@@ -316,10 +317,57 @@ async function upsertCompanies(
   return upserted;
 }
 
+/**
+ * Synchronise la table de correspondance RÉELLE des étapes de pipeline depuis
+ * HubSpot (pipeline_stages enrichi avec external_id), et renvoie la map
+ * external_id → stage_id (uuid) pour lier les deals. Résilient : si la migration
+ * n'est pas appliquée, renvoie une map vide (aucune régression).
+ */
+async function syncPipelineStages(
+  token: string,
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Record<string, string>> {
+  try {
+    const pipelines = await fetchDealsPipelines(token);
+    const rows = pipelines.flatMap((p) =>
+      p.stages.map((s) => ({
+        organization_id: orgId,
+        external_id: s.id,
+        pipeline_external_id: p.id,
+        pipeline_name: p.label,
+        name: s.label,
+        position: s.displayOrder,
+        probability: s.probability,
+        is_closed_won: s.closedWon,
+        is_closed_lost: s.closedLost,
+      })),
+    );
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from("pipeline_stages")
+        .upsert(rows, { onConflict: "organization_id,external_id" });
+      if (error) return {}; // migration non appliquée → pas de mapping
+    }
+    const { data } = await supabase
+      .from("pipeline_stages")
+      .select("id, external_id")
+      .eq("organization_id", orgId);
+    const map: Record<string, string> = {};
+    for (const r of (data ?? []) as Array<{ id: string; external_id: string | null }>) {
+      if (r.external_id) map[r.external_id] = r.id;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 async function upsertDeals(
   supabase: SupabaseClient,
   orgId: string,
   records: Array<Record<string, unknown>>,
+  stageIdByExternal: Record<string, string> = {},
 ): Promise<number> {
   if (records.length === 0) return 0;
   const rows = records.map((r) => {
@@ -327,12 +375,15 @@ async function upsertDeals(
     const isClosed = pStr(props, "hs_is_closed") === "true";
     const isWon = pStr(props, "hs_is_closed_won") === "true";
     const closeDate = pDate(props, "closedate");
+    const stageExt = pStr(props, "dealstage");
     return {
       organization_id: orgId,
       hubspot_id: r.id as string,
       name: pStr(props, "dealname"),
       pipeline_external_id: pStr(props, "pipeline"),
-      stage_external_id: pStr(props, "dealstage"),
+      stage_external_id: stageExt,
+      // Correspondance RÉELLE (jamais devinée) vers pipeline_stages.
+      stage_id: stageExt && stageIdByExternal[stageExt] ? stageIdByExternal[stageExt] : null,
       amount: pNum(props, "amount") || null,
       close_date: closeDate ? closeDate.split("T")[0] : null, // date only
       is_closed_won: isWon,
@@ -683,8 +734,12 @@ export async function syncCrmObject(
     let upserted = 0;
     if (type === "contacts") upserted = await upsertContacts(supabase, orgId, records);
     else if (type === "companies") upserted = await upsertCompanies(supabase, orgId, records);
-    else if (type === "deals") upserted = await upsertDeals(supabase, orgId, records);
-    else if (type === "tickets") upserted = await upsertTickets(supabase, orgId, records);
+    else if (type === "deals") {
+      // On rafraîchit d'abord la table de correspondance des étapes (pipeline_stages)
+      // pour lier deals.stage_id sur des noms d'étapes RÉELS, jamais devinés.
+      const stageMap = await syncPipelineStages(token, supabase, orgId);
+      upserted = await upsertDeals(supabase, orgId, records, stageMap);
+    } else if (type === "tickets") upserted = await upsertTickets(supabase, orgId, records);
 
     // Cleanup orphans : uniquement en full sync, où `records` contient tout HubSpot
     let cleaned = 0;
