@@ -105,6 +105,33 @@ export function ReportArtifact({
         return;
       }
 
+      // ── Rapport DÉTERMINISTE : chaque bloc porte sa requête → on recalcule
+      // chaque bloc à la source (aucune IA).
+      if (curReport && curReport.blocks.some((b) => b.query)) {
+        const updated = await Promise.all(
+          curReport.blocks.map(async (b) => {
+            if (!b.query) return b;
+            const res = await fetch("/api/reports/recompute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query: b.query, all: p.preset === "all", date_from: p.from, date_to: p.to, sources }),
+            });
+            if (!res.ok) return b; // on garde l'ancien bloc si échec
+            const d = await res.json();
+            const pts = (d.data ?? []) as { name: string; value: number }[];
+            if (b.type === "kpi") {
+              const total = pts.reduce((s, x) => s + (x.value || 0), 0);
+              return { ...b, value: Math.round(total).toLocaleString("fr-FR") };
+            }
+            return { ...b, data: pts };
+          }),
+        );
+        setCurReport({ ...curReport, blocks: updated });
+        setPeriod(p);
+        setSaved(false);
+        return;
+      }
+
       // ── Fallback (rapport figé / graphique sans requête) : régénération agent,
       // best-effort (non garanti 100 %). Signalé à l'utilisateur.
       const res = await fetch(`/api/agents/${agentKey}/report-period`, {
@@ -171,14 +198,19 @@ export function ReportArtifact({
     <div className="space-y-2">
       <ReportPeriodBar onApply={applyPeriod} loading={loading} activeLabel={period?.label ?? null} />
 
-      {curChart?.query ? (
-        <p className="text-[10px] text-emerald-600">✓ Recalcul exact par période (chiffres recalculés à la source).</p>
-      ) : (
-        <p className="text-[10px] text-amber-600">
-          ⚠ Recalcul de période <strong>approximatif</strong> pour ce rapport (régénéré par l&apos;agent, non garanti 100 %).
-          Pour un recalcul exact, demande un graphique à l&apos;agent.
-        </p>
-      )}
+      {(() => {
+        const dataBlocks = curReport?.blocks.filter((b) => b.type === "kpi" || (Array.isArray(b.data) && b.data.length)) ?? [];
+        const reportDeterministic = dataBlocks.length > 0 && dataBlocks.every((b) => !!b.query);
+        const deterministic = !!curChart?.query || reportDeterministic;
+        return deterministic ? (
+          <p className="text-[10px] text-emerald-600">✓ Recalcul exact par période (chiffres recalculés à la source).</p>
+        ) : (
+          <p className="text-[10px] text-amber-600">
+            ⚠ Recalcul de période <strong>approximatif</strong> pour ce rapport (régénéré par l&apos;agent, non garanti
+            100 %). Pour un recalcul exact, demande un graphique à l&apos;agent.
+          </p>
+        );
+      })()}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-600">⚠ {error}</div>}
 

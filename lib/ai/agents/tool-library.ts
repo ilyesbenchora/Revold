@@ -943,7 +943,7 @@ export const renderReportTool: AgentTool = {
   def: {
     name: "render_report",
     description:
-      "Construit et affiche un rapport visuel à l'utilisateur (KPIs, graphiques, tables). À utiliser APRÈS avoir récupéré les chiffres réels via tes autres outils. Ne mets JAMAIS de données inventées dans un bloc. Choisis le type de visualisation adapté à chaque donnée (kpi pour une valeur clé, bar/line/area pour une série, donut pour une répartition, table pour un détail).",
+      "Construit et affiche un rapport visuel à l'utilisateur (KPIs, graphiques, tables). À utiliser APRÈS avoir récupéré les chiffres réels via tes autres outils. Ne mets JAMAIS de données inventées dans un bloc. Choisis le type de visualisation adapté à chaque donnée (kpi pour une valeur clé, bar/line/area pour une série, donut pour une répartition, table pour un détail). FIABILITÉ : pour CHAQUE bloc dont les data viennent d'aggregate_canonical, ajoute le champ query (mêmes entity/groupBy/measure/field) — indispensable pour que Revold recalcule les vrais chiffres quand l'utilisateur change la période.",
     input_schema: {
       type: "object",
       properties: {
@@ -981,6 +981,17 @@ export const renderReportTool: AgentTool = {
                 type: "array",
                 description: "Lignes (table), chaque ligne = tableau de cellules texte.",
                 items: { type: "array", items: { type: "string" } },
+              },
+              query: {
+                type: "object",
+                description: "FIABILITÉ : si les data du bloc viennent d'aggregate_canonical, mets ici les mêmes entity/groupBy/measure/field pour permettre le recalcul déterministe par période.",
+                properties: {
+                  entity: { type: "string" },
+                  groupBy: { type: "string" },
+                  measure: { type: "string", enum: ["count", "sum", "avg"] },
+                  field: { type: "string" },
+                },
+                required: ["entity", "groupBy"],
               },
             },
             required: ["type"],

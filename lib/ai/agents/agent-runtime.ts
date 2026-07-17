@@ -56,6 +56,8 @@ export type ReportBlock = {
   data?: { name: string; value: number }[];
   columns?: string[];
   rows?: string[][];
+  /** Requête déterministe (aggregate_canonical) → recalcul fiable par période. */
+  query?: ChartQuery | null;
 };
 
 /** Spécification d'un rapport construit par l'agent (Dashboard/Reporting). */
@@ -320,6 +322,19 @@ function normalizeReport(input: Record<string, unknown>): ReportSpec | null {
     const rows = Array.isArray(o.rows)
       ? o.rows.map((r) => (Array.isArray(r) ? r.map((c) => String(c)) : [])).filter((r) => r.length > 0)
       : undefined;
+    let query: ChartQuery | null = null;
+    const rq = o.query;
+    if (rq && typeof rq === "object") {
+      const qo = rq as Record<string, unknown>;
+      if (typeof qo.entity === "string" && typeof qo.groupBy === "string") {
+        query = {
+          entity: qo.entity,
+          groupBy: qo.groupBy,
+          measure: typeof qo.measure === "string" ? qo.measure : undefined,
+          field: typeof qo.field === "string" ? qo.field : undefined,
+        };
+      }
+    }
     blocks.push({
       type: o.type as ReportBlock["type"],
       title: typeof o.title === "string" ? o.title : undefined,
@@ -329,6 +344,7 @@ function normalizeReport(input: Record<string, unknown>): ReportSpec | null {
       data,
       columns: Array.isArray(o.columns) ? o.columns.map((c) => String(c)) : undefined,
       rows,
+      query,
     });
   }
   if (blocks.length === 0) return null;
