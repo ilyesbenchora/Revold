@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROPOSE_DEAL_ACTIONS_TOOL, normalizeDealAction, type DealActionProposal } from "./sales-actions";
+import { REDIRECT_TOOL, normalizeRedirect, type AgentRedirect } from "./redirect";
 
 /**
  * Runtime générique d'agent conversationnel + agentique pour Revold.
@@ -99,6 +100,7 @@ export type AgentTurnResult = {
   report: ReportSpec | null;
   chartProposal: ChartProposal | null;
   dealAction: DealActionProposal | null;
+  redirect: AgentRedirect | null;
   toolTrace: ToolTraceEntry[];
 };
 
@@ -143,6 +145,7 @@ export async function runAgentTurn(opts: {
   let report: ReportSpec | null = null;
   let chartProposal: ChartProposal | null = null;
   let proposedDealAction: DealActionProposal | null = null;
+  let redirect: AgentRedirect | null = null;
 
   // Connecteur MCP : quand des serveurs MCP sont connectés, on utilise l'API
   // beta qui exécute les tools MCP côté Anthropic (en plus de nos fetchers).
@@ -176,7 +179,7 @@ export async function runAgentTurn(opts: {
     }
 
     if (res.stop_reason !== "tool_use") {
-      return { text: extractText(res.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, toolTrace };
+      return { text: extractText(res.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, redirect, toolTrace };
     }
 
     // On rejoue le tour assistant (blocs tool_use inclus) avant de répondre.
@@ -201,6 +204,19 @@ export async function runAgentTurn(opts: {
           content:
             "Action proposée et affichée à l'utilisateur pour confirmation. " +
             "Ne pas la considérer comme exécutée. Conclus en une phrase.",
+        });
+        continue;
+      }
+
+      // Redirection vers un autre agent → capturée.
+      if (block.name === REDIRECT_TOOL) {
+        redirect = normalizeRedirect(input);
+        results.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: redirect
+            ? "Redirection proposée à l'utilisateur (bouton vers l'agent pertinent). Conclus en une phrase en indiquant que c'est le domaine de cet agent."
+            : "Clé d'agent manquante. Indique une agent_key valide du roster.",
         });
         continue;
       }
@@ -292,7 +308,7 @@ export async function runAgentTurn(opts: {
     ],
   });
 
-  return { text: extractText(final.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, toolTrace };
+  return { text: extractText(final.content), proposedAction, report, chartProposal, dealAction: proposedDealAction, redirect, toolTrace };
 }
 
 function extractText(content: Anthropic.ContentBlock[]): string {

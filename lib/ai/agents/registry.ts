@@ -21,6 +21,7 @@ import {
   getAdsPerformance,
 } from "./tool-library";
 import { listActionableDeals, proposeDealActionsTool } from "./sales-actions";
+import { redirectToAgentTool } from "./redirect";
 
 export type AgentSection = "donnees" | "coaching" | "simulations" | "dashboard";
 
@@ -79,9 +80,18 @@ EXÉCUTION — tu ne fais pas que conseiller, tu EXÉCUTES la tâche demandée :
 
 STYLE : français, TEXTE BRUT — jamais de markdown, ni ** ni #, ni backticks ; listes avec des tirets simples. Va au résultat d'abord (l'essentiel en une phrase), puis le détail. Concis et dense, zéro remplissage. Si une donnée manque, dis-le franchement et indique la source à connecter ou synchroniser — ne bluffe jamais.`;
 
+/** Roster des agents Revold (clé + rôle) pour rediriger hors-scope. */
+function agentRosterText(currentKey: string): string {
+  const lines = AGENT_LIST.filter((a) => a.key !== currentKey).map((a) => `- ${a.key} : ${a.label} — ${a.tagline}`);
+  return lines.join("\n");
+}
+
 /** Compose le system prompt complet d'un agent. */
 export function buildSystemPrompt(agent: AgentDef): string {
-  return `${BASE_SYSTEM}\n\nTON RÔLE — ${agent.label} :\n${agent.expertise}`;
+  return (
+    `${BASE_SYSTEM}\n\nTON RÔLE — ${agent.label} :\n${agent.expertise}` +
+    `\n\nPÉRIMÈTRE & REDIRECTION : tu es spécialisé sur TON rôle ci-dessus. Si la demande de l'utilisateur sort clairement de ton expertise et relève d'un autre agent, NE bâcle pas une réponse hors-scope : appelle l'outil redirect_to_agent avec la clé de l'agent pertinent + une raison courte, puis conclus en une phrase (« C'est plutôt le domaine de … »). Autres agents Revold disponibles :\n${agentRosterText(agent.key)}`
+  );
 }
 
 // ── Jeux de tools réutilisés ────────────────────────────────────────────────
@@ -424,7 +434,7 @@ const AGENT_LIST: AgentDef[] = [
 
 // Capacités universelles : tout agent peut agréger la donnée canonique,
 // proposer un type de graphique et rendre un rapport. Ajoutées sans doublon.
-const UNIVERSAL_TOOLS = [aggregateCanonical, proposeChartTool, report, getAdsPerformance];
+const UNIVERSAL_TOOLS = [aggregateCanonical, proposeChartTool, report, getAdsPerformance, redirectToAgentTool];
 for (const a of AGENT_LIST) {
   for (const t of UNIVERSAL_TOOLS) {
     if (!a.tools.some((x) => x.def.name === t.def.name)) a.tools.push(t);

@@ -89,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       report: result.report,
       chartProposal: result.chartProposal,
       dealAction: result.dealAction,
+      redirect: result.redirect,
       toolTrace: result.toolTrace.map((t) => t.name),
     });
   } catch (err) {

@@ -9,7 +9,9 @@ import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { ActivatedAlertsContext, type ActivatedAlert } from "./activated-alerts";
 import { DealActionCard } from "./deal-action-card";
 import { suggestionsForCategories } from "@/lib/ai/agents/analysis-suggestions";
+import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
+import type { AgentRedirect } from "@/lib/ai/agents/redirect";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
 import type { Attachment } from "@/lib/attachments";
@@ -38,6 +40,7 @@ type Msg = {
   chart?: ChartProposal | null;
   action?: ProposedAction | null;
   dealAction?: DealActionProposal | null;
+  redirect?: AgentRedirect | null;
 };
 type Conversation = {
   id: string;
@@ -447,6 +450,7 @@ export function PaiementAgentChat({
         chart: data.chartProposal ?? null,
         action: data.proposedAction ?? null,
         dealAction: data.dealAction ?? null,
+        redirect: data.redirect ?? null,
       };
       const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
@@ -796,6 +800,15 @@ export function PaiementAgentChat({
                     chart={m.chart}
                     sources={selected}
                   />
+                )}
+                {/* Redirection vers le bon agent (demande hors-scope). */}
+                {m.role === "assistant" && m.redirect && (
+                  <Link
+                    href={`/dashboard/agents/${m.redirect.agentKey}`}
+                    className="ml-9 inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    <span>↪</span> Ouvrir {getAgentPersona(m.redirect.agentKey).name} — {getAgentPersona(m.redirect.agentKey).role}
+                  </Link>
                 )}
                 {/* Action pipeline exécutable → pastille discrète vers l'onglet Actions. */}
                 {m.role === "assistant" && m.dealAction && (
