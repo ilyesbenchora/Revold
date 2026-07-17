@@ -63,6 +63,21 @@ export function ObjectiveCard({ objective }: { objective: Objective }) {
   const [description, setDescription] = useState(o.description ?? "");
   const [impact, setImpact] = useState(o.impact ?? "");
   const [showPlan, setShowPlan] = useState(isSoon(o.date_to, 14));
+  const [planText, setPlanText] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+
+  async function generatePlan() {
+    setPlanLoading(true);
+    try {
+      const res = await fetch(`/api/objectives/${o.id}/plan`, { method: "POST" });
+      const data = await res.json();
+      setPlanText(res.ok ? data.plan : `⚠ ${data.error ?? "Échec de génération"}`);
+    } catch {
+      setPlanText("⚠ Erreur réseau.");
+    } finally {
+      setPlanLoading(false);
+    }
+  }
 
   const cur = o.computedValue ?? o.current_value ?? null;
   const tgt = o.target ?? null;
@@ -188,7 +203,20 @@ export function ObjectiveCard({ objective }: { objective: Objective }) {
             </button>
             {showPlan && (
               <div className="mt-2 space-y-1.5">
-                <p className="text-[10px] text-slate-500">Analyses à lancer avec {plan.agentKey === "paiement-facturation" ? "Inès" : "l'agent"} pour piloter cet objectif :</p>
+                {/* Plan IA temps réel : diagnostic + leviers + actions, sur vrais chiffres */}
+                <button
+                  onClick={generatePlan}
+                  disabled={planLoading}
+                  className="w-full rounded-md bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-2.5 py-1.5 text-[12px] font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+                >
+                  {planLoading ? "Génération du plan…" : planText ? "↻ Regénérer le plan IA" : "✨ Générer le plan IA (écart & leviers)"}
+                </button>
+                {planText && (
+                  <div className="whitespace-pre-wrap rounded-md border border-indigo-100 bg-white px-2.5 py-2 text-[12px] leading-relaxed text-slate-700">
+                    {planText}
+                  </div>
+                )}
+                <p className="pt-1 text-[10px] text-slate-500">Analyses à lancer avec {plan.agentKey === "paiement-facturation" ? "Inès" : "l'agent"} pour piloter cet objectif :</p>
                 {suggestions.map((s) => (
                   <Link key={s} href={`/dashboard/agents/${plan.agentKey}`} className="block rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50/50">
                     💡 {s} <span className="text-[10px] font-medium text-accent">→</span>

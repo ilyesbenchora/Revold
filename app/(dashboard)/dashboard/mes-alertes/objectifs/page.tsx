@@ -5,6 +5,11 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { ObjectiveCard, type Objective } from "@/components/objectives/objective-card";
 import { CreateObjectiveModal } from "@/components/objectives/create-objective-modal";
+import { completionPct, isReached, isAtRisk } from "@/lib/objectives/completion";
+
+const TEAM_LABEL: Record<string, string> = {
+  sales: "Ventes", commercial: "Ventes", revops: "RevOps", marketing: "Marketing", finance: "Finance", csm: "Service client",
+};
 
 export default async function ObjectifsPage() {
   const orgId = await getOrgId();
@@ -55,6 +60,46 @@ export default async function ObjectifsPage() {
           Table <code>objectives</code> absente — applique la migration Supabase <code>20260717000002_objectives.sql</code>.
         </div>
       )}
+
+      {/* Tableau de suivi manager — vue d'ensemble par pôle */}
+      {!migrationNeeded && withValues.length > 0 && (() => {
+        const total = withValues.length;
+        const reached = withValues.filter(isReached).length;
+        const atRisk = withValues.filter((o) => isAtRisk(o)).length;
+        const avg = Math.round(withValues.reduce((s, o) => s + completionPct(o), 0) / total);
+        const byTeam = new Map<string, { count: number; sum: number; risk: number }>();
+        for (const o of withValues) {
+          const k = o.category ?? "revops";
+          const e = byTeam.get(k) ?? { count: 0, sum: 0, risk: 0 };
+          e.count++; e.sum += completionPct(o); if (isAtRisk(o)) e.risk++;
+          byTeam.set(k, e);
+        }
+        return (
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold text-slate-900">Suivi manager</h2>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg bg-slate-50 p-3 text-center"><p className="text-[10px] uppercase tracking-wide text-slate-400">Objectifs</p><p className="mt-1 text-2xl font-bold text-slate-900">{total}</p></div>
+              <div className="rounded-lg bg-slate-50 p-3 text-center"><p className="text-[10px] uppercase tracking-wide text-slate-400">Complétion moy.</p><p className="mt-1 text-2xl font-bold text-indigo-600">{avg}%</p></div>
+              <div className="rounded-lg bg-emerald-50 p-3 text-center"><p className="text-[10px] uppercase tracking-wide text-emerald-500">Atteints</p><p className="mt-1 text-2xl font-bold text-emerald-700">{reached}</p></div>
+              <div className="rounded-lg bg-amber-50 p-3 text-center"><p className="text-[10px] uppercase tracking-wide text-amber-600">À risque</p><p className="mt-1 text-2xl font-bold text-amber-700">{atRisk}</p></div>
+            </div>
+            <div className="mt-4 space-y-2">
+              {[...byTeam.entries()].map(([team, e]) => {
+                const p = Math.round(e.sum / e.count);
+                return (
+                  <div key={team} className="flex items-center gap-3">
+                    <span className="w-28 shrink-0 text-xs font-medium text-slate-600">{TEAM_LABEL[team] ?? team}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${p >= 100 ? "bg-emerald-500" : e.risk > 0 ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${Math.min(100, p)}%` }} />
+                    </div>
+                    <span className="w-24 shrink-0 text-right text-[11px] text-slate-500">{p}% · {e.count} obj.{e.risk > 0 ? ` · ${e.risk} ⚠` : ""}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {!migrationNeeded && withValues.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
