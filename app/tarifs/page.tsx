@@ -5,36 +5,38 @@ import { SiteNavbar } from "@/components/site-navbar";
 
 export const metadata: Metadata = {
   title: "Tarifs — Revold",
-  description: "Des tarifs simples et transparents. Plan gratuit pour voir l'impact tout de suite, Growth à 249€/mois, Scale à 699€/mois. Sans carte bancaire.",
+  description: "Des tarifs simples et transparents, basés sur l'usage. Starter à 79€/mois, Growth à 249€/mois, Scale à 499€/mois. Essai 14 jours, sans carte bancaire.",
 };
 
 const PRICING = [
   {
-    name: "Gratuit",
-    price: "0",
-    desc: "Voir la valeur de Revold sur ton business, sans payer",
+    name: "Starter",
+    price: "79",
+    credits: "300 analyses & actions IA / mois",
+    desc: "Pour découvrir l'impact de Revold sur ton business",
     features: [
       "Connexion HubSpot + import de fichiers",
-      "Tous les agents IA en chat — 50 analyses / mois",
-      "Rapports & graphiques (ventilation par période)",
-      "Jusqu'à 5 alertes de suivi + calendrier",
-      "Jusqu'à 3 objectifs avec complétion en temps réel",
-      "1 utilisateur",
+      "Tous les agents IA en chat",
+      "Rapports & graphiques (ventilation par période, données fiables)",
+      "Alertes de suivi + calendrier",
+      "Objectifs avec complétion en temps réel",
+      "2 utilisateurs · support email",
     ],
     featured: false,
-    cta: "Commencer gratuitement",
+    cta: "Essayer 14 jours gratuits",
   },
   {
     name: "Growth",
     price: "249",
+    credits: "2 000 analyses & actions IA / mois",
     desc: "Pour les équipes qui veulent piloter et agir",
     features: [
-      "Tout le plan Gratuit, analyses IA illimitées",
+      "Tout Starter inclus",
       "Toutes les intégrations 1-clic (Slack, Stripe, GA/Ads…)",
       "Actions exécutées dans le CRM (relances, closing…)",
       "Plan IA sur objectifs + suggestions proactives",
       "Alertes & objectifs illimités",
-      "Croisement multi-sources (données fiables à 100 %)",
+      "Croisement multi-sources",
       "Jusqu'à 5 utilisateurs · support prioritaire",
     ],
     featured: true,
@@ -42,7 +44,8 @@ const PRICING = [
   },
   {
     name: "Scale",
-    price: "699",
+    price: "499",
+    credits: "Volume élevé — actions & agents illimités",
     desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
@@ -81,8 +84,8 @@ export default function TarifsPage() {
             <span className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent">et transparents</span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-600">
-            Commence <span className="font-semibold text-slate-800">gratuitement</span> et vois l&apos;impact sur ton
-            business en 5 minutes. Sans carte bancaire, sans engagement.
+            Un tarif selon ton usage. <span className="font-semibold text-slate-800">14 jours d&apos;essai gratuit</span>,
+            sans carte bancaire. Vois l&apos;impact sur ton business en 5 minutes.
           </p>
         </div>
       </section>
@@ -107,15 +110,12 @@ export default function TarifsPage() {
               <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
               <p className="mt-1 text-sm text-slate-500">{plan.desc}</p>
               <div className="mt-6 flex items-baseline gap-1">
-                {plan.price === "0" ? (
-                  <span className="text-5xl font-black text-slate-900">Gratuit</span>
-                ) : (
-                  <>
-                    <span className="text-5xl font-black text-slate-900">{plan.price}</span>
-                    <span className="text-lg text-slate-500">&euro;/mois</span>
-                  </>
-                )}
+                <span className="text-5xl font-black text-slate-900">{plan.price}</span>
+                <span className="text-lg text-slate-500">&euro;/mois</span>
               </div>
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-fuchsia-50 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-700">
+                ⚡ {plan.credits}
+              </p>
               <ul className="mt-8 flex-1 space-y-3">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
@@ -142,8 +142,13 @@ export default function TarifsPage() {
           ))}
         </div>
 
+        <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-slate-500">
+          Le tarif s&apos;adapte à ton usage (analyses &amp; actions IA par mois), au nombre d&apos;utilisateurs et aux
+          intégrations connectées. Besoin de plus de volume sur un plan ? On ajuste sans te faire changer de logique.
+        </p>
+
         {/* Enterprise */}
-        <div className="mt-12 rounded-2xl border border-card-border bg-white p-8 text-center md:p-12">
+        <div className="mt-8 rounded-2xl border border-card-border bg-white p-8 text-center md:p-12">
           <h3 className="text-xl font-bold text-slate-900">Enterprise</h3>
           <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
             Vous avez des besoins spécifiques ? SSO, SLA custom, volume de données important, accompagnement dédié — contactez-nous pour un plan sur mesure.
