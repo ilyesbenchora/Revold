@@ -211,9 +211,9 @@ export function ObjectiveCard({ objective }: { objective: Objective }) {
                 >
                   {planLoading ? "Génération du plan…" : planText ? "↻ Regénérer le plan IA" : "✨ Générer le plan IA (écart & leviers)"}
                 </button>
-                {planText && (
+                {planText !== null && (
                   <div className="whitespace-pre-wrap rounded-md border border-indigo-100 bg-white px-2.5 py-2 text-[12px] leading-relaxed text-slate-700">
-                    {planText}
+                    {planText.trim() || "L'agent n'a pas produit de plan cette fois. Reclique « Regénérer » ou précise la cible/l'échéance de l'objectif."}
                   </div>
                 )}
                 <p className="pt-1 text-[10px] text-slate-500">Analyses à lancer avec {plan.agentKey === "paiement-facturation" ? "Inès" : "l'agent"} pour piloter cet objectif :</p>
