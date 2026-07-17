@@ -5,55 +5,53 @@ import { SiteNavbar } from "@/components/site-navbar";
 
 export const metadata: Metadata = {
   title: "Tarifs — Revold",
-  description: "Des tarifs simples et transparents. 14 jours d'essai gratuit, sans carte bancaire. Starter à 79€/mois, Growth à 249€/mois, Scale à 699€/mois.",
+  description: "Des tarifs simples et transparents. Plan gratuit pour voir l'impact tout de suite, Growth à 249€/mois, Scale à 699€/mois. Sans carte bancaire.",
 };
 
 const PRICING = [
   {
-    name: "Starter",
-    price: "79",
-    desc: "Pour les équipes qui démarrent leur journey RevOps",
+    name: "Gratuit",
+    price: "0",
+    desc: "Voir la valeur de Revold sur ton business, sans payer",
     features: [
-      "Weekly revenue pulse",
-      "8 métriques essentielles",
-      "Dashboard pipeline",
-      "Alertes email",
-      "1 connexion CRM",
-      "Support email",
+      "Connexion HubSpot + import de fichiers",
+      "Tous les agents IA en chat — 50 analyses / mois",
+      "Rapports & graphiques (ventilation par période)",
+      "Jusqu'à 5 alertes de suivi + calendrier",
+      "Jusqu'à 3 objectifs avec complétion en temps réel",
+      "1 utilisateur",
     ],
     featured: false,
-    cta: "Démarrer avec Starter",
+    cta: "Commencer gratuitement",
   },
   {
     name: "Growth",
     price: "249",
-    desc: "Pour les équipes qui veulent scaler intelligemment",
+    desc: "Pour les équipes qui veulent piloter et agir",
     features: [
-      "Tout Starter inclus",
-      "80+ métriques RevOps",
-      "Diagnostic mensuel IA",
-      "Recommandations contextuelles",
-      "Détection de deals à risque",
-      "Détection d'anomalies",
-      "3 connexions CRM",
-      "Support prioritaire",
+      "Tout le plan Gratuit, analyses IA illimitées",
+      "Toutes les intégrations 1-clic (Slack, Stripe, GA/Ads…)",
+      "Actions exécutées dans le CRM (relances, closing…)",
+      "Plan IA sur objectifs + suggestions proactives",
+      "Alertes & objectifs illimités",
+      "Croisement multi-sources (données fiables à 100 %)",
+      "Jusqu'à 5 utilisateurs · support prioritaire",
     ],
     featured: true,
-    cta: "Essayer Growth gratuitement",
+    cta: "Essayer 14 jours gratuits",
   },
   {
     name: "Scale",
     price: "699",
-    desc: "Pour les revenue teams ambitieuses",
+    desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
-      "Rapports trimestriels",
-      "Simulations what-if",
-      "Deal coaching IA avancé",
-      "Advisor RevOps dédié",
-      "API & webhooks",
-      "Connexions illimitées",
-      "SLA garanti",
+      "Espaces de travail par pôle (Ventes, Marketing, CS, Finance)",
+      "Connecteurs MCP — branche n'importe quel outil",
+      "Actions avancées & playbooks",
+      "Prévisions avancées (scénarios bas / base / haut)",
+      "Utilisateurs illimités · rôles & permissions",
+      "Advisor RevOps dédié · SLA",
     ],
     featured: false,
     cta: "Contacter l'équipe Scale",
@@ -64,7 +62,7 @@ const FAQS = [
   { q: "Y a-t-il un engagement ?", a: "Non. Tous les plans sont mensuels et sans engagement. Vous pouvez annuler à tout moment depuis vos paramètres." },
   { q: "Faut-il une carte bancaire pour l'essai gratuit ?", a: "Non. L'essai de 14 jours est gratuit et sans carte bancaire. Vous ne serez jamais facturé sans votre accord." },
   { q: "Puis-je changer de plan en cours de route ?", a: "Oui. Vous pouvez upgrader ou downgrader votre plan à tout moment. Le changement prend effet immédiatement." },
-  { q: "Quels CRM sont supportés ?", a: "HubSpot est entièrement supporté. Salesforce, Pipedrive et Zoho sont disponibles via nos connecteurs natifs. D'autres CRM arrivent régulièrement." },
+  { q: "Quelles intégrations sont supportées ?", a: "HubSpot en 1 clic (OAuth), plus Slack, Stripe, Google Analytics/Ads, Meta & LinkedIn Ads, Salesforce, Pipedrive, Intercom, Google Calendar… en connexion 1-clic. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
   { q: "Mes données sont-elles en sécurité ?", a: "Oui. Vos données sont hébergées sur Supabase (PostgreSQL sur AWS), chiffrées en transit (TLS) et au repos (AES-256). Chaque organisation est isolée par Row Level Security." },
   { q: "Qu'est-ce qui est inclus dans le support prioritaire ?", a: "Réponse sous 4h en jours ouvrés, accès à un channel Slack dédié, et session de onboarding personnalisée." },
 ];
@@ -83,7 +81,8 @@ export default function TarifsPage() {
             <span className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent">et transparents</span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-600">
-            14 jours d&apos;essai gratuit. Aucune carte bancaire requise. Annulez à tout moment.
+            Commence <span className="font-semibold text-slate-800">gratuitement</span> et vois l&apos;impact sur ton
+            business en 5 minutes. Sans carte bancaire, sans engagement.
           </p>
         </div>
       </section>
@@ -108,8 +107,14 @@ export default function TarifsPage() {
               <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
               <p className="mt-1 text-sm text-slate-500">{plan.desc}</p>
               <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-5xl font-black text-slate-900">{plan.price}</span>
-                <span className="text-lg text-slate-500">&euro;/mois</span>
+                {plan.price === "0" ? (
+                  <span className="text-5xl font-black text-slate-900">Gratuit</span>
+                ) : (
+                  <>
+                    <span className="text-5xl font-black text-slate-900">{plan.price}</span>
+                    <span className="text-lg text-slate-500">&euro;/mois</span>
+                  </>
+                )}
               </div>
               <ul className="mt-8 flex-1 space-y-3">
                 {plan.features.map((f) => (
