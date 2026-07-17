@@ -112,7 +112,14 @@ export default async function BibliothequeOutilsPage({
                     <>
                       <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
+                          {tool.oauth && (
+                            <span className="shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-600">
+                              1-clic
+                            </span>
+                          )}
+                        </div>
                         <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">{tool.vendor}</p>
                       </div>
                       {isConnected ? (
