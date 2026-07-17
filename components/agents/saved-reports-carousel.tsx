@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ReportArtifact } from "./report-artifact";
+import { stripPeriodFromTitle } from "@/lib/reports/title";
 import { listSavedReports, removeSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 
 function fmtDate(ts: number): string {
@@ -96,7 +97,7 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
             >
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-slate-900">{r.title}</h3>
+                  <h3 className="truncate text-sm font-semibold text-slate-900">{stripPeriodFromTitle(r.title)}</h3>
                   <div className="text-xs text-slate-400">Enregistré le {fmtDate(r.savedAt)}</div>
                 </div>
                 <button

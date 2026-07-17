@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ReportArtifact } from "./report-artifact";
 import { AgentAvatar } from "./agent-avatar";
+import { stripPeriodFromTitle } from "@/lib/reports/title";
 import { listSavedReports, removeSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -81,7 +82,7 @@ export function MesPrevisions() {
                 <div key={r.id} className="card p-4">
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold text-slate-900">{r.title}</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">{stripPeriodFromTitle(r.title)}</h4>
                       <div className="text-xs text-slate-400">Enregistré le {fmtDate(r.savedAt)}</div>
                     </div>
                     <button

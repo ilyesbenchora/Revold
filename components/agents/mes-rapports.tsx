@@ -6,6 +6,7 @@ import { ReportArtifact } from "./report-artifact";
 import { SAVED_REPORTS_KEY, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
 import { AgentAvatar } from "./agent-avatar";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
+import { stripPeriodFromTitle } from "@/lib/reports/title";
 
 function fmtDate(ts: number | string | null): string {
   if (ts == null) return "";
@@ -77,7 +78,7 @@ function AgentReportsRow({
             <div key={r.id} className="card snap-start shrink-0 p-4" style={{ width: "min(560px, 88vw)" }}>
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="truncate text-sm font-semibold text-slate-900">{r.title}</h4>
+                  <h4 className="truncate text-sm font-semibold text-slate-900">{stripPeriodFromTitle(r.title)}</h4>
                   <div className="text-xs text-slate-400">Enregistré le {fmtDate(r.savedAt)}</div>
                 </div>
                 <button
@@ -121,6 +122,17 @@ export function MesRapports() {
     setReports(listSavedReports());
   }
 
+  function clearAll() {
+    if (!confirm("Supprimer TOUS les rapports enregistrés ? (repartir sur de bonnes bases)")) return;
+    try {
+      localStorage.removeItem(SAVED_REPORTS_KEY);
+      localStorage.removeItem("revold:saved-report-keys:v1");
+    } catch {
+      /* ignore */
+    }
+    setReports([]);
+  }
+
   const sorted = [...reports].sort((a, b) => b.savedAt - a.savedAt);
   const byAgent = new Map<string, { label: string; items: SavedReport[] }>();
   for (const r of sorted) {
@@ -139,6 +151,15 @@ export function MesRapports() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-400">{reports.length} rapport{reports.length > 1 ? "s" : ""} enregistré{reports.length > 1 ? "s" : ""}</span>
+        <button
+          onClick={clearAll}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+        >
+          Tout supprimer
+        </button>
+      </div>
       {[...byAgent.entries()].map(([agentKey, group]) => (
         <AgentReportsRow key={agentKey} agentKey={agentKey} label={group.label} items={group.items} onDelete={del} />
       ))}
