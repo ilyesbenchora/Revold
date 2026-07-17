@@ -302,6 +302,8 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "💬",
     domain: "slack.com",
     category: "communication",
+    // Connexion OAuth en un clic (« Se connecter avec Slack »), comme HubSpot.
+    connectUrl: "/api/integrations/slack/connect",
     description: "Recevez vos alertes, coachings et digests Revold dans le canal Slack de votre choix.",
     helpUrl: "https://api.slack.com/messaging/webhooks",
     helpText: "Créez un Incoming Webhook depuis Slack → Apps → Incoming Webhooks. Sélectionnez le canal cible et copiez l'URL fournie.",

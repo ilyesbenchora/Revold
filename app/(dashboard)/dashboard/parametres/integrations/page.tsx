@@ -33,7 +33,7 @@ const ALL_PAGE_KEYS = [
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type SearchParams = Promise<{ hs_connected?: string; hs_error?: string; oauth_error?: string }>;
+type SearchParams = Promise<{ hs_connected?: string; hs_error?: string; oauth_error?: string; connected?: string }>;
 
 export default async function ParametresIntegrationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
@@ -92,6 +92,12 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {params.hs_connected && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           ✓ HubSpot connecté avec succès — portail <strong>{params.hs_connected}</strong>.
+        </div>
+      )}
+      {params.connected && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          ✓ <strong className="capitalize">{params.connected}</strong> connecté avec succès. Il est maintenant disponible
+          comme canal de notification pour tes alertes.
         </div>
       )}
       {params.hs_error && (

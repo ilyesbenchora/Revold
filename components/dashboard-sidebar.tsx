@@ -487,23 +487,27 @@ export function DashboardSidebar({
                 >
                   {item.icon}
                 </button>
-                {/* Menu volant : sous-pages */}
-                <div className="invisible absolute left-full top-0 z-50 ml-1 min-w-52 rounded-xl border border-card-border bg-white p-1.5 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
-                  {children.map((child) => {
-                    const active = isChildActive(pathname, child.href);
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        className={`flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
-                          active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        {child.label}
-                      </Link>
-                    );
-                  })}
+                {/* Menu volant : sous-pages. Le pl-2 crée un « pont » transparent
+                    hoverable entre l'icône et la carte → le survol ne se coupe
+                    plus (pas besoin de cliquer). */}
+                <div className="invisible absolute left-full top-0 z-50 pl-2 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                  <div className="min-w-52 rounded-xl border border-card-border bg-white p-1.5 shadow-xl">
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
+                    {children.map((child) => {
+                      const active = isChildActive(pathname, child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
+                            active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             );

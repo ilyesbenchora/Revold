@@ -49,8 +49,14 @@ export default async function BibliothequeOutilsPage({
       {oauthEnvMissing && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           ⚙️ La connexion <strong>{oauthEnvMissing.replace(/_/g, " ")}</strong> nécessite d&apos;abord la configuration de
-          l&apos;app OAuth (identifiants client dans les variables d&apos;environnement). Contactez l&apos;administrateur
-          Revold pour l&apos;activer.
+          l&apos;app OAuth (identifiants client dans les variables d&apos;environnement <code>SLACK_CLIENT_ID</code> /
+          <code>SLACK_CLIENT_SECRET</code>). Une fois ajoutées, le bouton « Se connecter avec Slack » fonctionne en un clic.
+        </div>
+      )}
+      {errParam && errParam.startsWith("slack_") && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          La connexion Slack a échoué (<code>{errParam.replace("slack_", "")}</code>). Réessaie ; si ça persiste,
+          vérifie que la Redirect URL de l&apos;app Slack pointe bien vers <code>/api/integrations/slack/callback</code>.
         </div>
       )}
 
