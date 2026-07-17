@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ReportChart } from "./agent-report";
+import { stripPeriodFromTitle } from "@/lib/reports/title";
 import type { ChartProposal, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const TYPE_META: Record<string, { icon: string; label: string }> = {
@@ -42,7 +43,7 @@ export function ChartPicker({
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-500">
         Graphique · choisis le format
       </div>
-      <h3 className="text-sm font-semibold text-slate-900">{proposal.title}</h3>
+      <h3 className="text-sm font-semibold text-slate-900">{stripPeriodFromTitle(proposal.title)}</h3>
       {proposal.summary && <p className="mt-0.5 text-sm text-slate-600">{proposal.summary}</p>}
 
       <div className="mt-3 mb-2 flex flex-wrap gap-2">

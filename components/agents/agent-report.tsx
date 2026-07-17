@@ -16,6 +16,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { stripPeriodFromTitle } from "@/lib/reports/title";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -101,7 +102,7 @@ export function AgentReport({ spec }: { spec: ReportSpec }) {
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-white p-4">
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-500">Rapport</div>
-      <h3 className="text-sm font-semibold text-slate-900">{spec.title}</h3>
+      <h3 className="text-sm font-semibold text-slate-900">{stripPeriodFromTitle(spec.title)}</h3>
       {spec.summary && <p className="mt-0.5 text-sm text-slate-600">{spec.summary}</p>}
 
       <div className="mt-3 space-y-4">
