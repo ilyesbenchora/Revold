@@ -8,6 +8,7 @@ import { MessageArtifacts } from "./message-artifacts";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { ActivatedAlertsContext, type ActivatedAlert } from "./activated-alerts";
 import { DealActionCard } from "./deal-action-card";
+import { suggestionsForCategories } from "@/lib/ai/agents/analysis-suggestions";
 import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
@@ -132,7 +133,7 @@ export function PaiementAgentChat({
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"chat" | "history" | "alerts">("chat");
+  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">("chat");
   const pathname = usePathname();
   // Alertes activées durant la session (suggestion OU depuis un rapport).
   const [activatedAlerts, setActivatedAlerts] = useState<ActivatedAlert[]>([]);
@@ -464,6 +465,10 @@ export function PaiementAgentChat({
   const suggestedAlerts = messages
     .map((m, i) => (m.role === "assistant" && m.action ? { i, action: m.action } : null))
     .filter((x): x is { i: number; action: ProposedAction } => x !== null);
+  // Actions pipeline proposées par l'agent (onglet Actions).
+  const proposedActions = messages
+    .map((m, i) => (m.role === "assistant" && m.dealAction ? { i, action: m.dealAction } : null))
+    .filter((x): x is { i: number; action: DealActionProposal } => x !== null);
   const sortedHistory = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const selectedCats = new Set(sources.filter((s) => selected.includes(s.key)).map((s) => s.category));
   const baseSuggestions = resolveSuggestions(suggestions, suggestionSets ?? null, selectedCats);
@@ -473,6 +478,14 @@ export function PaiementAgentChat({
   const activeSuggestions = coaching
     ? ["Démarrer ma séance de coaching du jour", ...baseSuggestions]
     : baseSuggestions;
+  // Onglet Suggestions : liste riche selon les sources sélectionnées (celles de
+  // l'agent + le catalogue d'analyses), sans surcharger le fil.
+  const analysisSuggestions = [...new Set([...baseSuggestions, ...suggestionsForCategories(selectedCats)])];
+
+  function runSuggestion(text: string) {
+    setTab("chat");
+    send(text);
+  }
 
   return (
     <ActivatedAlertsContext.Provider value={addActivatedAlert}>
@@ -495,6 +508,32 @@ export function PaiementAgentChat({
           }`}
         >
           Historique{conversations.length > 0 ? ` (${conversations.length})` : ""}
+        </button>
+        <button
+          onClick={() => setTab("suggestions")}
+          className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+            tab === "suggestions" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <span>💡</span> Suggestions
+          {analysisSuggestions.length > 0 && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              {analysisSuggestions.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab("actions")}
+          className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+            tab === "actions" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <span>⚡</span> Actions
+          {proposedActions.length > 0 && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              {proposedActions.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setTab("alerts")}
@@ -558,6 +597,65 @@ export function PaiementAgentChat({
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {/* ── Onglet Suggestions (analyses pertinentes selon les sources) ── */}
+      {tab === "suggestions" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <p className="mb-2 text-xs text-slate-400">
+            Analyses pertinentes selon tes sources sélectionnées. Clique pour lancer la question dans le chat.
+          </p>
+          {analysisSuggestions.length === 0 ? (
+            <p className="pt-8 text-center text-sm text-slate-400">Sélectionne une source pour voir des suggestions.</p>
+          ) : (
+            <div className="space-y-2">
+              {analysisSuggestions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => runSuggestion(s)}
+                  disabled={loading}
+                  className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm text-slate-700 transition hover:border-fuchsia-200 hover:bg-fuchsia-50/50 disabled:opacity-60"
+                >
+                  <span className="text-slate-300">💡</span>
+                  <span className="min-w-0 flex-1">{s}</span>
+                  <span className="shrink-0 text-[11px] font-medium text-accent">Lancer →</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Onglet Actions (exécutables dans le CRM, human-in-the-loop) ── */}
+      {tab === "actions" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {proposedActions.length === 0 ? (
+            <div className="mx-auto max-w-md pt-8 text-center">
+              <p className="text-sm text-slate-500">
+                Aucune action proposée pour l&apos;instant. Quand l&apos;agent juge qu&apos;une action concrète est utile
+                (relancer des deals, repousser un closing…), il l&apos;ajoute ici — tu la valides, la modifies, puis tu
+                l&apos;exécutes réellement dans ton CRM.
+              </p>
+              <button
+                onClick={() => setTab("chat")}
+                className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                ← Retour à la discussion
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                Actions proposées par l&apos;agent. Ajuste les paramètres puis exécute-les dans HubSpot.
+              </p>
+              {proposedActions.map(({ i, action }) => (
+                <div key={i} className="-ml-9">
+                  <DealActionCard agentKey={agentKey} action={action} />
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -699,9 +797,14 @@ export function PaiementAgentChat({
                     sources={selected}
                   />
                 )}
-                {/* Action pipeline exécutable (human-in-the-loop) → inline. */}
+                {/* Action pipeline exécutable → pastille discrète vers l'onglet Actions. */}
                 {m.role === "assistant" && m.dealAction && (
-                  <DealActionCard agentKey={agentKey} action={m.dealAction} />
+                  <button
+                    onClick={() => setTab("actions")}
+                    className="ml-9 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/70 px-3 py-1 text-[11px] font-medium text-amber-800 transition hover:bg-amber-100"
+                  >
+                    <span>⚡</span> Action proposée — voir l&apos;onglet Actions →
+                  </button>
                 )}
                 {/* Pastille discrète : une alerte a été suggérée → onglet Alertes.
                     Non-intrusive, préserve le flux de lecture. */}
