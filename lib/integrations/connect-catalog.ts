@@ -64,10 +64,11 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "☁️",
     domain: "salesforce.com",
     category: "crm",
-    comingSoon: true,
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/salesforce/connect",
     description: "CRM B2B leader mondial. Synchronisez contacts, comptes, opportunités et activités directement dans Revold.",
     helpUrl: "https://help.salesforce.com/s/articleView?id=sf.user_security_token.htm",
-    helpText: "Récupérez votre Security Token depuis Salesforce : Setup → Personal Information → Reset Security Token.",
+    helpText: "Connexion OAuth en un clic — autorisez Revold dans Salesforce.",
     fields: [
       { key: "instance_url", label: "Instance URL", placeholder: "https://votre-domaine.my.salesforce.com", type: "text", helper: "L'URL de votre instance Salesforce" },
       { key: "username", label: "Email Salesforce", placeholder: "vous@entreprise.com", type: "text" },
@@ -81,10 +82,11 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "🟢",
     domain: "pipedrive.com",
     category: "crm",
-    comingSoon: true,
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/pipedrive/connect",
     description: "CRM pipeline-first orienté PME. Synchronisez deals, contacts et activités.",
-    helpUrl: "https://support.pipedrive.com/en/article/how-can-i-find-my-personal-api-key",
-    helpText: "Récupérez votre API Token : Settings → Personal preferences → API.",
+    helpUrl: "https://pipedrive.readme.io/docs/marketplace-oauth-authorization",
+    helpText: "Connexion OAuth en un clic — autorisez Revold dans Pipedrive.",
     fields: [
       { key: "company_domain", label: "Sous-domaine Pipedrive", placeholder: "votre-entreprise", type: "text", helper: "Le préfixe de votre URL Pipedrive (votre-entreprise.pipedrive.com)" },
       { key: "api_token", label: "API Token", placeholder: "•••••••••••", type: "password" },
@@ -233,6 +235,8 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
 
   // ── Service client ──────────────────────────────────────────────
   intercom: {
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/intercom/connect",
     key: "intercom",
     label: "Intercom",
     vendor: "Intercom",
@@ -362,10 +366,11 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     icon: "📅",
     domain: "calendar.google.com",
     category: "communication",
-    comingSoon: true,
+    oauth: true,
+    connectUrl: "/api/integrations/oauth/google_calendar/connect",
     description: "Synchronisez vos rendez-vous de coaching et échéances Revold directement dans Google Calendar (création et rappels d'événements).",
     helpUrl: "https://developers.google.com/calendar/api/guides/overview",
-    helpText: "Connexion OAuth Google à venir. En attendant, chaque rendez-vous de coaching propose déjà un lien « Ajouter à Google Agenda ».",
+    helpText: "Connexion OAuth Google en un clic — autorisez Revold à accéder à votre agenda.",
     fields: [],
   },
   outlook: {
