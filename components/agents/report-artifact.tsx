@@ -82,6 +82,31 @@ export function ReportArtifact({
     setLoading(true);
     setError(null);
     try {
+      // ── Chemin DÉTERMINISTE (100 % fiable) : le graphique porte sa requête.
+      // On ré-exécute la même agrégation avec les nouvelles bornes de dates,
+      // sans IA → les chiffres sont exacts et cohérents.
+      if (curChart?.query) {
+        const res = await fetch("/api/reports/recompute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: curChart.query,
+            all: p.preset === "all",
+            date_from: p.from,
+            date_to: p.to,
+            sources,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Échec du recalcul");
+        setCurChart({ ...curChart, data: data.data });
+        setPeriod(p);
+        setSaved(false);
+        return;
+      }
+
+      // ── Fallback (rapport figé / graphique sans requête) : régénération agent,
+      // best-effort (non garanti 100 %). Signalé à l'utilisateur.
       const res = await fetch(`/api/agents/${agentKey}/report-period`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,6 +170,15 @@ export function ReportArtifact({
   return (
     <div className="space-y-2">
       <ReportPeriodBar onApply={applyPeriod} loading={loading} activeLabel={period?.label ?? null} />
+
+      {curChart?.query ? (
+        <p className="text-[10px] text-emerald-600">✓ Recalcul exact par période (chiffres recalculés à la source).</p>
+      ) : (
+        <p className="text-[10px] text-amber-600">
+          ⚠ Recalcul de période <strong>approximatif</strong> pour ce rapport (régénéré par l&apos;agent, non garanti 100 %).
+          Pour un recalcul exact, demande un graphique à l&apos;agent.
+        </p>
+      )}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-600">⚠ {error}</div>}
 

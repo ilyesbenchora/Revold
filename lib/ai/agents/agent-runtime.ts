@@ -65,6 +65,14 @@ export type ReportSpec = {
   blocks: ReportBlock[];
 };
 
+/** Requête déterministe qui a produit un graphique (pour recalcul par période). */
+export type ChartQuery = {
+  entity: string;
+  groupBy: string;
+  measure?: string;
+  field?: string;
+};
+
 /** Proposition de graphique : l'utilisateur choisit le type, l'UI rend la data. */
 export type ChartProposal = {
   title: string;
@@ -73,6 +81,8 @@ export type ChartProposal = {
   /** Types proposés parmi bar | line | area | donut | table. */
   suggestedTypes: string[];
   defaultType: string;
+  /** Requête déterministe (aggregate_canonical) → recalcul fiable par période. */
+  query?: ChartQuery | null;
 };
 
 /** Trace d'un appel de tool, pour affichage "l'agent a fait X". */
@@ -344,7 +354,21 @@ function normalizeChartProposal(input: Record<string, unknown>): ChartProposal |
     typeof input.defaultType === "string" && suggestedTypes.includes(input.defaultType)
       ? input.defaultType
       : suggestedTypes[0];
-  return { title, summary, data, suggestedTypes, defaultType };
+  // Requête déterministe attachée (aggregate_canonical) → recalcul fiable par période.
+  let query: ChartQuery | null = null;
+  const rawQ = input.query;
+  if (rawQ && typeof rawQ === "object") {
+    const o = rawQ as Record<string, unknown>;
+    if (typeof o.entity === "string" && typeof o.groupBy === "string") {
+      query = {
+        entity: o.entity,
+        groupBy: o.groupBy,
+        measure: typeof o.measure === "string" ? o.measure : undefined,
+        field: typeof o.field === "string" ? o.field : undefined,
+      };
+    }
+  }
+  return { title, summary, data, suggestedTypes, defaultType, query };
 }
 
 function normalizeProposedAction(input: Record<string, unknown>): ProposedAction {

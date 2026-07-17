@@ -528,6 +528,130 @@ const AGG_SPECS: Record<string, AggSpec> = {
   },
 };
 
+/** Colonne de date à filtrer pour une entité/dimension (recalcul par période). */
+function dateColumnFor(entity: string, groupBy: string): string | null {
+  if (groupBy.startsWith("month_")) {
+    const suffix = groupBy.slice(6);
+    const m: Record<string, string> = {
+      created: "created_date", closed: "close_date", issued: "issued_at",
+      paid: "paid_at", started: "started_at", canceled: "canceled_at",
+    };
+    return m[suffix] ?? null;
+  }
+  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at" };
+  return def[entity] ?? null;
+}
+
+/** Mois YYYY-MM entre deux dates (inclus). */
+function monthKeysBetween(from: string, to: string): string[] {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  const out: string[] = [];
+  let y = fy, mo = fm;
+  for (let i = 0; i < 120; i++) {
+    out.push(`${y}-${String(mo).padStart(2, "0")}`);
+    if (y === ty && mo === tm) break;
+    mo++;
+    if (mo > 12) { mo = 1; y++; }
+    if (y > ty || (y === ty && mo > tm)) break;
+  }
+  return out;
+}
+
+export type AggregateSpec = {
+  entity: string;
+  groupBy: string;
+  measure?: string;
+  field?: string | null;
+  months?: number;
+  date_from?: string | null;
+  date_to?: string | null;
+};
+
+/**
+ * Moteur d'agrégation DÉTERMINISTE sur les tables canoniques. Même code pour le
+ * tool agent ET pour le recalcul par période (fiabilité 100 % : mêmes chiffres,
+ * seules les bornes de dates changent). Filtre par source (cross-source) et par
+ * période exacte (date_from/date_to).
+ */
+export async function computeAggregate(
+  supabase: AgentContext["supabase"],
+  orgId: string,
+  sources: string[],
+  hubspotToken: string | null,
+  input: AggregateSpec,
+): Promise<Record<string, unknown>> {
+  const entity = String(input.entity ?? "");
+  const spec = AGG_SPECS[entity];
+  if (!spec) return { error: `Entité non supportée: ${entity}. Choisir: ${Object.keys(AGG_SPECS).join(", ")}.` };
+  const groupBy = String(input.groupBy ?? "");
+  const dimFn = spec.dims[groupBy];
+  if (!dimFn) return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
+  const measure = ["count", "sum", "avg"].includes(String(input.measure)) ? String(input.measure) : "count";
+  let numFn: ((r: Record<string, unknown>) => number) | null = null;
+  const field = input.field ? String(input.field) : null;
+  if (measure !== "count") {
+    if (!field || !spec.numeric[field])
+      return { error: `Champ numérique requis pour ${measure} sur ${entity}. Choisir: ${Object.keys(spec.numeric).join(", ") || "(aucun)"}.` };
+    numFn = spec.numeric[field];
+  }
+  const months = Math.min(Math.max(Number(input.months) || 12, 1), 36);
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const from = input.date_from && dateRe.test(input.date_from) ? input.date_from : null;
+  const to = input.date_to && dateRe.test(input.date_to) ? input.date_to : null;
+  const dateCol = dateColumnFor(entity, groupBy);
+
+  let q = supabase.from(entity).select(spec.columns).eq("organization_id", orgId).limit(10000);
+  const src = billingSourceFilter(sources);
+  if (src && spec.hasSource) q = q.in("primary_source", src);
+  // Période exacte : filtre déterministe sur la vraie colonne de date.
+  if (dateCol && from) q = q.gte(dateCol, from);
+  if (dateCol && to) q = q.lte(dateCol, to);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+
+  let resolveDim = dimFn;
+  if (entity === "deals" && groupBy === "stage") {
+    const stageMap = await resolveStageMap(hubspotToken);
+    resolveDim = (r) => {
+      const joined = relName(r.pipeline_stages);
+      if (joined !== "Sans étape") return joined;
+      const ext = typeof r.stage_external_id === "string" ? r.stage_external_id : "";
+      return stageMap.get(ext)?.label ?? "Sans étape";
+    };
+  }
+
+  const isMonth = groupBy.startsWith("month_");
+  const acc: Record<string, { sum: number; count: number }> = {};
+  for (const r of rows) {
+    const key = resolveDim(r);
+    if (key == null || key === "") continue;
+    const e = (acc[key] ??= { sum: 0, count: 0 });
+    e.count++;
+    if (numFn) e.sum += numFn(r);
+  }
+  const valueOf = (e: { sum: number; count: number }) =>
+    measure === "count" ? e.count : measure === "sum" ? Math.round(e.sum) : e.count ? Math.round(e.sum / e.count) : 0;
+
+  let out: { group: string; value: number }[];
+  if (isMonth) {
+    const keys = from && to ? monthKeysBetween(from, to) : monthKeys(months);
+    out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0 }) }));
+  } else {
+    out = Object.entries(acc)
+      .map(([group, e]) => ({ group, value: valueOf(e) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 50);
+  }
+  return {
+    hasData: rows.length > 0,
+    entity, groupBy, measure, field: field ?? undefined,
+    rows: out, totalRows: rows.length,
+    period: from && to ? { from, to } : null,
+  };
+}
+
 export const aggregateCanonical: AgentTool = {
   def: {
     name: "aggregate_canonical",
@@ -543,75 +667,14 @@ export const aggregateCanonical: AgentTool = {
         measure: { type: "string", enum: ["count", "sum", "avg"], description: "Mesure (défaut count)." },
         field: { type: "string", description: "Champ numérique pour sum/avg (voir la liste par entité)." },
         months: { type: "integer", description: "Fenêtre en mois pour les dimensions month_* (défaut 12)." },
+        date_from: { type: "string", description: "Début de période YYYY-MM-DD (filtre déterministe sur la date de l'entité)." },
+        date_to: { type: "string", description: "Fin de période YYYY-MM-DD." },
       },
       required: ["entity", "groupBy"],
     },
   },
-  run: async (input, ctx: AgentContext) => {
-    const entity = String(input.entity ?? "");
-    const spec = AGG_SPECS[entity];
-    if (!spec) return { error: `Entité non supportée: ${entity}. Choisir parmi: ${Object.keys(AGG_SPECS).join(", ")}.` };
-    const groupBy = String(input.groupBy ?? "");
-    const dimFn = spec.dims[groupBy];
-    if (!dimFn)
-      return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
-    const measure = ["count", "sum", "avg"].includes(String(input.measure)) ? String(input.measure) : "count";
-    let numFn: ((r: Record<string, unknown>) => number) | null = null;
-    const field = input.field ? String(input.field) : null;
-    if (measure !== "count") {
-      if (!field || !spec.numeric[field])
-        return {
-          error: `Champ numérique requis pour ${measure} sur ${entity}. Choisir: ${Object.keys(spec.numeric).join(", ") || "(aucun)"}.`,
-        };
-      numFn = spec.numeric[field];
-    }
-    const months = Math.min(Math.max(Number(input.months) || 12, 1), 36);
-
-    let q = ctx.supabase.from(entity).select(spec.columns).eq("organization_id", ctx.orgId).limit(10000);
-    const src = billingSourceFilter(ctx.sources);
-    if (src && spec.hasSource) q = q.in("primary_source", src);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
-    if (rows.length === 0) return { hasData: false, note: `Aucune donnée dans ${entity}.` };
-
-    // Répartition des deals par ÉTAPE : résout les vrais noms via HubSpot quand
-    // le mapping canonique manque (deals.stage_id non peuplé par l'ETL).
-    let resolveDim = dimFn;
-    if (entity === "deals" && groupBy === "stage") {
-      const stageMap = await resolveStageMap(ctx.hubspotToken);
-      resolveDim = (r) => {
-        const joined = relName(r.pipeline_stages);
-        if (joined !== "Sans étape") return joined;
-        const ext = typeof r.stage_external_id === "string" ? r.stage_external_id : "";
-        return stageMap.get(ext)?.label ?? "Sans étape";
-      };
-    }
-
-    const isMonth = groupBy.startsWith("month_");
-    const acc: Record<string, { sum: number; count: number }> = {};
-    for (const r of rows) {
-      const key = resolveDim(r);
-      if (key == null || key === "") continue;
-      const e = (acc[key] ??= { sum: 0, count: 0 });
-      e.count++;
-      if (numFn) e.sum += numFn(r);
-    }
-    const valueOf = (e: { sum: number; count: number }) =>
-      measure === "count" ? e.count : measure === "sum" ? Math.round(e.sum) : e.count ? Math.round(e.sum / e.count) : 0;
-
-    let out: { group: string; value: number }[];
-    if (isMonth) {
-      const keys = monthKeys(months);
-      out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0 }) }));
-    } else {
-      out = Object.entries(acc)
-        .map(([group, e]) => ({ group, value: valueOf(e) }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 50);
-    }
-    return { hasData: true, entity, groupBy, measure, field: field ?? undefined, rows: out, totalRows: rows.length };
-  },
+  run: async (input, ctx: AgentContext) =>
+    computeAggregate(ctx.supabase, ctx.orgId, ctx.sources, ctx.hubspotToken, input as AggregateSpec),
 };
 
 /** Liste des sources actuellement connectées à l'org. */
@@ -939,7 +1002,7 @@ export const proposeChartTool: AgentTool = {
   def: {
     name: "propose_chart",
     description:
-      "Propose à l'utilisateur de CHOISIR le type de graphique (barres, courbe, aire, donut, table) pour une donnée. À utiliser dès qu'un graphique est demandé et que plusieurs visualisations conviennent : récupère d'abord la vraie donnée via tes outils, puis fournis-la ici avec les types suggérés — l'utilisateur clique l'icône et l'UI rend le graphe. Pour un rapport figé multi-blocs, utilise render_report à la place.",
+      "Propose à l'utilisateur de CHOISIR le type de graphique (barres, courbe, aire, donut, table) pour une donnée. À utiliser dès qu'un graphique est demandé et que plusieurs visualisations conviennent : récupère d'abord la vraie donnée via tes outils, puis fournis-la ici avec les types suggérés — l'utilisateur clique l'icône et l'UI rend le graphe. IMPORTANT FIABILITÉ : si la donnée provient d'aggregate_canonical, fournis TOUJOURS le champ `query` avec les MÊMES entity/groupBy/measure/field — cela permet à Revold de recalculer les vrais chiffres quand l'utilisateur change la période (sinon le changement de période est impossible). Pour un rapport figé multi-blocs, utilise render_report à la place.",
     input_schema: {
       type: "object",
       properties: {
@@ -960,6 +1023,17 @@ export const proposeChartTool: AgentTool = {
           items: { type: "string", enum: ["bar", "line", "area", "donut", "table"] },
         },
         defaultType: { type: "string", enum: ["bar", "line", "area", "donut", "table"], description: "Type mis en avant par défaut." },
+        query: {
+          type: "object",
+          description: "Requête aggregate_canonical qui a produit la donnée (pour recalcul déterministe par période). Mets les mêmes valeurs que ton appel aggregate_canonical.",
+          properties: {
+            entity: { type: "string" },
+            groupBy: { type: "string" },
+            measure: { type: "string", enum: ["count", "sum", "avg"] },
+            field: { type: "string" },
+          },
+          required: ["entity", "groupBy"],
+        },
       },
       required: ["title", "data"],
     },
