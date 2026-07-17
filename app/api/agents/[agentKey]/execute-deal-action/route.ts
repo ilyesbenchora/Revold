@@ -110,7 +110,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     results,
     scopeError,
     hint: scopeError
-      ? "HubSpot a refusé l'écriture (403). Ajoute les scopes en écriture à l'app OAuth : crm.objects.deals.write et crm.objects.tasks.write, puis reconnecte HubSpot."
+      ? "HubSpot a refusé l'écriture (403). Scopes requis sur l'app OAuth : crm.objects.deals.write (dates de closing) et crm.objects.contacts.write (tâches/relances — il n'existe pas de scope « tasks » dédié). Ajoute-les puis reconnecte HubSpot."
       : undefined,
   });
 }
