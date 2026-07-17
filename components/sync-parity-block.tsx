@@ -118,17 +118,19 @@ export function SyncParityBlock({ rows }: { rows: ParityRow[] }) {
             type="button"
             onClick={() => trigger("delta")}
             disabled={busy !== null}
+            title="Synchronise uniquement les enregistrements modifiés depuis la dernière sync. Rapide, tourne automatiquement toutes les 30 min."
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            {busy === "delta" ? "Sync delta…" : "Sync delta maintenant"}
+            {busy === "delta" ? "Sync delta…" : "Sync delta (modifiés)"}
           </button>
           <button
             type="button"
             onClick={() => trigger("full")}
             disabled={busy !== null}
+            title="Re-synchronise TOUT depuis HubSpot et reconstruit les correspondances (étapes de pipeline, etc.). À utiliser après une migration ou pour corriger un écart."
             className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent/90 disabled:opacity-50"
           >
-            {busy === "full" ? "Sync full…" : "Réconciliation complète"}
+            {busy === "full" ? "Sync full…" : "Réconciliation complète (tout)"}
           </button>
         </div>
       </div>

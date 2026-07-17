@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ALERT_CHANNELS, SectionLabel, readable } from "./alert-ui";
+import { ALERT_CHANNELS, SectionLabel, readable, useAvailableChannels } from "./alert-ui";
 import { AlertCrossTools, crossSummary, emptyCross, type CrossState, type ToolOption } from "./alert-cross-tools";
 import { useNotifyActivatedAlert } from "./activated-alerts";
 import type { ProposedAction } from "@/lib/ai/agents/agent-runtime";
@@ -49,6 +49,7 @@ export function AlertSuggestionCard({
   const [descEdit, setDescEdit] = useState<string | null>(null);
   const [impactEdit, setImpactEdit] = useState<string | null>(null);
   const notifyActivated = useNotifyActivatedAlert();
+  const { available } = useAvailableChannels();
   // Outils à croiser : pré-remplis avec la sélection du chat (uniquement ceux
   // réellement disponibles), + éventuel second KPI.
   const [cross, setCross] = useState<CrossState>({
@@ -214,7 +215,7 @@ export function AlertSuggestionCard({
         <div>
           <SectionLabel>Recevoir l&apos;alerte via</SectionLabel>
           <div className="mt-1.5 flex flex-wrap gap-2">
-            {ALERT_CHANNELS.map((c) => {
+            {ALERT_CHANNELS.filter((c) => available.has(c.key)).map((c) => {
               const on = channels.includes(c.key);
               return (
                 <button

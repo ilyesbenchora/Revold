@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertBody, ALERT_CHANNELS } from "./alert-ui";
+import { AlertBody, ALERT_CHANNELS, useAvailableChannels } from "./alert-ui";
 import { AlertDeadline } from "./alert-deadline";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -45,6 +45,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
   const [dateTo, setDateTo] = useState(alert.date_to ?? "");
   const [continuous, setContinuous] = useState(!alert.date_to);
   const [channels, setChannels] = useState<string[]>(alert.notification_channels ?? []);
+  const { available } = useAvailableChannels();
 
   function toggleChannel(k: string) {
     setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
@@ -142,7 +143,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
           <div>
             <label className={lbl}>Canaux de notification</label>
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {ALERT_CHANNELS.map((c) => {
+              {ALERT_CHANNELS.filter((c) => available.has(c.key)).map((c) => {
                 const on = channels.includes(c.key);
                 return (
                   <button key={c.key} type="button" onClick={() => toggleChannel(c.key)}

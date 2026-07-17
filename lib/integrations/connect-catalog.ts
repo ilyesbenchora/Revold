@@ -298,7 +298,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
   slack: {
     key: "slack",
     label: "Slack",
-    vendor: "Salesforce / Slack",
+    vendor: "Slack",
     icon: "💬",
     domain: "slack.com",
     category: "communication",

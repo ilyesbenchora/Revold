@@ -1,14 +1,50 @@
 "use client";
 
-/** Canaux de notification proposés à la création d'une alerte. */
+import { useEffect, useState } from "react";
+
+/** Canaux de notification (Slack et Teams séparés). */
 export const ALERT_CHANNELS: { key: string; icon: string; label: string }[] = [
   { key: "app", icon: "🔔", label: "App Revold" },
   { key: "email", icon: "📧", label: "Email" },
-  { key: "slack", icon: "💬", label: "Slack / Teams" },
+  { key: "slack", icon: "💬", label: "Slack" },
+  { key: "teams", icon: "👥", label: "Teams" },
 ];
 
 export function channelLabel(key: string): { icon: string; label: string } {
   return ALERT_CHANNELS.find((c) => c.key === key) ?? { icon: "🔔", label: key };
+}
+
+/**
+ * Canaux réellement DISPONIBLES pour l'org : l'app est toujours dispo ; email /
+ * slack / teams uniquement s'ils sont connectés (notification_channels.enabled).
+ * Évite de proposer un canal non connecté qui ne délivrerait rien.
+ */
+export function useAvailableChannels(): { available: Set<string>; loaded: boolean } {
+  const [available, setAvailable] = useState<Set<string>>(new Set(["app"]));
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const set = new Set<string>(["app"]);
+      try {
+        const res = await fetch("/api/notifications/channels");
+        const data = await res.json();
+        for (const c of (data.channels ?? []) as { type?: string; enabled?: boolean }[]) {
+          if (c.enabled !== false && (c.type === "email" || c.type === "slack" || c.type === "teams")) set.add(c.type);
+        }
+      } catch {
+        /* app seul par défaut */
+      }
+      if (!cancel) {
+        setAvailable(set);
+        setLoaded(true);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
+  return { available, loaded };
 }
 
 /** Normalise le texte d'une alerte pour un rendu lisible (espaces exotiques, point médian, markdown). */
