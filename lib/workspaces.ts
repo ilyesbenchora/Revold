@@ -51,35 +51,39 @@ export function availableWorkspaces(role: string | null | undefined, pole: strin
 // autorisés, absent = groupe masqué. Dashboard et Intégrations sont toujours
 // visibles en entier.
 
-type NavRule = Partial<Record<"audit" | "coaching" | "previsions" | "dashboard" | "integrations", "all" | string[]>>;
+type NavRule = Partial<Record<"audit" | "coaching" | "previsions" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
-  all: { audit: "all", coaching: "all", previsions: "all", dashboard: "all", integrations: "all" },
+  all: { audit: "all", coaching: "all", previsions: "all", dashboard: "all", integrations: "all", alertes: "all" },
   sales: {
     audit: ["/dashboard/performances", "/dashboard/process"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
+    alertes: "all",
   },
   marketing: {
     audit: ["/dashboard/performances", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
+    alertes: "all",
   },
   cs: {
     audit: ["/dashboard/audit/service-client"],
-    coaching: ["/dashboard/insights-ia"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/calendrier"],
     dashboard: "all",
     integrations: "all",
+    alertes: "all",
   },
   finance: {
     audit: ["/dashboard/audit/paiement-facturation"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
+    alertes: "all",
   },
 };
 
