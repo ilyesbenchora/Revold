@@ -72,6 +72,8 @@ export function ToolMappingSettings({
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggleSection = (id: string) => setCollapsed((c) => ({ ...c, [id]: !c[id] }));
 
   if (options.length === 0) {
     return (
@@ -133,12 +135,36 @@ export function ToolMappingSettings({
         </p>
       )}
 
-      {SECTIONS.map((section) => (
+      {SECTIONS.map((section) => {
+        const isCollapsed = collapsed[section.id] ?? false;
+        return (
         <section key={section.id} className="card overflow-hidden">
-          <header className="border-b border-card-border bg-slate-50 px-5 py-3">
-            <h3 className="text-sm font-semibold text-slate-900">{section.title}</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{section.hint}</p>
-          </header>
+          <button
+            type="button"
+            onClick={() => toggleSection(section.id)}
+            aria-expanded={!isCollapsed}
+            className="flex w-full items-center gap-2 border-b border-card-border bg-slate-50 px-5 py-3 text-left transition hover:bg-slate-100"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`shrink-0 text-slate-400 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-slate-900">{section.title}</h3>
+              <p className="mt-0.5 text-xs text-slate-500">{section.hint}</p>
+            </div>
+          </button>
+          {!isCollapsed && (
           <div className="divide-y divide-card-border">
             {section.pages.map((p) => {
               const current = mappings[p.key] ?? [];
@@ -208,8 +234,10 @@ export function ToolMappingSettings({
               );
             })}
           </div>
+          )}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
