@@ -23,15 +23,15 @@ const SECTIONS: Section[] = [
   {
     id: "audit",
     title: "Données",
-    hint: "1 outil principal d'analyse par page (sauf Vue d'ensemble).",
+    hint: "Sélection multiple — Revold croise les outils choisis dans l'analyse de chaque page.",
     pages: [
-      { key: "audit_donnees", label: "Propriétés", description: "Qualité base CRM (contacts, entreprises, deals)", mode: "single" },
-      { key: "audit_automatisations", label: "Automatisations", description: "Workflows et règles d'automatisation", mode: "single" },
-      { key: "audit_perf_ventes", label: "Performances Ventes", description: "Pipeline, deals, closing, forecast", mode: "single" },
-      { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "single" },
-      { key: "audit_paiement_facturation", label: "Paiement & Facturation", description: "Invoices, subscriptions, quotes", mode: "single" },
-      { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "single" },
-      { key: "audit_adoption", label: "Équipes", description: "Owners, équipes, discipline d'usage", mode: "single" },
+      { key: "audit_donnees", label: "Propriétés", description: "Qualité base CRM (contacts, entreprises, deals)", mode: "multi" },
+      { key: "audit_automatisations", label: "Automatisations", description: "Workflows et règles d'automatisation", mode: "multi" },
+      { key: "audit_perf_ventes", label: "Performances Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
+      { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
+      { key: "audit_paiement_facturation", label: "Paiement & Facturation", description: "Invoices, subscriptions, quotes", mode: "multi" },
+      { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
+      { key: "audit_adoption", label: "Équipes", description: "Owners, équipes, discipline d'usage", mode: "multi" },
     ],
   },
   {

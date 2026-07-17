@@ -255,7 +255,7 @@ async function upsertContacts(
   records: Array<Record<string, unknown>>,
 ): Promise<number> {
   if (records.length === 0) return 0;
-  const rows = records.map((r) => {
+  const rowsRaw = records.map((r) => {
     const props = (r.properties as Record<string, string | null>) ?? {};
     const first = pStr(props, "firstname");
     const last = pStr(props, "lastname");
@@ -271,6 +271,7 @@ async function upsertContacts(
       hs_last_modified_at: pDate(props, "lastmodifieddate"),
     };
   });
+  const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
@@ -283,13 +284,24 @@ async function upsertContacts(
   return upserted;
 }
 
+/**
+ * Déduplique un lot par clé (garde la dernière occurrence). Évite l'erreur
+ * Postgres « ON CONFLICT DO UPDATE command cannot affect row a second time »
+ * quand HubSpot renvoie un même id deux fois dans un lot (pagination, doublons).
+ */
+function dedupeByKey<T>(rows: T[], key: (r: T) => string): T[] {
+  const map = new Map<string, T>();
+  for (const r of rows) map.set(key(r), r);
+  return [...map.values()];
+}
+
 async function upsertCompanies(
   supabase: SupabaseClient,
   orgId: string,
   records: Array<Record<string, unknown>>,
 ): Promise<number> {
   if (records.length === 0) return 0;
-  const rows = records.map((r) => {
+  const rowsRaw = records.map((r) => {
     const props = (r.properties as Record<string, string | null>) ?? {};
     const employees = pNum(props, "numberofemployees");
     return {
@@ -305,6 +317,7 @@ async function upsertCompanies(
       updated_at: new Date().toISOString(),
     };
   });
+  const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
@@ -330,18 +343,21 @@ async function syncPipelineStages(
 ): Promise<Record<string, string>> {
   try {
     const pipelines = await fetchDealsPipelines(token);
-    const rows = pipelines.flatMap((p) =>
-      p.stages.map((s) => ({
-        organization_id: orgId,
-        external_id: s.id,
-        pipeline_external_id: p.id,
-        pipeline_name: p.label,
-        name: s.label,
-        position: s.displayOrder,
-        probability: s.probability,
-        is_closed_won: s.closedWon,
-        is_closed_lost: s.closedLost,
-      })),
+    const rows = dedupeByKey(
+      pipelines.flatMap((p) =>
+        p.stages.map((s) => ({
+          organization_id: orgId,
+          external_id: s.id,
+          pipeline_external_id: p.id,
+          pipeline_name: p.label,
+          name: s.label,
+          position: s.displayOrder,
+          probability: s.probability,
+          is_closed_won: s.closedWon,
+          is_closed_lost: s.closedLost,
+        })),
+      ),
+      (r) => r.external_id,
     );
     if (rows.length > 0) {
       const { error } = await supabase
@@ -370,7 +386,7 @@ async function upsertDeals(
   stageIdByExternal: Record<string, string> = {},
 ): Promise<number> {
   if (records.length === 0) return 0;
-  const rows = records.map((r) => {
+  const rowsRaw = records.map((r) => {
     const props = (r.properties as Record<string, string | null>) ?? {};
     const isClosed = pStr(props, "hs_is_closed") === "true";
     const isWon = pStr(props, "hs_is_closed_won") === "true";
@@ -397,6 +413,7 @@ async function upsertDeals(
       updated_at: new Date().toISOString(),
     };
   });
+  const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
@@ -415,7 +432,7 @@ async function upsertTickets(
   records: Array<Record<string, unknown>>,
 ): Promise<number> {
   if (records.length === 0) return 0;
-  const rows = records.map((r) => {
+  const rowsRaw = records.map((r) => {
     const props = (r.properties as Record<string, string | null>) ?? {};
     return {
       organization_id: orgId,
@@ -429,6 +446,7 @@ async function upsertTickets(
       updated_at: new Date().toISOString(),
     };
   });
+  const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
