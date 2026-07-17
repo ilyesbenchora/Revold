@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   WORKSPACES,
   availableWorkspaces,
@@ -408,6 +408,20 @@ export function DashboardSidebar({
   const canSwitch = available.length > 1;
   const activeWs = workspaceDef(ws);
 
+  // Ouverture du menu volant en JS avec délai de fermeture : au survol d'une
+  // catégorie, le sous-menu reste ouvert le temps d'y déplacer la souris et de
+  // cliquer (le CSS group-hover se coupait dans l'espace icône → menu).
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function openGroup(id: string) {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpenGroupId(id);
+  }
+  function scheduleClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setOpenGroupId(null), 260);
+  }
+
   // Filtre la navigation selon l'espace actif.
   const visibleLinks = sidebarLinks.filter((item) =>
     isGroup(item) ? isGroupVisible(ws, item.id) : isLeafVisible(ws, item.href),
@@ -476,21 +490,33 @@ export function DashboardSidebar({
             const children = item.children.filter((c) => isChildVisible(ws, item.id, c.href));
             if (children.length === 0) return null;
             const groupActive = children.some((c) => isChildActive(pathname, c.href));
+            const open = openGroupId === item.id;
             return (
-              <div key={item.id} className="group relative">
+              <div
+                key={item.id}
+                className="relative"
+                onMouseEnter={() => openGroup(item.id)}
+                onMouseLeave={scheduleClose}
+              >
                 <button
                   type="button"
                   aria-label={item.label}
+                  onFocus={() => openGroup(item.id)}
                   className={`flex w-full items-center justify-center rounded-lg p-2.5 transition ${
-                    groupActive ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
+                    groupActive || open ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
                   }`}
                 >
                   {item.icon}
                 </button>
-                {/* Menu volant : sous-pages. Le pl-2 crée un « pont » transparent
-                    hoverable entre l'icône et la carte → le survol ne se coupe
-                    plus (pas besoin de cliquer). */}
-                <div className="invisible absolute left-full top-0 z-50 pl-2 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                {/* Menu volant : reste ouvert (délai JS) le temps d'aller cliquer.
+                    Le pl-2 est un pont transparent entre l'icône et la carte. */}
+                <div
+                  className={`absolute left-full top-0 z-50 pl-2 transition-opacity duration-150 ${
+                    open ? "visible opacity-100" : "invisible opacity-0"
+                  }`}
+                  onMouseEnter={() => openGroup(item.id)}
+                  onMouseLeave={scheduleClose}
+                >
                   <div className="min-w-52 rounded-xl border border-card-border bg-white p-1.5 shadow-xl">
                     <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
                     {children.map((child) => {
@@ -499,6 +525,7 @@ export function DashboardSidebar({
                         <Link
                           key={child.href}
                           href={child.href}
+                          onClick={() => setOpenGroupId(null)}
                           className={`flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
                             active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                           }`}
