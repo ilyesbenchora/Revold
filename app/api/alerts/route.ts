@@ -5,6 +5,7 @@ import { insertAlertResilient } from "@/lib/alerts/resilient";
 import { createInAppNotification } from "@/lib/notifications/in-app";
 import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { loadEntitiesWithData } from "@/lib/alerts/entity-readiness";
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -61,12 +62,14 @@ export async function POST(request: Request) {
   let resolvedAggSpec = agg_spec && typeof agg_spec === "object" ? agg_spec : null;
   if (!effectiveForecast && !resolvedAggSpec && typeof title === "string" && title.trim()) {
     const token = await getHubSpotToken(supabase, profile.organization_id);
+    const availableEntities = [...(await loadEntitiesWithData(supabase, profile.organization_id))];
     const r = await resolveTrackingSpec(supabase, profile.organization_id, token, {
       kpiText: title,
       description: typeof user_context === "string" ? user_context : (typeof description === "string" ? description : null),
       team, category,
       value: threshold != null ? Number(threshold) : null,
       unit: unit_mode,
+      availableEntities,
     });
     if (r.forecast_type) effectiveForecast = r.forecast_type;
     else if (r.agg_spec) resolvedAggSpec = r.agg_spec;

@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
+import { loadEntitiesWithData } from "@/lib/alerts/entity-readiness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
   let aggSpec: Record<string, unknown> | null = null;
   if (!effectiveForecast) {
     const token = await getHubSpotToken(supabase, orgId);
+    const availableEntities = [...(await loadEntitiesWithData(supabase, orgId))];
     const r = await resolveTrackingSpec(supabase, orgId, token, {
       kpiText: title,
       description: typeof b.description === "string" ? b.description : null,
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
       category: typeof b.category === "string" ? b.category : null,
       value: targetVal,
       unit,
+      availableEntities,
     });
     if (r.forecast_type) effectiveForecast = r.forecast_type;
     else if (r.agg_spec) aggSpec = r.agg_spec as Record<string, unknown>;

@@ -93,6 +93,8 @@ export async function resolveTrackingSpec(
     category?: string | null;
     value?: number | null;
     unit?: string | null;
+    /** Entités canoniques réellement alimentées pour l'org (à privilégier). */
+    availableEntities?: string[] | null;
   },
 ): Promise<TrackingResolution> {
   if (!args.kpiText?.trim()) return NONE;
@@ -100,15 +102,22 @@ export async function resolveTrackingSpec(
   // Sans clé API : fallback déterministe (on ne laisse jamais l'élément non câblé).
   if (!apiKey) return heuristicWiring(args.kpiText, args.unit);
 
+  const available = args.availableEntities ?? [];
   const persona = getAgentPersona(TEAM_PERSONA[args.team ?? ""] ?? TEAM_PERSONA[args.category ?? ""] ?? "automatisations");
   const system =
-    `Tu es ${persona.name}, ${persona.role} chez Revold. Ton rôle : RATTACHER ce KPI aux vraies données, à 100 %. ` +
+    `Tu es ${persona.name}, ${persona.role} chez Revold. MISSION PRINCIPALE : rattacher ce KPI aux vraies données à 100 %, ` +
+    `en EXPLOITANT les données réellement présentes — jamais sur du vide. C'est ton expertise : savoir quoi aller chercher. ` +
     `Deux voies : (1) mode=forecast si un indicateur catalogué correspond — ${[...FORECAST_TYPES].join(", ")} ; ` +
     `(2) mode=aggregate sinon, via le catalogue canonique — ${CANONICAL_DOC} ` +
+    `Données RÉELLEMENT alimentées pour cette org : ${available.length ? available.join(", ") : "aucune détectée pour l'instant"}. ` +
+    `PRIORISE ces entités : le rapprochement DOIT tomber sur des données présentes. ` +
+    `Si la donnée idéale n'est pas alimentée, construis le MEILLEUR PROXY calculable à partir des entités disponibles — ` +
+    `ex : ARR ≈ deals sum(amount) des deals GAGNÉS (annualisés) si les abonnements ne sont pas synchronisés ; ` +
+    `MRR ≈ ARR/12 ; CA ≈ deals sum(amount). Utilise multiplier/target pour approcher au plus juste. ` +
     `Sers-toi du NOM du KPI, du CHIFFRE cible et de la DESCRIPTION pour choisir le rapprochement le plus fidèle. ` +
-    `Règles montants : ARR = sum(mrr) des abonnements ACTIFS × 12 (subscriptions, sum, mrr, groupBy=status, target=active, multiplier=12) ; ` +
+    `Règles montants (si la source existe) : ARR = sum(mrr) des abonnements ACTIFS × 12 (subscriptions, sum, mrr, groupBy=status, target=active, multiplier=12) ; ` +
     `MRR = idem sans multiplier ; CA encaissé = invoices sum(amount_paid) ; CA signé = deals sum(amount) ou forecast_type=revenue_won. ` +
-    `Choisis TOUJOURS un rapprochement calculable, jamais rien d'informatif. Réponds uniquement via l'outil.`;
+    `Choisis TOUJOURS un rapprochement calculable sur les données présentes, jamais rien d'informatif. Réponds uniquement via l'outil.`;
   const numTxt = args.value != null ? ` Chiffre cible : ${args.value}${args.unit === "currency" ? " €" : args.unit === "percent" ? " %" : ""}.` : "";
   const userMsg =
     `KPI : « ${args.kpiText.trim()} ».${numTxt}` +
