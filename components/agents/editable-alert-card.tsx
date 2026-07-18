@@ -30,6 +30,7 @@ export type EditableAlert = {
   notification_channels: string[] | null;
   forecast_type?: string | null;
   agg_spec?: AggSpec | null;
+  recon_spec?: { recipe?: string } | null;
 };
 
 
@@ -181,7 +182,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
           )}
 
           <div className="mt-2">
-            <TrackingBadge forecastType={alert.forecast_type} aggSpec={alert.agg_spec} ready={dataReady} />
+            <TrackingBadge forecastType={alert.forecast_type} aggSpec={alert.agg_spec} reconRecipe={alert.recon_spec?.recipe} ready={dataReady} />
           </div>
 
           {/* Échéance en temps réel : début, fin (compte à rebours live) ou en continu */}

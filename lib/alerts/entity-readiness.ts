@@ -31,16 +31,35 @@ export async function loadEntitiesWithData(supabase: SupabaseClient, orgId: stri
   return set;
 }
 
+// Recette de réconciliation → entités source requises (toutes doivent avoir des données).
+const RECON_ENTITIES: Record<string, string[]> = {
+  crm_vs_billed_gap: ["deals", "invoices"],
+  revenue_leakage: ["deals", "invoices"],
+  arr_reconciled: ["subscriptions"],
+  mrr_reconciled: ["subscriptions"],
+  billed_paid: ["invoices"],
+  unpaid_amount: ["invoices"],
+  mrr_at_risk: ["subscriptions"],
+  reconciled_pct: [],
+};
+
 /**
- * Le KPI est-il rattaché à une donnée RÉELLEMENT enrichie ? true si l'entité
- * source a des lignes ; false si vide (câblage ok mais source non synchronisée) ;
- * undefined si on ne sait pas rattacher une entité (pas de signal → pas d'alarme).
+ * Le KPI est-il rattaché à une donnée RÉELLEMENT enrichie ? true si l'(es)
+ * entité(s) source ont des lignes ; false si vide (câblage ok mais source non
+ * synchronisée) ; undefined si aucun signal (pas d'alarme).
  */
 export function isKpiDataReady(
   readySet: Set<string>,
   forecastType?: string | null,
   aggSpec?: AggSpec | null,
+  reconRecipe?: string | null,
 ): boolean | undefined {
+  if (reconRecipe) {
+    const ents = RECON_ENTITIES[reconRecipe];
+    if (!ents) return undefined;
+    if (ents.length === 0) return true;
+    return ents.every((e) => readySet.has(e));
+  }
   const entity = aggSpec?.entity ?? (forecastType ? FORECAST_ENTITY[forecastType] : undefined);
   if (!entity) return undefined;
   return readySet.has(entity);

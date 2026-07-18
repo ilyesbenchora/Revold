@@ -2,6 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { RECON_RECIPES } from "@/lib/reconciliation/engine";
+
+const RECON_IDS = Object.keys(RECON_RECIPES);
+const RECON_SET = new Set(RECON_IDS);
+const RECON_DOC = Object.values(RECON_RECIPES).map((r) => `${r.id} = ${r.desc}`).join(" ");
 
 // Équipe / catégorie → persona responsable (aligné sur compose.ts).
 const TEAM_PERSONA: Record<string, string> = {
@@ -41,7 +46,8 @@ const BUILD_TOOL: Anthropic.Tool = {
   input_schema: {
     type: "object",
     properties: {
-      mode: { type: "string", enum: ["forecast", "aggregate"], description: "forecast si un indicateur catalogué correspond ; sinon aggregate." },
+      mode: { type: "string", enum: ["forecast", "aggregate", "reconciled"], description: "reconciled si le KPI croise plusieurs outils (CRM↔facturation↔support) ; forecast si indicateur catalogué ; sinon aggregate mono-entité." },
+      recipe: { type: "string", enum: [...RECON_IDS], description: "Requis si mode=reconciled." },
       forecast_type: { type: "string", enum: [...FORECAST_TYPES], description: "Requis si mode=forecast." },
       entity: { type: "string", enum: ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
       groupBy: { type: "string", description: "Dimension de regroupement (mode=aggregate)." },
@@ -55,25 +61,42 @@ const BUILD_TOOL: Anthropic.Tool = {
   },
 };
 
-export type TrackingResolution = { forecast_type: string | null; agg_spec: (AggSpec & { unit_mode?: string }) | null };
+export type TrackingResolution = {
+  forecast_type: string | null;
+  agg_spec: (AggSpec & { unit_mode?: string }) | null;
+  recon_recipe: string | null;
+};
 
-const NONE: TrackingResolution = { forecast_type: null, agg_spec: null };
+const NONE: TrackingResolution = { forecast_type: null, agg_spec: null, recon_recipe: null };
+
+const fc = (forecast_type: string): TrackingResolution => ({ forecast_type, agg_spec: null, recon_recipe: null });
+const rc = (recon_recipe: string): TrackingResolution => ({ forecast_type: null, agg_spec: null, recon_recipe });
+const ag = (agg_spec: AggSpec & { unit_mode?: string }): TrackingResolution => ({ forecast_type: null, agg_spec, recon_recipe: null });
 
 /** Fallback DÉTERMINISTE : garantit un câblage même si l'agent échoue. */
 function heuristicWiring(kpiText: string, unit?: string | null): TrackingResolution {
   const t = (kpiText || "").toLowerCase();
   const has = (re: RegExp) => re.test(t);
 
-  if (has(/\barr\b|revenu(e|s)? annuel/)) return { forecast_type: null, agg_spec: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", target: "active", multiplier: 12, unit_mode: "currency" } };
-  if (has(/\bmrr\b|récurrent|recurrent|abonnement/)) return { forecast_type: null, agg_spec: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", target: "active", multiplier: 1, unit_mode: "currency" } };
-  if (has(/encaiss|payé|paye|paid|facture|invoice/)) return { forecast_type: null, agg_spec: { entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", target: "Total", multiplier: 1, unit_mode: "currency" } };
-  if (has(/closing|clôtur|cloture|taux de gain|win rate/)) return { forecast_type: "closing_rate", agg_spec: null };
-  if (has(/conversion|lead.?opp|mql|sql/)) return { forecast_type: "conversion_rate", agg_spec: null };
-  if (has(/pipeline/)) return { forecast_type: "pipeline_value", agg_spec: null };
-  if (has(/risque|at.?risk/)) return { forecast_type: "deals_at_risk", agg_spec: null };
-  if (has(/ca\b|chiffre|revenue|revenu|montant|signé|signe/) || unit === "currency") return { forecast_type: "revenue_won", agg_spec: null };
-  if (unit === "percent") return { forecast_type: "closing_rate", agg_spec: null };
-  return { forecast_type: "deals_count", agg_spec: null };
+  // Cross-source (recettes réconciliées) d'abord.
+  if (has(/écart|ecart|signé.*factur|factur.*signé|crm.*factur/)) return rc("crm_vs_billed_gap");
+  if (has(/fuite|non factur|sans factur|leakage/)) return rc("revenue_leakage");
+  if (has(/à risque|a risque|at.?risk|churn/) && has(/mrr|abonnement|revenu|compte/)) return rc("mrr_at_risk");
+  if (has(/impay|unpaid|due|en retard/)) return rc("unpaid_amount");
+  if (has(/réconcili|reconcili/)) return rc("reconciled_pct");
+  if (has(/\barr\b|revenu(e|s)? annuel/)) return rc("arr_reconciled");
+  if (has(/\bmrr\b|récurrent|recurrent|abonnement/)) return rc("mrr_reconciled");
+  if (has(/encaiss|payé|paye|paid/)) return rc("billed_paid");
+
+  // Indicateurs catalogués.
+  if (has(/closing|clôtur|cloture|taux de gain|win rate/)) return fc("closing_rate");
+  if (has(/conversion|lead.?opp|mql|sql/)) return fc("conversion_rate");
+  if (has(/pipeline/)) return fc("pipeline_value");
+  if (has(/risque|at.?risk/)) return fc("deals_at_risk");
+  if (has(/facture|invoice/)) return rc("billed_paid");
+  if (has(/ca\b|chiffre|revenue|revenu|montant|signé|signe/) || unit === "currency") return fc("revenue_won");
+  if (unit === "percent") return fc("closing_rate");
+  return fc("deals_count");
 }
 
 /**
@@ -107,8 +130,10 @@ export async function resolveTrackingSpec(
   const system =
     `Tu es ${persona.name}, ${persona.role} chez Revold. MISSION PRINCIPALE : rattacher ce KPI aux vraies données à 100 %, ` +
     `en EXPLOITANT les données réellement présentes — jamais sur du vide. C'est ton expertise : savoir quoi aller chercher. ` +
-    `Deux voies : (1) mode=forecast si un indicateur catalogué correspond — ${[...FORECAST_TYPES].join(", ")} ; ` +
+    `TROIS voies : (0) mode=reconciled si le KPI CROISE plusieurs outils (CRM ↔ facturation ↔ support) — recettes à jointure réelle : ${RECON_DOC} ; ` +
+    `(1) mode=forecast si un indicateur catalogué mono-source correspond — ${[...FORECAST_TYPES].join(", ")} ; ` +
     `(2) mode=aggregate sinon, via le catalogue canonique — ${CANONICAL_DOC} ` +
+    `PRIVILÉGIE mode=reconciled dès qu'il s'agit de revenu réel/ARR/MRR/encaissé/impayés/écart CRM-facturation/fuite de revenu/MRR à risque. ` +
     `Données RÉELLEMENT alimentées pour cette org : ${available.length ? available.join(", ") : "aucune détectée pour l'instant"}. ` +
     `PRIORISE ces entités : le rapprochement DOIT tomber sur des données présentes. ` +
     `Si la donnée idéale n'est pas alimentée, construis le MEILLEUR PROXY calculable à partir des entités disponibles — ` +
@@ -137,13 +162,18 @@ export async function resolveTrackingSpec(
     const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (!toolUse) return heuristicWiring(args.kpiText, args.unit);
     const inp = toolUse.input as {
-      mode?: string; forecast_type?: string; entity?: string; groupBy?: string;
+      mode?: string; recipe?: string; forecast_type?: string; entity?: string; groupBy?: string;
       measure?: string; field?: string; target?: string; multiplier?: number; unit_mode?: string;
     };
 
+    // Voie réconciliée : recette de jointure cross-source connue.
+    if (inp.mode === "reconciled" && inp.recipe && RECON_SET.has(inp.recipe)) {
+      return { forecast_type: null, agg_spec: null, recon_recipe: inp.recipe };
+    }
+
     // Voie catalogué : sûr si c'est un forecast_type connu.
     if (inp.mode === "forecast" && inp.forecast_type && FORECAST_SET.has(inp.forecast_type)) {
-      return { forecast_type: inp.forecast_type, agg_spec: null };
+      return { forecast_type: inp.forecast_type, agg_spec: null, recon_recipe: null };
     }
 
     // Voie agrégat : validée sur les vraies données.
@@ -158,7 +188,7 @@ export async function resolveTrackingSpec(
         unit_mode: inp.unit_mode ?? args.unit ?? "count",
       };
       const v = await valueFromAggSpec(supabase, orgId, hubspotToken, spec);
-      if (v !== null) return { forecast_type: null, agg_spec: spec };
+      if (v !== null) return { forecast_type: null, agg_spec: spec, recon_recipe: null };
     }
 
     // L'agent n'a pas produit un câblage calculable → fallback déterministe.

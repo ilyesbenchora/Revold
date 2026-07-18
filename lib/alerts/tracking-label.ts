@@ -1,5 +1,18 @@
 import type { AggSpec } from "@/lib/alerts/agg-value";
 
+// Libellés des recettes de réconciliation (dupliqués ici pour garder le bundle
+// client léger — ne pas importer le moteur serveur).
+const RECON_LABELS: Record<string, string> = {
+  crm_vs_billed_gap: "Écart CA signé ↔ facturé",
+  revenue_leakage: "Fuite de revenu (deals non facturés)",
+  arr_reconciled: "ARR réconcilié (abonnements ×12)",
+  mrr_reconciled: "MRR réconcilié",
+  billed_paid: "CA encaissé (factures)",
+  unpaid_amount: "Impayés",
+  mrr_at_risk: "MRR à risque (tickets ouverts)",
+  reconciled_pct: "% réconcilié multi-source",
+};
+
 const FORECAST_LABELS: Record<string, string> = {
   closing_rate: "Closing rate",
   pipeline_coverage: "Couverture pipeline",
@@ -35,7 +48,12 @@ const ENTITY_LABELS: Record<string, string> = {
  * Libellé court « à quelle donnée réelle ce KPI est rattaché », pour le badge de
  * transparence sur les cartes d'alertes / objectifs. Renvoie null si non câblé.
  */
-export function trackingLabel(forecastType?: string | null, aggSpec?: AggSpec | null): string | null {
+export function trackingLabel(
+  forecastType?: string | null,
+  aggSpec?: AggSpec | null,
+  reconRecipe?: string | null,
+): string | null {
+  if (reconRecipe) return RECON_LABELS[reconRecipe] ?? reconRecipe;
   if (forecastType) return FORECAST_LABELS[forecastType] ?? forecastType;
   if (aggSpec && aggSpec.entity) {
     // Cas spéciaux lisibles.

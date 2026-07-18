@@ -4,9 +4,12 @@ import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification } from "@/lib/notifications/send";
 import { composeNotification } from "@/lib/notifications/compose";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export const maxDuration = 300;
+
+const MIN_RECON_COVERAGE = 0.3;
 
 /**
  * Suivi des OBJECTIFS sur les vraies données :
@@ -36,9 +39,9 @@ export async function GET(request: Request) {
     .from("objectives")
     .select("*")
     .eq("status", "active")
-    .or("forecast_type.not.is.null,agg_spec.not.is.null")
+    .or("forecast_type.not.is.null,agg_spec.not.is.null,recon_spec.not.is.null")
     .is("resolved_at", null);
-  if (primary.error && /(resolved_at|agg_spec)/.test(primary.error.message)) {
+  if (primary.error && /(resolved_at|agg_spec|recon_spec)/.test(primary.error.message)) {
     const legacy = await supabase.from("objectives").select("*").eq("status", "active").not("forecast_type", "is", null);
     if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
     objectives = legacy.data;
@@ -64,6 +67,13 @@ export async function GET(request: Request) {
     } else if (obj.agg_spec) {
       const token = await getHubSpotToken(supabase, obj.organization_id as string);
       currentValue = await valueFromAggSpec(supabase, obj.organization_id as string, token, obj.agg_spec as AggSpec);
+    } else if (obj.recon_spec?.recipe) {
+      const r = await computeReconciledMetric(supabase, obj.organization_id as string, obj.recon_spec.recipe);
+      if (!r || !r.hasData || r.coverage < MIN_RECON_COVERAGE) {
+        if (r) await supabase.from("objectives").update({ current_value: r.value, last_checked: new Date().toISOString() }).eq("id", obj.id as string);
+        continue;
+      }
+      currentValue = r.value;
     }
     if (currentValue === null) continue;
     checked++;

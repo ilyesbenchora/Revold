@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { loadEntitiesWithData, isKpiDataReady } from "@/lib/alerts/entity-readiness";
 import { ObjectiveCard, type Objective } from "@/components/objectives/objective-card";
@@ -19,10 +20,11 @@ export default async function ObjectifsPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status";
+  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, recon_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status";
   let res = await supabase.from("objectives").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-  if (res.error && /agg_spec/.test(res.error.message)) {
-    res = await supabase.from("objectives").select(COLS.replace(", agg_spec", "")).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  if (res.error && /(agg_spec|recon_spec)/.test(res.error.message)) {
+    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "");
+    res = await supabase.from("objectives").select(legacy).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   const { data, error } = res;
 
@@ -39,6 +41,10 @@ export default async function ObjectifsPage() {
         if (o.forecast_type) {
           const v = await resolveKpiValue(supabase, orgId, o.forecast_type, { date_from: o.date_from, date_to: o.date_to });
           return { ...o, computedValue: typeof v === "number" ? v : null };
+        }
+        if (o.recon_spec?.recipe) {
+          const r = await computeReconciledMetric(supabase, orgId, o.recon_spec.recipe);
+          return { ...o, computedValue: r ? r.value : null };
         }
         if (o.agg_spec) {
           const v = await valueFromAggSpec(supabase, orgId, token, o.agg_spec as AggSpec);
@@ -117,7 +123,7 @@ export default async function ObjectifsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {withValues.map((o) => (
-            <ObjectiveCard key={o.id} objective={o} dataReady={isKpiDataReady(readySet, o.forecast_type, o.agg_spec)} />
+            <ObjectiveCard key={o.id} objective={o} dataReady={isKpiDataReady(readySet, o.forecast_type, o.agg_spec, o.recon_spec?.recipe)} />
           ))}
         </div>
       )}

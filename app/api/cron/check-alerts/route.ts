@@ -4,9 +4,13 @@ import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
 import { composeNotification } from "@/lib/notifications/compose";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export const maxDuration = 300;
+
+// Couverture minimale de jointure pour se fier à une recette réconciliée.
+const MIN_RECON_COVERAGE = 0.3;
 
 const FORECAST_LABELS: Record<string, string> = {
   closing_rate: "Closing rate",
@@ -52,8 +56,8 @@ export async function GET(request: Request) {
       .from("alerts")
       .select("*")
       .eq("status", "active")
-      .or("forecast_type.not.is.null,agg_spec.not.is.null");
-    if (combined.error && /agg_spec/.test(combined.error.message)) {
+      .or("forecast_type.not.is.null,agg_spec.not.is.null,recon_spec.not.is.null");
+    if (combined.error && /(agg_spec|recon_spec)/.test(combined.error.message)) {
       const legacy = await supabase.from("alerts").select("*").eq("status", "active").not("forecast_type", "is", null);
       if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
       activeAlerts = legacy.data;
@@ -97,6 +101,14 @@ export async function GET(request: Request) {
     } else if (alert.agg_spec) {
       const token = await getHubSpotToken(supabase, alert.organization_id);
       currentValue = await valueFromAggSpec(supabase, alert.organization_id, token, alert.agg_spec as AggSpec);
+    } else if (alert.recon_spec?.recipe) {
+      const r = await computeReconciledMetric(supabase, alert.organization_id, alert.recon_spec.recipe);
+      // Gate de fiabilité : jointure trop peu couverte → on ne se fie pas (pas de faux déclenchement).
+      if (!r || !r.hasData || r.coverage < MIN_RECON_COVERAGE) {
+        if (r) await supabase.from("alerts").update({ current_value: r.value, last_checked: new Date().toISOString() }).eq("id", alert.id);
+        continue;
+      }
+      currentValue = r.value;
     }
     if (currentValue === null) continue;
 

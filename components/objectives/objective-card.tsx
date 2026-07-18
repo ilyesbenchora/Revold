@@ -17,6 +17,7 @@ export type Objective = {
   category: string | null;
   forecast_type: string | null;
   agg_spec?: AggSpec | null;
+  recon_spec?: { recipe?: string } | null;
   target: number | null;
   unit_mode: string | null;
   direction: string | null;
@@ -190,7 +191,7 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
               <div className={`h-full rounded-full transition-all ${reached ? "bg-emerald-500" : soon ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
             </div>
             <div className="mt-1.5">
-              <TrackingBadge forecastType={o.forecast_type} aggSpec={o.agg_spec} ready={dataReady} />
+              <TrackingBadge forecastType={o.forecast_type} aggSpec={o.agg_spec} reconRecipe={o.recon_spec?.recipe} ready={dataReady} />
             </div>
           </div>
 

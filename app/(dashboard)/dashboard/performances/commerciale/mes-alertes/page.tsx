@@ -16,17 +16,18 @@ export default async function VentesAlertesPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const COLS: string = "id, title, description, impact, category, status, team, threshold, unit_mode, created_at, date_from, date_to, notification_channels, forecast_type, agg_spec";
+  const COLS: string = "id, title, description, impact, category, status, team, threshold, unit_mode, created_at, date_from, date_to, notification_channels, forecast_type, agg_spec, recon_spec";
   let res = await supabase.from("alerts").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-  if (res.error && /agg_spec/.test(res.error.message)) {
-    res = await supabase.from("alerts").select(COLS.replace(", agg_spec", "")).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  if (res.error && /(agg_spec|recon_spec)/.test(res.error.message)) {
+    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "");
+    res = await supabase.from("alerts").select(legacy).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   // Alertes liées à la performance commerciale (via agent ou pipeline).
   const allAlerts = ((res.data ?? []) as unknown as AlertRow[]).filter(
     (a) => (a.status ?? "active") === "active" && (a.team === "sales" || ["sales", "commercial", "revops"].includes(a.category ?? "")),
   );
   const readySet = await loadEntitiesWithData(supabase, orgId);
-  const rdy = (a: AlertRow) => isKpiDataReady(readySet, a.forecast_type, a.agg_spec);
+  const rdy = (a: AlertRow) => isKpiDataReady(readySet, a.forecast_type, a.agg_spec, a.recon_spec?.recipe);
   // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
   const done = allAlerts.filter((a) => isOverdue(a.date_to));
   const alerts = allAlerts.filter((a) => !isOverdue(a.date_to));

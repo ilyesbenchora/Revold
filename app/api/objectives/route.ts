@@ -39,6 +39,7 @@ export async function POST(request: Request) {
   // (ex : « 200 M€ d'ARR » → subscriptions sum(mrr) × 12). Fallback garanti.
   let effectiveForecast = typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null;
   let aggSpec: Record<string, unknown> | null = null;
+  let reconSpec: { recipe: string } | null = null;
   if (!effectiveForecast) {
     const token = await getHubSpotToken(supabase, orgId);
     const availableEntities = [...(await loadEntitiesWithData(supabase, orgId))];
@@ -51,7 +52,8 @@ export async function POST(request: Request) {
       unit,
       availableEntities,
     });
-    if (r.forecast_type) effectiveForecast = r.forecast_type;
+    if (r.recon_recipe) reconSpec = { recipe: r.recon_recipe };
+    else if (r.forecast_type) effectiveForecast = r.forecast_type;
     else if (r.agg_spec) aggSpec = r.agg_spec as Record<string, unknown>;
   }
 
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
     date_to: typeof b.date_to === "string" && dateRe.test(b.date_to) ? b.date_to : null,
     priority: b.priority === "faible" || b.priority === "urgent" ? b.priority : "moyen",
     agg_spec: aggSpec,
+    recon_spec: reconSpec,
     status: "active",
   };
 

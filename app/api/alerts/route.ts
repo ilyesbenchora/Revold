@@ -60,6 +60,7 @@ export async function POST(request: Request) {
   // via le nom, le chiffre et la description. Fallback déterministe garanti.
   let effectiveForecast: string | null = forecast_type || null;
   let resolvedAggSpec = agg_spec && typeof agg_spec === "object" ? agg_spec : null;
+  let reconSpec: { recipe: string } | null = null;
   if (!effectiveForecast && !resolvedAggSpec && typeof title === "string" && title.trim()) {
     const token = await getHubSpotToken(supabase, profile.organization_id);
     const availableEntities = [...(await loadEntitiesWithData(supabase, profile.organization_id))];
@@ -71,7 +72,8 @@ export async function POST(request: Request) {
       unit: unit_mode,
       availableEntities,
     });
-    if (r.forecast_type) effectiveForecast = r.forecast_type;
+    if (r.recon_recipe) reconSpec = { recipe: r.recon_recipe };
+    else if (r.forecast_type) effectiveForecast = r.forecast_type;
     else if (r.agg_spec) resolvedAggSpec = r.agg_spec;
   }
 
@@ -118,6 +120,7 @@ export async function POST(request: Request) {
     unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "currency" ? "currency" : unit_mode_secondary === "percent" ? "percent" : null,
     secondary_kpis: Array.isArray(secondary_kpis) && secondary_kpis.length ? secondary_kpis.slice(0, 12) : null,
     agg_spec: resolvedAggSpec,
+    recon_spec: reconSpec,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });
