@@ -8,6 +8,7 @@ import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { DealsAtRiskBlock } from "@/components/deals-at-risk-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { fetchDealRiskBuckets } from "@/lib/integrations/hubspot-deal-risk";
 import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
 
@@ -77,8 +78,9 @@ export default async function DealsARisquePage() {
         />
       )}
 
-      {/* Modal hôte (cachée) qui écoute l'event "revold:open-alert-modal"
-          émis par les CTA "Créer une alerte" sur cette page */}
+      <PageDataTables pageKey="perf_ventes" />
+
+      {/* Modal hôte (cachée) — conservée pour compat, plus déclenchée ici. */}
       <CreateAlertModal hideTrigger />
     </section>
   );

@@ -11,6 +11,7 @@ import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
 import { AuditPageTabs } from "@/components/audit-page-tabs";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -175,6 +176,8 @@ export default async function AutomatisationsPage() {
           </div>
         </CollapsibleBlock>
       )}
+
+      <PageDataTables pageKey="audit_automatisations" />
     </section>
   );
 }

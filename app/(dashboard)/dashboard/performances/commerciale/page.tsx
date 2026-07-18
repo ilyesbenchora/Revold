@@ -10,6 +10,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { PipelineManagementCarousel } from "@/components/pipeline-management-carousel";
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 import {
@@ -86,6 +87,8 @@ export default async function PerformanceCommercialePage() {
       >
         <PipelineConversionBlock conversions={pipelineConversions} />
       </CollapsibleBlock>
+
+      <PageDataTables pageKey="perf_ventes" />
 
       <CreateAlertModal hideTrigger />
     </section>

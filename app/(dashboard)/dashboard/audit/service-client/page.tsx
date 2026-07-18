@@ -11,6 +11,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -136,6 +137,8 @@ export default async function ServiceClientOverviewPage() {
           </p>
         </div>
       )}
+
+      <PageDataTables pageKey="audit_service_client" />
     </section>
   );
 }

@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react";
 
 /**
- * CTA "Créer une alerte" qui ouvre le funnel CreateAlertModal directement
- * à l'étape 3 (Objectif), avec le KPI / pipeline / direction pré-remplis.
+ * CTA "Créer une table de données" présent dans les blocs de données des pages
+ * de performance. Émet un CustomEvent que le builder de la page (PageDataTables)
+ * écoute pour ouvrir le funnel sur les KPIs dynamiques de la page.
  *
- * Implémentation simple : on émet un CustomEvent que le modal global écoute.
- * Permet de réutiliser la même modal sans duplication de logique.
+ * Les props team/kpiId… sont conservées pour compatibilité des appelants mais
+ * ne sont plus utilisées (le contexte est porté par la page).
  */
 
 export type CreateAlertCtaProps = {
-  team: "sales" | "marketing" | "cs" | "revops";
-  kpiId: string;
+  team?: "sales" | "marketing" | "cs" | "revops";
+  kpiId?: string;
   defaultThreshold?: number;
   defaultDirection?: "above" | "below";
   defaultUnit?: "percent" | "currency" | "count";
@@ -20,40 +21,16 @@ export type CreateAlertCtaProps = {
   label?: string;
 };
 
-export function CreateAlertCta({
-  team,
-  kpiId,
-  defaultThreshold,
-  defaultDirection,
-  defaultUnit,
-  defaultPipelineIds,
-  label = "Créer une table de données",
-}: CreateAlertCtaProps) {
-  const [hasModalListener, setHasModalListener] = useState(true);
+export function CreateAlertCta({ label = "Créer une table de données" }: CreateAlertCtaProps) {
+  const [ready, setReady] = useState(false);
 
-  // Détecte si une CreateAlertModal est montée sur la page (sinon fallback link)
-  useEffect(() => {
-    setHasModalListener(typeof window !== "undefined");
-  }, []);
+  useEffect(() => { setReady(typeof window !== "undefined"); }, []);
 
   function fire() {
-    if (!hasModalListener) return;
-    window.dispatchEvent(
-      new CustomEvent("revold:open-alert-modal", {
-        detail: {
-          team,
-          kpiId,
-          defaultThreshold,
-          defaultDirection,
-          defaultUnit,
-          defaultPipelineIds,
-          // On saute l'étape « Équipe » : la page fixe le contexte (Ventes /
-          // Marketing) → le funnel démarre sur les KPIs dynamiques.
-          lockTeam: true,
-          startStep: 2,
-        },
-      }),
-    );
+    if (!ready) return;
+    // Ouvre le builder de « table de données » de la page (KPIs dynamiques selon
+    // la page). Le contexte est porté par la page, pas par le bloc.
+    window.dispatchEvent(new CustomEvent("revold:open-data-table"));
   }
 
   return (
@@ -73,8 +50,8 @@ export function CreateAlertCta({
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 9h18M3 15h18M9 3v18" />
       </svg>
       {label}
     </button>

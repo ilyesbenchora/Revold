@@ -11,6 +11,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
 
 export default async function PaiementFacturationOverviewPage() {
   const orgId = await getOrgId();
@@ -154,6 +155,8 @@ export default async function PaiementFacturationOverviewPage() {
           </p>
         </div>
       )}
+
+      <PageDataTables pageKey="audit_paiement_facturation" />
     </section>
   );
 }
