@@ -13,13 +13,14 @@ const PRICING = [
     name: "Starter",
     price: "79",
     credits: "300 analyses & actions IA / mois",
-    desc: "Pour découvrir l'impact de Revold sur ton business",
+    desc: "Découvre l'impact de Revold sur ton business",
     features: [
-      "Connexion HubSpot + import de fichiers",
-      "Tous les agents IA en chat",
-      "Rapports & graphiques (ventilation par période, données fiables)",
-      "Alertes de suivi + calendrier",
-      "Objectifs avec complétion en temps réel",
+      "Toutes les intégrations en 1 clic (CRM, facturation, pub, support…)",
+      "Tous les agents IA à disposition (Données, Prévisions, Dashboard)",
+      "Coaching IA personnalisé",
+      "Croisement multi-sources · données fiables à 100 %",
+      "Rapports & graphiques (jusqu'à 20 rapports)",
+      "Alertes + calendrier + objectifs avec complétion",
       "2 utilisateurs · support email",
     ],
     featured: false,
@@ -28,15 +29,15 @@ const PRICING = [
   {
     name: "Growth",
     price: "249",
-    credits: "2 000 analyses & actions IA / mois",
+    credits: "5 000 analyses & actions IA / mois",
     desc: "Pour les équipes qui veulent piloter et agir",
     features: [
       "Tout Starter inclus",
-      "Toutes les intégrations 1-clic (Slack, Stripe, GA/Ads…)",
-      "Actions exécutées dans le CRM (relances, closing…)",
-      "Plan IA sur objectifs + suggestions proactives",
-      "Alertes & objectifs illimités",
-      "Croisement multi-sources",
+      "Actions exécutées dans le CRM (relances, closing, emails…)",
+      "Plus de rapports (jusqu'à 200) + plan IA sur objectifs",
+      "Suggestions proactives · alertes & objectifs illimités",
+      "Gestion multi-langue",
+      "Accès aux agents en multi-device",
       "Jusqu'à 5 utilisateurs · support prioritaire",
     ],
     featured: true,
@@ -45,19 +46,19 @@ const PRICING = [
   {
     name: "Scale",
     price: "499",
-    credits: "Volume élevé — actions & agents illimités",
+    credits: "Volume élevé — analyses & actions illimitées",
     desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
+      "Rapports illimités",
       "Espaces de travail par pôle (Ventes, Marketing, CS, Finance)",
       "Connecteurs MCP — branche n'importe quel outil",
-      "Actions avancées & playbooks",
-      "Prévisions avancées (scénarios bas / base / haut)",
+      "Actions avancées & playbooks · prévisions avancées",
       "Utilisateurs illimités · rôles & permissions",
       "Advisor RevOps dédié · SLA",
     ],
     featured: false,
-    cta: "Contacter l'équipe Scale",
+    cta: "Essayer 14 jours gratuits",
   },
 ];
 
@@ -65,7 +66,7 @@ const FAQS = [
   { q: "Y a-t-il un engagement ?", a: "Non. Tous les plans sont mensuels et sans engagement. Vous pouvez annuler à tout moment depuis vos paramètres." },
   { q: "Faut-il une carte bancaire pour l'essai gratuit ?", a: "Non. L'essai de 14 jours est gratuit et sans carte bancaire. Vous ne serez jamais facturé sans votre accord." },
   { q: "Puis-je changer de plan en cours de route ?", a: "Oui. Vous pouvez upgrader ou downgrader votre plan à tout moment. Le changement prend effet immédiatement." },
-  { q: "Quelles intégrations sont supportées ?", a: "HubSpot en 1 clic (OAuth), plus Slack, Stripe, Google Analytics/Ads, Meta & LinkedIn Ads, Salesforce, Pipedrive, Intercom, Google Calendar… en connexion 1-clic. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
+  { q: "Quelles intégrations sont supportées ?", a: "Revold est multi-source : connecte ton CRM (HubSpot, Salesforce, Pipedrive…), ta facturation (Stripe…), ta publicité (Google, Meta, LinkedIn), ton support (Intercom, Zendesk…), Slack et plus — en 1 clic. Toutes les intégrations sont accessibles dès le plan Starter. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
   { q: "Mes données sont-elles en sécurité ?", a: "Oui. Vos données sont hébergées sur Supabase (PostgreSQL sur AWS), chiffrées en transit (TLS) et au repos (AES-256). Chaque organisation est isolée par Row Level Security." },
   { q: "Qu'est-ce qui est inclus dans le support prioritaire ?", a: "Réponse sous 4h en jours ouvrés, accès à un channel Slack dédié, et session de onboarding personnalisée." },
 ];
@@ -146,18 +147,6 @@ export default function TarifsPage() {
           Le tarif s&apos;adapte à ton usage (analyses &amp; actions IA par mois), au nombre d&apos;utilisateurs et aux
           intégrations connectées. Besoin de plus de volume sur un plan ? On ajuste sans te faire changer de logique.
         </p>
-
-        {/* Enterprise */}
-        <div className="mt-8 rounded-2xl border border-card-border bg-white p-8 text-center md:p-12">
-          <h3 className="text-xl font-bold text-slate-900">Enterprise</h3>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
-            Vous avez des besoins spécifiques ? SSO, SLA custom, volume de données important, accompagnement dédié — contactez-nous pour un plan sur mesure.
-          </p>
-          <Link href="/demo" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:shadow-xl">
-            Contacter l&apos;équipe commerciale
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-          </Link>
-        </div>
       </section>
 
       {/* FAQ */}
