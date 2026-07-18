@@ -36,12 +36,13 @@ export function CreateObjectiveModal() {
   const [current, setCurrent] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [priority, setPriority] = useState<"faible" | "moyen" | "urgent">("moyen");
   const [description, setDescription] = useState("");
   const [impact, setImpact] = useState("");
 
   function reset() {
     setTitle(""); setTeam("sales"); setForecast(""); setUnit("currency"); setDirection("above");
-    setTarget(""); setCurrent(""); setDateFrom(""); setDateTo(""); setDescription(""); setImpact("");
+    setTarget(""); setCurrent(""); setDateFrom(""); setDateTo(""); setPriority("moyen"); setDescription(""); setImpact("");
     setError(null);
   }
   function pickKpi(id: string) {
@@ -68,6 +69,7 @@ export function CreateObjectiveModal() {
           current_value: forecast ? null : current ? Number(current) : null,
           date_from: dateFrom || null,
           date_to: dateTo || null,
+          priority,
           description, impact,
         }),
       });
@@ -84,8 +86,8 @@ export function CreateObjectiveModal() {
 
   return (
     <>
-      <button onClick={() => { reset(); setOpen(true); }} className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90">
-        🎯 Créer un objectif
+      <button onClick={() => { reset(); setOpen(true); }} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-fuchsia-500/20 transition hover:from-fuchsia-500 hover:to-indigo-500 hover:shadow-md hover:shadow-fuchsia-500/30">
+        Créer un objectif
       </button>
 
       {open && (
@@ -138,6 +140,20 @@ export function CreateObjectiveModal() {
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>Début</label><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={field} /></div>
               <div><label className={lbl}>Échéance</label><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={field} /></div>
+            </div>
+
+            <div>
+              <label className={lbl}>Priorité de l&apos;objectif</label>
+              <div className="mt-1 flex gap-2">
+                {([
+                  { id: "faible", label: "Faible", color: "bg-slate-200 text-slate-700" },
+                  { id: "moyen", label: "Moyen", color: "bg-amber-100 text-amber-700" },
+                  { id: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
+                ] as const).map((p) => (
+                  <button key={p.id} type="button" onClick={() => setPriority(p.id)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${priority === p.id ? p.color : "bg-white border border-slate-200 text-slate-500"}`}>{p.label}</button>
+                ))}
+              </div>
             </div>
 
             <div><label className={lbl}>Description</label><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} /></div>

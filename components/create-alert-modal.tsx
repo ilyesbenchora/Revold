@@ -379,7 +379,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     <>
       {!hideTrigger && (
         <button type="button" onClick={() => { reset(); setOpen(true); }}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90">
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-fuchsia-500/20 transition hover:from-fuchsia-500 hover:to-indigo-500 hover:shadow-md hover:shadow-fuchsia-500/30">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" />
           </svg>
@@ -434,8 +434,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       {teams.map((t) => (
                         <button key={t.id} type="button" onClick={() => selectTeam(t.id)}
                           className={`rounded-xl border p-4 text-left transition hover:border-accent/30 hover:shadow-sm ${team === t.id ? "border-accent bg-accent/5" : "border-slate-200"}`}>
-                          <span className="text-2xl">{t.icon}</span>
-                          <p className="mt-2 text-sm font-semibold text-slate-900">{t.label}</p>
+                          <p className="text-sm font-semibold text-slate-900">{t.label}</p>
                           <p className="mt-0.5 text-[11px] text-slate-500">{t.description}</p>
                         </button>
                       ))}

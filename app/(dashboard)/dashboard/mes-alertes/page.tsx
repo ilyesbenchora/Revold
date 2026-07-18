@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
-import { isSoon, daysUntil } from "@/lib/alerts/deadline";
+import { isSoon, isOverdue, daysUntil } from "@/lib/alerts/deadline";
 
 type AlertRow = EditableAlert & { status: string | null };
 
@@ -20,7 +20,10 @@ export default async function MesAlertesPage() {
     .order("created_at", { ascending: false })
     .limit(200);
   const alerts = (data ?? []) as AlertRow[];
-  const active = alerts.filter((a) => (a.status ?? "active") === "active");
+  const activeAll = alerts.filter((a) => (a.status ?? "active") === "active");
+  // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
+  const done = activeAll.filter((a) => isOverdue(a.date_to));
+  const active = activeAll.filter((a) => !isOverdue(a.date_to));
 
   // Regroupement par catégorie (navigation en carrousel horizontal).
   const CAT_LABELS: Record<string, string> = {
@@ -55,7 +58,7 @@ export default async function MesAlertesPage() {
         <CreateAlertModal />
       </header>
 
-      {active.length === 0 ? (
+      {activeAll.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-500">Aucune alerte active. Crée-en une avec le bouton ci-dessus.</p>
         </div>
@@ -94,6 +97,24 @@ export default async function MesAlertesPage() {
               </div>
             </div>
           ))}
+
+          {/* Alertes terminées — échéance dépassée */}
+          {done.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-600">
+                ✅ Alertes terminées
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">{done.length}</span>
+                <span className="text-[11px] font-normal text-slate-400">échéance dépassée</span>
+              </h2>
+              <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
+                {done.map((a) => (
+                  <div key={a.id} className="snap-start shrink-0 opacity-80" style={{ width: "min(380px, 90vw)" }}>
+                    <EditableAlertCard alert={a} badge="Terminée" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

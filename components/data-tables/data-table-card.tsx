@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
+import { TableAlertButton } from "./table-alert-button";
 import type { ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 export type SavedTable = {
@@ -28,11 +29,13 @@ function formatValue(v: number, unit: string | null): string {
 
 export function DataTableCard({
   table,
+  team = "revops",
   onDeleted,
   onEdit,
   onUpdated,
 }: {
   table: SavedTable;
+  team?: string;
   onDeleted: (id: string) => void;
   onEdit: (table: SavedTable) => void;
   onUpdated: (table: SavedTable) => void;
@@ -136,6 +139,7 @@ export function DataTableCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <TableAlertButton table={table} rows={rows} team={team} />
           <button
             onClick={() => onEdit(table)}
             title="Modifier via l'agent"

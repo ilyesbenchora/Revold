@@ -32,8 +32,18 @@ type Draft = {
   description?: string;
 };
 
+// Équipe/catégorie d'alerte associée à chaque page de tables de données.
+const PAGE_ALERT_TEAM: Record<string, string> = {
+  perf_ventes: "sales",
+  perf_marketing: "marketing",
+  audit_automatisations: "revops",
+  audit_service_client: "csm",
+  audit_paiement_facturation: "finance",
+};
+
 export function PageDataTables({ pageKey }: { pageKey: string }) {
   const presets = presetsForPage(pageKey);
+  const alertTeam = PAGE_ALERT_TEAM[pageKey] ?? "revops";
   const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
   const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
@@ -196,6 +206,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
             <DataTableCard
               key={t.id}
               table={t}
+              team={alertTeam}
               onEdit={openEdit}
               onUpdated={(nt) => setTables((prev) => prev.map((x) => (x.id === nt.id ? nt : x)))}
               onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))}

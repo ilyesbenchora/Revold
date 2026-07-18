@@ -38,10 +38,17 @@ export async function POST(request: Request) {
     current_value: typeof b.current_value === "number" ? b.current_value : b.current_value ? Number(b.current_value) : null,
     date_from: typeof b.date_from === "string" && dateRe.test(b.date_from) ? b.date_from : null,
     date_to: typeof b.date_to === "string" && dateRe.test(b.date_to) ? b.date_to : null,
+    priority: b.priority === "faible" || b.priority === "urgent" ? b.priority : "moyen",
     status: "active",
   };
 
-  const { data, error } = await supabase.from("objectives").insert(row).select("id").single();
+  let { data, error } = await supabase.from("objectives").insert(row).select("id").single();
+  // Résilience : si la colonne priority n'est pas encore migrée, on réessaie sans.
+  if (error && /priority/.test(error.message)) {
+    const { priority: _omit, ...rowNoPriority } = row;
+    void _omit;
+    ({ data, error } = await supabase.from("objectives").insert(rowNoPriority).select("id").single());
+  }
   if (error) {
     if (/objectives/.test(error.message)) return NextResponse.json({ error: "Table objectives absente — applique la migration Supabase." }, { status: 400 });
     return NextResponse.json({ error: error.message }, { status: 500 });

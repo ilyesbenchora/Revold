@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveKpiValue, getDefaultDirection } from "@/lib/alerts/kpi-resolver";
 import { insertAlertResilient } from "@/lib/alerts/resilient";
+import { createInAppNotification } from "@/lib/notifications/in-app";
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -94,6 +95,19 @@ export async function POST(request: Request) {
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });
+
+  // Notification in-app immédiate : confirmation que l'alerte est active et
+  // surveillée. (Les notifs de seuil atteint restent gérées par le cron.)
+  if (id) {
+    await createInAppNotification({
+      orgId: profile.organization_id,
+      userId: user.id,
+      alertId: id,
+      title: `Alerte créée : ${title}`,
+      body: `Revold surveille désormais « ${title} ». Tu seras notifié dès que le KPI est atteint.`,
+      link: "/dashboard/mes-alertes",
+    });
+  }
 
   return NextResponse.json({ success: true, id, current_value: currentValue });
 }

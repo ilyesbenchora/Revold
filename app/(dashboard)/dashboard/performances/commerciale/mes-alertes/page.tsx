@@ -6,7 +6,7 @@ import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
-import { isSoon, daysUntil } from "@/lib/alerts/deadline";
+import { isSoon, isOverdue, daysUntil } from "@/lib/alerts/deadline";
 
 type AlertRow = EditableAlert & { status: string | null; team: string | null };
 
@@ -22,9 +22,12 @@ export default async function VentesAlertesPage() {
     .order("created_at", { ascending: false })
     .limit(200);
   // Alertes liées à la performance commerciale (via agent ou pipeline).
-  const alerts = ((data ?? []) as AlertRow[]).filter(
+  const allAlerts = ((data ?? []) as AlertRow[]).filter(
     (a) => (a.status ?? "active") === "active" && (a.team === "sales" || ["sales", "commercial", "revops"].includes(a.category ?? "")),
   );
+  // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
+  const done = allAlerts.filter((a) => isOverdue(a.date_to));
+  const alerts = allAlerts.filter((a) => !isOverdue(a.date_to));
   // Bientôt à échéance : date de fin dans les 7 jours (triées par urgence).
   const soon = alerts
     .filter((a) => isSoon(a.date_to, 7))
@@ -71,6 +74,24 @@ export default async function VentesAlertesPage() {
           {alerts.map((a) => (
             <EditableAlertCard key={a.id} alert={a} badge="Alerte performance" />
           ))}
+        </div>
+      )}
+
+      {/* Alertes terminées — échéance dépassée */}
+      {done.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-600">
+            ✅ Alertes terminées
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">{done.length}</span>
+            <span className="text-[11px] font-normal text-slate-400">échéance dépassée</span>
+          </h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {done.map((a) => (
+              <div key={a.id} className="opacity-80">
+                <EditableAlertCard alert={a} badge="Terminée" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>
