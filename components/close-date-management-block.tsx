@@ -6,7 +6,6 @@ import type {
   CloseDateDeal,
   QuarterBucket,
 } from "@/lib/integrations/hubspot-close-date";
-import { CreateAlertCta } from "./create-alert-cta";
 import { BlockHeaderIcon, SortHeader, useSorter } from "./ventes-ui";
 
 const PAGE_SIZE = 25;
@@ -114,16 +113,6 @@ export function CloseDateManagementBlock({
         totalAmount={passedTotal}
         weightedAmount={passedWeighted}
         maps={maps}
-        alert={
-          <CreateAlertCta
-            team="sales"
-            kpiId="deals_at_risk"
-            defaultThreshold={5}
-            defaultDirection="below"
-            defaultUnit="count"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
-        }
       />
 
       <QuartersTable
@@ -150,13 +139,11 @@ function PassedCloseDateTable({
   totalAmount,
   weightedAmount,
   maps,
-  alert,
 }: {
   deals: CloseDateDeal[];
   totalAmount: number;
   weightedAmount: number;
   maps: Maps;
-  alert: React.ReactNode;
 }) {
   const { sorted, sortKey, sortDir, toggle } = useSorter<CloseDateDeal>(
     deals,
@@ -212,7 +199,6 @@ function PassedCloseDateTable({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">{alert}</div>
       </header>
 
       {deals.length === 0 ? (
@@ -313,14 +299,6 @@ function QuartersTable({
               </span>
             </div>
           </div>
-          <CreateAlertCta
-            team="sales"
-            kpiId="weighted_pipeline"
-            defaultThreshold={50000}
-            defaultDirection="above"
-            defaultUnit="currency"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
         </div>
 
         {/* Tabs T1/T2/T3/T4 avec compteurs */}

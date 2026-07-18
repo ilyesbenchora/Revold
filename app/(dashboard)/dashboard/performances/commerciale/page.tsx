@@ -11,6 +11,7 @@ import { PipelineManagementCarousel } from "@/components/pipeline-management-car
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 import {
@@ -47,12 +48,15 @@ export default async function PerformanceCommercialePage() {
 
   return (
     <section className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Pipeline et activité commerciale — source HubSpot live
-          {total > 0 && ` (${total} deals analysés)`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Pipeline et activité commerciale — source HubSpot live
+            {total > 0 && ` (${total} deals analysés)`}
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <PerformancesTabs />

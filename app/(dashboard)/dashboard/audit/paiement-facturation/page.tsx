@@ -12,6 +12,7 @@ import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs"
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 
 export default async function PaiementFacturationOverviewPage() {
   const orgId = await getOrgId();
@@ -47,12 +48,15 @@ export default async function PaiementFacturationOverviewPage() {
 
   return (
     <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Paiement & Facturation</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Audit cross-source : factures, paiements, MRR/ARR et churn revenue.
-          {data.hasData && ` (${data.invoices.length} factures · ${data.subscriptions.length} subscriptions)`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Paiement & Facturation</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Audit cross-source : factures, paiements, MRR/ARR et churn revenue.
+            {data.hasData && ` (${data.invoices.length} factures · ${data.subscriptions.length} subscriptions)`}
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <PaiementFacturationTabs />

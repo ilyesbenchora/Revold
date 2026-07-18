@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
-import { CreateAlertCta } from "./create-alert-cta";
 
 const fmtK = (n: number) =>
   n >= 1000
@@ -276,7 +275,6 @@ export function PipelineManagementCarousel({
     );
   }
 
-  const currentPipelineId = pipelines[safePage]?.pipeline.id ?? "";
 
   return (
     <div className="space-y-4">
@@ -286,13 +284,6 @@ export function PipelineManagementCarousel({
             <strong className="text-slate-700">{pipelines[safePage]?.pipeline.label ?? "—"}</strong> ·
             pipeline {safePage + 1} sur {pipelines.length}
           </p>
-          {currentPipelineId && (
-            <CreateAlertCta
-              team="sales"
-              kpiId=""
-              defaultPipelineIds={[currentPipelineId]}
-            />
-          )}
         </div>
         {totalPages > 1 && (
           <div className="flex items-center gap-2">

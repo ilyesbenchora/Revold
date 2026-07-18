@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { DealRiskBuckets, RiskDeal } from "@/lib/integrations/hubspot-deal-risk";
-import { CreateAlertCta } from "./create-alert-cta";
 import {
   BlockHeaderIcon,
   DaysCell,
@@ -122,16 +121,6 @@ export function DealsAtRiskBlock({
         valueColumn="daysInStage"
         valueLabel="Jours dans étape"
         renderValueCell={(d) => <DaysCell days={d.daysInStage} />}
-        alert={
-          <CreateAlertCta
-            team="sales"
-            kpiId="deals_at_risk"
-            defaultThreshold={3}
-            defaultDirection="below"
-            defaultUnit="count"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
-        }
       />
 
       <RiskTable
@@ -144,16 +133,6 @@ export function DealsAtRiskBlock({
         valueColumn="daysInStage"
         valueLabel="Jours dans étape"
         renderValueCell={(d) => <DaysCell days={d.daysInStage} />}
-        alert={
-          <CreateAlertCta
-            team="sales"
-            kpiId="stagnant_deals"
-            defaultThreshold={5}
-            defaultDirection="below"
-            defaultUnit="count"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
-        }
       />
 
       <RiskTable
@@ -166,16 +145,6 @@ export function DealsAtRiskBlock({
         valueColumn={null}
         valueLabel={null}
         renderValueCell={null}
-        alert={
-          <CreateAlertCta
-            team="sales"
-            kpiId="pipeline_coverage"
-            defaultThreshold={70}
-            defaultDirection="above"
-            defaultUnit="percent"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
-        }
       />
 
       <RiskTable
@@ -190,16 +159,6 @@ export function DealsAtRiskBlock({
         renderValueCell={(d) => (
           <span className="text-[11px] text-slate-600">{fmtDate(d.lastContactedAt)}</span>
         )}
-        alert={
-          <CreateAlertCta
-            team="sales"
-            kpiId="deal_activation"
-            defaultThreshold={50}
-            defaultDirection="above"
-            defaultUnit="percent"
-            defaultPipelineIds={pipelineId ? [pipelineId] : []}
-          />
-        }
       />
 
       {buckets.trueRisk.length === 0 &&
@@ -229,7 +188,6 @@ function RiskTable({
   valueColumn,
   valueLabel,
   renderValueCell,
-  alert,
 }: {
   title: string;
   criteria: string;
@@ -240,7 +198,6 @@ function RiskTable({
   valueColumn: RiskSortKey | null;
   valueLabel: string | null;
   renderValueCell: ((d: RiskDeal) => React.ReactNode) | null;
-  alert: React.ReactNode;
 }) {
   const defaultSortKey: RiskSortKey = valueColumn ?? "amount";
   const { sorted, sortKey, sortDir, toggle } = useSorter<RiskDeal>(deals, defaultSortKey, "desc");
@@ -284,7 +241,6 @@ function RiskTable({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">{alert}</div>
       </header>
 
       {deals.length === 0 ? (

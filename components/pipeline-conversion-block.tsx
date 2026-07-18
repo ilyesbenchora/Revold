@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { PipelineConversion } from "@/lib/integrations/hubspot-pipeline-conversion";
-import { CreateAlertCta } from "./create-alert-cta";
 
 function arrowColor(pct: number | null): string {
   if (pct === null) return "text-slate-400";
@@ -57,14 +56,6 @@ export function PipelineConversionBlock({
             ))}
           </select>
         </div>
-        <CreateAlertCta
-          team="sales"
-          kpiId="pipeline_stage_conversion"
-          defaultThreshold={50}
-          defaultDirection="below"
-          defaultUnit="percent"
-          defaultPipelineIds={[selected.pipeline.id]}
-        />
       </div>
 
       <div className="card p-5">

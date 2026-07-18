@@ -9,6 +9,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { CloseDateManagementBlock } from "@/components/close-date-management-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
 import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
 
@@ -62,11 +63,14 @@ export default async function ForecastManagementPage() {
 
   return (
     <section className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Forecast Management</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Gestion des dates de fermeture et fiabilité du forecast par pipeline.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Forecast Management</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Gestion des dates de fermeture et fiabilité du forecast par pipeline.
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <PerformancesTabs />

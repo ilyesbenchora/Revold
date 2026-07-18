@@ -10,6 +10,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -53,13 +54,16 @@ export default async function AutomatisationsPage() {
 
   return (
     <section className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Audit exhaustif des workflows HubSpot — déclencheur, actions, re-enrollment, objectif.
-          {allWorkflows.length > 0 &&
-            ` ${allWorkflows.length} workflows détectés (${activeWorkflows.length} actifs, ${detailLoaded} analysés en profondeur).`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Audit exhaustif des workflows HubSpot — déclencheur, actions, re-enrollment, objectif.
+            {allWorkflows.length > 0 &&
+              ` ${allWorkflows.length} workflows détectés (${activeWorkflows.length} actifs, ${detailLoaded} analysés en profondeur).`}
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <InsightLockedBlock />

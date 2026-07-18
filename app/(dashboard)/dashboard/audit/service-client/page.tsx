@@ -12,6 +12,7 @@ import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -46,12 +47,15 @@ export default async function ServiceClientOverviewPage() {
 
   return (
     <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Service Client</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Audit cross-source : tickets, satisfaction, churn et expansion CSM.
-          {data.hasData && ` (${data.tickets.length} tickets analysés)`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Service Client</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Audit cross-source : tickets, satisfaction, churn et expansion CSM.
+            {data.hasData && ` (${data.tickets.length} tickets analysés)`}
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <ServiceClientTabs />

@@ -8,9 +8,9 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
-import { CreateAlertCta } from "@/components/create-alert-cta";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
 const sourceLabels: Record<string, string> = {
@@ -71,11 +71,14 @@ export default async function PerformanceMarketingPage() {
 
   return (
     <section className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Analyse du funnel, de l&apos;attribution et de la qualité des contacts.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Analyse du funnel, de l&apos;attribution et de la qualité des contacts.
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <PerformancesTabs />
@@ -93,9 +96,6 @@ export default async function PerformanceMarketingPage() {
           </h2>
         }
       >
-        <div className="flex justify-end">
-          <CreateAlertCta team="marketing" kpiId="" />
-        </div>
         <LifecycleConversionBlock data={buildLifecycleConversion(snapshot)} />
       </CollapsibleBlock>
 
@@ -111,9 +111,6 @@ export default async function PerformanceMarketingPage() {
             </h2>
           }
         >
-          <div className="flex justify-end">
-            <CreateAlertCta team="marketing" kpiId="" />
-          </div>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">
               {contactSourcesGlobal.map((s) => {

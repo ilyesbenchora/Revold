@@ -9,6 +9,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { DealsAtRiskBlock } from "@/components/deals-at-risk-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { fetchDealRiskBuckets } from "@/lib/integrations/hubspot-deal-risk";
 import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
 
@@ -55,11 +56,14 @@ export default async function DealsARisquePage() {
 
   return (
     <section className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Deals à risque</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Identifie les deals bloqués, sans visibilité ou sans activités sur le pipeline sélectionné.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Deals à risque</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Identifie les deals bloqués, sans visibilité ou sans activités sur le pipeline sélectionné.
+          </p>
+        </div>
+        <CreateDataTableButton />
       </header>
 
       <PerformancesTabs />
