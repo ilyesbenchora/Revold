@@ -49,7 +49,7 @@ function fmtNum(n: number | null): string {
   return n == null ? "—" : Math.round(n).toLocaleString("fr-FR");
 }
 
-export function ObjectiveCard({ objective }: { objective: Objective }) {
+export function ObjectiveCard({ objective, dataReady }: { objective: Objective; dataReady?: boolean }) {
   const router = useRouter();
   const o = objective;
   const [editing, setEditing] = useState(false);
@@ -190,7 +190,7 @@ export function ObjectiveCard({ objective }: { objective: Objective }) {
               <div className={`h-full rounded-full transition-all ${reached ? "bg-emerald-500" : soon ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
             </div>
             <div className="mt-1.5">
-              <TrackingBadge forecastType={o.forecast_type} aggSpec={o.agg_spec} />
+              <TrackingBadge forecastType={o.forecast_type} aggSpec={o.agg_spec} ready={dataReady} />
             </div>
           </div>
 

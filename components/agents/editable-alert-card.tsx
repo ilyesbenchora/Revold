@@ -34,7 +34,7 @@ export type EditableAlert = {
 
 
 /** Carte d'alerte avec édition inline (dates, KPI/format, contenu, canaux) + suppression. */
-export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert: EditableAlert; badge?: string }) {
+export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady }: { alert: EditableAlert; badge?: string; dataReady?: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,7 +181,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
           )}
 
           <div className="mt-2">
-            <TrackingBadge forecastType={alert.forecast_type} aggSpec={alert.agg_spec} />
+            <TrackingBadge forecastType={alert.forecast_type} aggSpec={alert.agg_spec} ready={dataReady} />
           </div>
 
           {/* Échéance en temps réel : début, fin (compte à rebours live) ou en continu */}

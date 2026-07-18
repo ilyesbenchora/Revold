@@ -7,6 +7,7 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
 import { isSoon, isOverdue, daysUntil } from "@/lib/alerts/deadline";
+import { loadEntitiesWithData, isKpiDataReady } from "@/lib/alerts/entity-readiness";
 
 type AlertRow = EditableAlert & { status: string | null; team: string | null };
 
@@ -24,6 +25,8 @@ export default async function VentesAlertesPage() {
   const allAlerts = ((res.data ?? []) as unknown as AlertRow[]).filter(
     (a) => (a.status ?? "active") === "active" && (a.team === "sales" || ["sales", "commercial", "revops"].includes(a.category ?? "")),
   );
+  const readySet = await loadEntitiesWithData(supabase, orgId);
+  const rdy = (a: AlertRow) => isKpiDataReady(readySet, a.forecast_type, a.agg_spec);
   // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
   const done = allAlerts.filter((a) => isOverdue(a.date_to));
   const alerts = allAlerts.filter((a) => !isOverdue(a.date_to));
@@ -57,7 +60,7 @@ export default async function VentesAlertesPage() {
           <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
             {soon.map((a) => (
               <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
-                <EditableAlertCard alert={a} badge="Bientôt à échéance" />
+                <EditableAlertCard alert={a} badge="Bientôt à échéance" dataReady={rdy(a)} />
               </div>
             ))}
           </div>
@@ -71,7 +74,7 @@ export default async function VentesAlertesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {alerts.map((a) => (
-            <EditableAlertCard key={a.id} alert={a} badge="Alerte performance" />
+            <EditableAlertCard key={a.id} alert={a} badge="Alerte performance" dataReady={rdy(a)} />
           ))}
         </div>
       )}
@@ -87,7 +90,7 @@ export default async function VentesAlertesPage() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {done.map((a) => (
               <div key={a.id} className="opacity-80">
-                <EditableAlertCard alert={a} badge="Terminée" />
+                <EditableAlertCard alert={a} badge="Terminée" dataReady={rdy(a)} />
               </div>
             ))}
           </div>

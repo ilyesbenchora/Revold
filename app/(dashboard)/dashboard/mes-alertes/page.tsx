@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { EditableAlertCard, type EditableAlert } from "@/components/agents/editable-alert-card";
 import { isSoon, isOverdue, daysUntil } from "@/lib/alerts/deadline";
+import { loadEntitiesWithData, isKpiDataReady } from "@/lib/alerts/entity-readiness";
 
 type AlertRow = EditableAlert & { status: string | null };
 
@@ -19,6 +20,8 @@ export default async function MesAlertesPage() {
     res = await supabase.from("alerts").select(COLS.replace(", agg_spec", "")).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   const alerts = (res.data ?? []) as unknown as AlertRow[];
+  const readySet = await loadEntitiesWithData(supabase, orgId);
+  const rdy = (a: AlertRow) => isKpiDataReady(readySet, a.forecast_type, a.agg_spec);
   const activeAll = alerts.filter((a) => (a.status ?? "active") === "active");
   // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
   const done = activeAll.filter((a) => isOverdue(a.date_to));
@@ -74,7 +77,7 @@ export default async function MesAlertesPage() {
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {soon.map((a) => (
                   <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
-                    <EditableAlertCard alert={a} badge="Bientôt à échéance" />
+                    <EditableAlertCard alert={a} badge="Bientôt à échéance" dataReady={rdy(a)} />
                   </div>
                 ))}
               </div>
@@ -90,7 +93,7 @@ export default async function MesAlertesPage() {
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {catAlerts.map((a) => (
                   <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
-                    <EditableAlertCard alert={a} />
+                    <EditableAlertCard alert={a} dataReady={rdy(a)} />
                   </div>
                 ))}
               </div>
@@ -108,7 +111,7 @@ export default async function MesAlertesPage() {
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {done.map((a) => (
                   <div key={a.id} className="snap-start shrink-0 opacity-80" style={{ width: "min(380px, 90vw)" }}>
-                    <EditableAlertCard alert={a} badge="Terminée" />
+                    <EditableAlertCard alert={a} badge="Terminée" dataReady={rdy(a)} />
                   </div>
                 ))}
               </div>

@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { loadEntitiesWithData, isKpiDataReady } from "@/lib/alerts/entity-readiness";
 import { ObjectiveCard, type Objective } from "@/components/objectives/objective-card";
 import { CreateObjectiveModal } from "@/components/objectives/create-objective-modal";
 import { completionPct, isReached, isAtRisk } from "@/lib/objectives/completion";
@@ -28,6 +29,7 @@ export default async function ObjectifsPage() {
   const migrationNeeded = !!error && /objectives/.test(error.message);
   const rows = ((data ?? []) as unknown as (Objective & { status?: string })[]).filter((o) => (o.status ?? "active") === "active");
   const token = rows.some((o) => !o.forecast_type && o.agg_spec) ? await getHubSpotToken(supabase, orgId) : null;
+  const readySet = rows.length > 0 ? await loadEntitiesWithData(supabase, orgId) : new Set<string>();
 
   // Complétion réelle : valeur calculée pour les objectifs auto-trackés
   // (KPI catalogué OU agrégat rattaché, ex : ARR = sum(MRR)×12).
@@ -115,7 +117,7 @@ export default async function ObjectifsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {withValues.map((o) => (
-            <ObjectiveCard key={o.id} objective={o} />
+            <ObjectiveCard key={o.id} objective={o} dataReady={isKpiDataReady(readySet, o.forecast_type, o.agg_spec)} />
           ))}
         </div>
       )}
