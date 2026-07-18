@@ -8,13 +8,14 @@ const PRICING = [
     id: "starter",
     name: "Starter",
     price: "79",
-    desc: "Pour les équipes qui démarrent le RevOps",
+    desc: "Découvre l'impact de Revold sur ton business",
     features: [
-      "Weekly revenue pulse",
-      "8 métriques essentielles",
-      "Dashboard pipeline",
-      "Alertes email",
-      "1 portail HubSpot",
+      "Toutes les intégrations en 1 clic (multi-source)",
+      "Tous les agents IA + Coaching IA",
+      "Rapports & graphiques (jusqu'à 20)",
+      "Alertes + calendrier + objectifs",
+      "300 analyses & actions IA / mois",
+      "4 utilisateurs",
     ],
     cta: "Choisir Starter",
     featured: false,
@@ -23,14 +24,14 @@ const PRICING = [
     id: "growth",
     name: "Growth",
     price: "249",
-    desc: "Pour les équipes qui scalent",
+    desc: "Pour piloter et agir",
     features: [
       "Tout Starter inclus",
-      "80+ métriques RevOps",
-      "Diagnostic mensuel",
-      "Recommandations IA",
-      "Anomaly detection",
-      "3 portails HubSpot",
+      "Actions exécutées dans le CRM",
+      "Plus de rapports (jusqu'à 200) + plan IA objectifs",
+      "Multi-langue · agents multi-device",
+      "5 000 analyses & actions IA / mois",
+      "4 utilisateurs",
     ],
     cta: "Choisir Growth",
     featured: true,
@@ -38,17 +39,17 @@ const PRICING = [
   {
     id: "scale",
     name: "Scale",
-    price: "699",
-    desc: "Pour les revenue teams ambitieuses",
+    price: "499",
+    desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
-      "Rapports stratégiques trimestriels",
-      "Simulations what-if",
-      "Scorecards custom",
-      "Advisor dédié",
-      "Portails illimités",
+      "Rapports illimités",
+      "Espaces de travail par pôle · connecteurs MCP",
+      "Actions avancées & playbooks · prévisions avancées",
+      "Analyses & actions illimitées",
+      "4 utilisateurs · rôles & permissions",
     ],
-    cta: "Nous contacter",
+    cta: "Choisir Scale",
     featured: false,
   },
 ];
@@ -156,7 +157,7 @@ export default async function MonComptePage() {
           </svg>
           Passer à un plan supérieur
         </h2>
-        <p className="text-sm text-slate-500">Débloquez plus de fonctionnalités RevOps et l&apos;intégralité des insights IA.</p>
+        <p className="text-sm text-slate-500">Débloquez plus d&apos;analyses, d&apos;actions et d&apos;impact sur vos revenus.</p>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {PRICING.map((p) => {
