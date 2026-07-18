@@ -62,26 +62,50 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
     { id: "revenue_month", label: "CA signé par mois", entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" },
     { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "avg_amount_stage", label: "Montant moyen par étape", entity: "deals", groupBy: "stage", measure: "avg", field: "amount", unit: "currency", view: "bar" },
+    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "avg_amount_month", label: "Panier moyen signé par mois", entity: "deals", groupBy: "month_closed", measure: "avg", field: "amount", unit: "currency", view: "line" },
   ],
   perf_marketing: [
     { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
     { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
     { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "pipeline_created_month", label: "Pipeline créé par mois (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
+    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+    { id: "pipeline_stage", label: "Pipeline par étape (montant)", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
   ],
   audit_automatisations: [
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
     { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
+    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "pipeline_created_month", label: "Pipeline créé par mois (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
   ],
   audit_service_client: [
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
+    { id: "subs_status", label: "Abonnements par statut", entity: "subscriptions", groupBy: "status", measure: "count", unit: "count", view: "donut" },
+    { id: "subs_canceled_month", label: "Abonnements annulés par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "count", unit: "count", view: "line" },
   ],
   audit_paiement_facturation: [
     { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "invoiced_month", label: "Montant facturé par mois", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },
     { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
     { id: "subs_started_month", label: "Abonnements démarrés par mois", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
+    { id: "paid_month", label: "Montant payé par mois", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
+    { id: "due_status", label: "Montant dû par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
+    { id: "mrr_canceled_month", label: "MRR annulé par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
+};
+
+/** Agent (persona) responsable de la création de KPIs personnalisés, par page. */
+export const PAGE_AGENT_KEY: Record<string, string> = {
+  perf_ventes: "performance",
+  perf_marketing: "coaching-marketing",
+  audit_automatisations: "automatisations",
+  audit_service_client: "service-client",
+  audit_paiement_facturation: "paiement-facturation",
 };
 
 export function presetsForPage(pageKey: string): TablePreset[] {
