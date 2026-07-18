@@ -810,6 +810,129 @@ export async function syncCrmObject(
   }
 }
 
+// ── Passe de LIAISON : remplit deals.company_id et contacts.company_id ───────
+// Sans elle, toute réconciliation CRM↔facturation (jointure sur company_id) est
+// morte. Contacts : via la propriété associatedcompanyid. Deals : via l'API
+// associations HubSpot v4 (deals → companies). Idempotent, résilient.
+
+/** deal hubspot_id → company hubspot_id (association primaire). */
+async function fetchDealCompanyAssociations(
+  token: string,
+  dealHsIds: string[],
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < dealHsIds.length; i += 100) {
+    const chunk = dealHsIds.slice(i, i + 100);
+    try {
+      const res = await hsFetch(token, "/crm/v4/associations/deals/companies/batch/read", {
+        method: "POST",
+        body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const r of (data.results ?? []) as Array<Record<string, unknown>>) {
+        const from = (r.from as { id?: string } | undefined)?.id;
+        const toArr = (r.to as Array<{ toObjectId?: string | number; id?: string | number }> | undefined) ?? [];
+        const to = toArr[0]?.toObjectId ?? toArr[0]?.id;
+        if (from && to != null) out[String(from)] = String(to);
+      }
+    } catch { /* lot ignoré */ }
+  }
+  return out;
+}
+
+/** Met à jour company_id par lots, groupés par company canonique. */
+async function applyCompanyLinks(
+  supabase: SupabaseClient,
+  orgId: string,
+  table: "contacts" | "deals",
+  linkByRowId: Map<string, string>, // rowId (uuid) → canonical company_id
+): Promise<number> {
+  const byCompany = new Map<string, string[]>();
+  for (const [rowId, companyId] of linkByRowId) {
+    if (!byCompany.has(companyId)) byCompany.set(companyId, []);
+    byCompany.get(companyId)!.push(rowId);
+  }
+  let updated = 0;
+  for (const [companyId, rowIds] of byCompany) {
+    for (let i = 0; i < rowIds.length; i += 200) {
+      const ids = rowIds.slice(i, i + 200);
+      const { error, count } = await supabase
+        .from(table)
+        .update({ company_id: companyId }, { count: "exact" })
+        .eq("organization_id", orgId)
+        .in("id", ids);
+      if (!error) updated += count ?? ids.length;
+    }
+  }
+  return updated;
+}
+
+/**
+ * Relie contacts + deals à leur company canonique (company_id). À lancer après
+ * la sync CRM (companies déjà en base). Traite les lignes non encore reliées.
+ */
+export async function linkCompaniesForOrg(
+  supabase: SupabaseClient,
+  orgId: string,
+  token: string,
+): Promise<{ contactsLinked: number; dealsLinked: number }> {
+  // Map company hubspot_id → uuid canonique.
+  const { data: comps } = await supabase.from("companies").select("id, hubspot_id").eq("organization_id", orgId);
+  const compByHs = new Map<string, string>();
+  for (const c of (comps ?? []) as Array<{ id: string; hubspot_id: string | null }>) {
+    if (c.hubspot_id) compByHs.set(String(c.hubspot_id), c.id);
+  }
+  if (compByHs.size === 0) return { contactsLinked: 0, dealsLinked: 0 };
+
+  // ── Contacts : associatedcompanyid (dans raw_data) → company_id ──
+  let contactsLinked = 0;
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, acid:raw_data->properties->>associatedcompanyid")
+      .eq("organization_id", orgId)
+      .is("company_id", null)
+      .range(page * 1000, page * 1000 + 999);
+    if (error) break;
+    const rows = (data ?? []) as Array<{ id: string; acid: string | null }>;
+    if (rows.length === 0) break;
+    const links = new Map<string, string>();
+    for (const r of rows) {
+      const cid = r.acid ? compByHs.get(String(r.acid)) : undefined;
+      if (cid) links.set(r.id, cid);
+    }
+    if (links.size > 0) contactsLinked += await applyCompanyLinks(supabase, orgId, "contacts", links);
+    if (rows.length < 1000) break;
+  }
+
+  // ── Deals : associations HubSpot → company_id ──
+  let dealsLinked = 0;
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from("deals")
+      .select("id, hubspot_id")
+      .eq("organization_id", orgId)
+      .is("company_id", null)
+      .not("hubspot_id", "is", null)
+      .range(page * 500, page * 500 + 499);
+    if (error) break;
+    const rows = (data ?? []) as Array<{ id: string; hubspot_id: string }>;
+    if (rows.length === 0) break;
+    const assoc = await fetchDealCompanyAssociations(token, rows.map((r) => r.hubspot_id));
+    const links = new Map<string, string>();
+    for (const r of rows) {
+      const companyHs = assoc[String(r.hubspot_id)];
+      const cid = companyHs ? compByHs.get(companyHs) : undefined;
+      if (cid) links.set(r.id, cid);
+    }
+    if (links.size > 0) dealsLinked += await applyCompanyLinks(supabase, orgId, "deals", links);
+    if (rows.length < 500) break;
+  }
+
+  return { contactsLinked, dealsLinked };
+}
+
 // ── Sync pour les listes "génériques" (pipelines, owners, workflows, forms, lists) ──
 
 export async function syncGenericObject(
@@ -1001,6 +1124,10 @@ export async function syncAllForOrg(
   const crmResults = await Promise.all(
     crmTypes.map((t) => syncCrmObject(token, supabase, orgId, t, mode)),
   );
+
+  // Passe de liaison : relie contacts + deals à leur company canonique
+  // (company_id) — socle de toute réconciliation CRM ↔ facturation.
+  try { await linkCompaniesForOrg(supabase, orgId, token); } catch { /* non bloquant */ }
 
   // Workflows : sync enrichi spécifique (list + détail per id)
   const workflowsResult = await syncWorkflowsEnriched(token, supabase, orgId);

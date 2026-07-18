@@ -96,6 +96,20 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     }
   });
 
+  // ── 1b. contact → company_id (via le CRM) : socle du rapprochement
+  // facturation ↔ CRM. La facture/abonnement héritera de la company du contact.
+  const contactToCompany = new Map<string, string>();
+  const contactIds = [...new Set([...customerToContact.values()])];
+  for (let i = 0; i < contactIds.length; i += 300) {
+    const chunk = contactIds.slice(i, i + 300);
+    const { data } = await supabase.from("contacts").select("id, company_id").in("id", chunk);
+    for (const row of (data ?? []) as Array<{ id: string; company_id: string | null }>) {
+      if (row.company_id) contactToCompany.set(row.id, row.company_id);
+    }
+  }
+  const companyFor = (contactId: string | null): string | null =>
+    contactId ? contactToCompany.get(contactId) ?? null : null;
+
   // ── 2. Invoices (parallèle par chunks) ────────────────────────
   let invoicesImported = 0;
   await processInChunks(invoices, PARALLEL_CHUNK_SIZE, async (inv) => {
@@ -112,6 +126,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     const payload = {
       organization_id: orgId,
       contact_id: contactId,
+      company_id: companyFor(contactId),
       number: inv.number,
       status: inv.status,
       currency: inv.currency.toUpperCase(),
@@ -156,6 +171,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     const payload = {
       organization_id: orgId,
       contact_id: contactId,
+      company_id: companyFor(contactId),
       status: sub.status,
       currency: sub.currency.toUpperCase(),
       mrr,
