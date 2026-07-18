@@ -9,7 +9,7 @@ import {
   type TablePreset,
   type TableView,
 } from "@/lib/reports/data-table-presets";
-import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
 
 const VIEWS: { id: TableView; label: string; icon: string }[] = [
   { id: "table", label: "Tableau", icon: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18" },
@@ -34,6 +34,7 @@ type Draft = {
 export function PageDataTables({ pageKey }: { pageKey: string }) {
   const presets = presetsForPage(pageKey);
   const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
+  const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
@@ -205,7 +206,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     <span>
                       <span className="font-semibold text-accent">{agentName}</span> va construire la table à partir de :
                       <span className="mt-1 block italic text-slate-500">« {draft.customKpi} »</span>
-                      Il choisit automatiquement la donnée la plus fiable et calculable.
+                      {agentPronoun} choisit automatiquement la donnée la plus fiable et calculable.
                     </span>
                   </div>
                 )}

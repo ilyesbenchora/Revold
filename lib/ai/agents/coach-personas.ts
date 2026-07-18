@@ -55,6 +55,23 @@ export function getAgentPersona(agentKey: string | null | undefined): CoachPerso
   return AGENT_PERSONAS[agentKey] ?? FALLBACK;
 }
 
+// Personnages au prénom féminin (pour l'accord grammatical il/elle).
+const FEMININE_AGENTS = new Set([
+  "performance",            // Chloé
+  "paiement-facturation",   // Inès
+  "equipes",                // Sarah
+  "coaching-marketing",     // Léa
+  "coaching-data",          // Sofia
+  "coaching-cross-source",  // Nina
+  "prev-ventes",            // Emma
+  "prev-revenue",           // Maya
+]);
+
+/** Vrai si le personnage de l'agent porte un prénom féminin (accord il/elle). */
+export function agentIsFeminine(agentKey: string | null | undefined): boolean {
+  return !!agentKey && FEMININE_AGENTS.has(agentKey);
+}
+
 /**
  * URL de l'avatar illustré du personnage — un personnage humain stylisé
  * (déterministe : même personnage = même visage), au rendu moderne et coloré.
