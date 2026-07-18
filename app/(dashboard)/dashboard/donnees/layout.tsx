@@ -10,7 +10,7 @@ export default async function DonneesLayout({ children }: { children: ReactNode 
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Propriétés</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Qualité des données</h1>
         <p className="mt-1 text-sm text-slate-500">Qualité et enrichissement des propriétés CRM.</p>
       </header>
 

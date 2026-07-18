@@ -9,7 +9,6 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/audit/service-client/churn", label: "Churn" },
   { href: "/dashboard/audit/service-client/cross-sell-upsell", label: "Cross-sell / Upsell" },
   { href: "/dashboard/audit/service-client/renouvellement", label: "Renouvellement" },
-  { href: "/dashboard/audit/service-client/recommandations", label: "Recommandations", highlight: true },
 ];
 
 export function ServiceClientTabs() {

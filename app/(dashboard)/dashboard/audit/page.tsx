@@ -76,7 +76,7 @@ const modules = [
   },
   {
     href: "/dashboard/agents/proprietes",
-    title: "Agent Propriétés",
+    title: "Agent qualité des données",
     description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
     objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
     icon: (

@@ -10,7 +10,6 @@ export function AdoptionTabs() {
     { href: "/dashboard/conduite-changement/activites", label: "Équipes" },
     { href: "/dashboard/conduite-changement/assets", label: "Assets" },
     { href: "/dashboard/conduite-changement/connexions", label: "Suivi" },
-    { href: "/dashboard/conduite-changement/recommandations", label: "Recommandations", highlight: true },
   ];
 
   return (

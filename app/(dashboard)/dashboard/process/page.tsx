@@ -7,8 +7,6 @@ import { getOrgHubspotPortalId } from "@/app/(dashboard)/dashboard/insights-ia/c
 import { getCachedWorkflows } from "@/lib/sync/get-cached-workflows";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { buildAuditRecommendations } from "@/lib/audit/recommendations-library";
-import { AuditPageTabs } from "@/components/audit-page-tabs";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
@@ -22,8 +20,6 @@ export default async function AutomatisationsPage() {
   const supabase = await createSupabaseServerClient();
   const snapshot = await getHubspotSnapshot();
   const portalId = await getOrgHubspotPortalId(supabase, orgId);
-
-  const recommendations = buildAuditRecommendations(snapshot).process;
 
   // ── SOURCE UNIQUE : cache Supabase ──────────────────────────────────
   // Le sync ETL enrichi (syncWorkflowsEnriched) fetch /v4/flows/{id} pour
@@ -65,13 +61,6 @@ export default async function AutomatisationsPage() {
             ` ${allWorkflows.length} workflows détectés (${activeWorkflows.length} actifs, ${detailLoaded} analysés en profondeur).`}
         </p>
       </header>
-
-      <AuditPageTabs
-        tabs={[
-          { href: "/dashboard/process", label: "Vue d'ensemble" },
-          { href: "/dashboard/process/recommandations", label: `Recommandations${recommendations.length > 0 ? ` (${recommendations.length})` : ""}`, highlight: true },
-        ]}
-      />
 
       <InsightLockedBlock />
 

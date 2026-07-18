@@ -10,7 +10,6 @@ export function DonneesTabs() {
     { href: "/dashboard/donnees/contacts", label: "Contacts" },
     { href: "/dashboard/donnees/entreprises", label: "Entreprises" },
     { href: "/dashboard/donnees/transactions", label: "Transactions" },
-    { href: "/dashboard/donnees/recommandations", label: "Recommandations", highlight: true },
   ];
 
   return (
