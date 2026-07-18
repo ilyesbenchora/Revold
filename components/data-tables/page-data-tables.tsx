@@ -42,6 +42,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [customKpi, setCustomKpi] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Id de la table en cours d'édition (null = création).
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/page-tables?page_key=${encodeURIComponent(pageKey)}`);
@@ -53,7 +55,29 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  function reset() { setStep(1); setDraft(null); setCustomKpi(""); setError(null); }
+  function reset() { setStep(1); setDraft(null); setCustomKpi(""); setError(null); setEditingId(null); }
+
+  // Ouvre le builder en mode ÉDITION d'une table existante.
+  function openEdit(table: SavedTable) {
+    setError(null);
+    setEditingId(table.id);
+    const isCustom = !!table.custom_kpi;
+    setCustomKpi(table.custom_kpi || "");
+    setDraft({
+      entity: table.entity,
+      group_by: table.group_by,
+      measure: table.measure,
+      field: table.field,
+      unit_mode: table.unit_mode,
+      view: (table.view as TableView) || "table",
+      title: table.title,
+      custom: isCustom,
+      customKpi: table.custom_kpi || "",
+    });
+    // KPI perso → on repart de l'étape « réécrire le KPI » ; preset → directement l'affichage.
+    setStep(isCustom ? 1 : 2);
+    setOpen(true);
+  }
 
   // Les CTA « Créer une table de données » des blocs ouvrent ce builder.
   useEffect(() => {
@@ -79,10 +103,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   function startCustom() {
     if (!customKpi.trim()) return;
     setError(null);
-    // Le titre reprend le KPI écrit ; l'agent choisit la donnée (entité/dimension)
-    // en back-end à la création et peut peaufiner le libellé si besoin.
     const kpi = customKpi.trim();
-    setDraft({ entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: kpi, custom: true, customKpi: kpi });
+    // En édition : on conserve titre + affichage existants, on met à jour le KPI.
+    // En création : le titre reprend le KPI écrit ; l'agent choisit la donnée en back.
+    setDraft((prev) =>
+      editingId && prev
+        ? { ...prev, custom: true, customKpi: kpi }
+        : { entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: kpi, custom: true, customKpi: kpi },
+    );
     setStep(2);
   }
 
@@ -90,6 +118,32 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     if (!draft || saving) return;
     setSaving(true);
     setError(null);
+
+    // ── ÉDITION ─────────────────────────────────────────────────────────
+    if (editingId) {
+      const res = await fetch(`/api/page-tables/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title || undefined,
+          view: draft.view,
+          // Réécriture du KPI : le back ne relance l'agent que si le texte change.
+          custom_kpi: draft.custom ? draft.customKpi : undefined,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (res.ok && d.table) {
+        setTables((t) => t.map((x) => (x.id === d.table.id ? d.table : x)));
+        setOpen(false);
+        reset();
+      } else {
+        setError(d.error || "Modification impossible.");
+      }
+      return;
+    }
+
+    // ── CRÉATION ────────────────────────────────────────────────────────
     const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
     const payload = draft.custom
       ? { page_key: pageKey, custom_kpi: draft.customKpi, view: draft.view, title: draft.title || undefined }
@@ -138,7 +192,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {tables.map((t) => (
-            <DataTableCard key={t.id} table={t} onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))} />
+            <DataTableCard
+              key={t.id}
+              table={t}
+              onEdit={openEdit}
+              onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))}
+            />
           ))}
         </div>
       )}
@@ -155,21 +214,26 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
             {step === 1 && (
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Quelle donnée visualiser ?</h3>
-                <p className="mt-1 text-xs text-slate-500">Choisis un KPI proposé, ou décris le tien.</p>
-                <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
-                  {presets.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => pickPreset(p)}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-accent hover:bg-indigo-50/40"
-                    >
-                      <span className="font-medium">{p.label}</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
-                    </button>
-                  ))}
-                  {presets.length === 0 && <p className="text-xs text-slate-400">Aucun KPI configuré pour cette page.</p>}
-                </div>
+                <h3 className="text-base font-semibold text-slate-900">{editingId ? "Réécris ton KPI" : "Quelle donnée visualiser ?"}</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {editingId ? `Modifie la description — ${agentName} reconstruira la table en ce sens.` : "Choisis un KPI proposé, ou décris le tien."}
+                </p>
+
+                {!editingId && (
+                  <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {presets.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => pickPreset(p)}
+                        className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-accent hover:bg-indigo-50/40"
+                      >
+                        <span className="font-medium">{p.label}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
+                      </button>
+                    ))}
+                    {presets.length === 0 && <p className="text-xs text-slate-400">Aucun KPI configuré pour cette page.</p>}
+                  </div>
+                )}
 
                 {/* KPI personnalisé — construit sur mesure par l'agent de la page. */}
                 <div className="mt-4 rounded-xl border border-dashed border-accent/40 bg-indigo-50/30 p-3">
@@ -220,7 +284,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   />
                 </div>
 
-                {!draft.custom && (
+                {!draft.custom && !editingId && (
                   <div>
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
                     <select
@@ -256,7 +320,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
                 <div className="flex items-center justify-between pt-2">
-                  <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">← Changer de KPI</button>
+                  {draft.custom ? (
+                    <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">
+                      {editingId ? "← Réécrire le KPI" : "← Changer de KPI"}
+                    </button>
+                  ) : editingId ? (
+                    <span />
+                  ) : (
+                    <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">← Changer de KPI</button>
+                  )}
                   <button
                     onClick={create}
                     disabled={saving || (!draft.custom && !draft.title.trim())}
@@ -264,8 +336,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   >
                     {draft.custom && !saving && <span aria-hidden>✨</span>}
                     {saving
-                      ? draft.custom ? `${agentName} construit…` : "Création…"
-                      : draft.custom ? `Créer via ${agentName}` : "Créer la table"}
+                      ? draft.custom ? `${agentName} peaufine…` : editingId ? "Enregistrement…" : "Création…"
+                      : editingId
+                        ? draft.custom ? `Mettre à jour via ${agentName}` : "Enregistrer"
+                        : draft.custom ? `Créer via ${agentName}` : "Créer la table"}
                   </button>
                 </div>
               </div>

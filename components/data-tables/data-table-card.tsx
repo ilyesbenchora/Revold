@@ -14,6 +14,7 @@ export type SavedTable = {
   field: string | null;
   unit_mode: string | null;
   view: string;
+  custom_kpi?: string | null;
 };
 
 type Row = { name: string; value: number };
@@ -24,7 +25,15 @@ function formatValue(v: number, unit: string | null): string {
   return new Intl.NumberFormat("fr-FR").format(v);
 }
 
-export function DataTableCard({ table, onDeleted }: { table: SavedTable; onDeleted: (id: string) => void }) {
+export function DataTableCard({
+  table,
+  onDeleted,
+  onEdit,
+}: {
+  table: SavedTable;
+  onDeleted: (id: string) => void;
+  onEdit: (table: SavedTable) => void;
+}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,14 +89,23 @@ export function DataTableCard({ table, onDeleted }: { table: SavedTable; onDelet
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
         </div>
-        <button
-          onClick={remove}
-          disabled={deleting}
-          title="Supprimer la table"
-          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => onEdit(table)}
+            title="Modifier la table"
+            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-indigo-50 hover:text-accent"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          </button>
+          <button
+            onClick={remove}
+            disabled={deleting}
+            title="Supprimer la table"
+            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          </button>
+        </div>
       </div>
 
       <div className="mt-3">
