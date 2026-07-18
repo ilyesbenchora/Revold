@@ -1,9 +1,43 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
+import { composeNotification } from "@/lib/notifications/compose";
+import { computeAggregate } from "@/lib/ai/agents/tool-library";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export const maxDuration = 300;
+
+type AggSpec = { entity?: string; groupBy?: string; measure?: string; field?: string | null; target?: string | null };
+
+/**
+ * Valeur RÉELLE d'une alerte technique/table : on rejoue la même agrégation
+ * déterministe que la table (total, ou une ligne précise si `target` est défini).
+ */
+async function valueFromAggSpec(
+  supabase: SupabaseClient,
+  orgId: string,
+  token: string | null,
+  spec: AggSpec,
+): Promise<number | null> {
+  if (!spec.entity || !spec.groupBy) return null;
+  try {
+    const res = await computeAggregate(supabase, orgId, [], token, {
+      entity: spec.entity,
+      groupBy: spec.groupBy,
+      measure: spec.measure || "count",
+      field: spec.field ?? null,
+    });
+    if (res.error) return null;
+    const rows = (res.rows as { group: string; value: number }[] | undefined) ?? [];
+    const target = spec.target;
+    if (!target || target === "Total") return rows.reduce((s, r) => s + (r.value || 0), 0);
+    const hit = rows.find((r) => r.group === target);
+    return hit ? hit.value : 0;
+  } catch {
+    return null;
+  }
+}
 
 const FORECAST_LABELS: Record<string, string> = {
   closing_rate: "Closing rate",
@@ -40,16 +74,27 @@ export async function GET(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  // Fetch all active alerts with a forecast_type
-  const { data: activeAlerts, error } = await supabase
-    .from("alerts")
-    .select("*")
-    .eq("status", "active")
-    .not("forecast_type", "is", null);
-
-  if (error || !activeAlerts) {
-    return NextResponse.json({ error: error?.message ?? "No alerts" }, { status: 500 });
+  // Alertes actives trackables : KPI catalogué (forecast_type) OU spec d'agrégat
+  // (alerte technique/table). Fallback si la colonne agg_spec n'est pas migrée.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let activeAlerts: any[] | null = null;
+  {
+    const combined = await supabase
+      .from("alerts")
+      .select("*")
+      .eq("status", "active")
+      .or("forecast_type.not.is.null,agg_spec.not.is.null");
+    if (combined.error && /agg_spec/.test(combined.error.message)) {
+      const legacy = await supabase.from("alerts").select("*").eq("status", "active").not("forecast_type", "is", null);
+      if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
+      activeAlerts = legacy.data;
+    } else if (combined.error) {
+      return NextResponse.json({ error: combined.error.message }, { status: 500 });
+    } else {
+      activeAlerts = combined.data;
+    }
   }
+  if (!activeAlerts) return NextResponse.json({ error: "No alerts" }, { status: 500 });
 
   let resolved = 0;
   let checked = 0;
@@ -62,21 +107,28 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const filters = {
-      pipeline_id: alert.pipeline_id,
-      owner_filter: alert.owner_filter,
-      date_from: alert.date_from,
-      date_to: alert.date_to,
-      date_preset: alert.date_preset,
-      segment_filter: alert.segment_filter,
-      min_deal_amount: alert.min_deal_amount,
-      deal_stage_filter: alert.deal_stage_filter,
-      lifecycle_stage: alert.lifecycle_stage,
-      source_filters: alert.source_filters,
-      custom_property: alert.custom_property,
-      custom_prop_value: alert.custom_prop_value,
-    };
-    const currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type, filters);
+    // Valeur RÉELLE : KPI catalogué (resolveKpiValue) OU agrégat de table (agg_spec).
+    let currentValue: number | null = null;
+    if (alert.forecast_type) {
+      const filters = {
+        pipeline_id: alert.pipeline_id,
+        owner_filter: alert.owner_filter,
+        date_from: alert.date_from,
+        date_to: alert.date_to,
+        date_preset: alert.date_preset,
+        segment_filter: alert.segment_filter,
+        min_deal_amount: alert.min_deal_amount,
+        deal_stage_filter: alert.deal_stage_filter,
+        lifecycle_stage: alert.lifecycle_stage,
+        source_filters: alert.source_filters,
+        custom_property: alert.custom_property,
+        custom_prop_value: alert.custom_prop_value,
+      };
+      currentValue = await resolveKpiValue(supabase, alert.organization_id, alert.forecast_type, filters);
+    } else if (alert.agg_spec) {
+      const token = await getHubSpotToken(supabase, alert.organization_id);
+      currentValue = await valueFromAggSpec(supabase, alert.organization_id, token, alert.agg_spec as AggSpec);
+    }
     if (currentValue === null) continue;
 
     checked++;
@@ -105,16 +157,19 @@ export async function GET(request: Request) {
 
       resolved++;
 
-      // Notification multi-canaux selon la config per-alert
-      const unit = FORECAST_UNITS[alert.forecast_type] || "";
-      const label = FORECAST_LABELS[alert.forecast_type] || alert.forecast_type;
-      const subject = `Objectif atteint : ${label}`;
-      const body =
-        `Votre objectif de ${alert.threshold}${unit} a été atteint !\n\n` +
-        `Valeur actuelle : ${currentValue}${unit}\n` +
-        `Direction : ${direction === "above" ? "↑ atteindre" : "↓ descendre sous"} ${alert.threshold}${unit}\n` +
-        (alert.description ? `\n${alert.description}\n` : "") +
-        `\nOuvrez Revold pour voir tous les détails et configurer la prochaine étape.`;
+      // L'AGENT responsable rédige la notification (l'app a détecté l'atteinte).
+      const composed = await composeNotification({
+        kind: "alerte",
+        team: alert.team ?? null,
+        category: alert.category ?? null,
+        title: alert.title ?? FORECAST_LABELS[alert.forecast_type] ?? "KPI",
+        description: alert.description ?? null,
+        userContext: alert.user_context ?? null,
+        threshold: alert.threshold ?? null,
+        currentValue,
+        unit: alert.unit_mode ?? (alert.forecast_type && FORECAST_UNITS[alert.forecast_type] === "%" ? "percent" : "count"),
+        direction,
+      });
 
       // Canaux configurés pour cette alerte (default = ["in_app"])
       const channels = (Array.isArray(alert.notification_channels) && alert.notification_channels.length > 0
@@ -127,9 +182,9 @@ export async function GET(request: Request) {
         sourceId: alert.id,
         channels,
         userId: alert.created_by ?? undefined,
-        subject,
-        bodyText: body,
-        link: "/dashboard/alertes",
+        subject: composed.subject,
+        bodyText: composed.body,
+        link: "/dashboard/mes-alertes",
       });
 
       if (result.sentCount > 0) notificationsCreated++;

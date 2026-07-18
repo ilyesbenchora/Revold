@@ -34,6 +34,10 @@
       "schedule": "35 */6 * * *"
     },
     {
+      "path": "/api/cron/check-objectives",
+      "schedule": "40 */6 * * *"
+    },
+    {
       "path": "/api/cron/daily-digest",
       "schedule": "0 7 * * *"
     }

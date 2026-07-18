@@ -93,6 +93,14 @@ export function TableAlertButton({ table, rows, team }: { table: SavedTable; row
           threshold_secondary: secondary.length ? secondary[0].value : null,
           unit_mode_secondary: secondary.length ? secondary[0].unit_mode : null,
           secondary_kpis: secondary.length ? secondary : null,
+          // Rapprochement données réelles : le cron rejoue cette agrégation.
+          agg_spec: {
+            entity: table.entity,
+            groupBy: table.group_by,
+            measure: table.measure,
+            field: table.field,
+            target,
+          },
         }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "Création impossible."); setState("idle"); return; }

@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     notification_channels,
     // Outils à croiser + KPI par source (multi-outils)
     cross_sources, threshold_secondary, unit_mode_secondary, secondary_kpis,
+    // Spec d'agrégat pour tracker une alerte technique/table sur les vraies données
+    agg_spec,
   } = body;
 
   if (!title || !description || !impact) {
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
     threshold_secondary: threshold_secondary != null ? Number(threshold_secondary) : null,
     unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "currency" ? "currency" : unit_mode_secondary === "percent" ? "percent" : null,
     secondary_kpis: Array.isArray(secondary_kpis) && secondary_kpis.length ? secondary_kpis.slice(0, 12) : null,
+    agg_spec: agg_spec && typeof agg_spec === "object" ? agg_spec : null,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });
