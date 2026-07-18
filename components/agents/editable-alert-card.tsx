@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertBody, ALERT_CHANNELS, useAvailableChannels } from "./alert-ui";
 import { AlertDeadline } from "./alert-deadline";
+import { TrackingBadge } from "./tracking-badge";
+import type { AggSpec } from "@/lib/alerts/agg-value";
 
 const TYPE_LABELS: Record<string, string> = {
   sales: "Ventes",
@@ -26,6 +28,8 @@ export type EditableAlert = {
   date_to: string | null;
   created_at: string | null;
   notification_channels: string[] | null;
+  forecast_type?: string | null;
+  agg_spec?: AggSpec | null;
 };
 
 
@@ -175,6 +179,10 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi" }: { alert:
           {alert.threshold != null && (
             <p className="mt-2 text-[11px] text-slate-400">🎯 KPI attendu : {alert.threshold}{alert.unit_mode === "count" ? "" : alert.unit_mode === "currency" ? " €" : " %"}</p>
           )}
+
+          <div className="mt-2">
+            <TrackingBadge forecastType={alert.forecast_type} aggSpec={alert.agg_spec} />
+          </div>
 
           {/* Échéance en temps réel : début, fin (compte à rebours live) ou en continu */}
           <div className="mt-2.5">

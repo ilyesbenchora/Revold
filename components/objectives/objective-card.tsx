@@ -4,8 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDeadline } from "@/components/agents/alert-deadline";
+import { TrackingBadge } from "@/components/agents/tracking-badge";
 import { isSoon } from "@/lib/alerts/deadline";
 import { ANALYSIS_SUGGESTIONS } from "@/lib/ai/agents/analysis-suggestions";
+import type { AggSpec } from "@/lib/alerts/agg-value";
 
 export type Objective = {
   id: string;
@@ -14,6 +16,7 @@ export type Objective = {
   impact: string | null;
   category: string | null;
   forecast_type: string | null;
+  agg_spec?: AggSpec | null;
   target: number | null;
   unit_mode: string | null;
   direction: string | null;
@@ -186,7 +189,9 @@ export function ObjectiveCard({ objective }: { objective: Objective }) {
             <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
               <div className={`h-full rounded-full transition-all ${reached ? "bg-emerald-500" : soon ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
             </div>
-            {o.forecast_type && <p className="mt-1 text-[10px] text-slate-400">Suivi automatique (KPI temps réel).</p>}
+            <div className="mt-1.5">
+              <TrackingBadge forecastType={o.forecast_type} aggSpec={o.agg_spec} />
+            </div>
           </div>
 
           <div className="mt-2.5"><AlertDeadline dateFrom={o.date_from} dateTo={o.date_to} /></div>

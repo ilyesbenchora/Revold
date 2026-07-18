@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
+import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { ObjectiveCard, type Objective } from "@/components/objectives/objective-card";
 import { CreateObjectiveModal } from "@/components/objectives/create-objective-modal";
 import { completionPct, isReached, isAtRisk } from "@/lib/objectives/completion";
@@ -16,26 +18,31 @@ export default async function ObjectifsPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("objectives")
-    .select("id, title, description, impact, category, forecast_type, target, unit_mode, direction, current_value, date_from, date_to, created_at, status")
-    .eq("organization_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status";
+  let res = await supabase.from("objectives").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  if (res.error && /agg_spec/.test(res.error.message)) {
+    res = await supabase.from("objectives").select(COLS.replace(", agg_spec", "")).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  }
+  const { data, error } = res;
 
   const migrationNeeded = !!error && /objectives/.test(error.message);
-  const rows = ((data ?? []) as (Objective & { status?: string })[]).filter((o) => (o.status ?? "active") === "active");
+  const rows = ((data ?? []) as unknown as (Objective & { status?: string })[]).filter((o) => (o.status ?? "active") === "active");
+  const token = rows.some((o) => !o.forecast_type && o.agg_spec) ? await getHubSpotToken(supabase, orgId) : null;
 
-  // Complétion réelle : valeur du KPI calculée pour les objectifs auto-trackés.
+  // Complétion réelle : valeur calculée pour les objectifs auto-trackés
+  // (KPI catalogué OU agrégat rattaché, ex : ARR = sum(MRR)×12).
   const withValues: Objective[] = await Promise.all(
     rows.map(async (o) => {
-      if (!o.forecast_type) return o;
       try {
-        const v = await resolveKpiValue(supabase, orgId, o.forecast_type, {
-          date_from: o.date_from,
-          date_to: o.date_to,
-        });
-        return { ...o, computedValue: typeof v === "number" ? v : null };
+        if (o.forecast_type) {
+          const v = await resolveKpiValue(supabase, orgId, o.forecast_type, { date_from: o.date_from, date_to: o.date_to });
+          return { ...o, computedValue: typeof v === "number" ? v : null };
+        }
+        if (o.agg_spec) {
+          const v = await valueFromAggSpec(supabase, orgId, token, o.agg_spec as AggSpec);
+          return { ...o, computedValue: typeof v === "number" ? v : null };
+        }
+        return o;
       } catch {
         return o;
       }

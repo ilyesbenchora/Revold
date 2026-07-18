@@ -13,13 +13,12 @@ export default async function MesAlertesPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("alerts")
-    .select("id, title, description, impact, category, status, threshold, unit_mode, created_at, date_from, date_to, notification_channels")
-    .eq("organization_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  const alerts = (data ?? []) as AlertRow[];
+  const COLS: string = "id, title, description, impact, category, status, threshold, unit_mode, created_at, date_from, date_to, notification_channels, forecast_type, agg_spec";
+  let res = await supabase.from("alerts").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  if (res.error && /agg_spec/.test(res.error.message)) {
+    res = await supabase.from("alerts").select(COLS.replace(", agg_spec", "")).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
+  }
+  const alerts = (res.data ?? []) as unknown as AlertRow[];
   const activeAll = alerts.filter((a) => (a.status ?? "active") === "active");
   // Une alerte à date de fin dépassée est « terminée » → bloc dédié, hors suivi actif.
   const done = activeAll.filter((a) => isOverdue(a.date_to));
