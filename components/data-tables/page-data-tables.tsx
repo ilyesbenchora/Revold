@@ -57,12 +57,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   function reset() { setStep(1); setDraft(null); setCustomKpi(""); setError(null); setEditingId(null); }
 
-  // Ouvre le builder en mode ÉDITION d'une table existante.
+  // Ouvre le panneau d'ÉDITION (agent uniquement : KPI + affichage).
+  // Le KPI est pré-rempli avec le texte source, ou à défaut le titre actuel.
   function openEdit(table: SavedTable) {
     setError(null);
     setEditingId(table.id);
-    const isCustom = !!table.custom_kpi;
-    setCustomKpi(table.custom_kpi || "");
+    setCustomKpi(table.custom_kpi || table.title);
     setDraft({
       entity: table.entity,
       group_by: table.group_by,
@@ -71,11 +71,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       unit_mode: table.unit_mode,
       view: (table.view as TableView) || "table",
       title: table.title,
-      custom: isCustom,
-      customKpi: table.custom_kpi || "",
+      custom: true,
+      customKpi: table.custom_kpi || table.title,
     });
-    // KPI perso → on repart de l'étape « réécrire le KPI » ; preset → directement l'affichage.
-    setStep(isCustom ? 1 : 2);
     setOpen(true);
   }
 
@@ -119,16 +117,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setSaving(true);
     setError(null);
 
-    // ── ÉDITION ─────────────────────────────────────────────────────────
+    // ── ÉDITION (agent : KPI + affichage ; le titre se renomme en ligne) ──
     if (editingId) {
       const res = await fetch(`/api/page-tables/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: draft.title || undefined,
           view: draft.view,
           // Réécriture du KPI : le back ne relance l'agent que si le texte change.
-          custom_kpi: draft.custom ? draft.customKpi : undefined,
+          custom_kpi: customKpi.trim(),
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -196,6 +193,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
               key={t.id}
               table={t}
               onEdit={openEdit}
+              onUpdated={(nt) => setTables((prev) => prev.map((x) => (x.id === nt.id ? nt : x)))}
               onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))}
             />
           ))}
@@ -206,6 +204,64 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            {editingId && draft ? (
+              /* ── ÉDITION : agent uniquement (KPI + affichage) ── */
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Modifier la table</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {agentName} met à jour la donnée selon ton KPI. Le titre se renomme directement sur la table.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    KPI à suivre
+                  </label>
+                  <textarea
+                    value={customKpi}
+                    onChange={(e) => setCustomKpi(e.target.value)}
+                    rows={2}
+                    placeholder="Ex : montant moyen des deals gagnés par mois"
+                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-500">Affichage</label>
+                  <div className="mt-1 grid grid-cols-4 gap-2">
+                    {VIEWS.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => setDraft({ ...draft, view: v.id })}
+                        className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
+                          draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={v.icon} /></svg>
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+                <div className="flex items-center justify-between pt-2">
+                  <button onClick={() => { setOpen(false); reset(); }} className="text-xs text-slate-400 hover:text-accent">Annuler</button>
+                  <button
+                    onClick={create}
+                    disabled={saving || !customKpi.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    {!saving && <span aria-hidden>✨</span>}
+                    {saving ? `${agentName} peaufine…` : `Mettre à jour via ${agentName}`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="mb-5 flex items-center gap-2 text-xs text-slate-400">
               <span className={step === 1 ? "font-semibold text-accent" : ""}>1. KPI</span>
               <span>→</span>
@@ -343,6 +399,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </button>
                 </div>
               </div>
+            )}
+            </>
             )}
           </div>
         </div>

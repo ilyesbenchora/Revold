@@ -52,8 +52,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.measure = resolved.spec.measure || "count";
     update.field = resolved.spec.field ?? null;
     update.unit_mode = resolved.unitMode;
-    // Si l'utilisateur n'a pas fixé de titre, on garde le KPI réécrit comme titre.
-    if (!update.title) update.title = newKpi;
+    // Le titre reste la nomenclature de l'utilisateur : on ne le touche PAS ici
+    // (il se renomme séparément en ligne, sans agent).
   }
 
   if (Object.keys(update).length === 0) {
