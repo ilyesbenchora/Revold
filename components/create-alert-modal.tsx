@@ -128,6 +128,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
   // Step 1
   const [team, setTeam] = useState("");
+  // Équipe verrouillée par la page (Ventes/Marketing) → on saute l'étape 1.
+  const [teamLocked, setTeamLocked] = useState(false);
   // Step 2
   const [kpiId, setKpiId] = useState("");
   // Step 3 — main
@@ -173,6 +175,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
         defaultUnit?: "percent" | "currency" | "count";
         defaultPipelineIds?: string[];
         startStep?: number;
+        lockTeam?: boolean;
       } | undefined;
       if (!detail) return;
       reset();
@@ -186,6 +189,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
       if (teamOk) setTeam(detail.team!);
       if (kpiOk) setKpiId(detail.kpiId!);
+      setTeamLocked(!!detail.lockTeam && !!teamOk);
 
       if (detail.defaultThreshold !== undefined) setThreshold(String(detail.defaultThreshold));
       if (detail.defaultDirection) setDirection(detail.defaultDirection);
@@ -239,6 +243,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setCustomProp(""); setCustomPropValue("");
     setSelectedChannels(["in_app"]);
     setCross(emptyCross);
+    setTeamLocked(false);
     setState("idle"); setResult(null);
   }
 
@@ -385,7 +390,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
               <>
                 {/* Steps indicator */}
                 <div className="flex items-center gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((s) => (
+                  {(teamLocked ? [2, 3, 4] : [1, 2, 3, 4]).map((s) => (
                     <div key={s} className="flex items-center gap-2">
                       <button type="button" onClick={() => { if (s < step) setStep(s); }} disabled={s > step}
                         className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
@@ -467,7 +472,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </button>
                       ))}
                     </div>
-                    <button type="button" onClick={() => setStep(1)} className="mt-4 text-xs text-slate-400 hover:text-accent">← Changer d&apos;équipe</button>
+                    {!teamLocked && (
+                      <button type="button" onClick={() => setStep(1)} className="mt-4 text-xs text-slate-400 hover:text-accent">← Changer d&apos;équipe</button>
+                    )}
                   </div>
                 )}
 

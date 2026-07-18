@@ -27,7 +27,7 @@ export function CreateAlertCta({
   defaultDirection,
   defaultUnit,
   defaultPipelineIds,
-  label = "Créer une alerte",
+  label = "Créer une table de données",
 }: CreateAlertCtaProps) {
   const [hasModalListener, setHasModalListener] = useState(true);
 
@@ -47,7 +47,10 @@ export function CreateAlertCta({
           defaultDirection,
           defaultUnit,
           defaultPipelineIds,
-          startStep: 3,
+          // On saute l'étape « Équipe » : la page fixe le contexte (Ventes /
+          // Marketing) → le funnel démarre sur les KPIs dynamiques.
+          lockTeam: true,
+          startStep: 2,
         },
       }),
     );
