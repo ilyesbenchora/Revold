@@ -32,19 +32,24 @@ export async function POST(request: Request) {
   const title = typeof b.title === "string" ? b.title.trim() : "";
   if (!title) return NextResponse.json({ error: "Titre requis" }, { status: 400 });
   const unit = b.unit_mode === "count" ? "count" : b.unit_mode === "currency" ? "currency" : b.unit_mode === "percent" ? "percent" : null;
-  const forecastType = typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null;
+  const targetVal = typeof b.target === "number" ? b.target : b.target ? Number(b.target) : null;
 
-  // Objectif à valeur non auto-cataloguée : on tente de résoudre une spec
-  // d'agrégat pour le rapprocher des vraies données (ex : « 200 M€ d'ARR »).
+  // Objectif rattaché aux vraies données : indicateur catalogué OU agrégat
+  // (ex : « 200 M€ d'ARR » → subscriptions sum(mrr) × 12). Fallback garanti.
+  let effectiveForecast = typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null;
   let aggSpec: Record<string, unknown> | null = null;
-  if (!forecastType) {
+  if (!effectiveForecast) {
     const token = await getHubSpotToken(supabase, orgId);
-    aggSpec = await resolveTrackingSpec(supabase, orgId, token, {
+    const r = await resolveTrackingSpec(supabase, orgId, token, {
       kpiText: title,
       description: typeof b.description === "string" ? b.description : null,
       team: typeof b.team === "string" ? b.team : null,
       category: typeof b.category === "string" ? b.category : null,
+      value: targetVal,
+      unit,
     });
+    if (r.forecast_type) effectiveForecast = r.forecast_type;
+    else if (r.agg_spec) aggSpec = r.agg_spec as Record<string, unknown>;
   }
 
   const row: Record<string, unknown> = {
@@ -55,8 +60,8 @@ export async function POST(request: Request) {
     impact: typeof b.impact === "string" ? b.impact.slice(0, 2000) : null,
     category: typeof b.category === "string" ? b.category : null,
     team: typeof b.team === "string" ? b.team : null,
-    forecast_type: forecastType,
-    target: typeof b.target === "number" ? b.target : b.target ? Number(b.target) : null,
+    forecast_type: effectiveForecast,
+    target: targetVal,
     unit_mode: unit,
     direction: b.direction === "below" ? "below" : "above",
     current_value: typeof b.current_value === "number" ? b.current_value : b.current_value ? Number(b.current_value) : null,

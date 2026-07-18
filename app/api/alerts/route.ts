@@ -55,15 +55,21 @@ export async function POST(request: Request) {
   }
 
   // Alerte personnalisée (texte libre) sans KPI catalogué ni spec fournie :
-  // on tente de résoudre une spec d'agrégat pour la rapprocher des vraies données.
+  // l'agent RATTACHE le KPI aux vraies données (indicateur catalogué OU agrégat),
+  // via le nom, le chiffre et la description. Fallback déterministe garanti.
+  let effectiveForecast: string | null = forecast_type || null;
   let resolvedAggSpec = agg_spec && typeof agg_spec === "object" ? agg_spec : null;
-  if (!forecast_type && !resolvedAggSpec && typeof title === "string" && title.trim()) {
+  if (!effectiveForecast && !resolvedAggSpec && typeof title === "string" && title.trim()) {
     const token = await getHubSpotToken(supabase, profile.organization_id);
-    resolvedAggSpec = await resolveTrackingSpec(supabase, profile.organization_id, token, {
+    const r = await resolveTrackingSpec(supabase, profile.organization_id, token, {
       kpiText: title,
       description: typeof user_context === "string" ? user_context : (typeof description === "string" ? description : null),
       team, category,
+      value: threshold != null ? Number(threshold) : null,
+      unit: unit_mode,
     });
+    if (r.forecast_type) effectiveForecast = r.forecast_type;
+    else if (r.agg_spec) resolvedAggSpec = r.agg_spec;
   }
 
   const { id, error } = await insertAlertResilient(supabase, {
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
     impact,
     category: category || "sales",
     status: "active",
-    forecast_type: forecast_type || null,
+    forecast_type: effectiveForecast,
     threshold: threshold != null ? Number(threshold) : null,
     current_value: currentValue,
     direction: direction || (forecast_type ? getDefaultDirection(forecast_type) : "above"),

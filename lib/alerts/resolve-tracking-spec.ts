@@ -14,6 +14,16 @@ const TEAM_PERSONA: Record<string, string> = {
   "service-client": "service-client",
 };
 
+// KPI catalogués calculables en déterministe (lib/alerts/kpi-resolver.ts).
+const FORECAST_TYPES = [
+  "closing_rate", "pipeline_coverage", "deal_activation", "pipeline_value", "avg_deal_size",
+  "deals_at_risk", "revenue_won", "deals_count", "deals_won_count", "stagnant_deals",
+  "conversion_rate", "orphan_rate", "phone_enrichment", "dormant_reactivation", "weighted_pipeline",
+  "sales_cycle_days", "deals_no_amount", "data_completeness", "mql_to_sql_rate",
+  "contacts_by_source", "source_to_lifecycle", "source_to_deal_created", "source_to_deal_won",
+] as const;
+const FORECAST_SET = new Set<string>(FORECAST_TYPES);
+
 const CANONICAL_DOC =
   "deals: dimensions month_created, month_closed, stage — mesures count, ou sum/avg du champ amount. " +
   "invoices: dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
@@ -23,59 +33,88 @@ const CANONICAL_DOC =
   "contacts: dimensions mql, sql — mesure count.";
 
 const BUILD_TOOL: Anthropic.Tool = {
-  name: "build_tracking_spec",
+  name: "wire_kpi",
   description:
-    "Traduit un KPI décrit en langage naturel (alerte ou objectif) vers une agrégation canonique 100 % calculable, " +
-    "pour permettre le rapprochement avec les VRAIES données synchronisées. Ne jamais inventer d'entité, dimension ou champ.",
+    "Rattache OBLIGATOIREMENT un KPI (alerte ou objectif) aux VRAIES données de Revold, soit vers un indicateur " +
+    "catalogué (forecast_type), soit vers une agrégation canonique. Le but est un câblage 100 % : choisis toujours " +
+    "le rapprochement le plus proche calculable. Ne jamais inventer d'entité, dimension ou champ.",
   input_schema: {
     type: "object",
     properties: {
-      computable: { type: "boolean", description: "false si le KPI ne peut PAS être calculé avec le catalogue disponible." },
-      entity: { type: "string", enum: ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"] },
-      groupBy: { type: "string", description: "Dimension de regroupement (voir la liste par entité)." },
+      mode: { type: "string", enum: ["forecast", "aggregate"], description: "forecast si un indicateur catalogué correspond ; sinon aggregate." },
+      forecast_type: { type: "string", enum: [...FORECAST_TYPES], description: "Requis si mode=forecast." },
+      entity: { type: "string", enum: ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
+      groupBy: { type: "string", description: "Dimension de regroupement (mode=aggregate)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
-      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, mrr). Vide si count." },
-      target: { type: "string", description: "Ligne précise à isoler, ex 'active' pour les abonnements actifs. Vide = total de toutes les lignes." },
-      multiplier: { type: "number", description: "Conversion linéaire déterministe. 12 pour passer du MRR à l'ARR annuel. 1 sinon." },
+      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, mrr)." },
+      target: { type: "string", description: "Ligne précise à isoler, ex 'active' pour abonnements actifs. Vide = total." },
+      multiplier: { type: "number", description: "Conversion linéaire déterministe. 12 pour MRR→ARR annuel. 1 sinon." },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"] },
     },
-    required: ["computable"],
+    required: ["mode"],
   },
 };
 
-export type TrackingSpec = AggSpec & { unit_mode?: string };
+export type TrackingResolution = { forecast_type: string | null; agg_spec: (AggSpec & { unit_mode?: string }) | null };
+
+const NONE: TrackingResolution = { forecast_type: null, agg_spec: null };
+
+/** Fallback DÉTERMINISTE : garantit un câblage même si l'agent échoue. */
+function heuristicWiring(kpiText: string, unit?: string | null): TrackingResolution {
+  const t = (kpiText || "").toLowerCase();
+  const has = (re: RegExp) => re.test(t);
+
+  if (has(/\barr\b|revenu(e|s)? annuel/)) return { forecast_type: null, agg_spec: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", target: "active", multiplier: 12, unit_mode: "currency" } };
+  if (has(/\bmrr\b|récurrent|recurrent|abonnement/)) return { forecast_type: null, agg_spec: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", target: "active", multiplier: 1, unit_mode: "currency" } };
+  if (has(/encaiss|payé|paye|paid|facture|invoice/)) return { forecast_type: null, agg_spec: { entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", target: "Total", multiplier: 1, unit_mode: "currency" } };
+  if (has(/closing|clôtur|cloture|taux de gain|win rate/)) return { forecast_type: "closing_rate", agg_spec: null };
+  if (has(/conversion|lead.?opp|mql|sql/)) return { forecast_type: "conversion_rate", agg_spec: null };
+  if (has(/pipeline/)) return { forecast_type: "pipeline_value", agg_spec: null };
+  if (has(/risque|at.?risk/)) return { forecast_type: "deals_at_risk", agg_spec: null };
+  if (has(/ca\b|chiffre|revenue|revenu|montant|signé|signe/) || unit === "currency") return { forecast_type: "revenue_won", agg_spec: null };
+  if (unit === "percent") return { forecast_type: "closing_rate", agg_spec: null };
+  return { forecast_type: "deals_count", agg_spec: null };
+}
 
 /**
- * Résout un KPI texte (titre + contexte) en spec d'agrégat trackable, PUIS la
- * valide en déterministe (rejet si non calculable sur les données réelles).
- * Best-effort : renvoie null si non résoluble — l'alerte/objectif reste alors
- * informatif plutôt que faux.
- *
- * Exemple : « 200 M€ d'ARR » → subscriptions, sum(mrr), target=active, multiplier=12.
+ * Rattache un KPI texte (nom + chiffre + description) aux vraies données. Vise le
+ * 100 % : l'agent choisit un indicateur catalogué OU une agrégation ; si l'agent
+ * échoue ou n'est pas dispo, un fallback déterministe garantit le câblage. La
+ * spec d'agrégat est validée sur les vraies données avant d'être retenue.
  */
 export async function resolveTrackingSpec(
   supabase: SupabaseClient,
   orgId: string,
   hubspotToken: string | null,
-  args: { kpiText: string; description?: string | null; team?: string | null; category?: string | null },
-): Promise<TrackingSpec | null> {
+  args: {
+    kpiText: string;
+    description?: string | null;
+    team?: string | null;
+    category?: string | null;
+    value?: number | null;
+    unit?: string | null;
+  },
+): Promise<TrackingResolution> {
+  if (!args.kpiText?.trim()) return NONE;
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || !args.kpiText?.trim()) return null;
+  // Sans clé API : fallback déterministe (on ne laisse jamais l'élément non câblé).
+  if (!apiKey) return heuristicWiring(args.kpiText, args.unit);
+
   const persona = getAgentPersona(TEAM_PERSONA[args.team ?? ""] ?? TEAM_PERSONA[args.category ?? ""] ?? "automatisations");
-
   const system =
-    `Tu es ${persona.name}, ${persona.role} chez Revold. ` +
-    `Traduis le KPI de l'utilisateur vers une agrégation canonique 100 % calculable, pour le rapprocher des vraies données. ` +
-    `Catalogue disponible — ${CANONICAL_DOC} ` +
-    `Règles : ARR = somme des MRR des abonnements ACTIFS × 12 → entity=subscriptions, measure=sum, field=mrr, groupBy=status, target=active, multiplier=12. ` +
-    `MRR = idem sans multiplier. CA encaissé → invoices sum(amount_paid). CA signé → deals sum(amount). ` +
-    `Choisis la combinaison la plus proche et 100 % calculable. Si rien ne colle, computable=false. Réponds uniquement via l'outil.`;
+    `Tu es ${persona.name}, ${persona.role} chez Revold. Ton rôle : RATTACHER ce KPI aux vraies données, à 100 %. ` +
+    `Deux voies : (1) mode=forecast si un indicateur catalogué correspond — ${[...FORECAST_TYPES].join(", ")} ; ` +
+    `(2) mode=aggregate sinon, via le catalogue canonique — ${CANONICAL_DOC} ` +
+    `Sers-toi du NOM du KPI, du CHIFFRE cible et de la DESCRIPTION pour choisir le rapprochement le plus fidèle. ` +
+    `Règles montants : ARR = sum(mrr) des abonnements ACTIFS × 12 (subscriptions, sum, mrr, groupBy=status, target=active, multiplier=12) ; ` +
+    `MRR = idem sans multiplier ; CA encaissé = invoices sum(amount_paid) ; CA signé = deals sum(amount) ou forecast_type=revenue_won. ` +
+    `Choisis TOUJOURS un rapprochement calculable, jamais rien d'informatif. Réponds uniquement via l'outil.`;
+  const numTxt = args.value != null ? ` Chiffre cible : ${args.value}${args.unit === "currency" ? " €" : args.unit === "percent" ? " %" : ""}.` : "";
   const userMsg =
-    `KPI à tracker : « ${args.kpiText.trim()} ».` +
-    (args.description?.trim() ? ` Contexte : « ${args.description.trim()} ».` : "") +
-    ` Donne la spec d'agrégat correspondante.`;
+    `KPI : « ${args.kpiText.trim()} ».${numTxt}` +
+    (args.description?.trim() ? ` Description : « ${args.description.trim()} ».` : "") +
+    ` Rattache-le aux vraies données.`;
 
-  let spec: TrackingSpec;
   try {
     const client = new Anthropic({ apiKey });
     const resp = await client.messages.create({
@@ -83,31 +122,39 @@ export async function resolveTrackingSpec(
       max_tokens: 400,
       system,
       tools: [BUILD_TOOL],
-      tool_choice: { type: "tool", name: "build_tracking_spec" },
+      tool_choice: { type: "tool", name: "wire_kpi" },
       messages: [{ role: "user", content: userMsg }],
     });
     const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!toolUse) return null;
+    if (!toolUse) return heuristicWiring(args.kpiText, args.unit);
     const inp = toolUse.input as {
-      computable?: boolean; entity?: string; groupBy?: string; measure?: string;
-      field?: string; target?: string; multiplier?: number; unit_mode?: string;
+      mode?: string; forecast_type?: string; entity?: string; groupBy?: string;
+      measure?: string; field?: string; target?: string; multiplier?: number; unit_mode?: string;
     };
-    if (inp.computable === false || !inp.entity || !inp.groupBy) return null;
-    spec = {
-      entity: String(inp.entity),
-      groupBy: String(inp.groupBy),
-      measure: inp.measure ?? "count",
-      field: inp.field ? String(inp.field) : null,
-      target: inp.target ? String(inp.target) : null,
-      multiplier: typeof inp.multiplier === "number" && inp.multiplier > 0 ? inp.multiplier : 1,
-      unit_mode: inp.unit_mode ?? "count",
-    };
-  } catch {
-    return null;
-  }
 
-  // Validation déterministe : la spec DOIT produire une valeur réelle.
-  const v = await valueFromAggSpec(supabase, orgId, hubspotToken, spec);
-  if (v === null) return null;
-  return spec;
+    // Voie catalogué : sûr si c'est un forecast_type connu.
+    if (inp.mode === "forecast" && inp.forecast_type && FORECAST_SET.has(inp.forecast_type)) {
+      return { forecast_type: inp.forecast_type, agg_spec: null };
+    }
+
+    // Voie agrégat : validée sur les vraies données.
+    if (inp.entity && inp.groupBy) {
+      const spec: AggSpec & { unit_mode?: string } = {
+        entity: String(inp.entity),
+        groupBy: String(inp.groupBy),
+        measure: inp.measure ?? "count",
+        field: inp.field ? String(inp.field) : null,
+        target: inp.target ? String(inp.target) : null,
+        multiplier: typeof inp.multiplier === "number" && inp.multiplier > 0 ? inp.multiplier : 1,
+        unit_mode: inp.unit_mode ?? args.unit ?? "count",
+      };
+      const v = await valueFromAggSpec(supabase, orgId, hubspotToken, spec);
+      if (v !== null) return { forecast_type: null, agg_spec: spec };
+    }
+
+    // L'agent n'a pas produit un câblage calculable → fallback déterministe.
+    return heuristicWiring(args.kpiText, args.unit);
+  } catch {
+    return heuristicWiring(args.kpiText, args.unit);
+  }
 }
