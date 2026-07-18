@@ -22,7 +22,11 @@ alter table page_data_tables enable row level security;
 drop policy if exists page_data_tables_org on page_data_tables;
 create policy page_data_tables_org on page_data_tables
   for all
-  using (organization_id in (select organization_id from profiles where id = auth.uid()));
+  using (
+    organization_id in (select organization_id from profiles where id = auth.uid())
+  ) with check (
+    organization_id in (select organization_id from profiles where id = auth.uid())
+  );
 
 create index if not exists idx_page_data_tables on page_data_tables (organization_id, page_key);
 
