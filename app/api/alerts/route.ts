@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveKpiValue, getDefaultDirection } from "@/lib/alerts/kpi-resolver";
 import { insertAlertResilient } from "@/lib/alerts/resilient";
 import { createInAppNotification } from "@/lib/notifications/in-app";
+import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -52,6 +54,18 @@ export async function POST(request: Request) {
     });
   }
 
+  // Alerte personnalisée (texte libre) sans KPI catalogué ni spec fournie :
+  // on tente de résoudre une spec d'agrégat pour la rapprocher des vraies données.
+  let resolvedAggSpec = agg_spec && typeof agg_spec === "object" ? agg_spec : null;
+  if (!forecast_type && !resolvedAggSpec && typeof title === "string" && title.trim()) {
+    const token = await getHubSpotToken(supabase, profile.organization_id);
+    resolvedAggSpec = await resolveTrackingSpec(supabase, profile.organization_id, token, {
+      kpiText: title,
+      description: typeof user_context === "string" ? user_context : (typeof description === "string" ? description : null),
+      team, category,
+    });
+  }
+
   const { id, error } = await insertAlertResilient(supabase, {
     organization_id: profile.organization_id,
     created_by: user.id,
@@ -94,7 +108,7 @@ export async function POST(request: Request) {
     threshold_secondary: threshold_secondary != null ? Number(threshold_secondary) : null,
     unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "currency" ? "currency" : unit_mode_secondary === "percent" ? "percent" : null,
     secondary_kpis: Array.isArray(secondary_kpis) && secondary_kpis.length ? secondary_kpis.slice(0, 12) : null,
-    agg_spec: agg_spec && typeof agg_spec === "object" ? agg_spec : null,
+    agg_spec: resolvedAggSpec,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });

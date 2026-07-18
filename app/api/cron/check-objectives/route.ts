@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification } from "@/lib/notifications/send";
 import { composeNotification } from "@/lib/notifications/compose";
+import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export const maxDuration = 300;
 
@@ -26,17 +28,17 @@ export async function GET(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  // Objectifs actifs, auto-trackés, pas encore atteints. Fallback si les colonnes
-  // de suivi ne sont pas migrées.
+  // Objectifs actifs trackables (KPI catalogué OU spec d'agrégat), pas encore
+  // atteints. Fallback si les colonnes de suivi ne sont pas migrées.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let objectives: any[] | null = null;
   const primary = await supabase
     .from("objectives")
     .select("*")
     .eq("status", "active")
-    .not("forecast_type", "is", null)
+    .or("forecast_type.not.is.null,agg_spec.not.is.null")
     .is("resolved_at", null);
-  if (primary.error && /resolved_at/.test(primary.error.message)) {
+  if (primary.error && /(resolved_at|agg_spec)/.test(primary.error.message)) {
     const legacy = await supabase.from("objectives").select("*").eq("status", "active").not("forecast_type", "is", null);
     if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
     objectives = legacy.data;
@@ -52,12 +54,17 @@ export async function GET(request: Request) {
 
   for (const obj of objectives) {
     const forecastType = obj.forecast_type as string | null;
-    if (!forecastType) continue;
-
-    const currentValue = await resolveKpiValue(supabase, obj.organization_id as string, forecastType, {
-      date_from: (obj.date_from as string | null) ?? null,
-      date_to: (obj.date_to as string | null) ?? null,
-    });
+    // Valeur RÉELLE : KPI catalogué OU agrégat résolu (ex : ARR = sum(MRR)×12).
+    let currentValue: number | null = null;
+    if (forecastType) {
+      currentValue = await resolveKpiValue(supabase, obj.organization_id as string, forecastType, {
+        date_from: (obj.date_from as string | null) ?? null,
+        date_to: (obj.date_to as string | null) ?? null,
+      });
+    } else if (obj.agg_spec) {
+      const token = await getHubSpotToken(supabase, obj.organization_id as string);
+      currentValue = await valueFromAggSpec(supabase, obj.organization_id as string, token, obj.agg_spec as AggSpec);
+    }
     if (currentValue === null) continue;
     checked++;
 

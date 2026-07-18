@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+
+function missingColumn(message: string): string | null {
+  const m = /Could not find the '([a-z_0-9]+)' column/i.exec(message)
+    || /column "?([a-z_0-9]+)"? of relation/i.exec(message)
+    || /column ([a-z_0-9]+) does not exist/i.exec(message);
+  return m ? m[1] : null;
+}
 
 /** POST /api/objectives — crée un objectif. */
 export async function POST(request: Request) {
@@ -22,8 +32,22 @@ export async function POST(request: Request) {
   const title = typeof b.title === "string" ? b.title.trim() : "";
   if (!title) return NextResponse.json({ error: "Titre requis" }, { status: 400 });
   const unit = b.unit_mode === "count" ? "count" : b.unit_mode === "currency" ? "currency" : b.unit_mode === "percent" ? "percent" : null;
+  const forecastType = typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null;
 
-  const row = {
+  // Objectif à valeur non auto-cataloguée : on tente de résoudre une spec
+  // d'agrégat pour le rapprocher des vraies données (ex : « 200 M€ d'ARR »).
+  let aggSpec: Record<string, unknown> | null = null;
+  if (!forecastType) {
+    const token = await getHubSpotToken(supabase, orgId);
+    aggSpec = await resolveTrackingSpec(supabase, orgId, token, {
+      kpiText: title,
+      description: typeof b.description === "string" ? b.description : null,
+      team: typeof b.team === "string" ? b.team : null,
+      category: typeof b.category === "string" ? b.category : null,
+    });
+  }
+
+  const row: Record<string, unknown> = {
     organization_id: orgId,
     created_by: user.id,
     title: title.slice(0, 200),
@@ -31,7 +55,7 @@ export async function POST(request: Request) {
     impact: typeof b.impact === "string" ? b.impact.slice(0, 2000) : null,
     category: typeof b.category === "string" ? b.category : null,
     team: typeof b.team === "string" ? b.team : null,
-    forecast_type: typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null,
+    forecast_type: forecastType,
     target: typeof b.target === "number" ? b.target : b.target ? Number(b.target) : null,
     unit_mode: unit,
     direction: b.direction === "below" ? "below" : "above",
@@ -39,15 +63,21 @@ export async function POST(request: Request) {
     date_from: typeof b.date_from === "string" && dateRe.test(b.date_from) ? b.date_from : null,
     date_to: typeof b.date_to === "string" && dateRe.test(b.date_to) ? b.date_to : null,
     priority: b.priority === "faible" || b.priority === "urgent" ? b.priority : "moyen",
+    agg_spec: aggSpec,
     status: "active",
   };
 
-  let { data, error } = await supabase.from("objectives").insert(row).select("id").single();
-  // Résilience : si la colonne priority n'est pas encore migrée, on réessaie sans.
-  if (error && /priority/.test(error.message)) {
-    const { priority: _omit, ...rowNoPriority } = row;
-    void _omit;
-    ({ data, error } = await supabase.from("objectives").insert(rowNoPriority).select("id").single());
+  // Insert résilient : retire les colonnes non encore migrées (priority, agg_spec…) et réessaie.
+  const attempt = { ...row };
+  let data: { id?: string } | null = null;
+  let error: { message: string } | null = null;
+  for (let i = 0; i < 6; i++) {
+    const res = await supabase.from("objectives").insert(attempt).select("id").single();
+    data = res.data; error = res.error;
+    if (!error) break;
+    const col = missingColumn(error.message);
+    if (col && col in attempt) { delete attempt[col]; continue; }
+    break;
   }
   if (error) {
     if (/objectives/.test(error.message)) return NextResponse.json({ error: "Table objectives absente — applique la migration Supabase." }, { status: 400 });

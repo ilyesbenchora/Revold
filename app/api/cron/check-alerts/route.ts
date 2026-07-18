@@ -1,43 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
 import { composeNotification } from "@/lib/notifications/compose";
-import { computeAggregate } from "@/lib/ai/agents/tool-library";
+import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 export const maxDuration = 300;
-
-type AggSpec = { entity?: string; groupBy?: string; measure?: string; field?: string | null; target?: string | null };
-
-/**
- * Valeur RÉELLE d'une alerte technique/table : on rejoue la même agrégation
- * déterministe que la table (total, ou une ligne précise si `target` est défini).
- */
-async function valueFromAggSpec(
-  supabase: SupabaseClient,
-  orgId: string,
-  token: string | null,
-  spec: AggSpec,
-): Promise<number | null> {
-  if (!spec.entity || !spec.groupBy) return null;
-  try {
-    const res = await computeAggregate(supabase, orgId, [], token, {
-      entity: spec.entity,
-      groupBy: spec.groupBy,
-      measure: spec.measure || "count",
-      field: spec.field ?? null,
-    });
-    if (res.error) return null;
-    const rows = (res.rows as { group: string; value: number }[] | undefined) ?? [];
-    const target = spec.target;
-    if (!target || target === "Total") return rows.reduce((s, r) => s + (r.value || 0), 0);
-    const hit = rows.find((r) => r.group === target);
-    return hit ? hit.value : 0;
-  } catch {
-    return null;
-  }
-}
 
 const FORECAST_LABELS: Record<string, string> = {
   closing_rate: "Closing rate",
