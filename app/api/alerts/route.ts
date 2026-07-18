@@ -25,12 +25,14 @@ export async function POST(request: Request) {
     date_from, date_to, date_preset,
     unit_mode, segment_filter, severity, frequency,
     expires_at, min_deal_amount, deal_stage_filter,
+    // Priorité + période continue + contexte agent
+    priority, continuous, user_context,
     // Marketing filters
     lifecycle_stage, source_filters, custom_property, custom_prop_value,
     // Notifications (Phase 8.4) — canaux à utiliser quand objectif atteint
     notification_channels,
-    // Outils à croiser + 2ᵉ KPI (multi-outils)
-    cross_sources, threshold_secondary, unit_mode_secondary,
+    // Outils à croiser + KPI par source (multi-outils)
+    cross_sources, threshold_secondary, unit_mode_secondary, secondary_kpis,
   } = body;
 
   if (!title || !description || !impact) {
@@ -70,6 +72,9 @@ export async function POST(request: Request) {
     unit_mode: unit_mode || "percent",
     segment_filter: segment_filter || null,
     severity: severity || "info",
+    priority: priority || "moyen",
+    continuous: continuous === true,
+    user_context: user_context || null,
     frequency: frequency || "every_check",
     expires_at: expires_at || null,
     min_deal_amount: min_deal_amount != null ? Number(min_deal_amount) : null,
@@ -85,6 +90,7 @@ export async function POST(request: Request) {
     cross_sources: Array.isArray(cross_sources) && cross_sources.length ? cross_sources.slice(0, 12) : null,
     threshold_secondary: threshold_secondary != null ? Number(threshold_secondary) : null,
     unit_mode_secondary: unit_mode_secondary === "count" ? "count" : unit_mode_secondary === "currency" ? "currency" : unit_mode_secondary === "percent" ? "percent" : null,
+    secondary_kpis: Array.isArray(secondary_kpis) && secondary_kpis.length ? secondary_kpis.slice(0, 12) : null,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });

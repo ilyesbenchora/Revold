@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("page_data_tables")
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
     .eq("organization_id", orgId)
     .eq("page_key", pageKey)
     .order("created_at", { ascending: true });
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       view: body.view || "table",
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -48,6 +48,7 @@ export async function resolveCustomKpiSpec(
   hubspotToken: string | null,
   pageKey: string,
   kpi: string,
+  description?: string | null,
 ): Promise<ResolvedKpi> {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const persona = getAgentPersona(PAGE_AGENT_KEY[pageKey]);
@@ -63,6 +64,12 @@ export async function resolveCustomKpiSpec(
     `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
     `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via l'outil.`;
 
+  const desc = description?.trim();
+  const userMessage =
+    `KPI personnalisé demandé : « ${kpi} ».` +
+    (desc ? ` Précisions de l'utilisateur pour bien l'interpréter : « ${desc} ».` : "") +
+    ` Construis la table correspondante.`;
+
   let spec: AggregateSpec;
   let unitMode = "count";
   let agentTitle: string | null = null;
@@ -73,7 +80,7 @@ export async function resolveCustomKpiSpec(
       system,
       tools: [BUILD_TOOL],
       tool_choice: { type: "tool", name: "build_data_table" },
-      messages: [{ role: "user", content: `KPI personnalisé demandé : « ${kpi} ». Construis la table correspondante.` }],
+      messages: [{ role: "user", content: userMessage }],
     });
     const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (!toolUse) return { ok: false, error: "L'agent n'a pas pu interpréter ce KPI.", status: 422 };

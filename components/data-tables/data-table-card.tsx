@@ -15,6 +15,7 @@ export type SavedTable = {
   unit_mode: string | null;
   view: string;
   custom_kpi?: string | null;
+  description?: string | null;
 };
 
 type Row = { name: string; value: number };

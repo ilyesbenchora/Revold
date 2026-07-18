@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
-import { AlertCrossTools, crossSummary, emptyCross, type CrossState, type ToolOption } from "@/components/agents/alert-cross-tools";
+
+type ToolOption = { key: string; label: string; icon: string; category?: string };
 
 // ── Team definitions ──
 const teams = [
   { id: "sales", label: "Ventes", icon: "💼", description: "Pipeline, deals, closing" },
   { id: "marketing", label: "Marketing", icon: "📣", description: "Leads, conversion, acquisition" },
-  { id: "cs", label: "Customer Success", icon: "🤝", description: "Rétention, churn, satisfaction" },
-  { id: "revops", label: "Revenue / Finance", icon: "📊", description: "Revenue, données, process" },
+  { id: "cs", label: "Service client", icon: "🤝", description: "Rétention, churn, satisfaction" },
+  { id: "revops", label: "Finance", icon: "📊", description: "Pilotage revenue, données & process" },
 ];
 
 type KpiDef = {
@@ -122,9 +123,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [sources, setSources] = useState<Array<{ value: string; label: string }>>([]);
   const [customContactProps, setCustomContactProps] = useState<Array<{ name: string; label: string; type: string }>>([]);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
-  // Outils connectés + « outils à croiser » (+ 2ᵉ KPI si multi-outils).
+  // Outils connectés — données à croiser (hors communication) + un KPI par source.
   const [connectedTools, setConnectedTools] = useState<ToolOption[]>([]);
-  const [cross, setCross] = useState<CrossState>(emptyCross);
+  const [crossSources, setCrossSources] = useState<string[]>([]);
+  const [sourceKpis, setSourceKpis] = useState<Record<string, { value: string; unit: "percent" | "currency" | "count" }>>({});
 
   // Step 1
   const [team, setTeam] = useState("");
@@ -132,27 +134,30 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [teamLocked, setTeamLocked] = useState(false);
   // Step 2
   const [kpiId, setKpiId] = useState("");
-  // Step 3 — main
+  // Step 3 — évaluation
+  const [alertTitle, setAlertTitle] = useState("");
   const [threshold, setThreshold] = useState("");
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [unitMode, setUnitMode] = useState<"percent" | "currency" | "count">("percent");
+  const [priority, setPriority] = useState<"faible" | "moyen" | "urgent">("moyen");
+  const [continuous, setContinuous] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [customKpi, setCustomKpi] = useState("");
   const [selectedPipelines, setSelectedPipelines] = useState<string[]>([]);
+  // Contexte libre transmis à l'agent qui crée l'alerte (rapproche les vraies données).
+  const [agentContext, setAgentContext] = useState("");
   // Step 3 — marketing
   const [lifecycleStage, setLifecycleStage] = useState("");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  // Step 3 — advanced
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [severity, setSeverity] = useState("info");
-  const [frequency, setFrequency] = useState("every_check");
-  const [minDealAmount, setMinDealAmount] = useState("");
-  const [expiresIn, setExpiresIn] = useState("");
-  const [ownerFilter, setOwnerFilter] = useState("");
-  const [hsTeamFilter, setHsTeamFilter] = useState("");
-  const [customProp, setCustomProp] = useState("");
-  const [customPropValue, setCustomPropValue] = useState("");
+  // Filtres non exposés dans le formulaire (valeurs par défaut envoyées au back).
+  const frequency = "every_check";
+  const minDealAmount = "";
+  const expiresIn = "";
+  const ownerFilter = "";
+  const hsTeamFilter = "";
+  const customProp = "";
+  const customPropValue = "";
   // Step 4 — Notifications
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
   const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
@@ -188,7 +193,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
       const kpiOk = detail.kpiId && kpisForTeam.some((k) => k.id === detail.kpiId);
 
       if (teamOk) setTeam(detail.team!);
-      if (kpiOk) setKpiId(detail.kpiId!);
+      if (kpiOk) {
+        setKpiId(detail.kpiId!);
+        setAlertTitle(kpisForTeam.find((k) => k.id === detail.kpiId)?.label ?? "");
+      }
       setTeamLocked(!!detail.lockTeam && !!teamOk);
 
       if (detail.defaultThreshold !== undefined) setThreshold(String(detail.defaultThreshold));
@@ -235,14 +243,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   }, [open, optionsLoaded]);
 
   function reset() {
-    setStep(1); setTeam(""); setKpiId(""); setThreshold(""); setDirection("above");
-    setUnitMode("percent"); setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]);
+    setStep(1); setTeam(""); setKpiId(""); setAlertTitle(""); setThreshold(""); setDirection("above");
+    setUnitMode("percent"); setPriority("moyen"); setContinuous(false);
+    setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]); setAgentContext("");
     setLifecycleStage(""); setSelectedSources([]);
-    setShowAdvanced(false); setSeverity("info"); setFrequency("every_check");
-    setMinDealAmount(""); setExpiresIn(""); setOwnerFilter(""); setHsTeamFilter("");
-    setCustomProp(""); setCustomPropValue("");
     setSelectedChannels(["in_app"]);
-    setCross(emptyCross);
+    setCrossSources([]); setSourceKpis({});
     setTeamLocked(false);
     setState("idle"); setResult(null);
   }
@@ -252,7 +258,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   }
 
   function selectTeam(t: string) { setTeam(t); setKpiId(""); setStep(2); }
-  function selectKpi(k: KpiDef) { setKpiId(k.id); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setStep(3); }
+  function selectKpi(k: KpiDef) { setKpiId(k.id); setAlertTitle(k.label); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setStep(3); }
 
   function togglePipeline(id: string) {
     setSelectedPipelines((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
@@ -261,8 +267,15 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setSelectedSources((prev) => prev.includes(val) ? prev.filter((s) => s !== val) : [...prev, val]);
   }
 
-  // Filter owners by HS team if selected
-  const filteredOwners = hsTeamFilter ? owners.filter((o) => o.team === hsTeamFilter) : owners;
+  // ── Données à croiser (hors outils de communication type Slack/Teams) ──
+  const dataSources = connectedTools.filter((t) => t.category !== "communication");
+  const hubspotSelected = crossSources.includes("hubspot");
+  function toggleCrossSource(key: string) {
+    setCrossSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
+  function setSourceKpi(key: string, patch: Partial<{ value: string; unit: "percent" | "currency" | "count" }>) {
+    setSourceKpis((prev) => ({ ...prev, [key]: { value: prev[key]?.value ?? "", unit: prev[key]?.unit ?? "percent", ...patch } }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -272,50 +285,54 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     const unit = unitLabels[unitMode];
     const dirLabel = direction === "below" ? "descendre sous" : "atteindre";
     const teamLabel = teams.find((t) => t.id === team)?.label ?? team;
-
-    let expiresAt: string | null = null;
-    if (expiresIn) {
-      const days = parseInt(expiresIn);
-      if (days > 0) expiresAt = new Date(Date.now() + days * 86400000).toISOString();
-    }
+    // Priorité (faible/moyen/urgent) → sévérité stockée (info/warning/critical).
+    const severity = priority === "faible" ? "info" : priority === "urgent" ? "critical" : "warning";
 
     // Build description with context
     const parts = [`[${teamLabel}] "${kpi.label}" ${dirLabel} ${threshold}${unit}`];
+    parts.push(`Priorité : ${priority}`);
     if (selectedPipelines.length > 0) {
       const names = selectedPipelines.map((id) => pipelines.find((p) => p.id === id)?.label ?? id);
       parts.push(`Pipeline${names.length > 1 ? "s" : ""} : ${names.join(", ")}`);
     }
-    if (ownerFilter) {
-      const owner = owners.find((o) => o.id === ownerFilter);
-      parts.push(`Propriétaire : ${owner?.name ?? ownerFilter}`);
-    } else if (hsTeamFilter) {
-      parts.push(`Équipe HubSpot : ${hsTeamFilter}`);
-    }
     if (lifecycleStage) {
       const lcLabel = lifecycleStages.find((l) => l.value === lifecycleStage)?.label ?? lifecycleStage;
-      parts.push(`Phase du cycle de vie : ${lcLabel}`);
+      parts.push(`Phase cible : ${lcLabel}`);
     }
     if (selectedSources.length > 0) {
       const srcNames = selectedSources.map((s) => sources.find((src) => src.value === s)?.label ?? s);
       parts.push(`Source${srcNames.length > 1 ? "s" : ""} : ${srcNames.join(", ")}`);
     }
-    if (customProp && customPropValue) {
-      const propLabel = customContactProps.find((p) => p.name === customProp)?.label ?? customProp;
-      parts.push(`Propriété custom : ${propLabel} = ${customPropValue}`);
-    }
-    const periodLabel = dateFrom || dateTo ? `${dateFrom || "…"} → ${dateTo || "…"}` : "Toute la période";
+    const periodLabel = continuous ? "En continu" : dateFrom || dateTo ? `${dateFrom || "…"} → ${dateTo || "…"}` : "Toute la période";
     parts.push(`Période d'analyse : ${periodLabel}`);
-    const crossText = crossSummary(connectedTools, cross);
-    if (crossText) parts.push(crossText);
+
+    // KPI par source croisée (hors communication), ex : un pour le CRM, un pour Stripe.
+    const secondaryKpis = crossSources
+      .map((key) => {
+        const k = sourceKpis[key];
+        if (!k || !k.value) return null;
+        return { source: key, value: Number(k.value), unit_mode: k.unit };
+      })
+      .filter((x): x is { source: string; value: number; unit_mode: "percent" | "currency" | "count" } => x != null);
+    if (crossSources.length > 0) {
+      const names = crossSources.map((key) => dataSources.find((t) => t.key === key)?.label ?? key);
+      parts.push(`Données à croiser : ${names.join(", ")}`);
+      for (const sk of secondaryKpis) {
+        const label = dataSources.find((t) => t.key === sk.source)?.label ?? sk.source;
+        const u = sk.unit_mode === "count" ? "" : sk.unit_mode === "currency" ? " €" : " %";
+        parts.push(`KPI ${label} : ${sk.value}${u}`);
+      }
+    }
+    if (agentContext.trim()) parts.push(`Contexte : ${agentContext.trim()}`);
 
     try {
       const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${kpi.label} : objectif ${threshold}${unit}`,
+          title: alertTitle.trim() || `${kpi.label} : ${threshold}${unit}`,
           description: parts.join(". ") + ".",
-          impact: `Notification quand l'objectif de ${threshold}${unit} sera atteint`,
+          impact: `Notification quand le KPI ${dirLabel} ${threshold}${unit}`,
           category: kpi.category,
           forecast_type: kpiId === "custom" ? null : kpi.id,
           threshold: Number(threshold),
@@ -324,21 +341,25 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
           owner_filter: ownerFilter || null,
           date_preset: null,
-          date_from: dateFrom || null,
-          date_to: dateTo || null,
+          date_from: continuous ? null : dateFrom || null,
+          date_to: continuous ? null : dateTo || null,
           unit_mode: unitMode,
           severity,
+          priority,
+          continuous,
           frequency,
           min_deal_amount: minDealAmount ? Number(minDealAmount) : null,
-          expires_at: expiresAt,
+          expires_at: null,
           lifecycle_stage: lifecycleStage || null,
           source_filters: selectedSources.length > 0 ? selectedSources : null,
           custom_property: customProp || null,
           custom_prop_value: customPropValue || null,
+          user_context: agentContext.trim() || null,
           notification_channels: selectedChannels.length > 0 ? selectedChannels : ["in_app"],
-          cross_sources: cross.sources.length ? cross.sources : null,
-          threshold_secondary: cross.sources.length >= 2 && cross.kpi2 ? Number(cross.kpi2) : null,
-          unit_mode_secondary: cross.sources.length >= 2 && cross.kpi2 ? cross.unit2 : null,
+          cross_sources: crossSources.length ? crossSources : null,
+          secondary_kpis: secondaryKpis.length ? secondaryKpis : null,
+          threshold_secondary: secondaryKpis.length ? secondaryKpis[0].value : null,
+          unit_mode_secondary: secondaryKpis.length ? secondaryKpis[0].unit_mode : null,
         }),
       });
       if (res.ok) {
@@ -397,7 +418,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           s === step ? "bg-accent text-white" : s < step ? "bg-accent/20 text-accent cursor-pointer" : "bg-slate-100 text-slate-400"
                         }`}>{s}</button>
                       <span className={`text-xs font-medium ${s === step ? "text-slate-900" : "text-slate-400"}`}>
-                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : s === 3 ? "Objectif" : "Notifications"}
+                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : s === 3 ? "Évaluation" : "Notifications"}
                       </span>
                       {s < 4 && <span className="mx-1 text-slate-300">→</span>}
                     </div>
@@ -436,8 +457,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           className="flex w-full items-center justify-between text-left"
                         >
                           <div>
-                            <p className={`text-sm font-medium ${kpiId === "custom" ? "text-accent" : "text-slate-900"}`}>✏️ KPI personnalisé</p>
-                            <p className="mt-0.5 text-[11px] text-slate-500">Un indicateur qui n&apos;est pas dans la liste.</p>
+                            <p className={`text-sm font-medium ${kpiId === "custom" ? "text-accent" : "text-slate-900"}`}>✏️ Alerte personnalisée</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">Une alerte qui n&apos;est pas dans la liste.</p>
                           </div>
                         </button>
                         {kpiId === "custom" && (
@@ -450,7 +471,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                             />
                             <button
                               type="button"
-                              onClick={() => customKpi.trim() && setStep(3)}
+                              onClick={() => { if (customKpi.trim()) { setAlertTitle(customKpi.trim()); setStep(3); } }}
                               disabled={!customKpi.trim()}
                               className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                             >
@@ -481,19 +502,27 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                 {/* ── Step 3: Configure ── */}
                 {step === 3 && kpi && (
                   <form onSubmit={(e) => { e.preventDefault(); if (threshold && (kpiId !== "source_to_lifecycle" || lifecycleStage)) setStep(4); }}>
-                    <h2 className="text-lg font-semibold text-slate-900">Paramétrer l&apos;objectif</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">Évaluation</h2>
                     <p className="mt-1 text-sm text-slate-500">{kpi.label} — {kpi.description}</p>
 
                     <div className="mt-5 space-y-4">
-                      {/* Direction + Unit */}
+                      {/* Titre de l'alerte — éditable */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Titre de l&apos;alerte</label>
+                        <input type="text" value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)}
+                          placeholder="Nom de l'alerte"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                      </div>
+
+                      {/* Évolution + Unité */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Direction</label>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Évolution</label>
                           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
                             <button type="button" onClick={() => setDirection("above")}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "above" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>Atteindre ↑</button>
+                              className={`flex-1 px-3 py-2 text-sm font-medium transition ${direction === "above" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>↑</button>
                             <button type="button" onClick={() => setDirection("below")}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition ${direction === "below" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>Descendre ↓</button>
+                              className={`flex-1 px-3 py-2 text-sm font-medium transition ${direction === "below" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>↓</button>
                           </div>
                         </div>
                         <div>
@@ -509,11 +538,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       </div>
 
-                      {/* Threshold */}
+                      {/* KPI à surveiller (seuil) */}
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                          Objectif à {direction === "below" ? "descendre sous" : "atteindre"}
-                        </label>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">KPI à surveiller</label>
                         <div className="flex items-center gap-2">
                           <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)}
                             placeholder={unitMode === "currency" ? "50000" : unitMode === "percent" ? "35" : "10"}
@@ -522,8 +549,57 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       </div>
 
-                      {/* Pipeline selection — only for deal-related KPIs */}
-                      {kpi.dealRelated && pipelines.length > 0 && (
+                      {/* Données à croiser (hors communication) + un KPI par source */}
+                      {dataSources.length > 0 && (
+                        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                          <label className="mb-1.5 block text-xs font-medium text-slate-600">Données à croiser</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {dataSources.map((t) => {
+                              const on = crossSources.includes(t.key);
+                              return (
+                                <button key={t.key} type="button" onClick={() => toggleCrossSource(t.key)}
+                                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                                    on ? "border-accent bg-accent/10 text-accent" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                  }`}>
+                                  <span>{t.icon}</span>{t.label}{on && <span className="text-[10px]">✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-400">Ajoute un KPI par source pour croiser — ex : un pour le CRM, un pour Stripe.</p>
+                          {crossSources.length > 0 && (
+                            <div className="mt-3 space-y-2.5">
+                              {crossSources.map((key) => {
+                                const label = dataSources.find((t) => t.key === key)?.label ?? key;
+                                const icon = dataSources.find((t) => t.key === key)?.icon ?? "🔗";
+                                const sk = sourceKpis[key] ?? { value: "", unit: "percent" as const };
+                                return (
+                                  <div key={key}>
+                                    <label className="mb-1 block text-[11px] font-medium text-slate-500">KPI {icon} {label}</label>
+                                    <div className="flex items-center gap-1.5">
+                                      <input type="number" step="any" value={sk.value}
+                                        onChange={(e) => setSourceKpi(key, { value: e.target.value })}
+                                        placeholder="Ex : 20"
+                                        className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                                      <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                                        {(["percent", "currency", "count"] as const).map((u) => (
+                                          <button key={u} type="button" onClick={() => setSourceKpi(key, { unit: u })}
+                                            className={`px-2.5 py-1.5 text-xs font-medium transition ${sk.unit === u ? "bg-accent text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+                                            {u === "percent" ? "%" : u === "currency" ? "€" : "#"}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Pipelines — propre à HubSpot & aux alertes Ventes uniquement */}
+                      {team === "sales" && hubspotSelected && pipelines.length > 0 && (
                         <div>
                           <label className="mb-1.5 block text-xs font-medium text-slate-600">
                             Pipeline{pipelines.length > 1 ? "s" : ""} à surveiller
@@ -548,27 +624,22 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       )}
 
-                      {/* Lifecycle stage — required for source_to_lifecycle, optional for other contact KPIs */}
-                      {kpi.contactRelated && lifecycleStages.length > 0 && (
+                      {/* Phase cible — uniquement pour le KPI source → lifecycle */}
+                      {kpiId === "source_to_lifecycle" && lifecycleStages.length > 0 && (
                         <div>
                           <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                            {kpiId === "source_to_lifecycle" ? "Phase cible à atteindre" : "Phase du cycle de vie"}
-                            {kpiId === "source_to_lifecycle" && <span className="ml-1 text-red-500">*</span>}
+                            Phase cible à atteindre<span className="ml-1 text-red-500">*</span>
                           </label>
                           <select value={lifecycleStage} onChange={(e) => setLifecycleStage(e.target.value)}
                             className={`w-full rounded-lg border px-3 py-2.5 text-sm text-slate-700 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ${
-                              kpiId === "source_to_lifecycle" && !lifecycleStage ? "border-amber-300 bg-amber-50/50" : "border-slate-200"
+                              !lifecycleStage ? "border-amber-300 bg-amber-50/50" : "border-slate-200"
                             }`}>
-                            <option value="">{kpiId === "source_to_lifecycle" ? "Sélectionner la phase cible" : "Toutes les phases"}</option>
+                            <option value="">Sélectionner la phase cible</option>
                             {lifecycleStages.map((lc) => (
                               <option key={lc.value} value={lc.value}>{lc.label}</option>
                             ))}
                           </select>
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            {kpiId === "source_to_lifecycle"
-                              ? "Quelle phase du lifecycle voulez-vous que vos contacts atteignent ?"
-                              : "Filtrer les contacts par leur phase dans le cycle de vie HubSpot"}
-                          </p>
+                          <p className="mt-1 text-[10px] text-slate-400">Quelle phase du lifecycle voulez-vous que vos contacts atteignent ?</p>
                         </div>
                       )}
 
@@ -596,151 +667,62 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       )}
 
-                      {/* Outils à croiser + 2ᵉ KPI (multi-outils) */}
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                        <AlertCrossTools tools={connectedTools} value={cross} onChange={setCross} />
+                      {/* Priorité de l'alerte */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Priorité de l&apos;alerte</label>
+                        <div className="flex gap-2">
+                          {([
+                            { id: "faible", label: "Faible", color: "bg-slate-200 text-slate-700" },
+                            { id: "moyen", label: "Moyen", color: "bg-amber-100 text-amber-700" },
+                            { id: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
+                          ] as const).map((p) => (
+                            <button key={p.id} type="button" onClick={() => setPriority(p.id)}
+                              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                priority === p.id ? p.color : "bg-white border border-slate-200 text-slate-500"
+                              }`}>{p.label}</button>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Période d'analyse : date de début / date de fin */}
+                      {/* Période d'analyse : en continu OU plage de dates */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">Période d&apos;analyse</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[10px] text-slate-400">Date de début</span>
-                            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400">Date de fin</span>
-                            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
-                          </div>
+                        <div className="mb-2 flex rounded-lg border border-slate-200 overflow-hidden">
+                          <button type="button" onClick={() => setContinuous(true)}
+                            className={`flex-1 px-3 py-2 text-xs font-medium transition ${continuous ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>En continu</button>
+                          <button type="button" onClick={() => setContinuous(false)}
+                            className={`flex-1 px-3 py-2 text-xs font-medium transition ${!continuous ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>Plage de dates</button>
                         </div>
-                        <p className="mt-1 text-[10px] text-slate-400">Laisse vide pour analyser toute la période.</p>
+                        {continuous ? (
+                          <p className="text-[10px] text-slate-400">L&apos;alerte surveille le KPI en continu, sans borne de dates.</p>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[10px] text-slate-400">Date de début</span>
+                                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                                  className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400">Date de fin</span>
+                                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                                  className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                              </div>
+                            </div>
+                            <p className="mt-1 text-[10px] text-slate-400">Laisse vide pour analyser toute la période.</p>
+                          </>
+                        )}
                       </div>
 
-                      {/* ── Advanced ── */}
-                      <div className="border-t border-slate-100 pt-3">
-                        <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
-                          className="flex w-full items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700">
-                          <span>Paramètres avancés</span>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                            className={`transition-transform ${showAdvanced ? "" : "-rotate-90"}`}><polyline points="6 9 12 15 18 9" /></svg>
-                        </button>
-
-                        {showAdvanced && (
-                          <div className="mt-3 space-y-4 rounded-lg bg-slate-50 p-4">
-                            {/* Owner / HubSpot team filter — available for all teams */}
-                            {(owners.length > 0 || hsTeams.length > 0) && (
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Filtrer par propriétaire ou équipe HubSpot</label>
-                                {hsTeams.length > 0 && (
-                                  <div className="mb-2">
-                                    <select value={hsTeamFilter}
-                                      onChange={(e) => { setHsTeamFilter(e.target.value); setOwnerFilter(""); }}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
-                                      <option value="">Toutes les équipes</option>
-                                      {hsTeams.map((t) => (
-                                        <option key={t} value={t}>{t}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
-                                <select value={ownerFilter}
-                                  onChange={(e) => setOwnerFilter(e.target.value)}
-                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
-                                  <option value="">Tous les propriétaires{hsTeamFilter ? ` (${hsTeamFilter})` : ""}</option>
-                                  {filteredOwners.map((o) => (
-                                    <option key={o.id} value={o.id}>
-                                      {o.name}{o.team ? ` — ${o.team}` : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                                <p className="mt-1 text-[10px] text-slate-400">Tracker l&apos;objectif sur un utilisateur ou une équipe HubSpot spécifique</p>
-                              </div>
-                            )}
-
-                            {/* Custom contact property filter — user-created properties only */}
-                            {kpi.contactRelated && customContactProps.length > 0 && (
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Propriété de contact personnalisée</label>
-                                <p className="mb-2 text-[10px] text-slate-400">Filtrer par une propriété créée par votre équipe (non native HubSpot)</p>
-                                <select value={customProp}
-                                  onChange={(e) => { setCustomProp(e.target.value); setCustomPropValue(""); }}
-                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
-                                  <option value="">Aucune propriété custom</option>
-                                  {customContactProps.map((p) => (
-                                    <option key={p.name} value={p.name}>{p.label}</option>
-                                  ))}
-                                </select>
-                                {customProp && (
-                                  <input
-                                    type="text"
-                                    value={customPropValue}
-                                    onChange={(e) => setCustomPropValue(e.target.value)}
-                                    placeholder="Valeur attendue"
-                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-accent focus:outline-none"
-                                  />
-                                )}
-                              </div>
-                            )}
-
-                            {/* Severity */}
-                            <div>
-                              <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Sévérité de l&apos;alerte</label>
-                              <div className="flex gap-2">
-                                {[
-                                  { id: "info", label: "Info", color: "bg-blue-100 text-blue-700" },
-                                  { id: "warning", label: "Important", color: "bg-amber-100 text-amber-700" },
-                                  { id: "critical", label: "Critique", color: "bg-red-100 text-red-700" },
-                                ].map((s) => (
-                                  <button key={s.id} type="button" onClick={() => setSeverity(s.id)}
-                                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                                      severity === s.id ? s.color : "bg-white border border-slate-200 text-slate-500"
-                                    }`}>{s.label}</button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Frequency */}
-                            <div>
-                              <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Fréquence de vérification</label>
-                              <select value={frequency} onChange={(e) => setFrequency(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
-                                <option value="every_check">À chaque sync (toutes les 6h)</option>
-                                <option value="daily">Quotidien (1x/jour)</option>
-                                <option value="weekly">Hebdomadaire (1x/semaine)</option>
-                              </select>
-                            </div>
-
-                            {/* Min deal amount */}
-                            {kpi.dealRelated && (
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Montant minimum par deal</label>
-                                <div className="flex items-center gap-2">
-                                  <input type="number" value={minDealAmount} onChange={(e) => setMinDealAmount(e.target.value)} placeholder="Ex: 5000"
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-accent focus:outline-none" />
-                                  <span className="text-xs text-slate-400">€</span>
-                                </div>
-                                <p className="mt-1 text-[10px] text-slate-400">Exclure les petits deals du calcul du KPI</p>
-                              </div>
-                            )}
-
-                            {/* Expiration */}
-                            <div>
-                              <label className="mb-1.5 block text-[11px] font-medium text-slate-500">Expiration automatique</label>
-                              <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-accent focus:outline-none">
-                                <option value="">Jamais (jusqu&apos;à objectif atteint)</option>
-                                <option value="30">Dans 30 jours</option>
-                                <option value="60">Dans 60 jours</option>
-                                <option value="90">Dans 90 jours</option>
-                                <option value="180">Dans 6 mois</option>
-                                <option value="365">Dans 1 an</option>
-                              </select>
-                            </div>
-                          </div>
-                        )}
+                      {/* Description transmise à l'agent qui crée l'alerte */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Description (optionnel)</label>
+                        <p className="mb-1.5 text-[10px] text-slate-400">
+                          Ce contexte aide l&apos;agent de l&apos;équipe {teams.find((t) => t.id === team)?.label ?? ""} à créer l&apos;alerte et à rapprocher les vraies données.
+                        </p>
+                        <textarea value={agentContext} onChange={(e) => setAgentContext(e.target.value)} rows={3}
+                          placeholder="Ex : croiser le CA CRM et les paiements Stripe, alerter si l'écart dépasse 10 %."
+                          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
                       </div>
                     </div>
 
@@ -860,7 +842,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
                     <div className="mt-6 flex items-center justify-between">
                       <button type="button" onClick={() => setStep(3)} className="text-xs text-slate-400 hover:text-accent">
-                        ← Modifier l&apos;objectif
+                        ← Modifier l&apos;évaluation
                       </button>
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}

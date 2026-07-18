@@ -39,7 +39,7 @@ const PERSONAS = [
   { key: "coaching-cross-source", desc: "Nina, a female cross-source analyst coach, curly hair, smart casual, wearing a purple top" },
   { key: "coaching-data-model", desc: "Adam, a male data-model architect coach, glasses, neat beard, wearing a light grey shirt" },
   { key: "performance", desc: "Chloé, a female performance analyst, blonde bob haircut, wearing a modern office blazer" },
-  { key: "automatisations", desc: "Théo, a male workflow automation engineer, short hair, wearing a technical work shirt" },
+  { key: "automatisations", desc: "Agent process, a male workflow automation engineer, short hair, wearing a technical work shirt" },
   { key: "paiement-facturation", desc: "Inès, an elegant female billing expert, dark hair, wearing a refined business blazer" },
   { key: "service-client", desc: "Hugo, a friendly male customer support agent wearing a headset and a company polo shirt" },
   { key: "equipes", desc: "Sarah, a warm female team coach, shoulder-length brown hair, wearing a casual smart blazer" },

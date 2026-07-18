@@ -29,6 +29,7 @@ type Draft = {
   /** Vrai = KPI personnalisé construit par l'agent (entité/dimension décidées en back). */
   custom?: boolean;
   customKpi?: string;
+  description?: string;
 };
 
 export function PageDataTables({ pageKey }: { pageKey: string }) {
@@ -40,6 +41,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [customKpi, setCustomKpi] = useState("");
+  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Id de la table en cours d'édition (null = création).
@@ -55,7 +57,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  function reset() { setStep(1); setDraft(null); setCustomKpi(""); setError(null); setEditingId(null); }
+  function reset() { setStep(1); setDraft(null); setCustomKpi(""); setDescription(""); setError(null); setEditingId(null); }
 
   // Ouvre le panneau d'ÉDITION (agent uniquement : KPI + affichage).
   // Le KPI est pré-rempli avec le texte source, ou à défaut le titre actuel.
@@ -63,6 +65,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setError(null);
     setEditingId(table.id);
     setCustomKpi(table.custom_kpi || table.title);
+    setDescription(table.description || "");
     setDraft({
       entity: table.entity,
       group_by: table.group_by,
@@ -124,8 +127,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           view: draft.view,
-          // Réécriture du KPI : le back ne relance l'agent que si le texte change.
+          // Réécriture du KPI / description : le back ne relance l'agent que si l'un des textes change.
           custom_kpi: customKpi.trim(),
+          description: description.trim(),
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -143,7 +147,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     // ── CRÉATION ────────────────────────────────────────────────────────
     const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
     const payload = draft.custom
-      ? { page_key: pageKey, custom_kpi: draft.customKpi, view: draft.view, title: draft.title || undefined }
+      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined }
       : { page_key: pageKey, ...draft };
     const res = await fetch(endpoint, {
       method: "POST",
@@ -229,6 +233,18 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 </div>
 
                 <div>
+                  <label className="text-xs font-medium text-slate-500">Description (optionnel)</label>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Ajoute du contexte pour aider {agentName} à mieux interpréter ton KPI.</p>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Ex : ne compter que les deals gagnés, exclure les renouvellements"
+                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
                   <div className="mt-1 grid grid-cols-4 gap-2">
                     {VIEWS.map((v) => (
@@ -304,6 +320,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     rows={2}
                     placeholder="Ex : montant moyen des deals gagnés par mois"
                     className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
+                  />
+                  <label className="mt-3 block text-[11px] font-medium text-slate-500">Description (optionnel)</label>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Précise le contexte — {agentName} en tiendra compte pour construire la table.</p>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Ex : ne compter que les deals gagnés, exclure les renouvellements"
+                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
                   />
                   <div className="mt-2 flex justify-end">
                     <button

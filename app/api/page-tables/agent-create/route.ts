@@ -14,16 +14,17 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { page_key?: string; custom_kpi?: string; view?: string; title?: string };
+  let body: { page_key?: string; custom_kpi?: string; description?: string; view?: string; title?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const pageKey = body.page_key;
   const kpi = (body.custom_kpi || "").trim();
+  const description = (body.description || "").trim() || null;
   const view = body.view || "table";
   if (!pageKey || !kpi) return NextResponse.json({ error: "KPI personnalisé requis" }, { status: 400 });
 
   const hubspotToken = await getHubSpotToken(supabase, orgId);
-  const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, pageKey, kpi);
+  const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, pageKey, kpi, description);
   if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
 
   // Le titre part TOUJOURS du KPI écrit par l'utilisateur ; l'agent ne fait que
@@ -43,9 +44,10 @@ export async function POST(request: Request) {
       unit_mode: resolved.unitMode,
       view,
       custom_kpi: kpi,
+      description,
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
