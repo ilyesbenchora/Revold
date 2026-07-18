@@ -78,8 +78,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   function startCustom() {
     if (!customKpi.trim()) return;
     setError(null);
-    // Entité/dimension décidées par l'agent en back-end à la création.
-    setDraft({ entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: "", custom: true, customKpi: customKpi.trim() });
+    // Le titre reprend le KPI écrit ; l'agent choisit la donnée (entité/dimension)
+    // en back-end à la création et peut peaufiner le libellé si besoin.
+    const kpi = customKpi.trim();
+    setDraft({ entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: kpi, custom: true, customKpi: kpi });
     setStep(2);
   }
 
@@ -209,11 +211,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 )}
 
                 <div>
-                  <label className="text-xs font-medium text-slate-500">{draft.custom ? "Titre (optionnel)" : "Titre"}</label>
+                  <label className="text-xs font-medium text-slate-500">{draft.custom ? "Titre (repris de ton KPI)" : "Titre"}</label>
                   <input
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    placeholder={draft.custom ? `${agentName} proposera un titre` : ""}
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
                   />
                 </div>

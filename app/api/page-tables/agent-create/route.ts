@@ -66,10 +66,15 @@ export async function POST(request: Request) {
     `Tu construis une table de données à partir du KPI décrit par l'utilisateur. ` +
     `IMPÉRATIF DE FIABILITÉ : n'utilise QUE ce catalogue canonique — ${CANONICAL_DOC} ` +
     `Traduis le besoin vers la combinaison entité/dimension/mesure/champ la plus proche et 100 % calculable. ` +
-    `Si le besoin implique un montant en euros, mets unit_mode=currency ; sinon count. Réponds uniquement via l'outil.`;
+    `Si le besoin implique un montant en euros, mets unit_mode=currency ; sinon count. ` +
+    `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
+    `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via l'outil.`;
 
   let spec: AggregateSpec | null = null;
-  let title = body.title?.trim() || kpi;
+  // Le titre part TOUJOURS du KPI écrit par l'utilisateur ; l'agent ne fait que
+  // le peaufiner à défaut (si l'utilisateur n'a rien saisi).
+  const userTitle = body.title?.trim();
+  let title = userTitle || kpi;
   let unitMode = "count";
 
   try {
@@ -86,7 +91,8 @@ export async function POST(request: Request) {
     const inp = toolUse.input as {
       title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
     };
-    if (inp.title) title = inp.title;
+    // On garde le KPI écrit par l'utilisateur ; la version agent n'est qu'un fallback.
+    if (!userTitle && inp.title) title = inp.title;
     unitMode = inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count";
     spec = {
       entity: String(inp.entity ?? ""),
