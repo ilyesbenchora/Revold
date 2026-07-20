@@ -47,7 +47,9 @@ function env() {
 
 function loadScript(key) {
   const src = readFileSync(join(ROOT, "lib/ai/agents/persona-scripts.ts"), "utf8");
-  const block = new RegExp(`\\b${key}:\\s*\\{([\\s\\S]*?)\\n  \\},`).exec(src);
+  // Les clés à tiret sont entre guillemets ("service-client":), les autres non.
+  const esc = key.replace(/[-]/g, "\\-");
+  const block = new RegExp(`(?:"${esc}"|\\b${esc}):\\s*\\{([\\s\\S]*?)\\n  \\},`).exec(src);
   if (!block) return null;
   const voice = /hedraVoiceId:\s*"([^"]+)"/.exec(block[1]);
   const eleven = /elevenVoiceId:\s*"([^"]+)"/.exec(block[1]);
@@ -153,8 +155,9 @@ async function main() {
   if (!key) { console.error("Usage : node scripts/generate-persona-video-hedra.mjs <clé-agent>"); process.exit(1); }
   const script = loadScript(key);
   if (!script) { console.error(`Aucun script pour « ${key} ».`); process.exit(1); }
-  if (!script.hedraVoiceId) {
-    console.error(`Pas de hedraVoiceId pour « ${key} » — lance --list-voices puis renseigne-le dans persona-scripts.ts.`);
+  // Voix ElevenLabs (production) ; à défaut, repli Hedra.
+  if (!script.elevenVoiceId && !script.hedraVoiceId) {
+    console.error(`Aucune voix (elevenVoiceId/hedraVoiceId) pour « ${key} » dans persona-scripts.ts.`);
     process.exit(1);
   }
 
@@ -166,7 +169,7 @@ async function main() {
 
   const imgPath = join(ROOT, `public/personas/${key}.png`);
   const text = script.segments.join(" ");
-  console.log(`Persona : ${key}\nPortrait: ${imgPath}\nModèle  : ${modelArg || "character-3"}\nVoix    : ${script.hedraVoiceId}\nTexte   : ${text.length} caractères`);
+  console.log(`Persona : ${key}\nPortrait: ${imgPath}\nModèle  : ${modelArg || "character-3"}\nVoix    : ${script.elevenVoiceId || script.hedraVoiceId}\nTexte   : ${text.length} caractères`);
 
   const poll = async (genId, label) => {
     for (let i = 0; i < 200; i++) {
