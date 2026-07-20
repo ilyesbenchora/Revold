@@ -16,8 +16,13 @@
 export type PersonaScript = {
   /** Voix TTS D-ID (Microsoft Neural, locale fr-FR). */
   voiceId: string;
-  /** Voix TTS Hedra (id de /web-app/public/voices). Optionnel. */
+  /** Voix TTS Hedra (id de /web-app/public/voices). Accent anglophone en FR. */
   hedraVoiceId?: string;
+  /**
+   * Voix ElevenLabs — français NATIF, source vocale retenue. La vidéo reste
+   * générée par Hedra à partir de cet audio (cf. generate-persona-video-hedra).
+   */
+  elevenVoiceId?: string;
   /** Segments dits dans l'ordre ; chacun devient une ligne de sous-titre. */
   segments: string[];
 };

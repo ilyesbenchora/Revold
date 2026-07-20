@@ -102,6 +102,21 @@ async function main() {
     return;
   }
 
+  // Voix ElevenLabs à accent/personnalité française — pour choisir par persona.
+  if (args.includes("--eleven-voices")) {
+    if (!e.ELEVENLABS_API_KEY) { console.error("ELEVENLABS_API_KEY absent de .env.local."); process.exit(1); }
+    const r = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": e.ELEVENLABS_API_KEY } });
+    if (!r.ok) { console.error(`${r.status} ${await r.text()}`); process.exit(1); }
+    const d = await r.json();
+    const voices = d.voices ?? [];
+    const fr = voices.filter((v) => JSON.stringify(v.labels ?? {}).toLowerCase().match(/french|français|france/));
+    console.log(`${voices.length} voix dans ta bibliothèque, ${fr.length} étiquetées françaises :`);
+    for (const v of (fr.length ? fr : voices)) {
+      console.log(" -", v.voice_id, "|", v.name, "|", JSON.stringify(v.labels ?? {}));
+    }
+    return;
+  }
+
   if (args.includes("--check")) {
     const r = await fetch(`${API}/credits`, { headers: H });
     console.log(`credits → HTTP ${r.status} : ${(await r.text()).slice(0, 300)}`);
@@ -142,17 +157,49 @@ async function main() {
     process.exit(1);
   };
 
-  // 1. Synthèse vocale FRANÇAISE (language forcé pour éviter la prononciation anglaise).
-  const tts = await fetch(`${API}/generations`, {
-    method: "POST", headers: JH,
-    body: JSON.stringify({ type: "text_to_speech", voice_id: script.hedraVoiceId, text, language: "French" }),
-  });
-  if (!tts.ok) { console.error(`TTS : ${tts.status} ${await tts.text()}`); process.exit(1); }
-  const ttsJob = await tts.json();
-  console.log(`Voix en cours…`);
-  const ttsDone = await poll(ttsJob.id, "TTS");
-  const audioId = ttsJob.asset_id ?? ttsDone.asset_id;
-  console.log(`\nVoix prête (asset ${audioId})`);
+  // 1. Voix française. ElevenLabs (français NATIF) si dispo, sinon TTS Hedra
+  //    (repli — accent anglophone assumé, à éviter en prod).
+  let audioId;
+  if (e.ELEVENLABS_API_KEY && script.elevenVoiceId) {
+    console.log(`Voix ElevenLabs (${script.elevenVoiceId}) — français natif…`);
+    const el = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${script.elevenVoiceId}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": e.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      },
+    );
+    if (!el.ok) { console.error(`ElevenLabs : ${el.status} ${await el.text()}`); process.exit(1); }
+    const mp3 = Buffer.from(await el.arrayBuffer());
+
+    // Déposer l'audio comme asset Hedra, puis le téléverser.
+    const aCreate = await fetch(`${API}/assets`, {
+      method: "POST", headers: JH, body: JSON.stringify({ name: `${key}-voice.mp3`, type: "audio" }),
+    });
+    if (!aCreate.ok) { console.error(`Asset audio : ${aCreate.status} ${await aCreate.text()}`); process.exit(1); }
+    audioId = (await aCreate.json()).id;
+    const af = new FormData();
+    af.append("file", new Blob([mp3], { type: "audio/mpeg" }), `${key}-voice.mp3`);
+    const aUp = await fetch(`${API}/assets/${audioId}/upload`, { method: "POST", headers: H, body: af });
+    if (!aUp.ok) { console.error(`Upload audio : ${aUp.status} ${await aUp.text()}`); process.exit(1); }
+    console.log(`Voix prête (${(mp3.length / 1024).toFixed(0)} Ko, asset ${audioId})`);
+  } else {
+    const tts = await fetch(`${API}/generations`, {
+      method: "POST", headers: JH,
+      body: JSON.stringify({ type: "text_to_speech", voice_id: script.hedraVoiceId, text, language: "French" }),
+    });
+    if (!tts.ok) { console.error(`TTS : ${tts.status} ${await tts.text()}`); process.exit(1); }
+    const ttsJob = await tts.json();
+    console.log(`Voix Hedra en cours (repli, accent anglophone)…`);
+    const ttsDone = await poll(ttsJob.id, "TTS");
+    audioId = ttsJob.asset_id ?? ttsDone.asset_id;
+    console.log(`\nVoix prête (asset ${audioId})`);
+  }
 
   // 2. Déclarer + téléverser le portrait.
   const created = await fetch(`${API}/assets`, {
