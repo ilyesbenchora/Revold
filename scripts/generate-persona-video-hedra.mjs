@@ -64,6 +64,7 @@ const ts = (sec) => {
   return `${h}:${m}:${s}`;
 };
 
+/** Repli : minutage au prorata des caractères (imprécis). */
 function buildVtt(segments, durationSec) {
   const total = segments.reduce((n, s) => n + s.length, 0);
   let t = 0;
@@ -71,6 +72,31 @@ function buildVtt(segments, durationSec) {
     const start = t;
     t += (seg.length / total) * durationSec;
     const end = i === segments.length - 1 ? durationSec : t;
+    return `${i + 1}\n${ts(start)} --> ${ts(end)}\n${seg}`;
+  });
+  return `WEBVTT\n\n${cues.join("\n\n")}\n`;
+}
+
+/**
+ * Minutage EXACT à partir des timestamps caractère par caractère renvoyés par
+ * ElevenLabs (alignment). On resitue chaque segment dans le texte complet, et
+ * on prend le temps de son premier et de son dernier caractère prononcé —
+ * les sous-titres suivent alors la voix à la milliseconde.
+ */
+function buildVttFromAlignment(segments, fullText, alignment) {
+  const chars = alignment.characters;
+  const starts = alignment.character_start_times_seconds;
+  const ends = alignment.character_end_times_seconds;
+  // Reconstruit l'index de chaque caractère du texte joint dans l'alignement.
+  const joined = chars.join("");
+  let cursor = 0;
+  const cues = segments.map((seg, i) => {
+    const at = joined.indexOf(seg, cursor);
+    const startIdx = at >= 0 ? at : cursor;
+    const endIdx = Math.min(startIdx + seg.length - 1, ends.length - 1);
+    cursor = startIdx + seg.length;
+    const start = starts[startIdx] ?? 0;
+    const end = ends[endIdx] ?? start;
     return `${i + 1}\n${ts(start)} --> ${ts(end)}\n${seg}`;
   });
   return `WEBVTT\n\n${cues.join("\n\n")}\n`;
@@ -161,10 +187,13 @@ async function main() {
   // 1. Voix française. ElevenLabs (français NATIF) si dispo, sinon TTS Hedra
   //    (repli — accent anglophone assumé, à éviter en prod).
   let audioId;
+  let alignment = null;
   if (e.ELEVENLABS_API_KEY && script.elevenVoiceId) {
     console.log(`Voix ElevenLabs (${script.elevenVoiceId}) — français natif…`);
+    // Endpoint « with-timestamps » : renvoie l'audio ET le minutage caractère
+    // par caractère, pour des sous-titres alignés sur la voix réelle.
     const el = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${script.elevenVoiceId}?output_format=mp3_44100_128`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${script.elevenVoiceId}/with-timestamps?output_format=mp3_44100_128`,
       {
         method: "POST",
         headers: { "xi-api-key": e.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
@@ -176,7 +205,9 @@ async function main() {
       },
     );
     if (!el.ok) { console.error(`ElevenLabs : ${el.status} ${await el.text()}`); process.exit(1); }
-    const mp3 = Buffer.from(await el.arrayBuffer());
+    const payload = await el.json();
+    const mp3 = Buffer.from(payload.audio_base64, "base64");
+    alignment = payload.normalized_alignment ?? payload.alignment ?? null;
 
     // Déposer l'audio comme asset Hedra, puis le téléverser.
     const aCreate = await fetch(`${API}/assets`, {
@@ -245,7 +276,11 @@ async function main() {
   writeFileSync(join(outDir, `${key}${outSuffix}.mp4`), bin);
 
   const duration = Number(done.duration) || text.length / 15;
-  writeFileSync(join(outDir, `${key}${outSuffix}.vtt`), buildVtt(script.segments, duration));
+  const vtt = alignment && alignment.characters
+    ? buildVttFromAlignment(script.segments, text, alignment)
+    : buildVtt(script.segments, duration);
+  writeFileSync(join(outDir, `${key}${outSuffix}.vtt`), vtt);
+  console.log(`Sous-titres : ${alignment ? "alignés sur la voix (timestamps ElevenLabs)" : "prorata (repli)"}`);
   console.log(`\n\nVidéo → public/personas/videos/${key}${outSuffix}.mp4 (${(bin.length / 1024 / 1024).toFixed(2)} Mo)`);
   console.log(`VTT   → ${script.segments.length} lignes sur ${duration.toFixed(1)} s`);
   console.log("\nAVANT DE PRODUIRE LA SÉRIE : extraire une image et vérifier l'absence de filigrane.");
