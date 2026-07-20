@@ -363,7 +363,18 @@ async function syncPipelineStages(
       const { error } = await supabase
         .from("pipeline_stages")
         .upsert(rows, { onConflict: "organization_id,external_id" });
-      if (error) return {}; // migration non appliquée → pas de mapping
+      // On reste résilient (pas de régression du sync deals), mais on ne fait
+      // PLUS disparaître l'échec : un mapping vide dégrade silencieusement tout
+      // ce qui dépend des étapes/pipelines réels (alertes chirurgicales, KPI).
+      // Cas déjà vu en prod : 42P10 quand l'index unique est partiel.
+      if (error) {
+        console.error(
+          `[etl] syncPipelineStages: upsert pipeline_stages impossible (org ${orgId}) — ` +
+            `mapping des étapes NON écrit, deals.stage_id restera null. ` +
+            `${error.code ?? ""} ${error.message}`,
+        );
+        return {};
+      }
     }
     const { data } = await supabase
       .from("pipeline_stages")
@@ -374,7 +385,11 @@ async function syncPipelineStages(
       if (r.external_id) map[r.external_id] = r.id;
     }
     return map;
-  } catch {
+  } catch (e) {
+    console.error(
+      `[etl] syncPipelineStages: échec inattendu (org ${orgId}) — mapping des étapes NON écrit. ` +
+        (e instanceof Error ? e.message : String(e)),
+    );
     return {};
   }
 }
