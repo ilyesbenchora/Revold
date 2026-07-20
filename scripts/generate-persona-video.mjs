@@ -136,8 +136,10 @@ async function main() {
   const { id } = await created.json();
   console.log(`\nTâche D-ID : ${id}\nRendu en cours…`);
 
+  // Un rendu de ~37 s a pris 2 min 36 en pratique : on laisse 10 minutes de
+  // marge plutôt que d'abandonner une tâche qui aboutit.
   let result = null;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 200; i++) {
     await sleep(3000);
     const r = await fetch(`${API}/talks/${id}`, { headers: auth });
     const d = await r.json();
@@ -149,7 +151,7 @@ async function main() {
     process.stdout.write(".");
   }
   if (!result) {
-    console.error("\nTimeout : le rendu n'a pas abouti en 3 minutes.");
+    console.error("\nTimeout : le rendu n'a pas abouti en 10 minutes.");
     process.exit(1);
   }
 

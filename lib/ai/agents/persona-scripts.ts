@@ -22,7 +22,9 @@ export type PersonaScript = {
 
 export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   performance: {
-    voiceId: "fr-FR-DeniseNeural",
+    // Vivienne (multilingue, dernière génération) : timbre jeune et expressif,
+    // cohérent avec une analyste qui va droit au fait.
+    voiceId: "fr-FR-VivienneMultilingualNeural",
     segments: [
       "Bonjour, moi c'est Chloé, ton analyste performance chez Revold.",
       "Mon rôle : regarder ton activité commerciale telle qu'elle est vraiment,",
