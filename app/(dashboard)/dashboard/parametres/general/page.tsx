@@ -3,12 +3,18 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
+import { updateFiscalSettings } from "./actions";
 
 const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 const selectClass = inputClass;
 const readOnlyClass = "mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-600";
 
-export default async function ParametresGeneralPage() {
+export default async function ParametresGeneralPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string; error?: string }>;
+}) {
+  const sp = await searchParams;
   const orgId = await getOrgId();
   const user = await getAuthUser();
   if (!orgId || !user) {
@@ -148,7 +154,17 @@ export default async function ParametresGeneralPage() {
           Ces paramètres alimentent la table de données « Échéances fiscales (TVA · IS · URSSAF) »
           proposée dans le funnel de la page Trésorerie.
         </p>
-        <div className="card p-6">
+        {sp.saved === "fiscal" && (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+            Échéances fiscales enregistrées.
+          </p>
+        )}
+        {sp.error === "fiscal_save" && (
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+            Enregistrement impossible. Vérifie que la migration fiscale a bien été appliquée.
+          </p>
+        )}
+        <form action={updateFiscalSettings} className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {/* TVA */}
             <div>
@@ -208,11 +224,11 @@ export default async function ParametresGeneralPage() {
             Laisse une échéance vide pour utiliser l&apos;échéance standard française calculée automatiquement.
           </p>
           <div className="mt-6 flex justify-end">
-            <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
+            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
               Enregistrer les modifications
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
       {/* Équipe */}
