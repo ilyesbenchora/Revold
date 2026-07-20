@@ -62,7 +62,7 @@ export function AgentSectionGrid({
                   <AgentProfileAvatar
                     name={persona.name}
                     emoji={persona.emoji}
-                    image={personaImagePath(a.key)}
+                    image={personaImagePath(a.key)} agentKey={a.key}
                     role={persona.role}
                     pitch={persona.pitch}
                     size={44}

@@ -123,7 +123,7 @@ export default async function AuditPage() {
                   <AgentProfileAvatar
                     name={persona.name}
                     emoji={persona.emoji}
-                    image={personaImagePath(key)}
+                    image={personaImagePath(key)} agentKey={key}
                     role={persona.role}
                     pitch={persona.pitch}
                     size={44}

@@ -50,7 +50,7 @@ export function AgentsFamily() {
                   <AgentProfileAvatar
                     name={p.name}
                     emoji={p.emoji}
-                    image={personaImagePath(key)}
+                    image={personaImagePath(key)} agentKey={key}
                     role={p.role}
                     pitch={p.pitch}
                     size={56}

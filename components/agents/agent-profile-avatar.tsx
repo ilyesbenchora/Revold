@@ -4,6 +4,7 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AgentAvatar } from "./agent-avatar";
+import { PersonaVideo } from "./persona-video";
 
 /**
  * Avatar cliquable : au clic, ouvre une petite fenêtre décrivant le profil
@@ -25,6 +26,7 @@ export function AgentProfileAvatar({
   size = 44,
   className = "",
   chatHref,
+  agentKey,
 }: {
   name: string;
   emoji: string;
@@ -33,6 +35,8 @@ export function AgentProfileAvatar({
   pitch: string;
   size?: number;
   className?: string;
+  /** Clé de l'agent — sert à retrouver sa vidéo de présentation. */
+  agentKey?: string;
   /** Lien vers le chat de l'agent — affiche un CTA « Discuter avec … » dans la fiche. */
   chatHref?: string;
 }) {
@@ -89,6 +93,7 @@ export function AgentProfileAvatar({
                 </div>
               </div>
               <div className="px-5 py-4">
+                {agentKey && <PersonaVideo agentKey={agentKey} name={name} poster={image} />}
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Ce que je t&apos;apporte</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-700">{pitch}</p>
                 {chatHref && (

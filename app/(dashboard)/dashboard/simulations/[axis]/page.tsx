@@ -49,7 +49,7 @@ export default async function PrevisionAxisPage({ params }: { params: Promise<{ 
           className="pointer-events-none absolute -right-6 -bottom-10 h-40 w-40 select-none rounded-full object-cover opacity-[0.14]"
         />
         <div className="relative z-10 flex items-start gap-3">
-          <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} role={persona.role} pitch={persona.pitch} size={48} />
+          <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} agentKey={agent.key} role={persona.role} pitch={persona.pitch} size={48} />
           <div>
             <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
               <span>✨</span> Prévisionniste IA
