@@ -661,6 +661,24 @@ export async function computeAggregate(
     const pipelineIdOf = (r: Record<string, unknown>) =>
       relField(r.pipeline_stages, "pipeline_external_id") ?? stageMap.get(extOf(r))?.pipelineId ?? null;
 
+    // Le rattachement au pipeline vient soit du canonique (pipeline_stages
+    // mappé par l'ETL), soit de HubSpot en direct. Si AUCUN des deux n'est
+    // disponible, on refuse de répondre : filtrer sur un pipeline non résoluble
+    // renverrait 0 — un faux chiffre qui déclencherait à tort une alerte
+    // « en dessous du seuil ». Mieux vaut « non calculable » (le cron passe).
+    if ((wantPipeline || pipelineDim) && rows.length > 0) {
+      const resolvable =
+        stageMap.size > 0 ||
+        rows.some((r) => relField(r.pipeline_stages, "pipeline_external_id") || relField(r.pipeline_stages, "pipeline_name"));
+      if (!resolvable) {
+        return {
+          error:
+            "Pipeline non résoluble : ni le mapping canonique (pipeline_stages.pipeline_external_id) ni HubSpot ne sont disponibles. Agrégat refusé plutôt que renvoyer un chiffre faux.",
+          hasData: false,
+        };
+      }
+    }
+
     if (wantPipeline) {
       const want = wantPipeline.toLowerCase();
       scoped = rows.filter(
