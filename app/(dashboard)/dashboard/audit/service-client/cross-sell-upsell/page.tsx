@@ -6,7 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientCrossSellUpsellPage() {
@@ -68,60 +68,31 @@ export default async function ServiceClientCrossSellUpsellPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARPU mensuel</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{arpu != null ? fmtK(arpu) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">MRR / subs actives</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARPU annuel</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{arpuAnnual != null ? fmtK(arpuAnnual) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">ARPU × 12</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">LTV (estimée)</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">
-              {arpu != null && billing.churnRate != null && billing.churnRate > 0
-                ? fmtK(Math.round((arpu * 12) / (billing.churnRate / 100)))
-                : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">ARPU annuel / churn rate</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subs / customer</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {subsPerCustomer != null ? subsPerCustomer.toFixed(2) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">&gt; 1 = clients multi-produit</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Revenue par client (ARPU & LTV)"
-            subtitle="ARPU / LTV"
-            team="csm"
-            unit="currency"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "ARPU mensuel", value: arpu, unit: "currency" },
-              { name: "ARPU annuel", value: arpuAnnual, unit: "currency" },
-              {
-                name: "LTV (estimée)",
-                value:
-                  arpu != null && billing.churnRate != null && billing.churnRate > 0
-                    ? Math.round((arpu * 12) / (billing.churnRate / 100))
-                    : null,
-                unit: "currency",
-              },
-              { name: "Subs / customer", value: subsPerCustomer, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (montants et ratio) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Revenue par client (ARPU & LTV)"
+          subtitle="ARPU / LTV"
+          team="csm"
+          unit="currency"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "ARPU mensuel", value: arpu, unit: "currency", cells: ["MRR / subs actives"] },
+            { name: "ARPU annuel", value: arpuAnnual, unit: "currency", cells: ["ARPU × 12"] },
+            {
+              name: "LTV (estimée)",
+              value:
+                arpu != null && billing.churnRate != null && billing.churnRate > 0
+                  ? Math.round((arpu * 12) / (billing.churnRate / 100))
+                  : null,
+              unit: "currency",
+              cells: ["ARPU annuel / churn rate"],
+            },
+            { name: "Subs / customer", value: subsPerCustomer, unit: "count", cells: ["> 1 = clients multi-produit"] },
+          ]}
+          footnote="Unités hétérogènes (montants et ratio) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -135,44 +106,7 @@ export default async function ServiceClientCrossSellUpsellPage() {
           Comptes &laquo; healthy &raquo; (sans ticket ouvert) = candidats expansion prioritaires :
           activation rapide, NPS positif probable, payment on track.
         </p>
-        <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Customers healthy</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{fmt(healthyCustomers)}</p>
-            <p className="mt-1 text-xs text-slate-400">Sans ticket ouvert</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">% du portefeuille healthy</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                healthyPct != null && healthyPct >= 70 ? "text-emerald-600" : healthyPct != null && healthyPct >= 50 ? "text-amber-500" : "text-red-500"
-              }`}
-            >
-              {healthyPct != null ? `${healthyPct}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{fmt(totalCustomers)} customers totaux</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Expansion MRR potentiel</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">
-              {expansionPotentialMrr != null ? fmtK(expansionPotentialMrr) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">healthy × ARPU × 20% upsell</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Multi-produit</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                multiProductRate >= 30 ? "text-emerald-600" : multiProductRate > 0 ? "text-amber-500" : "text-red-500"
-              }`}
-            >
-              {multiProductRate}%
-            </p>
-            <p className="mt-1 text-xs text-slate-400">% subs additionnelles</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
             title="Potentiel d'expansion"
@@ -181,12 +115,13 @@ export default async function ServiceClientCrossSellUpsellPage() {
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
+            extraColumns={["Détail"]}
             rows={[
-              { name: "Customers healthy", value: healthyCustomers, unit: "count" },
-              { name: "% du portefeuille healthy", value: healthyPct, unit: "percent" },
-              { name: "Customers totaux", value: totalCustomers, unit: "count" },
-              { name: "Expansion MRR potentiel", value: expansionPotentialMrr, unit: "currency" },
-              { name: "Multi-produit", value: multiProductRate, unit: "percent" },
+              { name: "Customers healthy", value: healthyCustomers, unit: "count", cells: ["Sans ticket ouvert"] },
+              { name: "% du portefeuille healthy", value: healthyPct, unit: "percent", cells: [`${fmt(totalCustomers)} customers totaux`] },
+              { name: "Customers totaux", value: totalCustomers, unit: "count", cells: ["—"] },
+              { name: "Expansion MRR potentiel", value: expansionPotentialMrr, unit: "currency", cells: ["healthy × ARPU × 20% upsell"] },
+              { name: "Multi-produit", value: multiProductRate, unit: "percent", cells: ["% subs additionnelles"] },
             ]}
             footnote="Unités hétérogènes (volumes, % et montants) : pas de total agrégé."
           />
@@ -200,53 +135,32 @@ export default async function ServiceClientCrossSellUpsellPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Deals ouverts</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.openDeals)}</p>
-            <p className="mt-1 text-xs text-slate-400">Tous pipelines confondus</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Pipeline ouvert €</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {snapshot.totalPipelineAmount > 0 ? fmtK(snapshot.totalPipelineAmount) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Inclut new business + expansion</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Taux deals/customer</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {totalCustomers > 0 ? `${Math.round((snapshot.openDeals / totalCustomers) * 100)}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">% customers avec deal ouvert</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Pipeline expansion"
-            subtitle="deals ouverts sur customers"
-            team="sales"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Deals ouverts", value: snapshot.openDeals, unit: "count" },
-              {
-                name: "Pipeline ouvert €",
-                value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null,
-                unit: "currency",
-              },
-              {
-                name: "Taux deals / customer",
-                value: totalCustomers > 0 ? Math.round((snapshot.openDeals / totalCustomers) * 100) : null,
-                unit: "percent",
-              },
-            ]}
-            footnote="Unités hétérogènes (volume, montant et %) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Pipeline expansion"
+          subtitle="deals ouverts sur customers"
+          team="sales"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Deals ouverts", value: snapshot.openDeals, unit: "count", cells: ["Tous pipelines confondus"] },
+            {
+              name: "Pipeline ouvert €",
+              value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null,
+              unit: "currency",
+              cells: ["Inclut new business + expansion"],
+            },
+            {
+              name: "Taux deals / customer",
+              value: totalCustomers > 0 ? Math.round((snapshot.openDeals / totalCustomers) * 100) : null,
+              unit: "percent",
+              cells: ["% customers avec deal ouvert"],
+            },
+          ]}
+          footnote="Unités hétérogènes (volume, montant et %) : pas de total agrégé."
+        />
       </CollapsibleBlock>
     </section>
   );

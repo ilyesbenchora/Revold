@@ -6,7 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientChurnPage() {
@@ -77,48 +77,7 @@ export default async function ServiceClientChurnPage() {
           Score consolidé combinant churn rate, past due, urgence tickets et charge tickets/contact.
           Plus le score est élevé, plus le portefeuille est exposé.
         </p>
-        <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Taux de churn</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                churnRate != null && churnRate > 10 ? "text-red-500" : churnRate != null && churnRate > 5 ? "text-orange-500" : "text-emerald-600"
-              }`}
-            >
-              {churnRate != null ? `${churnRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Cible top quartile : &lt; 5%</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subs annulées</p>
-            <p className="mt-1 text-3xl font-bold text-rose-600">{fmt(billing.canceledSubsCount)}</p>
-            <p className="mt-1 text-xs text-slate-400">canceled / expired / paused</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Past due</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                pastDueSubs > 0 ? "text-rose-600" : "text-emerald-600"
-              }`}
-            >
-              {fmt(pastDueSubs)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Paiements échoués (churn imminent)</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">NRR (proxy)</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                nrrProxy != null && nrrProxy >= 95 ? "text-emerald-600" : nrrProxy != null && nrrProxy >= 80 ? "text-amber-500" : "text-red-500"
-              }`}
-            >
-              {nrrProxy != null ? `${nrrProxy}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Active / total subs</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
             title="Score de risque churn"
@@ -127,12 +86,13 @@ export default async function ServiceClientChurnPage() {
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
+            extraColumns={["Détail"]}
             rows={[
-              { name: "Score de risque churn", value: riskScore, unit: "count" },
-              { name: "Taux de churn", value: churnRate ?? null, unit: "percent" },
-              { name: "Subs annulées", value: billing.canceledSubsCount, unit: "count" },
-              { name: "Past due", value: pastDueSubs, unit: "count" },
-              { name: "NRR (proxy)", value: nrrProxy, unit: "percent" },
+              { name: "Score de risque churn", value: riskScore, unit: "count", cells: ["sur 100"] },
+              { name: "Taux de churn", value: churnRate ?? null, unit: "percent", cells: ["Cible top quartile : < 5%"] },
+              { name: "Subs annulées", value: billing.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"] },
+              { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements échoués (churn imminent)"] },
+              { name: "NRR (proxy)", value: nrrProxy, unit: "percent", cells: ["Active / total subs"] },
             ]}
             footnote="Unités hétérogènes (score, %, volumes) : pas de total agrégé."
           />
@@ -146,60 +106,23 @@ export default async function ServiceClientChurnPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets urgents</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                urgencyRate > 20 ? "text-red-500" : urgencyRate > 10 ? "text-orange-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(scData.urgentTickets)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{urgencyRate}% du volume</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets / contact</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                heavyUsers ? "text-red-500" : "text-slate-900"
-              }`}
-            >
-              {scData.ticketsPerCustomer != null ? scData.ticketsPerCustomer.toFixed(1) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">&gt; 3 = signal critique</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Feedback collecté</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                snapshot.feedbackCount === 0 ? "text-red-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(snapshot.feedbackCount)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">CSAT/NPS — 0 = angle mort</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Signaux faibles à monitorer"
-            subtitle="signaux faibles"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Tickets urgents", value: scData.urgentTickets, unit: "count" },
-              { name: "% urgents du volume", value: urgencyRate, unit: "percent" },
-              { name: "Tickets / contact", value: scData.ticketsPerCustomer ?? null, unit: "count" },
-              { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Signaux faibles à monitorer"
+          subtitle="signaux faibles"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Tickets urgents", value: scData.urgentTickets, unit: "count", cells: [`${urgencyRate}% du volume`] },
+            { name: "% urgents du volume", value: urgencyRate, unit: "percent", cells: ["—"] },
+            { name: "Tickets / contact", value: scData.ticketsPerCustomer ?? null, unit: "count", cells: ["> 3 = signal critique"] },
+            { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count", cells: ["CSAT/NPS — 0 = angle mort"] },
+          ]}
+          footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -209,64 +132,44 @@ export default async function ServiceClientChurnPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">MRR perdu (estimé)</p>
-            <p className="mt-1 text-3xl font-bold text-rose-600">
-              {billing.activeSubsCount > 0 && billing.canceledSubsCount > 0
-                ? fmtK(Math.round((billing.mrr / billing.activeSubsCount) * billing.canceledSubsCount))
-                : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">ARPU × subs annulées</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARR à risque (past due)</p>
-            <p className="mt-1 text-3xl font-bold text-orange-600">
-              {pastDueSubs > 0 && billing.activeSubsCount > 0
-                ? fmtK(Math.round((billing.arr / billing.activeSubsCount) * pastDueSubs))
-                : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">ARPU annualisé × past due</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">MRR sain restant</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{billing.mrr > 0 ? fmtK(billing.mrr) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">{fmt(billing.activeSubsCount)} subs actives</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Impact revenue du churn"
-            subtitle="impact revenue"
-            team="csm"
-            unit="currency"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              {
-                name: "MRR perdu (estimé)",
-                value:
-                  billing.activeSubsCount > 0 && billing.canceledSubsCount > 0
-                    ? Math.round((billing.mrr / billing.activeSubsCount) * billing.canceledSubsCount)
-                    : null,
-                unit: "currency",
-              },
-              {
-                name: "ARR à risque (past due)",
-                value:
-                  pastDueSubs > 0 && billing.activeSubsCount > 0
-                    ? Math.round((billing.arr / billing.activeSubsCount) * pastDueSubs)
-                    : null,
-                unit: "currency",
-              },
-              { name: "MRR sain restant", value: billing.mrr > 0 ? billing.mrr : null, unit: "currency" },
-              { name: "Subs actives", value: billing.activeSubsCount, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (montants et volumes) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Impact revenue du churn"
+          subtitle="impact revenue"
+          team="csm"
+          unit="currency"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            {
+              name: "MRR perdu (estimé)",
+              value:
+                billing.activeSubsCount > 0 && billing.canceledSubsCount > 0
+                  ? Math.round((billing.mrr / billing.activeSubsCount) * billing.canceledSubsCount)
+                  : null,
+              unit: "currency",
+              cells: ["ARPU × subs annulées"],
+            },
+            {
+              name: "ARR à risque (past due)",
+              value:
+                pastDueSubs > 0 && billing.activeSubsCount > 0
+                  ? Math.round((billing.arr / billing.activeSubsCount) * pastDueSubs)
+                  : null,
+              unit: "currency",
+              cells: ["ARPU annualisé × past due"],
+            },
+            {
+              name: "MRR sain restant",
+              value: billing.mrr > 0 ? billing.mrr : null,
+              unit: "currency",
+              cells: [`${fmt(billing.activeSubsCount)} subs actives`],
+            },
+            { name: "Subs actives", value: billing.activeSubsCount, unit: "count", cells: ["—"] },
+          ]}
+          footnote="Unités hétérogènes (montants et volumes) : pas de total agrégé."
+        />
       </CollapsibleBlock>
     </section>
   );

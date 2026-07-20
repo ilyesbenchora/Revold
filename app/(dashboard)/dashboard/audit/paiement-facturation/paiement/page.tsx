@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmt } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function PaiementPage() {
@@ -70,63 +70,22 @@ export default async function PaiementPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Taux de churn</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.churnRate != null && data.churnRate > 10
-                  ? "text-red-500"
-                  : data.churnRate != null && data.churnRate > 5
-                  ? "text-orange-500"
-                  : "text-emerald-600"
-              }`}
-            >
-              {data.churnRate != null ? `${data.churnRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Annulés / total subs</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subscriptions annulées</p>
-            <p className="mt-1 text-3xl font-bold text-rose-600">{fmt(data.canceledSubsCount)}</p>
-            <p className="mt-1 text-xs text-slate-400">canceled / expired / paused</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Past due</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                pastDueSubs > 0 ? "text-rose-600" : "text-emerald-600"
-              }`}
-            >
-              {fmt(pastDueSubs)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Paiements en échec</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">En période d&apos;essai</p>
-            <p className="mt-1 text-3xl font-bold text-amber-600">{fmt(trialingSubs)}</p>
-            <p className="mt-1 text-xs text-slate-400">Conversion à monitorer</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Churn & risque revenue"
-            subtitle="subscriptions"
-            team="finance"
-            unit="count"
-            nameLabel="Indicateur"
-            extraColumns={["Détail"]}
-            rows={[
-              { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
-              { name: "Subscriptions annulées", value: data.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"] },
-              { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements en échec"] },
-              { name: "En période d'essai", value: trialingSubs, unit: "count", cells: ["Conversion à monitorer"] },
-            ]}
-            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Churn & risque revenue"
+          subtitle="subscriptions"
+          team="finance"
+          unit="count"
+          nameLabel="Indicateur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
+            { name: "Subscriptions annulées", value: data.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"] },
+            { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements en échec"] },
+            { name: "En période d'essai", value: trialingSubs, unit: "count", cells: ["Conversion à monitorer"] },
+          ]}
+          footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -141,64 +100,37 @@ export default async function PaiementPage() {
             Aucune subscription détectée — connectez Stripe ou activez HubSpot Subscriptions.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <article className="card p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Actives</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{fmt(data.activeSubsCount)}</p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                {Math.round((data.activeSubsCount / data.subscriptions.length) * 100)}% du portefeuille
-              </p>
-            </article>
-            <article className="card p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">En essai</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{fmt(trialingSubs)}</p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                {data.subscriptions.length > 0 ? Math.round((trialingSubs / data.subscriptions.length) * 100) : 0}% à convertir
-              </p>
-            </article>
-            <article className="card p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">À risque</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">
-                {fmt(pastDueSubs + data.canceledSubsCount)}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                Past due + canceled / paused / expired
-              </p>
-            </article>
-          </div>
-        )}
-
-        {/* Mêmes segments que les cartes ci-dessus, en table normalisée + alerte chirurgicale. */}
-        {data.subscriptions.length > 0 && (
-          <div className="mt-4">
-            <BlockDataTable
-              title="Santé du portefeuille subscriptions"
-              subtitle="subscriptions · groupé par segment"
-              team="finance"
-              unit="count"
-              nameLabel="Segment"
-              valueLabel="Subscriptions"
-              extraColumns={["Part du portefeuille"]}
-              rows={[
-                {
-                  name: "Actives",
-                  value: data.activeSubsCount,
-                  cells: [`${Math.round((data.activeSubsCount / data.subscriptions.length) * 100)} %`],
-                },
-                {
-                  name: "En essai",
-                  value: trialingSubs,
-                  cells: [`${Math.round((trialingSubs / data.subscriptions.length) * 100)} %`],
-                },
-                {
-                  name: "À risque",
-                  value: pastDueSubs + data.canceledSubsCount,
-                  cells: [`${Math.round(((pastDueSubs + data.canceledSubsCount) / data.subscriptions.length) * 100)} %`],
-                },
-              ]}
-              footnote="Segments composites (past due + canceled / paused / expired) : l'agent Revold rattache l'alerte aux données à la création."
-            />
-          </div>
+          /* Données du bloc + alerte chirurgicale. */
+          <BlockDataTable
+            title="Santé du portefeuille subscriptions"
+            subtitle="subscriptions · groupé par segment"
+            team="finance"
+            unit="count"
+            nameLabel="Segment"
+            valueLabel="Subscriptions"
+            extraColumns={["Part du portefeuille", "Détail"]}
+            rows={[
+              {
+                name: "Actives",
+                value: data.activeSubsCount,
+                cells: [`${Math.round((data.activeSubsCount / data.subscriptions.length) * 100)} %`, "du portefeuille"],
+              },
+              {
+                name: "En essai",
+                value: trialingSubs,
+                cells: [`${Math.round((trialingSubs / data.subscriptions.length) * 100)} %`, "à convertir"],
+              },
+              {
+                name: "À risque",
+                value: pastDueSubs + data.canceledSubsCount,
+                cells: [
+                  `${Math.round(((pastDueSubs + data.canceledSubsCount) / data.subscriptions.length) * 100)} %`,
+                  "Past due + canceled / paused / expired",
+                ],
+              },
+            ]}
+            footnote="Segments composites (past due + canceled / paused / expired) : l'agent Revold rattache l'alerte aux données à la création."
+          />
         )}
       </CollapsibleBlock>
     </section>

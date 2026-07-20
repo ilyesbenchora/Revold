@@ -72,53 +72,27 @@ export default async function ServiceClientOverviewPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Total tickets</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{data.hasData ? fmt(data.tickets.length) : "—"}</p>
-            {snapshot.totalTickets > data.tickets.length && (
-              <p className="mt-1 text-[10px] text-slate-400">sur {fmt(snapshot.totalTickets)} au total</p>
-            )}
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Ouverts / en cours</p>
-            <p className="mt-1 text-3xl font-bold text-blue-600">{data.hasData ? fmt(data.openTickets) : "—"}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Fermés / résolus</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{data.hasData ? fmt(data.closedTickets) : "—"}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Priorité haute</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.urgentTickets > 3 ? "text-red-500" : data.urgentTickets > 0 ? "text-orange-500" : "text-emerald-600"
-              }`}
-            >
-              {data.hasData ? fmt(data.urgentTickets) : "—"}
-            </p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Volume de tickets"
-            subtitle="tickets"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count" },
-              { name: "Tickets portail", value: snapshot.totalTickets, unit: "count" },
-              { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count" },
-              { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count" },
-              { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count" },
-            ]}
-            footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Volume de tickets"
+          subtitle="tickets"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            // « sur N au total » n'était affiché par la tuile que si le portail
+            // en contenait davantage que ce qui a été analysé : on garde la
+            // condition d'origine plutôt que de l'afficher systématiquement.
+            { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count", cells: [snapshot.totalTickets > data.tickets.length ? `sur ${fmt(snapshot.totalTickets)} au total` : "—"] },
+            { name: "Tickets portail", value: snapshot.totalTickets, unit: "count", cells: ["Tous tickets du portail"] },
+            { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count", cells: ["—"] },
+            { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count", cells: ["—"] },
+            { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count", cells: ["—"] },
+          ]}
+          footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -128,48 +102,23 @@ export default async function ServiceClientOverviewPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subscriptions actives</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.activeSubscriptions)}</p>
-            <p className="mt-1 text-xs text-slate-400">sur {fmt(snapshot.totalSubscriptions)} au total</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Conversations entrantes</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.totalConversations)}</p>
-            <p className="mt-1 text-xs text-slate-400">Inbox HubSpot</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Feedback (CSAT/NPS)</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                snapshot.feedbackCount === 0 ? "text-red-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(snapshot.feedbackCount)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">feedback_submissions</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Signaux satisfaction & engagement"
-            subtitle="satisfaction"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count" },
-              { name: "Subscriptions totales", value: snapshot.totalSubscriptions, unit: "count" },
-              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
-              { name: "Feedback (CSAT/NPS)", value: snapshot.feedbackCount, unit: "count" },
-            ]}
-            footnote="Source : snapshot HubSpot (subscriptions, Inbox, feedback_submissions)."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Signaux satisfaction & engagement"
+          subtitle="satisfaction"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count", cells: [`sur ${fmt(snapshot.totalSubscriptions)} au total`] },
+            { name: "Subscriptions totales", value: snapshot.totalSubscriptions, unit: "count", cells: ["—"] },
+            { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Inbox HubSpot"] },
+            { name: "Feedback (CSAT/NPS)", value: snapshot.feedbackCount, unit: "count", cells: ["feedback_submissions"] },
+          ]}
+          footnote="Source : snapshot HubSpot (subscriptions, Inbox, feedback_submissions)."
+        />
       </CollapsibleBlock>
 
       {!data.hasData && (

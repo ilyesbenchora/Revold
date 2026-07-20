@@ -68,40 +68,8 @@ export default async function AssetsPage() {
           title={<h2 className="text-lg font-semibold text-slate-900">Assets créés par utilisateur</h2>}
         >
           <p className="text-sm text-slate-500">Workflows et propriétés personnalisées créés sur tous les objets CRM.</p>
-          <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-[11px] font-medium uppercase text-slate-500">
-                  <th className="px-4 py-2">Utilisateur</th>
-                  <th className="px-3 py-2 text-right">WF</th>
-                  {PROPERTY_OBJECTS.map((ot) => (
-                    <th key={ot.key} className="px-2 py-2 text-right">{ot.label}</th>
-                  ))}
-                  <th className="px-4 py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topAssetCreators.map((o) => (
-                  <tr key={o.id} className="border-b border-card-border last:border-0">
-                    <td className="px-4 py-2.5">
-                      <p className="font-medium text-slate-800">{o.firstName} {o.lastName}</p>
-                      <p className="text-[10px] text-slate-400">{o.email}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-slate-700">{o.assets?.workflows || <span className="text-slate-300">—</span>}</td>
-                    {PROPERTY_OBJECTS.map((ot) => (
-                      <td key={ot.key} className="px-2 py-2.5 text-right text-slate-700">
-                        {(o.assets?.[ot.field] || 0) > 0 ? o.assets![ot.field] : <span className="text-slate-300">—</span>}
-                      </td>
-                    ))}
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-900">{o.totalAssets}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
+          {/* Données du bloc + alerte chirurgicale. */}
+          <div>
             <BlockDataTable
               title="Assets créés par utilisateur"
               subtitle="workflows et propriétés"
@@ -109,12 +77,13 @@ export default async function AssetsPage() {
               unit="count"
               nameLabel="Utilisateur"
               valueLabel="Total assets"
-              extraColumns={["Workflows", ...PROPERTY_OBJECTS.map((ot) => ot.label)]}
+              extraColumns={["Email", "Workflows", ...PROPERTY_OBJECTS.map((ot) => ot.label)]}
               rows={topAssetCreators.map((o) => ({
                 name: `${o.firstName} ${o.lastName}`.trim() || o.email,
                 value: o.totalAssets,
                 unit: "count" as const,
                 cells: [
+                  o.email,
                   o.assets?.workflows ?? 0,
                   ...PROPERTY_OBJECTS.map((ot) => o.assets?.[ot.field] ?? 0),
                 ],

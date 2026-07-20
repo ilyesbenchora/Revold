@@ -7,6 +7,12 @@ import {
   type SurgicalUnit,
 } from "./surgical-alert-button";
 
+/**
+ * Cellule additionnelle : une valeur brute, ou un lien (deep link HubSpot,
+ * fiche interne…) quand la table remplace un rendu qui en proposait un.
+ */
+export type BlockTableCell = string | number | null | { label: string | number; href: string };
+
 export type BlockTableRow = {
   /** Libellé de la ligne — c'est aussi la cible sélectionnable dans l'alerte. */
   name: string;
@@ -15,8 +21,25 @@ export type BlockTableRow = {
   /** Unité propre à la ligne, si le bloc mélange des unités (MRR + taux de churn…). */
   unit?: SurgicalUnit;
   /** Colonnes additionnelles, alignées sur `extraColumns`. */
-  cells?: (string | number | null)[];
+  cells?: BlockTableCell[];
 };
+
+function renderCell(cell: BlockTableCell) {
+  if (cell === null || cell === undefined) return "—";
+  if (typeof cell === "object") {
+    return (
+      <a
+        href={cell.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-accent underline decoration-dotted underline-offset-2 hover:text-fuchsia-600"
+      >
+        {cell.label}
+      </a>
+    );
+  }
+  return cell;
+}
 
 export function formatBlockValue(v: number | null, unit: SurgicalUnit): string {
   if (v === null || Number.isNaN(v)) return "—";
@@ -118,7 +141,7 @@ export function BlockDataTable({
                   </td>
                   {extraColumns.map((c, ci) => (
                     <td key={c} className="px-4 py-2 text-right text-slate-600">
-                      {r.cells?.[ci] ?? "—"}
+                      {renderCell(r.cells?.[ci] ?? null)}
                     </td>
                   ))}
                 </tr>

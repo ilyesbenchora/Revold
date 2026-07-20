@@ -66,88 +66,24 @@ export default async function ServiceClientProcessPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">1ère réponse moy.</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.avgFirstResponseHours != null && data.avgFirstResponseHours <= 4
-                  ? "text-emerald-600"
-                  : data.avgFirstResponseHours != null && data.avgFirstResponseHours <= 24
-                  ? "text-amber-500"
-                  : "text-red-500"
-              }`}
-            >
-              {data.avgFirstResponseHours != null ? `${data.avgFirstResponseHours}h` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">SLA cible : ≤ 4h</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">SLA respecté</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                slaRate != null && slaRate >= 80
-                  ? "text-emerald-600"
-                  : slaRate != null && slaRate >= 60
-                  ? "text-amber-500"
-                  : "text-red-500"
-              }`}
-            >
-              {slaRate != null ? `${slaRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">% tickets &lt; 4h</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Résolution moy.</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.avgResolutionHours != null && data.avgResolutionHours <= 24
-                  ? "text-emerald-600"
-                  : data.avgResolutionHours != null && data.avgResolutionHours <= 48
-                  ? "text-amber-500"
-                  : "text-red-500"
-              }`}
-            >
-              {data.avgResolutionHours != null ? `${data.avgResolutionHours}h` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Cible : ≤ 24h</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets / contact</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.ticketsPerCustomer != null && data.ticketsPerCustomer > 3
-                  ? "text-red-500"
-                  : data.ticketsPerCustomer != null && data.ticketsPerCustomer > 1.5
-                  ? "text-amber-500"
-                  : "text-emerald-600"
-              }`}
-            >
-              {data.ticketsPerCustomer != null ? data.ticketsPerCustomer.toFixed(1) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{fmt(data.distinctContactsCount)} contacts uniques</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="SLA d'accueil & première réponse"
-            subtitle="SLA support"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "1ère réponse moy. (h)", value: data.avgFirstResponseHours ?? null, unit: "count" },
-              { name: "SLA respecté (< 4h)", value: slaRate, unit: "percent" },
-              { name: "Résolution moy. (h)", value: data.avgResolutionHours ?? null, unit: "count" },
-              { name: "Tickets / contact", value: data.ticketsPerCustomer ?? null, unit: "count" },
-              { name: "Contacts uniques", value: data.distinctContactsCount, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (heures, % et volumes) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="SLA d'accueil & première réponse"
+          subtitle="SLA support"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "1ère réponse moy. (h)", value: data.avgFirstResponseHours ?? null, unit: "count", cells: ["SLA cible : ≤ 4h"] },
+            { name: "SLA respecté (< 4h)", value: slaRate, unit: "percent", cells: ["% tickets < 4h"] },
+            { name: "Résolution moy. (h)", value: data.avgResolutionHours ?? null, unit: "count", cells: ["Cible : ≤ 24h"] },
+            { name: "Tickets / contact", value: data.ticketsPerCustomer ?? null, unit: "count", cells: [`${fmt(data.distinctContactsCount)} contacts uniques`] },
+            { name: "Contacts uniques", value: data.distinctContactsCount, unit: "count", cells: ["—"] },
+          ]}
+          footnote="Unités hétérogènes (heures, % et volumes) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -157,54 +93,23 @@ export default async function ServiceClientProcessPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets onboarding</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(onboardingTickets.length)}</p>
-            <p className="mt-1 text-xs text-slate-400">Sujet contient onboard / setup / kickoff</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Onboarding résolus</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                onboardingResolutionRate != null && onboardingResolutionRate >= 80
-                  ? "text-emerald-600"
-                  : onboardingResolutionRate != null && onboardingResolutionRate >= 50
-                  ? "text-amber-500"
-                  : "text-red-500"
-              }`}
-            >
-              {onboardingResolutionRate != null ? `${onboardingResolutionRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{onboardingResolved} sur {onboardingTickets.length}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Handoff sales → CSM</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {handoffRate != null ? `${handoffRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Customers / (opps + customers)</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Onboarding & livraison"
-            subtitle="onboarding"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Tickets onboarding", value: onboardingTickets.length, unit: "count" },
-              { name: "Onboarding résolus", value: onboardingResolved, unit: "count" },
-              { name: "Taux de résolution onboarding", value: onboardingResolutionRate, unit: "percent" },
-              { name: "Handoff sales → CSM", value: handoffRate, unit: "percent" },
-            ]}
-            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Onboarding & livraison"
+          subtitle="onboarding"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Tickets onboarding", value: onboardingTickets.length, unit: "count", cells: ["Sujet contient onboard / setup / kickoff"] },
+            { name: "Onboarding résolus", value: onboardingResolved, unit: "count", cells: [`sur ${onboardingTickets.length}`] },
+            { name: "Taux de résolution onboarding", value: onboardingResolutionRate, unit: "percent", cells: [`${onboardingResolved} sur ${onboardingTickets.length}`] },
+            { name: "Handoff sales → CSM", value: handoffRate, unit: "percent", cells: ["Customers / (opps + customers)"] },
+          ]}
+          footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -214,47 +119,22 @@ export default async function ServiceClientProcessPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets ouverts</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.openTickets > 50 ? "text-red-500" : data.openTickets > 20 ? "text-amber-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(data.openTickets)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Charge actuelle CSM</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Conversations entrantes</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.totalConversations)}</p>
-            <p className="mt-1 text-xs text-slate-400">Volume Inbox</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subscriptions actives</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.activeSubscriptions)}</p>
-            <p className="mt-1 text-xs text-slate-400">Portefeuille à servir</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Capacité opérationnelle"
-            subtitle="charge CSM"
-            team="csm"
-            unit="count"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Tickets ouverts", value: data.openTickets, unit: "count" },
-              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
-              { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count" },
-            ]}
-            footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Capacité opérationnelle"
+          subtitle="charge CSM"
+          team="csm"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Tickets ouverts", value: data.openTickets, unit: "count", cells: ["Charge actuelle CSM"] },
+            { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Volume Inbox"] },
+            { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count", cells: ["Portefeuille à servir"] },
+          ]}
+          footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
+        />
       </CollapsibleBlock>
     </section>
   );

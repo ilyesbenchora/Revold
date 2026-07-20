@@ -5,8 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchServiceClientData } from "@/lib/audit/service-client-data";
+import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientRenouvellementPage() {
@@ -69,65 +69,23 @@ export default async function ServiceClientRenouvellementPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Renewal rate</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                renewalRate != null && renewalRate >= 95 ? "text-emerald-600" : renewalRate != null && renewalRate >= 85 ? "text-amber-500" : "text-red-500"
-              }`}
-            >
-              {renewalRate != null ? `${renewalRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Active / total subs</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">GRR</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                grr != null && grr >= 95 ? "text-emerald-600" : grr != null && grr >= 85 ? "text-amber-500" : "text-red-500"
-              }`}
-            >
-              {grr != null ? `${grr}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Gross Revenue Retention</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Churn rate</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                billing.churnRate != null && billing.churnRate > 10 ? "text-red-500" : billing.churnRate != null && billing.churnRate > 5 ? "text-orange-500" : "text-emerald-600"
-              }`}
-            >
-              {billing.churnRate != null ? `${billing.churnRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Cible top quartile : &lt; 5%</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Customers actifs</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.customersCount)}</p>
-            <p className="mt-1 text-xs text-slate-400">Lifecycle = customer</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Taux de renouvellement & rétention"
-            subtitle="rétention"
-            team="csm"
-            unit="percent"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "Renewal rate", value: renewalRate, unit: "percent" },
-              { name: "GRR", value: grr, unit: "percent" },
-              { name: "Churn rate", value: billing.churnRate ?? null, unit: "percent" },
-              { name: "Customers actifs", value: snapshot.customersCount, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (taux et volume) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Taux de renouvellement & rétention"
+          subtitle="rétention"
+          team="csm"
+          unit="percent"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Renewal rate", value: renewalRate, unit: "percent", cells: ["Active / total subs"] },
+            { name: "GRR", value: grr, unit: "percent", cells: ["Gross Revenue Retention"] },
+            { name: "Churn rate", value: billing.churnRate ?? null, unit: "percent", cells: ["Cible top quartile : < 5%"] },
+            { name: "Customers actifs", value: snapshot.customersCount, unit: "count", cells: ["Lifecycle = customer"] },
+          ]}
+          footnote="Unités hétérogènes (taux et volume) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -141,29 +99,7 @@ export default async function ServiceClientRenouvellementPage() {
           Les subs annuelles ont un poids ARR plus élevé mais un cycle de renouvellement
           critique : 1 seule échéance par an, donc moins d&apos;opportunités de remédiation.
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subs annuelles</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(annualSubs.length)}</p>
-            <p className="mt-1 text-xs text-slate-400">Renewal critique 1× par an</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subs mensuelles</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(monthlySubs.length)}</p>
-            <p className="mt-1 text-xs text-slate-400">Renewal continu</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">% annuel dans le mix</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {billing.subscriptions.length > 0
-                ? `${Math.round((annualSubs.length / billing.subscriptions.length) * 100)}%`
-                : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">+ d&apos;annuel = + de stabilité revenue</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
             title="Cohortes par fréquence"
@@ -172,9 +108,10 @@ export default async function ServiceClientRenouvellementPage() {
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
+            extraColumns={["Détail"]}
             rows={[
-              { name: "Subs annuelles", value: annualSubs.length, unit: "count" },
-              { name: "Subs mensuelles", value: monthlySubs.length, unit: "count" },
+              { name: "Subs annuelles", value: annualSubs.length, unit: "count", cells: ["Renewal critique 1× par an"] },
+              { name: "Subs mensuelles", value: monthlySubs.length, unit: "count", cells: ["Renewal continu"] },
               {
                 name: "% annuel dans le mix",
                 value:
@@ -182,6 +119,7 @@ export default async function ServiceClientRenouvellementPage() {
                     ? Math.round((annualSubs.length / billing.subscriptions.length) * 100)
                     : null,
                 unit: "percent",
+                cells: ["+ d'annuel = + de stabilité revenue"],
               },
             ]}
             footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
@@ -196,55 +134,22 @@ export default async function ServiceClientRenouvellementPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARR sécurisé</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">
-              {arrSecured > 0 ? fmtK(arrSecured) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Subs actives healthy</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARR à risque</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                renewalAtRisk > 0 ? "text-rose-600" : "text-emerald-600"
-              }`}
-            >
-              {arrAtRisk > 0 ? fmtK(arrAtRisk) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Past due + tickets urgents</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subs à risque</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                renewalAtRisk > 5 ? "text-red-500" : renewalAtRisk > 0 ? "text-orange-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(renewalAtRisk)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">À traiter en CSM proactif</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="ARR sécurisé vs à risque"
-            subtitle="ARR"
-            team="csm"
-            unit="currency"
-            nameLabel="Indicateur"
-            valueLabel="Valeur"
-            rows={[
-              { name: "ARR sécurisé", value: arrSecured > 0 ? arrSecured : null, unit: "currency" },
-              { name: "ARR à risque", value: arrAtRisk > 0 ? arrAtRisk : null, unit: "currency" },
-              { name: "Subs à risque", value: renewalAtRisk, unit: "count" },
-            ]}
-            footnote="Unités hétérogènes (montants et volume) : pas de total agrégé."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="ARR sécurisé vs à risque"
+          subtitle="ARR"
+          team="csm"
+          unit="currency"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "ARR sécurisé", value: arrSecured > 0 ? arrSecured : null, unit: "currency", cells: ["Subs actives healthy"] },
+            { name: "ARR à risque", value: arrAtRisk > 0 ? arrAtRisk : null, unit: "currency", cells: ["Past due + tickets urgents"] },
+            { name: "Subs à risque", value: renewalAtRisk, unit: "count", cells: ["À traiter en CSM proactif"] },
+          ]}
+          footnote="Unités hétérogènes (montants et volume) : pas de total agrégé."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -258,37 +163,7 @@ export default async function ServiceClientRenouvellementPage() {
           Indicateurs d&apos;engagement à surveiller dans les 90 jours avant échéance :
           plus le compte est actif, plus la probabilité de renouvellement augmente.
         </p>
-        <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Conversations entrantes</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.totalConversations)}</p>
-            <p className="mt-1 text-xs text-slate-400">Engagement Inbox</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Tickets résolus &lt; 24h</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                scData.csatProxy != null && scData.csatProxy >= 80 ? "text-emerald-600" : scData.csatProxy != null && scData.csatProxy >= 60 ? "text-orange-500" : "text-red-500"
-              }`}
-            >
-              {scData.csatProxy != null ? `${scData.csatProxy}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Proxy CSAT</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Feedback collecté</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                snapshot.feedbackCount === 0 ? "text-red-500" : "text-emerald-600"
-              }`}
-            >
-              {fmt(snapshot.feedbackCount)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">CSAT/NPS submissions</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
             title="Engagement pré-renouvellement"
@@ -297,10 +172,11 @@ export default async function ServiceClientRenouvellementPage() {
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
+            extraColumns={["Détail"]}
             rows={[
-              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
-              { name: "Tickets résolus < 24h (proxy CSAT)", value: scData.csatProxy ?? null, unit: "percent" },
-              { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count" },
+              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Engagement Inbox"] },
+              { name: "Tickets résolus < 24h (proxy CSAT)", value: scData.csatProxy ?? null, unit: "percent", cells: ["Proxy CSAT"] },
+              { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count", cells: ["CSAT/NPS submissions"] },
             ]}
             footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
           />

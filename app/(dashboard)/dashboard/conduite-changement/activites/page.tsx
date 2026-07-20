@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { TeamActivityCarousel } from "@/components/team-activity-carousel";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import {
   ACTIVITY_TYPES, ACTIVITY_LABELS,
@@ -104,57 +103,8 @@ export default async function ActivitesPage() {
         <CollapsibleBlock
           title={<h2 className="text-lg font-semibold text-slate-900">Activité de vente par utilisateur</h2>}
         >
-          <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-[11px] font-medium uppercase text-slate-500">
-                  <th className="px-4 py-2">Utilisateur</th>
-                  <th className="px-3 py-2">Équipe</th>
-                  {ACTIVITY_TYPES.map((t) => (
-                    <th key={t} className="px-2 py-2 text-center">{ACTIVITY_LABELS[t].icon}</th>
-                  ))}
-                  <th className="px-4 py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topActivityUsers.map((o) => {
-                  const maxAct = topActivityUsers[0].activity.total || 1;
-                  const pct = Math.round((o.activity.total / maxAct) * 100);
-                  return (
-                    <tr key={o.id} className="border-b border-card-border last:border-0">
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-slate-800">{o.firstName} {o.lastName}</p>
-                        <p className="text-[10px] text-slate-400">{o.email}</p>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {o.teams.length > 0 ? (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{o.teams[0]}</span>
-                        ) : <span className="text-slate-300">—</span>}
-                      </td>
-                      {ACTIVITY_TYPES.map((t) => (
-                        <td key={t} className="px-2 py-2.5 text-center">
-                          <span className={`text-xs tabular-nums ${o.activity[t] > 0 ? "font-semibold text-slate-800" : "text-slate-300"}`}>
-                            {o.activity[t] > 0 ? o.activity[t].toLocaleString("fr-FR") : "—"}
-                          </span>
-                        </td>
-                      ))}
-                      <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="font-bold text-slate-900 tabular-nums text-xs">{o.activity.total.toLocaleString("fr-FR")}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
+          {/* Données du bloc + alerte chirurgicale. */}
+          <div>
             <BlockDataTable
               title="Activité par utilisateur"
               subtitle="activités CRM"
@@ -162,12 +112,20 @@ export default async function ActivitesPage() {
               unit="count"
               nameLabel="Utilisateur"
               valueLabel="Total activités"
-              extraColumns={["Équipe", "Appels", "Emails envoyés", "RDV", "Tâches"]}
+              extraColumns={[
+                "Email",
+                "Équipe",
+                ...ACTIVITY_TYPES.map((t) => ACTIVITY_LABELS[t].label),
+              ]}
               rows={topActivityUsers.map((o) => ({
                 name: `${o.firstName} ${o.lastName}`.trim() || o.email,
                 value: o.activity.total,
                 unit: "count" as const,
-                cells: [o.teams[0] ?? "—", o.activity.CALL, o.activity.EMAIL, o.activity.MEETING, o.activity.TASK],
+                cells: [
+                  o.email,
+                  o.teams[0] ?? "—",
+                  ...ACTIVITY_TYPES.map((t) => o.activity[t]),
+                ],
               }))}
             />
           </div>

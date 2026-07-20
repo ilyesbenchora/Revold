@@ -20,6 +20,7 @@ export default async function ConnexionsPage({ searchParams }: Props) {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
+
   const HUBSPOT_PORTAL = (await getOrgHubspotPortalId(supabase, orgId)) ?? "";
 
   const params = await searchParams;
@@ -135,59 +136,8 @@ export default async function ConnexionsPage({ searchParams }: Props) {
             </h2>
           }
         >
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-card-border bg-slate-50 text-left text-[11px] font-medium uppercase text-slate-500">
-                  <th className="px-4 py-2">Propriétaire</th>
-                  <th className="px-4 py-2">Équipe</th>
-                  <th className="px-4 py-2 text-right">Contacts inactifs</th>
-                  <th className="px-4 py-2 text-right">Deals ouverts inactifs</th>
-                  <th className="px-4 py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ownersWithStale.map((o) => {
-                  const total = o.stale.contacts + o.stale.deals;
-                  const contactsUrl = `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-1?query=&filterId=0&property=hubspot_owner_id&value=${o.id}`;
-                  const dealsUrl = `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-3?query=&filterId=0&property=hubspot_owner_id&value=${o.id}`;
-                  return (
-                    <tr key={o.id} className="border-b border-card-border last:border-0">
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-slate-800">{o.firstName} {o.lastName}</p>
-                        <p className="text-[10px] text-slate-400">{o.email}</p>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {o.teams.length > 0 ? (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{o.teams[0]}</span>
-                        ) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {o.stale.contacts > 0 ? (
-                          <a href={contactsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-orange-600 hover:underline tabular-nums">
-                            {o.stale.contacts.toLocaleString("fr-FR")}
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                          </a>
-                        ) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {o.stale.deals > 0 ? (
-                          <a href={dealsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-red-600 hover:underline tabular-nums">
-                            {o.stale.deals.toLocaleString("fr-FR")}
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                          </a>
-                        ) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-bold text-slate-900 tabular-nums">{total.toLocaleString("fr-FR")}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
+          {/* Données du bloc + alerte chirurgicale. */}
+          <div>
             <BlockDataTable
               title={`Records sans activité depuis ${days}+ jours`}
               subtitle="par propriétaire"
@@ -195,12 +145,25 @@ export default async function ConnexionsPage({ searchParams }: Props) {
               unit="count"
               nameLabel="Propriétaire"
               valueLabel="Total inactifs"
-              extraColumns={["Contacts inactifs", "Deals ouverts inactifs"]}
+              extraColumns={["Email", "Équipe", "Contacts inactifs", "Deals ouverts inactifs"]}
               rows={ownersWithStale.map((o) => ({
                 name: `${o.firstName} ${o.lastName}`.trim() || o.email,
                 value: o.stale.contacts + o.stale.deals,
                 unit: "count" as const,
-                cells: [o.stale.contacts, o.stale.deals],
+                cells: [
+                  o.email,
+                  o.teams[0] ?? "—",
+                  // Deep links HubSpot conservés : c'est le chemin de relance
+                  // depuis Revold vers les records concernés.
+                  {
+                    label: o.stale.contacts,
+                    href: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-1?query=&filterId=0&property=hubspot_owner_id&value=${o.id}`,
+                  },
+                  {
+                    label: o.stale.deals,
+                    href: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL}/objects/0-3?query=&filterId=0&property=hubspot_owner_id&value=${o.id}`,
+                  },
+                ],
               }))}
             />
           </div>

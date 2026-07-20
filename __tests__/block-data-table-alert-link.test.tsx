@@ -85,6 +85,35 @@ describe("BlockDataTable — compteur et lien d'alertes", () => {
     expect(document.body.contains(form)).toBe(true);
   });
 
+  /**
+   * Régression : en remplaçant les tables écrites à la main, on a failli perdre
+   * les deep links HubSpot (relance des records depuis Revold). Une cellule
+   * peut porter un lien sans cesser d'afficher son chiffre.
+   */
+  it("rend une cellule-lien sans perdre la valeur affichée", async () => {
+    mockAlerts([]);
+    render(
+      <BlockDataTable
+        title="Records sans activité"
+        team="revops"
+        nameLabel="Propriétaire"
+        extraColumns={["Contacts inactifs"]}
+        rows={[
+          {
+            name: "Jean Dupont",
+            value: 12,
+            cells: [{ label: 9, href: "https://app.hubspot.com/contacts/42/objects/0-1?value=o1" }],
+          },
+        ]}
+      />,
+    );
+
+    const cellLink = await screen.findByRole("link", { name: "9" });
+    expect(cellLink.getAttribute("href")).toContain("app.hubspot.com/contacts/42");
+    expect(cellLink.getAttribute("target")).toBe("_blank");
+    expect(cellLink.getAttribute("rel")).toContain("noopener");
+  });
+
   it("interroge l'API avec la clé dérivée du titre ET du sous-titre", async () => {
     const fetchMock = mockAlerts([]);
     render(
