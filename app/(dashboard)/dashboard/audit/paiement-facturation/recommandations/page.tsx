@@ -15,7 +15,7 @@ export default async function PaiementFacturationRecommandationsPage() {
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Paiement & Facturation</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Trésorerie</h1>
         <p className="mt-1 text-sm text-slate-500">
           Recommandations CRO/RevOps pour optimiser le revenue récurrent, réduire le churn et accélérer le cash.
         </p>

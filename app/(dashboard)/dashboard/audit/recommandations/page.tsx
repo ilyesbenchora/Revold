@@ -24,7 +24,7 @@ const SECTIONS = [
     href: "/dashboard/audit/recommandations/performances",
     emoji: "📈",
     label: "Performances",
-    description: "Ventes, Marketing, Paiement & Facturation, Service Client. Recos par équipe.",
+    description: "Ventes, Marketing, Trésorerie, Service Client. Recos par équipe.",
     gradient: "from-fuchsia-500 to-pink-600",
   },
   {

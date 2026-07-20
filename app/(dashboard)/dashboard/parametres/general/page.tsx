@@ -139,6 +139,82 @@ export default async function ParametresGeneralPage() {
         </div>
       </div>
 
+      {/* Fiscalité & échéances — alimente la table « Échéances fiscales » du funnel Trésorerie */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          Fiscalité &amp; échéances
+        </h2>
+        <p className="-mt-1 text-sm text-slate-500">
+          Ces paramètres alimentent la table de données « Échéances fiscales (TVA · IS · URSSAF) »
+          proposée dans le funnel de la page Trésorerie.
+        </p>
+        <div className="card p-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {/* TVA */}
+            <div>
+              <label className="text-xs font-medium text-slate-500">TVA — périodicité</label>
+              <select name="fiscal_tva_periodicite" defaultValue={org?.fiscal_tva_periodicite ?? "mensuelle"} className={selectClass}>
+                <option value="mensuelle">Mensuelle (CA3)</option>
+                <option value="trimestrielle">Trimestrielle</option>
+                <option value="annuelle">Annuelle (RSI)</option>
+                <option value="franchise">Franchise en base</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">TVA — prochaine échéance</label>
+              <input type="date" name="fiscal_tva_prochaine" defaultValue={org?.fiscal_tva_prochaine ?? ""} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">TVA — montant estimé (€)</label>
+              <input type="number" name="fiscal_tva_montant" defaultValue={org?.fiscal_tva_montant ?? ""} placeholder="0" className={inputClass} />
+            </div>
+
+            {/* IS */}
+            <div>
+              <label className="text-xs font-medium text-slate-500">IS — périodicité des acomptes</label>
+              <select name="fiscal_is_periodicite" defaultValue={org?.fiscal_is_periodicite ?? "trimestriel"} className={selectClass}>
+                <option value="trimestriel">Acomptes trimestriels (15/03·06·09·12)</option>
+                <option value="annuel">Solde annuel uniquement</option>
+                <option value="exonere">Exonéré / non applicable</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">IS — prochaine échéance</label>
+              <input type="date" name="fiscal_is_prochaine" defaultValue={org?.fiscal_is_prochaine ?? ""} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">IS — montant estimé (€)</label>
+              <input type="number" name="fiscal_is_montant" defaultValue={org?.fiscal_is_montant ?? ""} placeholder="0" className={inputClass} />
+            </div>
+
+            {/* URSSAF */}
+            <div>
+              <label className="text-xs font-medium text-slate-500">URSSAF — périodicité</label>
+              <select name="fiscal_urssaf_periodicite" defaultValue={org?.fiscal_urssaf_periodicite ?? "mensuelle"} className={selectClass}>
+                <option value="mensuelle">Mensuelle</option>
+                <option value="trimestrielle">Trimestrielle</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">URSSAF — prochaine échéance</label>
+              <input type="date" name="fiscal_urssaf_prochaine" defaultValue={org?.fiscal_urssaf_prochaine ?? ""} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">URSSAF — montant estimé (€)</label>
+              <input type="number" name="fiscal_urssaf_montant" defaultValue={org?.fiscal_urssaf_montant ?? ""} placeholder="0" className={inputClass} />
+            </div>
+          </div>
+          <p className="mt-4 text-[10px] text-slate-400">
+            Laisse une échéance vide pour utiliser l&apos;échéance standard française calculée automatiquement.
+          </p>
+          <div className="mt-6 flex justify-end">
+            <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
+              Enregistrer les modifications
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Équipe */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">

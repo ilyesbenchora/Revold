@@ -50,7 +50,7 @@ export default async function PaiementFacturationOverviewPage() {
     <section className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Paiement & Facturation</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Trésorerie</h1>
           <p className="mt-1 text-sm text-slate-500">
             Audit cross-source : factures, paiements, MRR/ARR et churn revenue.
             {data.hasData && ` (${data.invoices.length} factures · ${data.subscriptions.length} subscriptions)`}

@@ -13,7 +13,7 @@ export default async function RecommandationsPaiementFacturationPage() {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-        <p className="text-sm font-semibold text-emerald-900">💰 Paiement &amp; Facturation</p>
+        <p className="text-sm font-semibold text-emerald-900">💰 Trésorerie</p>
         <p className="mt-1 text-xs text-emerald-800">
           {recs.length} recommandation{recs.length > 1 ? "s" : ""} CRO/RevOps sur la réconciliation deals ↔ factures,
           le recouvrement, le MRR/ARR et les subscriptions.

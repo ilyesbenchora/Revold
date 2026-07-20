@@ -34,7 +34,7 @@ export default async function FacturationPage() {
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Paiement & Facturation</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Trésorerie</h1>
         <p className="mt-1 text-sm text-slate-500">
           Détail facturation : émission, recouvrement, encaissement, devis et lignes vendues.
         </p>

@@ -82,7 +82,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_paiement_facturation",
-      label: "Données — Paiement & Facturation",
+      label: "Données — Trésorerie",
       href: "/dashboard/audit/paiement-facturation",
       description: "Invoices, subscriptions, quotes et line items",
       diagKeys: [

@@ -2,8 +2,11 @@
 // funnel). Chaque preset se traduit directement en spec agrégée déterministe
 // (entité + dimension + mesure) réutilisée par /api/reports/recompute.
 
+import type { ConnectableTool } from "@/lib/integrations/connect-catalog";
+
 export type TableView = "table" | "bar" | "line" | "donut";
-export type TableMeasure = "count" | "sum" | "avg";
+// « weighted » = somme du champ pondérée par la probabilité de closing (deals HubSpot).
+export type TableMeasure = "count" | "sum" | "avg" | "weighted";
 export type TableUnit = "count" | "currency" | "percent";
 
 export type TablePreset = {
@@ -15,6 +18,27 @@ export type TablePreset = {
   field?: string;
   unit: TableUnit;
   view?: TableView;
+  /**
+   * Outil précis exigé pour ce KPI (ex : « hubspot » pour la projection pondérée,
+   * qui a besoin de la probabilité de closing propre à HubSpot). Si absent, le KPI
+   * est proposé dès qu'un outil de la catégorie source de l'entité est connecté.
+   */
+  requiresKey?: string;
+};
+
+// Catégorie d'outil qui alimente chaque entité canonique. Le funnel de création
+// de table s'en sert pour filtrer dynamiquement les KPIs proposés selon les
+// outils réellement connectés (« données à croiser » choisies avant le KPI).
+export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]> = {
+  deals: "crm",
+  contacts: "crm",
+  companies: "crm",
+  invoices: "billing",
+  subscriptions: "billing",
+  tickets: "support",
+  // Pseudo-entité « fiscal » : échéances TVA/IS/URSSAF, rattachées au pôle
+  // facturation/compta (donc proposées dès qu'un outil billing est connecté).
+  fiscal: "billing",
 };
 
 // Dimensions disponibles par entité → le paramètre « Grouper par » façon Notion.
@@ -53,7 +77,7 @@ export const PAGE_LABELS: Record<string, string> = {
   perf_marketing: "Marketing",
   audit_automatisations: "Automatisations",
   audit_service_client: "Service client",
-  audit_paiement_facturation: "Paiement & facturation",
+  audit_paiement_facturation: "Trésorerie",
 };
 
 export const TABLE_PRESETS: Record<string, TablePreset[]> = {
@@ -89,12 +113,18 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "subs_canceled_month", label: "Abonnements annulés par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "count", unit: "count", view: "line" },
   ],
   audit_paiement_facturation: [
+    // ── HubSpot : projection pondérée du pipeline (probabilité de closing HubSpot) ──
+    { id: "weighted_forecast_stage", label: "Projection pondérée des transactions gagnées", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
+    // ── Stripe / compta : factures, créances (impayés) et cash réel encaissé ──
     { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "invoiced_month", label: "Montant facturé par mois", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },
+    { id: "receivables_status", label: "Créances (impayés) par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
+    { id: "real_cash_month", label: "Cash réel encaissé par mois", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
+    // ── Échéances fiscales (config dans Paramètres → Organisation) ──
+    { id: "fiscal_echeances", label: "Échéances fiscales (TVA · IS · URSSAF)", entity: "fiscal", groupBy: "echeance", measure: "sum", field: "montant", unit: "currency", view: "table" },
+    // ── Abonnements / MRR ──
     { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
     { id: "subs_started_month", label: "Abonnements démarrés par mois", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
-    { id: "paid_month", label: "Montant payé par mois", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
-    { id: "due_status", label: "Montant dû par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
     { id: "mrr_canceled_month", label: "MRR annulé par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
 };
@@ -110,4 +140,39 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
 
 export function presetsForPage(pageKey: string): TablePreset[] {
   return TABLE_PRESETS[pageKey] ?? [];
+}
+
+/** Un outil connecté, tel que renvoyé par /api/integrations/connected. */
+export type SourceTool = {
+  key: string;
+  category: ConnectableTool["category"];
+  label: string;
+  icon: string;
+};
+
+/** Catégorie source d'un preset, dérivée de son entité canonique. */
+export function presetSourceCategory(p: TablePreset): ConnectableTool["category"] | null {
+  return ENTITY_SOURCE_CATEGORY[p.entity] ?? null;
+}
+
+/**
+ * Filtre les KPIs d'une page selon les sources sélectionnées dans le funnel.
+ * Un KPI est proposé si :
+ *   - un outil sélectionné appartient à la catégorie source de son entité, ET
+ *   - si le KPI exige un outil précis (requiresKey), cet outil est sélectionné.
+ * Sans sélection, on renvoie tous les KPIs de la page (comportement historique).
+ */
+export function filterPresetsBySources(
+  presets: TablePreset[],
+  selected: SourceTool[],
+): TablePreset[] {
+  if (selected.length === 0) return presets;
+  const selectedKeys = new Set(selected.map((t) => t.key));
+  const selectedCats = new Set(selected.map((t) => t.category));
+  return presets.filter((p) => {
+    if (p.requiresKey && !selectedKeys.has(p.requiresKey)) return false;
+    const cat = presetSourceCategory(p);
+    if (!cat) return true; // entité sans source connue → toujours proposée
+    return selectedCats.has(cat);
+  });
 }

@@ -34,7 +34,7 @@ const modules = [
   },
   {
     href: "/dashboard/agents/paiement-facturation",
-    title: "Agent Paiement & Facturation",
+    title: "Agent Trésorerie",
     description: "Factures, subscriptions, MRR/ARR, churn revenue et recouvrement.",
     objective: "Sécuriser le revenu récurrent et accélérer l'encaissement.",
     icon: (

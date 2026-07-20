@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTableCard, type SavedTable } from "./data-table-card";
 import {
   ENTITY_DIMS,
   presetsForPage,
+  filterPresetsBySources,
   PAGE_AGENT_KEY,
+  type SourceTool,
   type TablePreset,
   type TableView,
 } from "@/lib/reports/data-table-presets";
@@ -17,6 +19,18 @@ const VIEWS: { id: TableView; label: string; icon: string }[] = [
   { id: "line", label: "Courbe", icon: "M3 3v18h18M6 14l4-4 3 3 5-6" },
   { id: "donut", label: "Anneau", icon: "M12 2a10 10 0 1 0 10 10M12 6a6 6 0 1 0 6 6" },
 ];
+
+// Libellés lisibles des catégories d'outils source, pour regrouper le sélecteur.
+const CATEGORY_LABELS: Record<string, string> = {
+  crm: "CRM",
+  billing: "Facturation & compta",
+  support: "Service client",
+  phone: "Téléphonie",
+  communication: "Communication",
+  conv_intel: "Conversation Intelligence",
+  files: "Fichiers & tableurs",
+  ads: "Publicité & web",
+};
 
 type Draft = {
   entity: string;
@@ -42,13 +56,14 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
 };
 
 export function PageDataTables({ pageKey }: { pageKey: string }) {
-  const presets = presetsForPage(pageKey);
+  const allPresets = useMemo(() => presetsForPage(pageKey), [pageKey]);
   const alertTeam = PAGE_ALERT_TEAM[pageKey] ?? "revops";
   const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
   const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
+  // 1 = Sources à croiser · 2 = KPI · 3 = Affichage
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [customKpi, setCustomKpi] = useState("");
   const [description, setDescription] = useState("");
@@ -56,6 +71,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [error, setError] = useState<string | null>(null);
   // Id de la table en cours d'édition (null = création).
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Outils réellement connectés (sources de données croisables) + sélection.
+  const [sources, setSources] = useState<SourceTool[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/page-tables?page_key=${encodeURIComponent(pageKey)}`);
@@ -67,7 +85,39 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  function reset() { setStep(1); setDraft(null); setCustomKpi(""); setDescription(""); setError(null); setEditingId(null); }
+  // Charge les outils connectés une fois (sélecteur « données à croiser »).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/integrations/connected")
+      .then((r) => (r.ok ? r.json() : { tools: [] }))
+      .then((d) => { if (alive) setSources(Array.isArray(d.tools) ? d.tools : []); })
+      .catch(() => { /* pas bloquant : funnel utilisable sans filtre */ });
+    return () => { alive = false; };
+  }, []);
+
+  // Outils sélectionnés (objets) → KPIs proposés, filtrés dynamiquement.
+  const selectedTools = sources.filter((s) => selected.includes(s.key));
+  const presets = filterPresetsBySources(allPresets, selectedTools);
+
+  // Regroupe les outils connectés par catégorie pour le sélecteur de sources.
+  const sourcesByCategory = sources.reduce<Record<string, SourceTool[]>>((acc, t) => {
+    (acc[t.category] ??= []).push(t);
+    return acc;
+  }, {});
+
+  function reset() {
+    setStep(1);
+    setDraft(null);
+    setCustomKpi("");
+    setDescription("");
+    setError(null);
+    setEditingId(null);
+    setSelected([]);
+  }
+
+  function toggleSource(key: string) {
+    setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
 
   // Ouvre le panneau d'ÉDITION (agent uniquement : KPI + affichage).
   // Le KPI est pré-rempli avec le texte source, ou à défaut le titre actuel.
@@ -108,7 +158,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       view: p.view ?? "table",
       title: p.label,
     });
-    setStep(2);
+    setStep(3);
   }
 
   function startCustom() {
@@ -122,7 +172,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         ? { ...prev, custom: true, customKpi: kpi }
         : { entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: kpi, custom: true, customKpi: kpi },
     );
-    setStep(2);
+    setStep(3);
   }
 
   async function create() {
@@ -290,33 +340,104 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
             ) : (
             <>
             <div className="mb-5 flex items-center gap-2 text-xs text-slate-400">
-              <span className={step === 1 ? "font-semibold text-accent" : ""}>1. KPI</span>
+              <span className={step === 1 ? "font-semibold text-accent" : ""}>1. Sources</span>
               <span>→</span>
-              <span className={step === 2 ? "font-semibold text-accent" : ""}>2. Affichage</span>
+              <span className={step === 2 ? "font-semibold text-accent" : ""}>2. KPI</span>
+              <span>→</span>
+              <span className={step === 3 ? "font-semibold text-accent" : ""}>3. Affichage</span>
             </div>
 
+            {/* ── ÉTAPE 1 : Sources de données à croiser ── */}
             {step === 1 && (
               <div>
-                <h3 className="text-base font-semibold text-slate-900">{editingId ? "Réécris ton KPI" : "Quelle donnée visualiser ?"}</h3>
+                <h3 className="text-base font-semibold text-slate-900">Quelles données croiser ?</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  {editingId ? `Modifie la description — ${agentName} reconstruira la table en ce sens.` : "Choisis un KPI proposé, ou décris le tien."}
+                  Choisis les outils à croiser — les KPIs proposés s&apos;ajustent automatiquement aux sources connectées.
                 </p>
 
-                {!editingId && (
-                  <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
-                    {presets.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => pickPreset(p)}
-                        className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-accent hover:bg-indigo-50/40"
-                      >
-                        <span className="font-medium">{p.label}</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
-                      </button>
+                {sources.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+                    <p className="text-xs text-slate-500">
+                      Aucun outil connecté détecté. Connecte une source dans{" "}
+                      <a href="/dashboard/integration/mes-outils" className="font-medium text-accent hover:underline">Intégrations</a>{" "}
+                      pour croiser des données, ou continue avec tous les KPIs de la page.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 max-h-72 space-y-4 overflow-y-auto pr-1">
+                    {Object.entries(sourcesByCategory).map(([cat, tools]) => (
+                      <div key={cat}>
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          {CATEGORY_LABELS[cat] ?? cat}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {tools.map((t) => {
+                            const on = selected.includes(t.key);
+                            return (
+                              <button
+                                key={t.key}
+                                onClick={() => toggleSource(t.key)}
+                                className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                                  on ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-700 hover:border-slate-300"
+                                }`}
+                              >
+                                <span className="text-base leading-none">{t.icon}</span>
+                                <span className="min-w-0 flex-1 truncate font-medium">{t.label}</span>
+                                {on && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
-                    {presets.length === 0 && <p className="text-xs text-slate-400">Aucun KPI configuré pour cette page.</p>}
                   </div>
                 )}
+
+                <div className="mt-5 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">
+                    {selected.length > 0
+                      ? `${presets.length} KPI${presets.length > 1 ? "s" : ""} disponible${presets.length > 1 ? "s" : ""}`
+                      : "Aucun filtre : tous les KPIs de la page"}
+                  </span>
+                  <button
+                    onClick={() => { setError(null); setStep(2); }}
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                  >
+                    Continuer →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── ÉTAPE 2 : KPI ── */}
+            {step === 2 && (
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Quelle donnée visualiser ?</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedTools.length > 0
+                    ? `KPIs calculables à partir de : ${selectedTools.map((t) => t.label).join(" · ")}.`
+                    : "Choisis un KPI proposé, ou décris le tien."}
+                </p>
+
+                <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {presets.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => pickPreset(p)}
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-accent hover:bg-indigo-50/40"
+                    >
+                      <span className="font-medium">{p.label}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
+                    </button>
+                  ))}
+                  {presets.length === 0 && (
+                    <p className="text-xs text-slate-400">
+                      Aucun KPI proposé pour ces sources. Reviens en arrière pour ajuster ta sélection, ou décris un KPI personnalisé ci-dessous.
+                    </p>
+                  )}
+                </div>
 
                 {/* KPI personnalisé — construit sur mesure par l'agent de la page. */}
                 <div className="mt-4 rounded-xl border border-dashed border-accent/40 bg-indigo-50/30 p-3">
@@ -351,10 +472,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     </button>
                   </div>
                 </div>
+
+                <div className="mt-4">
+                  <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">← Changer de sources</button>
+                </div>
               </div>
             )}
 
-            {step === 2 && draft && (
+            {/* ── ÉTAPE 3 : Affichage ── */}
+            {step === 3 && draft && (
               <div className="space-y-4">
                 {draft.custom && (
                   <div className="flex items-start gap-2 rounded-xl border border-accent/30 bg-indigo-50/40 p-3 text-xs text-slate-600">
@@ -376,7 +502,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   />
                 </div>
 
-                {!draft.custom && !editingId && (
+                {!draft.custom && dims.length > 0 && (
                   <div>
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
                     <select
@@ -412,15 +538,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
                 <div className="flex items-center justify-between pt-2">
-                  {draft.custom ? (
-                    <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">
-                      {editingId ? "← Réécrire le KPI" : "← Changer de KPI"}
-                    </button>
-                  ) : editingId ? (
-                    <span />
-                  ) : (
-                    <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">← Changer de KPI</button>
-                  )}
+                  <button onClick={() => { setStep(2); setError(null); }} className="text-xs text-slate-400 hover:text-accent">
+                    {draft.custom ? "← Réécrire le KPI" : "← Changer de KPI"}
+                  </button>
                   <button
                     onClick={create}
                     disabled={saving || (!draft.custom && !draft.title.trim())}
@@ -428,10 +548,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   >
                     {draft.custom && !saving && <span aria-hidden>✨</span>}
                     {saving
-                      ? draft.custom ? `${agentName} peaufine…` : editingId ? "Enregistrement…" : "Création…"
-                      : editingId
-                        ? draft.custom ? `Mettre à jour via ${agentName}` : "Enregistrer"
-                        : draft.custom ? `Créer via ${agentName}` : "Créer la table"}
+                      ? draft.custom ? `${agentName} peaufine…` : "Création…"
+                      : draft.custom ? `Créer via ${agentName}` : "Créer la table"}
                   </button>
                 </div>
               </div>

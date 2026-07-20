@@ -444,6 +444,15 @@ function relField(rel: unknown, key: string): string | null {
   const v = o?.[key];
   return typeof v === "string" && v ? v : null;
 }
+/** Champ NUMÉRIQUE d'une relation Supabase (ex : pipeline_stages.probability). */
+function relNum(rel: unknown, key: string): number | null {
+  if (!rel) return null;
+  const o = (Array.isArray(rel) ? rel[0] : rel) as Record<string, unknown> | undefined;
+  const v = o?.[key];
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v !== "") { const n = Number(v); return Number.isNaN(n) ? null : n; }
+  return null;
+}
 
 /** Étape de pipeline résolue depuis HubSpot (source de vérité des noms d'étapes). */
 type StageInfo = {
@@ -488,7 +497,7 @@ async function resolveStageMap(token: string | null): Promise<Map<string, StageI
 const AGG_SPECS: Record<string, AggSpec> = {
   deals: {
     columns:
-      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id)",
+      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability)",
     dims: {
       month_created: (r) => monthOf(r.created_date),
       month_closed: (r) => monthOf(r.close_date),
@@ -618,7 +627,12 @@ export async function computeAggregate(
   const groupBy = String(input.groupBy ?? "");
   const dimFn = spec.dims[groupBy];
   if (!dimFn) return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
-  const measure = ["count", "sum", "avg"].includes(String(input.measure)) ? String(input.measure) : "count";
+  const measure = ["count", "sum", "avg", "weighted"].includes(String(input.measure)) ? String(input.measure) : "count";
+  // « weighted » (projection pondérée par la probabilité de closing) n'a de sens
+  // que sur les deals — refus explicite ailleurs plutôt qu'un chiffre trompeur.
+  if (measure === "weighted" && entity !== "deals") {
+    return { error: `Mesure « weighted » réservée aux deals (projection pondérée). Entité reçue : ${entity}.` };
+  }
   let numFn: ((r: Record<string, unknown>) => number) | null = null;
   const field = input.field ? String(input.field) : null;
   if (measure !== "count") {
@@ -644,6 +658,15 @@ export async function computeAggregate(
 
   let resolveDim = dimFn;
   let scoped = rows;
+  // Probabilité de closing par deal (0..1) pour la mesure « weighted ».
+  // Défaut : probabilité de l'étape canonique ; enrichie via HubSpot dans le bloc deals.
+  let probResolver: ((r: Record<string, unknown>) => number) | null =
+    entity === "deals"
+      ? (r) => {
+          const p = relNum(r.pipeline_stages, "probability");
+          return p != null ? p / 100 : 0;
+        }
+      : null;
   const wantPipeline = typeof input.pipeline === "string" && input.pipeline.trim() ? input.pipeline.trim() : null;
   const pipelineDim = groupBy === "pipeline" || groupBy === "stage_pipeline";
   if (entity === "deals" && (groupBy === "stage" || pipelineDim || wantPipeline)) {
@@ -688,24 +711,41 @@ export async function computeAggregate(
     if (groupBy === "stage") resolveDim = stageOf;
     else if (groupBy === "pipeline") resolveDim = pipelineOf;
     else if (groupBy === "stage_pipeline") resolveDim = (r) => `${pipelineOf(r)} › ${stageOf(r)}`;
+
+    // Enrichissement HubSpot de la probabilité quand l'étape canonique ne la porte pas.
+    probResolver = (r) => {
+      const p = relNum(r.pipeline_stages, "probability");
+      if (p != null) return p / 100;
+      const hs = stageMap.get(extOf(r));
+      return hs ? (Number(hs.probability) || 0) / 100 : 0;
+    };
   }
 
   const isMonth = groupBy.startsWith("month_");
-  const acc: Record<string, { sum: number; count: number }> = {};
+  const acc: Record<string, { sum: number; count: number; weighted: number }> = {};
   for (const r of scoped) {
     const key = resolveDim(r);
     if (key == null || key === "") continue;
-    const e = (acc[key] ??= { sum: 0, count: 0 });
+    const e = (acc[key] ??= { sum: 0, count: 0, weighted: 0 });
     e.count++;
     if (numFn) e.sum += numFn(r);
+    if (measure === "weighted" && numFn && probResolver) e.weighted += numFn(r) * probResolver(r);
   }
-  const valueOf = (e: { sum: number; count: number }) =>
-    measure === "count" ? e.count : measure === "sum" ? Math.round(e.sum) : e.count ? Math.round(e.sum / e.count) : 0;
+  const valueOf = (e: { sum: number; count: number; weighted: number }) =>
+    measure === "count"
+      ? e.count
+      : measure === "weighted"
+        ? Math.round(e.weighted)
+        : measure === "sum"
+          ? Math.round(e.sum)
+          : e.count
+            ? Math.round(e.sum / e.count)
+            : 0;
 
   let out: { group: string; value: number }[];
   if (isMonth) {
     const keys = from && to ? monthKeysBetween(from, to) : monthKeys(months);
-    out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0 }) }));
+    out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0, weighted: 0 }) }));
   } else {
     out = Object.entries(acc)
       .map(([group, e]) => ({ group, value: valueOf(e) }))

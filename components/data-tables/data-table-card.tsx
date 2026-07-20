@@ -52,6 +52,14 @@ export function DataTableCard({
     setLoading(true);
     setError(null);
     try {
+      // Échéances fiscales : source dédiée (config Organisation), hors moteur d'agrégat.
+      if (table.entity === "fiscal") {
+        const res = await fetch("/api/fiscal/echeances");
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Erreur de calcul");
+        setRows(Array.isArray(d.data) ? d.data : []);
+        return;
+      }
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
