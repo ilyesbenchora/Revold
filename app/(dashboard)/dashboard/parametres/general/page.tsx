@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
-import { updateFiscalSettings } from "./actions";
+import { updateFiscalSettings, updateOrganisation } from "./actions";
 
 const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 const selectClass = inputClass;
@@ -43,7 +43,17 @@ export default async function ParametresGeneralPage({
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Organisation
         </h2>
-        <div className="card p-6">
+        {sp.saved === "org" && (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+            Organisation enregistrée.
+          </p>
+        )}
+        {sp.error === "org_save" && (
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+            Enregistrement impossible. Vérifie que la migration des champs organisation a bien été appliquée.
+          </p>
+        )}
+        <form action={updateOrganisation} className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-slate-500">Nom de l&apos;organisation</label>
@@ -59,7 +69,7 @@ export default async function ParametresGeneralPage({
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Devise</label>
-              <select name="currency" defaultValue="EUR" className={selectClass}>
+              <select name="currency" defaultValue={org?.currency ?? "EUR"} className={selectClass}>
                 <option value="EUR">EUR (€)</option>
                 <option value="USD">USD ($)</option>
                 <option value="GBP">GBP (£)</option>
@@ -69,7 +79,7 @@ export default async function ParametresGeneralPage({
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Début d&apos;année fiscale</label>
-              <select name="fiscal_year_start" defaultValue="1" className={selectClass}>
+              <select name="fiscal_year_start" defaultValue={org?.fiscal_year_start != null ? String(org.fiscal_year_start) : "1"} className={selectClass}>
                 <option value="1">Janvier</option>
                 <option value="4">Avril</option>
                 <option value="7">Juillet</option>
@@ -78,7 +88,7 @@ export default async function ParametresGeneralPage({
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Fuseau horaire</label>
-              <select name="timezone" defaultValue="Europe/Paris" className={selectClass}>
+              <select name="timezone" defaultValue={org?.timezone ?? "Europe/Paris"} className={selectClass}>
                 <option value="Europe/Paris">Europe/Paris (UTC+1)</option>
                 <option value="Europe/London">Europe/London (UTC+0)</option>
                 <option value="Europe/Brussels">Europe/Brussels (UTC+1)</option>
@@ -98,7 +108,7 @@ export default async function ParametresGeneralPage({
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Pays de l&apos;organisation</label>
-              <select name="country" defaultValue="FR" className={selectClass}>
+              <select name="country" defaultValue={org?.country ?? "FR"} className={selectClass}>
                 <option value="FR">France</option>
                 <option value="BE">Belgique</option>
                 <option value="CH">Suisse</option>
@@ -113,16 +123,16 @@ export default async function ParametresGeneralPage({
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">SIREN de l&apos;organisation</label>
-              <input type="text" name="org_siren" placeholder="123 456 789" maxLength={11} className={inputClass} />
+              <input type="text" name="org_siren" defaultValue={org?.siren ?? ""} placeholder="123 456 789" maxLength={11} className={inputClass} />
               <p className="mt-1 text-[10px] text-slate-400">9 chiffres — utilisé pour le rapprochement automatique entre outils</p>
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">N° TVA intracommunautaire</label>
-              <input type="text" name="org_vat" placeholder="FR12345678901" maxLength={15} className={inputClass} />
+              <input type="text" name="org_vat" defaultValue={org?.vat ?? ""} placeholder="FR12345678901" maxLength={15} className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500">Secteur d&apos;activité</label>
-              <select name="industry" defaultValue="" className={selectClass}>
+              <select name="industry" defaultValue={org?.industry ?? ""} className={selectClass}>
                 <option value="">Non renseigné</option>
                 <option value="saas">SaaS / Logiciel</option>
                 <option value="services">Services B2B</option>
@@ -138,11 +148,11 @@ export default async function ParametresGeneralPage({
             </div>
           </div>
           <div className="mt-6 flex justify-end">
-            <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
+            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
               Enregistrer les modifications
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
       {/* Fiscalité & échéances — alimente la table « Échéances fiscales » du funnel Trésorerie */}
