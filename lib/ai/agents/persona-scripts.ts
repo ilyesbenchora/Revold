@@ -31,9 +31,11 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   performance: {
     // D-ID (Microsoft TTS) — conservé si on revient à ce fournisseur.
     voiceId: "fr-FR-VivienneMultilingualNeural",
-    // Hedra — voix « Chloe » (féminine, claire, enjouée), à l'unisson du
-    // personnage. Voix multilingue : prononce le français.
+    // Hedra — repli seulement (accent anglophone en FR).
     hedraVoiceId: "d2d7515d-e170-4ee6-b022-0ce471c0aaa0",
+    // ElevenLabs — voix « Chloé » (FR native, jeune, agréable), à l'unisson du
+    // personnage : jeune analyste qui va droit au fait.
+    elevenVoiceId: "I6eWD84OrEngt4S4Antm",
     segments: [
       "Bonjour, moi c'est Chloé, ton analyste performance chez Revold.",
       "Mon rôle : regarder ton activité commerciale telle qu'elle est vraiment,",

@@ -50,10 +50,11 @@ function loadScript(key) {
   const block = new RegExp(`\\b${key}:\\s*\\{([\\s\\S]*?)\\n  \\},`).exec(src);
   if (!block) return null;
   const voice = /hedraVoiceId:\s*"([^"]+)"/.exec(block[1]);
+  const eleven = /elevenVoiceId:\s*"([^"]+)"/.exec(block[1]);
   const segs = /segments:\s*\[([\s\S]*?)\]/.exec(block[1]);
   if (!segs) return null;
   const segments = [...segs[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\"/g, '"'));
-  return { hedraVoiceId: voice ? voice[1] : null, segments };
+  return { hedraVoiceId: voice ? voice[1] : null, elevenVoiceId: eleven ? eleven[1] : null, segments };
 }
 
 const ts = (sec) => {
