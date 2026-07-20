@@ -58,7 +58,6 @@ export function HubspotConnectionCard({ hsRow, hasEnvFallback }: Props) {
   return (
     <div className="space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-        <span className="h-2 w-2 rounded-full bg-orange-500" />
         HubSpot (CRM principal)
       </h2>
       <div className="card p-6">

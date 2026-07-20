@@ -24,7 +24,6 @@ export function DashboardCharts({ data }: { data: ChartRow[] }) {
       {/* Sales Charts */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
           Tendances Sales
         </h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -46,7 +45,6 @@ export function DashboardCharts({ data }: { data: ChartRow[] }) {
       {/* Marketing Charts */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
           Tendances Marketing
         </h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -68,7 +66,6 @@ export function DashboardCharts({ data }: { data: ChartRow[] }) {
       {/* CRM Ops Charts */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Tendances CRM Ops
         </h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BlockHeaderIcon } from "./ventes-ui";
 
 export type ParityRow = {
   object_type: string;
@@ -104,8 +103,7 @@ export function SyncParityBlock({ rows }: { rows: ParityRow[] }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center gap-3">
-          <BlockHeaderIcon icon="shield" tone="emerald" />
-          <div>
+<div>
             <p className="text-sm font-semibold text-slate-900">Parité HubSpot ↔ Revold</p>
             <p className="mt-0.5 text-[11px] text-slate-500">
               {counts.ok} ok · {counts.drift} drift · {counts.error} erreur ·{" "}

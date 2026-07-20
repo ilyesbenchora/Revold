@@ -182,7 +182,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Tables de données
+            Tables de données
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">Construisez vos visualisations à partir de vos données réelles.</p>
         </div>

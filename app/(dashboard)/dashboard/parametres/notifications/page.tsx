@@ -77,7 +77,7 @@ export default async function ParametresNotificationsPage() {
       {/* In-app (toujours actif) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Cloche in-app
+          Cloche in-app
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
             ✓ Toujours actif
           </span>
@@ -91,7 +91,7 @@ export default async function ParametresNotificationsPage() {
       {/* Canaux configurables */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Canaux additionnels
+          Canaux additionnels
         </h2>
         <p className="text-xs text-slate-500">
           Configurez les canaux supplémentaires pour recevoir vos alertes et digests.
@@ -102,7 +102,7 @@ export default async function ParametresNotificationsPage() {
       {/* Digest schedule (placeholder pour les futures préférences globales) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />Digests automatiques
+          Digests automatiques
         </h2>
         <div className="card p-5">
           <p className="text-sm text-slate-700">
@@ -126,7 +126,7 @@ export default async function ParametresNotificationsPage() {
       {Object.keys(stats.byChannel).length > 0 && (
         <div className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-indigo-500" />Activité par canal (7 jours)
+            Activité par canal (7 jours)
           </h2>
           <div className="card p-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

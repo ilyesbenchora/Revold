@@ -6,10 +6,10 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
@@ -92,7 +92,7 @@ export default async function PerformanceMarketingPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="funnel" tone="fuchsia" />Lifecycle conversion (Lead → Customer)
+            Lifecycle conversion (Lead → Customer)
           </h2>
         }
       >
@@ -104,7 +104,7 @@ export default async function PerformanceMarketingPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <BlockHeaderIcon icon="megaphone" tone="blue" />Tunnel d&apos;acquisition par source d&apos;origine
+              Tunnel d&apos;acquisition par source d&apos;origine
               <span className="text-sm font-normal text-slate-400">
                 {totalSourceContacts.toLocaleString("fr-FR")} contacts
               </span>
@@ -146,6 +146,29 @@ export default async function PerformanceMarketingPage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Mêmes contacts par source, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Contacts par source d'origine"
+              subtitle="contacts · groupé par source HubSpot"
+              team="marketing"
+              unit="count"
+              nameLabel="Source d'origine"
+              valueLabel="Contacts"
+              extraColumns={["Part du total", "Type"]}
+              showTotal
+              rows={contactSourcesGlobal.map((s) => ({
+                name: sourceLabels[s.source] ?? s.source,
+                value: s.count,
+                cells: [
+                  `${totalSourceContacts > 0 ? Math.round((s.count / totalSourceContacts) * 100) : 0} %`,
+                  nativeKeys.includes(s.source) ? "Native" : "Externe",
+                ],
+              }))}
+              footnote="Compté en direct sur HubSpot (hs_object_source) : la source n'existe pas comme dimension d'agrégat canonique, l'agent Revold rattache l'alerte aux données à la création."
+            />
           </div>
         </CollapsibleBlock>
       )}

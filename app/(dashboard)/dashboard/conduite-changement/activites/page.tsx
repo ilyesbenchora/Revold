@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { TeamActivityCarousel } from "@/components/team-activity-carousel";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import {
   ACTIVITY_TYPES, ACTIVITY_LABELS,
   fetchOwners, searchCount, batchedFetch,
@@ -81,6 +82,25 @@ export default async function ActivitesPage() {
               })),
             }))}
           />
+
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Activité par équipe"
+              subtitle="activités CRM"
+              team="revops"
+              unit="count"
+              nameLabel="Équipe"
+              valueLabel="Total activités"
+              extraColumns={["Membres", "Appels", "Emails envoyés", "RDV", "Tâches"]}
+              rows={sortedTeamActivity.map(([teamName, stats]) => ({
+                name: teamName,
+                value: stats.total,
+                unit: "count" as const,
+                cells: [stats.members, stats.CALL, stats.EMAIL, stats.MEETING, stats.TASK],
+              }))}
+            />
+          </div>
         </CollapsibleBlock>
       )}
 
@@ -136,6 +156,25 @@ export default async function ActivitesPage() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Activité par utilisateur"
+              subtitle="activités CRM"
+              team="revops"
+              unit="count"
+              nameLabel="Utilisateur"
+              valueLabel="Total activités"
+              extraColumns={["Équipe", "Appels", "Emails envoyés", "RDV", "Tâches"]}
+              rows={topActivityUsers.map((o) => ({
+                name: `${o.firstName} ${o.lastName}`.trim() || o.email,
+                value: o.activity.total,
+                unit: "count" as const,
+                cells: [o.teams[0] ?? "—", o.activity.CALL, o.activity.EMAIL, o.activity.MEETING, o.activity.TASK],
+              }))}
+            />
           </div>
         </CollapsibleBlock>
       )}

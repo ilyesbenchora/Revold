@@ -437,9 +437,25 @@ function relName(rel: unknown): string {
   const o = (Array.isArray(rel) ? rel[0] : rel) as { name?: string } | undefined;
   return o?.name ?? "Sans étape";
 }
+/** Champ arbitraire d'une relation Supabase (objet ou tableau à 1 élément). */
+function relField(rel: unknown, key: string): string | null {
+  if (!rel) return null;
+  const o = (Array.isArray(rel) ? rel[0] : rel) as Record<string, unknown> | undefined;
+  const v = o?.[key];
+  return typeof v === "string" && v ? v : null;
+}
 
 /** Étape de pipeline résolue depuis HubSpot (source de vérité des noms d'étapes). */
-type StageInfo = { label: string; position: number; probability: number; closedWon: boolean; closedLost: boolean };
+type StageInfo = {
+  label: string;
+  position: number;
+  probability: number;
+  closedWon: boolean;
+  closedLost: boolean;
+  /** Pipeline parent — lève l'ambiguïté des libellés d'étape homonymes. */
+  pipelineId: string;
+  pipelineLabel: string;
+};
 
 /**
  * Map stageId (HubSpot) → infos d'étape, lue en direct depuis HubSpot. Sert de
@@ -459,6 +475,8 @@ async function resolveStageMap(token: string | null): Promise<Map<string, StageI
           probability: s.probability,
           closedWon: s.closedWon,
           closedLost: s.closedLost,
+          pipelineId: p.id,
+          pipelineLabel: p.label,
         });
       }
     }
@@ -469,12 +487,19 @@ async function resolveStageMap(token: string | null): Promise<Map<string, StageI
 }
 const AGG_SPECS: Record<string, AggSpec> = {
   deals: {
-    columns: "amount, created_date, close_date, stage_external_id, pipeline_stages(name)",
+    columns:
+      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id)",
     dims: {
       month_created: (r) => monthOf(r.created_date),
       month_closed: (r) => monthOf(r.close_date),
-      // Résolu dynamiquement dans run() via HubSpot quand le canonique n'est pas mappé.
+      // Résolus dynamiquement dans computeAggregate via HubSpot quand le
+      // canonique n'est pas mappé (cf. resolveStageMap).
       stage: (r) => relName(r.pipeline_stages),
+      pipeline: (r) => relField(r.pipeline_stages, "pipeline_name") ?? "Sans pipeline",
+      // Étape qualifiée par son pipeline : zéro ambiguïté entre deux pipelines
+      // qui partagent un libellé d'étape (« Closed won », « Qualification »…).
+      stage_pipeline: (r) =>
+        `${relField(r.pipeline_stages, "pipeline_name") ?? "Sans pipeline"} › ${relName(r.pipeline_stages)}`,
     },
     numeric: { amount: (r) => Number(r.amount) || 0 },
   },
@@ -566,6 +591,12 @@ export type AggregateSpec = {
   months?: number;
   date_from?: string | null;
   date_to?: string | null;
+  /**
+   * Restreint l'agrégat à UN pipeline (deals uniquement), par id externe HubSpot
+   * ou par nom. Rend `groupBy: "stage"` non ambigu quand deux pipelines
+   * partagent un libellé d'étape.
+   */
+  pipeline?: string | null;
 };
 
 /**
@@ -612,19 +643,38 @@ export async function computeAggregate(
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
   let resolveDim = dimFn;
-  if (entity === "deals" && groupBy === "stage") {
+  let scoped = rows;
+  const wantPipeline = typeof input.pipeline === "string" && input.pipeline.trim() ? input.pipeline.trim() : null;
+  const pipelineDim = groupBy === "pipeline" || groupBy === "stage_pipeline";
+  if (entity === "deals" && (groupBy === "stage" || pipelineDim || wantPipeline)) {
+    // Fallback HubSpot quand l'ETL n'a pas mappé dealstage → pipeline_stages.
     const stageMap = await resolveStageMap(hubspotToken);
-    resolveDim = (r) => {
+    const extOf = (r: Record<string, unknown>) =>
+      typeof r.stage_external_id === "string" ? r.stage_external_id : "";
+    const stageOf = (r: Record<string, unknown>) => {
       const joined = relName(r.pipeline_stages);
       if (joined !== "Sans étape") return joined;
-      const ext = typeof r.stage_external_id === "string" ? r.stage_external_id : "";
-      return stageMap.get(ext)?.label ?? "Sans étape";
+      return stageMap.get(extOf(r))?.label ?? "Sans étape";
     };
+    const pipelineOf = (r: Record<string, unknown>) =>
+      relField(r.pipeline_stages, "pipeline_name") ?? stageMap.get(extOf(r))?.pipelineLabel ?? "Sans pipeline";
+    const pipelineIdOf = (r: Record<string, unknown>) =>
+      relField(r.pipeline_stages, "pipeline_external_id") ?? stageMap.get(extOf(r))?.pipelineId ?? null;
+
+    if (wantPipeline) {
+      const want = wantPipeline.toLowerCase();
+      scoped = rows.filter(
+        (r) => (pipelineIdOf(r) ?? "").toLowerCase() === want || pipelineOf(r).toLowerCase() === want,
+      );
+    }
+    if (groupBy === "stage") resolveDim = stageOf;
+    else if (groupBy === "pipeline") resolveDim = pipelineOf;
+    else if (groupBy === "stage_pipeline") resolveDim = (r) => `${pipelineOf(r)} › ${stageOf(r)}`;
   }
 
   const isMonth = groupBy.startsWith("month_");
   const acc: Record<string, { sum: number; count: number }> = {};
-  for (const r of rows) {
+  for (const r of scoped) {
     const key = resolveDim(r);
     if (key == null || key === "") continue;
     const e = (acc[key] ??= { sum: 0, count: 0 });
@@ -645,9 +695,10 @@ export async function computeAggregate(
       .slice(0, 50);
   }
   return {
-    hasData: rows.length > 0,
+    hasData: scoped.length > 0,
     entity, groupBy, measure, field: field ?? undefined,
-    rows: out, totalRows: rows.length,
+    pipeline: wantPipeline,
+    rows: out, totalRows: scoped.length,
     period: from && to ? { from, to } : null,
   };
 }
@@ -657,7 +708,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",
@@ -669,6 +720,11 @@ export const aggregateCanonical: AgentTool = {
         months: { type: "integer", description: "Fenêtre en mois pour les dimensions month_* (défaut 12)." },
         date_from: { type: "string", description: "Début de période YYYY-MM-DD (filtre déterministe sur la date de l'entité)." },
         date_to: { type: "string", description: "Fin de période YYYY-MM-DD." },
+        pipeline: {
+          type: "string",
+          description:
+            "Deals uniquement : restreint l'agrégat à un seul pipeline (id HubSpot ou nom exact). Indispensable avec groupBy: stage quand plusieurs pipelines partagent des libellés d'étape.",
+        },
       },
       required: ["entity", "groupBy"],
     },

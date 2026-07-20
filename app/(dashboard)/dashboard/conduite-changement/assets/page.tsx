@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PROPERTY_OBJECTS, fetchOwners, type AssetStats } from "../context";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function AssetsPage() {
   const orgId = await getOrgId();
@@ -97,6 +98,28 @@ export default async function AssetsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Assets créés par utilisateur"
+              subtitle="workflows et propriétés"
+              team="revops"
+              unit="count"
+              nameLabel="Utilisateur"
+              valueLabel="Total assets"
+              extraColumns={["Workflows", ...PROPERTY_OBJECTS.map((ot) => ot.label)]}
+              rows={topAssetCreators.map((o) => ({
+                name: `${o.firstName} ${o.lastName}`.trim() || o.email,
+                value: o.totalAssets,
+                unit: "count" as const,
+                cells: [
+                  o.assets?.workflows ?? 0,
+                  ...PROPERTY_OBJECTS.map((ot) => o.assets?.[ot.field] ?? 0),
+                ],
+              }))}
+            />
           </div>
         </CollapsibleBlock>
       ) : (

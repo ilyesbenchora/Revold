@@ -5,8 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function PaiementPage() {
   const orgId = await getOrgId();
@@ -36,7 +36,6 @@ export default async function PaiementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="repeat" tone="emerald" />
             Revenus récurrents
           </h2>
         }
@@ -65,12 +64,35 @@ export default async function PaiementPage() {
             <p className="mt-1 text-xs text-slate-400">Revenu moy./client/mois</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Revenus récurrents"
+            subtitle="subscriptions"
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
+              { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
+              { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+              {
+                name: "ARPU",
+                value: data.activeSubsCount > 0 ? Math.round(data.mrr / data.activeSubsCount) : null,
+                unit: "currency",
+                cells: ["Revenu moy./client/mois"],
+              },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="alert-triangle" tone="rose" />
             Churn & risque revenue
           </h2>
         }
@@ -113,12 +135,30 @@ export default async function PaiementPage() {
             <p className="mt-1 text-xs text-slate-400">Conversion à monitorer</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Churn & risque revenue"
+            subtitle="subscriptions"
+            team="finance"
+            unit="count"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
+              { name: "Subscriptions annulées", value: data.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"] },
+              { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements en échec"] },
+              { name: "En période d'essai", value: trialingSubs, unit: "count", cells: ["Conversion à monitorer"] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="credit-card" tone="blue" />
             Santé du portefeuille subscriptions
           </h2>
         }
@@ -152,6 +192,39 @@ export default async function PaiementPage() {
                 Past due + canceled / paused / expired
               </p>
             </article>
+          </div>
+        )}
+
+        {/* Mêmes segments que les cartes ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {data.subscriptions.length > 0 && (
+          <div className="mt-4">
+            <BlockDataTable
+              title="Santé du portefeuille subscriptions"
+              subtitle="subscriptions · groupé par segment"
+              team="finance"
+              unit="count"
+              nameLabel="Segment"
+              valueLabel="Subscriptions"
+              extraColumns={["Part du portefeuille"]}
+              rows={[
+                {
+                  name: "Actives",
+                  value: data.activeSubsCount,
+                  cells: [`${Math.round((data.activeSubsCount / data.subscriptions.length) * 100)} %`],
+                },
+                {
+                  name: "En essai",
+                  value: trialingSubs,
+                  cells: [`${Math.round((trialingSubs / data.subscriptions.length) * 100)} %`],
+                },
+                {
+                  name: "À risque",
+                  value: pastDueSubs + data.canceledSubsCount,
+                  cells: [`${Math.round(((pastDueSubs + data.canceledSubsCount) / data.subscriptions.length) * 100)} %`],
+                },
+              ]}
+              footnote="Segments composites (past due + canceled / paused / expired) : l'agent Revold rattache l'alerte aux données à la création."
+            />
           </div>
         )}
       </CollapsibleBlock>

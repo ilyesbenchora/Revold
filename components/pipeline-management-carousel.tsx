@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import type { PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 
 const fmtK = (n: number) =>
@@ -130,6 +131,33 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mêmes données que le tableau ci-dessus, exposées en table normalisée
+          pour permettre une alerte chirurgicale sur une étape précise. */}
+      <div className="border-t border-card-border px-5 py-3">
+        <BlockDataTable
+          title={`Étapes du pipeline — ${pa.pipeline.label}`}
+          subtitle="deals · groupé par étape"
+          team="sales"
+          unit="count"
+          nameLabel="Étape"
+          valueLabel="Deals"
+          extraColumns={["CA brut", "CA pondéré", "Moy. j"]}
+          showTotal
+          aggSpec={{ entity: "deals", groupBy: "stage", measure: "count", pipeline: pa.pipeline.id }}
+          rows={pa.stages.map((sa) => ({
+            name: sa.stage.label,
+            value: sa.dealCount,
+            cells: [
+              sa.amount > 0 ? fmtK(sa.amount) : "—",
+              sa.weightedAmount > 0 ? fmtK(sa.weightedAmount) : "—",
+              `${sa.avgDaysInStage}j`,
+            ],
+          }))}
+          footnote={`Alerte rapprochée des vraies données, restreinte au pipeline « ${pa.pipeline.label} » (deals · groupé par étape) — aucune confusion possible avec une étape homonyme d'un autre pipeline.`}
+          emptyLabel="Aucune étape avec des deals dans ce pipeline."
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-0 border-t border-card-border md:grid-cols-2 md:divide-x md:divide-card-border">

@@ -9,10 +9,10 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -68,7 +68,7 @@ export default async function ServiceClientOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="headset" tone="blue" />Volume de tickets
+            Volume de tickets
           </h2>
         }
       >
@@ -99,12 +99,32 @@ export default async function ServiceClientOverviewPage() {
             </p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Volume de tickets"
+            subtitle="tickets"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count" },
+              { name: "Tickets portail", value: snapshot.totalTickets, unit: "count" },
+              { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count" },
+              { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count" },
+              { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count" },
+            ]}
+            footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="message-circle" tone="fuchsia" />Signaux satisfaction & engagement
+            Signaux satisfaction & engagement
           </h2>
         }
       >
@@ -130,6 +150,25 @@ export default async function ServiceClientOverviewPage() {
             </p>
             <p className="mt-1 text-xs text-slate-400">feedback_submissions</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Signaux satisfaction & engagement"
+            subtitle="satisfaction"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count" },
+              { name: "Subscriptions totales", value: snapshot.totalSubscriptions, unit: "count" },
+              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
+              { name: "Feedback (CSAT/NPS)", value: snapshot.feedbackCount, unit: "count" },
+            ]}
+            footnote="Source : snapshot HubSpot (subscriptions, Inbox, feedback_submissions)."
+          />
         </div>
       </CollapsibleBlock>
 

@@ -35,7 +35,7 @@ export default async function ParametresGeneralPage() {
       {/* Organisation */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Organisation
+          Organisation
         </h2>
         <div className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -142,7 +142,7 @@ export default async function ParametresGeneralPage() {
       {/* Équipe */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Équipe
+          Équipe
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{team.length}</span>
         </h2>
         <div className="card overflow-hidden">

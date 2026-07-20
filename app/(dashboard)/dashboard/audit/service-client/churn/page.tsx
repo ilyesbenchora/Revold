@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientChurnPage() {
   const orgId = await getOrgId();
@@ -62,7 +62,7 @@ export default async function ServiceClientChurnPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="alert-triangle" tone="rose" />Score de risque churn
+            Score de risque churn
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                 riskScore >= 60 ? "bg-rose-100 text-rose-700" : riskScore >= 30 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"
@@ -117,12 +117,32 @@ export default async function ServiceClientChurnPage() {
             <p className="mt-1 text-xs text-slate-400">Active / total subs</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Score de risque churn"
+            subtitle="risque churn"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Score de risque churn", value: riskScore, unit: "count" },
+              { name: "Taux de churn", value: churnRate ?? null, unit: "percent" },
+              { name: "Subs annulées", value: billing.canceledSubsCount, unit: "count" },
+              { name: "Past due", value: pastDueSubs, unit: "count" },
+              { name: "NRR (proxy)", value: nrrProxy, unit: "percent" },
+            ]}
+            footnote="Unités hétérogènes (score, %, volumes) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="eye-off" tone="amber" />Signaux faibles à monitorer
+            Signaux faibles à monitorer
           </h2>
         }
       >
@@ -161,12 +181,31 @@ export default async function ServiceClientChurnPage() {
             <p className="mt-1 text-xs text-slate-400">CSAT/NPS — 0 = angle mort</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Signaux faibles à monitorer"
+            subtitle="signaux faibles"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Tickets urgents", value: scData.urgentTickets, unit: "count" },
+              { name: "% urgents du volume", value: urgencyRate, unit: "percent" },
+              { name: "Tickets / contact", value: scData.ticketsPerCustomer ?? null, unit: "count" },
+              { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="log-out" tone="rose" />Impact revenue du churn
+            Impact revenue du churn
           </h2>
         }
       >
@@ -194,6 +233,39 @@ export default async function ServiceClientChurnPage() {
             <p className="mt-1 text-3xl font-bold text-emerald-600">{billing.mrr > 0 ? fmtK(billing.mrr) : "—"}</p>
             <p className="mt-1 text-xs text-slate-400">{fmt(billing.activeSubsCount)} subs actives</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Impact revenue du churn"
+            subtitle="impact revenue"
+            team="csm"
+            unit="currency"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              {
+                name: "MRR perdu (estimé)",
+                value:
+                  billing.activeSubsCount > 0 && billing.canceledSubsCount > 0
+                    ? Math.round((billing.mrr / billing.activeSubsCount) * billing.canceledSubsCount)
+                    : null,
+                unit: "currency",
+              },
+              {
+                name: "ARR à risque (past due)",
+                value:
+                  pastDueSubs > 0 && billing.activeSubsCount > 0
+                    ? Math.round((billing.arr / billing.activeSubsCount) * pastDueSubs)
+                    : null,
+                unit: "currency",
+              },
+              { name: "MRR sain restant", value: billing.mrr > 0 ? billing.mrr : null, unit: "currency" },
+              { name: "Subs actives", value: billing.activeSubsCount, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (montants et volumes) : pas de total agrégé."
+          />
         </div>
       </CollapsibleBlock>
     </section>

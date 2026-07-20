@@ -7,6 +7,37 @@ import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { loadEntitiesWithData } from "@/lib/alerts/entity-readiness";
 
+/**
+ * Alertes posées sur une table de données précise (`?source_key=…`), pour
+ * afficher le compteur et le lien direct sur la table elle-même.
+ */
+export async function GET(request: Request) {
+  const sourceKey = new URL(request.url).searchParams.get("source_key");
+  if (!sourceKey) return NextResponse.json({ error: "source_key requis" }, { status: 400 });
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("id, title, status")
+    .eq("organization_id", profile.organization_id)
+    .eq("source_key", sourceKey)
+    .order("created_at", { ascending: false });
+
+  // Colonne pas encore migrée → pas de compteur, surtout pas une erreur bloquante.
+  if (error) return NextResponse.json({ alerts: [] });
+  return NextResponse.json({ alerts: data ?? [] });
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -39,6 +70,8 @@ export async function POST(request: Request) {
     cross_sources, threshold_secondary, unit_mode_secondary, secondary_kpis,
     // Spec d'agrégat pour tracker une alerte technique/table sur les vraies données
     agg_spec,
+    // Table/bloc de données d'origine (compteur + lien sur la table)
+    source_key,
   } = body;
 
   if (!title || !description || !impact) {
@@ -121,6 +154,7 @@ export async function POST(request: Request) {
     secondary_kpis: Array.isArray(secondary_kpis) && secondary_kpis.length ? secondary_kpis.slice(0, 12) : null,
     agg_spec: resolvedAggSpec,
     recon_spec: reconSpec,
+    source_key: typeof source_key === "string" && source_key.trim() ? source_key.trim().slice(0, 200) : null,
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });

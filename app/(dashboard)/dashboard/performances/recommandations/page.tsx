@@ -63,9 +63,7 @@ export default async function PerformancesRecommandationsPage() {
               <header className="flex items-baseline justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                    <span className={`inline-flex h-7 items-center rounded-full bg-gradient-to-r ${meta.gradient} px-2.5 text-[10px] font-bold uppercase tracking-wide text-white`}>
-                      {meta.emoji} {meta.label}
-                    </span>
+                    {meta.label}
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                       {recs.length}
                     </span>

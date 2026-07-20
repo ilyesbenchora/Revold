@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import type { PipelineConversion } from "@/lib/integrations/hubspot-pipeline-conversion";
 
 function arrowColor(pct: number | null): string {
@@ -15,6 +16,28 @@ function bgForPct(pct: number | null): string {
   if (pct >= 60) return "bg-emerald-100 text-emerald-700";
   if (pct >= 30) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
+}
+
+/** Lignes de la table = exactement ce qu'affiche le funnel, sans recalcul. */
+function conversionRows(c: PipelineConversion): BlockTableRow[] {
+  if (c.totalEntries === 0 || c.insufficientStages) return [];
+  const rows: BlockTableRow[] = c.stages
+    .filter((_, i) => i < c.stages.length - 1)
+    .map((s) => ({
+      name: `${s.stage.label} → ${s.nextStageLabel}`,
+      value: s.conversionToNextPct,
+      cells: [s.inStageCount, s.reachedCount],
+    }));
+  const first = c.stages[0]?.stage.label;
+  const last = c.stages[c.stages.length - 1]?.stage.label;
+  if (c.endToEndPct !== null && first && last) {
+    rows.push({
+      name: `Conversion globale (${first} → ${last})`,
+      value: c.endToEndPct,
+      cells: ["—", c.totalEntries],
+    });
+  }
+  return rows;
 }
 
 export function PipelineConversionBlock({
@@ -132,6 +155,23 @@ export function PipelineConversionBlock({
             })}
           </div>
         )}
+
+        {/* Mêmes taux que le funnel ci-dessus, en table normalisée : permet
+            de poser une alerte chirurgicale sur un passage d'étape précis. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title={`Taux de conversion — ${selected.pipeline.label}`}
+            subtitle="par passage d'étape"
+            team="sales"
+            unit="percent"
+            nameLabel="Passage d'étape"
+            valueLabel="Conversion"
+            extraColumns={["Deals à l'étape", "Ont atteint"]}
+            rows={conversionRows(selected)}
+            footnote="Taux dérivé du funnel (cumul + ratio) : il n'est pas reproductible par un agrégat simple, l'agent Revold rattache l'alerte aux données à la création."
+            emptyLabel="Pas assez d'étapes peuplées pour calculer un taux de conversion."
+          />
+        </div>
 
         <p className="mt-4 text-[11px] text-slate-400">
           Méthode : on ne retient que les étapes où des deals sont actuellement stockés

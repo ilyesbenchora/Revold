@@ -5,8 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function FacturationPage() {
   const orgId = await getOrgId();
@@ -45,7 +45,6 @@ export default async function FacturationPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="file-text" tone="indigo" />
             Émission & encaissement
           </h2>
         }
@@ -86,12 +85,30 @@ export default async function FacturationPage() {
             <p className="mt-1 text-xs text-slate-400">{fmt(data.paidInvoicesCount)} factures payées</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Émission & encaissement"
+            subtitle="invoices"
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
+              { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
+              { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
+              { name: "Total encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} factures payées`] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="alert-triangle" tone="rose" />
             Recouvrement & DSO
             {overdueInvoices.length > 0 && (
               <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">
@@ -134,12 +151,34 @@ export default async function FacturationPage() {
             <p className="mt-1 text-xs text-slate-400">Cash à collecter</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Recouvrement & DSO"
+            subtitle="invoices"
+            team="finance"
+            unit="count"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "Factures > 30j impayées", value: overdueInvoices.length, unit: "count", cells: ["DSO élevé = trésorerie à risque"] },
+              {
+                name: "Taux de paiement",
+                value: data.invoices.length > 0 ? Math.round((data.paidInvoicesCount / data.invoices.length) * 100) : null,
+                unit: "percent",
+                cells: ["Payées / émises"],
+              },
+              { name: "Encours total", value: data.totalUnpaidAmount > 0 ? data.totalUnpaidAmount : null, unit: "currency", cells: ["Cash à collecter"] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="trending-up" tone="blue" />
             Pipeline revenue & devis
           </h2>
         }
@@ -169,6 +208,25 @@ export default async function FacturationPage() {
             <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.totalLineItems)}</p>
             <p className="mt-1 text-xs text-slate-400">SKUs vendus</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Pipeline revenue & devis"
+            subtitle="deals · quotes · line items"
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "Pipeline ouvert", value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null, unit: "currency", cells: [`${fmt(snapshot.openDeals)} deals`] },
+              { name: "Won historique", value: snapshot.wonAmount > 0 ? snapshot.wonAmount : null, unit: "currency", cells: [`${fmt(snapshot.wonDeals)} deals gagnés`] },
+              { name: "Devis émis", value: snapshot.totalQuotes, unit: "count", cells: ["HubSpot Quotes"] },
+              { name: "Line items", value: snapshot.totalLineItems, unit: "count", cells: ["SKUs vendus"] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
         </div>
       </CollapsibleBlock>
 

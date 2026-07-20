@@ -7,6 +7,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { StaleDaysSelector } from "@/components/stale-days-selector";
 import { fetchOwners, searchCount, batchedFetch } from "../context";
 import { getOrgHubspotPortalId } from "../../insights-ia/context";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 type Props = {
   searchParams: Promise<{ days?: string; lc?: string | string[]; owner?: string }>;
@@ -183,6 +184,25 @@ export default async function ConnexionsPage({ searchParams }: Props) {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title={`Records sans activité depuis ${days}+ jours`}
+              subtitle="par propriétaire"
+              team="revops"
+              unit="count"
+              nameLabel="Propriétaire"
+              valueLabel="Total inactifs"
+              extraColumns={["Contacts inactifs", "Deals ouverts inactifs"]}
+              rows={ownersWithStale.map((o) => ({
+                name: `${o.firstName} ${o.lastName}`.trim() || o.email,
+                value: o.stale.contacts + o.stale.deals,
+                unit: "count" as const,
+                cells: [o.stale.contacts, o.stale.deals],
+              }))}
+            />
           </div>
         </CollapsibleBlock>
       ) : (

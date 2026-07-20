@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientRenouvellementPage() {
   const orgId = await getOrgId();
@@ -65,7 +65,7 @@ export default async function ServiceClientRenouvellementPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="repeat" tone="emerald" />Taux de renouvellement & rétention
+            Taux de renouvellement & rétention
           </h2>
         }
       >
@@ -109,12 +109,31 @@ export default async function ServiceClientRenouvellementPage() {
             <p className="mt-1 text-xs text-slate-400">Lifecycle = customer</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Taux de renouvellement & rétention"
+            subtitle="rétention"
+            team="csm"
+            unit="percent"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Renewal rate", value: renewalRate, unit: "percent" },
+              { name: "GRR", value: grr, unit: "percent" },
+              { name: "Churn rate", value: billing.churnRate ?? null, unit: "percent" },
+              { name: "Customers actifs", value: snapshot.customersCount, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (taux et volume) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="users" tone="blue" />Cohortes par fréquence
+            Cohortes par fréquence
           </h2>
         }
       >
@@ -143,12 +162,37 @@ export default async function ServiceClientRenouvellementPage() {
             <p className="mt-1 text-xs text-slate-400">+ d&apos;annuel = + de stabilité revenue</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Cohortes par fréquence"
+            subtitle="mix annuel / mensuel"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Subs annuelles", value: annualSubs.length, unit: "count" },
+              { name: "Subs mensuelles", value: monthlySubs.length, unit: "count" },
+              {
+                name: "% annuel dans le mix",
+                value:
+                  billing.subscriptions.length > 0
+                    ? Math.round((annualSubs.length / billing.subscriptions.length) * 100)
+                    : null,
+                unit: "percent",
+              },
+            ]}
+            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="shield" tone="amber" />ARR sécurisé vs à risque
+            ARR sécurisé vs à risque
           </h2>
         }
       >
@@ -183,12 +227,30 @@ export default async function ServiceClientRenouvellementPage() {
             <p className="mt-1 text-xs text-slate-400">À traiter en CSM proactif</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="ARR sécurisé vs à risque"
+            subtitle="ARR"
+            team="csm"
+            unit="currency"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "ARR sécurisé", value: arrSecured > 0 ? arrSecured : null, unit: "currency" },
+              { name: "ARR à risque", value: arrAtRisk > 0 ? arrAtRisk : null, unit: "currency" },
+              { name: "Subs à risque", value: renewalAtRisk, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (montants et volume) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="user-clock" tone="fuchsia" />Engagement pré-renouvellement
+            Engagement pré-renouvellement
           </h2>
         }
       >
@@ -224,6 +286,24 @@ export default async function ServiceClientRenouvellementPage() {
             </p>
             <p className="mt-1 text-xs text-slate-400">CSAT/NPS submissions</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Engagement pré-renouvellement"
+            subtitle="engagement"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
+              { name: "Tickets résolus < 24h (proxy CSAT)", value: scData.csatProxy ?? null, unit: "percent" },
+              { name: "Feedback collecté", value: snapshot.feedbackCount, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+          />
         </div>
       </CollapsibleBlock>
     </section>

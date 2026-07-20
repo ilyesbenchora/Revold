@@ -21,7 +21,7 @@ export default async function ParametresSecuriteApiPage() {
       {/* Authentification */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Authentification
+          Authentification
         </h2>
         <div className="card p-6">
           <div className="space-y-4">
@@ -68,7 +68,7 @@ export default async function ParametresSecuriteApiPage() {
       {/* API Keys */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-indigo-500" />Clés d&apos;API Revold
+          Clés d&apos;API Revold
         </h2>
         <p className="text-sm text-slate-500">
           Générez des clés API pour interagir avec Revold depuis vos outils internes (workflows, scripts, BI).
@@ -93,7 +93,7 @@ export default async function ParametresSecuriteApiPage() {
       {/* Webhooks sortants */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Webhooks sortants
+          Webhooks sortants
         </h2>
         <p className="text-sm text-slate-500">
           Recevez en temps réel les événements Revold (nouvelle alerte, rapport activé, score modifié) sur vos endpoints.
@@ -122,7 +122,7 @@ export default async function ParametresSecuriteApiPage() {
       {/* Sessions actives */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Sessions actives
+          Sessions actives
         </h2>
         <div className="card overflow-hidden">
           <div className="divide-y divide-card-border">
@@ -143,7 +143,7 @@ export default async function ParametresSecuriteApiPage() {
       {/* Audit log */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-slate-400" />Journal d&apos;audit
+          Journal d&apos;audit
           <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-medium text-fuchsia-700">Plan Enterprise</span>
         </h2>
         <div className="card p-6 text-center">

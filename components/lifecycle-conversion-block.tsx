@@ -1,3 +1,4 @@
+import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import type { LifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
 function arrowColor(pct: number | null): string {
@@ -12,6 +13,28 @@ function bgForPct(pct: number | null): string {
   if (pct >= 30) return "bg-emerald-100 text-emerald-700";
   if (pct >= 10) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
+}
+
+/** Lignes de la table = exactement ce qu'affiche le funnel lifecycle, sans recalcul. */
+function lifecycleRows(data: LifecycleConversion): BlockTableRow[] {
+  if (data.insufficientStages) return [];
+  const rows: BlockTableRow[] = data.stages
+    .filter((_, i) => i < data.stages.length - 1)
+    .map((s) => ({
+      name: `${s.label} → ${s.nextLabel}`,
+      value: s.conversionToNextPct,
+      cells: [s.inStageCount, s.reachedCount],
+    }));
+  const first = data.stages[0]?.label;
+  const last = data.stages[data.stages.length - 1]?.label;
+  if (data.endToEndPct !== null && first && last) {
+    rows.push({
+      name: `Conversion globale (${first} → ${last})`,
+      value: data.endToEndPct,
+      cells: ["—", data.totalContactsInFunnel],
+    });
+  }
+  return rows;
 }
 
 export function LifecycleConversionBlock({ data }: { data: LifecycleConversion }) {
@@ -98,6 +121,22 @@ export function LifecycleConversionBlock({ data }: { data: LifecycleConversion }
           })}
         </div>
       )}
+
+      {/* Mêmes taux que le funnel ci-dessus, en table normalisée + alerte chirurgicale. */}
+      <div className="mt-4">
+        <BlockDataTable
+          title="Taux de conversion lifecycle"
+          subtitle="par passage d'étape"
+          team="marketing"
+          unit="percent"
+          nameLabel="Passage d'étape"
+          valueLabel="Conversion"
+          extraColumns={["Contacts à l'étape", "Ont atteint"]}
+          rows={lifecycleRows(data)}
+          footnote="Taux dérivé du funnel (cumul + ratio) : il n'est pas reproductible par un agrégat simple, l'agent Revold rattache l'alerte aux données à la création."
+          emptyLabel="Pas assez d'étapes lifecycle peuplées pour calculer un taux de conversion."
+        />
+      </div>
 
       <p className="mt-4 text-[11px] text-slate-400">
         Méthode : on ne retient que les étapes lifecycle canoniques HubSpot (subscriber → lead → MQL → SQL →

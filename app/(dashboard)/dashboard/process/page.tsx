@@ -8,9 +8,9 @@ import { getCachedWorkflows } from "@/lib/sync/get-cached-workflows";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function AutomatisationsPage() {
   const orgId = await getOrgId();
@@ -72,7 +72,7 @@ export default async function AutomatisationsPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="workflow" tone="violet" />Workflows détectés
+            Workflows détectés
             {allWorkflows.length > 0 && (
               <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
                 {activeWorkflows.length} actifs / {allWorkflows.length}
@@ -108,6 +108,25 @@ export default async function AutomatisationsPage() {
             </article>
           </div>
         )}
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Workflows détectés"
+            subtitle="workflows"
+            team="revops"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Workflows actifs", value: activeWorkflows.length, unit: "count" },
+              { name: "Workflows inactifs", value: inactiveWorkflows.length, unit: "count" },
+              { name: "Workflows total", value: allWorkflows.length, unit: "count" },
+              { name: "Actions analysées", value: a.totalActions, unit: "count" },
+            ]}
+            footnote="Source : miroir Supabase des workflows HubSpot. Actifs + inactifs = total."
+          />
+        </div>
       </CollapsibleBlock>
 
       {/* ── ANALYSE ÉCRITE workflow par workflow ── */}
@@ -115,7 +134,7 @@ export default async function AutomatisationsPage() {
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <BlockHeaderIcon icon="sparkles" tone="fuchsia" />Analyse exhaustive workflow par workflow
+              Analyse exhaustive workflow par workflow
               <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
                 {detailLoaded} / {activeWorkflows.length} analysés
               </span>
@@ -166,6 +185,23 @@ export default async function AutomatisationsPage() {
 
           <div className="mt-4">
             <WorkflowCarousel workflows={allWorkflows} details={details} />
+          </div>
+
+          {/* Mêmes KPI que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Analyse exhaustive workflow par workflow"
+              subtitle="couverture de l'analyse"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[
+                { name: "Workflows analysés (détail chargé)", value: detailLoaded, unit: "count" },
+                { name: "Workflows actifs sans détail", value: failedDetailIds.length, unit: "count" },
+              ]}
+              footnote="Couverture de l'enrichissement : détails chargés vs workflows actifs restés en mode lite."
+            />
           </div>
         </CollapsibleBlock>
       )}

@@ -114,7 +114,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {/* HubSpot */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />HubSpot (CRM principal)
+          HubSpot (CRM principal)
         </h2>
         <div className="card p-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -266,7 +266,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {/* Outils connectés à Revold */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Outils connectés à Revold
+          Outils connectés à Revold
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{connected.length}</span>
         </h2>
         {connected.length === 0 ? (
@@ -342,7 +342,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {/* Synchronisation des blocs (vue par page Revold) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Synchronisation des blocs
+          Synchronisation des blocs
         </h2>
         <SyncBlocksStatus snapshot={snapshot} />
       </div>
@@ -350,7 +350,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {/* Mapping outil source par page Revold */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Outil source par page
+          Outil source par page
         </h2>
         <p className="text-xs text-slate-500">
           Pour chaque page Revold, choisissez l&apos;outil (ou les outils, selon le mode)
@@ -367,7 +367,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       {inactive.length > 0 && (
         <div className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="h-2 w-2 rounded-full bg-slate-300" />Intégrations inactives
+            Intégrations inactives
           </h2>
           <div className="card overflow-hidden">
             <div className="divide-y divide-card-border">

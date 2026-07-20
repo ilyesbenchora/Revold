@@ -12,6 +12,7 @@ import { ContactAssociationsBlock } from "@/components/contact-associations-bloc
 import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
 type SharedProp = { name: string; label: string; objects: string[]; type: string; sameLabel: boolean; isCustom: boolean; fillRate: number };
@@ -268,6 +269,18 @@ export default async function DonneesContactsPage() {
           <div className="card p-4">
             <PropertyCarousel properties={allPropertyStats} />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Toutes les propriétés"
+              subtitle="contacts"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[{ name: "Propriétés suivies", value: allPropertyStats.length, unit: "count" }]}
+            />
+          </div>
         </div>
       )}
 
@@ -278,6 +291,24 @@ export default async function DonneesContactsPage() {
           <p className="text-[11px] text-slate-500 mb-3">Nombre de contacts associés à chaque type d&apos;objet</p>
           <div className="card p-4">
             <ContactAssociationsBlock stats={associationStats} />
+          </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Associations des contacts"
+              subtitle="objets associés"
+              team="revops"
+              unit="count"
+              nameLabel="Association"
+              valueLabel="Avec association"
+              extraColumns={["Total", "Taux"]}
+              rows={associationStats.map((s) => ({
+                name: s.targetLabel,
+                value: s.withAssociation,
+                unit: "count" as const,
+                cells: [s.totalContacts, `${s.rate} %`],
+              }))}
+            />
           </div>
         </div>
       )}
@@ -290,6 +321,18 @@ export default async function DonneesContactsPage() {
           <div className="card p-4">
             <SharedPropertiesBlock properties={sharedProps} />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Propriétés multi-objets"
+              subtitle="contacts"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[{ name: "Propriétés partagées entre objets", value: sharedProps.length, unit: "count" }]}
+            />
+          </div>
         </div>
       )}
 
@@ -301,6 +344,25 @@ export default async function DonneesContactsPage() {
           <div className="card p-4">
             <TrackingSourcesBlock sources={trackingData.sources} drillDown1={trackingData.drillDown1} drillDown2={trackingData.drillDown2} total={trackingData.total} />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Propriétés de tracking"
+              subtitle="sources analytiques"
+              team="revops"
+              unit="count"
+              nameLabel="Source"
+              valueLabel="Contacts"
+              extraColumns={["Part"]}
+              rows={trackingData.sources.map((s) => ({
+                name: s.label,
+                value: s.count,
+                unit: "count" as const,
+                cells: [`${s.pct} %`],
+              }))}
+              footnote={`${trackingData.total.toLocaleString("fr-FR")} contacts analysés`}
+            />
+          </div>
         </div>
       )}
 
@@ -311,6 +373,18 @@ export default async function DonneesContactsPage() {
           <p className="text-[11px] text-slate-500 mb-3">Dépendances aux assets HubSpot (workflows, formulaires, segments)</p>
           <div className="card p-4">
             <PropertyUsageBlock properties={propertyUsage} />
+          </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Utilisation des propriétés"
+              subtitle="contacts"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[{ name: "Propriétés avec dépendances assets", value: propertyUsage.length, unit: "count" }]}
+            />
           </div>
         </div>
       )}

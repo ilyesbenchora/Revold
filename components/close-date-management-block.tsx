@@ -6,7 +6,8 @@ import type {
   CloseDateDeal,
   QuarterBucket,
 } from "@/lib/integrations/hubspot-close-date";
-import { BlockHeaderIcon, SortHeader, useSorter } from "./ventes-ui";
+import { SortHeader, useSorter } from "./ventes-ui";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 const PAGE_SIZE = 25;
 
@@ -121,6 +122,35 @@ export function CloseDateManagementBlock({
         maps={maps}
         pipelineId={pipelineId}
       />
+
+      {/* Mêmes données que les deux tables ci-dessus, en table normalisée :
+          permet une alerte chirurgicale sur un trimestre ou sur le retard. */}
+      <BlockDataTable
+        title={`Forecast par trimestre — ${buckets.year}`}
+        subtitle="deals · groupé par trimestre de close date"
+        team="sales"
+        unit="count"
+        nameLabel="Trimestre"
+        valueLabel="Deals"
+        extraColumns={["CA brut", "Forecast pondéré"]}
+        rows={[
+          ...buckets.quarters.map((q) => {
+            const amount = q.deals.reduce((s, d) => s + d.amount, 0);
+            const weighted = q.deals.reduce((s, d) => s + d.weightedAmount, 0);
+            return {
+              name: q.label,
+              value: q.deals.length,
+              cells: [amount > 0 ? fmtK(amount) : "—", weighted > 0 ? fmtK(weighted) : "—"],
+            };
+          }),
+          {
+            name: "Close date dépassée",
+            value: buckets.passedCloseDate.length,
+            cells: [passedTotal > 0 ? fmtK(passedTotal) : "—", passedWeighted > 0 ? fmtK(passedWeighted) : "—"],
+          },
+        ]}
+        footnote="« Close date dépassée » recoupe les trimestres — pas de total, l'alerte porte sur une ligne précise. Forecast pondéré par probabilité d'étape : l'agent Revold rattache l'alerte aux données à la création."
+      />
     </div>
   );
 }
@@ -176,8 +206,7 @@ function PassedCloseDateTable({
     <article className="card overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-white px-5 py-4">
         <div className="flex items-start gap-3">
-          <BlockHeaderIcon icon="alarm" tone="red" />
-          <div>
+<div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold text-slate-900">Close date dépassée</h3>
               <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
@@ -289,8 +318,7 @@ function QuartersTable({
       <header className="border-b border-card-border bg-white px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
-            <BlockHeaderIcon icon="calendar" tone="emerald" />
-            <div>
+<div>
               <h3 className="text-base font-semibold text-slate-900">
                 Close date {year} — par trimestre
               </h3>

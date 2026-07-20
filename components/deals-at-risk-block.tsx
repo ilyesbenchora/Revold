@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import type { DealRiskBuckets, RiskDeal } from "@/lib/integrations/hubspot-deal-risk";
 import {
-  BlockHeaderIcon,
   DaysCell,
   SortHeader,
   useSorter,
@@ -111,10 +111,31 @@ export function DealsAtRiskBlock({
         </div>
       </div>
 
+      {/* Mêmes buckets que les tables ci-dessous, en table normalisée : permet
+          de poser une alerte chirurgicale sur un signal de risque précis. */}
+      <BlockDataTable
+        title={`Deals à risque — synthèse (${selectedLabel})`}
+        subtitle="deals · groupé par signal de risque"
+        team="sales"
+        unit="count"
+        nameLabel="Signal de risque"
+        valueLabel="Deals"
+        extraColumns={["Montant concerné"]}
+        rows={[
+          { name: "Deals à risque (combiné)", deals: buckets.trueRisk },
+          { name: "Deals bloqués", deals: buckets.blocked },
+          { name: "Deals sans visibilité", deals: buckets.noVisibility },
+          { name: "Deals sans activités", deals: buckets.noActivity },
+        ].map(({ name, deals }) => {
+          const amount = deals.reduce((s, d) => s + (d.amount ?? 0), 0);
+          return { name, value: deals.length, cells: [amount > 0 ? fmtK(amount) : "—"] };
+        })}
+        footnote="Buckets calculés sur l'activité HubSpot en direct (jours en étape, dernière activité, activité planifiée) : l'agent Revold rattache l'alerte aux données à la création."
+      />
+
       <RiskTable
         title="Deals à risque (combiné)"
         criteria="Cumul des 3 signaux : > 7j même étape, dernière activité > 7j, aucune activité planifiée"
-        icon="alarm"
         tone="red"
         deals={buckets.trueRisk}
         maps={maps}
@@ -126,7 +147,6 @@ export function DealsAtRiskBlock({
       <RiskTable
         title="Deals bloqués"
         criteria="Plus de 7 jours dans la même étape — risque d'enlisement"
-        icon="lock"
         tone="red"
         deals={buckets.blocked}
         maps={maps}
@@ -138,7 +158,6 @@ export function DealsAtRiskBlock({
       <RiskTable
         title="Deals sans visibilité"
         criteria="Aucune prochaine activité planifiée — pipeline aveugle"
-        icon="eye-off"
         tone="orange"
         deals={buckets.noVisibility}
         maps={maps}
@@ -150,7 +169,6 @@ export function DealsAtRiskBlock({
       <RiskTable
         title="Deals sans activités"
         criteria="Aucune activité commerciale loguée depuis plus de 10 jours"
-        icon="user-clock"
         tone="amber"
         deals={buckets.noActivity}
         maps={maps}
@@ -181,7 +199,6 @@ type RiskSortKey = keyof Pick<
 function RiskTable({
   title,
   criteria,
-  icon,
   tone,
   deals,
   maps,
@@ -191,7 +208,6 @@ function RiskTable({
 }: {
   title: string;
   criteria: string;
-  icon: "lock" | "eye-off" | "user-clock" | "alarm";
   tone: "red" | "orange" | "amber";
   deals: RiskDeal[];
   maps: Maps;
@@ -218,8 +234,7 @@ function RiskTable({
     <article className="card overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-white px-5 py-4">
         <div className="flex items-start gap-3">
-          <BlockHeaderIcon icon={icon} tone={tone} />
-          <div>
+<div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold text-slate-900">{title}</h3>
               <span

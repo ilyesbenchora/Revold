@@ -10,6 +10,11 @@ export type AggSpec = {
   target?: string | null;
   /** Transformation linéaire déterministe (ex : 12 pour passer du MRR à l'ARR). */
   multiplier?: number | null;
+  /**
+   * Deals uniquement : restreint l'agrégat à UN pipeline (id HubSpot ou nom).
+   * Lève l'ambiguïté des libellés d'étape partagés entre pipelines.
+   */
+  pipeline?: string | null;
 };
 
 /**
@@ -31,6 +36,7 @@ export async function valueFromAggSpec(
       groupBy: spec.groupBy,
       measure: spec.measure || "count",
       field: spec.field ?? null,
+      pipeline: spec.pipeline ?? null,
     });
     if (res.error) return null;
     const rows = (res.rows as { group: string; value: number }[] | undefined) ?? [];

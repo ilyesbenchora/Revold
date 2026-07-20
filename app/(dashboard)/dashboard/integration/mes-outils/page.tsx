@@ -122,7 +122,7 @@ export default async function MesOutilsPage({
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />Apps détectées dans le portail HubSpot
+              Apps détectées dans le portail HubSpot
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{portalApps.totalApps}</span>
             </h2>
           }

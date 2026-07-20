@@ -5,8 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientProcessPage() {
   const orgId = await getOrgId();
@@ -62,7 +62,7 @@ export default async function ServiceClientProcessPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="user-clock" tone="emerald" />SLA d&apos;accueil & première réponse
+            SLA d&apos;accueil & première réponse
           </h2>
         }
       >
@@ -128,12 +128,32 @@ export default async function ServiceClientProcessPage() {
             <p className="mt-1 text-xs text-slate-400">{fmt(data.distinctContactsCount)} contacts uniques</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="SLA d'accueil & première réponse"
+            subtitle="SLA support"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "1ère réponse moy. (h)", value: data.avgFirstResponseHours ?? null, unit: "count" },
+              { name: "SLA respecté (< 4h)", value: slaRate, unit: "percent" },
+              { name: "Résolution moy. (h)", value: data.avgResolutionHours ?? null, unit: "count" },
+              { name: "Tickets / contact", value: data.ticketsPerCustomer ?? null, unit: "count" },
+              { name: "Contacts uniques", value: data.distinctContactsCount, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (heures, % et volumes) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="briefcase" tone="indigo" />Onboarding & livraison
+            Onboarding & livraison
           </h2>
         }
       >
@@ -166,12 +186,31 @@ export default async function ServiceClientProcessPage() {
             <p className="mt-1 text-xs text-slate-400">Customers / (opps + customers)</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Onboarding & livraison"
+            subtitle="onboarding"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Tickets onboarding", value: onboardingTickets.length, unit: "count" },
+              { name: "Onboarding résolus", value: onboardingResolved, unit: "count" },
+              { name: "Taux de résolution onboarding", value: onboardingResolutionRate, unit: "percent" },
+              { name: "Handoff sales → CSM", value: handoffRate, unit: "percent" },
+            ]}
+            footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="users" tone="amber" />Capacité opérationnelle
+            Capacité opérationnelle
           </h2>
         }
       >
@@ -197,6 +236,24 @@ export default async function ServiceClientProcessPage() {
             <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(snapshot.activeSubscriptions)}</p>
             <p className="mt-1 text-xs text-slate-400">Portefeuille à servir</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Capacité opérationnelle"
+            subtitle="charge CSM"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Tickets ouverts", value: data.openTickets, unit: "count" },
+              { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count" },
+              { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count" },
+            ]}
+            footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
+          />
         </div>
       </CollapsibleBlock>
     </section>

@@ -77,7 +77,7 @@ export default async function MesAlertesPage() {
               </h2>
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {soon.map((a) => (
-                  <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
+                  <div key={a.id} id={`alerte-${a.id}`} className="snap-start shrink-0 scroll-mt-24" style={{ width: "min(380px, 90vw)" }}>
                     <EditableAlertCard alert={a} badge="Bientôt à échéance" dataReady={rdy(a)} />
                   </div>
                 ))}
@@ -93,7 +93,7 @@ export default async function MesAlertesPage() {
               </h2>
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {catAlerts.map((a) => (
-                  <div key={a.id} className="snap-start shrink-0" style={{ width: "min(380px, 90vw)" }}>
+                  <div key={a.id} id={`alerte-${a.id}`} className="snap-start shrink-0 scroll-mt-24" style={{ width: "min(380px, 90vw)" }}>
                     <EditableAlertCard alert={a} dataReady={rdy(a)} />
                   </div>
                 ))}
@@ -111,7 +111,7 @@ export default async function MesAlertesPage() {
               </h2>
               <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-smooth">
                 {done.map((a) => (
-                  <div key={a.id} className="snap-start shrink-0 opacity-80" style={{ width: "min(380px, 90vw)" }}>
+                  <div key={a.id} id={`alerte-${a.id}`} className="snap-start shrink-0 scroll-mt-24 opacity-80" style={{ width: "min(380px, 90vw)" }}>
                     <EditableAlertCard alert={a} badge="Terminée" dataReady={rdy(a)} />
                   </div>
                 ))}

@@ -9,6 +9,8 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
+import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
+// Conservé pour les cartes de synthèse par objet — ce n'est pas une vignette de titre de bloc.
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
 
@@ -404,7 +406,6 @@ export default async function DonneesPage() {
         <div className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <BlockHeaderIcon icon="database" tone="indigo" />
               Hubs synchronisés
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
                 {hubs.length}
@@ -466,6 +467,35 @@ export default async function DonneesPage() {
               </article>
             ))}
           </div>
+
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4 space-y-4">
+            {hubs.map((h) => {
+              const rows: BlockTableRow[] = [];
+              for (const e of h.entities) {
+                rows.push({ name: e.label, value: e.count, unit: "count" });
+                if (e.enrichmentPct != null && e.count > 0) {
+                  rows.push({
+                    name: `${e.label} — enrichissement`,
+                    value: e.enrichmentPct,
+                    unit: "percent",
+                  });
+                }
+              }
+              return (
+                <BlockDataTable
+                  key={`table-${h.key}`}
+                  title={`Hub ${h.label}`}
+                  subtitle={h.category}
+                  team="revops"
+                  unit="count"
+                  nameLabel="Entité"
+                  valueLabel="Valeur"
+                  rows={rows}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -496,6 +526,26 @@ export default async function DonneesPage() {
             <p className="mt-3 text-[10px] text-slate-400 group-hover:text-accent">Voir le détail →</p>
           </Link>
         ))}
+      </div>
+
+      {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+      <div className="mt-4">
+        <BlockDataTable
+          title="Synthèse par objet CRM"
+          subtitle="volumes et complétude"
+          team="revops"
+          unit="count"
+          nameLabel="Donnée"
+          valueLabel="Valeur"
+          rows={summaries.flatMap<BlockTableRow>((s) => [
+            { name: s.label, value: s.count, unit: "count" },
+            ...s.metrics.map<BlockTableRow>((m) => ({
+              name: `${s.label} — ${m.label}`,
+              value: m.pct,
+              unit: "percent" as const,
+            })),
+          ])}
+        />
       </div>
 
     </div>

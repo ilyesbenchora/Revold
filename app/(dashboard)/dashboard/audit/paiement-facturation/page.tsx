@@ -9,10 +9,10 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function PaiementFacturationOverviewPage() {
   const orgId = await getOrgId();
@@ -70,7 +70,6 @@ export default async function PaiementFacturationOverviewPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="repeat" tone="emerald" />
             Synthèse Revenue récurrent
           </h2>
         }
@@ -107,12 +106,30 @@ export default async function PaiementFacturationOverviewPage() {
             <p className="mt-1 text-xs text-slate-400">Annulés / total subs</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Synthèse Revenue récurrent"
+            subtitle="subscriptions"
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
+              { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
+              { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+              { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="file-text" tone="indigo" />
             Synthèse Facturation
           </h2>
         }
@@ -148,6 +165,25 @@ export default async function PaiementFacturationOverviewPage() {
               {data.avgInvoice != null && data.avgInvoice > 0 ? fmtK(data.avgInvoice) : "—"}
             </p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Synthèse Facturation"
+            subtitle="invoices"
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={[
+              { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
+              { name: "Encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} payées`] },
+              { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
+              { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
+            ]}
+            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+          />
         </div>
       </CollapsibleBlock>
 

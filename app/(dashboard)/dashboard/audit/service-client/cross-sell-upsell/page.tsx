@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientCrossSellUpsellPage() {
   const orgId = await getOrgId();
@@ -64,7 +64,7 @@ export default async function ServiceClientCrossSellUpsellPage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="euro" tone="emerald" />Revenue par client (ARPU & LTV)
+            Revenue par client (ARPU & LTV)
           </h2>
         }
       >
@@ -96,12 +96,38 @@ export default async function ServiceClientCrossSellUpsellPage() {
             <p className="mt-1 text-xs text-slate-400">&gt; 1 = clients multi-produit</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Revenue par client (ARPU & LTV)"
+            subtitle="ARPU / LTV"
+            team="csm"
+            unit="currency"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "ARPU mensuel", value: arpu, unit: "currency" },
+              { name: "ARPU annuel", value: arpuAnnual, unit: "currency" },
+              {
+                name: "LTV (estimée)",
+                value:
+                  arpu != null && billing.churnRate != null && billing.churnRate > 0
+                    ? Math.round((arpu * 12) / (billing.churnRate / 100))
+                    : null,
+                unit: "currency",
+              },
+              { name: "Subs / customer", value: subsPerCustomer, unit: "count" },
+            ]}
+            footnote="Unités hétérogènes (montants et ratio) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="trending-up" tone="fuchsia" />Potentiel d&apos;expansion
+            Potentiel d&apos;expansion
           </h2>
         }
       >
@@ -145,12 +171,32 @@ export default async function ServiceClientCrossSellUpsellPage() {
             <p className="mt-1 text-xs text-slate-400">% subs additionnelles</p>
           </article>
         </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Potentiel d'expansion"
+            subtitle="expansion"
+            team="csm"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Customers healthy", value: healthyCustomers, unit: "count" },
+              { name: "% du portefeuille healthy", value: healthyPct, unit: "percent" },
+              { name: "Customers totaux", value: totalCustomers, unit: "count" },
+              { name: "Expansion MRR potentiel", value: expansionPotentialMrr, unit: "currency" },
+              { name: "Multi-produit", value: multiProductRate, unit: "percent" },
+            ]}
+            footnote="Unités hétérogènes (volumes, % et montants) : pas de total agrégé."
+          />
+        </div>
       </CollapsibleBlock>
 
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="kanban" tone="indigo" />Pipeline expansion (deals ouverts sur customers)
+            Pipeline expansion (deals ouverts sur customers)
           </h2>
         }
       >
@@ -174,6 +220,32 @@ export default async function ServiceClientCrossSellUpsellPage() {
             </p>
             <p className="mt-1 text-xs text-slate-400">% customers avec deal ouvert</p>
           </article>
+        </div>
+
+        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        <div className="mt-4">
+          <BlockDataTable
+            title="Pipeline expansion"
+            subtitle="deals ouverts sur customers"
+            team="sales"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Deals ouverts", value: snapshot.openDeals, unit: "count" },
+              {
+                name: "Pipeline ouvert €",
+                value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null,
+                unit: "currency",
+              },
+              {
+                name: "Taux deals / customer",
+                value: totalCustomers > 0 ? Math.round((snapshot.openDeals / totalCustomers) * 100) : null,
+                unit: "percent",
+              },
+            ]}
+            footnote="Unités hétérogènes (volume, montant et %) : pas de total agrégé."
+          />
         </div>
       </CollapsibleBlock>
     </section>

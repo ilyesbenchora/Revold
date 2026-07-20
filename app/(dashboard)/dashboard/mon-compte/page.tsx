@@ -93,7 +93,7 @@ export default async function MonComptePage() {
       {/* Informations personnelles */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Informations personnelles
+          Informations personnelles
         </h2>
         <div className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -135,7 +135,7 @@ export default async function MonComptePage() {
       {/* Souscription actuelle */}
       <div id="subscription" className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />Souscription actuelle
+          Souscription actuelle
         </h2>
         <div className="card p-6">
           <div className="flex items-center justify-between">

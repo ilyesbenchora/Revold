@@ -279,7 +279,7 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── Mapping identifiants ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-fuchsia-500" />Mapping des identifiants
+          Mapping des identifiants
         </h2>
         <p className="text-sm text-slate-500">
           Pour chaque outil connecté, indiquez dans quel champ se trouvent les identifiants d&apos;entreprise.
@@ -297,7 +297,7 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── Règles de résolution ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />Règles de résolution d&apos;entités
+          Règles de résolution d&apos;entités
         </h2>
         <p className="text-sm text-slate-500">
           Activez les règles de rapprochement selon vos outils. La première qui matche gagne.
@@ -308,7 +308,7 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── Matrice d'autorité ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />Matrice d&apos;autorité des champs
+          Matrice d&apos;autorité des champs
         </h2>
         <p className="text-sm text-slate-500">
           Quand deux outils ont une valeur différente pour le même champ, lequel gagne ?
@@ -320,7 +320,7 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── Déduplication ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-red-500" />Règles de déduplication
+          Règles de déduplication
         </h2>
         <p className="text-sm text-slate-500">
           Actions automatiques quand deux enregistrements sont détectés comme doublons.
@@ -331,7 +331,7 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── Fréquences de sync ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <span className="h-2 w-2 rounded-full bg-slate-400" />Fréquences de synchronisation
+          Fréquences de synchronisation
         </h2>
         <SyncFrequencyForm saved={savedFrequencies} />
       </div>

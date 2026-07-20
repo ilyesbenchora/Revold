@@ -11,6 +11,7 @@ import { ContactAssociationsBlock } from "@/components/contact-associations-bloc
 import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
 type SharedProp = {
@@ -316,6 +317,21 @@ export default async function DonneesTransactionsPage() {
           <div className="card p-4">
             <PropertyCarousel properties={allPropertyStats} />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Toutes les propriétés transactions"
+              subtitle="transactions"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[
+                { name: "Propriétés suivies", value: allPropertyStats.length, unit: "count" },
+                { name: "Deals", value: totalDeals, unit: "count" },
+              ]}
+            />
+          </div>
         </div>
       )}
 
@@ -328,6 +344,24 @@ export default async function DonneesTransactionsPage() {
           <div className="card p-4">
             <ContactAssociationsBlock stats={associationStats} />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Associations des transactions"
+              subtitle="complétude deals"
+              team="revops"
+              unit="count"
+              nameLabel="Association"
+              valueLabel="Deals concernés"
+              extraColumns={["Total", "Taux"]}
+              rows={associationStats.map((s) => ({
+                name: s.targetLabel,
+                value: s.withAssociation,
+                unit: "count" as const,
+                cells: [s.totalContacts, `${s.rate} %`],
+              }))}
+            />
+          </div>
         </div>
       )}
 
@@ -339,6 +373,18 @@ export default async function DonneesTransactionsPage() {
           </p>
           <div className="card p-4">
             <SharedPropertiesBlock properties={sharedProps} />
+          </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Propriétés multi-objets"
+              subtitle="transactions"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[{ name: "Propriétés partagées entre objets", value: sharedProps.length, unit: "count" }]}
+            />
           </div>
         </div>
       )}
@@ -357,6 +403,25 @@ export default async function DonneesTransactionsPage() {
               total={distributionData.total}
             />
           </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Distribution pipeline & stages"
+              subtitle="stages"
+              team="revops"
+              unit="count"
+              nameLabel="Stage"
+              valueLabel="Deals"
+              extraColumns={["Part"]}
+              rows={distributionData.sources.map((s) => ({
+                name: s.label,
+                value: s.count,
+                unit: "count" as const,
+                cells: [`${s.pct} %`],
+              }))}
+              footnote={`${distributionData.total.toLocaleString("fr-FR")} deals analysés`}
+            />
+          </div>
         </div>
       )}
 
@@ -368,6 +433,18 @@ export default async function DonneesTransactionsPage() {
           </p>
           <div className="card p-4">
             <PropertyUsageBlock properties={propertyUsage} />
+          </div>
+          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          <div className="mt-4">
+            <BlockDataTable
+              title="Utilisation des propriétés"
+              subtitle="transactions"
+              team="revops"
+              unit="count"
+              nameLabel="Indicateur"
+              valueLabel="Valeur"
+              rows={[{ name: "Propriétés avec dépendances assets", value: propertyUsage.length, unit: "count" }]}
+            />
           </div>
         </div>
       )}

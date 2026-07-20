@@ -69,9 +69,6 @@ export default async function BibliothequeOutilsPage({
           return (
             <div key={cat} className="space-y-3">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br ${meta.gradient} text-xs text-white`}>
-                  {meta.emoji}
-                </span>
                 {meta.label}
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{tools.length}</span>
               </h2>

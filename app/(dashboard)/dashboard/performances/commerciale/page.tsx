@@ -12,7 +12,6 @@ import { PipelineConversionBlock } from "@/components/pipeline-conversion-block"
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
-import { BlockHeaderIcon } from "@/components/ventes-ui";
 import { type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 import {
   buildPipelineConversion,
@@ -70,7 +69,6 @@ export default async function PerformanceCommercialePage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="kanban" tone="blue" />
             Pipeline Management
             <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
               {pipelineAnalytics.length} pipeline{pipelineAnalytics.length > 1 ? "s" : ""}
@@ -84,7 +82,6 @@ export default async function PerformanceCommercialePage() {
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <BlockHeaderIcon icon="funnel" tone="fuchsia" />
             Taux de conversion pipeline
           </h2>
         }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { fetchOwnersFromCache } from "./context";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -42,7 +43,8 @@ export default async function AdoptionOverviewPage() {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {cards.map((c) => (
           <Link key={c.href} href={c.href} className="card group flex flex-col gap-3 p-5 transition hover:border-accent/30 hover:shadow-md">
             <div className="flex items-center justify-between">
@@ -57,5 +59,23 @@ export default async function AdoptionOverviewPage() {
           </Link>
         ))}
       </div>
+
+      {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+      <div className="mt-4">
+        <BlockDataTable
+          title="Adoption CRM — synthèse"
+          subtitle="conduite du changement"
+          team="revops"
+          unit="count"
+          nameLabel="Indicateur"
+          valueLabel="Valeur"
+          rows={[
+            { name: "Activités totales", value: totalActivities, unit: "count" },
+            { name: "Utilisateurs", value: owners.length, unit: "count" },
+            { name: "Utilisateurs actifs", value: activeUsers, unit: "count" },
+          ]}
+        />
+      </div>
+    </>
   );
 }
