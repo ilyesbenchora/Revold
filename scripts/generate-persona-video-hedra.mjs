@@ -21,8 +21,17 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const API = "https://api.hedra.com/web-app/public";
-/** Character-3 — identifiant de modèle documenté par Hedra. */
-const MODEL_ID = "26f0fc66-152b-40ab-abed-76c43df99bc8";
+/**
+ * Modèles talking-head disponibles sur l'API Hedra (relevés via /models).
+ * Character 3 par défaut ; les autres servent au comparatif de qualité.
+ */
+const MODELS = {
+  "character-3": "d1dd37a3-e39a-4854-a298-6510289f9cf2", // Hedra Character 3
+  "hedra-avatar": "26f0fc66-152b-40ab-abed-76c43df99bc8", // ancien modèle Hedra
+  omnihuman: "5efced1a-0ca0-4255-87d2-070146842ad9", // Omnihuman 1.5 I2V (bon sur illustré)
+  "kling-avatar": "0451ceea-a7b5-4275-a970-82bf4ef38055", // Kling AI Avatar v2 Pro
+};
+const MODEL_ID = MODELS["character-3"];
 
 function env() {
   const out = {};
@@ -107,56 +116,77 @@ async function main() {
     process.exit(1);
   }
 
+  // Choix du modèle vidéo : --model=omnihuman|kling-avatar|hedra-avatar pour le
+  // comparatif, Character 3 par défaut.
+  const modelArg = (args.find((a) => a.startsWith("--model=")) || "").split("=")[1];
+  const modelId = MODELS[modelArg] || MODEL_ID;
+  const outSuffix = modelArg && MODELS[modelArg] ? `-${modelArg}` : "";
+
   const imgPath = join(ROOT, `public/personas/${key}.png`);
   const text = script.segments.join(" ");
-  console.log(`Persona : ${key}\nPortrait: ${imgPath}\nVoix    : ${script.hedraVoiceId}\nTexte   : ${text.length} caractères`);
+  console.log(`Persona : ${key}\nPortrait: ${imgPath}\nModèle  : ${modelArg || "character-3"}\nVoix    : ${script.hedraVoiceId}\nTexte   : ${text.length} caractères`);
 
-  // 1. Déclarer l'asset image, 2. téléverser le fichier.
+  const poll = async (genId, label) => {
+    for (let i = 0; i < 200; i++) {
+      await sleep(3000);
+      const r = await fetch(`${API}/generations/${genId}/status`, { headers: H });
+      const d = await r.json();
+      if (d.status === "complete") return d;
+      if (d.status === "error" || d.status === "failed") {
+        console.error(`\n${label} échoué : ${JSON.stringify(d).slice(0, 400)}`);
+        process.exit(1);
+      }
+      process.stdout.write(".");
+    }
+    console.error(`\n${label} : timeout (10 min).`);
+    process.exit(1);
+  };
+
+  // 1. Synthèse vocale FRANÇAISE (language forcé pour éviter la prononciation anglaise).
+  const tts = await fetch(`${API}/generations`, {
+    method: "POST", headers: JH,
+    body: JSON.stringify({ type: "text_to_speech", voice_id: script.hedraVoiceId, text, language: "French" }),
+  });
+  if (!tts.ok) { console.error(`TTS : ${tts.status} ${await tts.text()}`); process.exit(1); }
+  const ttsJob = await tts.json();
+  console.log(`Voix en cours…`);
+  const ttsDone = await poll(ttsJob.id, "TTS");
+  const audioId = ttsJob.asset_id ?? ttsDone.asset_id;
+  console.log(`\nVoix prête (asset ${audioId})`);
+
+  // 2. Déclarer + téléverser le portrait.
   const created = await fetch(`${API}/assets`, {
     method: "POST", headers: JH,
     body: JSON.stringify({ name: `${key}.png`, type: "image" }),
   });
   if (!created.ok) { console.error(`Création asset : ${created.status} ${await created.text()}`); process.exit(1); }
-  const asset = await created.json();
-  const assetId = asset.id ?? asset.asset_id;
-
+  const assetId = (await created.json()).id;
   const form = new FormData();
   form.append("file", new Blob([readFileSync(imgPath)], { type: "image/png" }), `${key}.png`);
   const up = await fetch(`${API}/assets/${assetId}/upload`, { method: "POST", headers: H, body: form });
   if (!up.ok) { console.error(`Upload : ${up.status} ${await up.text()}`); process.exit(1); }
   console.log(`Portrait téléversé (asset ${assetId})`);
 
-  // 3. Générer la vidéo — TTS incluse dans le même appel.
+  // 3. Générer la vidéo à partir du portrait + de l'audio.
   const gen = await fetch(`${API}/generations`, {
     method: "POST", headers: JH,
     body: JSON.stringify({
       type: "video",
-      ai_model_id: MODEL_ID,
+      ai_model_id: modelId,
       start_keyframe_id: assetId,
-      audio_generation: { type: "text_to_speech", voice_id: script.hedraVoiceId, text },
+      audio_id: audioId,
+      // Le portrait est carré : on garde ce cadrage pour rester fidèle à l'avatar.
       generated_video_inputs: {
-        // Le portrait est carré : on garde ce cadrage pour rester fidèle à l'avatar.
         aspect_ratio: "1:1",
         resolution: "720p",
         text_prompt: "Le personnage parle face caméra, posture calme, léger sourire",
       },
     }),
   });
-  if (!gen.ok) { console.error(`Génération : ${gen.status} ${await gen.text()}`); process.exit(1); }
-  const g = await gen.json();
-  const genId = g.id ?? g.generation_id;
-  console.log(`Tâche ${genId} — rendu en cours…`);
-
-  let done = null;
-  for (let i = 0; i < 200; i++) {
-    await sleep(3000);
-    const r = await fetch(`${API}/generations/${genId}/status`, { headers: H });
-    const d = await r.json();
-    if (d.status === "complete") { done = d; break; }
-    if (d.status === "error" || d.status === "failed") { console.error(`\nÉchec : ${JSON.stringify(d).slice(0, 400)}`); process.exit(1); }
-    process.stdout.write(".");
-  }
-  if (!done) { console.error("\nTimeout (10 min)."); process.exit(1); }
+  if (!gen.ok) { console.error(`Génération vidéo : ${gen.status} ${await gen.text()}`); process.exit(1); }
+  const genId = (await gen.json()).id;
+  console.log(`Vidéo en cours (tâche ${genId})…`);
+  const done = await poll(genId, "Vidéo");
 
   const url = done.url ?? done.asset?.url ?? done.download_url;
   if (!url) { console.error(`\nPas d'URL dans la réponse : ${JSON.stringify(done).slice(0, 400)}`); process.exit(1); }
@@ -164,11 +194,11 @@ async function main() {
   const outDir = join(ROOT, "public/personas/videos");
   mkdirSync(outDir, { recursive: true });
   const bin = Buffer.from(await (await fetch(url)).arrayBuffer());
-  writeFileSync(join(outDir, `${key}.mp4`), bin);
+  writeFileSync(join(outDir, `${key}${outSuffix}.mp4`), bin);
 
   const duration = Number(done.duration) || text.length / 15;
-  writeFileSync(join(outDir, `${key}.vtt`), buildVtt(script.segments, duration));
-  console.log(`\n\nVidéo → public/personas/videos/${key}.mp4 (${(bin.length / 1024 / 1024).toFixed(2)} Mo)`);
+  writeFileSync(join(outDir, `${key}${outSuffix}.vtt`), buildVtt(script.segments, duration));
+  console.log(`\n\nVidéo → public/personas/videos/${key}${outSuffix}.mp4 (${(bin.length / 1024 / 1024).toFixed(2)} Mo)`);
   console.log(`VTT   → ${script.segments.length} lignes sur ${duration.toFixed(1)} s`);
   console.log("\nAVANT DE PRODUIRE LA SÉRIE : extraire une image et vérifier l'absence de filigrane.");
 }

@@ -14,17 +14,21 @@
  */
 
 export type PersonaScript = {
-  /** Voix TTS du fournisseur (Microsoft Neural, locale fr-FR). */
+  /** Voix TTS D-ID (Microsoft Neural, locale fr-FR). */
   voiceId: string;
+  /** Voix TTS Hedra (id de /web-app/public/voices). Optionnel. */
+  hedraVoiceId?: string;
   /** Segments dits dans l'ordre ; chacun devient une ligne de sous-titre. */
   segments: string[];
 };
 
 export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   performance: {
-    // Vivienne (multilingue, dernière génération) : timbre jeune et expressif,
-    // cohérent avec une analyste qui va droit au fait.
+    // D-ID (Microsoft TTS) — conservé si on revient à ce fournisseur.
     voiceId: "fr-FR-VivienneMultilingualNeural",
+    // Hedra — voix « Chloe » (féminine, claire, enjouée), à l'unisson du
+    // personnage. Voix multilingue : prononce le français.
+    hedraVoiceId: "d2d7515d-e170-4ee6-b022-0ce471c0aaa0",
     segments: [
       "Bonjour, moi c'est Chloé, ton analyste performance chez Revold.",
       "Mon rôle : regarder ton activité commerciale telle qu'elle est vraiment,",
