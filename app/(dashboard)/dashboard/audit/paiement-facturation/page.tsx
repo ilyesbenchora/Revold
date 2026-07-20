@@ -74,57 +74,22 @@ export default async function PaiementFacturationOverviewPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">MRR</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{data.mrr > 0 ? fmtK(data.mrr) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Mensuel récurrent</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARR</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{data.arr > 0 ? fmtK(data.arr) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Annualisé (MRR × 12)</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subscriptions actives</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(data.activeSubsCount)}</p>
-            <p className="mt-1 text-xs text-slate-400">sur {fmt(data.subscriptions.length)}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Taux de churn</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.churnRate != null && data.churnRate > 10
-                  ? "text-red-500"
-                  : data.churnRate != null && data.churnRate > 5
-                  ? "text-orange-500"
-                  : "text-emerald-600"
-              }`}
-            >
-              {data.churnRate != null ? `${data.churnRate}%` : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Annulés / total subs</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Synthèse Revenue récurrent"
-            subtitle="subscriptions"
-            team="finance"
-            unit="currency"
-            nameLabel="Indicateur"
-            extraColumns={["Détail"]}
-            rows={[
-              { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
-              { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
-              { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
-              { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
-            ]}
-            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Synthèse Revenue récurrent"
+          subtitle="subscriptions"
+          team="finance"
+          unit="currency"
+          nameLabel="Indicateur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
+            { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
+            { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+            { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
+          ]}
+          footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
@@ -134,57 +99,22 @@ export default async function PaiementFacturationOverviewPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Factures émises</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(data.invoices.length)}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Encaissé</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{data.totalPaid > 0 ? fmtK(data.totalPaid) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">{fmt(data.paidInvoicesCount)} payées</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Impayé</p>
-            <p
-              className={`mt-1 text-3xl font-bold ${
-                data.unpaidInvoicesCount > 5
-                  ? "text-red-500"
-                  : data.unpaidInvoicesCount > 0
-                  ? "text-orange-500"
-                  : "text-emerald-600"
-              }`}
-            >
-              {fmt(data.unpaidInvoicesCount)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : ""}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Montant moyen</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {data.avgInvoice != null && data.avgInvoice > 0 ? fmtK(data.avgInvoice) : "—"}
-            </p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Synthèse Facturation"
-            subtitle="invoices"
-            team="finance"
-            unit="currency"
-            nameLabel="Indicateur"
-            extraColumns={["Détail"]}
-            rows={[
-              { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
-              { name: "Encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} payées`] },
-              { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
-              { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
-            ]}
-            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Synthèse Facturation"
+          subtitle="invoices"
+          team="finance"
+          unit="currency"
+          nameLabel="Indicateur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
+            { name: "Encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} payées`] },
+            { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
+            { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
+          ]}
+          footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+        />
       </CollapsibleBlock>
 
       {!data.hasData && (

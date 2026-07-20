@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { blockSourceKey } from "@/components/data-tables/surgical-alert-button";
 
@@ -60,6 +60,29 @@ describe("BlockDataTable — compteur et lien d'alertes", () => {
     const link = await screen.findByRole("link");
     expect(link.textContent).toContain("3 alertes");
     expect(link.getAttribute("title")).toContain("3 alertes");
+  });
+
+  /**
+   * Régression : dans le carrousel Pipeline Management, un ancêtre porte
+   * `transform: translateX(...)`, ce qui redéfinit le bloc conteneur de
+   * `position: fixed`. La modale s'ouvrait alors hors écran, clippée par le
+   * `overflow-x-hidden` du carrousel — le clic sur « Alerte » semblait ne rien
+   * faire. La modale doit être montée dans <body>, hors du conteneur transformé.
+   */
+  it("ouvre la modale dans <body>, même sous un ancêtre transformé", async () => {
+    mockAlerts([]);
+    const { container } = render(
+      <div style={{ transform: "translateX(-50%)", overflowX: "hidden" }}>
+        <BlockDataTable title="Étapes du pipeline" team="sales" rows={ROWS} />
+      </div>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /alerte/i }));
+
+    const form = await screen.findByText("Alerte technique");
+    // Le point clé : la modale ne doit PAS être dans le conteneur transformé.
+    expect(container.contains(form)).toBe(false);
+    expect(document.body.contains(form)).toBe(true);
   });
 
   it("interroge l'API avec la clé dérivée du titre ET du sous-titre", async () => {

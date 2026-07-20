@@ -70,21 +70,8 @@ export default async function ActivitesPage() {
         <CollapsibleBlock
           title={<h2 className="text-lg font-semibold text-slate-900">Activité commerciale par équipe</h2>}
         >
-          <TeamActivityCarousel
-            teams={sortedTeamActivity.map(([team, stats]) => ({
-              team,
-              members: stats.members,
-              total: stats.total,
-              types: ACTIVITY_TYPES.map((t) => ({
-                icon: ACTIVITY_LABELS[t].icon,
-                label: ACTIVITY_LABELS[t].label,
-                count: stats[t],
-              })),
-            }))}
-          />
-
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
+          {/* Données du bloc + alerte chirurgicale. */}
+          <div>
             <BlockDataTable
               title="Activité par équipe"
               subtitle="activités CRM"
@@ -92,12 +79,20 @@ export default async function ActivitesPage() {
               unit="count"
               nameLabel="Équipe"
               valueLabel="Total activités"
-              extraColumns={["Membres", "Appels", "Emails envoyés", "RDV", "Tâches"]}
+              extraColumns={[
+                "Membres",
+                "Act. moy./membre",
+                ...ACTIVITY_TYPES.map((t) => ACTIVITY_LABELS[t].label),
+              ]}
               rows={sortedTeamActivity.map(([teamName, stats]) => ({
                 name: teamName,
                 value: stats.total,
                 unit: "count" as const,
-                cells: [stats.members, stats.CALL, stats.EMAIL, stats.MEETING, stats.TASK],
+                cells: [
+                  stats.members,
+                  Math.round(stats.total / stats.members),
+                  ...ACTIVITY_TYPES.map((t) => stats[t]),
+                ],
               }))}
             />
           </div>

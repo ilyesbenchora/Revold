@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 
@@ -111,6 +112,14 @@ export function SurgicalAlertButton({
   }, [key]);
 
   useEffect(() => { refreshLinked(); }, [refreshLinked]);
+
+  // La modale est montée dans <body> plutôt qu'à côté du bouton : un ancêtre
+  // avec `transform` (carrousel pipeline) redéfinit le bloc conteneur de
+  // `position: fixed`, et la modale s'ouvrait hors écran / clippée — le clic
+  // semblait ne rien faire. Le portal rend le composant utilisable dans
+  // n'importe quel conteneur, transformé ou non.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<"idle" | "saving" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +244,7 @@ export function SurgicalAlertButton({
         </a>
       )}
 
-      {open && (
+      {open && mounted && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => { if (state !== "saving") { setOpen(false); reset(); } }}>
           <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="max-h-[90vh] w-full max-w-md space-y-3.5 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             {state === "done" ? (
@@ -351,7 +360,8 @@ export function SurgicalAlertButton({
               </>
             )}
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

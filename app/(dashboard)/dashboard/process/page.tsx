@@ -81,35 +81,16 @@ export default async function AutomatisationsPage() {
           </h2>
         }
       >
-        {allWorkflows.length === 0 ? (
+        {allWorkflows.length === 0 && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
             <p className="text-sm text-slate-500">
               Aucun workflow détecté dans votre miroir Supabase. Lancez une réconciliation
               complète depuis Settings → Intégrations → Parité.
             </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <article className="card p-5 text-center">
-              <p className="text-xs text-slate-500">Actifs</p>
-              <p className="mt-1 text-3xl font-bold text-emerald-600">{activeWorkflows.length}</p>
-            </article>
-            <article className="card p-5 text-center">
-              <p className="text-xs text-slate-500">Inactifs</p>
-              <p className="mt-1 text-3xl font-bold text-slate-400">{inactiveWorkflows.length}</p>
-            </article>
-            <article className="card p-5 text-center">
-              <p className="text-xs text-slate-500">Total</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900">{allWorkflows.length}</p>
-            </article>
-            <article className="card p-5 text-center">
-              <p className="text-xs text-slate-500">Actions analysées</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900">{a.totalActions}</p>
-            </article>
-          </div>
         )}
 
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
+        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
             title="Workflows détectés"
@@ -187,7 +168,7 @@ export default async function AutomatisationsPage() {
             <WorkflowCarousel workflows={allWorkflows} details={details} />
           </div>
 
-          {/* Mêmes KPI que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          {/* Données du bloc + alerte chirurgicale. */}
           <div className="mt-4">
             <BlockDataTable
               title="Analyse exhaustive workflow par workflow"

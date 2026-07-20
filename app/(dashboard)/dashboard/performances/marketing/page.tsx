@@ -111,45 +111,8 @@ export default async function PerformanceMarketingPage() {
             </h2>
           }
         >
-          <div className="card overflow-hidden">
-            <div className="divide-y divide-card-border">
-              {contactSourcesGlobal.map((s) => {
-                const pct = totalSourceContacts > 0 ? Math.round((s.count / totalSourceContacts) * 100) : 0;
-                const isNative = nativeKeys.includes(s.source);
-                return (
-                  <div key={s.source} className="px-5 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-800">
-                          {sourceLabels[s.source] ?? s.source}
-                        </p>
-                        {isNative && (
-                          <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
-                            Native
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">
-                          {s.count.toLocaleString("fr-FR")}
-                        </span>
-                        <span className="text-xs text-slate-400">{pct}%</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-1.5 rounded-full ${isNative ? "bg-violet-500" : "bg-blue-500"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Mêmes contacts par source, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
+          {/* Contacts par source + alerte chirurgicale. */}
+          <div>
             <BlockDataTable
               title="Contacts par source d'origine"
               subtitle="contacts · groupé par source HubSpot"

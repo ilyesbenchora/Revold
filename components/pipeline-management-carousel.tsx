@@ -20,6 +20,13 @@ const STAGE_COLORS = [
   "bg-teal-400",
 ];
 
+/** Vélocité d'une étape — mêmes seuils que l'ancien badge coloré du tableau. */
+function velocityLabel(avgDaysInStage: number): string {
+  if (avgDaysInStage <= 7) return "Rapide";
+  if (avgDaysInStage <= 21) return "Normal";
+  return "Stagnant";
+}
+
 function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
   return (
     <article className="card overflow-hidden">
@@ -86,55 +93,9 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
         );
       })()}
 
-      <div className="border-t border-card-border px-5 py-3">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-[10px] font-medium uppercase text-slate-400">
-                <th className="py-1 pr-4">Étape</th>
-                <th className="py-1 pr-4 text-right">Deals</th>
-                <th className="py-1 pr-4 text-right">CA brut</th>
-                <th className="py-1 pr-4 text-right">CA pondéré</th>
-                <th className="py-1 pr-4 text-right">Moy. j</th>
-                <th className="py-1 text-right">Vélocité</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pa.stages.map((sa) => (
-                <tr key={sa.stage.id} className="border-t border-slate-100">
-                  <td className="py-1.5 pr-4 font-medium text-slate-700">{sa.stage.label}</td>
-                  <td className="py-1.5 pr-4 text-right text-slate-600">{sa.dealCount}</td>
-                  <td className="py-1.5 pr-4 text-right text-slate-600">
-                    {sa.amount > 0 ? fmtK(sa.amount) : "—"}
-                  </td>
-                  <td className="py-1.5 pr-4 text-right font-semibold text-slate-700">
-                    {sa.weightedAmount > 0 ? fmtK(sa.weightedAmount) : "—"}
-                  </td>
-                  <td className="py-1.5 pr-4 text-right text-slate-600">{sa.avgDaysInStage}j</td>
-                  <td className="py-1.5 text-right">
-                    {sa.avgDaysInStage <= 7 ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                        Rapide
-                      </span>
-                    ) : sa.avgDaysInStage <= 21 ? (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                        Normal
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                        Stagnant
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Mêmes données que le tableau ci-dessus, exposées en table normalisée
-          pour permettre une alerte chirurgicale sur une étape précise. */}
+      {/* Table unique des étapes : reprend TOUTES les colonnes de l'ancien
+          tableau (deals, CA brut, CA pondéré, moy. jours, vélocité) et porte
+          l'alerte chirurgicale restreinte à ce pipeline. */}
       <div className="border-t border-card-border px-5 py-3">
         <BlockDataTable
           title={`Étapes du pipeline — ${pa.pipeline.label}`}
@@ -143,7 +104,7 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
           unit="count"
           nameLabel="Étape"
           valueLabel="Deals"
-          extraColumns={["CA brut", "CA pondéré", "Moy. j"]}
+          extraColumns={["CA brut", "CA pondéré", "Moy. j", "Vélocité"]}
           showTotal
           aggSpec={{ entity: "deals", groupBy: "stage", measure: "count", pipeline: pa.pipeline.id }}
           rows={pa.stages.map((sa) => ({
@@ -153,6 +114,7 @@ function PipelineCard({ pa }: { pa: PipelineAnalytics }) {
               sa.amount > 0 ? fmtK(sa.amount) : "—",
               sa.weightedAmount > 0 ? fmtK(sa.weightedAmount) : "—",
               `${sa.avgDaysInStage}j`,
+              velocityLabel(sa.avgDaysInStage),
             ],
           }))}
           footnote={`Alerte rapprochée des vraies données, restreinte au pipeline « ${pa.pipeline.label} » (deals · groupé par étape) — aucune confusion possible avec une étape homonyme d'un autre pipeline.`}

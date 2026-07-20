@@ -40,54 +40,27 @@ export default async function PaiementPage() {
           </h2>
         }
       >
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">MRR</p>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{data.mrr > 0 ? fmtK(data.mrr) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Mensuel récurrent</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARR</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{data.arr > 0 ? fmtK(data.arr) : "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">Annualisé (MRR × 12)</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">Subscriptions actives</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{fmt(data.activeSubsCount)}</p>
-            <p className="mt-1 text-xs text-slate-400">sur {fmt(data.subscriptions.length)}</p>
-          </article>
-          <article className="card p-5 text-center">
-            <p className="text-xs text-slate-500">ARPU</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">
-              {data.activeSubsCount > 0 ? fmtK(Math.round(data.mrr / data.activeSubsCount)) : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Revenu moy./client/mois</p>
-          </article>
-        </div>
-
-        {/* Mêmes KPI que les tuiles ci-dessus, en table normalisée + alerte chirurgicale. */}
-        <div className="mt-4">
-          <BlockDataTable
-            title="Revenus récurrents"
-            subtitle="subscriptions"
-            team="finance"
-            unit="currency"
-            nameLabel="Indicateur"
-            extraColumns={["Détail"]}
-            rows={[
-              { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
-              { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
-              { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
-              {
-                name: "ARPU",
-                value: data.activeSubsCount > 0 ? Math.round(data.mrr / data.activeSubsCount) : null,
-                unit: "currency",
-                cells: ["Revenu moy./client/mois"],
-              },
-            ]}
-            footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
-          />
-        </div>
+        {/* Données du bloc + alerte chirurgicale. */}
+        <BlockDataTable
+          title="Revenus récurrents"
+          subtitle="subscriptions"
+          team="finance"
+          unit="currency"
+          nameLabel="Indicateur"
+          extraColumns={["Détail"]}
+          rows={[
+            { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
+            { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
+            { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+            {
+              name: "ARPU",
+              value: data.activeSubsCount > 0 ? Math.round(data.mrr / data.activeSubsCount) : null,
+              unit: "currency",
+              cells: ["Revenu moy./client/mois"],
+            },
+          ]}
+          footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+        />
       </CollapsibleBlock>
 
       <CollapsibleBlock
