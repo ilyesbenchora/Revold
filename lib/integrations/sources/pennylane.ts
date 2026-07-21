@@ -42,11 +42,19 @@ async function listAll<T>(token: string, endpoint: string, max = 1000): Promise<
   let page = 1;
   while (all.length < max) {
     const sep = endpoint.includes("?") ? "&" : "?";
-    const res = await plFetch<{ data?: T[]; items?: T[]; total_pages?: number }>(
+    const res = await plFetch<Record<string, unknown> & { total_pages?: number }>(
       token,
       `${endpoint}${sep}page=${page}&per_page=100`,
     );
-    const data = res.data ?? res.items ?? [];
+    // Pennylane v1 nomme le tableau d'après la ressource ({ customers: [...] },
+    // { invoices: [...] }) — on prend le premier tableau de la réponse, avec
+    // data/items en secours (v2 & autres shapes).
+    const data = (
+      (res.data as T[] | undefined) ??
+      (res.items as T[] | undefined) ??
+      (Object.values(res).find(Array.isArray) as T[] | undefined) ??
+      []
+    );
     if (data.length === 0) break;
     all.push(...data);
     if (res.total_pages && page >= res.total_pages) break;
