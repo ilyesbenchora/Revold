@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { PERIOD_PRESETS } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
+
+const PERIOD_IDS = new Set(PERIOD_PRESETS.map((p) => p.id as string));
+/** Valide un preset de période reçu du client (repli « all » si inconnu). */
+export function cleanPeriod(v: unknown): string {
+  return typeof v === "string" && PERIOD_IDS.has(v) ? v : "all";
+}
 
 /** Liste les tables de données persistées d'une page. */
 export async function GET(request: Request) {
@@ -17,7 +24,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("page_data_tables")
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
     .eq("organization_id", orgId)
     .eq("page_key", pageKey)
     .order("created_at", { ascending: true });
@@ -37,6 +44,7 @@ export async function POST(request: Request) {
   let body: {
     page_key?: string; title?: string; entity?: string; group_by?: string;
     measure?: string; field?: string | null; unit_mode?: string | null; view?: string;
+    period_preset?: string;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -56,9 +64,10 @@ export async function POST(request: Request) {
       field: body.field ?? null,
       unit_mode: body.unit_mode ?? null,
       view: body.view || "table",
+      period_preset: cleanPeriod(body.period_preset),
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -3,11 +3,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
+import { cleanPeriod } from "@/app/api/page-tables/route";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const TABLE_COLS = "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at";
+const TABLE_COLS = "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at";
 
 /**
  * Édite une table de données.
@@ -23,7 +24,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   const { id } = await params;
-  let body: { title?: string; view?: string; custom_kpi?: string; description?: string };
+  let body: { title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const { data: existing } = await supabase
@@ -37,6 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const update: Record<string, unknown> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (typeof body.view === "string" && body.view) update.view = body.view;
+  if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
 
   // Réécriture du KPI ou de sa description → on refait passer l'agent (uniquement
   // si l'un des deux textes change ; la description affine l'interprétation).

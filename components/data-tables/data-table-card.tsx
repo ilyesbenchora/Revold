@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
 import { TableAlertButton } from "./table-alert-button";
+import { computePeriod, presetLabel, type PeriodPreset } from "@/lib/reports/periods";
 import type { ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 export type SavedTable = {
@@ -17,6 +18,7 @@ export type SavedTable = {
   view: string;
   custom_kpi?: string | null;
   description?: string | null;
+  period_preset?: string | null;
 };
 
 type Row = { name: string; value: number };
@@ -81,7 +83,19 @@ export function DataTableCard({
     }
   }, [table.entity, table.group_by, table.measure, table.field]);
 
-  useEffect(() => { load(null); }, [load]);
+  // Ouverture directe sur la période par défaut choisie à la création.
+  useEffect(() => {
+    const pp = (table.period_preset as PeriodPreset) || "all";
+    if (table.entity !== "fiscal" && pp && pp !== "all" && pp !== "custom") {
+      const { from, to } = computePeriod(pp, new Date());
+      const ap: AppliedPeriod = { preset: pp, from, to, label: presetLabel(pp) };
+      setPeriod(ap);
+      load(ap);
+    } else {
+      load(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
   async function remove() {
     if (deleting) return;

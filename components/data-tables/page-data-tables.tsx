@@ -12,6 +12,18 @@ import {
   type TableView,
 } from "@/lib/reports/data-table-presets";
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
+import { PERIOD_PRESETS, type PeriodPreset } from "@/lib/reports/periods";
+
+// Un KPI est déterministe (câblé précisément, sans agent) uniquement pour la
+// projection pondérée et les échéances fiscales. Tous les autres presets passent
+// par l'agent pour être câblés sur la vraie donnée enrichie.
+function isDeterministicPreset(p: { measure: string; entity: string }): boolean {
+  return p.measure === "weighted" || p.entity === "fiscal";
+}
+
+// Catégories d'outils qui portent des DONNÉES à croiser. La communication
+// (Slack, Teams, Gmail…) est un canal de notification, pas une source d'analyse.
+const CROSSABLE_CATEGORIES = new Set(["crm", "billing", "support", "phone", "conv_intel", "files", "ads"]);
 
 const VIEWS: { id: TableView; label: string; icon: string }[] = [
   { id: "table", label: "Tableau", icon: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18" },
@@ -74,6 +86,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   // Outils réellement connectés (sources de données croisables) + sélection.
   const [sources, setSources] = useState<SourceTool[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  // Période par défaut appliquée à l'ouverture de la table (étape Affichage).
+  const [period, setPeriod] = useState<PeriodPreset>("all");
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/page-tables?page_key=${encodeURIComponent(pageKey)}`);
@@ -90,7 +104,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     let alive = true;
     fetch("/api/integrations/connected")
       .then((r) => (r.ok ? r.json() : { tools: [] }))
-      .then((d) => { if (alive) setSources(Array.isArray(d.tools) ? d.tools : []); })
+      .then((d) => {
+        // On ne garde que les outils porteurs de données à croiser : la
+        // communication (Slack, Teams, Gmail…) est exclue (canal de notif).
+        const tools: SourceTool[] = Array.isArray(d.tools) ? d.tools : [];
+        if (alive) setSources(tools.filter((t) => CROSSABLE_CATEGORIES.has(t.category)));
+      })
       .catch(() => { /* pas bloquant : funnel utilisable sans filtre */ });
     return () => { alive = false; };
   }, []);
@@ -113,6 +132,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setError(null);
     setEditingId(null);
     setSelected([]);
+    setPeriod("all");
   }
 
   function toggleSource(key: string) {
@@ -126,6 +146,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setEditingId(table.id);
     setCustomKpi(table.custom_kpi || table.title);
     setDescription(table.description || "");
+    setPeriod((table.period_preset as PeriodPreset) || "all");
     setDraft({
       entity: table.entity,
       group_by: table.group_by,
@@ -149,15 +170,32 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   function pickPreset(p: TablePreset) {
     setError(null);
-    setDraft({
-      entity: p.entity,
-      group_by: p.groupBy,
-      measure: p.measure,
-      field: p.field ?? null,
-      unit_mode: p.unit,
-      view: p.view ?? "table",
-      title: p.label,
-    });
+    setDescription("");
+    // Projection pondérée + échéances fiscales = KPIs déterministes précis (pas d'agent).
+    // Tous les autres presets sont (re)câblés par l'agent sur la vraie donnée enrichie.
+    if (isDeterministicPreset(p)) {
+      setDraft({
+        entity: p.entity,
+        group_by: p.groupBy,
+        measure: p.measure,
+        field: p.field ?? null,
+        unit_mode: p.unit,
+        view: p.view ?? "table",
+        title: p.label,
+      });
+    } else {
+      setDraft({
+        entity: p.entity,
+        group_by: p.groupBy,
+        measure: p.measure,
+        field: p.field ?? null,
+        unit_mode: p.unit,
+        view: p.view ?? "table",
+        title: p.label,
+        custom: true,
+        customKpi: p.label,
+      });
+    }
     setStep(3);
   }
 
@@ -187,6 +225,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           view: draft.view,
+          period_preset: period,
           // Réécriture du KPI / description : le back ne relance l'agent que si l'un des textes change.
           custom_kpi: customKpi.trim(),
           description: description.trim(),
@@ -207,8 +246,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     // ── CRÉATION ────────────────────────────────────────────────────────
     const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
     const payload = draft.custom
-      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined }
-      : { page_key: pageKey, ...draft };
+      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: period }
+      : { page_key: pageKey, ...draft, period_preset: period };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -322,6 +361,21 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     ))}
                   </div>
                 </div>
+
+                {draft.entity !== "fiscal" && (
+                  <div>
+                    <label className="text-xs font-medium text-slate-500">Période</label>
+                    <select
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value as PeriodPreset)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+                    >
+                      {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
@@ -502,6 +556,26 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   />
                 </div>
 
+                {/* Description pour l'agent — le KPI est câblé par l'agent sur la vraie donnée. */}
+                {draft.custom && (
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      Description pour {agentName} (optionnel)
+                    </label>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      Précise la donnée voulue. Si vide, {agentName} câble automatiquement le KPI sur la donnée la plus fiable, réelle et enrichie.
+                    </p>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={2}
+                      placeholder="Ex : ne compter que les deals gagnés, exclure les renouvellements"
+                      className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
+                    />
+                  </div>
+                )}
+
                 {!draft.custom && dims.length > 0 && (
                   <div>
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
@@ -534,6 +608,23 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     ))}
                   </div>
                 </div>
+
+                {/* Période par défaut à l'ouverture de la table (hors échéances fiscales). */}
+                {draft.entity !== "fiscal" && (
+                  <div>
+                    <label className="text-xs font-medium text-slate-500">Période</label>
+                    <select
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value as PeriodPreset)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+                    >
+                      {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-0.5 text-[11px] text-slate-400">La table s&apos;ouvre sur cette période (modifiable ensuite sur la table).</p>
+                  </div>
+                )}
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 

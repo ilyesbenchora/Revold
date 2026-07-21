@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
+import { cleanPeriod } from "@/app/api/page-tables/route";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { page_key?: string; custom_kpi?: string; description?: string; view?: string; title?: string };
+  let body: { page_key?: string; custom_kpi?: string; description?: string; view?: string; title?: string; period_preset?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const pageKey = body.page_key;
@@ -43,11 +44,12 @@ export async function POST(request: Request) {
       field: resolved.spec.field ?? null,
       unit_mode: resolved.unitMode,
       view,
+      period_preset: cleanPeriod(body.period_preset),
       custom_kpi: kpi,
       description,
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, created_at")
+    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
