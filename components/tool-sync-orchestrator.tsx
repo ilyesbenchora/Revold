@@ -46,6 +46,8 @@ export function ToolSyncOrchestrator() {
   const [message, setMessage] = useState("");
   const [counts, setCounts] = useState<StatCount>({});
   const [notImplemented, setNotImplemented] = useState(false);
+  // Sync lancée en arrière-plan (réponse immédiate) : pas de compteurs à attendre.
+  const [background, setBackground] = useState(false);
 
   // Track le provider déjà processé pour éviter qu'un setStatus("idle")
   // déclenché par close() ne relance une nouvelle sync via le useEffect
@@ -94,6 +96,7 @@ export function ToolSyncOrchestrator() {
         setCounts(data.counts ?? {});
         setMessage(data.message ?? "Synchronisation terminée");
         setNotImplemented(!!data.notImplemented);
+        setBackground(!!data.background);
         setStatus("done");
       } catch (err) {
         clearTimeout(timeoutId);
@@ -139,6 +142,7 @@ export function ToolSyncOrchestrator() {
     setStatus("idle");
     setMessage("");
     setCounts({});
+    setBackground(false);
     // Nettoie l'URL — le useEffect réagira au changement de provider et
     // n'aura plus rien à faire.
     const url = new URL(window.location.href);
@@ -155,7 +159,7 @@ export function ToolSyncOrchestrator() {
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
         <h2 className="text-lg font-semibold capitalize text-slate-900">
           {status === "running" && `Synchronisation ${provider} en cours...`}
-          {status === "done" && (notImplemented ? `${provider} : connecteur en cours` : `Synchronisation ${provider} terminée`)}
+          {status === "done" && (notImplemented ? `${provider} : connecteur en cours` : background ? `Synchronisation ${provider} lancée` : `Synchronisation ${provider} terminée`)}
           {status === "error" && `Erreur de synchronisation ${provider}`}
         </h2>
 

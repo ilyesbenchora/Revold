@@ -9,15 +9,16 @@
  * saved and again whenever the user clicks "Re-synchroniser".
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getConnector } from "@/lib/integrations/sync/registry";
 import { fail } from "@/lib/integrations/sync/types";
 
-// Vercel Fluid Compute max — large Stripe accounts peuvent dépasser 60s
-// pendant l'ingestion initiale (customers + invoices + subscriptions +
-// upserts source_links). On laisse de la marge.
+// Le connecteur (jusqu'à ~10k lignes comptables Pennylane, pagination séquentielle
+// v2) tourne EN ARRIÈRE-PLAN via after() : la requête HTTP répond en ~1 s au lieu
+// de bloquer 1-2 min. Le travail de fond dispose de la durée max de la fonction.
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function POST(
 
   const supabase = await createSupabaseServerClient();
 
-  // Load credentials
+  // Load credentials (rapide — session utilisateur encore disponible ici).
   const { data: integration } = await supabase
     .from("integrations")
     .select("access_token, metadata")
@@ -58,33 +59,48 @@ export async function POST(
   }
 
   const credentials = (integration.metadata as Record<string, string>) || {};
+  const token = integration.access_token as string;
+  const startedAt = new Date().toISOString();
 
-  // Run the connector
-  let result;
-  try {
-    result = await connector({
-      supabase,
-      orgId,
-      provider,
-      primaryToken: integration.access_token,
-      credentials,
+  // ── Exécution EN ARRIÈRE-PLAN ──────────────────────────────────────────
+  // after() tourne APRÈS l'envoi de la réponse : le client n'attend plus la fin
+  // de l'import. On utilise le client service-role (les cookies de session ne
+  // sont plus disponibles hors requête), scoping par organization_id conservé.
+  after(async () => {
+    const admin = createSupabaseAdminClient();
+    let result;
+    try {
+      result = await connector({
+        supabase: admin,
+        orgId,
+        provider,
+        primaryToken: token,
+        credentials,
+      });
+    } catch (err) {
+      result = fail((err as Error).message);
+    }
+    await admin.from("sync_logs").insert({
+      organization_id: orgId,
+      source: provider,
+      direction: "inbound",
+      entity_type: provider,
+      status: result.notImplemented ? "pending" : result.ok ? "completed" : "failed",
+      entity_count: result.total,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      error_message: result.ok ? null : result.message,
     });
-  } catch (err) {
-    result = fail((err as Error).message);
-  }
-
-  // Log the sync
-  await supabase.from("sync_logs").insert({
-    organization_id: orgId,
-    source: provider,
-    direction: "inbound",
-    entity_type: provider,
-    status: result.notImplemented ? "pending" : result.ok ? "completed" : "failed",
-    entity_count: result.total,
-    started_at: result.ranAt,
-    completed_at: new Date().toISOString(),
-    error_message: result.ok ? null : result.message,
   });
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  // Réponse immédiate : la sync est lancée, elle continue en arrière-plan.
+  return NextResponse.json(
+    {
+      ok: true,
+      background: true,
+      message:
+        "Synchronisation lancée. Elle continue en arrière-plan — les compteurs se mettent à jour dans quelques minutes (rafraîchis la page).",
+    },
+    { status: 202 },
+  );
 }
