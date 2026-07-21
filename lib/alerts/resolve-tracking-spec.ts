@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { RECON_RECIPES } from "@/lib/reconciliation/engine";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 const RECON_IDS = Object.keys(RECON_RECIPES);
 const RECON_SET = new Set(RECON_IDS);
@@ -122,8 +123,9 @@ export async function resolveTrackingSpec(
   },
 ): Promise<TrackingResolution> {
   if (!args.kpiText?.trim()) return NONE;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  // Sans clé API : fallback déterministe (on ne laisse jamais l'élément non câblé).
+  const { key: apiKey } = getAnthropicKey();
+  // Sans clé API valide (absente OU corrompue, ex. valeur masquée « •••• »
+  // collée dans Vercel) : fallback déterministe — jamais d'élément non câblé.
   if (!apiKey) return heuristicWiring(args.kpiText, args.unit);
 
   const available = args.availableEntities ?? [];

@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt } from "@/lib/ai/agents/registry";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 export const maxDuration = 60;
 
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const agent = getAgent(agentKey);
   if (!agent) return NextResponse.json({ error: `Agent inconnu: ${agentKey}` }, { status: 404 });
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey } = getAnthropicKey();
   if (!anthropicKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
 
   const supabase = await createSupabaseServerClient();

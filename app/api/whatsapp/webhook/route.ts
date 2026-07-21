@@ -6,6 +6,7 @@ import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt } from "@/lib/ai/agents/registry";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { sendWhatsAppText, buildAgentMenu, resolveAgentChoice } from "@/lib/integrations/whatsapp";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 export const maxDuration = 60;
 
@@ -128,7 +129,7 @@ async function handleIncoming(body: unknown) {
   }
 
   // Exécute un tour d'agent.
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey } = getAnthropicKey();
   if (!anthropicKey) {
     await reply("Service temporairement indisponible. Réessaie plus tard.");
     return;

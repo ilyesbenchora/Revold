@@ -7,6 +7,7 @@ import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { runAgentTurn } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt } from "@/lib/ai/agents/registry";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 export const maxDuration = 60;
 
@@ -25,7 +26,7 @@ function unitStr(u: string | null): string {
  */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey } = getAnthropicKey();
   if (!anthropicKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
 
   const supabase = await createSupabaseServerClient();

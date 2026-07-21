@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { computeAggregate, type AggregateSpec } from "@/lib/ai/agents/tool-library";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 // Catalogue canonique disponible (même contrat que aggregate_canonical) : garantit
 // que l'agent ne peut produire qu'une table 100 % calculable et fiable.
@@ -50,9 +51,9 @@ export async function resolveCustomKpiSpec(
   kpi: string,
   description?: string | null,
 ): Promise<ResolvedKpi> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey, reason } = getAnthropicKey();
   const persona = getAgentPersona(PAGE_AGENT_KEY[pageKey]);
-  if (!anthropicKey) return { ok: false, error: "ANTHROPIC_API_KEY not configured", status: 500 };
+  if (!anthropicKey) return { ok: false, error: reason ?? "ANTHROPIC_API_KEY not configured", status: 500 };
 
   const client = new Anthropic({ apiKey: anthropicKey });
   const system =

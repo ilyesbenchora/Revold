@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 /**
  * Rédaction de la notification par l'AGENT responsable (persona) quand l'APP a
@@ -57,7 +58,8 @@ export async function composeNotification(
     `Valeur réelle mesurée : ${input.currentValue}${u}.` +
     (input.userContext ? ` Contexte : ${input.userContext}` : input.description ? ` ${input.description}` : "");
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Clé absente OU corrompue (ex. valeur masquée collée dans Vercel) → template fiable.
+  const { key: apiKey } = getAnthropicKey();
   if (!apiKey) return { subject, body: fallbackBody, agentName: persona.name };
 
   try {

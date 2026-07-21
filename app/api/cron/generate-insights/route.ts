@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { InsightGenerator } from "@/lib/ai/insight-generator";
 import { env } from "@/lib/env";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 const supabase = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey } = getAnthropicKey();
   if (!anthropicKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
   }

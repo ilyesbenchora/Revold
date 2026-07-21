@@ -4,8 +4,6 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
-import { getToolKeys } from "@/lib/integrations/tool-mappings";
-import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
@@ -13,8 +11,13 @@ import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-fac
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 
-export default async function PaiementFacturationOverviewPage() {
+export default async function PaiementFacturationOverviewPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -23,28 +26,36 @@ export default async function PaiementFacturationOverviewPage() {
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
 
-  const [data, allConnectedTools, mappedKeys] = await Promise.all([
-    fetchPaiementFacturationFor(supabase, orgId, token),
-    getConnectedTools(supabase, orgId),
-    getToolKeys(supabase, orgId, "audit_paiement_facturation"),
-  ]);
+  const sp = (await searchParams) ?? {};
+  const requestedSource = typeof sp.source === "string" ? sp.source : null;
+
+  const allConnectedTools = await getConnectedTools(supabase, orgId);
 
   const billingCategory = allConnectedTools.filter((t) => t.category === "billing");
 
-  // Si l'utilisateur a configuré un outil source pour cette page (Paramètres
-  // → Intégrations → "Outil source par page"), on n'affiche que celui-là.
-  // Sinon fallback : tous les outils billing connectés.
-  const hasMapping = mappedKeys.length > 0;
-  const billingConnected = hasMapping
-    ? billingCategory.filter((t) => mappedKeys.includes(t.key))
-    : billingCategory;
+  // Outils pouvant alimenter les blocs de cette page : HubSpot (invoices/
+  // subscriptions natifs) + tous les outils billing connectés (Stripe live,
+  // Pennylane/Sellsy/… via les tables canoniques synchronisées).
+  const switchableTools = [
+    ...allConnectedTools.filter((t) => t.key === "hubspot"),
+    // HubSpot accessible via token (legacy/env) même sans ligne integrations.
+    ...(token && !allConnectedTools.some((t) => t.key === "hubspot")
+      ? [{ key: "hubspot", label: "HubSpot", domain: "hubspot.com", icon: "🔶" }]
+      : []),
+    ...billingCategory,
+  ].filter((t, i, arr) => arr.findIndex((x) => x.key === t.key) === i);
 
-  // Pas de suggestions à connecter si l'utilisateur a déjà fait son choix.
-  const billingSuggestions = hasMapping
-    ? []
-    : Object.values(CONNECTABLE_TOOLS)
-        .filter((t) => t.category === "billing" && !t.comingSoon)
-        .map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }));
+  // Le switch n'accepte que des outils réellement connectés.
+  const overrideSource =
+    requestedSource && switchableTools.some((t) => t.key === requestedSource)
+      ? requestedSource
+      : null;
+
+  const data = await fetchPaiementFacturationFor(supabase, orgId, token, overrideSource);
+  const activeSourceKey = data.source ?? "hubspot";
+  const activeSourceLabel =
+    switchableTools.find((t) => t.key === activeSourceKey)?.label ??
+    (activeSourceKey === "hubspot" ? "HubSpot" : activeSourceKey);
 
   return (
     <section className="space-y-6">
@@ -60,6 +71,12 @@ export default async function PaiementFacturationOverviewPage() {
       </header>
 
       <PaiementFacturationTabs />
+
+      {/* Outil source des blocs : affichage + switch dynamique entre outils connectés */}
+      <SourceToolSwitcher
+        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKey={activeSourceKey}
+      />
 
       <InsightLockedBlock
         previewTitle={`Analyse IA paiements & facturation (score ${data.score}/100)`}
@@ -77,7 +94,7 @@ export default async function PaiementFacturationOverviewPage() {
         {/* Données du bloc + alerte chirurgicale. */}
         <BlockDataTable
           title="Synthèse Revenue récurrent"
-          subtitle="subscriptions"
+          subtitle={`subscriptions · ${activeSourceLabel}`}
           team="finance"
           unit="currency"
           nameLabel="Indicateur"
@@ -102,7 +119,7 @@ export default async function PaiementFacturationOverviewPage() {
         {/* Données du bloc + alerte chirurgicale. */}
         <BlockDataTable
           title="Synthèse Facturation"
-          subtitle="invoices"
+          subtitle={`invoices · ${activeSourceLabel}`}
           team="finance"
           unit="currency"
           nameLabel="Indicateur"
@@ -120,8 +137,10 @@ export default async function PaiementFacturationOverviewPage() {
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Aucune facture ni subscription dans HubSpot. Activez HubSpot Invoices/Payments
-            ou connectez Stripe / Pennylane pour alimenter cette page automatiquement.
+            Aucune facture ni subscription trouvée dans {activeSourceLabel}.
+            {switchableTools.length > 1
+              ? " Bascule sur un autre outil connecté ci-dessus, ou lance une synchronisation depuis Intégrations → Mes outils."
+              : " Activez HubSpot Invoices/Payments ou connectez Stripe / Pennylane pour alimenter cette page automatiquement."}
           </p>
         </div>
       )}

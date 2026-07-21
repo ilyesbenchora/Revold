@@ -216,10 +216,15 @@ export const fmtK = (n: number) =>
   n >= 1000 ? `${Math.round(n / 1000).toLocaleString("fr-FR")}K €` : `${fmt(n)} €`;
 
 /**
- * Orchestrateur : route le fetch vers la bonne source selon `tool_mappings`.
+ * Orchestrateur : route le fetch vers la bonne source.
  *
- * - `stripe` → fetchPaiementFacturationFromStripe (clé via integrations.access_token)
- * - tout le reste / aucun mapping → HubSpot (fallback historique)
+ * Source retenue = `overrideSource` (switcher d'outils sur la page) sinon
+ * `tool_mappings.audit_paiement_facturation` (Paramètres → Intégrations).
+ *
+ * - `stripe`  → fetchPaiementFacturationFromStripe (live, clé via integrations.access_token)
+ * - `hubspot` / aucun mapping → HubSpot (fallback historique)
+ * - tout autre outil (pennylane, sellsy, axonaut, quickbooks…) → tables
+ *   canoniques Supabase `invoices`/`subscriptions` filtrées par primary_source
  *
  * Utilisé par les 3 pages de la section. Évite que les pages dupliquent la
  * logique de résolution de source.
@@ -228,9 +233,10 @@ export async function fetchPaiementFacturationFor(
   supabase: SupabaseClient,
   orgId: string,
   hubspotToken: string | null,
+  overrideSource?: string | null,
 ): Promise<PaiementFacturationData> {
   const mappedKeys = await getToolKeys(supabase, orgId, "audit_paiement_facturation");
-  const sourceKey = mappedKeys[0]; // mode "single" → 1 seul outil
+  const sourceKey = overrideSource || mappedKeys[0]; // mode "single" → 1 seul outil
 
   if (sourceKey === "stripe") {
     const { data: stripeInt } = await supabase
@@ -245,6 +251,13 @@ export async function fetchPaiementFacturationFor(
     const { fetchPaiementFacturationFromStripe } = await import("./paiement-facturation-stripe");
     const result = await fetchPaiementFacturationFromStripe(stripeKey);
     return { ...result, source: "stripe" };
+  }
+
+  // Outil syncé en base (Pennylane, Sellsy, Axonaut, QuickBooks…) → canonique.
+  if (sourceKey && sourceKey !== "hubspot") {
+    const { fetchPaiementFacturationFromCanonical } = await import("./paiement-facturation-canonical");
+    const result = await fetchPaiementFacturationFromCanonical(supabase, orgId, sourceKey);
+    return { ...result, source: sourceKey };
   }
 
   // Fallback HubSpot (comportement historique)

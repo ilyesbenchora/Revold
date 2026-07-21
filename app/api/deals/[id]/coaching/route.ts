@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DealCoach } from "@/lib/ai/deal-coaching";
+import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const { key: anthropicKey } = getAnthropicKey();
   if (!anthropicKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
   }
