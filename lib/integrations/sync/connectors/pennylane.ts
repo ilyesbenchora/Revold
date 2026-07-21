@@ -14,6 +14,28 @@ import { fail, ok, type SourceConnector } from "../types";
 
 const PROVIDER = "pennylane";
 
+/**
+ * Charge en UNE requête la table de correspondance external_id → internal_id
+ * pour un type d'entité Pennylane. Évite le N+1 (un SELECT source_links par
+ * facture) qui rendait la re-synchronisation interminable sur les gros comptes.
+ */
+async function loadLinkMap(
+  ctx: Parameters<SourceConnector>[0],
+  entityType: string,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const { data } = await ctx.supabase
+    .from("source_links")
+    .select("external_id, internal_id")
+    .eq("organization_id", ctx.orgId)
+    .eq("provider", PROVIDER)
+    .eq("entity_type", entityType);
+  for (const l of (data ?? []) as Array<{ external_id: string; internal_id: string }>) {
+    map.set(String(l.external_id), l.internal_id);
+  }
+  return map;
+}
+
 const STATUS_MAP: Record<string, string> = {
   draft: "draft",
   sent: "open",
@@ -57,6 +79,11 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
     }
   }
 
+  // Pré-charge en UNE requête le mapping external_id → internal_id des factures
+  // déjà importées (évite un SELECT source_links par facture : le N+1 qui faisait
+  // exploser le temps de sync — voire dépasser le timeout — sur les gros comptes).
+  const invoiceLinks = await loadLinkMap(ctx, "invoice");
+
   // Invoices
   let invoicesImported = 0;
   for (const inv of invoices) {
@@ -65,15 +92,6 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
     const remaining = parseFloat(inv.remaining_amount) || 0;
     const paid = total - remaining;
     const status = STATUS_MAP[inv.status] || "open";
-
-    const { data: existingLink } = await ctx.supabase
-      .from("source_links")
-      .select("internal_id")
-      .eq("organization_id", ctx.orgId)
-      .eq("provider", PROVIDER)
-      .eq("entity_type", "invoice")
-      .eq("external_id", String(inv.id))
-      .maybeSingle();
 
     const payload = {
       organization_id: ctx.orgId,
@@ -92,36 +110,29 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       updated_at: new Date().toISOString(),
     };
 
-    let internalId = existingLink?.internal_id ?? null;
-    if (internalId) {
-      await ctx.supabase.from("invoices").update(payload).eq("id", internalId);
+    const known = invoiceLinks.get(String(inv.id)) ?? null;
+    if (known) {
+      await ctx.supabase.from("invoices").update(payload).eq("id", known);
+      invoicesImported++;
     } else {
       const { data: created } = await ctx.supabase.from("invoices").insert(payload).select("id").single();
-      internalId = created?.id ?? null;
-    }
-    if (internalId) {
-      await upsertSourceLink(ctx.supabase, ctx.orgId, PROVIDER, String(inv.id), "invoice", internalId);
-      invoicesImported++;
+      const internalId = created?.id ?? null;
+      if (internalId) {
+        await upsertSourceLink(ctx.supabase, ctx.orgId, PROVIDER, String(inv.id), "invoice", internalId);
+        invoicesImported++;
+      }
     }
   }
 
   // Factures FOURNISSEURS → décaissements (direction 'out'). Alimente les
   // blocs Trésorerie (balance, charges fixes, runway). entity_type distinct
   // pour éviter toute collision d'ID avec les factures clients.
+  const supplierLinks = await loadLinkMap(ctx, "supplier_invoice");
   let supplierInvoicesImported = 0;
   for (const inv of supplierInvoices) {
     const total = parseFloat(inv.amount) || 0;
     const remaining = parseFloat(inv.remaining_amount) || 0;
     const status = STATUS_MAP[inv.status] || "open";
-
-    const { data: existingLink } = await ctx.supabase
-      .from("source_links")
-      .select("internal_id")
-      .eq("organization_id", ctx.orgId)
-      .eq("provider", PROVIDER)
-      .eq("entity_type", "supplier_invoice")
-      .eq("external_id", String(inv.id))
-      .maybeSingle();
 
     const payload: Record<string, unknown> = {
       organization_id: ctx.orgId,
@@ -140,7 +151,8 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       updated_at: new Date().toISOString(),
     };
 
-    let internalId = existingLink?.internal_id ?? null;
+    const known = supplierLinks.get(String(inv.id)) ?? null;
+    let internalId = known;
     if (internalId) {
       const { error } = await ctx.supabase.from("invoices").update(payload).eq("id", internalId);
       // Migration `direction` pas encore appliquée → retente sans la colonne.
@@ -148,6 +160,7 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
         const { direction: _d, ...noDir } = payload;
         await ctx.supabase.from("invoices").update(noDir).eq("id", internalId);
       }
+      supplierInvoicesImported++;
     } else {
       const first = await ctx.supabase.from("invoices").insert(payload).select("id").single();
       let created = first.data;
@@ -157,10 +170,10 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
         ({ data: created } = await ctx.supabase.from("invoices").insert(noDir).select("id").single());
       }
       internalId = created?.id ?? null;
-    }
-    if (internalId) {
-      await upsertSourceLink(ctx.supabase, ctx.orgId, PROVIDER, String(inv.id), "supplier_invoice", internalId);
-      supplierInvoicesImported++;
+      if (internalId) {
+        await upsertSourceLink(ctx.supabase, ctx.orgId, PROVIDER, String(inv.id), "supplier_invoice", internalId);
+        supplierInvoicesImported++;
+      }
     }
   }
 

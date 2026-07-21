@@ -6,6 +6,12 @@
 
 const PL_API = "https://app.pennylane.com/api/external/v1";
 
+// Timeout par requête HTTP. SANS ça, un endpoint Pennylane qui stalle (typique
+// des endpoints v2 non activés pour le plan/token) fait attendre `fetch`
+// indéfiniment → le Promise.all du connecteur ne se résout jamais et la sync
+// « ne se termine jamais ». On coupe chaque requête à 20 s.
+const REQUEST_TIMEOUT_MS = 20_000;
+
 export type PennylaneCustomer = {
   id: number;
   source_id: string | null;
@@ -30,6 +36,7 @@ export type PennylaneInvoice = {
 async function plFetch<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${PL_API}${path}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Pennylane ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -114,7 +121,10 @@ async function listAllV2<T>(token: string, endpoint: string, max = 5000): Promis
   while (all.length < max) {
     const sep = endpoint.includes("?") ? "&" : "?";
     const url = `${PL_API_V2}${endpoint}${sep}limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`Pennylane v2 ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const j = (await res.json()) as { items?: T[]; has_more?: boolean; next_cursor?: string | null };
     const items = j.items ?? [];
