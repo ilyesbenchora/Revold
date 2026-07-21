@@ -44,30 +44,40 @@ export default async function PaiementFacturationOverviewPage({
     const single = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
     if (single) selectedKeys = [single];
   }
-  if (selectedKeys.length === 0) {
-    // Défaut : la source du mapping (comportement historique), résolue par le fetch.
-    const probe = await fetchPaiementFacturationFor(supabase, orgId, token, null);
-    const def = probe.source ?? "hubspot";
-    selectedKeys = switchableTools.some((t) => t.key === def) ? [def] : [switchableTools[0]?.key].filter(Boolean) as string[];
-  }
+  // AUCUN outil présélectionné : zéro sélection = état neutre. Les blocs et
+  // leurs tables s'activent quand l'utilisateur choisit ses sources — 1 clic
+  // direct, jamais de désélection préalable d'un outil imposé.
+
+  // ── Règle d'affichage dynamique (déclarative, cf. source-switch.ts) ──
+  //   0 outil   → invite, aucun bloc
+  //   1 outil   → les blocs de CET outil (selon ses capacités)
+  //   2+ outils → UNIQUEMENT les vues croisées couvertes par la sélection
+  const isMulti = selectedKeys.length > 1;
+  const crossViews = availableCrossViews(selectedKeys);
+  const hasCross = crossViews.some((v) => v.key === "crm-billing");
 
   const labelOf = (key: string) =>
     switchableTools.find((t) => t.key === key)?.label ?? (key === "hubspot" ? "HubSpot" : key);
 
-  // ── Fetch par outil sélectionné, selon ses capacités ──
-  const billingKeys = selectedKeys.filter((k) => {
-    const c = capabilitiesOf(k);
-    return c.includes("invoices") || c.includes("subscriptions");
-  });
-  const cashflowKeys = selectedKeys.filter((k) => capabilitiesOf(k).includes("cashflow"));
+  // ── Fetch limité à ce que le mode affiche (mode croisé : uniquement les
+  //    données nécessaires au calcul de la marge) ──
+  const singleTool = selectedKeys.length === 1;
+  const billingKeys = singleTool || hasCross
+    ? selectedKeys.filter((k) => {
+        const c = capabilitiesOf(k);
+        return c.includes("invoices") || c.includes("subscriptions");
+      })
+    : [];
+  const cashflowKeys = singleTool || hasCross
+    ? selectedKeys.filter((k) => capabilitiesOf(k).includes("cashflow"))
+    : [];
 
   const [billingResults, cashflowResults] = await Promise.all([
     Promise.all(billingKeys.map(async (k) => ({ key: k, data: await fetchPaiementFacturationFor(supabase, orgId, token, k) }))),
     Promise.all(cashflowKeys.map(async (k) => ({ key: k, cf: await computeCashflow(supabase, orgId, k) }))),
   ]);
 
-  // ── Croisement CRM × Facturation : marge — règle déclarative (CROSS_VIEWS) ──
-  const hasCross = availableCrossViews(selectedKeys).some((v) => v.key === "crm-billing");
+  // ── Croisement CRM × Facturation : marge (hasCross déclaré plus haut) ──
   const crossBillingEntry =
     billingResults.find((b) => !capabilitiesOf(b.key).includes("deals")) ?? billingResults[0];
   const crossCashflow = cashflowResults[0]?.cf ?? null;
@@ -102,16 +112,42 @@ export default async function PaiementFacturationOverviewPage({
         mode="multi"
         tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
         activeKeys={selectedKeys}
-        hint="1 outil = ses blocs · plusieurs outils = comparaison par source, et blocs croisés (marge) quand CRM + facturation sont sélectionnés."
+        hint="Aucune source = page neutre · 1 outil = ses blocs · 2 outils ou plus = uniquement les vues croisées (ex : marge CRM × facturation)."
       />
 
-      <InsightLockedBlock
-        previewTitle={`Analyse IA paiements & facturation (score ${scoreData?.score ?? 0}/100)`}
-        previewBody="L'IA Revold détecte les risques de défaut de paiement, optimise le recouvrement et identifie les patterns de churn liés à la facturation."
-      />
+      {/* ── 0 outil : invite — rien ne s'affiche tant qu'aucune source n'est choisie ── */}
+      {selectedKeys.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+          <p className="text-sm font-medium text-slate-700">Choisis tes sources ci-dessus pour activer les blocs.</p>
+          <p className="mt-1.5 text-xs text-slate-500">
+            Un outil seul affiche ses propres indicateurs ; une sélection multiple affiche les
+            croisements entre outils (ex : marge CRM × facturation).
+          </p>
+        </div>
+      )}
 
-      {/* ── Blocs par outil sélectionné (capacités subscriptions / invoices) ── */}
-      {billingResults.map(({ key, data }) => {
+      {selectedKeys.length > 0 && (
+        <InsightLockedBlock
+          previewTitle={`Analyse IA paiements & facturation (score ${scoreData?.score ?? 0}/100)`}
+          previewBody="L'IA Revold détecte les risques de défaut de paiement, optimise le recouvrement et identifie les patterns de churn liés à la facturation."
+        />
+      )}
+
+      {/* ── 2+ outils sans croisement possible : on l'explique au lieu d'afficher du faux ── */}
+      {isMulti && crossViews.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-fuchsia-200 bg-fuchsia-50/40 p-8 text-center">
+          <p className="text-sm font-medium text-slate-700">
+            Aucun croisement disponible pour {selectedKeys.map(labelOf).join(" + ")}.
+          </p>
+          <p className="mt-1.5 text-xs text-slate-500">
+            Ces outils couvrent les mêmes types de données. Pour une vue croisée (ex : marge),
+            combine un CRM (deals) avec un outil de facturation — ou garde un seul outil pour voir ses blocs.
+          </p>
+        </div>
+      )}
+
+      {/* ── 1 outil : SES blocs (capacités subscriptions / invoices) ── */}
+      {singleTool && billingResults.map(({ key, data }) => {
         const label = labelOf(key);
         const showSubs = capabilitiesOf(key).includes("subscriptions");
         return (
