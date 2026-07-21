@@ -19,7 +19,8 @@
  */
 
 import { listCustomers, listInvoices, listSubscriptions, computeMrr } from "@/lib/integrations/sources/stripe";
-import { resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
+import { resolveContact, resolveCompany, upsertSourceLink, emailDomain } from "@/lib/integrations/entity-resolution";
+import { loadIdentifierAccessor, newAuditCounters, recordConnectorAudit } from "../field-mapping";
 import { fail, ok, type SourceConnector } from "../types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -81,23 +82,56 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     return fail(`Erreur Stripe API : ${(err as Error).message}`);
   }
 
-  // ── 1. Customers → contacts (parallèle par chunks) ────────────
+  // Mapping des identifiants : défauts catalogue + overrides de la page
+  // Paramètres → Modèle de données. Les champs source ne sont plus en dur.
+  const accessor = await loadIdentifierAccessor(supabase, orgId, PROVIDER);
+  const audit = newAuditCounters();
+
+  // ── 1. Customers → contacts + companies (parallèle par chunks) ─
+  // Le rapprochement company se fait DIRECTEMENT sur les identifiants du
+  // customer (SIREN via metadata, TVA, nom, domaine d'email pro) : les règles
+  // de matching configurées sont enfin exercées par le billing, au lieu de
+  // dépendre uniquement de la company CRM héritée du contact.
   const customerToContact = new Map<string, string>();
+  const customerToCompany = new Map<string, string>();
   let contactsImported = 0;
   await processInChunks(customers, PARALLEL_CHUNK_SIZE, async (c) => {
+    const ids = accessor.extract(c);
+    const email = ids.email ?? c.email;
     const resolved = await resolveContact(supabase, orgId, PROVIDER, c.id, {
-      email: c.email,
-      fullName: c.name,
+      email,
+      fullName: ids.company_name ?? c.name,
       phone: c.phone,
     });
     if (resolved) {
       customerToContact.set(c.id, resolved.id);
       contactsImported++;
+      audit.bumpContact(resolved.matchMethod);
+    } else {
+      audit.bumpUnmatched("customer_sans_email");
+    }
+
+    const hasCompanySignal = ids.siren || ids.siret || ids.vat_number || ids.company_name || ids.domain;
+    if (hasCompanySignal) {
+      const company = await resolveCompany(supabase, orgId, PROVIDER, c.id, {
+        name: ids.company_name ?? c.name,
+        domain: ids.domain ?? emailDomain(email),
+        siren: ids.siren,
+        siret: ids.siret,
+        vatNumber: ids.vat_number,
+      });
+      if (company) {
+        customerToCompany.set(c.id, company.id);
+        audit.bumpCompany(company.matchMethod);
+      }
+    } else {
+      audit.bumpUnmatched("customer_sans_identifiant_company");
     }
   });
 
-  // ── 1b. contact → company_id (via le CRM) : socle du rapprochement
-  // facturation ↔ CRM. La facture/abonnement héritera de la company du contact.
+  // ── 1b. Repli : contact → company_id via le CRM, pour les customers sans
+  // identifiant company exploitable. La facture/abonnement héritera alors de
+  // la company du contact.
   const contactToCompany = new Map<string, string>();
   const contactIds = [...new Set([...customerToContact.values()])];
   for (let i = 0; i < contactIds.length; i += 300) {
@@ -107,8 +141,13 @@ export const stripeConnector: SourceConnector = async (ctx) => {
       if (row.company_id) contactToCompany.set(row.id, row.company_id);
     }
   }
-  const companyFor = (contactId: string | null): string | null =>
-    contactId ? contactToCompany.get(contactId) ?? null : null;
+  const companyFor = (customerId: string | null, contactId: string | null): string | null => {
+    if (customerId) {
+      const direct = customerToCompany.get(customerId);
+      if (direct) return direct;
+    }
+    return contactId ? contactToCompany.get(contactId) ?? null : null;
+  };
 
   // ── 2. Invoices (parallèle par chunks) ────────────────────────
   let invoicesImported = 0;
@@ -126,7 +165,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     const payload = {
       organization_id: orgId,
       contact_id: contactId,
-      company_id: companyFor(contactId),
+      company_id: companyFor(inv.customer, contactId),
       number: inv.number,
       status: inv.status,
       currency: inv.currency.toUpperCase(),
@@ -171,7 +210,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
     const payload = {
       organization_id: orgId,
       contact_id: contactId,
-      company_id: companyFor(contactId),
+      company_id: companyFor(sub.customer, contactId),
       status: sub.status,
       currency: sub.currency.toUpperCase(),
       mrr,
@@ -204,6 +243,22 @@ export const stripeConnector: SourceConnector = async (ctx) => {
       }
     }
     if (internalId) subsImported++;
+  });
+
+  // Rapport d'audit (couverture des identifiants + méthodes de match) —
+  // affiché dans Audit qualité → Audit onboarding.
+  await recordConnectorAudit(supabase, orgId, PROVIDER, {
+    ran_at: new Date().toISOString(),
+    totals: {
+      contacts: contactsImported,
+      companies: customerToCompany.size,
+      invoices: invoicesImported,
+      subscriptions: subsImported,
+    },
+    contact_match: audit.contact_match,
+    company_match: audit.company_match,
+    unmatched: audit.unmatched,
+    identifier_coverage: accessor.coverage(),
   });
 
   return ok("Synchronisation Stripe terminée.", {

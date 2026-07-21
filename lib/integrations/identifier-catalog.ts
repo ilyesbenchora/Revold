@@ -84,6 +84,26 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "PrimaryTaxIdentifier", hint: "Tax ID natif QuickBooks", native: true },
     { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "Id", hint: "ID natif QuickBooks (automatique)", native: true },
   ],
+  chargebee: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "company", hint: "Champ company natif du customer Chargebee", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer Chargebee", native: true },
+    { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Champ natif Chargebee (si TVA activée)", native: true },
+    { canonicalField: "siren", label: "SIREN", defaultProviderField: "cf_siren", hint: "Custom field Chargebee (à créer : cf_siren)", native: false },
+    { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "ID natif Chargebee (automatique)", native: true },
+  ],
+  gocardless: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "company_name", hint: "Champ natif du customer GoCardless", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer GoCardless", native: true },
+    { canonicalField: "siren", label: "SIREN", defaultProviderField: "metadata.siren", hint: "Stocké dans customer.metadata.siren", native: false },
+    { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "CU_XXXXX (automatique)", native: true },
+  ],
+  sage: [
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Nom natif du contact Sage", native: true },
+    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du contact Sage", native: true },
+    { canonicalField: "siren", label: "SIREN", defaultProviderField: "registered_number", hint: "N° d'immatriculation natif Sage (SIREN/SIRET)", native: true },
+    { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "tax_number", hint: "Champ natif Sage", native: true },
+    { canonicalField: "external_id", label: "Contact ID", defaultProviderField: "id", hint: "ID natif Sage (automatique)", native: true },
+  ],
 
   // ── Support ──
   zendesk: [

@@ -12,6 +12,7 @@ import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 
 type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
 type SharedProp = {
@@ -300,6 +301,9 @@ export default async function DonneesTransactionsPage() {
 
   return (
     <div className="space-y-6">
+      {/* 0 source par défaut : les blocs ne s'affichent que si un outil est
+          choisi pour la page dans Paramètres → Intégrations (source de vérité). */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm"]}>
       {!hasData && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-xs font-medium text-amber-800">
@@ -448,6 +452,7 @@ export default async function DonneesTransactionsPage() {
           </div>
         </div>
       )}
+      </PageSourcesGate>
     </div>
   );
 }

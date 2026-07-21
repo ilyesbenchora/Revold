@@ -11,7 +11,8 @@ import {
   listPennylaneLedgerLines,
   listPennylaneLedgerAccounts,
 } from "@/lib/integrations/sources/pennylane";
-import { resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
+import { resolveContact, resolveCompany, upsertSourceLink, emailDomain } from "@/lib/integrations/entity-resolution";
+import { loadIdentifierAccessor, newAuditCounters, recordConnectorAudit } from "../field-mapping";
 import { fail, ok, type SourceConnector } from "../types";
 
 const PROVIDER = "pennylane";
@@ -66,22 +67,68 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
     return fail(`Erreur Pennylane : ${(err as Error).message}`);
   }
 
-  // Customers → contacts
+  // Mapping des identifiants : défauts catalogue (SIREN natif Pennylane =
+  // registration_number) + overrides de Paramètres → Modèle de données.
+  const accessor = await loadIdentifierAccessor(ctx.supabase, ctx.orgId, PROVIDER);
+  const audit = newAuditCounters();
+
+  // Customers → contacts + companies. Le rapprochement company utilise les
+  // identifiants forts du client Pennylane (SIREN, TVA) : c'est le cas idéal
+  // des règles de matching configurées — plus fiable que l'héritage CRM.
   const customerIdToContact = new Map<number, string>();
+  const customerIdToCompany = new Map<number, string>();
   let contactsImported = 0;
   for (const c of customers) {
-    const email = c.emails?.[0] ?? null;
-    if (!email) continue;
-    const resolved = await resolveContact(ctx.supabase, ctx.orgId, PROVIDER, String(c.id), {
-      email,
-      fullName: c.name,
-      phone: c.phone,
-    });
-    if (resolved) {
-      customerIdToContact.set(c.id, resolved.id);
-      contactsImported++;
+    const ids = accessor.extract(c);
+    const email = ids.email ?? c.emails?.[0] ?? null;
+    if (email) {
+      const resolved = await resolveContact(ctx.supabase, ctx.orgId, PROVIDER, String(c.id), {
+        email,
+        fullName: c.name,
+        phone: c.phone,
+      });
+      if (resolved) {
+        customerIdToContact.set(c.id, resolved.id);
+        contactsImported++;
+        audit.bumpContact(resolved.matchMethod);
+      }
+    } else {
+      audit.bumpUnmatched("client_sans_email");
+    }
+
+    if (ids.siren || ids.siret || ids.vat_number || ids.company_name || c.name) {
+      const company = await resolveCompany(ctx.supabase, ctx.orgId, PROVIDER, String(c.id), {
+        name: ids.company_name ?? c.name,
+        domain: ids.domain ?? emailDomain(email),
+        siren: ids.siren,
+        siret: ids.siret,
+        vatNumber: ids.vat_number,
+      });
+      if (company) {
+        customerIdToCompany.set(c.id, company.id);
+        audit.bumpCompany(company.matchMethod);
+      }
     }
   }
+
+  // Repli CRM : company du contact quand le client Pennylane n'a pas pu être
+  // rapproché directement (aucun identifiant exploitable).
+  const contactToCompany = new Map<string, string>();
+  const contactIdList = [...new Set([...customerIdToContact.values()])];
+  for (let i = 0; i < contactIdList.length; i += 300) {
+    const chunk = contactIdList.slice(i, i + 300);
+    const { data } = await ctx.supabase.from("contacts").select("id, company_id").in("id", chunk);
+    for (const row of (data ?? []) as Array<{ id: string; company_id: string | null }>) {
+      if (row.company_id) contactToCompany.set(row.id, row.company_id);
+    }
+  }
+  const companyFor = (customerId: number | null | undefined, contactId: string | null): string | null => {
+    if (customerId != null) {
+      const direct = customerIdToCompany.get(customerId);
+      if (direct) return direct;
+    }
+    return contactId ? contactToCompany.get(contactId) ?? null : null;
+  };
 
   // Pré-charge en UNE requête le mapping external_id → internal_id des factures
   // déjà importées (évite un SELECT source_links par facture : le N+1 qui faisait
@@ -105,6 +152,7 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
     const payload = {
       organization_id: ctx.orgId,
       contact_id: contactId,
+      company_id: companyFor(inv.customer?.id, contactId),
       number: inv.invoice_number,
       status,
       currency: (inv.currency || "EUR").toUpperCase(),
@@ -293,6 +341,24 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       if (error) { ledgerLinesAggregated = 0; break; } // migration absente → on n'insiste pas
     }
   }
+
+  // Rapport d'audit (couverture SIREN/TVA/email + méthodes de match) —
+  // affiché dans Audit qualité → Audit onboarding.
+  await recordConnectorAudit(ctx.supabase, ctx.orgId, PROVIDER, {
+    ran_at: new Date().toISOString(),
+    totals: {
+      contacts: contactsImported,
+      companies: customerIdToCompany.size,
+      invoices: invoicesImported,
+      supplier_invoices: supplierInvoicesImported,
+      bank_transactions: transactionsImported,
+      ledger_lines: ledgerLinesAggregated,
+    },
+    contact_match: audit.contact_match,
+    company_match: audit.company_match,
+    unmatched: audit.unmatched,
+    identifier_coverage: accessor.coverage(),
+  });
 
   return ok("Synchronisation Pennylane terminée.", {
     contacts: contactsImported,

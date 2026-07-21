@@ -7,8 +7,7 @@ export function DonneesTabs() {
   const pathname = usePathname();
   const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
     { href: "/dashboard/donnees", label: "Vue d'ensemble" },
-    { href: "/dashboard/donnees/contacts", label: "Contacts" },
-    { href: "/dashboard/donnees/entreprises", label: "Entreprises" },
+    { href: "/dashboard/donnees/onboarding", label: "Audit onboarding", highlight: true },
     { href: "/dashboard/donnees/transactions", label: "Transactions" },
   ];
 

@@ -343,7 +343,7 @@ export default async function DonneesPage() {
   }> = [
     {
       label: "Contacts",
-      href: "/dashboard/donnees/contacts",
+      href: "/dashboard/donnees/onboarding",
       count: contactsTotal,
       icon: "users",
       tone: "blue",
@@ -355,7 +355,7 @@ export default async function DonneesPage() {
     },
     {
       label: "Entreprises",
-      href: "/dashboard/donnees/entreprises",
+      href: "/dashboard/donnees/onboarding",
       count: companiesTotal,
       icon: "building",
       tone: "violet",

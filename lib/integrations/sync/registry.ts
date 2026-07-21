@@ -23,6 +23,9 @@ import { pennylaneConnector } from "./connectors/pennylane";
 import { sellsyConnector } from "./connectors/sellsy";
 import { axonautConnector } from "./connectors/axonaut";
 import { quickbooksConnector } from "./connectors/quickbooks";
+import { chargebeeConnector } from "./connectors/chargebee";
+import { gocardlessConnector } from "./connectors/gocardless";
+import { sageConnector } from "./connectors/sage";
 
 export const SYNC_REGISTRY: Record<string, SourceConnector> = {
   // ── Billing & ERP ──────────────────────────────────────────────
@@ -31,6 +34,9 @@ export const SYNC_REGISTRY: Record<string, SourceConnector> = {
   sellsy: sellsyConnector,
   axonaut: axonautConnector,
   quickbooks: quickbooksConnector,
+  chargebee: chargebeeConnector,
+  gocardless: gocardlessConnector,
+  sage: sageConnector,
 
   // ── CRM ────────────────────────────────────────────────────────
   salesforce: salesforceConnector,
