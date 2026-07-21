@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getToolKeys } from "@/lib/integrations/tool-mappings";
 
 export type SwitchableTool = { key: string; label: string; domain: string; icon: string };
 
@@ -19,10 +20,16 @@ export async function getSwitchableBillingTools(
   supabase: SupabaseClient,
   orgId: string,
   hubspotToken: string | null,
+  /**
+   * Page dont le mapping « Outil source par page » (Paramètres → Intégrations)
+   * fait FOI : si un mapping existe, seuls les outils mappés sont proposés.
+   * Ajouter/retirer un outil dans les paramètres se répercute automatiquement.
+   */
+  pageKey?: string,
 ): Promise<SwitchableTool[]> {
   const allConnectedTools = await getConnectedTools(supabase, orgId);
   const billingCategory = allConnectedTools.filter((t) => t.category === "billing");
-  return [
+  let tools = [
     ...allConnectedTools.filter((t) => t.key === "hubspot"),
     // HubSpot accessible via token (legacy/env) même sans ligne integrations.
     ...(hubspotToken && !allConnectedTools.some((t) => t.key === "hubspot")
@@ -30,6 +37,12 @@ export async function getSwitchableBillingTools(
       : []),
     ...billingCategory,
   ].filter((t, i, arr) => arr.findIndex((x) => x.key === t.key) === i);
+
+  if (pageKey) {
+    const mapped = await getToolKeys(supabase, orgId, pageKey);
+    if (mapped.length > 0) tools = tools.filter((t) => mapped.includes(t.key));
+  }
+  return tools;
 }
 
 /** Valide `?source=` : seul un outil réellement connecté est accepté. */

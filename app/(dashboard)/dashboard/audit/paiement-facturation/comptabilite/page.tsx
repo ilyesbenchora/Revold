@@ -34,7 +34,7 @@ export default async function ComptabilitePage({
 
   const sp = (await searchParams) ?? {};
   // Seuls les outils avec écritures comptables (capacité ledger) sont proposés ici.
-  const allSwitchable = await getSwitchableBillingTools(supabase, orgId, token);
+  const allSwitchable = await getSwitchableBillingTools(supabase, orgId, token, "audit_paiement_facturation");
   const ledgerTools = allSwitchable.filter((t) => capabilitiesOf(t.key).includes("ledger"));
 
   const requested = validateSourceParam(typeof sp.source === "string" ? sp.source : null, ledgerTools);

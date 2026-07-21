@@ -24,7 +24,7 @@ export default async function FacturationPage({
   const token = await getHubSpotToken(supabase, orgId);
 
   const sp = (await searchParams) ?? {};
-  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token);
+  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token, "audit_paiement_facturation");
   const overrideSource = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
 
   const [data, snapshot] = await Promise.all([

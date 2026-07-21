@@ -103,20 +103,22 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Charge les outils connectés une fois (sélecteur « données à croiser »).
+  // Charge les outils croisables de CETTE page. Source de vérité : le mapping
+  // « Outil source par page » (Paramètres → Intégrations) — l'API filtre par
+  // page_key et exclut d'office la communication (Slack, Teams, Gmail…).
+  // Ajouter/retirer un outil dans les paramètres se reflète ici automatiquement.
   useEffect(() => {
     let alive = true;
-    fetch("/api/integrations/connected")
+    fetch(`/api/integrations/connected?page_key=${encodeURIComponent(pageKey)}`)
       .then((r) => (r.ok ? r.json() : { tools: [] }))
       .then((d) => {
-        // On ne garde que les outils porteurs de données à croiser : la
-        // communication (Slack, Teams, Gmail…) est exclue (canal de notif).
         const tools: SourceTool[] = Array.isArray(d.tools) ? d.tools : [];
+        // Double sécurité côté client sur les catégories croisables.
         if (alive) setSources(tools.filter((t) => CROSSABLE_CATEGORIES.has(t.category)));
       })
       .catch(() => { /* pas bloquant : funnel utilisable sans filtre */ });
     return () => { alive = false; };
-  }, []);
+  }, [pageKey]);
 
   // Outils sélectionnés (objets) → KPIs proposés, filtrés dynamiquement.
   const selectedTools = sources.filter((s) => selected.includes(s.key));
@@ -413,7 +415,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     Quelles données croiser ?
                   </h3>
                   <p className="mt-1 text-xs text-slate-500">
-                    Choisis les outils à croiser — les KPIs proposés ci-dessous s&apos;ajustent automatiquement aux sources connectées.
+                    Choisis les outils à croiser — les KPIs proposés ci-dessous s&apos;ajustent automatiquement aux sources connectées.{" "}
+                    <a href="/dashboard/parametres/integrations" className="font-medium text-fuchsia-600 hover:underline">
+                      Gérer les outils de cette page →
+                    </a>
                   </p>
 
                   {sources.length === 0 ? (

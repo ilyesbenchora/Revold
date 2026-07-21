@@ -354,11 +354,15 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         </h2>
         <p className="text-xs text-slate-500">
           Pour chaque page Revold, choisissez l&apos;outil (ou les outils, selon le mode)
-          que Revold utilisera comme source d&apos;analyse principale. Seuls les outils
-          actuellement connectés à Revold sont proposés.
+          que Revold utilisera comme source d&apos;analyse. <strong>Ce bloc fait foi</strong> :
+          les sélecteurs « données à croiser » et les switchers de sources des pages se
+          mettent à jour automatiquement quand vous ajoutez ou retirez un outil ici.
+          Seuls les outils connectés sont proposés — les outils de communication
+          (Slack, Teams, Gmail…) sont exclus : ce sont des canaux de notification,
+          pas des sources de données.
         </p>
         <ToolMappingSettings
-          options={mappingOptions}
+          options={mappingOptions.filter((o) => o.category !== "communication")}
           initialMappings={mappingValues}
         />
       </div>

@@ -37,7 +37,7 @@ export default async function PaiementFacturationOverviewPage({
   const token = await getHubSpotToken(supabase, orgId);
 
   const sp = (await searchParams) ?? {};
-  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token);
+  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token, "audit_paiement_facturation");
 
   // ── Sélection multi-sources (?sources=a,b) — rétro-compatible ?source=x ──
   let selectedKeys = validateSourcesParam(typeof sp.sources === "string" ? sp.sources : null, switchableTools);
