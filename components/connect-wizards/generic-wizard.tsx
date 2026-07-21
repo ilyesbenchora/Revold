@@ -13,12 +13,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { WizardConfig, KeyFeedback } from "@/lib/integrations/wizard-configs";
+import { getWizardConfig, type WizardConfig, type KeyFeedback } from "@/lib/integrations/wizard-configs";
 
 type Props = {
   toolKey: string;
   toolLabel: string;
-  config: WizardConfig;
   alreadyConnected: boolean;
   submitAction: (formData: FormData) => void | Promise<void>;
   disconnectAction: () => void | Promise<void>;
@@ -27,19 +26,24 @@ type Props = {
 };
 
 export function GenericConnectWizard({
-  toolKey: _toolKey,
+  toolKey,
   toolLabel,
-  config,
   alreadyConnected,
   submitAction,
   disconnectAction,
   errorMessage,
   errorReason,
 }: Props) {
-  const [mode, setMode] = useState<string>(config.modeToggle?.defaultKey ?? "default");
+  // La config est résolue CÔTÉ CLIENT depuis toolKey : elle contient des
+  // fonctions (buildSteps, validate) non sérialisables — la passer en prop
+  // depuis le Server Component fait crasher le rendu (digest en prod).
+  const config = getWizardConfig(toolKey);
+  const [mode, setMode] = useState<string>(config?.modeToggle?.defaultKey ?? "default");
   const [values, setValues] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  if (!config) return null;
 
   const steps = config.buildSteps(mode);
   const bgClass = config.brandColor?.bg ?? "bg-accent";

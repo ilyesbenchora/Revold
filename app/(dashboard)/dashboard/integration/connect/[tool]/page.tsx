@@ -113,7 +113,6 @@ export default async function ConnectToolPage({
             <GenericConnectWizard
               toolKey={toolKey}
               toolLabel={tool.label}
-              config={wizardConfig}
               alreadyConnected={alreadyConnected}
               submitAction={submitAction}
               disconnectAction={disconnectAction}
