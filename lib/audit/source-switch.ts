@@ -39,3 +39,46 @@ export function validateSourceParam(
 ): string | null {
   return requested && tools.some((t) => t.key === requested) ? requested : null;
 }
+
+// ── Registre de capacités par outil ─────────────────────────────────────────
+// Découple les BLOCS des OUTILS : chaque outil déclare ce qu'il sait fournir,
+// chaque bloc/section déclare ce qu'il exige. Ajouter un outil = 1 ligne ici.
+
+export type SourceCapability =
+  | "deals"          // CRM : deals gagnés, pipeline pondéré
+  | "subscriptions"  // revenu récurrent (MRR/ARR/churn)
+  | "invoices"       // facturation : émission, encaissement, impayés
+  | "cashflow";      // encaissements/décaissements → trésorerie, runway
+
+export const TOOL_CAPABILITIES: Record<string, SourceCapability[]> = {
+  hubspot: ["deals", "subscriptions", "invoices"],
+  salesforce: ["deals"],
+  pipedrive: ["deals"],
+  stripe: ["subscriptions", "invoices"],
+  pennylane: ["invoices", "cashflow"],
+  sellsy: ["invoices"],
+  axonaut: ["invoices", "cashflow"],
+  quickbooks: ["invoices", "cashflow"],
+};
+
+export function capabilitiesOf(toolKey: string): SourceCapability[] {
+  return TOOL_CAPABILITIES[toolKey] ?? [];
+}
+
+/** Capacités couvertes par une sélection multi-outils. */
+export function selectionCapabilities(keys: string[]): Set<SourceCapability> {
+  const set = new Set<SourceCapability>();
+  for (const k of keys) for (const c of capabilitiesOf(k)) set.add(c);
+  return set;
+}
+
+/** Valide `?sources=a,b` (multi) : intersection avec les outils connectés, ordre préservé. */
+export function validateSourcesParam(
+  requested: string | null,
+  tools: SwitchableTool[],
+): string[] {
+  if (!requested) return [];
+  const keys = requested.split(",").map((s) => s.trim()).filter(Boolean);
+  const connected = new Set(tools.map((t) => t.key));
+  return [...new Set(keys.filter((k) => connected.has(k)))];
+}

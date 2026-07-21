@@ -71,3 +71,7 @@ export const listPennylaneCustomers = (token: string, max = 1000) =>
 
 export const listPennylaneInvoices = (token: string, max = 2000) =>
   listAll<PennylaneInvoice>(token, "/customer_invoices", max);
+
+/** Factures FOURNISSEURS (décaissements) — même shape que les factures clients. */
+export const listPennylaneSupplierInvoices = (token: string, max = 2000) =>
+  listAll<PennylaneInvoice>(token, "/supplier_invoices", max).catch(() => [] as PennylaneInvoice[]);

@@ -22,6 +22,8 @@ export type SyncStatCount = {
   contacts?: number;
   companies?: number;
   invoices?: number;
+  /** Factures fournisseurs (décaissements) — Pennylane & co. */
+  supplier_invoices?: number;
   payments?: number;
   subscriptions?: number;
   tickets?: number;

@@ -12,9 +12,15 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
 export function PaiementFacturationTabs() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // L'outil source sélectionné (switcher) est conservé en passant d'onglet en onglet.
+  // Les sources sélectionnées (switcher mono ou multi) sont conservées
+  // en passant d'onglet en onglet.
   const source = searchParams.get("source");
-  const qs = source ? `?source=${encodeURIComponent(source)}` : "";
+  const sources = searchParams.get("sources");
+  const parts = [
+    sources ? `sources=${encodeURIComponent(sources)}` : null,
+    source ? `source=${encodeURIComponent(source)}` : null,
+  ].filter(Boolean);
+  const qs = parts.length ? `?${parts.join("&")}` : "";
   return (
     <div className="border-b border-card-border">
       <div className="flex gap-1">

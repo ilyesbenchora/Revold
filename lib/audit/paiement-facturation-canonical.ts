@@ -67,20 +67,31 @@ export async function fetchPaiementFacturationFromCanonical(
   orgId: string,
   toolKey: string,
 ): Promise<PaiementFacturationData> {
-  const [{ data: invRows }, { data: subRows }] = await Promise.all([
-    supabase
+  // Factures CLIENTS uniquement (direction ≠ 'out') : les factures
+  // fournisseurs alimentent le cashflow, pas la synthèse Facturation.
+  // Si la migration `direction` n'est pas appliquée, repli sans le filtre.
+  let invQuery = await supabase
+    .from("invoices")
+    .select("id, status, currency, amount_total, amount_paid, amount_due, issued_at, due_at")
+    .eq("organization_id", orgId)
+    .eq("primary_source", toolKey)
+    .neq("direction", "out")
+    .limit(5000);
+  if (invQuery.error) {
+    invQuery = await supabase
       .from("invoices")
       .select("id, status, currency, amount_total, amount_paid, amount_due, issued_at, due_at")
       .eq("organization_id", orgId)
       .eq("primary_source", toolKey)
-      .limit(5000),
-    supabase
-      .from("subscriptions")
-      .select("id, status, currency, mrr")
-      .eq("organization_id", orgId)
-      .eq("primary_source", toolKey)
-      .limit(5000),
-  ]);
+      .limit(5000);
+  }
+  const { data: subRows } = await supabase
+    .from("subscriptions")
+    .select("id, status, currency, mrr")
+    .eq("organization_id", orgId)
+    .eq("primary_source", toolKey)
+    .limit(5000);
+  const invRows = invQuery.data;
 
   const invoices = ((invRows ?? []) as CanonicalInvoiceRow[]).map(canonicalInvoiceToHsLike);
   const subscriptions = ((subRows ?? []) as CanonicalSubRow[]).map(canonicalSubToHsLike);
