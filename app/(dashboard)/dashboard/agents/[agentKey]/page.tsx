@@ -83,6 +83,12 @@ export default async function AgentPage({
   const coachLabel = agent.label.replace(/^Coach\s+(des\s+)?/i, "");
   const persona = getAgentPersona(agent.key);
 
+  // Deep-link d'onglet depuis les compteurs d'agent (?tab=history|suggestions|alerts|actions).
+  const TABS = ["chat", "history", "alerts", "suggestions", "actions"] as const;
+  const initialTab = typeof sp.tab === "string" && (TABS as readonly string[]).includes(sp.tab)
+    ? (sp.tab as (typeof TABS)[number])
+    : undefined;
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-6">
       <div className={`relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
@@ -113,6 +119,7 @@ export default async function AgentPage({
           category={coachingCategory}
           coachLabel={coachLabel}
           initialAgenda={agenda ?? {}}
+          initialTab={initialTab}
           availableSources={sources}
           agentKey={agent.key}
           agentLabel={agent.label}
@@ -130,6 +137,7 @@ export default async function AgentPage({
             sources={sources}
             suggestions={agent.suggestions}
             suggestionSets={agent.suggestionSets ?? null}
+            initialTab={initialTab}
             persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
           />
           <SavedReportsCarousel agentKey={agent.key} />

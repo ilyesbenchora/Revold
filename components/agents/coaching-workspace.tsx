@@ -39,6 +39,7 @@ export function CoachingWorkspace({
   suggestionSets,
   reportBrief = null,
   persona,
+  initialTab,
 }: {
   category: string;
   coachLabel: string;
@@ -53,6 +54,8 @@ export function CoachingWorkspace({
   reportBrief?: { objectives: string; pains: string } | null;
   /** Personnage de l'agent (avatar dans les bulles). */
   persona?: { name: string; emoji: string; image?: string | null } | null;
+  /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
+  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions";
 }) {
   const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
@@ -173,6 +176,7 @@ export function CoachingWorkspace({
         onConversationsChange={setConversations}
         openConversationSignal={openConv}
         persona={persona}
+        initialTab={initialTab}
       />
 
       {/* Rapports enregistrés depuis le coaching, en carrousel */}
