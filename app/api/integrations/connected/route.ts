@@ -35,7 +35,13 @@ export async function GET(request: Request) {
   );
 
   if (pageKey) {
-    const mapped = await getToolKeys(supabase, orgId, pageKey);
+    // Les funnels utilisent perf_ventes / perf_marketing ; les mappings des
+    // paramètres stockent audit_perf_ventes / audit_perf_marketing.
+    const MAPPING_ALIASES: Record<string, string> = {
+      perf_ventes: "audit_perf_ventes",
+      perf_marketing: "audit_perf_marketing",
+    };
+    const mapped = await getToolKeys(supabase, orgId, MAPPING_ALIASES[pageKey] ?? pageKey);
     if (mapped.length > 0) tools = tools.filter((t) => mapped.includes(t.key));
   }
 

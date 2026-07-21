@@ -14,6 +14,7 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -65,6 +66,9 @@ export default async function ServiceClientOverviewPage() {
         previewTitle={`Analyse IA service client (score ${data.score}/100)`}
         previewBody="L'IA Revold corrèle tickets support, satisfaction client et risque de churn pour recommander les actions CSM les plus impactantes sur la rétention."
       />
+
+      {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_service_client" categories={["crm", "support"]}>
 
       {/* ── Lecture en un coup d'œil : tuiles KPI colorées ── */}
       {data.hasData && (() => {
@@ -170,6 +174,8 @@ export default async function ServiceClientOverviewPage() {
           </p>
         </div>
       )}
+
+      </PageSourcesGate>
 
       <PageDataTables pageKey="audit_service_client" />
     </section>

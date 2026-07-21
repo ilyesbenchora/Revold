@@ -21,6 +21,7 @@ import { computePipelineAnalyticsFromLocal } from "@/lib/sync/compute-pipeline-a
 import { computeDealsSeries } from "@/lib/audit/deals-series";
 import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { TresoLineChart, SimpleBarsChart } from "@/components/charts/treso-charts";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -101,6 +102,9 @@ export default async function PerformanceCommercialePage() {
         previewBody="L'IA Revold identifie les deals à risque, les patterns de closing gagnants et les optimisations de pipeline à fort impact sur votre taux de conversion."
       />
 
+      {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" categories={["crm"]}>
+
       {/* ── Lecture en un coup d'œil : tuiles KPI colorées ── */}
       {tiles.length > 0 && <KpiStatTiles tiles={tiles} />}
 
@@ -142,6 +146,8 @@ export default async function PerformanceCommercialePage() {
       >
         <PipelineConversionBlock conversions={pipelineConversions} />
       </CollapsibleBlock>
+
+      </PageSourcesGate>
 
       <PageDataTables pageKey="perf_ventes" />
 

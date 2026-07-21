@@ -11,10 +11,11 @@ export function CreateDataTableButton({ variant = "solid" }: { variant?: "solid"
     window.dispatchEvent(new CustomEvent("revold:open-data-table"));
   }
 
+  // Style aligné sur le CTA fuchsia du funnel de tables (Trésorerie & co).
   const cls =
     variant === "soft"
-      ? "border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
-      : "bg-accent text-white hover:bg-indigo-500";
+      ? "border border-fuchsia-300/60 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100"
+      : "bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-sm hover:from-fuchsia-500 hover:to-pink-500";
 
   return (
     <button

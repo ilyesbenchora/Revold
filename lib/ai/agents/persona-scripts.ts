@@ -181,15 +181,15 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   "coaching-data-model": {
     elevenVoiceId: "IbTlccXlWxGVwnbGUHEd", // Michael — FR parisien, calme, narratif (pédagogue)
     segments: [
-      "Bonjour, je suis Adam, ton coach modèle de données chez Revold.",
-      "Mon rôle, c'est de mettre de l'ordre dans la structure de ton CRM.",
-      "La façon dont tes contacts, entreprises et deals sont reliés entre eux.",
-      "J'audite ton modèle et je structure tes objets",
-      "pour un socle propre, cohérent et qui tiendra dans la durée.",
-      "Je t'explique pourquoi telle relation compte",
-      "et comment éviter que tout se remélange avec le temps.",
-      "Ma mission, c'est une fondation de données solide,",
-      "sur laquelle tout le reste peut se construire.",
+      "Bonjour, je suis Adam, ton coach finance chez Revold.",
+      "Mon terrain, c'est la trésorerie et la comptabilité de ton entreprise.",
+      "Le cash qui rentre, celui qui sort, et ce qu'il en restera demain.",
+      "Je surveille tes encaissements, tes échéances et tes impayés,",
+      "et je t'explique simplement ce que racontent tes chiffres.",
+      "Marges, charges, besoin en fonds de roulement :",
+      "je traduis la comptabilité en décisions concrètes.",
+      "Ma mission, c'est une trésorerie sous contrôle,",
+      "pour que tu ne découvres plus jamais un problème de cash trop tard.",
     ],
   },
   // ── Prévisions ──

@@ -11,6 +11,7 @@ import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
 const sourceLabels: Record<string, string> = {
@@ -88,6 +89,9 @@ export default async function PerformanceMarketingPage() {
         previewBody="L'IA Revold analyse votre funnel d'acquisition, identifie les canaux les plus performants et recommande les optimisations à fort impact sur la conversion Lead → Opportunité."
       />
 
+      {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" categories={["crm", "ads"]}>
+
       {/* Lifecycle conversion */}
       <CollapsibleBlock
         title={
@@ -135,6 +139,8 @@ export default async function PerformanceMarketingPage() {
           </div>
         </CollapsibleBlock>
       )}
+
+      </PageSourcesGate>
 
       <PageDataTables pageKey="perf_marketing" />
 
