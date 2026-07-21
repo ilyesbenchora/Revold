@@ -5,9 +5,10 @@
  *
  * Deux modes :
  *  - "single" : un seul outil actif à la fois (`?source=…`) — sous-pages.
- *  - "multi"  : sélection multiple (`?sources=a,b`) — la page recompose
- *    dynamiquement ses blocs selon les capacités couvertes (1 outil = ses
- *    blocs ; CRM + facturation = blocs croisés en plus).
+ *  - "multi"  : champ UNIQUE à options (`?sources=…`) — une option à la fois :
+ *    un outil (ses blocs) ou une combo croisée « A × B » (les vues croisées).
+ *    Le nom du mode est historique : l'URL porte encore une liste, mais l'UI
+ *    n'autorise plus le cumul manuel d'outils.
  *
  * Le rendu serveur est dynamique : la navigation se fait en transition
  * (router.replace) sans reload dur.
@@ -66,11 +67,10 @@ export function SourceToolSwitcher({
       navigate(params);
       return;
     }
-    // multi : toggle libre — zéro sélection est un état valide (la page
-    // affiche alors son invite et n'active aucun bloc).
-    const next = selected.includes(key)
-      ? selected.filter((k) => k !== key)
-      : [...selected, key];
+    // Champ UNIQUE : une option à la fois — un outil seul, ou une combo
+    // croisée (bouton « A × B »). Cliquer une option remplace la sélection ;
+    // re-cliquer l'option active revient à l'état neutre (zéro sélection).
+    const next = selected.length === 1 && selected[0] === key ? [] : [key];
     if (next.length === 0) params.delete("sources");
     else params.set("sources", next.join(","));
     params.delete("source");

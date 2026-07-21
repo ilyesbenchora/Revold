@@ -114,16 +114,16 @@ export default async function PaiementFacturationOverviewPage({
         tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
         activeKeys={selectedKeys}
         combos={availableCrossCombos(switchableTools)}
-        hint="Aucune source = page neutre · 1 outil = ses blocs · 2 outils ou plus = uniquement les vues croisées — les raccourcis « A × B » y mènent en un clic."
+        hint="Une option à la fois : un outil affiche ses blocs, une option croisée « A × B » affiche les vues croisées (ex : marge CRM × facturation)."
       />
 
       {/* ── 0 outil : invite — rien ne s'affiche tant qu'aucune source n'est choisie ── */}
       {selectedKeys.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-sm font-medium text-slate-700">Choisis tes sources ci-dessus pour activer les blocs.</p>
+          <p className="text-sm font-medium text-slate-700">Choisis ta source ci-dessus pour activer les blocs.</p>
           <p className="mt-1.5 text-xs text-slate-500">
-            Un outil seul affiche ses propres indicateurs ; une sélection multiple affiche les
-            croisements entre outils (ex : marge CRM × facturation).
+            Un outil affiche ses propres indicateurs ; une option croisée « A × B » affiche
+            les croisements entre outils (ex : marge CRM × facturation).
           </p>
         </div>
       )}
