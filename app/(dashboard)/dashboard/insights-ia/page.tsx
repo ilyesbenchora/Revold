@@ -8,7 +8,7 @@ import { DismissedCoachingCarousel } from "@/components/dismissed-coaching-carou
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
-import { AgentConversationCount } from "@/components/agents/agent-conversation-count";
+import { AgentInsightsCounts } from "@/components/agents/agent-insights-counts";
 import {
   buildContext,
   fetchDismissals,
@@ -258,7 +258,7 @@ export default async function MesCoachingPage() {
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">{cat.description}</p>
                   <div className="mt-2">
-                    <AgentConversationCount agentKey={cat.agentKey} />
+                    <AgentInsightsCounts agentKey={cat.agentKey} />
                   </div>
                 </div>
               </Link>

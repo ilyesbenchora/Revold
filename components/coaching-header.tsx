@@ -24,8 +24,8 @@ const HEADERS: Record<string, { title: string; sub: string }> = {
     sub: "Les actions issues du croisement de tes sources (CRM × facturation × support).",
   },
   "/dashboard/insights-ia/data-model": {
-    title: "Coaching Modèle de données à faire",
-    sub: "Les actions sur ton modèle de données et tes règles de rapprochement.",
+    title: "Coaching Finance à faire",
+    sub: "Les actions pour piloter ta trésorerie et ta comptabilité : cash, échéances, marges.",
   },
 };
 

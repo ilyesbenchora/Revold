@@ -72,7 +72,7 @@ export default async function DataModelCoachingPage() {
 
   return (
     <div className="space-y-6">
-      <CoachingPageTabs allItems={allItems} categoryLabel="modèle de données" />
+      <CoachingPageTabs allItems={allItems} categoryLabel="finance" />
       <CoachingAgendaSection category="data-model" />
     </div>
   );

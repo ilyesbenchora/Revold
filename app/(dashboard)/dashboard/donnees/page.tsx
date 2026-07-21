@@ -10,6 +10,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 // Conservé pour les cartes de synthèse par objet — ce n'est pas une vignette de titre de bloc.
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
@@ -401,6 +402,9 @@ export default async function DonneesPage() {
         </div>
       )}
 
+      {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]}>
+
       {/* ── HUBS SYNCHRONISÉS (CRM + outils tiers) ── */}
       {hubs.length > 0 && (
         <div className="space-y-3">
@@ -547,6 +551,8 @@ export default async function DonneesPage() {
           ])}
         />
       </div>
+
+      </PageSourcesGate>
 
     </div>
   );
