@@ -9,6 +9,7 @@ import {
   validateSourcesParam,
   capabilitiesOf,
   availableCrossViews,
+  availableCrossCombos,
 } from "@/lib/audit/source-switch";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -112,7 +113,8 @@ export default async function PaiementFacturationOverviewPage({
         mode="multi"
         tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
         activeKeys={selectedKeys}
-        hint="Aucune source = page neutre · 1 outil = ses blocs · 2 outils ou plus = uniquement les vues croisées (ex : marge CRM × facturation)."
+        combos={availableCrossCombos(switchableTools)}
+        hint="Aucune source = page neutre · 1 outil = ses blocs · 2 outils ou plus = uniquement les vues croisées — les raccourcis « A × B » y mènent en un clic."
       />
 
       {/* ── 0 outil : invite — rien ne s'affiche tant qu'aucune source n'est choisie ── */}
@@ -146,10 +148,13 @@ export default async function PaiementFacturationOverviewPage({
         </div>
       )}
 
-      {/* ── 1 outil : SES blocs (capacités subscriptions / invoices) ── */}
+      {/* ── 1 outil : SES blocs — conditionnés aux DONNÉES RÉELLES, pas aux
+             capacités théoriques (HubSpot sans module facturation actif ne doit
+             pas afficher une Synthèse Facturation vide). ── */}
       {singleTool && billingResults.map(({ key, data }) => {
         const label = labelOf(key);
-        const showSubs = capabilitiesOf(key).includes("subscriptions");
+        const showSubs = capabilitiesOf(key).includes("subscriptions") && data.subscriptions.length > 0;
+        const showInvoices = data.invoices.length > 0;
         return (
           <div key={key} className="space-y-6">
             {showSubs && (
@@ -179,6 +184,7 @@ export default async function PaiementFacturationOverviewPage({
               </CollapsibleBlock>
             )}
 
+            {showInvoices && (
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -203,6 +209,7 @@ export default async function PaiementFacturationOverviewPage({
                 footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
               />
             </CollapsibleBlock>
+            )}
           </div>
         );
       })}

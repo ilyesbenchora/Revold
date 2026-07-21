@@ -116,3 +116,25 @@ export function availableCrossViews(keys: string[]): CrossView[] {
     return distinct.size > 1;
   });
 }
+
+/**
+ * Combos croisées proposées comme raccourci dans le switcher : chaque PAIRE
+ * d'outils connectés dont la sélection débloque au moins une vue croisée
+ * (ex : « HubSpot × Pennylane »). Entièrement dérivé de CROSS_VIEWS et des
+ * outils réellement connectés — rien en dur, un nouvel outil facturation
+ * connecté fera apparaître sa combo tout seul.
+ */
+export type CrossCombo = { keys: string[]; label: string };
+
+export function availableCrossCombos(tools: SwitchableTool[]): CrossCombo[] {
+  const combos: CrossCombo[] = [];
+  for (let i = 0; i < tools.length; i++) {
+    for (let j = i + 1; j < tools.length; j++) {
+      const pair = [tools[i].key, tools[j].key];
+      if (availableCrossViews(pair).length > 0) {
+        combos.push({ keys: pair, label: `${tools[i].label} × ${tools[j].label}` });
+      }
+    }
+  }
+  return combos;
+}

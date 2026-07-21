@@ -18,6 +18,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 
 export type SwitcherTool = { key: string; label: string; domain: string; icon: string };
+export type SwitcherCombo = { keys: string[]; label: string };
 
 export function SourceToolSwitcher({
   tools,
@@ -25,6 +26,7 @@ export function SourceToolSwitcher({
   activeKeys,
   mode = "single",
   hint,
+  combos = [],
 }: {
   tools: SwitcherTool[];
   /** mode single : outil dont les données sont affichées. */
@@ -34,6 +36,12 @@ export function SourceToolSwitcher({
   mode?: "single" | "multi";
   /** Phrase d'aide affichée sous les pills (mode multi). */
   hint?: string;
+  /**
+   * Raccourcis croisés (mode multi) : une pill « A × B » sélectionne la paire
+   * d'un clic pour arriver directement sur les vues croisées. Dérivés des
+   * croisements réellement possibles (availableCrossCombos), jamais en dur.
+   */
+  combos?: SwitcherCombo[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -69,6 +77,19 @@ export function SourceToolSwitcher({
     navigate(params);
   }
 
+  /** Une combo est active si la sélection est EXACTEMENT sa paire d'outils. */
+  const comboActive = (c: SwitcherCombo) =>
+    selected.length === c.keys.length && c.keys.every((k) => selected.includes(k));
+
+  function onCombo(c: SwitcherCombo) {
+    const params = new URLSearchParams(searchParams.toString());
+    // Re-clic sur la combo active → retour à l'état neutre.
+    if (comboActive(c)) params.delete("sources");
+    else params.set("sources", c.keys.join(","));
+    params.delete("source");
+    navigate(params);
+  }
+
   return (
     <div className={`rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition ${pending ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
@@ -98,6 +119,35 @@ export function SourceToolSwitcher({
             </button>
           );
         })}
+        {/* Raccourcis croisés : un clic = la paire sélectionnée, vues croisées directes */}
+        {mode === "multi" && combos.length > 0 && (
+          <>
+            <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden />
+            {combos.map((c) => {
+              const on = comboActive(c);
+              return (
+                <button
+                  key={c.keys.join("+")}
+                  type="button"
+                  onClick={() => onCombo(c)}
+                  disabled={pending}
+                  title={on ? "Revenir à l'état neutre" : `Vues croisées ${c.label} en un clic`}
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                    on
+                      ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 shadow-sm"
+                      : "border-fuchsia-200 bg-white text-fuchsia-600 hover:border-fuchsia-400 hover:bg-fuchsia-50/60"
+                  }`}
+                >
+                  <span aria-hidden>⤫</span>
+                  {c.label}
+                  {on && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  )}
+                </button>
+              );
+            })}
+          </>
+        )}
         {pending && <span className="text-[10px] text-slate-400">Chargement…</span>}
       </div>
       {mode === "multi" && hint && (
