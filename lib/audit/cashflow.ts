@@ -17,6 +17,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type CategoryBreakdownRow = { label: string; total: number; count: number };
+
 export type CashflowData = {
   hasData: boolean;
   /** Des décaissements sont réellement mesurés (flux négatifs ou factures fournisseurs). */
@@ -30,9 +32,13 @@ export type CashflowData = {
   tresorerieDisponible: number | null;
   tresorerieConsolidee: number | null;
   runwayMois: number | null;
+  /** Ventilation des décaissements par catégorie Pennylane (top premières + reste). */
+  chargesParCategorie: CategoryBreakdownRow[];
+  /** Part des décaissements non catégorisés dans l'outil (0-100), null si aucun flux sortant. */
+  pctChargesNonCategorisees: number | null;
 };
 
-type Flow = { amount: number; date: string | null }; // amount > 0 = encaissement
+type Flow = { amount: number; date: string | null; category?: string | null }; // amount > 0 = encaissement
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -43,14 +49,26 @@ function median(values: number[]): number | null {
 
 /** Flux depuis bank_transactions (montants signés). [] si table absente/vide. */
 async function fetchBankFlows(supabase: SupabaseClient, orgId: string, toolKey: string): Promise<Flow[]> {
-  const { data, error } = await supabase
+  // Avec catégorie si la migration est appliquée, sans sinon.
+  const withCat = await supabase
     .from("bank_transactions")
-    .select("amount, date")
+    .select("amount, date, category")
     .eq("organization_id", orgId)
     .eq("primary_source", toolKey)
     .limit(10000);
-  if (error) return [];
-  return (data ?? []).map((r) => ({ amount: Number(r.amount) || 0, date: r.date as string | null }));
+  const rows = withCat.error
+    ? (await supabase
+        .from("bank_transactions")
+        .select("amount, date")
+        .eq("organization_id", orgId)
+        .eq("primary_source", toolKey)
+        .limit(10000)).data ?? []
+    : withCat.data ?? [];
+  return (rows as Array<{ amount: number | null; date: string | null; category?: string | null }>).map((r) => ({
+    amount: Number(r.amount) || 0,
+    date: r.date,
+    category: r.category ?? null,
+  }));
 }
 
 /** Solde bancaire réel : somme des balances des comptes synchronisés. */
@@ -133,6 +151,31 @@ export async function computeCashflow(
       ? Math.max(0, Math.round((tresorerieDisponible / chargesFixesMensuelles) * 10) / 10)
       : null;
 
+  // Ventilation des décaissements par catégorie Pennylane (top 6 + « Autres »).
+  const byCategory = new Map<string, { total: number; count: number }>();
+  let uncategorized = 0;
+  for (const f of outflows) {
+    const amt = Math.abs(f.amount);
+    const label = f.category?.trim() || null;
+    if (!label) { uncategorized += amt; continue; }
+    const cur = byCategory.get(label) ?? { total: 0, count: 0 };
+    cur.total += amt;
+    cur.count++;
+    byCategory.set(label, cur);
+  }
+  const sorted = [...byCategory.entries()]
+    .map(([label, v]) => ({ label, total: Math.round(v.total), count: v.count }))
+    .sort((a, b) => b.total - a.total);
+  const top = sorted.slice(0, 6);
+  const rest = sorted.slice(6).reduce((s, r) => s + r.total, 0);
+  const chargesParCategorie: CategoryBreakdownRow[] = [
+    ...top,
+    ...(rest > 0 ? [{ label: "Autres catégories", total: Math.round(rest), count: sorted.length - top.length }] : []),
+    ...(uncategorized > 0 ? [{ label: "Non catégorisé", total: Math.round(uncategorized), count: 0 }] : []),
+  ];
+  const pctChargesNonCategorisees =
+    decaissementsTotal > 0 ? Math.round((uncategorized / decaissementsTotal) * 100) : null;
+
   return {
     hasData,
     hasOutflows,
@@ -144,5 +187,7 @@ export async function computeCashflow(
     tresorerieDisponible,
     tresorerieConsolidee,
     runwayMois,
+    chargesParCategorie,
+    pctChargesNonCategorisees,
   };
 }

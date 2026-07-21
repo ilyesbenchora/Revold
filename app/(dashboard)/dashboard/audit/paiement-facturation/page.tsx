@@ -202,6 +202,31 @@ export default async function PaiementFacturationOverviewPage({
                 ? "Trésorerie disponible = solde réel des comptes bancaires au moment de la dernière synchronisation."
                 : "Trésorerie estimée depuis les flux synchronisés — pas un solde bancaire en temps réel."}
             />
+
+            {/* Ventilation des charges par catégorie (catégorisation Pennylane) */}
+            {cf.chargesParCategorie.length > 0 && (
+              <div className="mt-4">
+                <BlockDataTable
+                  title={`Répartition des charges (${label})`}
+                  subtitle={`catégories · ${label}`}
+                  team="finance"
+                  unit="currency"
+                  nameLabel="Catégorie"
+                  extraColumns={["Transactions"]}
+                  rows={cf.chargesParCategorie.map((c) => ({
+                    name: c.label,
+                    value: c.total,
+                    unit: "currency" as const,
+                    cells: [c.count > 0 ? fmt(c.count) : "—"],
+                  }))}
+                  footnote={
+                    cf.pctChargesNonCategorisees != null && cf.pctChargesNonCategorisees > 0
+                      ? `${cf.pctChargesNonCategorisees} % des décaissements ne sont pas encore catégorisés dans ${label} — catégorise-les pour affiner l'analyse.`
+                      : `Ventilation des décaissements selon la catégorisation ${label}.`
+                  }
+                />
+              </div>
+            )}
           </CollapsibleBlock>
         );
       })}

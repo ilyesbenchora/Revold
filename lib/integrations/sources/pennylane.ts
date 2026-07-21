@@ -97,6 +97,8 @@ export type PennylaneTransaction = {
   currency: string;
   date: string | null;
   bank_account?: { id: number } | null;
+  /** Catégorisation analytique Pennylane (weight = part de la transaction). */
+  categories?: Array<{ id: number; label: string | null; weight?: number | string | null; category_group?: { id: number; label?: string | null } | null }> | null;
 };
 
 export type PennylaneBankAccount = {

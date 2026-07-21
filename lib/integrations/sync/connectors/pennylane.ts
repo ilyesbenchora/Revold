@@ -169,22 +169,38 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   // 20260721000006_bank_transactions n'est pas encore appliquée.
   let transactionsImported = 0;
   if (transactions.length > 0) {
-    const rows = transactions.map((t) => ({
-      organization_id: ctx.orgId,
-      primary_source: PROVIDER,
-      external_id: String(t.id),
-      label: t.label ?? null,
-      amount: parseFloat(t.amount) || 0,
-      fee: t.fee != null ? parseFloat(t.fee) || 0 : 0,
-      currency: (t.currency || "EUR").toUpperCase(),
-      date: t.date,
-      bank_account_external_id: t.bank_account?.id != null ? String(t.bank_account.id) : null,
-      updated_at: new Date().toISOString(),
-    }));
+    const rows = transactions.map((t) => {
+      // Catégorie dominante (poids le plus élevé) si la transaction est catégorisée.
+      const cats = Array.isArray(t.categories) ? t.categories : [];
+      const main = cats.length > 0
+        ? [...cats].sort((a, b) => (Number(b.weight) || 0) - (Number(a.weight) || 0))[0]
+        : null;
+      return {
+        organization_id: ctx.orgId,
+        primary_source: PROVIDER,
+        external_id: String(t.id),
+        label: t.label ?? null,
+        amount: parseFloat(t.amount) || 0,
+        fee: t.fee != null ? parseFloat(t.fee) || 0 : 0,
+        currency: (t.currency || "EUR").toUpperCase(),
+        date: t.date,
+        bank_account_external_id: t.bank_account?.id != null ? String(t.bank_account.id) : null,
+        category: main?.label ?? null,
+        category_group: main?.category_group?.label ?? null,
+        updated_at: new Date().toISOString(),
+      };
+    });
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await ctx.supabase
+      let { error } = await ctx.supabase
         .from("bank_transactions")
         .upsert(rows.slice(i, i + 500), { onConflict: "organization_id,primary_source,external_id" });
+      if (error) {
+        // Migration catégorie pas appliquée → retente sans ces colonnes.
+        const bare = rows.slice(i, i + 500).map(({ category: _c, category_group: _g, ...r }) => r);
+        ({ error } = await ctx.supabase
+          .from("bank_transactions")
+          .upsert(bare, { onConflict: "organization_id,primary_source,external_id" }));
+      }
       if (error) break; // table absente (migration non appliquée) → on n'insiste pas
       transactionsImported += Math.min(500, rows.length - i);
     }
