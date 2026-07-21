@@ -7,8 +7,14 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { SourceToolSwitcher } from "@/components/source-tool-switcher";
+import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
 
-export default async function FacturationPage() {
+export default async function FacturationPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -16,10 +22,16 @@ export default async function FacturationPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
+
+  const sp = (await searchParams) ?? {};
+  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token);
+  const overrideSource = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
+
   const [data, snapshot] = await Promise.all([
-    fetchPaiementFacturationFor(supabase, orgId, token),
+    fetchPaiementFacturationFor(supabase, orgId, token, overrideSource),
     getHubspotSnapshot(),
   ]);
+  const activeSourceKey = data.source ?? "hubspot";
 
   // Audit factures > 30 jours impayées (DSO élevé)
   const now = Date.now();
@@ -41,6 +53,12 @@ export default async function FacturationPage() {
       </header>
 
       <PaiementFacturationTabs />
+
+      {/* Outil source des blocs : affichage + switch dynamique */}
+      <SourceToolSwitcher
+        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKey={activeSourceKey}
+      />
 
       <CollapsibleBlock
         title={

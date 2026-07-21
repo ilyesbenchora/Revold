@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/audit/paiement-facturation", label: "Vue d'ensemble" },
@@ -11,6 +11,10 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
 
 export function PaiementFacturationTabs() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // L'outil source sélectionné (switcher) est conservé en passant d'onglet en onglet.
+  const source = searchParams.get("source");
+  const qs = source ? `?source=${encodeURIComponent(source)}` : "";
   return (
     <div className="border-b border-card-border">
       <div className="flex gap-1">
@@ -19,7 +23,7 @@ export function PaiementFacturationTabs() {
           return (
             <Link
               key={t.href}
-              href={t.href}
+              href={`${t.href}${qs}`}
               className={`relative px-4 py-2 text-sm font-medium transition ${
                 isActive ? "text-accent" : "text-slate-500 hover:text-slate-900"
               } ${t.highlight ? "flex items-center gap-1.5" : ""}`}

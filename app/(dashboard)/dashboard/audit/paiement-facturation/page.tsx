@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
@@ -29,27 +29,9 @@ export default async function PaiementFacturationOverviewPage({
   const sp = (await searchParams) ?? {};
   const requestedSource = typeof sp.source === "string" ? sp.source : null;
 
-  const allConnectedTools = await getConnectedTools(supabase, orgId);
-
-  const billingCategory = allConnectedTools.filter((t) => t.category === "billing");
-
-  // Outils pouvant alimenter les blocs de cette page : HubSpot (invoices/
-  // subscriptions natifs) + tous les outils billing connectés (Stripe live,
-  // Pennylane/Sellsy/… via les tables canoniques synchronisées).
-  const switchableTools = [
-    ...allConnectedTools.filter((t) => t.key === "hubspot"),
-    // HubSpot accessible via token (legacy/env) même sans ligne integrations.
-    ...(token && !allConnectedTools.some((t) => t.key === "hubspot")
-      ? [{ key: "hubspot", label: "HubSpot", domain: "hubspot.com", icon: "🔶" }]
-      : []),
-    ...billingCategory,
-  ].filter((t, i, arr) => arr.findIndex((x) => x.key === t.key) === i);
-
-  // Le switch n'accepte que des outils réellement connectés.
-  const overrideSource =
-    requestedSource && switchableTools.some((t) => t.key === requestedSource)
-      ? requestedSource
-      : null;
+  // Outils pouvant alimenter les blocs + validation du ?source= demandé.
+  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token);
+  const overrideSource = validateSourceParam(requestedSource, switchableTools);
 
   const data = await fetchPaiementFacturationFor(supabase, orgId, token, overrideSource);
   const activeSourceKey = data.source ?? "hubspot";

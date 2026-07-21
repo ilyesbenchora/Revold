@@ -7,8 +7,14 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { fetchPaiementFacturationFor, fmt } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { SourceToolSwitcher } from "@/components/source-tool-switcher";
+import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
 
-export default async function PaiementPage() {
+export default async function PaiementPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -16,7 +22,13 @@ export default async function PaiementPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const data = await fetchPaiementFacturationFor(supabase, orgId, token);
+
+  const sp = (await searchParams) ?? {};
+  const switchableTools = await getSwitchableBillingTools(supabase, orgId, token);
+  const overrideSource = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
+
+  const data = await fetchPaiementFacturationFor(supabase, orgId, token, overrideSource);
+  const activeSourceKey = data.source ?? "hubspot";
 
   // Comptage par statut subscription
   const trialingSubs = data.subscriptions.filter((s) => s.properties.hs_subscription_status === "trialing").length;
@@ -32,6 +44,12 @@ export default async function PaiementPage() {
       </header>
 
       <PaiementFacturationTabs />
+
+      {/* Outil source des blocs : affichage + switch dynamique */}
+      <SourceToolSwitcher
+        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKey={activeSourceKey}
+      />
 
       <CollapsibleBlock
         title={

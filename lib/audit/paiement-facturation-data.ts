@@ -250,6 +250,12 @@ export async function fetchPaiementFacturationFor(
     // Import dynamique pour éviter de charger le module Stripe quand HubSpot est utilisé
     const { fetchPaiementFacturationFromStripe } = await import("./paiement-facturation-stripe");
     const result = await fetchPaiementFacturationFromStripe(stripeKey);
+    if (result.hasData) return { ...result, source: "stripe" };
+    // API live vide/indisponible (clé expirée…) → repli sur les données Stripe
+    // déjà SYNCHRONISÉES en base (tables canoniques, primary_source=stripe).
+    const { fetchPaiementFacturationFromCanonical } = await import("./paiement-facturation-canonical");
+    const synced = await fetchPaiementFacturationFromCanonical(supabase, orgId, "stripe");
+    if (synced.hasData) return { ...synced, source: "stripe" };
     return { ...result, source: "stripe" };
   }
 
