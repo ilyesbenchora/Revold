@@ -207,8 +207,8 @@ export default async function PaiementFacturationOverviewPage({
         );
       })}
 
-      {/* ── Trésorerie (capacité cashflow — Pennylane & co) ── */}
-      {cashflowResults.map(({ key, cf }) => {
+      {/* ── 1 outil : trésorerie (capacité cashflow — Pennylane & co) ── */}
+      {singleTool && cashflowResults.map(({ key, cf }) => {
         const label = labelOf(key);
         return (
           <CollapsibleBlock
@@ -321,7 +321,7 @@ export default async function PaiementFacturationOverviewPage({
         </CollapsibleBlock>
       )}
 
-      {!anyData && (
+      {selectedKeys.length > 0 && !anyData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
             Aucune donnée trouvée dans {selectedKeys.map(labelOf).join(" + ")}.
