@@ -20,6 +20,9 @@ import { pingPennylane } from "./sources/pennylane";
 import { pingSellsy } from "./sources/sellsy";
 import { pingAxonaut } from "./sources/axonaut";
 import { pingQuickBooks } from "./sources/quickbooks";
+import { pingChargebee } from "./sources/chargebee";
+import { pingGoCardless } from "./sources/gocardless";
+import { pingSage } from "./sources/sage";
 import { pingIntercom } from "./sources/intercom";
 import { pingZendesk } from "./sources/zendesk";
 import { pingCrisp } from "./sources/crisp";
@@ -97,6 +100,18 @@ export async function pingTool(
       case "quickbooks": {
         const ok = await pingQuickBooks(creds.company_id, creds.client_id, creds.client_secret, creds.refresh_token);
         return ok ? { ok: true } : { ok: false, reason: "QuickBooks a refusé les identifiants (Realm ID, client, secret ou refresh token invalides)." };
+      }
+      case "chargebee": {
+        const ok = await pingChargebee(creds.site, creds.api_key);
+        return ok ? { ok: true } : { ok: false, reason: "Chargebee a refusé les identifiants (site ou API Key invalides)." };
+      }
+      case "gocardless": {
+        const ok = await pingGoCardless(creds.access_token, creds.environment);
+        return ok ? { ok: true } : { ok: false, reason: "GoCardless a refusé l'access token (ou mauvais environnement live/sandbox)." };
+      }
+      case "sage": {
+        const ok = await pingSage(creds.access_token);
+        return ok ? { ok: true } : { ok: false, reason: "Sage a refusé l'access token (expiré ? les tokens Sage durent ~5 min)." };
       }
 
       // ── Téléphonie (placeholders) ────────────────────────────────

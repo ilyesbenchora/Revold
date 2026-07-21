@@ -201,6 +201,50 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
       { key: "refresh_token", label: "Refresh Token", placeholder: "•••••••••••", type: "password" },
     ],
   },
+  chargebee: {
+    key: "chargebee",
+    label: "Chargebee",
+    vendor: "Chargebee",
+    icon: "🧾",
+    domain: "chargebee.com",
+    category: "billing",
+    description: "Facturation par abonnement (subscription billing). Synchronisez abonnements, factures et MRR/ARR.",
+    helpUrl: "https://www.chargebee.com/docs/2.0/api_keys.html",
+    helpText: "Récupérez votre site et une API Key : Settings → Configure Chargebee → API Keys. La clé s'utilise en Basic Auth (lecture seule recommandée).",
+    fields: [
+      { key: "site", label: "Site Chargebee", placeholder: "votre-entreprise", type: "text", helper: "Le préfixe de votre URL Chargebee (votre-entreprise.chargebee.com)" },
+      { key: "api_key", label: "API Key", placeholder: "live_•••••••••••", type: "password" },
+    ],
+  },
+  gocardless: {
+    key: "gocardless",
+    label: "GoCardless",
+    vendor: "GoCardless",
+    icon: "🏦",
+    domain: "gocardless.com",
+    category: "billing",
+    description: "Prélèvements bancaires (SEPA / Bacs). Synchronisez paiements, mandats et encaissements récurrents.",
+    helpUrl: "https://developer.gocardless.com/api-reference/#appendix-access-tokens",
+    helpText: "Créez un Access Token : Dashboard GoCardless → Developers → Create → Access token (scope lecture). Choisissez l'environnement live (ou sandbox pour tester).",
+    fields: [
+      { key: "access_token", label: "Access Token", placeholder: "live_•••••••••••", type: "password" },
+      { key: "environment", label: "Environnement", placeholder: "live", type: "text", helper: "live (production) ou sandbox (tests). Par défaut : live." },
+    ],
+  },
+  sage: {
+    key: "sage",
+    label: "Sage Accounting",
+    vendor: "Sage",
+    icon: "📗",
+    domain: "sage.com",
+    category: "billing",
+    description: "Comptabilité Sage Business Cloud. Synchronisez factures, paiements et clients.",
+    helpUrl: "https://developer.sage.com/accounting/",
+    helpText: "Access token OAuth2 Sage Business Cloud Accounting. À générer depuis le Sage Developer Portal. Note : les tokens Sage expirent vite (~5 min) — pensez à en générer un juste avant de connecter.",
+    fields: [
+      { key: "access_token", label: "Access Token", placeholder: "•••••••••••", type: "password" },
+    ],
+  },
 
   // ── Téléphonie ──────────────────────────────────────────────────
   aircall: {
