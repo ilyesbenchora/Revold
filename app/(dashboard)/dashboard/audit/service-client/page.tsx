@@ -13,6 +13,7 @@ import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -65,6 +66,46 @@ export default async function ServiceClientOverviewPage() {
         previewBody="L'IA Revold corrèle tickets support, satisfaction client et risque de churn pour recommander les actions CSM les plus impactantes sur la rétention."
       />
 
+      {/* ── Lecture en un coup d'œil : tuiles KPI colorées ── */}
+      {data.hasData && (() => {
+        const resolutionPct = data.tickets.length > 0
+          ? Math.round((data.closedTickets / data.tickets.length) * 100)
+          : null;
+        const tiles: StatTile[] = [
+          { label: "Tickets ouverts", value: String(data.openTickets), tone: "accent", sub: `sur ${fmt(data.tickets.length)} analysés` },
+          {
+            label: "Priorité haute",
+            value: String(data.urgentTickets),
+            tone: data.urgentTickets > 0 ? "neg" : "pos",
+            sub: "À traiter en premier",
+            verdict: data.urgentTickets === 0 ? { label: "Rien d'urgent", tone: "pos" }
+              : data.urgentTickets <= 3 ? { label: "À surveiller", tone: "warn" }
+              : { label: "Critique", tone: "neg" },
+          },
+          {
+            label: "Taux de résolution",
+            value: resolutionPct != null ? `${resolutionPct} %` : "—",
+            tone: resolutionPct == null ? "neutral" : resolutionPct >= 80 ? "pos" : resolutionPct >= 50 ? "accent" : "neg",
+            sub: "Fermés / total",
+            verdict: resolutionPct == null ? undefined
+              : resolutionPct >= 80 ? { label: "Excellent (> 80 %)", tone: "pos" }
+              : resolutionPct >= 50 ? { label: "Correct", tone: "warn" }
+              : { label: "Faible (< 50 %)", tone: "neg" },
+          },
+          {
+            label: "Résolution moyenne",
+            value: data.avgResolutionHours != null ? `${Math.round(data.avgResolutionHours)} h` : "—",
+            tone: "neutral",
+            sub: "Temps moyen de clôture",
+            verdict: data.avgResolutionHours == null ? undefined
+              : data.avgResolutionHours <= 24 ? { label: "Rapide (< 24 h)", tone: "pos" }
+              : data.avgResolutionHours <= 72 ? { label: "Dans la norme", tone: "warn" }
+              : { label: "Lent (> 72 h)", tone: "neg" },
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
+
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -88,8 +129,8 @@ export default async function ServiceClientOverviewPage() {
             { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count", cells: [snapshot.totalTickets > data.tickets.length ? `sur ${fmt(snapshot.totalTickets)} au total` : "—"] },
             { name: "Tickets portail", value: snapshot.totalTickets, unit: "count", cells: ["Tous tickets du portail"] },
             { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count", cells: ["—"] },
-            { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count", cells: ["—"] },
-            { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count", cells: ["—"] },
+            { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count", tone: "pos", cells: ["—"] },
+            { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count", tone: "neg", cells: ["—"] },
           ]}
           footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
         />

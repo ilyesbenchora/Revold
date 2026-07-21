@@ -76,6 +76,41 @@ export function TresoLineChart({ points }: { points: SeriesPoint[] }) {
   );
 }
 
+/** Barres mono-série (ex : CA signé par mois, tickets créés par mois…). */
+export function SimpleBarsChart({ points, color = "#6366f1" }: { points: SeriesPoint[]; color?: string }) {
+  if (points.length === 0) return null;
+  const maxV = Math.max(1, ...points.map((p) => p.value));
+  const iw = W - PAD.left - PAD.right;
+  const ih = H - PAD.top - PAD.bottom;
+  const groupW = iw / points.length;
+  const barW = Math.min(30, groupW * 0.55);
+  const y = (v: number) => PAD.top + ih - (v / maxV) * ih;
+  const step = Math.max(1, Math.ceil(points.length / 8));
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Histogramme mensuel">
+      {[maxV, maxV / 2].map((v, i) => (
+        <g key={i}>
+          <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
+          <text x={PAD.left - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#94a3b8">{fmtK(v)}</text>
+        </g>
+      ))}
+      <line x1={PAD.left} x2={W - PAD.right} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth="1" />
+      {points.map((p, i) => {
+        const cx = PAD.left + groupW * i + groupW / 2;
+        return (
+          <g key={p.label}>
+            <rect x={cx - barW / 2} y={y(p.value)} width={barW} height={Math.max(0, y(0) - y(p.value))} rx="3" fill={color} />
+            {i % step === 0 && (
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize="10" fill="#94a3b8">{p.label}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export function TresoFlowsChart({ points }: { points: FlowsPoint[] }) {
   if (points.length === 0) return null;
   const maxV = Math.max(1, ...points.flatMap((p) => [p.in, p.out]));
