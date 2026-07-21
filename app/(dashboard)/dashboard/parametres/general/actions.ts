@@ -38,6 +38,7 @@ export async function updateOrganisation(formData: FormData) {
     hubspot_portal_id: str(formData, "hubspot_portal_id"),
     country: str(formData, "country"),
     siren: str(formData, "org_siren"),
+    siret: str(formData, "org_siret"),
     vat: str(formData, "org_vat"),
     industry: str(formData, "industry"),
     updated_at: new Date().toISOString(),
@@ -54,35 +55,4 @@ export async function updateOrganisation(formData: FormData) {
 
   revalidatePath(PATH);
   redirect(`${PATH}?saved=org`);
-}
-
-/**
- * Persiste la section « Fiscalité & échéances » (Paramètres → Organisation) sur
- * la ligne `organizations`. Alimente ensuite la table « Échéances fiscales » du
- * funnel Trésorerie via /api/fiscal/echeances.
- */
-export async function updateFiscalSettings(formData: FormData) {
-  const orgId = await getOrgId();
-  if (!orgId) redirect(`${PATH}?error=no_org`);
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
-    .from("organizations")
-    .update({
-      fiscal_tva_periodicite: str(formData, "fiscal_tva_periodicite"),
-      fiscal_tva_prochaine: str(formData, "fiscal_tva_prochaine"),
-      fiscal_tva_montant: num(formData, "fiscal_tva_montant"),
-      fiscal_is_periodicite: str(formData, "fiscal_is_periodicite"),
-      fiscal_is_prochaine: str(formData, "fiscal_is_prochaine"),
-      fiscal_is_montant: num(formData, "fiscal_is_montant"),
-      fiscal_urssaf_periodicite: str(formData, "fiscal_urssaf_periodicite"),
-      fiscal_urssaf_prochaine: str(formData, "fiscal_urssaf_prochaine"),
-      fiscal_urssaf_montant: num(formData, "fiscal_urssaf_montant"),
-    })
-    .eq("id", orgId);
-
-  if (error) redirect(`${PATH}?error=fiscal_save`);
-
-  revalidatePath(PATH);
-  redirect(`${PATH}?saved=fiscal`);
 }

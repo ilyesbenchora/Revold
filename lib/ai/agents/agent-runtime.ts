@@ -8,7 +8,7 @@ import { REDIRECT_TOOL, normalizeRedirect, type AgentRedirect } from "./redirect
  *
  * Pattern : agent-orchestrateur au-dessus de la couche déterministe.
  * L'agent NE recalcule PAS la donnée — il APPELLE les fetchers/KPIs existants
- * en tool-calling (function calling). Chaque section (Paiement & Facturation,
+ * en tool-calling (function calling). Chaque section (Trésorerie,
  * Performance, Service Client…) fournit son system prompt + son jeu de tools
  * et réutilise ce runtime.
  *

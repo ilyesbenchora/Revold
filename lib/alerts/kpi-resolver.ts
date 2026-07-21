@@ -267,6 +267,24 @@ export async function resolveKpiValue(
       return Math.round(((contacts - (noPhone ?? 0)) / contacts) * 100);
     }
 
+    case "duplicate_rate": {
+      // Doublons = contacts partageant un même email (normalisé). Taux = doublons / total.
+      let qC = supabase.from("contacts").select("email").eq("organization_id", orgId).not("email", "is", null).limit(10000);
+      qC = applyContactFilters(qC, filters);
+      const { data } = await qC;
+      const rows = data ?? [];
+      if (rows.length === 0) return 0;
+      const seen = new Set<string>();
+      let dups = 0;
+      for (const r of rows) {
+        const e = String(r.email ?? "").trim().toLowerCase();
+        if (!e) continue;
+        if (seen.has(e)) dups++;
+        else seen.add(e);
+      }
+      return Math.round((dups / rows.length) * 100);
+    }
+
     case "dormant_reactivation": {
       const sixMonthsAgo = new Date(Date.now() - 180 * 86400000).toISOString();
       const { count } = await supabase
@@ -369,6 +387,7 @@ export async function resolveKpiValue(
 export function getDefaultDirection(forecastType: string): "above" | "below" {
   switch (forecastType) {
     case "orphan_rate":
+    case "duplicate_rate":
     case "deals_at_risk":
     case "stagnant_deals":
     case "dormant_reactivation":

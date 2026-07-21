@@ -11,6 +11,7 @@ const teams = [
   { id: "marketing", label: "Marketing", icon: "📣", description: "Leads, conversion, acquisition" },
   { id: "cs", label: "Service client", icon: "🤝", description: "Rétention, churn, satisfaction" },
   { id: "revops", label: "Finance", icon: "📊", description: "Pilotage revenue, données & process" },
+  { id: "ops", label: "Opération", icon: "⚙️", description: "Data quality, doublons, intégrité" },
 ];
 
 type KpiDef = {
@@ -85,6 +86,15 @@ const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise — intégrité de la donnée", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
     { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone — capacité opérationnelle", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false, contactRelated: true },
     { id: "contacts_by_source", label: "Contacts par source", description: "Volume de contacts par source d'origine — base attribution multi-canal", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+  ],
+  ops: [
+    // ── Qualité & intégrité des données ──
+    { id: "duplicate_rate", label: "Taux de doublons", description: "% de contacts en doublon (même email) — hygiène et déduplication de la base", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
+    { id: "data_completeness", label: "Complétude des données", description: "% de deals avec montant + date de closing + propriétaire — fiabilité des analyses", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: true },
+    { id: "orphan_rate", label: "Contacts orphelins", description: "% de contacts sans entreprise associée — intégrité du rattachement", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
+    { id: "phone_enrichment", label: "Enrichissement téléphone", description: "% de contacts avec numéro renseigné — complétude pour l'outbound", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false, contactRelated: true },
+    { id: "deals_no_amount", label: "Deals sans montant", description: "Deals ouverts sans montant renseigné — forecast aveugle", defaultUnit: "count", defaultDirection: "below", category: "data", dealRelated: true },
+    { id: "dormant_reactivation", label: "Contacts dormants", description: "Contacts sans interaction depuis 6 mois — base à nettoyer ou réactiver", defaultUnit: "count", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
   ],
 };
 
@@ -537,9 +547,11 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       </div>
 
-                      {/* KPI à surveiller (seuil) */}
+                      {/* KPI à surveiller (seuil) — = KPI de la 1ʳᵉ source croisée */}
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-slate-600">KPI à surveiller</label>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                          KPI à surveiller{crossSources.length > 0 ? ` — ${dataSources.find((t) => t.key === crossSources[0])?.label ?? "1ʳᵉ source"}` : ""}
+                        </label>
                         <div className="flex items-center gap-2">
                           <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)}
                             placeholder={unitMode === "currency" ? "50000" : unitMode === "percent" ? "35" : "10"}
@@ -565,10 +577,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                               );
                             })}
                           </div>
-                          <p className="mt-1 text-[10px] text-slate-400">Ajoute un KPI par source pour croiser — ex : un pour le CRM, un pour Stripe.</p>
-                          {crossSources.length > 0 && (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            1 outil = 1 KPI. Le KPI principal ci-dessus suit ta 1ʳᵉ source ; chaque source supplémentaire ajoute un KPI à croiser.
+                          </p>
+                          {crossSources.length > 1 && (
                             <div className="mt-3 space-y-2.5">
-                              {crossSources.map((key) => {
+                              {crossSources.slice(1).map((key) => {
                                 const label = dataSources.find((t) => t.key === key)?.label ?? key;
                                 const icon = dataSources.find((t) => t.key === key)?.icon ?? "🔗";
                                 const sk = sourceKpis[key] ?? { value: "", unit: "percent" as const };

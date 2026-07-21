@@ -33,7 +33,7 @@ export default async function RecommandationsPerformancesPage() {
         <p className="text-sm font-semibold text-fuchsia-900">📈 Performances — Ventes &amp; Marketing</p>
         <p className="mt-1 text-xs text-fuchsia-800">
           {total} recommandation{total > 1 ? "s" : ""} groupée{total > 1 ? "s" : ""} par équipe.
-          Paiement &amp; Facturation et Service Client ont leurs propres onglets dédiés ci-dessus.
+          Trésorerie et Service Client ont leurs propres onglets dédiés ci-dessus.
         </p>
       </div>
 

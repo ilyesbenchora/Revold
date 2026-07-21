@@ -147,7 +147,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "paiement-facturation",
-    label: "Agent Paiement & Facturation",
+    label: "Agent Trésorerie",
     section: "donnees",
     tagline: "MRR/ARR, churn revenue, recouvrement, cross-source CRM×facturation.",
     expertise:

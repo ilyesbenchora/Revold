@@ -1,5 +1,5 @@
 /**
- * Source Stripe pour la page Audit > Paiement & Facturation.
+ * Source Stripe pour la page Audit > Trésorerie.
  *
  * Lit Stripe live (invoices + subscriptions) et retourne les KPIs au même
  * format que la version HubSpot (PaiementFacturationData), pour que les

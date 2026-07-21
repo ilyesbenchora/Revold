@@ -1,5 +1,5 @@
 /**
- * Shared data layer for the Audit > Paiement & Facturation section.
+ * Shared data layer for the Audit > Trésorerie section.
  *
  * Fetches invoices + subscriptions and returns pre-computed KPIs (MRR, ARR,
  * churn, paid/unpaid totals, etc.).

@@ -57,7 +57,7 @@ const SCOPES = [
   { scope: "automation", justification: "Lire les workflows pour l'audit RevOps (re-enrollment, goals, complexité)." },
   { scope: "forms", justification: "Lire les formulaires pour l'audit du funnel d'acquisition marketing." },
   { scope: "tickets", justification: "Lire les tickets pour l'audit Service Client (volume, priorité, résolution)." },
-  { scope: "e-commerce", justification: "Lire invoices et subscriptions pour le module Paiement & Facturation." },
+  { scope: "e-commerce", justification: "Lire invoices et subscriptions pour le module Trésorerie." },
 ];
 
 export default function HubSpotIntegrationPage() {

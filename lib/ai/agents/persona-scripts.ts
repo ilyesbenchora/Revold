@@ -59,7 +59,7 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   "paiement-facturation": {
     elevenVoiceId: "a2NqrzzRklNWkb04aqW1", // Helene — FR chaleureuse, posée (finance)
     segments: [
-      "Bonjour, je suis Inès, ton experte facturation chez Revold.",
+      "Bonjour, je suis Inès, ton experte trésorerie chez Revold.",
       "Je m'occupe du cash réel : celui qui rentre, et celui qui traîne.",
       "Je réconcilie tes factures, tes paiements et tes impayés",
       "pour te donner une vision fiable de ta trésorerie,",

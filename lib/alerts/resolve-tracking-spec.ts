@@ -14,6 +14,7 @@ const TEAM_PERSONA: Record<string, string> = {
   commercial: "performance",
   marketing: "coaching-marketing",
   revops: "automatisations",
+  ops: "automatisations",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",
@@ -24,7 +25,7 @@ const FORECAST_TYPES = [
   "closing_rate", "pipeline_coverage", "deal_activation", "pipeline_value", "avg_deal_size",
   "deals_at_risk", "revenue_won", "deals_count", "deals_won_count", "stagnant_deals",
   "conversion_rate", "orphan_rate", "phone_enrichment", "dormant_reactivation", "weighted_pipeline",
-  "sales_cycle_days", "deals_no_amount", "data_completeness", "mql_to_sql_rate",
+  "sales_cycle_days", "deals_no_amount", "data_completeness", "duplicate_rate", "mql_to_sql_rate",
   "contacts_by_source", "source_to_lifecycle", "source_to_deal_created", "source_to_deal_won",
 ] as const;
 const FORECAST_SET = new Set<string>(FORECAST_TYPES);

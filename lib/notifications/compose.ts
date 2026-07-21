@@ -19,6 +19,7 @@ const TEAM_PERSONA: Record<string, string> = {
   commercial: "performance",
   marketing: "coaching-marketing",
   revops: "automatisations",
+  ops: "automatisations",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",

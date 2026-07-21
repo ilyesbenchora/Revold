@@ -44,6 +44,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   ads: "Publicité & web",
 };
 
+// CTA du funnel de création / modification — dégradé fuchsia moderne.
+const CTA_FUCHSIA =
+  "bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500";
+
 type Draft = {
   entity: string;
   group_by: string;
@@ -74,8 +78,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
   const [open, setOpen] = useState(false);
-  // 1 = Sources à croiser · 2 = KPI · 3 = Affichage
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // 1 = Sources à croiser + KPI (fusionnés sur la même étape) · 2 = Affichage
+  const [step, setStep] = useState<1 | 2>(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [customKpi, setCustomKpi] = useState("");
   const [description, setDescription] = useState("");
@@ -196,7 +200,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         customKpi: p.label,
       });
     }
-    setStep(3);
+    setStep(2);
   }
 
   function startCustom() {
@@ -210,7 +214,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         ? { ...prev, custom: true, customKpi: kpi }
         : { entity: "", group_by: "", measure: "count", field: null, unit_mode: null, view: "table", title: kpi, custom: true, customKpi: kpi },
     );
-    setStep(3);
+    setStep(2);
   }
 
   async function create() {
@@ -277,7 +281,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         </div>
         <button
           onClick={() => { reset(); setOpen(true); }}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium ${CTA_FUCHSIA}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Créer une table de données
@@ -307,7 +311,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       {/* Builder */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             {editingId && draft ? (
               /* ── ÉDITION : agent uniquement (KPI + affichage) ── */
               <div className="space-y-4">
@@ -384,7 +388,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   <button
                     onClick={create}
                     disabled={saving || !customKpi.trim()}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
                     {!saving && <span aria-hidden>✨</span>}
                     {saving ? `${agentName} peaufine…` : `Mettre à jour via ${agentName}`}
@@ -394,147 +398,137 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
             ) : (
             <>
             <div className="mb-5 flex items-center gap-2 text-xs text-slate-400">
-              <span className={step === 1 ? "font-semibold text-accent" : ""}>1. Sources</span>
+              <span className={step === 1 ? "font-semibold text-fuchsia-600" : ""}>1. Données &amp; KPI</span>
               <span>→</span>
-              <span className={step === 2 ? "font-semibold text-accent" : ""}>2. KPI</span>
-              <span>→</span>
-              <span className={step === 3 ? "font-semibold text-accent" : ""}>3. Affichage</span>
+              <span className={step === 2 ? "font-semibold text-fuchsia-600" : ""}>2. Affichage</span>
             </div>
 
-            {/* ── ÉTAPE 1 : Sources de données à croiser ── */}
+            {/* ── ÉTAPE 1 : Données à croiser (haut) + KPI (bas) ── */}
             {step === 1 && (
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Quelles données croiser ?</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Choisis les outils à croiser — les KPIs proposés s&apos;ajustent automatiquement aux sources connectées.
-                </p>
+              <div className="space-y-5">
+                {/* Données à croiser — thème fuchsia */}
+                <div className="rounded-2xl border border-fuchsia-200/70 bg-gradient-to-br from-fuchsia-50/70 via-white to-white p-4">
+                  <h3 className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
+                    <span className="inline-block h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500" />
+                    Quelles données croiser ?
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Choisis les outils à croiser — les KPIs proposés ci-dessous s&apos;ajustent automatiquement aux sources connectées.
+                  </p>
 
-                {sources.length === 0 ? (
-                  <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
-                    <p className="text-xs text-slate-500">
-                      Aucun outil connecté détecté. Connecte une source dans{" "}
-                      <a href="/dashboard/integration/mes-outils" className="font-medium text-accent hover:underline">Intégrations</a>{" "}
-                      pour croiser des données, ou continue avec tous les KPIs de la page.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-4 max-h-72 space-y-4 overflow-y-auto pr-1">
-                    {Object.entries(sourcesByCategory).map(([cat, tools]) => (
-                      <div key={cat}>
-                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          {CATEGORY_LABELS[cat] ?? cat}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {tools.map((t) => {
-                            const on = selected.includes(t.key);
-                            return (
-                              <button
-                                key={t.key}
-                                onClick={() => toggleSource(t.key)}
-                                className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                                  on ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-700 hover:border-slate-300"
-                                }`}
-                              >
-                                <span className="text-base leading-none">{t.icon}</span>
-                                <span className="min-w-0 flex-1 truncate font-medium">{t.label}</span>
-                                {on && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                )}
-                              </button>
-                            );
-                          })}
+                  {sources.length === 0 ? (
+                    <div className="mt-3 rounded-xl border border-dashed border-fuchsia-300/70 bg-fuchsia-50/40 p-4 text-center">
+                      <p className="text-xs text-slate-500">
+                        Aucun outil connecté détecté. Connecte une source dans{" "}
+                        <a href="/dashboard/integration/mes-outils" className="font-medium text-fuchsia-600 hover:underline">Intégrations</a>{" "}
+                        pour croiser des données, ou choisis un KPI ci-dessous.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-3 max-h-52 space-y-4 overflow-y-auto pr-1">
+                      {Object.entries(sourcesByCategory).map(([cat, tools]) => (
+                        <div key={cat}>
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-500/80">
+                            {CATEGORY_LABELS[cat] ?? cat}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {tools.map((t) => {
+                              const on = selected.includes(t.key);
+                              return (
+                                <button
+                                  key={t.key}
+                                  onClick={() => toggleSource(t.key)}
+                                  className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                                    on ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
+                                  }`}
+                                >
+                                  <span className="text-base leading-none">{t.icon}</span>
+                                  <span className="min-w-0 flex-1 truncate font-medium">{t.label}</span>
+                                  {on && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-600"><polyline points="20 6 9 17 4 12" /></svg>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">
-                    {selected.length > 0
-                      ? `${presets.length} KPI${presets.length > 1 ? "s" : ""} disponible${presets.length > 1 ? "s" : ""}`
-                      : "Aucun filtre : tous les KPIs de la page"}
-                  </span>
-                  <button
-                    onClick={() => { setError(null); setStep(2); }}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
-                  >
-                    Continuer →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── ÉTAPE 2 : KPI ── */}
-            {step === 2 && (
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Quelle donnée visualiser ?</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  {selectedTools.length > 0
-                    ? `KPIs calculables à partir de : ${selectedTools.map((t) => t.label).join(" · ")}.`
-                    : "Choisis un KPI proposé, ou décris le tien."}
-                </p>
-
-                <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
-                  {presets.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => pickPreset(p)}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-accent hover:bg-indigo-50/40"
-                    >
-                      <span className="font-medium">{p.label}</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
-                    </button>
-                  ))}
-                  {presets.length === 0 && (
-                    <p className="text-xs text-slate-400">
-                      Aucun KPI proposé pour ces sources. Reviens en arrière pour ajuster ta sélection, ou décris un KPI personnalisé ci-dessous.
-                    </p>
+                      ))}
+                    </div>
                   )}
+
+                  <p className="mt-3 text-[11px] font-medium text-fuchsia-600/90">
+                    {selected.length > 0
+                      ? `${selectedTools.map((t) => t.label).join(" · ")} — ${presets.length} KPI${presets.length > 1 ? "s" : ""} adapté${presets.length > 1 ? "s" : ""}`
+                      : "Aucun filtre : tous les KPIs de la page sont proposés"}
+                  </p>
                 </div>
 
-                {/* KPI personnalisé — construit sur mesure par l'agent de la page. */}
-                <div className="mt-4 rounded-xl border border-dashed border-accent/40 bg-indigo-50/30 p-3">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                    KPI personnalisé
-                  </label>
-                  <p className="mt-1 text-[11px] text-slate-500">Décris précisément la donnée voulue — {agentName} construira la table sur mesure.</p>
-                  <textarea
-                    value={customKpi}
-                    onChange={(e) => setCustomKpi(e.target.value)}
-                    rows={2}
-                    placeholder="Ex : montant moyen des deals gagnés par mois"
-                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
-                  />
-                  <label className="mt-3 block text-[11px] font-medium text-slate-500">Description (optionnel)</label>
-                  <p className="mt-0.5 text-[11px] text-slate-400">Précise le contexte — {agentName} en tiendra compte pour construire la table.</p>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
-                    placeholder="Ex : ne compter que les deals gagnés, exclure les renouvellements"
-                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent"
-                  />
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      onClick={startCustom}
-                      disabled={!customKpi.trim()}
-                      className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
-                    >
-                      Continuer →
-                    </button>
+                {/* Suggestions de KPI — en dessous des données à croiser */}
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Quelle donnée visualiser ?</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedTools.length > 0
+                      ? `KPIs calculables à partir de : ${selectedTools.map((t) => t.label).join(" · ")}.`
+                      : "Choisis un KPI proposé, ou décris le tien."}
+                  </p>
+
+                  <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+                    {presets.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => pickPreset(p)}
+                        className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-fuchsia-400 hover:bg-fuchsia-50/40"
+                      >
+                        <span className="font-medium">{p.label}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polyline points="9 18 15 12 9 6" /></svg>
+                      </button>
+                    ))}
+                    {presets.length === 0 && (
+                      <p className="text-xs text-slate-400">
+                        Aucun KPI proposé pour ces sources. Ajuste ta sélection ci-dessus, ou décris un KPI personnalisé ci-dessous.
+                      </p>
+                    )}
                   </div>
-                </div>
 
-                <div className="mt-4">
-                  <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-accent">← Changer de sources</button>
+                  {/* KPI personnalisé — construit sur mesure par l'agent de la page. */}
+                  <div className="mt-4 rounded-xl border border-dashed border-fuchsia-300/60 bg-fuchsia-50/30 p-3">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-fuchsia-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      KPI personnalisé
+                    </label>
+                    <p className="mt-1 text-[11px] text-slate-500">Décris précisément la donnée voulue — {agentName} construira la table sur mesure.</p>
+                    <textarea
+                      value={customKpi}
+                      onChange={(e) => setCustomKpi(e.target.value)}
+                      rows={2}
+                      placeholder="Ex : montant moyen des deals gagnés par mois"
+                      className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-fuchsia-400"
+                    />
+                    <label className="mt-3 block text-[11px] font-medium text-slate-500">Description (optionnel)</label>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Précise le contexte — {agentName} en tiendra compte pour construire la table.</p>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={2}
+                      placeholder="Ex : ne compter que les deals gagnés, exclure les renouvellements"
+                      className="mt-2 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-fuchsia-400"
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={startCustom}
+                        disabled={!customKpi.trim()}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
+                      >
+                        Continuer →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* ── ÉTAPE 3 : Affichage ── */}
-            {step === 3 && draft && (
+            {/* ── ÉTAPE 2 : Affichage ── */}
+            {step === 2 && draft && (
               <div className="space-y-4">
                 {draft.custom && (
                   <div className="flex items-start gap-2 rounded-xl border border-accent/30 bg-indigo-50/40 p-3 text-xs text-slate-600">
@@ -629,13 +623,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
                 <div className="flex items-center justify-between pt-2">
-                  <button onClick={() => { setStep(2); setError(null); }} className="text-xs text-slate-400 hover:text-accent">
-                    {draft.custom ? "← Réécrire le KPI" : "← Changer de KPI"}
+                  <button onClick={() => { setStep(1); setError(null); }} className="text-xs text-slate-400 hover:text-fuchsia-600">
+                    {draft.custom ? "← Réécrire le KPI" : "← Changer de KPI / sources"}
                   </button>
                   <button
                     onClick={create}
                     disabled={saving || (!draft.custom && !draft.title.trim())}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
                     {draft.custom && !saving && <span aria-hidden>✨</span>}
                     {saving
