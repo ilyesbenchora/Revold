@@ -53,9 +53,9 @@ export default async function OutilSyncPage({
 
   const hasConnector = Boolean(getConnector(toolKey));
 
-  // Compteurs de données synchronisées (source_links par type d'entité)
-  // + 5 dernières synchronisations.
-  const [entityCounts, { data: lastSyncs }] = await Promise.all([
+  // Compteurs de données synchronisées (source_links par type d'entité,
+  // + transactions/comptes bancaires) + 5 dernières synchronisations.
+  const [entityCounts, bankTx, bankAcc, { data: lastSyncs }] = await Promise.all([
     Promise.all(
       ENTITY_LABELS.map(async (e) => {
         const { count } = await supabase
@@ -68,6 +68,16 @@ export default async function OutilSyncPage({
       }),
     ),
     supabase
+      .from("bank_transactions")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("primary_source", toolKey),
+    supabase
+      .from("bank_accounts")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("primary_source", toolKey),
+    supabase
       .from("sync_logs")
       .select("entity_type, entity_count, status, error_message, started_at, completed_at")
       .eq("organization_id", orgId)
@@ -76,7 +86,13 @@ export default async function OutilSyncPage({
       .limit(5),
   ]);
 
-  const nonEmpty = entityCounts.filter((e) => e.count > 0);
+  const allCounts = [
+    ...entityCounts,
+    // Tables absentes (migration non appliquée) → count null, on ignore.
+    { type: "bank_transaction", label: "Transactions bancaires", icon: "🏦", count: bankTx.count ?? 0 },
+    { type: "bank_account", label: "Comptes bancaires", icon: "💳", count: bankAcc.count ?? 0 },
+  ];
+  const nonEmpty = allCounts.filter((e) => e.count > 0);
   const lastSync = (lastSyncs ?? [])[0] ?? null;
 
   return (

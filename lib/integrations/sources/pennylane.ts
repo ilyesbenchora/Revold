@@ -83,3 +83,50 @@ export const listPennylaneInvoices = (token: string, max = 2000) =>
 /** Factures FOURNISSEURS (décaissements) — même shape que les factures clients. */
 export const listPennylaneSupplierInvoices = (token: string, max = 2000) =>
   listAll<PennylaneInvoice>(token, "/supplier_invoices", max).catch(() => [] as PennylaneInvoice[]);
+
+// ── API v2 (transactions bancaires + comptes) ──────────────────────────────
+// Pagination par curseur : { items, has_more, next_cursor }.
+
+const PL_API_V2 = "https://app.pennylane.com/api/external/v2";
+
+export type PennylaneTransaction = {
+  id: number;
+  label: string | null;
+  amount: string;          // signé : >0 encaissement, <0 décaissement
+  fee: string | null;
+  currency: string;
+  date: string | null;
+  bank_account?: { id: number } | null;
+};
+
+export type PennylaneBankAccount = {
+  id: number;
+  name: string | null;
+  currency: string;
+  balance: string;         // solde réel du compte
+};
+
+async function listAllV2<T>(token: string, endpoint: string, max = 5000): Promise<T[]> {
+  const all: T[] = [];
+  let cursor: string | null = null;
+  while (all.length < max) {
+    const sep = endpoint.includes("?") ? "&" : "?";
+    const url = `${PL_API_V2}${endpoint}${sep}limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    if (!res.ok) throw new Error(`Pennylane v2 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const j = (await res.json()) as { items?: T[]; has_more?: boolean; next_cursor?: string | null };
+    const items = j.items ?? [];
+    all.push(...items);
+    if (!j.has_more || !j.next_cursor || items.length === 0) break;
+    cursor = j.next_cursor;
+  }
+  return all;
+}
+
+/** Transactions bancaires (v2). Résout [] si l'endpoint est indisponible. */
+export const listPennylaneTransactions = (token: string, max = 5000) =>
+  listAllV2<PennylaneTransaction>(token, "/transactions", max).catch(() => [] as PennylaneTransaction[]);
+
+/** Comptes bancaires + soldes réels (v2). Résout [] si indisponible. */
+export const listPennylaneBankAccounts = (token: string) =>
+  listAllV2<PennylaneBankAccount>(token, "/bank_accounts", 100).catch(() => [] as PennylaneBankAccount[]);

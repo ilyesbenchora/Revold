@@ -2,7 +2,13 @@
  * Pennylane connector — pulls customers and invoices.
  */
 
-import { listPennylaneCustomers, listPennylaneInvoices, listPennylaneSupplierInvoices } from "@/lib/integrations/sources/pennylane";
+import {
+  listPennylaneCustomers,
+  listPennylaneInvoices,
+  listPennylaneSupplierInvoices,
+  listPennylaneTransactions,
+  listPennylaneBankAccounts,
+} from "@/lib/integrations/sources/pennylane";
 import { resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
 import { fail, ok, type SourceConnector } from "../types";
 
@@ -21,12 +27,14 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   const token = ctx.primaryToken;
   if (!token) return fail("API token Pennylane manquant.");
 
-  let customers, invoices, supplierInvoices;
+  let customers, invoices, supplierInvoices, transactions, bankAccounts;
   try {
-    [customers, invoices, supplierInvoices] = await Promise.all([
+    [customers, invoices, supplierInvoices, transactions, bankAccounts] = await Promise.all([
       listPennylaneCustomers(token),
       listPennylaneInvoices(token),
-      listPennylaneSupplierInvoices(token), // décaissements (résout [] si indisponible)
+      listPennylaneSupplierInvoices(token), // décaissements facturés (résout [] si indisponible)
+      listPennylaneTransactions(token),     // flux bancaires v2 (résout [] si indisponible)
+      listPennylaneBankAccounts(token),     // soldes réels v2 (résout [] si indisponible)
     ]);
   } catch (err) {
     return fail(`Erreur Pennylane : ${(err as Error).message}`);
@@ -156,9 +164,52 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
     }
   }
 
+  // ── Transactions bancaires + comptes (v2) → tables bank_transactions /
+  // bank_accounts. Upserts PAR LOTS (pas de N+1). Silencieux si la migration
+  // 20260721000006_bank_transactions n'est pas encore appliquée.
+  let transactionsImported = 0;
+  if (transactions.length > 0) {
+    const rows = transactions.map((t) => ({
+      organization_id: ctx.orgId,
+      primary_source: PROVIDER,
+      external_id: String(t.id),
+      label: t.label ?? null,
+      amount: parseFloat(t.amount) || 0,
+      fee: t.fee != null ? parseFloat(t.fee) || 0 : 0,
+      currency: (t.currency || "EUR").toUpperCase(),
+      date: t.date,
+      bank_account_external_id: t.bank_account?.id != null ? String(t.bank_account.id) : null,
+      updated_at: new Date().toISOString(),
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await ctx.supabase
+        .from("bank_transactions")
+        .upsert(rows.slice(i, i + 500), { onConflict: "organization_id,primary_source,external_id" });
+      if (error) break; // table absente (migration non appliquée) → on n'insiste pas
+      transactionsImported += Math.min(500, rows.length - i);
+    }
+  }
+  if (bankAccounts.length > 0) {
+    await ctx.supabase
+      .from("bank_accounts")
+      .upsert(
+        bankAccounts.map((a) => ({
+          organization_id: ctx.orgId,
+          primary_source: PROVIDER,
+          external_id: String(a.id),
+          name: a.name ?? null,
+          currency: (a.currency || "EUR").toUpperCase(),
+          balance: parseFloat(a.balance) || 0,
+          synced_at: new Date().toISOString(),
+        })),
+        { onConflict: "organization_id,primary_source,external_id" },
+      );
+  }
+
   return ok("Synchronisation Pennylane terminée.", {
     contacts: contactsImported,
     invoices: invoicesImported,
     supplier_invoices: supplierInvoicesImported,
+    payments: transactionsImported,
   });
 };

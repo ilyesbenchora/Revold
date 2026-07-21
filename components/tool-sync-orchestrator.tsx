@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 type StatCount = {
   contacts?: number;
   invoices?: number;
+  supplier_invoices?: number;
   subscriptions?: number;
   payments?: number;
   tickets?: number;
@@ -27,7 +28,8 @@ const STAT_LABELS: Record<keyof StatCount, string> = {
   contacts: "Contacts",
   companies: "Entreprises",
   invoices: "Factures",
-  payments: "Paiements",
+  supplier_invoices: "Factures fournisseurs",
+  payments: "Transactions bancaires",
   subscriptions: "Abonnements",
   tickets: "Tickets",
   deals: "Deals",

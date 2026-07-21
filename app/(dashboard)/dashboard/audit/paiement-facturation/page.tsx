@@ -190,15 +190,17 @@ export default async function PaiementFacturationOverviewPage({
               nameLabel="Indicateur"
               extraColumns={["Détail"]}
               rows={[
-                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency", cells: ["Factures clients payées (TTC)"] },
-                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency", cells: [cf.hasOutflows ? "Factures fournisseurs payées (TTC)" : "Sync fournisseurs requise"] },
+                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency", cells: ["Flux entrants synchronisés (TTC)"] },
+                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency", cells: [cf.hasOutflows ? "Flux sortants synchronisés (TTC)" : "Aucun flux sortant synchronisé"] },
                 { name: "Balance", value: cf.hasData ? Math.round(cf.balance) : null, unit: "currency", cells: ["Encaissements − décaissements"] },
                 { name: "Charges fixes mensuelles", value: cf.chargesFixesMensuelles != null ? Math.round(cf.chargesFixesMensuelles) : null, unit: "currency", cells: ["Médiane des décaissements (6 mois)"] },
-                { name: "Trésorerie disponible (estimée)", value: cf.tresorerieDisponibleEstimee != null ? Math.round(cf.tresorerieDisponibleEstimee) : null, unit: "currency", cells: ["Cumul TTC des flux synchronisés"] },
+                { name: cf.balanceSource === "bank" ? "Trésorerie disponible" : "Trésorerie disponible (estimée)", value: cf.tresorerieDisponible != null ? Math.round(cf.tresorerieDisponible) : null, unit: "currency", cells: [cf.balanceSource === "bank" ? "Solde réel des comptes bancaires (TTC)" : "Cumul TTC des flux synchronisés"] },
                 { name: "Trésorerie consolidée", value: cf.tresorerieConsolidee != null ? Math.round(cf.tresorerieConsolidee) : null, unit: "currency", cells: ["Disponible + placements"] },
                 { name: "Runway", value: cf.runwayMois, unit: "count", cells: ["Mois sans nouveau revenu (dispo / charges fixes)"] },
               ]}
-              footnote="Trésorerie estimée depuis les flux synchronisés — pas un solde bancaire en temps réel."
+              footnote={cf.balanceSource === "bank"
+                ? "Trésorerie disponible = solde réel des comptes bancaires au moment de la dernière synchronisation."
+                : "Trésorerie estimée depuis les flux synchronisés — pas un solde bancaire en temps réel."}
             />
           </CollapsibleBlock>
         );
