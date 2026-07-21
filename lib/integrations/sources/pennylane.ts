@@ -142,3 +142,30 @@ export const listPennylaneTransactions = (token: string, max = 5000) =>
 /** Comptes bancaires + soldes réels (v2). Résout [] si indisponible. */
 export const listPennylaneBankAccounts = (token: string) =>
   listAllV2<PennylaneBankAccount>(token, "/bank_accounts", 100).catch(() => [] as PennylaneBankAccount[]);
+
+export type PennylaneLedgerLine = {
+  id: number;
+  label: string | null;
+  debit: string;           // montants en string
+  credit: string;
+  date: string | null;
+  ledger_account?: { id: number; number?: string | null } | null;
+};
+
+export type PennylaneLedgerAccount = {
+  id: number;
+  number: string | null;   // numéro PCG (ex : 706000)
+  label: string | null;
+};
+
+/**
+ * Lignes d'écritures comptables (v2) — débit/crédit par compte. Sert à
+ * RECONSTRUIRE la balance et le P&L (trial_balance est 403 pour les clés
+ * entreprise). Résout [] si indisponible.
+ */
+export const listPennylaneLedgerLines = (token: string, max = 10000) =>
+  listAllV2<PennylaneLedgerLine>(token, "/ledger_entry_lines", max).catch(() => [] as PennylaneLedgerLine[]);
+
+/** Plan de comptes (v2) — pour libeller la balance. Résout [] si indisponible. */
+export const listPennylaneLedgerAccounts = (token: string, max = 2000) =>
+  listAllV2<PennylaneLedgerAccount>(token, "/ledger_accounts", max).catch(() => [] as PennylaneLedgerAccount[]);

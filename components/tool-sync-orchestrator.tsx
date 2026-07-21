@@ -19,6 +19,7 @@ type StatCount = {
   supplier_invoices?: number;
   subscriptions?: number;
   payments?: number;
+  ledger_lines?: number;
   tickets?: number;
   companies?: number;
   deals?: number;
@@ -30,6 +31,7 @@ const STAT_LABELS: Record<keyof StatCount, string> = {
   invoices: "Factures",
   supplier_invoices: "Factures fournisseurs",
   payments: "Transactions bancaires",
+  ledger_lines: "Écritures comptables",
   subscriptions: "Abonnements",
   tickets: "Tickets",
   deals: "Deals",

@@ -8,6 +8,8 @@ import {
   listPennylaneSupplierInvoices,
   listPennylaneTransactions,
   listPennylaneBankAccounts,
+  listPennylaneLedgerLines,
+  listPennylaneLedgerAccounts,
 } from "@/lib/integrations/sources/pennylane";
 import { resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
 import { fail, ok, type SourceConnector } from "../types";
@@ -49,14 +51,16 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   const token = ctx.primaryToken;
   if (!token) return fail("API token Pennylane manquant.");
 
-  let customers, invoices, supplierInvoices, transactions, bankAccounts;
+  let customers, invoices, supplierInvoices, transactions, bankAccounts, ledgerLines, ledgerAccounts;
   try {
-    [customers, invoices, supplierInvoices, transactions, bankAccounts] = await Promise.all([
+    [customers, invoices, supplierInvoices, transactions, bankAccounts, ledgerLines, ledgerAccounts] = await Promise.all([
       listPennylaneCustomers(token),
       listPennylaneInvoices(token),
       listPennylaneSupplierInvoices(token), // décaissements facturés (résout [] si indisponible)
       listPennylaneTransactions(token),     // flux bancaires v2 (résout [] si indisponible)
       listPennylaneBankAccounts(token),     // soldes réels v2 (résout [] si indisponible)
+      listPennylaneLedgerLines(token),      // écritures comptables v2 → balance/P&L reconstruits
+      listPennylaneLedgerAccounts(token),   // plan de comptes v2 (libellés)
     ]);
   } catch (err) {
     return fail(`Erreur Pennylane : ${(err as Error).message}`);
@@ -235,10 +239,59 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       );
   }
 
+  // ── Écritures comptables → balance reconstruite (ledger_balances) ──
+  // Agrégées compte × mois côté connecteur : la table reste minuscule quel
+  // que soit le volume d'écritures. Silencieux si migration non appliquée.
+  let ledgerLinesAggregated = 0;
+  if (ledgerLines.length > 0) {
+    const accountLabel = new Map<number, { number: string | null; label: string | null }>();
+    for (const a of ledgerAccounts) accountLabel.set(a.id, { number: a.number ?? null, label: a.label ?? null });
+
+    const agg = new Map<string, { account_number: string; account_label: string | null; month: string; debit: number; credit: number }>();
+    for (const line of ledgerLines) {
+      const accId = line.ledger_account?.id;
+      const number = line.ledger_account?.number ?? (accId != null ? accountLabel.get(accId)?.number : null);
+      if (!number || !line.date) continue;
+      const d = new Date(line.date);
+      if (Number.isNaN(d.getTime())) continue;
+      const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+      const key = `${number}|${month}`;
+      const cur = agg.get(key) ?? {
+        account_number: number,
+        account_label: accId != null ? accountLabel.get(accId)?.label ?? null : null,
+        month,
+        debit: 0,
+        credit: 0,
+      };
+      cur.debit += parseFloat(line.debit) || 0;
+      cur.credit += parseFloat(line.credit) || 0;
+      agg.set(key, cur);
+      ledgerLinesAggregated++;
+    }
+
+    const rows = [...agg.values()].map((r) => ({
+      organization_id: ctx.orgId,
+      primary_source: PROVIDER,
+      account_number: r.account_number,
+      account_label: r.account_label,
+      month: r.month,
+      debit: Math.round(r.debit * 100) / 100,
+      credit: Math.round(r.credit * 100) / 100,
+      updated_at: new Date().toISOString(),
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await ctx.supabase
+        .from("ledger_balances")
+        .upsert(rows.slice(i, i + 500), { onConflict: "organization_id,primary_source,account_number,month" });
+      if (error) { ledgerLinesAggregated = 0; break; } // migration absente → on n'insiste pas
+    }
+  }
+
   return ok("Synchronisation Pennylane terminée.", {
     contacts: contactsImported,
     invoices: invoicesImported,
     supplier_invoices: supplierInvoicesImported,
     payments: transactionsImported,
+    ledger_lines: ledgerLinesAggregated,
   });
 };

@@ -48,14 +48,15 @@ export type SourceCapability =
   | "deals"          // CRM : deals gagnés, pipeline pondéré
   | "subscriptions"  // revenu récurrent (MRR/ARR/churn)
   | "invoices"       // facturation : émission, encaissement, impayés
-  | "cashflow";      // encaissements/décaissements → trésorerie, runway
+  | "cashflow"       // encaissements/décaissements → trésorerie, runway
+  | "ledger";        // écritures comptables → P&L réel, balance reconstruite
 
 export const TOOL_CAPABILITIES: Record<string, SourceCapability[]> = {
   hubspot: ["deals", "subscriptions", "invoices"],
   salesforce: ["deals"],
   pipedrive: ["deals"],
   stripe: ["subscriptions", "invoices"],
-  pennylane: ["invoices", "cashflow"],
+  pennylane: ["invoices", "cashflow", "ledger"],
   sellsy: ["invoices"],
   axonaut: ["invoices", "cashflow"],
   quickbooks: ["invoices", "cashflow"],

@@ -24,6 +24,8 @@ export type SyncStatCount = {
   invoices?: number;
   /** Factures fournisseurs (décaissements) — Pennylane & co. */
   supplier_invoices?: number;
+  /** Lignes d'écritures comptables agrégées (balance/P&L) — Pennylane & co. */
+  ledger_lines?: number;
   payments?: number;
   subscriptions?: number;
   tickets?: number;

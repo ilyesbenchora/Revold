@@ -16,6 +16,7 @@ import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs"
 import { fetchPaiementFacturationFor, fmt, fmtK, type PaiementFacturationData } from "@/lib/audit/paiement-facturation-data";
 import { computeCashflow } from "@/lib/audit/cashflow";
 import { computeCrossMargin } from "@/lib/audit/cross-margin";
+import { computePnl } from "@/lib/audit/pnl";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
@@ -60,10 +61,12 @@ export default async function PaiementFacturationOverviewPage({
     return c.includes("invoices") || c.includes("subscriptions");
   });
   const cashflowKeys = selectedKeys.filter((k) => capabilitiesOf(k).includes("cashflow"));
+  const ledgerKeys = selectedKeys.filter((k) => capabilitiesOf(k).includes("ledger"));
 
-  const [billingResults, cashflowResults] = await Promise.all([
+  const [billingResults, cashflowResults, pnlResults] = await Promise.all([
     Promise.all(billingKeys.map(async (k) => ({ key: k, data: await fetchPaiementFacturationFor(supabase, orgId, token, k) }))),
     Promise.all(cashflowKeys.map(async (k) => ({ key: k, cf: await computeCashflow(supabase, orgId, k) }))),
+    Promise.all(ledgerKeys.map(async (k) => ({ key: k, pnl: await computePnl(supabase, orgId, k) }))),
   ]);
 
   // ── Croisement CRM × Facturation : marge — si la sélection couvre deals + invoices ──
@@ -78,7 +81,10 @@ export default async function PaiementFacturationOverviewPage({
       })
     : null;
 
-  const anyData = billingResults.some((b) => b.data.hasData) || cashflowResults.some((c) => c.cf.hasData);
+  const anyData =
+    billingResults.some((b) => b.data.hasData) ||
+    cashflowResults.some((c) => c.cf.hasData) ||
+    pnlResults.some((p) => p.pnl.hasData);
   const scoreData: PaiementFacturationData | undefined = billingResults[0]?.data;
 
   return (
@@ -224,6 +230,78 @@ export default async function PaiementFacturationOverviewPage({
                       ? `${cf.pctChargesNonCategorisees} % des décaissements ne sont pas encore catégorisés dans ${label} — catégorise-les pour affiner l'analyse.`
                       : `Ventilation des décaissements selon la catégorisation ${label}.`
                   }
+                />
+              </div>
+            )}
+          </CollapsibleBlock>
+        );
+      })}
+
+      {/* ── P&L & balance comptable reconstruits (capacité ledger — écritures) ── */}
+      {pnlResults.filter(({ pnl }) => pnl.hasData).map(({ key, pnl }) => {
+        const label = labelOf(key);
+        return (
+          <CollapsibleBlock
+            key={`pnl-${key}`}
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                P&amp;L comptable
+                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600">{label}</span>
+              </h2>
+            }
+          >
+            <BlockDataTable
+              title={`P&L comptable (${label})`}
+              subtitle={`écritures · ${label}`}
+              team="finance"
+              unit="currency"
+              nameLabel="Indicateur"
+              extraColumns={["Détail"]}
+              rows={[
+                { name: "Produits (classe 7)", value: pnl.produits > 0 ? pnl.produits : null, unit: "currency", cells: ["CA + autres produits comptabilisés"] },
+                { name: "Charges (classe 6)", value: pnl.charges > 0 ? pnl.charges : null, unit: "currency", cells: ["Charges comptabilisées"] },
+                { name: "Résultat", value: pnl.hasData ? pnl.resultat : null, unit: "currency", cells: ["Produits − charges"] },
+                { name: "Taux de marge comptable", value: pnl.tauxMarge, unit: "percent", cells: ["Résultat / produits"] },
+              ]}
+              footnote="Reconstruit depuis les écritures comptables synchronisées — la marge la plus fiable disponible."
+            />
+
+            {pnl.topCharges.length > 0 && (
+              <div className="mt-4">
+                <BlockDataTable
+                  title={`Top comptes de charges (${label})`}
+                  subtitle={`écritures · ${label}`}
+                  team="finance"
+                  unit="currency"
+                  nameLabel="Compte"
+                  extraColumns={["N°"]}
+                  rows={pnl.topCharges.map((c) => ({
+                    name: c.label ?? `Compte ${c.account}`,
+                    value: c.total,
+                    unit: "currency" as const,
+                    cells: [c.account],
+                  }))}
+                  footnote="Principaux postes de charges par compte comptable (PCG)."
+                />
+              </div>
+            )}
+
+            {pnl.balanceParClasse.length > 0 && (
+              <div className="mt-4">
+                <BlockDataTable
+                  title={`Balance par classe (${label})`}
+                  subtitle={`écritures · ${label}`}
+                  team="finance"
+                  unit="currency"
+                  nameLabel="Classe"
+                  extraColumns={["Débit", "Crédit"]}
+                  rows={pnl.balanceParClasse.map((b) => ({
+                    name: `${b.classe} — ${b.label}`,
+                    value: b.solde,
+                    unit: "currency" as const,
+                    cells: [fmtK(b.debit), fmtK(b.credit)],
+                  }))}
+                  footnote="Balance générale synthétique reconstruite (solde = débit − crédit par classe de comptes)."
                 />
               </div>
             )}
