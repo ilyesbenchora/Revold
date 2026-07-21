@@ -19,8 +19,8 @@ import { computeCashflow } from "@/lib/audit/cashflow";
 import { computeCrossMargin } from "@/lib/audit/cross-margin";
 import { TresoLineChart, TresoFlowsChart } from "@/components/charts/treso-charts";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 
 export default async function PaiementFacturationOverviewPage({
@@ -96,14 +96,12 @@ export default async function PaiementFacturationOverviewPage({
 
   return (
     <section className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Trésorerie</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Audit cross-source : factures, paiements, MRR/ARR, trésorerie et marge.
-          </p>
-        </div>
-        <CreateDataTableButton />
+      {/* Pas de CTA table ici : la section « Tables de données » en bas a le sien. */}
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Trésorerie</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Audit cross-source : factures, paiements, MRR/ARR, trésorerie et marge.
+        </p>
       </header>
 
       <PaiementFacturationTabs />
@@ -295,38 +293,135 @@ export default async function PaiementFacturationOverviewPage({
         );
       })}
 
-      {/* ── Croisements CRM × Facturation : marge (sélection deals + invoices) ── */}
-      {margin && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              Croisement CRM × Facturation
-              <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-600">
-                {selectedKeys.map(labelOf).join(" × ")}
-              </span>
-            </h2>
-          }
-        >
-          <BlockDataTable
-            title={`Marge (${selectedKeys.map(labelOf).join(" × ")})`}
-            subtitle="deals × invoices"
-            team="finance"
-            unit="currency"
-            nameLabel="Indicateur"
-            extraColumns={["Détail"]}
-            rows={[
-              { name: "CA signé (deals gagnés)", value: margin.caSigne > 0 ? Math.round(margin.caSigne) : null, unit: "currency", cells: [`${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`] },
-              { name: "CA encaissé", value: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null, unit: "currency", cells: ["Factures payées (facturation)"] },
-              { name: "Écart signé vs encaissé", value: margin.caSigne > 0 || margin.caEncaisse > 0 ? Math.round(margin.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
-              { name: "Marge brute", value: margin.margeBrute != null ? Math.round(margin.margeBrute) : null, unit: "currency", tone: "auto", cells: [margin.margeBrute != null ? "CA encaissé − décaissements" : "Décaissements requis (sync fournisseurs)"] },
-              { name: "Taux de marge", value: margin.tauxMarge, unit: "percent", tone: "auto", cells: ["Marge / CA encaissé"] },
-              { name: "Pipeline pondéré", value: margin.pipelinePondere > 0 ? margin.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
-              { name: "Prévision de marge", value: margin.previsionMarge, unit: "currency", cells: ["Pipeline pondéré × taux de marge"] },
-            ]}
-            footnote="Croisement des deals CRM avec la facturation réelle — la prévision applique le taux de marge courant au pipeline pondéré."
-          />
-        </CollapsibleBlock>
-      )}
+      {/* ── Vues croisées (deals + invoices) : tuiles cockpit puis blocs segmentés
+             par objectif d'analyse — CA, marge, prévisions. Pas de titre
+             « Croisement » : la sélection multi-sources le dit déjà. ── */}
+      {margin && (() => {
+        const srcLabel = selectedKeys.map(labelOf).join(" × ");
+        const srcPill = (
+          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-600">
+            {srcLabel}
+          </span>
+        );
+        const eur = (n: number) =>
+          new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+        const tiles: StatTile[] = [
+          {
+            label: "CA signé",
+            value: margin.caSigne > 0 ? eur(margin.caSigne) : "—",
+            tone: "neutral",
+            sub: `${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`,
+          },
+          {
+            label: "CA encaissé",
+            value: margin.caEncaisse > 0 ? eur(margin.caEncaisse) : "—",
+            tone: "accent",
+            sub: "Factures payées (facturation)",
+            verdict: margin.caSigne > 0
+              ? margin.ecartSigneEncaisse > 0
+                ? { label: `${eur(margin.ecartSigneEncaisse)} signés non encaissés`, tone: "warn" }
+                : { label: "Tout le signé est encaissé", tone: "pos" }
+              : undefined,
+          },
+          {
+            label: "Taux de marge",
+            value: margin.tauxMarge != null ? `${margin.tauxMarge} %` : "—",
+            tone: margin.tauxMarge == null ? "neutral" : margin.tauxMarge >= 40 ? "pos" : margin.tauxMarge >= 25 ? "accent" : "neg",
+            sub: "Marge brute / CA encaissé",
+            verdict: margin.tauxMarge == null ? undefined
+              : margin.tauxMarge >= 40 ? { label: "Excellent (> 40 %)", tone: "pos" }
+              : margin.tauxMarge >= 25 ? { label: "Correct", tone: "warn" }
+              : { label: "Faible (< 25 %)", tone: "neg" },
+          },
+          {
+            label: "Prévision de marge",
+            value: margin.previsionMarge != null ? eur(margin.previsionMarge) : "—",
+            tone: "neutral",
+            sub: "Pipeline pondéré × taux de marge",
+          },
+        ];
+
+        return (
+          <div className="space-y-6">
+            <KpiStatTiles tiles={tiles} />
+
+            {/* ── Chiffre d'affaires : réconciliation signé (CRM) vs encaissé (facturation) ── */}
+            <CollapsibleBlock
+              title={
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  Chiffre d&apos;affaires
+                  {srcPill}
+                </h2>
+              }
+            >
+              <BlockDataTable
+                title={`Chiffre d'affaires (${srcLabel})`}
+                subtitle="deals × invoices"
+                team="finance"
+                unit="currency"
+                nameLabel="Indicateur"
+                extraColumns={["Détail"]}
+                rows={[
+                  { name: "CA signé (deals gagnés)", value: margin.caSigne > 0 ? Math.round(margin.caSigne) : null, unit: "currency", cells: [`${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`] },
+                  { name: "CA encaissé", value: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null, unit: "currency", cells: ["Factures payées (facturation)"] },
+                  { name: "Écart signé vs encaissé", value: margin.caSigne > 0 || margin.caEncaisse > 0 ? Math.round(margin.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
+                ]}
+                footnote="Réconciliation du CA : ce que le CRM a signé vs ce que la facturation a réellement encaissé."
+              />
+            </CollapsibleBlock>
+
+            {/* ── Marge : rentabilité réelle sur l'encaissé ── */}
+            <CollapsibleBlock
+              title={
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  Marge
+                  {srcPill}
+                </h2>
+              }
+            >
+              <BlockDataTable
+                title={`Marge (${srcLabel})`}
+                subtitle="invoices × cashflow"
+                team="finance"
+                unit="currency"
+                nameLabel="Indicateur"
+                extraColumns={["Détail"]}
+                rows={[
+                  { name: "Décaissements", value: margin.decaissements != null ? Math.round(margin.decaissements) : null, unit: "currency", tone: "neg", cells: [margin.decaissements != null ? "Flux sortants synchronisés" : "Sync fournisseurs requise"] },
+                  { name: "Marge brute", value: margin.margeBrute != null ? Math.round(margin.margeBrute) : null, unit: "currency", tone: "auto", cells: [margin.margeBrute != null ? "CA encaissé − décaissements" : "Décaissements requis (sync fournisseurs)"] },
+                  { name: "Taux de marge", value: margin.tauxMarge, unit: "percent", tone: "auto", cells: ["Marge / CA encaissé"] },
+                ]}
+                footnote="Marge brute = CA encaissé (facturation) − décaissements (trésorerie). Les deux flux viennent d'outils différents : c'est le croisement qui rend la marge calculable."
+              />
+            </CollapsibleBlock>
+
+            {/* ── Prévisions : projection du pipeline au taux de marge courant ── */}
+            <CollapsibleBlock
+              title={
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  Prévisions
+                  {srcPill}
+                </h2>
+              }
+            >
+              <BlockDataTable
+                title={`Prévisions (${srcLabel})`}
+                subtitle="pipeline × taux de marge"
+                team="finance"
+                unit="currency"
+                nameLabel="Indicateur"
+                extraColumns={["Détail"]}
+                rows={[
+                  { name: "Pipeline pondéré", value: margin.pipelinePondere > 0 ? margin.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
+                  { name: "Prévision de marge", value: margin.previsionMarge, unit: "currency", cells: ["Pipeline pondéré × taux de marge"] },
+                ]}
+                footnote="Projection : la prévision applique le taux de marge courant au pipeline pondéré du CRM."
+              />
+            </CollapsibleBlock>
+          </div>
+        );
+      })()}
 
       {selectedKeys.length > 0 && !anyData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
