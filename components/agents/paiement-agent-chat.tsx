@@ -101,6 +101,7 @@ export function PaiementAgentChat({
   onConversationsChange,
   openConversationSignal,
   persona,
+  initialTab,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -124,6 +125,8 @@ export function PaiementAgentChat({
   openConversationSignal?: { id: string; nonce: number } | null;
   /** Personnage de l'agent (avatar dans les bulles de réponse). */
   persona?: { name: string; emoji: string; image?: string | null } | null;
+  /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
+  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions";
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -136,7 +139,7 @@ export function PaiementAgentChat({
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">("chat");
+  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">(initialTab ?? "chat");
   const pathname = usePathname();
   // Alertes activées durant la session (suggestion OU depuis un rapport).
   const [activatedAlerts, setActivatedAlerts] = useState<ActivatedAlert[]>([]);

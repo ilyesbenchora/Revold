@@ -8,6 +8,9 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/audit/paiement-facturation/facturation", label: "Facturation" },
   { href: "/dashboard/audit/paiement-facturation/paiement", label: "Paiement" },
   { href: "/dashboard/audit/paiement-facturation/comptabilite", label: "Comptabilité" },
+  { href: "/dashboard/audit/paiement-facturation/previsionnel", label: "Prévisionnel" },
+  { href: "/dashboard/audit/paiement-facturation/clients-fournisseurs", label: "Clients & Fournisseurs" },
+  { href: "/dashboard/audit/paiement-facturation/fiscal", label: "Fiscal & social" },
 ];
 
 export function PaiementFacturationTabs() {

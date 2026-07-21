@@ -93,9 +93,14 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   for (const inv of invoices) {
     const contactId = inv.customer?.id ? customerIdToContact.get(inv.customer.id) ?? null : null;
     const total = parseFloat(inv.amount) || 0;
-    const remaining = parseFloat(inv.remaining_amount) || 0;
+    // Pièges connus (template Lomed) : un avoir a un reste dû NÉGATIF → valeur
+    // absolue ; une facture ARCHIVÉE garde un reste dû fantôme → neutralisée
+    // (statut void, reste dû 0) plutôt qu'ignorée, pour corriger une ligne
+    // déjà importée avant son archivage.
+    const archived = Boolean(inv.archived_at);
+    const remaining = archived ? 0 : Math.abs(parseFloat(inv.remaining_amount) || 0);
     const paid = total - remaining;
-    const status = STATUS_MAP[inv.status] || "open";
+    const status = archived ? "void" : STATUS_MAP[inv.status] || "open";
 
     const payload = {
       organization_id: ctx.orgId,
@@ -135,8 +140,10 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   let supplierInvoicesImported = 0;
   for (const inv of supplierInvoices) {
     const total = parseFloat(inv.amount) || 0;
-    const remaining = parseFloat(inv.remaining_amount) || 0;
-    const status = STATUS_MAP[inv.status] || "open";
+    // Mêmes pièges que côté clients : avoirs négatifs (abs) + archivées neutralisées.
+    const archived = Boolean(inv.archived_at);
+    const remaining = archived ? 0 : Math.abs(parseFloat(inv.remaining_amount) || 0);
+    const status = archived ? "void" : STATUS_MAP[inv.status] || "open";
 
     const payload: Record<string, unknown> = {
       organization_id: ctx.orgId,

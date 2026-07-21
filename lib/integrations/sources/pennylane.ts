@@ -30,6 +30,8 @@ export type PennylaneInvoice = {
   date: string | null;
   deadline: string | null;
   paid_at: string | null;
+  /** Facture archivée : son reste dû est un fantôme, à neutraliser (piège connu). */
+  archived_at?: string | null;
   customer?: { id: number };
 };
 
