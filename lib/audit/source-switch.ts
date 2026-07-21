@@ -83,3 +83,36 @@ export function validateSourcesParam(
   const connected = new Set(tools.map((t) => t.key));
   return [...new Set(keys.filter((k) => connected.has(k)))];
 }
+
+// ── Vues croisées ───────────────────────────────────────────────────────────
+// La règle d'affichage multi-sources est DÉCLARATIVE : une vue croisée existe
+// si la sélection couvre ses capacités requises via AU MOINS deux outils
+// différents (croiser un outil avec lui-même n'est pas un croisement).
+// Ajouter un croisement = 1 entrée ici, aucune règle en dur dans les pages.
+
+export type CrossView = {
+  key: string;
+  label: string;
+  /** Capacités que la sélection doit couvrir pour que la vue ait du sens. */
+  requires: SourceCapability[];
+};
+
+export const CROSS_VIEWS: CrossView[] = [
+  { key: "crm-billing", label: "Croisement CRM × Facturation", requires: ["deals", "invoices"] },
+];
+
+/**
+ * Vues croisées disponibles pour une sélection multi-outils. Une vue n'est
+ * proposée que si chaque capacité requise est fournie par la sélection ET que
+ * les capacités ne proviennent pas toutes du même outil.
+ */
+export function availableCrossViews(keys: string[]): CrossView[] {
+  if (keys.length < 2) return [];
+  return CROSS_VIEWS.filter((view) => {
+    const providers = view.requires.map((cap) => keys.filter((k) => capabilitiesOf(k).includes(cap)));
+    if (providers.some((p) => p.length === 0)) return false; // capacité non couverte
+    // Au moins une combinaison fait intervenir deux outils distincts.
+    const distinct = new Set(providers.flat());
+    return distinct.size > 1;
+  });
+}

@@ -58,12 +58,13 @@ export function SourceToolSwitcher({
       navigate(params);
       return;
     }
-    // multi : toggle, minimum 1 outil sélectionné.
+    // multi : toggle libre — zéro sélection est un état valide (la page
+    // affiche alors son invite et n'active aucun bloc).
     const next = selected.includes(key)
       ? selected.filter((k) => k !== key)
       : [...selected, key];
-    if (next.length === 0) return;
-    params.set("sources", next.join(","));
+    if (next.length === 0) params.delete("sources");
+    else params.set("sources", next.join(","));
     params.delete("source");
     navigate(params);
   }

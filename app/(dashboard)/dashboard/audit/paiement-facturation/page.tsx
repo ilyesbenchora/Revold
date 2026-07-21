@@ -8,7 +8,7 @@ import {
   validateSourceParam,
   validateSourcesParam,
   capabilitiesOf,
-  selectionCapabilities,
+  availableCrossViews,
 } from "@/lib/audit/source-switch";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -16,7 +16,7 @@ import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs"
 import { fetchPaiementFacturationFor, fmt, fmtK, type PaiementFacturationData } from "@/lib/audit/paiement-facturation-data";
 import { computeCashflow } from "@/lib/audit/cashflow";
 import { computeCrossMargin } from "@/lib/audit/cross-margin";
-import { computePnl } from "@/lib/audit/pnl";
+import { TresoLineChart, TresoFlowsChart } from "@/components/charts/treso-charts";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
@@ -51,7 +51,6 @@ export default async function PaiementFacturationOverviewPage({
     selectedKeys = switchableTools.some((t) => t.key === def) ? [def] : [switchableTools[0]?.key].filter(Boolean) as string[];
   }
 
-  const caps = selectionCapabilities(selectedKeys);
   const labelOf = (key: string) =>
     switchableTools.find((t) => t.key === key)?.label ?? (key === "hubspot" ? "HubSpot" : key);
 
@@ -61,16 +60,14 @@ export default async function PaiementFacturationOverviewPage({
     return c.includes("invoices") || c.includes("subscriptions");
   });
   const cashflowKeys = selectedKeys.filter((k) => capabilitiesOf(k).includes("cashflow"));
-  const ledgerKeys = selectedKeys.filter((k) => capabilitiesOf(k).includes("ledger"));
 
-  const [billingResults, cashflowResults, pnlResults] = await Promise.all([
+  const [billingResults, cashflowResults] = await Promise.all([
     Promise.all(billingKeys.map(async (k) => ({ key: k, data: await fetchPaiementFacturationFor(supabase, orgId, token, k) }))),
     Promise.all(cashflowKeys.map(async (k) => ({ key: k, cf: await computeCashflow(supabase, orgId, k) }))),
-    Promise.all(ledgerKeys.map(async (k) => ({ key: k, pnl: await computePnl(supabase, orgId, k) }))),
   ]);
 
-  // ── Croisement CRM × Facturation : marge — si la sélection couvre deals + invoices ──
-  const hasCross = caps.has("deals") && caps.has("invoices") && selectedKeys.length > 1;
+  // ── Croisement CRM × Facturation : marge — règle déclarative (CROSS_VIEWS) ──
+  const hasCross = availableCrossViews(selectedKeys).some((v) => v.key === "crm-billing");
   const crossBillingEntry =
     billingResults.find((b) => !capabilitiesOf(b.key).includes("deals")) ?? billingResults[0];
   const crossCashflow = cashflowResults[0]?.cf ?? null;
@@ -83,8 +80,7 @@ export default async function PaiementFacturationOverviewPage({
 
   const anyData =
     billingResults.some((b) => b.data.hasData) ||
-    cashflowResults.some((c) => c.cf.hasData) ||
-    pnlResults.some((p) => p.pnl.hasData);
+    cashflowResults.some((c) => c.cf.hasData);
   const scoreData: PaiementFacturationData | undefined = billingResults[0]?.data;
 
   return (
@@ -196,18 +192,37 @@ export default async function PaiementFacturationOverviewPage({
               nameLabel="Indicateur"
               extraColumns={["Détail"]}
               rows={[
-                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency", cells: ["Flux entrants synchronisés (TTC)"] },
-                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency", cells: [cf.hasOutflows ? "Flux sortants synchronisés (TTC)" : "Aucun flux sortant synchronisé"] },
-                { name: "Balance", value: cf.hasData ? Math.round(cf.balance) : null, unit: "currency", cells: ["Encaissements − décaissements"] },
-                { name: "Charges fixes mensuelles", value: cf.chargesFixesMensuelles != null ? Math.round(cf.chargesFixesMensuelles) : null, unit: "currency", cells: ["Médiane des décaissements (6 mois)"] },
-                { name: cf.balanceSource === "bank" ? "Trésorerie disponible" : "Trésorerie disponible (estimée)", value: cf.tresorerieDisponible != null ? Math.round(cf.tresorerieDisponible) : null, unit: "currency", cells: [cf.balanceSource === "bank" ? "Solde réel des comptes bancaires (TTC)" : "Cumul TTC des flux synchronisés"] },
-                { name: "Trésorerie consolidée", value: cf.tresorerieConsolidee != null ? Math.round(cf.tresorerieConsolidee) : null, unit: "currency", cells: ["Disponible + placements"] },
+                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency", tone: "pos", cells: ["Flux entrants synchronisés (TTC)"] },
+                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency", tone: "neg", cells: [cf.hasOutflows ? "Flux sortants synchronisés (TTC)" : "Aucun flux sortant synchronisé"] },
+                { name: "Balance", value: cf.hasData ? Math.round(cf.balance) : null, unit: "currency", tone: "auto", cells: ["Encaissements − décaissements"] },
+                { name: "Balance du mois en cours", value: cf.balanceMoisCourant, unit: "currency", tone: "auto", cells: ["Encaissé − décaissé ce mois-ci (mois partiel)"] },
+                { name: "Charges fixes mensuelles", value: cf.chargesFixesMensuelles != null ? Math.round(cf.chargesFixesMensuelles) : null, unit: "currency", tone: "neg", cells: ["Médiane des décaissements (6 mois)"] },
+                { name: cf.balanceSource === "bank" ? "Trésorerie disponible" : "Trésorerie disponible (estimée)", value: cf.tresorerieDisponible != null ? Math.round(cf.tresorerieDisponible) : null, unit: "currency", tone: "auto", cells: [cf.balanceSource === "bank" ? "Solde réel des comptes bancaires (TTC)" : "Cumul TTC des flux synchronisés"] },
+                { name: "Trésorerie consolidée", value: cf.tresorerieConsolidee != null ? Math.round(cf.tresorerieConsolidee) : null, unit: "currency", tone: "auto", cells: ["Disponible + placements"] },
                 { name: "Runway", value: cf.runwayMois, unit: "count", cells: ["Mois sans nouveau revenu (dispo / charges fixes)"] },
               ]}
               footnote={cf.balanceSource === "bank"
                 ? "Trésorerie disponible = solde réel des comptes bancaires au moment de la dernière synchronisation."
                 : "Trésorerie estimée depuis les flux synchronisés — pas un solde bancaire en temps réel."}
             />
+
+            {/* ── Graphiques : évolution du solde + flux mensuels ── */}
+            {cf.balanceSeries.length > 1 && (
+              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold text-slate-800">Évolution de la trésorerie</p>
+                  <p className="mb-2 text-[10px] text-slate-400">
+                    Solde mois par mois{cf.balanceSource === "bank" ? " — ancré sur le solde bancaire réel" : " — estimé depuis les flux"} · {label}
+                  </p>
+                  <TresoLineChart points={cf.balanceSeries} />
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold text-slate-800">Encaissements vs décaissements</p>
+                  <p className="mb-2 text-[10px] text-slate-400">Flux mensuels TTC (12 derniers mois) · {label}</p>
+                  <TresoFlowsChart points={cf.monthlyFlows} />
+                </div>
+              </div>
+            )}
 
             {/* Ventilation des charges par catégorie (catégorisation Pennylane) */}
             {cf.chargesParCategorie.length > 0 && (
@@ -237,78 +252,6 @@ export default async function PaiementFacturationOverviewPage({
         );
       })}
 
-      {/* ── P&L & balance comptable reconstruits (capacité ledger — écritures) ── */}
-      {pnlResults.filter(({ pnl }) => pnl.hasData).map(({ key, pnl }) => {
-        const label = labelOf(key);
-        return (
-          <CollapsibleBlock
-            key={`pnl-${key}`}
-            title={
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                P&amp;L comptable
-                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600">{label}</span>
-              </h2>
-            }
-          >
-            <BlockDataTable
-              title={`P&L comptable (${label})`}
-              subtitle={`écritures · ${label}`}
-              team="finance"
-              unit="currency"
-              nameLabel="Indicateur"
-              extraColumns={["Détail"]}
-              rows={[
-                { name: "Produits (classe 7)", value: pnl.produits > 0 ? pnl.produits : null, unit: "currency", cells: ["CA + autres produits comptabilisés"] },
-                { name: "Charges (classe 6)", value: pnl.charges > 0 ? pnl.charges : null, unit: "currency", cells: ["Charges comptabilisées"] },
-                { name: "Résultat", value: pnl.hasData ? pnl.resultat : null, unit: "currency", cells: ["Produits − charges"] },
-                { name: "Taux de marge comptable", value: pnl.tauxMarge, unit: "percent", cells: ["Résultat / produits"] },
-              ]}
-              footnote="Reconstruit depuis les écritures comptables synchronisées — la marge la plus fiable disponible."
-            />
-
-            {pnl.topCharges.length > 0 && (
-              <div className="mt-4">
-                <BlockDataTable
-                  title={`Top comptes de charges (${label})`}
-                  subtitle={`écritures · ${label}`}
-                  team="finance"
-                  unit="currency"
-                  nameLabel="Compte"
-                  extraColumns={["N°"]}
-                  rows={pnl.topCharges.map((c) => ({
-                    name: c.label ?? `Compte ${c.account}`,
-                    value: c.total,
-                    unit: "currency" as const,
-                    cells: [c.account],
-                  }))}
-                  footnote="Principaux postes de charges par compte comptable (PCG)."
-                />
-              </div>
-            )}
-
-            {pnl.balanceParClasse.length > 0 && (
-              <div className="mt-4">
-                <BlockDataTable
-                  title={`Balance par classe (${label})`}
-                  subtitle={`écritures · ${label}`}
-                  team="finance"
-                  unit="currency"
-                  nameLabel="Classe"
-                  extraColumns={["Débit", "Crédit"]}
-                  rows={pnl.balanceParClasse.map((b) => ({
-                    name: `${b.classe} — ${b.label}`,
-                    value: b.solde,
-                    unit: "currency" as const,
-                    cells: [fmtK(b.debit), fmtK(b.credit)],
-                  }))}
-                  footnote="Balance générale synthétique reconstruite (solde = débit − crédit par classe de comptes)."
-                />
-              </div>
-            )}
-          </CollapsibleBlock>
-        );
-      })}
-
       {/* ── Croisements CRM × Facturation : marge (sélection deals + invoices) ── */}
       {margin && (
         <CollapsibleBlock
@@ -331,9 +274,9 @@ export default async function PaiementFacturationOverviewPage({
             rows={[
               { name: "CA signé (deals gagnés)", value: margin.caSigne > 0 ? Math.round(margin.caSigne) : null, unit: "currency", cells: [`${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`] },
               { name: "CA encaissé", value: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null, unit: "currency", cells: ["Factures payées (facturation)"] },
-              { name: "Écart signé vs encaissé", value: margin.caSigne > 0 || margin.caEncaisse > 0 ? Math.round(margin.ecartSigneEncaisse) : null, unit: "currency", cells: ["Deals gagnés jamais facturés / encaissés"] },
-              { name: "Marge brute", value: margin.margeBrute != null ? Math.round(margin.margeBrute) : null, unit: "currency", cells: [margin.margeBrute != null ? "CA encaissé − décaissements" : "Décaissements requis (sync fournisseurs)"] },
-              { name: "Taux de marge", value: margin.tauxMarge, unit: "percent", cells: ["Marge / CA encaissé"] },
+              { name: "Écart signé vs encaissé", value: margin.caSigne > 0 || margin.caEncaisse > 0 ? Math.round(margin.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
+              { name: "Marge brute", value: margin.margeBrute != null ? Math.round(margin.margeBrute) : null, unit: "currency", tone: "auto", cells: [margin.margeBrute != null ? "CA encaissé − décaissements" : "Décaissements requis (sync fournisseurs)"] },
+              { name: "Taux de marge", value: margin.tauxMarge, unit: "percent", tone: "auto", cells: ["Marge / CA encaissé"] },
               { name: "Pipeline pondéré", value: margin.pipelinePondere > 0 ? margin.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
               { name: "Prévision de marge", value: margin.previsionMarge, unit: "currency", cells: ["Pipeline pondéré × taux de marge"] },
             ]}

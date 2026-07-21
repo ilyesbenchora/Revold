@@ -22,7 +22,23 @@ export type BlockTableRow = {
   unit?: SurgicalUnit;
   /** Colonnes additionnelles, alignées sur `extraColumns`. */
   cells?: BlockTableCell[];
+  /**
+   * Couleur de la valeur : "auto" = vert si > 0 / rouge si < 0 (balances,
+   * résultats…), "pos"/"neg" = forcée (encaissements, charges…).
+   */
+  tone?: "auto" | "pos" | "neg";
 };
+
+/** Classe couleur de la valeur selon la tonalité demandée et le signe. */
+function valueToneClass(row: BlockTableRow): string {
+  if (row.value === null || !row.tone) return "text-slate-900";
+  if (row.tone === "pos") return "text-emerald-600";
+  if (row.tone === "neg") return "text-rose-600";
+  // auto
+  if (row.value > 0) return "text-emerald-600";
+  if (row.value < 0) return "text-rose-600";
+  return "text-slate-900";
+}
 
 function renderCell(cell: BlockTableCell) {
   if (cell === null || cell === undefined) return "—";
@@ -136,7 +152,7 @@ export function BlockDataTable({
               {rows.map((r, i) => (
                 <tr key={`${r.name}-${i}`} className="border-t border-slate-100">
                   <td className="px-4 py-2 text-slate-700">{r.name || "—"}</td>
-                  <td className="px-4 py-2 text-right font-semibold text-slate-900">
+                  <td className={`px-4 py-2 text-right font-semibold ${valueToneClass(r)}`}>
                     {formatBlockValue(r.value, r.unit ?? unit)}
                   </td>
                   {extraColumns.map((c, ci) => (

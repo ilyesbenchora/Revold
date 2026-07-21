@@ -7,6 +7,7 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/audit/paiement-facturation", label: "Vue d'ensemble" },
   { href: "/dashboard/audit/paiement-facturation/facturation", label: "Facturation" },
   { href: "/dashboard/audit/paiement-facturation/paiement", label: "Paiement" },
+  { href: "/dashboard/audit/paiement-facturation/comptabilite", label: "Comptabilité" },
 ];
 
 export function PaiementFacturationTabs() {

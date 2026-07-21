@@ -36,6 +36,12 @@ export type CashflowData = {
   chargesParCategorie: CategoryBreakdownRow[];
   /** Part des décaissements non catégorisés dans l'outil (0-100), null si aucun flux sortant. */
   pctChargesNonCategorisees: number | null;
+  /** Balance du mois EN COURS (encaissé − décaissé), null si aucun flux ce mois-ci. */
+  balanceMoisCourant: number | null;
+  /** Flux mensuels (12 derniers mois, ordre chronologique) pour le graphe enc/déc. */
+  monthlyFlows: Array<{ label: string; in: number; out: number }>;
+  /** Solde de trésorerie mois par mois (ancré sur le solde bancaire réel si dispo). */
+  balanceSeries: Array<{ label: string; value: number }>;
 };
 
 type Flow = { amount: number; date: string | null; category?: string | null }; // amount > 0 = encaissement
@@ -176,6 +182,46 @@ export async function computeCashflow(
   const pctChargesNonCategorisees =
     decaissementsTotal > 0 ? Math.round((uncategorized / decaissementsTotal) * 100) : null;
 
+  // ── Séries mensuelles (12 derniers mois) + balance du mois en cours ──
+  const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const monthLabel = (key: string) => {
+    const [yy, mm] = key.split("-");
+    return `${MONTHS_FR[Number(mm) - 1]} ${yy.slice(2)}`;
+  };
+  const byMonthFlows = new Map<string, { in: number; out: number }>();
+  for (const f of flows) {
+    if (!f.date) continue;
+    const d = new Date(f.date);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = monthKey(d);
+    const cur = byMonthFlows.get(key) ?? { in: 0, out: 0 };
+    if (f.amount > 0) cur.in += f.amount;
+    else cur.out += Math.abs(f.amount);
+    byMonthFlows.set(key, cur);
+  }
+  const sortedMonths = [...byMonthFlows.keys()].sort().slice(-12);
+  const monthlyFlows = sortedMonths.map((key) => ({
+    label: monthLabel(key),
+    in: Math.round(byMonthFlows.get(key)!.in),
+    out: Math.round(byMonthFlows.get(key)!.out),
+  }));
+
+  const currentKey = monthKey(now);
+  const cur = byMonthFlows.get(currentKey);
+  const balanceMoisCourant = cur ? Math.round(cur.in - cur.out) : null;
+
+  // Solde mois par mois : cumul des nets, ancré pour que le DERNIER point
+  // colle au solde bancaire réel quand il est synchronisé.
+  let running = 0;
+  const cumul = sortedMonths.map((key) => {
+    const m = byMonthFlows.get(key)!;
+    running += m.in - m.out;
+    return { key, cum: running };
+  });
+  const anchor = bankBalance != null && cumul.length > 0 ? bankBalance - cumul[cumul.length - 1].cum : 0;
+  const balanceSeries = cumul.map((c) => ({ label: monthLabel(c.key), value: Math.round(anchor + c.cum) }));
+
   return {
     hasData,
     hasOutflows,
@@ -189,5 +235,8 @@ export async function computeCashflow(
     runwayMois,
     chargesParCategorie,
     pctChargesNonCategorisees,
+    balanceMoisCourant,
+    monthlyFlows,
+    balanceSeries,
   };
 }

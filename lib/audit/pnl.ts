@@ -21,6 +21,13 @@ export type PnlData = {
   topCharges: PnlAccountRow[];
   /** Balance synthétique par classe de comptes (1..7) : solde débit − crédit. */
   balanceParClasse: Array<{ classe: string; label: string; debit: number; credit: number; solde: number }>;
+  /** Provisions fiscales ESTIMÉES depuis les comptes (approximation, pas une déclaration). */
+  fiscal: {
+    tvaCollectee: number;   // comptes 4457x (crédit − débit)
+    tvaDeductible: number;  // comptes 4456x (débit − crédit)
+    tvaNette: number;       // à provisionner si > 0
+    isEstime: number | null; // 15 % ≤ 42 500 € puis 25 %, si résultat > 0
+  };
 };
 
 const CLASSE_LABELS: Record<string, string> = {
@@ -49,11 +56,14 @@ export async function computePnl(
   const rows = error ? [] : data ?? [];
   const empty: PnlData = {
     hasData: false, produits: 0, charges: 0, resultat: 0, tauxMarge: null, topCharges: [], balanceParClasse: [],
+    fiscal: { tvaCollectee: 0, tvaDeductible: 0, tvaNette: 0, isEstime: null },
   };
   if (rows.length === 0) return empty;
 
   let produits = 0;
   let charges = 0;
+  let tvaCollectee = 0;   // 4457x : TVA collectée sur ventes (créditeur)
+  let tvaDeductible = 0;  // 4456x : TVA déductible sur achats (débiteur)
   const chargesByAccount = new Map<string, { label: string | null; total: number }>();
   const byClasse = new Map<string, { debit: number; credit: number }>();
 
@@ -63,6 +73,9 @@ export async function computePnl(
     if (!classe) continue;
     const debit = Number(r.debit) || 0;
     const credit = Number(r.credit) || 0;
+
+    if (num.startsWith("4457")) tvaCollectee += credit - debit;
+    if (num.startsWith("4456")) tvaDeductible += debit - credit;
 
     const c = byClasse.get(classe) ?? { debit: 0, credit: 0 };
     c.debit += debit;
@@ -99,6 +112,11 @@ export async function computePnl(
       solde: Math.round(v.debit - v.credit),
     }));
 
+  // IS estimé (barème PME : 15 % jusqu'à 42 500 €, 25 % au-delà), si bénéfice.
+  const isEstime = resultat > 0
+    ? Math.round(Math.min(resultat, 42_500) * 0.15 + Math.max(0, resultat - 42_500) * 0.25)
+    : null;
+
   return {
     hasData: true,
     produits: Math.round(produits),
@@ -107,5 +125,11 @@ export async function computePnl(
     tauxMarge,
     topCharges,
     balanceParClasse,
+    fiscal: {
+      tvaCollectee: Math.round(tvaCollectee),
+      tvaDeductible: Math.round(tvaDeductible),
+      tvaNette: Math.round(tvaCollectee - tvaDeductible),
+      isEstime,
+    },
   };
 }
