@@ -15,7 +15,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getToolKeys } from "@/lib/integrations/tool-mappings";
+import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
 
 export type InvoiceHS = {
   id: string;
@@ -234,8 +234,18 @@ export async function fetchPaiementFacturationFor(
   orgId: string,
   hubspotToken: string | null,
   overrideSource?: string | null,
+  /**
+   * Clé(s) de mapping à résoudre — un tableau exprime une chaîne de fallback
+   * (clé sous-page puis clé parente), pour que les sous-pages Trésorerie
+   * puissent avoir leur propre source de vérité.
+   */
+  pageKey: string | string[] = "audit_paiement_facturation",
 ): Promise<PaiementFacturationData> {
-  const mappedKeys = await getToolKeys(supabase, orgId, "audit_paiement_facturation");
+  const mappedKeys = await getToolKeysChain(
+    supabase,
+    orgId,
+    Array.isArray(pageKey) ? pageKey : [pageKey],
+  );
   const sourceKey = overrideSource || mappedKeys[0]; // mode "single" → 1 seul outil
 
   if (sourceKey === "stripe") {

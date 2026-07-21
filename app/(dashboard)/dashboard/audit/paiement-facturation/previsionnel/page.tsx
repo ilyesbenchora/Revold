@@ -29,7 +29,7 @@ export default async function PrevisionnelPage() {
   const token = await getHubSpotToken(supabase, orgId);
 
   // Outil de trésorerie disponible (capacité cashflow) → point de départ réel.
-  const tools = await getSwitchableBillingTools(supabase, orgId, token);
+  const tools = await getSwitchableBillingTools(supabase, orgId, token, ["audit_paiement_facturation_previsionnel", "audit_paiement_facturation"]);
   const cashTool = tools.find((t) => capabilitiesOf(t.key).includes("cashflow"))?.key ?? null;
   const cf = cashTool ? await computeCashflow(supabase, orgId, cashTool) : null;
 

@@ -10,6 +10,8 @@ export type PageMappingDef = {
   label: string;
   description: string;
   mode: "single" | "multi";
+  /** Sous-page : affichée indentée sous son parent ; hérite du mapping parent si vide. */
+  parentKey?: string;
 };
 
 type Section = {
@@ -23,13 +25,17 @@ const SECTIONS: Section[] = [
   {
     id: "audit",
     title: "Données",
-    hint: "Sélection multiple — Revold croise les outils choisis dans l'analyse de chaque page.",
+    hint: "Sélection multiple — Revold croise les outils choisis dans l'analyse de chaque page. Une sous-page sans sélection hérite du réglage de sa page parente.",
     pages: [
       { key: "audit_donnees", label: "Propriétés", description: "Qualité base CRM (contacts, entreprises, deals)", mode: "multi" },
       { key: "audit_automatisations", label: "Automatisations", description: "Workflows et règles d'automatisation", mode: "multi" },
       { key: "audit_perf_ventes", label: "Performances Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
       { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
       { key: "audit_paiement_facturation", label: "Trésorerie", description: "Invoices, subscriptions, quotes", mode: "multi" },
+      { key: "audit_paiement_facturation_paiement", label: "Paiement", description: "Encaissements, impayés, moyens de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_facturation", label: "Facturation", description: "Émission, relances, délais de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_comptabilite", label: "Comptabilité", description: "Écritures, P&L réel, balance", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_previsionnel", label: "Prévisionnel", description: "Projection trésorerie, runway, échéances", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
       { key: "audit_adoption", label: "Équipes", description: "Owners, équipes, discipline d'usage", mode: "multi" },
     ],
@@ -169,17 +175,29 @@ export function ToolMappingSettings({
             {section.pages.map((p) => {
               const current = mappings[p.key] ?? [];
               const isPending = pendingKey === p.key;
+              const parent = p.parentKey
+                ? section.pages.find((x) => x.key === p.parentKey)
+                : undefined;
+              const inheritsFromParent = Boolean(parent) && current.length === 0;
               return (
                 <div
                   key={p.key}
-                  className="flex flex-wrap items-start justify-between gap-4 px-5 py-4"
+                  className={`flex flex-wrap items-start justify-between gap-4 py-4 pr-5 ${parent ? "pl-10" : "px-5"}`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{p.label}</p>
+                    <p className={`text-sm font-semibold ${parent ? "text-slate-700" : "text-slate-800"}`}>
+                      {parent && <span className="mr-1 text-slate-400">↳</span>}
+                      {p.label}
+                    </p>
                     <p className="mt-0.5 text-[11px] text-slate-500">{p.description}</p>
                     <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
                       {p.mode === "multi" ? "Multi-sélection" : "1 outil"}
                     </span>
+                    {inheritsFromParent && (
+                      <span className="ml-1 mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-500">
+                        Hérite de {parent!.label}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">

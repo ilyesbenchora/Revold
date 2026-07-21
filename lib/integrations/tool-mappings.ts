@@ -70,6 +70,24 @@ export async function getToolKeys(
   return (data?.tool_keys as string[] | undefined) ?? [];
 }
 
+/**
+ * Résout une chaîne de fallback de mappings (ex : [clé sous-page, clé parent]) :
+ * retourne le premier mapping non vide. Permet aux sous-pages (Trésorerie →
+ * Paiement, Facturation…) d'avoir leur propre source de vérité tout en
+ * héritant du réglage de la page parente si rien n'est configuré.
+ */
+export async function getToolKeysChain(
+  supabase: SupabaseClient,
+  orgId: string,
+  pageKeys: string[],
+): Promise<string[]> {
+  for (const key of pageKeys) {
+    const keys = await getToolKeys(supabase, orgId, key);
+    if (keys.length > 0) return keys;
+  }
+  return [];
+}
+
 export async function getToolKeysBatch(
   supabase: SupabaseClient,
   orgId: string,
