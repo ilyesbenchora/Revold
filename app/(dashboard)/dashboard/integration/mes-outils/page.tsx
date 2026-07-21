@@ -99,10 +99,15 @@ export default async function MesOutilsPage({
                 .filter((t) => connectedKeys.has(t.key))
                 .map((tool) => {
                   const meta = CATEGORY_META[tool.category];
+                  // HubSpot garde sa gestion détaillée dans Paramètres → Intégrations ;
+                  // les autres ouvrent leur page de sync dédiée (CTA re-sync, compteurs, historique).
+                  const href = tool.key === "hubspot"
+                    ? "/dashboard/parametres/integrations"
+                    : `/dashboard/integration/outil/${tool.key}`;
                   return (
                     <Link
                       key={tool.key}
-                      href="/dashboard/parametres/integrations"
+                      href={href}
                       className="group flex items-center gap-3 rounded-xl border border-emerald-200 bg-white p-4 transition hover:border-emerald-300 hover:shadow-sm"
                     >
                       <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
@@ -110,6 +115,9 @@ export default async function MesOutilsPage({
                         <p className="truncate text-sm font-semibold text-slate-900">{tool.label}</p>
                         <p className="mt-0.5 text-[11px] font-medium text-emerald-700">✓ Connecté · {meta.label}</p>
                       </div>
+                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 opacity-0 transition group-hover:opacity-100">
+                        Sync →
+                      </span>
                     </Link>
                   );
                 }),
