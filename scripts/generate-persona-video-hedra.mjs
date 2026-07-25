@@ -107,6 +107,46 @@ function buildVttFromAlignment(segments, fullText, alignment) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** ffmpeg si disponible (PATH ou installation winget), sinon null. */
+function findFfmpeg() {
+  const winget = join(
+    process.env.LOCALAPPDATA ?? "",
+    "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.2-full_build/bin/ffmpeg.exe",
+  );
+  for (const candidate of ["ffmpeg", winget]) {
+    try {
+      execFileSync(candidate, ["-version"], { stdio: "ignore" });
+      return candidate;
+    } catch {
+      /* essai suivant */
+    }
+  }
+  return null;
+}
+
+/**
+ * Compresse le mp4 Hedra (~35 Mo brut) en H.264 web (~2 Mo, qualité intacte à
+ * l'œil). Sans ffmpeg, on garde le fichier brut — un avertissement est loggé.
+ */
+function compressVideo(path) {
+  const ffmpeg = findFfmpeg();
+  if (!ffmpeg) {
+    console.warn("ffmpeg introuvable — vidéo laissée brute (lourde). Installe ffmpeg pour compresser.");
+    return;
+  }
+  const tmp = path.replace(/\.mp4$/, ".tmp.mp4");
+  const before = statSync(path).size;
+  execFileSync(ffmpeg, [
+    "-y", "-i", path,
+    "-c:v", "libx264", "-crf", "27", "-preset", "slow", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "96k",
+    "-movflags", "+faststart",
+    tmp,
+  ], { stdio: ["ignore", "ignore", "inherit"] });
+  renameSync(tmp, path);
+  console.log(`Compression : ${(before / 1024 / 1024).toFixed(1)} Mo → ${(statSync(path).size / 1024 / 1024).toFixed(1)} Mo`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const key = args.find((a) => !a.startsWith("--"));
@@ -284,7 +324,9 @@ async function main() {
   const outDir = join(ROOT, "public/personas/videos");
   mkdirSync(outDir, { recursive: true });
   const bin = Buffer.from(await (await fetch(url)).arrayBuffer());
-  writeFileSync(join(outDir, `${key}${outSuffix}.mp4`), bin);
+  const outPath = join(outDir, `${key}${outSuffix}.mp4`);
+  writeFileSync(outPath, bin);
+  compressVideo(outPath);
 
   const duration = Number(done.duration) || text.length / 15;
   const vtt = alignment && alignment.characters
