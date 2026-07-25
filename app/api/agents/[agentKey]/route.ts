@@ -4,7 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
-import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
+import { getAgent, buildSystemPrompt, coachingDirective, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
+import { getCoachingMemory, memoryDirective } from "@/lib/coaching/session-memory";
 import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
@@ -64,6 +65,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   // Session de coaching : injecte les objectifs/pains si fournis (agents coach).
   if (agent.section === "coaching" && body.coaching && (body.coaching.objectives || body.coaching.pains)) {
     system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");
+  }
+
+  // Mémoire entre séances (agents coach) : dernier résumé + engagements en cours
+  // → le coach ouvre en faisant le point avant de proposer les pistes du jour.
+  if (agent.section === "coaching") {
+    const coachCategory = COACHING_CATEGORY[agentKey];
+    if (coachCategory) {
+      const memory = await getCoachingMemory(supabase, orgId, coachCategory);
+      system += memoryDirective(memory);
+    }
   }
 
   // Fichiers joints (Excel / CSV / Google Sheets) → contexte pour l'agent.

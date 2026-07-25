@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CoachAgenda, type CoachAgendaInitial, type AgendaSource } from "./coach-agenda";
+import { CoachingActionPlan } from "./coaching-action-plan";
 import { PaiementAgentChat } from "./paiement-agent-chat";
 import { SavedReportsCarousel } from "./saved-reports-carousel";
 import type { Attachment } from "@/lib/attachments";
@@ -97,6 +98,9 @@ export function CoachingWorkspace({
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  // Incrémenté à la clôture d'une séance → recharge le plan d'action (le
+  // résumé + les engagements viennent d'être générés côté serveur).
+  const [planRefresh, setPlanRefresh] = useState(0);
 
   // Contexte de coaching : celui du rapport s'il est fourni, sinon l'agenda.
   const coachingCtx = reportBrief ?? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
@@ -117,8 +121,10 @@ export function CoachingWorkspace({
   const showAgenda = effectiveCollapsed || formOpen;
 
   // Clôture de séance : on efface le RDV (cadence ponctuelle) pour que le bloc
-  // disparaisse, et on persiste l'effacement en base.
+  // disparaisse, et on persiste l'effacement en base. Le plan d'action vient
+  // d'être régénéré côté serveur → on le recharge.
   async function handleSessionComplete() {
+    setPlanRefresh((n) => n + 1);
     if (!hasMeeting) return;
     setAgenda((a) => ({ ...a, next_meeting_at: null, next_meeting_time: null }));
     try {
@@ -154,6 +160,9 @@ export function CoachingWorkspace({
           <span className="text-sm leading-none">＋</span> Créer un rendez-vous &amp; objectif de coaching
         </button>
       </div>
+
+      {/* Plan d'action : engagements des séances précédentes + résumé (mémoire du coach) */}
+      <CoachingActionPlan category={category} refreshSignal={planRefresh} />
 
       {showAgenda && (
       <div className="mb-6">

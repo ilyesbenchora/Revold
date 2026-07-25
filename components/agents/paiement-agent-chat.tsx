@@ -190,17 +190,27 @@ export function PaiementAgentChat({
   async function completeSession(auto: boolean) {
     clearSessionTimers();
     setSessionEnd("ended");
-    onSessionComplete?.();
-    if (!coachingCategory) return;
+    if (!coachingCategory) {
+      onSessionComplete?.();
+      return;
+    }
     try {
+      // Transcript envoyé pour générer la MÉMOIRE de séance (résumé + plan
+      // d'action) — réinjectée au coach à la séance suivante.
       await fetch("/api/coaching/session/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: coachingCategory, auto }),
+        body: JSON.stringify({
+          category: coachingCategory,
+          auto,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        }),
       });
     } catch {
       /* silencieux */
     }
+    // Après la persistance : le parent peut rafraîchir le plan d'action.
+    onSessionComplete?.();
   }
 
   // Inactivité (agents coach) : 5 min sans message → propose de terminer ; sans
