@@ -425,6 +425,8 @@ export const getRevenueTimeseries: AgentTool = {
 type AggSpec = {
   columns: string;
   hasSource?: boolean;
+  /** Table physique quand elle diffère du nom d'entité (ex : transactions → bank_transactions). */
+  table?: string;
   dims: Record<string, (r: Record<string, unknown>) => string | null>;
   numeric: Record<string, (r: Record<string, unknown>) => number>;
 };
@@ -538,6 +540,27 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
     numeric: { mrr: (r) => Number(r.mrr) || 0 },
   },
+  // Transactions bancaires (Pennylane & co) : les PAIEMENTS réels, même sans
+  // facture émise. amount signé : > 0 encaissement, < 0 décaissement.
+  transactions: {
+    table: "bank_transactions",
+    columns: "amount, date, primary_source, category",
+    hasSource: true,
+    dims: {
+      month_transaction: (r) => monthOf(r.date),
+      direction: (r) => ((Number(r.amount) || 0) >= 0 ? "Encaissements" : "Décaissements"),
+      category: (r) => String(r.category ?? "Non catégorisé"),
+      source: (r) => String(r.primary_source ?? "inconnu"),
+    },
+    numeric: {
+      // Net signé (encaissements − décaissements).
+      amount: (r) => Number(r.amount) || 0,
+      // Encaissements uniquement (montants entrants, positifs).
+      amount_in: (r) => Math.max(0, Number(r.amount) || 0),
+      // Décaissements uniquement (montants sortants, renvoyés positifs).
+      amount_out: (r) => Math.max(0, -(Number(r.amount) || 0)),
+    },
+  },
   tickets: {
     columns: "status",
     dims: { status: (r) => String(r.status ?? "inconnu") },
@@ -563,16 +586,29 @@ const AGG_SPECS: Record<string, AggSpec> = {
 };
 
 /** Colonne de date à filtrer pour une entité/dimension (recalcul par période). */
+/**
+ * Entités agrégeables → table physique + présence d'une colonne primary_source.
+ * Sert au garde-fou « données réelles » du câblage des KPIs personnalisés
+ * (compter les lignes par entité pour éviter un câblage sur un endpoint vide).
+ */
+export const AGG_ENTITY_TABLES: { entity: string; table: string; hasSource: boolean }[] =
+  Object.entries(AGG_SPECS).map(([entity, s]) => ({
+    entity,
+    table: s.table ?? entity,
+    hasSource: !!s.hasSource,
+  }));
+
 function dateColumnFor(entity: string, groupBy: string): string | null {
   if (groupBy.startsWith("month_")) {
     const suffix = groupBy.slice(6);
     const m: Record<string, string> = {
       created: "created_date", closed: "close_date", issued: "issued_at",
       paid: "paid_at", started: "started_at", canceled: "canceled_at",
+      transaction: "date",
     };
     return m[suffix] ?? null;
   }
-  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at" };
+  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date" };
   return def[entity] ?? null;
 }
 
@@ -646,7 +682,7 @@ export async function computeAggregate(
   const to = input.date_to && dateRe.test(input.date_to) ? input.date_to : null;
   const dateCol = dateColumnFor(entity, groupBy);
 
-  let q = supabase.from(entity).select(spec.columns).eq("organization_id", orgId).limit(10000);
+  let q = supabase.from(spec.table ?? entity).select(spec.columns).eq("organization_id", orgId).limit(10000);
   const src = billingSourceFilter(sources);
   if (src && spec.hasSource) q = q.in("primary_source", src);
   // Période exacte : filtre déterministe sur la vraie colonne de date.
@@ -766,7 +802,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",

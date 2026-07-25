@@ -35,6 +35,7 @@ export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]>
   companies: "crm",
   invoices: "billing",
   subscriptions: "billing",
+  transactions: "billing",
   tickets: "support",
   // Pseudo-entité « fiscal » : échéances TVA/IS/URSSAF, rattachées au pôle
   // facturation/compta (donc proposées dès qu'un outil billing est connecté).
@@ -60,6 +61,12 @@ export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
     { id: "month_started", label: "Mois de début" },
     { id: "month_canceled", label: "Mois d'annulation" },
   ],
+  transactions: [
+    { id: "month_transaction", label: "Mois" },
+    { id: "direction", label: "Sens (encaissement / décaissement)" },
+    { id: "category", label: "Catégorie" },
+    { id: "source", label: "Source" },
+  ],
   tickets: [{ id: "status", label: "Statut" }],
   contacts: [
     { id: "mql", label: "MQL" },
@@ -79,6 +86,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   companies: "Entreprises",
   invoices: "Factures",
   subscriptions: "Abonnements",
+  transactions: "Transactions bancaires",
   tickets: "Tickets",
   fiscal: "Échéances fiscales",
 };
@@ -135,6 +143,10 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
   audit_paiement_facturation: [
     // ── HubSpot : projection pondérée du pipeline (probabilité de closing HubSpot) ──
     { id: "weighted_forecast_stage", label: "Projection pondérée des transactions gagnées", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
+    // ── Transactions bancaires (Pennylane & co) : paiements réels, même sans facture ──
+    { id: "tx_in_month", label: "Encaissements par mois (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_in", unit: "currency", view: "line" },
+    { id: "tx_out_month", label: "Décaissements par mois (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_out", unit: "currency", view: "line" },
+    { id: "tx_out_category", label: "Dépenses par catégorie", entity: "transactions", groupBy: "category", measure: "sum", field: "amount_out", unit: "currency", view: "bar" },
     // ── Stripe / compta : factures, créances (impayés) et cash réel encaissé ──
     { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "invoiced_month", label: "Montant facturé par mois", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },

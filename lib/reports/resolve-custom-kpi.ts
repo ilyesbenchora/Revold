@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { computeAggregate, type AggregateSpec } from "@/lib/ai/agents/tool-library";
+import { computeAggregate, AGG_ENTITY_TABLES, type AggregateSpec } from "@/lib/ai/agents/tool-library";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
@@ -9,7 +9,9 @@ import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 // que l'agent ne peut produire qu'une table 100 % calculable et fiable.
 const CANONICAL_DOC =
   "deals: dimensions month_created, month_closed, stage — mesures count, ou sum/avg du champ amount. " +
-  "invoices: dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
+  "invoices (factures émises/reçues): dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
+  "transactions (transactions bancaires = paiements réels encaissés/décaissés, même sans facture — ex : « paiements », « encaissements », « cash », « dépenses ») : " +
+  "dimensions month_transaction, direction, category, source — mesures count, ou sum/avg des champs amount (net signé), amount_in (encaissements), amount_out (décaissements). " +
   "subscriptions: dimensions status, source, month_started, month_canceled — mesures count, ou sum/avg du champ mrr. " +
   "tickets: dimension status — mesure count. " +
   "companies: dimensions segment, industry, country — mesure count. " +
@@ -26,10 +28,10 @@ const BUILD_TOOL: Anthropic.Tool = {
     type: "object",
     properties: {
       title: { type: "string", description: "Titre court et clair de la table (max ~6 mots)." },
-      entity: { type: "string", enum: ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"] },
+      entity: { type: "string", enum: ["deals", "invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"] },
       groupBy: { type: "string", description: "Dimension de regroupement (voir la liste par entité)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
-      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, mrr). Vide si count." },
+      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr). Vide si count." },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"], description: "count si comptage, currency si montant en €." },
       date_from: {
         type: "string",
@@ -75,6 +77,33 @@ const NO_MATCH_TOOL: Anthropic.Tool = {
 export type ResolvedKpi =
   | { ok: true; spec: AggregateSpec; unitMode: string; agentTitle: string | null; agentName: string }
   | { ok: false; error: string; status: number; instructions?: string };
+
+/**
+ * Volume réel de chaque entité canonique pour l'org (filtré par sources quand
+ * l'entité porte primary_source). Garde-fou du câblage : l'agent ne doit pas
+ * brancher un KPI sur un endpoint vide quand une autre entité a des données.
+ */
+async function countEntityRows(
+  supabase: Parameters<typeof computeAggregate>[0],
+  orgId: string,
+  sources: string[],
+): Promise<Record<string, number>> {
+  const billing = sources.filter((s) => s !== "hubspot");
+  const out: Record<string, number> = {};
+  await Promise.all(
+    AGG_ENTITY_TABLES.map(async ({ entity, table, hasSource }) => {
+      try {
+        let q = supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+        if (hasSource && billing.length > 0) q = q.in("primary_source", billing);
+        const { count } = await q;
+        out[entity] = count ?? 0;
+      } catch {
+        out[entity] = 0;
+      }
+    }),
+  );
+  return out;
+}
 
 /**
  * Fait interpréter un KPI décrit en langage naturel par l'agent de la page vers
@@ -133,62 +162,99 @@ export async function resolveCustomKpiSpec(
     (sourceLabels.length ? ` Outils sources sélectionnés : ${sourceLabels.join(", ")}.` : "") +
     ` Construis la table correspondante.`;
 
-  let spec: AggregateSpec;
-  let unitMode = "count";
-  let agentTitle: string | null = null;
-  try {
-    const resp = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 500,
-      system,
-      tools: [BUILD_TOOL, NO_MATCH_TOOL],
-      tool_choice: { type: "any" },
-      messages: [{ role: "user", content: userMessage }],
-    });
-    const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!toolUse) return { ok: false, error: "L'agent n'a pas pu interpréter ce KPI.", status: 422 };
-    // Pas de matching fiable → AUCUNE table créée ; l'agent explique comment
-    // modifier la demande pour retrouver le(s) KPI(s) voulus.
-    if (toolUse.name === "no_reliable_match") {
-      const nm = toolUse.input as { reason?: string; instructions?: string };
-      const reason = nm.reason?.trim() || `Aucun câblage fiable trouvé pour « ${kpi} ».`;
-      const instructions = nm.instructions?.trim() || "";
-      return {
-        ok: false,
-        error: [`${persona.name} : ${reason}`, instructions].filter(Boolean).join(" — "),
-        instructions: instructions || undefined,
-        status: 422,
+  type AskResult =
+    | { kind: "spec"; spec: AggregateSpec; unitMode: string; agentTitle: string | null }
+    | { kind: "error"; res: ResolvedKpi & { ok: false } };
+
+  // Un tour d'interprétation par l'agent. `extraContext` = relance du garde-fou
+  // « données réelles » (volumes par entité quand le premier câblage est vide).
+  async function ask(extraContext?: string): Promise<AskResult> {
+    try {
+      const resp = await client.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 500,
+        system,
+        tools: [BUILD_TOOL, NO_MATCH_TOOL],
+        tool_choice: { type: "any" },
+        messages: [{ role: "user", content: extraContext ? `${userMessage}\n\n${extraContext}` : userMessage }],
+      });
+      const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      if (!toolUse) return { kind: "error", res: { ok: false, error: "L'agent n'a pas pu interpréter ce KPI.", status: 422 } };
+      // Pas de matching fiable → AUCUNE table créée ; l'agent explique comment
+      // modifier la demande pour retrouver le(s) KPI(s) voulus.
+      if (toolUse.name === "no_reliable_match") {
+        const nm = toolUse.input as { reason?: string; instructions?: string };
+        const reason = nm.reason?.trim() || `Aucun câblage fiable trouvé pour « ${kpi} ».`;
+        const instructions = nm.instructions?.trim() || "";
+        return {
+          kind: "error",
+          res: {
+            ok: false,
+            error: [`${persona.name} : ${reason}`, instructions].filter(Boolean).join(" — "),
+            instructions: instructions || undefined,
+            status: 422,
+          },
+        };
+      }
+      const inp = toolUse.input as {
+        title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
+        date_from?: string; date_to?: string;
       };
+      // Période explicitement mentionnée dans le KPI/description → dates absolues
+      // extraites par l'agent (validées au format), sinon null (pas de filtre).
+      const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+      const dFrom = inp.date_from && ISO_DATE.test(inp.date_from) ? inp.date_from : null;
+      const dTo = inp.date_to && ISO_DATE.test(inp.date_to) ? inp.date_to : null;
+      return {
+        kind: "spec",
+        agentTitle: inp.title?.trim() || null,
+        unitMode: inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count",
+        spec: {
+          entity: String(inp.entity ?? ""),
+          groupBy: String(inp.groupBy ?? ""),
+          measure: inp.measure ?? "count",
+          field: inp.field ? String(inp.field) : null,
+          date_from: dFrom && dTo && dFrom <= dTo ? dFrom : null,
+          date_to: dFrom && dTo && dFrom <= dTo ? dTo : null,
+        },
+      };
+    } catch (err) {
+      return { kind: "error", res: { ok: false, error: err instanceof Error ? err.message : "Erreur agent", status: 500 } };
     }
-    const inp = toolUse.input as {
-      title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
-      date_from?: string; date_to?: string;
-    };
-    agentTitle = inp.title?.trim() || null;
-    unitMode = inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count";
-    // Période explicitement mentionnée dans le KPI/description → dates absolues
-    // extraites par l'agent (validées au format), sinon null (pas de filtre).
-    const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-    const dFrom = inp.date_from && ISO_DATE.test(inp.date_from) ? inp.date_from : null;
-    const dTo = inp.date_to && ISO_DATE.test(inp.date_to) ? inp.date_to : null;
-    spec = {
-      entity: String(inp.entity ?? ""),
-      groupBy: String(inp.groupBy ?? ""),
-      measure: inp.measure ?? "count",
-      field: inp.field ? String(inp.field) : null,
-      date_from: dFrom && dTo && dFrom <= dTo ? dFrom : null,
-      date_to: dFrom && dTo && dFrom <= dTo ? dTo : null,
-    };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Erreur agent", status: 500 };
   }
 
+  let attempt = await ask();
+  if (attempt.kind === "error") return attempt.res;
+  let { spec, unitMode, agentTitle } = attempt;
+
   // Validation déterministe : on rejette toute spec non calculable (fiabilité).
-  // Dans ce cas l'agent génère des instructions concrètes de reformulation —
-  // jamais de table créée sans câblage vérifié à 100 %.
-  // Validation avec le MÊME filtre de sources que le recalcul de la table :
-  // une spec qui ne renvoie rien pour ces outils est rejetée dès la création.
-  const check = await computeAggregate(supabase, orgId, sources, hubspotToken, spec);
+  // Exécutée avec le MÊME filtre de sources que le recalcul de la table.
+  let check = await computeAggregate(supabase, orgId, sources, hubspotToken, spec);
+
+  // Garde-fou « données réelles » : câblage calculable mais VIDE (ex : KPI
+  // « paiements » branché sur invoices alors que l'org n'a que des transactions
+  // bancaires) → une relance avec les volumes réels par entité. L'agent recâble
+  // sur un endpoint qui contient des données, ou assume no_reliable_match.
+  if (!check.error && check.hasData === false) {
+    const counts = await countEntityRows(supabase, orgId, sources);
+    const withData = Object.entries(counts).filter(([, n]) => n > 0);
+    if ((counts[spec.entity] ?? 0) === 0 && withData.length > 0) {
+      const retry = await ask(
+        `ATTENTION : un premier câblage sur l'entité « ${spec.entity} » a renvoyé ZÉRO donnée pour ces sources. ` +
+        `Volumes réels par entité : ${Object.entries(counts).map(([e, n]) => `${e}=${n}`).join(", ")}. ` +
+        `Recâble le KPI sur une entité qui contient des données UNIQUEMENT si elle répond fidèlement au besoin ` +
+        `(ex : « paiements » sans facture émise → transactions bancaires, champ amount_in). ` +
+        `Si aucune entité avec données ne correspond au besoin, appelle no_reliable_match.`,
+      );
+      if (retry.kind === "error") return retry.res;
+      const recheck = await computeAggregate(supabase, orgId, sources, hubspotToken, retry.spec);
+      if (!recheck.error) {
+        attempt = retry;
+        ({ spec, unitMode, agentTitle } = retry);
+        check = recheck;
+      }
+    }
+  }
   if (check.error) {
     let instructions = "";
     try {
