@@ -63,6 +63,7 @@ export function trackingLabel(
     if (aggSpec.entity === "invoices" && aggSpec.field === "amount_paid") return "CA encaissé (factures)";
     if (aggSpec.entity === "transactions" && aggSpec.field === "amount_in") return "Encaissements (transactions bancaires)";
     if (aggSpec.entity === "transactions" && aggSpec.field === "amount_out") return "Décaissements (transactions bancaires)";
+    if (aggSpec.entity === "transactions" && aggSpec.field === "amount") return "Flux net bancaire (encaissements − décaissements)";
     const ent = ENTITY_LABELS[aggSpec.entity] ?? aggSpec.entity;
     const meas = aggSpec.measure === "sum" ? `somme ${aggSpec.field ?? ""}`.trim()
       : aggSpec.measure === "avg" ? `moyenne ${aggSpec.field ?? ""}`.trim()

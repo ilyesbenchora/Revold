@@ -95,8 +95,14 @@ const FIELD_LABELS: Record<string, string> = {
   mrr: "MRR",
 };
 
-function measurePhrase(measure: string, field: string | null): string {
-  const f = field ? (FIELD_LABELS[field] ?? field) : null;
+function measurePhrase(measure: string, field: string | null, entity?: string): string {
+  // Transactions bancaires : « amount » est le flux NET signé — le nommer
+  // explicitement pour qu'on ne le confonde jamais avec les encaissements.
+  const f = field
+    ? entity === "transactions" && field === "amount"
+      ? "flux net (encaissements − décaissements)"
+      : FIELD_LABELS[field] ?? field
+    : null;
   if (measure === "sum") return `Somme · ${f ?? "valeur"}`;
   if (measure === "avg") return `Moyenne · ${f ?? "valeur"}`;
   if (measure === "weighted") return `Projection pondérée · ${f ?? "montant"}`;
@@ -559,7 +565,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">Mesure</dt>
-                      <dd className="font-medium text-slate-700">{measurePhrase(proposal.measure, proposal.field)}</dd>
+                      <dd className="font-medium text-slate-700">{measurePhrase(proposal.measure, proposal.field, proposal.entity)}</dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">Données trouvées</dt>

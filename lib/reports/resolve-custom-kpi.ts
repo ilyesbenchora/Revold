@@ -11,7 +11,9 @@ const CANONICAL_DOC =
   "deals: dimensions month_created, month_closed, stage — mesures count, ou sum/avg du champ amount. " +
   "invoices (factures émises/reçues): dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
   "transactions (transactions bancaires = paiements réels encaissés/décaissés, même sans facture — ex : « paiements », « encaissements », « cash », « dépenses ») : " +
-  "dimensions month_transaction, direction, category, source — mesures count, ou sum/avg des champs amount (net signé), amount_in (encaissements), amount_out (décaissements). " +
+  "dimensions month_transaction, direction, category, source — mesures count, ou sum/avg des champs amount_in (encaissements), amount_out (décaissements), amount (flux net signé = encaissements − décaissements). " +
+  "RÈGLE CHAMPS TRANSACTIONS : « paiements », « encaissements », « CA encaissé », « rentrées d'argent » → amount_in ; « dépenses », « sorties », « charges » → amount_out ; " +
+  "amount (net) UNIQUEMENT si le KPI parle explicitement de flux net, de variation ou de solde. " +
   "subscriptions: dimensions status, source, month_started, month_canceled — mesures count, ou sum/avg du champ mrr. " +
   "tickets: dimension status — mesure count. " +
   "companies: dimensions segment, industry, country — mesure count. " +
