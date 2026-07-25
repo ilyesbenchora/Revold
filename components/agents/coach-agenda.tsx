@@ -110,6 +110,10 @@ export function CoachAgenda({
   const [cadence, setCadence] = useState(initial.cadence ?? "monthly");
   const [nextMeeting, setNextMeeting] = useState(initial.next_meeting_at ?? "");
   const [nextTime, setNextTime] = useState(initial.next_meeting_time ?? "");
+  // Cadence « Une seule fois » : la date se choisit via les raccourcis du bas
+  // (le champ « Prochain RDV » n'apparaît que pour une cadence répétitive).
+  // customPick = raccourci « Date personnalisée » activé → inputs date/heure.
+  const [customPick, setCustomPick] = useState(false);
   const [sources, setSources] = useState<string[]>(initial.sources ?? []);
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -270,7 +274,7 @@ export function CoachAgenda({
           <textarea value={pains} onChange={(e) => setPains(e.target.value)} rows={2}
             placeholder="Ex : cycle de vente trop long sur les gros comptes" className={field} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={cadence === "once" ? "" : "grid grid-cols-2 gap-2"}>
           <div>
             <label className={lbl}>Cadence des RDV</label>
             <select value={cadence} onChange={(e) => setCadence(e.target.value)} className={field}>
@@ -279,13 +283,17 @@ export function CoachAgenda({
               ))}
             </select>
           </div>
-          <div>
-            <label className={lbl}>Prochain RDV</label>
-            <div className="mt-1 flex gap-1.5">
-              <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
-              <input type="time" value={nextTime ?? ""} onChange={(e) => setNextTime(e.target.value)} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+          {/* Cadence répétitive uniquement : date de départ de la récurrence.
+              En « Une seule fois », la date se choisit via les raccourcis du bas. */}
+          {cadence !== "once" && (
+            <div>
+              <label className={lbl}>Prochain RDV</label>
+              <div className="mt-1 flex gap-1.5">
+                <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+                <input type="time" value={nextTime ?? ""} onChange={(e) => setNextTime(e.target.value)} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+              </div>
             </div>
-          </div>
+          )}
         </div>
         {availableSources.length > 0 && (
           <div>
@@ -333,25 +341,56 @@ export function CoachAgenda({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {QUICK_MEETINGS.map((q) => {
-            const date = offsetDate(q.days);
-            const active = nextMeeting === date;
-            return (
-              <button
-                key={q.label}
-                type="button"
-                onClick={() => setNextMeeting(date)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                  active
-                    ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {q.label}
-              </button>
-            );
-          })}
+        <div>
+          {cadence === "once" && <label className={lbl}>Date du rendez-vous</label>}
+          <div className={`flex flex-wrap gap-1.5 ${cadence === "once" ? "mt-1" : ""}`}>
+            {QUICK_MEETINGS.map((q) => {
+              const date = offsetDate(q.days);
+              const active = !customPick && nextMeeting === date;
+              return (
+                <button
+                  key={q.label}
+                  type="button"
+                  onClick={() => { setNextMeeting(date); setCustomPick(false); }}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                    active
+                      ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {q.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setCustomPick((v) => !v)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                customPick
+                  ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              📅 Date personnalisée
+            </button>
+          </div>
+          {/* Raccourci « Date personnalisée » → date + heure libres. */}
+          {customPick && (
+            <div className="mt-2 flex gap-1.5">
+              <input
+                type="date"
+                value={nextMeeting ?? ""}
+                onChange={(e) => setNextMeeting(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100"
+              />
+              <input
+                type="time"
+                value={nextTime ?? ""}
+                onChange={(e) => setNextTime(e.target.value)}
+                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100"
+              />
+            </div>
+          )}
         </div>
       </div>
 
