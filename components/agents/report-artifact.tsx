@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
+import { ChartWiringPanel } from "./chart-wiring-panel";
 import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
 import { addSavedReport, reportKey, isReportSaved, markReportSaved } from "./saved-reports";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
@@ -216,6 +217,52 @@ export function ReportArtifact({
 
       {curReport && <AgentReport spec={curReport} />}
       {curChart && <ChartPicker proposal={curChart} onTypeChange={setChartType} />}
+
+      {/* ── Vérification du câblage — même exigence que les tables de données :
+             l'utilisateur voit sur quelle donnée réelle l'agent s'est branché
+             (source · regroupement · mesure) et peut la corriger, avec recalcul
+             déterministe immédiat de la visualisation. ── */}
+      {curChart?.query && (
+        <ChartWiringPanel
+          query={curChart.query}
+          sources={sources}
+          period={period ? { from: period.from, to: period.to, all: period.preset === "all" } : null}
+          onApply={(nq, data) => {
+            setCurChart((prev) => (prev ? { ...prev, query: nq, data } : prev));
+            setSaved(false);
+          }}
+        />
+      )}
+      {curReport?.blocks.some((b) => b.query) && (
+        <div className="space-y-1.5">
+          {curReport.blocks.map((b, i) =>
+            b.query ? (
+              <ChartWiringPanel
+                key={`wiring-${i}`}
+                label={b.title || b.label || (b.type === "kpi" ? `KPI ${i + 1}` : `Bloc ${i + 1}`)}
+                query={b.query}
+                sources={sources}
+                period={period ? { from: period.from, to: period.to, all: period.preset === "all" } : null}
+                onApply={(nq, data) => {
+                  setCurReport((prev) => {
+                    if (!prev) return prev;
+                    const blocks = prev.blocks.map((x, j) => {
+                      if (j !== i) return x;
+                      if (x.type === "kpi") {
+                        const t = data.reduce((s, r) => s + (Number(r.value) || 0), 0);
+                        return { ...x, query: nq, value: Math.round(t).toLocaleString("fr-FR") };
+                      }
+                      return { ...x, query: nq, data };
+                    });
+                    return { ...prev, blocks };
+                  });
+                  setSaved(false);
+                }}
+              />
+            ) : null,
+          )}
+        </div>
+      )}
 
       {/* Créer une alerte de suivi directement sur ce rapport (tracking interactif) */}
       {!showAlert ? (
