@@ -5,6 +5,7 @@ import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
 import { TableAlertButton } from "./table-alert-button";
 import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
+import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 import type { ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 export type SavedTable = {
@@ -169,7 +170,7 @@ export function DataTableCard({
             </div>
           )}
           <p className="mt-0.5 text-[11px] text-slate-400">
-            {table.entity} · groupé par {table.group_by}
+            {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
         </div>
@@ -210,13 +211,13 @@ export function DataTableCard({
         ) : rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-slate-400">Aucune donnée sur cette période.</div>
         ) : isChart ? (
-          <ReportChart block={block} />
+          <ReportChart block={block} unit={table.unit_mode} />
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-100">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2 font-medium">{table.group_by}</th>
+                  <th className="px-3 py-2 font-medium">{dimLabel(table.entity, table.group_by)}</th>
                   <th className="px-3 py-2 text-right font-medium">Valeur</th>
                 </tr>
               </thead>

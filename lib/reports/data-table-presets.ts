@@ -72,6 +72,26 @@ export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
   ],
 };
 
+// Libellés humains des entités canoniques — sous-titres de cartes, funnel, alertes.
+export const ENTITY_LABELS: Record<string, string> = {
+  deals: "Deals",
+  contacts: "Contacts",
+  companies: "Entreprises",
+  invoices: "Factures",
+  subscriptions: "Abonnements",
+  tickets: "Tickets",
+  fiscal: "Échéances fiscales",
+};
+
+export function entityLabel(entity: string): string {
+  return ENTITY_LABELS[entity] ?? entity;
+}
+
+/** Libellé humain d'une dimension (« month_created » → « Mois de création »). */
+export function dimLabel(entity: string, dim: string): string {
+  return ENTITY_DIMS[entity]?.find((d) => d.id === dim)?.label ?? dim;
+}
+
 export const PAGE_LABELS: Record<string, string> = {
   perf_ventes: "Ventes",
   perf_marketing: "Marketing",

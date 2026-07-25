@@ -4,8 +4,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   AreaChart,
   Area,
   PieChart,
@@ -21,9 +19,46 @@ import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
 
-export function ReportChart({ block }: { block: ReportBlock }) {
+export type ChartUnit = "currency" | "percent" | "count" | string | null;
+
+/** Format compact pour l'axe Y (« 32 M€ », « 450 k€ ») — style cockpit Trésorerie. */
+function compactValue(v: number, unit?: ChartUnit): string {
+  if (unit === "percent") return `${Math.round(v)} %`;
+  const cur = unit === "currency";
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000)
+    return `${(v / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M${cur ? "€" : ""}`;
+  if (abs >= 1_000) return `${Math.round(v / 1_000).toLocaleString("fr-FR")} k${cur ? "€" : ""}`;
+  return `${Math.round(v).toLocaleString("fr-FR")}${cur ? " €" : ""}`;
+}
+
+/** Format complet pour le tooltip (« 5 430 200 € »). */
+function fullValue(v: number, unit?: ChartUnit): string {
+  if (unit === "currency")
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  if (unit === "percent") return `${v.toFixed(1)} %`;
+  return new Intl.NumberFormat("fr-FR").format(v);
+}
+
+const TOOLTIP_STYLE = {
+  borderRadius: 10,
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
+  fontSize: 12,
+  padding: "8px 10px",
+} as const;
+
+export function ReportChart({ block, unit }: { block: ReportBlock; unit?: ChartUnit }) {
   const data = block.data ?? [];
   if (data.length === 0) return null;
+
+  const tooltip = (
+    <Tooltip
+      contentStyle={TOOLTIP_STYLE}
+      formatter={(value) => [fullValue(Number(value), unit), null]}
+      labelStyle={{ fontWeight: 600, color: "#0f172a" }}
+    />
+  );
 
   if (block.type === "donut") {
     return (
@@ -34,7 +69,7 @@ export function ReportChart({ block }: { block: ReportBlock }) {
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip />
+          {tooltip}
         </PieChart>
       </ResponsiveContainer>
     );
@@ -44,33 +79,50 @@ export function ReportChart({ block }: { block: ReportBlock }) {
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
       <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-      <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} width={40} />
-      <Tooltip />
+      <YAxis
+        tick={{ fontSize: 10, fill: "#94a3b8" }}
+        tickLine={false}
+        axisLine={false}
+        width={52}
+        tickFormatter={(v: number) => compactValue(v, unit)}
+      />
+      {tooltip}
     </>
   );
 
-  if (block.type === "line") {
+  // Valeur affichée au-dessus du dernier point — signature des courbes cockpit.
+  const lastPointLabel = (props: { x?: unknown; y?: unknown; index?: number; value?: unknown }) => {
+    const { x, y, index, value } = props;
+    if (index !== data.length - 1 || typeof x !== "number" || typeof y !== "number" || typeof value !== "number") return <g />;
     return (
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data}>
-          {axis}
-          <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+      <text x={x} y={y - 10} textAnchor="end" fontSize={11} fontWeight={600} fill="#4f46e5">
+        {compactValue(value, unit)}
+      </text>
     );
-  }
-  if (block.type === "area") {
+  };
+
+  if (block.type === "line" || block.type === "area") {
     return (
       <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={data}>
+        <AreaChart data={data} margin={{ top: 18, right: 8 }}>
           <defs>
             <linearGradient id="agentArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d946ef" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#6366f1" stopOpacity={0.05} />
+              <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           {axis}
-          <Area type="monotone" dataKey="value" stroke="#a21caf" strokeWidth={2} fill="url(#agentArea)" />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke="#6366f1"
+            strokeWidth={2.25}
+            strokeLinejoin="round"
+            fill="url(#agentArea)"
+            dot={{ r: 2.5, fill: "#6366f1", strokeWidth: 0 }}
+            activeDot={{ r: 4 }}
+            label={lastPointLabel}
+          />
         </AreaChart>
       </ResponsiveContainer>
     );
