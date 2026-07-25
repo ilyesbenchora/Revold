@@ -41,6 +41,7 @@ const FORECAST_LABELS: Record<string, string> = {
 
 const ENTITY_LABELS: Record<string, string> = {
   deals: "deals", invoices: "factures", subscriptions: "abonnements",
+  transactions: "transactions bancaires",
   tickets: "tickets", companies: "entreprises", contacts: "contacts",
 };
 
@@ -60,6 +61,8 @@ export function trackingLabel(
     if (aggSpec.entity === "subscriptions" && aggSpec.field === "mrr" && aggSpec.multiplier === 12) return "ARR (abonnements actifs × 12)";
     if (aggSpec.entity === "subscriptions" && aggSpec.field === "mrr") return "MRR (abonnements)";
     if (aggSpec.entity === "invoices" && aggSpec.field === "amount_paid") return "CA encaissé (factures)";
+    if (aggSpec.entity === "transactions" && aggSpec.field === "amount_in") return "Encaissements (transactions bancaires)";
+    if (aggSpec.entity === "transactions" && aggSpec.field === "amount_out") return "Décaissements (transactions bancaires)";
     const ent = ENTITY_LABELS[aggSpec.entity] ?? aggSpec.entity;
     const meas = aggSpec.measure === "sum" ? `somme ${aggSpec.field ?? ""}`.trim()
       : aggSpec.measure === "avg" ? `moyenne ${aggSpec.field ?? ""}`.trim()

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
+import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
 
 type ToolOption = { key: string; label: string; icon: string; category?: string };
 
@@ -172,6 +173,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   // Step 4 — Notifications
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
   const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
+  // Étape « Vérification » (KPI personnalisé) : câblage proposé + volumes par entité.
+  const [proposal, setProposal] = useState<TrackingProposal | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [verifying, setVerifying] = useState(false);
 
   const kpiList = kpisByTeam[team] ?? [];
   const kpi =
@@ -262,6 +267,35 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setCrossSources([]); setSourceKpis({});
     setTeamLocked(false);
     setState("idle"); setResult(null);
+    setProposal(null); setCounts({}); setVerifying(false);
+  }
+
+  /** KPI personnalisé : demande le câblage à l'agent (rien n'est créé). */
+  async function requestPreview(preferredEntity?: string) {
+    if (verifying || !kpi) return;
+    setVerifying(true);
+    try {
+      const res = await fetch("/api/tracking/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kpi_text: (alertTitle.trim() || customKpi).trim(),
+          description: agentContext.trim() || undefined,
+          team,
+          category: kpi.category,
+          value: threshold ? Number(threshold) : undefined,
+          unit: unitMode,
+          entity: preferredEntity,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.counts) setCounts(d.counts);
+      if (res.ok && d.resolution) setProposal(d.resolution);
+    } catch {
+      /* la création restera possible : le back garde son fallback déterministe */
+    } finally {
+      setVerifying(false);
+    }
   }
 
   function toggleChannel(ch: string) {
@@ -291,6 +325,13 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!kpi || !threshold) return;
+
+    // KPI personnalisé : étape Vérification d'abord — l'agent propose le
+    // câblage (donnée suivie + valeur actuelle), l'utilisateur confirme.
+    if (kpiId === "custom" && !proposal) {
+      await requestPreview();
+      return;
+    }
 
     setState("loading");
     const unit = unitLabels[unitMode];
@@ -345,7 +386,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           description: parts.join(". ") + ".",
           impact: `Notification quand le KPI ${dirLabel} ${threshold}${unit}`,
           category: kpi.category,
-          forecast_type: kpiId === "custom" ? null : kpi.id,
+          // KPI perso : câblage CONFIRMÉ à l'étape Vérification, envoyé tel quel.
+          forecast_type: kpiId === "custom" ? (proposal?.forecast_type ?? null) : kpi.id,
+          agg_spec: kpiId === "custom" ? (proposal?.agg_spec ?? null) : null,
+          recon_recipe: kpiId === "custom" ? (proposal?.recon_recipe ?? null) : null,
           threshold: Number(threshold),
           direction,
           team,
@@ -475,7 +519,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           <div className="mt-2 flex gap-2">
                             <input
                               value={customKpi}
-                              onChange={(e) => setCustomKpi(e.target.value)}
+                              onChange={(e) => { setCustomKpi(e.target.value); setProposal(null); }}
                               placeholder="Ex : taux de no-show démo, NPS…"
                               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                             />
@@ -519,7 +563,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       {/* Titre de l'alerte — éditable */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">Titre de l&apos;alerte</label>
-                        <input type="text" value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)}
+                        <input type="text" value={alertTitle} onChange={(e) => { setAlertTitle(e.target.value); setProposal(null); }}
                           placeholder="Nom de l'alerte"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                       </div>
@@ -856,6 +900,19 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       </p>
                     )}
 
+                    {/* Étape « Vérification » (KPI personnalisé) : le câblage proposé par
+                        l'agent doit être confirmé avant la création. */}
+                    {kpiId === "custom" && proposal && (
+                      <div className="mt-4">
+                        <TrackingVerification
+                          proposal={proposal}
+                          counts={counts}
+                          loading={verifying}
+                          onPickEntity={(e) => requestPreview(e)}
+                        />
+                      </div>
+                    )}
+
                     <div className="mt-6 flex items-center justify-between">
                       <button type="button" onClick={() => setStep(3)} className="text-xs text-slate-400 hover:text-accent">
                         ← Modifier l&apos;évaluation
@@ -863,9 +920,15 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={state === "loading" || selectedChannels.length === 0}
+                        <button type="submit" disabled={state === "loading" || verifying || selectedChannels.length === 0}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
-                          {state === "loading" ? "Création..." : "Créer l'alerte"}
+                          {verifying
+                            ? "Vérification…"
+                            : state === "loading"
+                              ? "Création..."
+                              : kpiId === "custom" && !proposal
+                                ? "Vérifier le câblage"
+                                : kpiId === "custom" ? "Confirmer et créer" : "Créer l'alerte"}
                         </button>
                       </div>
                     </div>

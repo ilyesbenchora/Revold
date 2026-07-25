@@ -33,7 +33,9 @@ const FORECAST_SET = new Set<string>(FORECAST_TYPES);
 
 const CANONICAL_DOC =
   "deals: dimensions month_created, month_closed, stage — mesures count, ou sum/avg du champ amount. " +
-  "invoices: dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
+  "invoices (factures émises/reçues): dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
+  "transactions (transactions bancaires = paiements réels encaissés/décaissés, même sans facture — « paiements », « encaissements », « cash », « dépenses ») : " +
+  "dimensions month_transaction, direction, category, source — mesures count, ou sum/avg des champs amount (net signé), amount_in (encaissements), amount_out (décaissements). " +
   "subscriptions: dimensions status, source, month_started, month_canceled — mesures count, ou sum/avg du champ mrr. " +
   "tickets: dimension status — mesure count. " +
   "companies: dimensions segment, industry, country — mesure count. " +
@@ -51,10 +53,10 @@ const BUILD_TOOL: Anthropic.Tool = {
       mode: { type: "string", enum: ["forecast", "aggregate", "reconciled"], description: "reconciled si le KPI croise plusieurs outils (CRM↔facturation↔support) ; forecast si indicateur catalogué ; sinon aggregate mono-entité." },
       recipe: { type: "string", enum: [...RECON_IDS], description: "Requis si mode=reconciled." },
       forecast_type: { type: "string", enum: [...FORECAST_TYPES], description: "Requis si mode=forecast." },
-      entity: { type: "string", enum: ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
+      entity: { type: "string", enum: ["deals", "invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
       groupBy: { type: "string", description: "Dimension de regroupement (mode=aggregate)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
-      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, mrr)." },
+      field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr)." },
       target: { type: "string", description: "Ligne précise à isoler, ex 'active' pour abonnements actifs. Vide = total." },
       multiplier: { type: "number", description: "Conversion linéaire déterministe. 12 pour MRR→ARR annuel. 1 sinon." },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"] },
@@ -120,6 +122,8 @@ export async function resolveTrackingSpec(
     unit?: string | null;
     /** Entités canoniques réellement alimentées pour l'org (à privilégier). */
     availableEntities?: string[] | null;
+    /** Entité IMPOSÉE par l'utilisateur à l'étape « Vérification » — force mode=aggregate dessus. */
+    preferredEntity?: string | null;
   },
 ): Promise<TrackingResolution> {
   if (!args.kpiText?.trim()) return NONE;
@@ -130,8 +134,16 @@ export async function resolveTrackingSpec(
 
   const available = args.availableEntities ?? [];
   const persona = getAgentPersona(TEAM_PERSONA[args.team ?? ""] ?? TEAM_PERSONA[args.category ?? ""] ?? "automatisations");
+  // Entité imposée à l'étape « Vérification » : câblage en mode aggregate sur
+  // CETTE entité, dimension/mesure/champ les plus fidèles au KPI.
+  const entityRule = args.preferredEntity
+    ? `CONTRAINTE ABSOLUE : l'utilisateur impose la source de données « ${args.preferredEntity} ». ` +
+      `Utilise mode=aggregate avec entity=${args.preferredEntity} UNIQUEMENT (choisis dimension, mesure, champ, ` +
+      `target et multiplier les plus fidèles au KPI sur cette entité). `
+    : "";
   const system =
     `Tu es ${persona.name}, ${persona.role} chez Revold. MISSION PRINCIPALE : rattacher ce KPI aux vraies données à 100 %, ` +
+    entityRule +
     `en EXPLOITANT les données réellement présentes — jamais sur du vide. C'est ton expertise : savoir quoi aller chercher. ` +
     `TROIS voies : (0) mode=reconciled si le KPI CROISE plusieurs outils (CRM ↔ facturation ↔ support) — recettes à jointure réelle : ${RECON_DOC} ; ` +
     `(1) mode=forecast si un indicateur catalogué mono-source correspond — ${[...FORECAST_TYPES].join(", ")} ; ` +

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
 
 const TEAMS = [
   { id: "sales", label: "Ventes" },
@@ -39,11 +40,44 @@ export function CreateObjectiveModal() {
   const [priority, setPriority] = useState<"faible" | "moyen" | "urgent">("moyen");
   const [description, setDescription] = useState("");
   const [impact, setImpact] = useState("");
+  // Étape « Vérification » : câblage proposé par l'agent + volumes par entité.
+  const [proposal, setProposal] = useState<TrackingProposal | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [verifying, setVerifying] = useState(false);
 
   function reset() {
     setTitle(""); setTeam("sales"); setForecast(""); setUnit("currency"); setDirection("above");
     setTarget(""); setCurrent(""); setDateFrom(""); setDateTo(""); setPriority("moyen"); setDescription(""); setImpact("");
     setError(null);
+    setProposal(null); setCounts({}); setVerifying(false);
+  }
+
+  /** KPI libre : demande le câblage à l'agent (rien n'est créé). */
+  async function requestPreview(preferredEntity?: string) {
+    if (verifying) return;
+    setVerifying(true); setError(null);
+    try {
+      const res = await fetch("/api/tracking/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kpi_text: title.trim(),
+          description: description.trim() || undefined,
+          team, category: team,
+          value: target ? Number(target) : undefined,
+          unit,
+          entity: preferredEntity,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.counts) setCounts(d.counts);
+      if (res.ok && d.resolution) setProposal(d.resolution);
+      else setError(d.error ?? "Vérification impossible.");
+    } catch {
+      setError("Vérification impossible.");
+    } finally {
+      setVerifying(false);
+    }
   }
   function pickKpi(id: string) {
     setForecast(id);
@@ -54,6 +88,11 @@ export function CreateObjectiveModal() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !target) { setError("Titre et cible requis."); return; }
+
+    // KPI libre (pas d'indicateur catalogué choisi) : étape Vérification d'abord —
+    // l'agent propose le câblage, l'utilisateur confirme ou impose la source.
+    if (!forecast && !proposal) { await requestPreview(); return; }
+
     setBusy(true); setError(null);
     try {
       const res = await fetch("/api/objectives", {
@@ -62,11 +101,14 @@ export function CreateObjectiveModal() {
         body: JSON.stringify({
           title: title.trim(),
           team, category: team,
-          forecast_type: forecast || null,
+          // Câblage confirmé à l'écran (appliqué tel quel, sans re-passage agent).
+          forecast_type: forecast || proposal?.forecast_type || null,
+          agg_spec: proposal?.agg_spec ?? null,
+          recon_recipe: proposal?.recon_recipe ?? null,
           target: Number(target),
           unit_mode: unit,
           direction,
-          current_value: forecast ? null : current ? Number(current) : null,
+          current_value: forecast || proposal ? null : current ? Number(current) : null,
           date_from: dateFrom || null,
           date_to: dateTo || null,
           priority,
@@ -96,7 +138,7 @@ export function CreateObjectiveModal() {
             <h2 className="text-lg font-semibold text-slate-900">Nouvel objectif</h2>
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-            <div><label className={lbl}>Objectif</label><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex : +200 k€ de CA signé au T3" className={field} /></div>
+            <div><label className={lbl}>Objectif</label><input value={title} onChange={(e) => { setTitle(e.target.value); setProposal(null); }} placeholder="Ex : +200 k€ de CA signé au T3" className={field} /></div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -159,9 +201,25 @@ export function CreateObjectiveModal() {
             <div><label className={lbl}>Description</label><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} /></div>
             <div><label className={lbl}>Impact attendu</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
 
+            {/* Étape « Vérification » : câblage proposé (KPI libre uniquement). */}
+            {!forecast && proposal && (
+              <TrackingVerification
+                proposal={proposal}
+                counts={counts}
+                loading={verifying}
+                onPickEntity={(e) => requestPreview(e)}
+              />
+            )}
+
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Annuler</button>
-              <button type="submit" disabled={busy} className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">{busy ? "Création…" : "Créer l'objectif"}</button>
+              <button type="submit" disabled={busy || verifying} className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">
+                {verifying
+                  ? "Vérification…"
+                  : busy
+                    ? "Création…"
+                    : !forecast && !proposal ? "Vérifier le câblage" : !forecast ? "Confirmer et créer" : "Créer l'objectif"}
+              </button>
             </div>
           </form>
         </div>

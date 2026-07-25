@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
 import { loadEntitiesWithData } from "@/lib/alerts/entity-readiness";
+import { RECON_RECIPES } from "@/lib/reconciliation/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -38,9 +39,14 @@ export async function POST(request: Request) {
   // Objectif rattaché aux vraies données : indicateur catalogué OU agrégat
   // (ex : « 200 M€ d'ARR » → subscriptions sum(mrr) × 12). Fallback garanti.
   let effectiveForecast = typeof b.forecast_type === "string" && b.forecast_type ? b.forecast_type : null;
-  let aggSpec: Record<string, unknown> | null = null;
-  let reconSpec: { recipe: string } | null = null;
-  if (!effectiveForecast) {
+  // Câblage confirmé à l'étape « Vérification » : appliqué tel quel (pas d'agent).
+  let aggSpec: Record<string, unknown> | null =
+    b.agg_spec && typeof b.agg_spec === "object" && typeof (b.agg_spec as Record<string, unknown>).entity === "string"
+      ? (b.agg_spec as Record<string, unknown>)
+      : null;
+  let reconSpec: { recipe: string } | null =
+    typeof b.recon_recipe === "string" && b.recon_recipe in RECON_RECIPES ? { recipe: b.recon_recipe } : null;
+  if (!effectiveForecast && !aggSpec && !reconSpec) {
     const token = await getHubSpotToken(supabase, orgId);
     const availableEntities = [...(await loadEntitiesWithData(supabase, orgId))];
     const r = await resolveTrackingSpec(supabase, orgId, token, {

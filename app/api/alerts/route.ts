@@ -6,6 +6,7 @@ import { createInAppNotification } from "@/lib/notifications/in-app";
 import { resolveTrackingSpec } from "@/lib/alerts/resolve-tracking-spec";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { loadEntitiesWithData } from "@/lib/alerts/entity-readiness";
+import { RECON_RECIPES } from "@/lib/reconciliation/engine";
 
 /**
  * Alertes posées sur une table de données précise (`?source_key=…`), pour
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
     cross_sources, threshold_secondary, unit_mode_secondary, secondary_kpis,
     // Spec d'agrégat pour tracker une alerte technique/table sur les vraies données
     agg_spec,
+    // Recette réconciliée confirmée à l'étape « Vérification » (cross-source)
+    recon_recipe,
     // Table/bloc de données d'origine (compteur + lien sur la table)
     source_key,
   } = body;
@@ -93,8 +96,10 @@ export async function POST(request: Request) {
   // via le nom, le chiffre et la description. Fallback déterministe garanti.
   let effectiveForecast: string | null = forecast_type || null;
   let resolvedAggSpec = agg_spec && typeof agg_spec === "object" ? agg_spec : null;
-  let reconSpec: { recipe: string } | null = null;
-  if (!effectiveForecast && !resolvedAggSpec && typeof title === "string" && title.trim()) {
+  // Câblage réconcilié confirmé à l'étape « Vérification » (validé côté serveur).
+  let reconSpec: { recipe: string } | null =
+    typeof recon_recipe === "string" && recon_recipe in RECON_RECIPES ? { recipe: recon_recipe } : null;
+  if (!effectiveForecast && !resolvedAggSpec && !reconSpec && typeof title === "string" && title.trim()) {
     const token = await getHubSpotToken(supabase, profile.organization_id);
     const availableEntities = [...(await loadEntitiesWithData(supabase, profile.organization_id))];
     const r = await resolveTrackingSpec(supabase, profile.organization_id, token, {
