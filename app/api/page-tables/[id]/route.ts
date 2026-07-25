@@ -25,6 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   let body: {
     title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[];
+    show_total?: boolean;
     // Spec résolue et CONFIRMÉE à l'étape « Vérification » : appliquée telle
     // quelle, sans re-passage par l'agent (ce qui est affiché est enregistré).
     spec?: { entity?: string; group_by?: string; measure?: string; field?: string | null; unit_mode?: string | null };
@@ -43,6 +44,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (typeof body.view === "string" && body.view) update.view = body.view;
   if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
+  // Option d'affichage : total dans la visualisation (simple toggle, sans agent).
+  if (typeof body.show_total === "boolean") update.show_total = body.show_total;
 
   // Réécriture du KPI, de sa description OU des outils sources → on refait passer
   // l'agent (le câblage entité/dimension dépend des trois).

@@ -25,6 +25,8 @@ export type SavedTable = {
   period_preset?: string | null;
   /** Outils sources choisis dans le funnel (ex : ["pennylane"]) — filtrent la donnée. */
   sources?: string[] | null;
+  /** Affiche le total DANS la visualisation (badge graphique / centre anneau / pied de tableau). */
+  show_total?: boolean | null;
 };
 
 type Row = { name: string; value: number };
@@ -55,6 +57,21 @@ export function DataTableCard({
   const [deleting, setDeleting] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(table.title);
+  const [showTotal, setShowTotal] = useState(Boolean(table.show_total));
+
+  // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
+  async function toggleShowTotal() {
+    const next = !showTotal;
+    setShowTotal(next);
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ show_total: next }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+    else setShowTotal(!next);
+  }
 
   const load = useCallback(async (p: AppliedPeriod | null) => {
     setLoading(true);
@@ -219,12 +236,21 @@ export function DataTableCard({
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <ReportPeriodBar
           onApply={(p) => { setPeriod(p); load(p); }}
           loading={loading}
           activeLabel={period?.label ?? "Toutes périodes"}
         />
+        <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-400 transition hover:text-slate-600">
+          <input
+            type="checkbox"
+            checked={showTotal}
+            onChange={toggleShowTotal}
+            className="h-3.5 w-3.5 rounded border-slate-300 accent-indigo-500"
+          />
+          Total dans la visualisation
+        </label>
       </div>
 
       <div className="mt-3">
@@ -235,7 +261,7 @@ export function DataTableCard({
         ) : rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-slate-400">Aucune donnée sur cette période.</div>
         ) : isChart ? (
-          <ReportChart block={block} unit={table.unit_mode} />
+          <ReportChart block={block} unit={table.unit_mode} showTotal={showTotal} />
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-100">
             <table className="w-full text-sm">
@@ -253,6 +279,14 @@ export function DataTableCard({
                   </tr>
                 ))}
               </tbody>
+              {showTotal && (
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-indigo-50/40">
+                    <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-500">Total</td>
+                    <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatValue(total, table.unit_mode)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

@@ -48,9 +48,25 @@ const TOOLTIP_STYLE = {
   padding: "8px 10px",
 } as const;
 
-export function ReportChart({ block, unit }: { block: ReportBlock; unit?: ChartUnit }) {
+export function ReportChart({
+  block,
+  unit,
+  showTotal = false,
+}: {
+  block: ReportBlock;
+  unit?: ChartUnit;
+  /** Affiche le total DANS la visualisation : badge (barres/courbe) ou centre de l'anneau. */
+  showTotal?: boolean;
+}) {
   const data = block.data ?? [];
   if (data.length === 0) return null;
+
+  const total = data.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const totalBadge = showTotal ? (
+    <div className="pointer-events-none absolute right-1 top-0 z-10 rounded-md border border-indigo-100 bg-indigo-50/90 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">
+      Total · {fullValue(total, unit)}
+    </div>
+  ) : null;
 
   const tooltip = (
     <Tooltip
@@ -69,6 +85,15 @@ export function ReportChart({ block, unit }: { block: ReportBlock; unit?: ChartU
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
+          {/* Total au centre de l'anneau — l'espace vide lui est destiné. */}
+          {showTotal && (
+            <>
+              <text x="50%" y="46%" textAnchor="middle" fontSize={10} fill="#94a3b8">Total</text>
+              <text x="50%" y="56%" textAnchor="middle" fontSize={14} fontWeight={700} fill="#0f172a">
+                {compactValue(total, unit)}
+              </text>
+            </>
+          )}
           {tooltip}
         </PieChart>
       </ResponsiveContainer>
@@ -103,8 +128,10 @@ export function ReportChart({ block, unit }: { block: ReportBlock; unit?: ChartU
 
   if (block.type === "line" || block.type === "area") {
     return (
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={data} margin={{ top: 18, right: 8 }}>
+      <div className="relative">
+        {totalBadge}
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={data} margin={{ top: 18, right: 8 }}>
           <defs>
             <linearGradient id="agentArea" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -123,22 +150,26 @@ export function ReportChart({ block, unit }: { block: ReportBlock; unit?: ChartU
             activeDot={{ r: 4 }}
             label={lastPointLabel}
           />
-        </AreaChart>
-      </ResponsiveContainer>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     );
   }
   // bar (défaut)
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data}>
-        {axis}
-        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-          {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="relative">
+      {totalBadge}
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: showTotal ? 18 : 4 }}>
+          {axis}
+          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+            {data.map((_, i) => (
+              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

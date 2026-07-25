@@ -21,7 +21,7 @@ export function cleanSources(v: unknown): string[] {
 }
 
 export const TABLE_COLS =
-  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, created_at";
+  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, created_at";
 
 /** Liste les tables de données persistées d'une page. */
 export async function GET(request: Request) {
@@ -34,15 +34,22 @@ export async function GET(request: Request) {
   const pageKey = new URL(request.url).searchParams.get("page_key");
   if (!pageKey) return NextResponse.json({ error: "page_key requis" }, { status: 400 });
 
-  const { data, error } = await supabase
-    .from("page_data_tables")
-    .select(TABLE_COLS)
-    .eq("organization_id", orgId)
-    .eq("page_key", pageKey)
-    .order("created_at", { ascending: true });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ tables: data ?? [] });
+  // Résilient aux colonnes récentes non migrées (sources, show_total…) : on
+  // retire la colonne fautive et on réessaie plutôt que casser la liste.
+  let cols = TABLE_COLS;
+  for (let i = 0; i < 4; i++) {
+    const { data, error } = await supabase
+      .from("page_data_tables")
+      .select(cols)
+      .eq("organization_id", orgId)
+      .eq("page_key", pageKey)
+      .order("created_at", { ascending: true });
+    if (!error) return NextResponse.json({ tables: data ?? [] });
+    const m = /column .*?([a-z_0-9]+) does not exist/i.exec(error.message);
+    if (m && cols.includes(`, ${m[1]}`)) { cols = cols.replace(`, ${m[1]}`, ""); continue; }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ tables: [] });
 }
 
 /** Crée une nouvelle table de données sur une page. */
