@@ -11,7 +11,6 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { PageSourcesGate } from "@/components/page-sources-gate";
@@ -57,7 +56,6 @@ export default async function ServiceClientOverviewPage() {
             {data.hasData && ` (${data.tickets.length} tickets analysés)`}
           </p>
         </div>
-        <CreateDataTableButton />
       </header>
 
       <ServiceClientTabs />

@@ -10,7 +10,6 @@ import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-bloc
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 
@@ -79,7 +78,6 @@ export default async function PerformanceMarketingPage() {
             Analyse du funnel, de l&apos;attribution et de la qualité des contacts.
           </p>
         </div>
-        <CreateDataTableButton />
       </header>
 
       <PerformancesTabs />

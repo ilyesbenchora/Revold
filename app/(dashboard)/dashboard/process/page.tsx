@@ -9,7 +9,6 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { WorkflowCarousel } from "@/components/workflow-carousel";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { CreateDataTableButton } from "@/components/data-tables/create-data-table-button";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 
@@ -64,7 +63,6 @@ export default async function AutomatisationsPage() {
               ` ${allWorkflows.length} workflows détectés (${activeWorkflows.length} actifs, ${detailLoaded} analysés en profondeur).`}
           </p>
         </div>
-        <CreateDataTableButton />
       </header>
 
       <InsightLockedBlock />
