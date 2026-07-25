@@ -125,6 +125,14 @@ const PROPERTIES_BY_TYPE: Record<string, string[]> = {
     "lastmodifieddate",
     "hs_object_source",
     "hs_object_source_detail_1",
+    // Dates d'ENTRÉE dans chaque lifecycle stage — socle de la page Alignement
+    // (temps moyen par étape, délai MQL → deal). Sans elles, aucun calcul de
+    // vélocité n'est possible : le snapshot ne donne que des stocks instantanés.
+    "hs_v2_date_entered_lead",
+    "hs_v2_date_entered_marketingqualifiedlead",
+    "hs_v2_date_entered_salesqualifiedlead",
+    "hs_v2_date_entered_opportunity",
+    "hs_v2_date_entered_customer",
   ],
   companies: [
     "name",
@@ -255,11 +263,19 @@ async function upsertContacts(
   records: Array<Record<string, unknown>>,
 ): Promise<number> {
   if (records.length === 0) return 0;
+  // Stages « atteints » pour dériver is_mql / is_sql même sans date d'entrée
+  // (contact passé MQL avant l'activation du tracking des dates).
+  const MQL_REACHED = new Set(["marketingqualifiedlead", "salesqualifiedlead", "opportunity", "customer", "evangelist"]);
+  const SQL_REACHED = new Set(["salesqualifiedlead", "opportunity", "customer", "evangelist"]);
+
   const rowsRaw = records.map((r) => {
     const props = (r.properties as Record<string, string | null>) ?? {};
     const first = pStr(props, "firstname");
     const last = pStr(props, "lastname");
     const fullName = [first, last].filter(Boolean).join(" ").trim() || null;
+    const stage = pStr(props, "lifecyclestage");
+    const mqlDate = pDate(props, "hs_v2_date_entered_marketingqualifiedlead");
+    const sqlDate = pDate(props, "hs_v2_date_entered_salesqualifiedlead");
     return {
       organization_id: orgId,
       hubspot_id: r.id as string,
@@ -267,17 +283,41 @@ async function upsertContacts(
       full_name: fullName,
       phone: pStr(props, "phone"),
       title: pStr(props, "jobtitle"),
+      // Colonnes lifecycle (migration 20260725000001) — sémantique « a atteint
+      // le stade » : la date d'entrée fait foi, le stage courant sert de repli.
+      lifecycle_stage: stage,
+      hs_created_at: pDate(props, "createdate"),
+      lead_date: pDate(props, "hs_v2_date_entered_lead"),
+      mql_date: mqlDate,
+      sql_date: sqlDate,
+      opportunity_date: pDate(props, "hs_v2_date_entered_opportunity"),
+      customer_date: pDate(props, "hs_v2_date_entered_customer"),
+      is_mql: Boolean(mqlDate) || (stage ? MQL_REACHED.has(stage) : false),
+      is_sql: Boolean(sqlDate) || (stage ? SQL_REACHED.has(stage) : false),
       raw_data: r,
       hs_last_modified_at: pDate(props, "lastmodifieddate"),
     };
   });
   const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
+  // Migration lifecycle pas encore appliquée → on retente sans ces colonnes
+  // (la sync ne doit jamais casser sur un déploiement avant migration).
+  const LIFECYCLE_COLS = ["lifecycle_stage", "hs_created_at", "lead_date", "mql_date", "sql_date", "opportunity_date", "customer_date"] as const;
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
-    const { error, count } = await supabase
+    let { error, count } = await supabase
       .from("contacts")
       .upsert(chunk, { onConflict: "organization_id,hubspot_id", count: "exact" });
+    if (error && /column/i.test(error.message)) {
+      const bare = chunk.map((row) => {
+        const copy: Record<string, unknown> = { ...row };
+        for (const col of LIFECYCLE_COLS) delete copy[col];
+        return copy;
+      });
+      ({ error, count } = await supabase
+        .from("contacts")
+        .upsert(bare, { onConflict: "organization_id,hubspot_id", count: "exact" }));
+    }
     if (error) throw new Error(`Upsert contacts: ${error.message}`);
     upserted += count ?? chunk.length;
   }
@@ -417,6 +457,9 @@ async function upsertDeals(
       stage_id: stageExt && stageIdByExternal[stageExt] ? stageIdByExternal[stageExt] : null,
       amount: pNum(props, "amount") || null,
       close_date: closeDate ? closeDate.split("T")[0] : null, // date only
+      // VRAIE date de création HubSpot (avant : created_date restait au défaut
+      // CURRENT_DATE du premier sync → cycle de vente faussé).
+      created_date: pDate(props, "createdate")?.split("T")[0] ?? null,
       is_closed_won: isWon,
       is_closed_lost: isClosed && !isWon,
       last_contacted_at: pDate(props, "notes_last_contacted"),

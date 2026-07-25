@@ -1,193 +1,298 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+/**
+ * Page ALIGNEMENT — l'alignement entre les services, mesuré sur les données
+ * réelles : marketing → ventes → finance → CS.
+ *
+ * Chaque bloc est un RELAIS entre deux équipes, avec son délai médian et sa
+ * couverture de données. Fiabilité : médiane partout, échantillon affiché,
+ * jamais de faux zéro — un relais sans donnée mesurable l'affiche clairement.
+ *
+ * Câblage : colonnes lifecycle datées de `contacts` (migration 20260725000001,
+ * ETL hs_v2_date_entered_*), vraie createdate des deals, et recettes de délai
+ * du moteur de réconciliation (mql_to_deal_created, deal_won_to_first_invoice,
+ * invoice_to_payment) — les mêmes que les alertes/objectifs peuvent surveiller.
+ */
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
-import { getOrgHubspotPortalId } from "@/app/(dashboard)/dashboard/insights-ia/context";
-import { getCachedWorkflows } from "@/lib/sync/get-cached-workflows";
+import { getOrgId } from "@/lib/supabase/cached";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { WorkflowCarousel } from "@/components/workflow-carousel";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { computeReconciledMetric, type ReconResult } from "@/lib/reconciliation/engine";
+import {
+  fetchAlignmentContacts,
+  computeLifecycleVelocity,
+  computeMqlHandoff,
+  computeRealSalesCycle,
+} from "@/lib/alignment/velocity";
 
-export default async function AutomatisationsPage() {
+const fmtDays = (d: number | null): string => (d == null ? "—" : `${d.toLocaleString("fr-FR")} j`);
+const fmtEur = (v: number): string =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+const fmtDate = (iso: string): string =>
+  new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+
+/** Tuile délai : valeur + couverture, ou « donnée insuffisante » (anti-faux-0). */
+function delayTile(label: string, sub: string, r: ReconResult | null): StatTile {
+  if (!r || !r.hasData) {
+    return { label, value: "—", tone: "neutral", sub, verdict: { label: "Donnée insuffisante", tone: "warn" } };
+  }
+  return {
+    label,
+    value: fmtDays(r.value),
+    tone: "accent",
+    sub,
+    verdict:
+      r.coverage < 0.3
+        ? { label: `Couverture faible (${Math.round(r.coverage * 100)} %)`, tone: "warn" }
+        : { label: `${r.sample ?? "—"} mesuré${(r.sample ?? 0) > 1 ? "s" : ""} · couverture ${Math.round(r.coverage * 100)} %`, tone: "pos" },
+  };
+}
+
+export default async function AlignementPage() {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
 
   const supabase = await createSupabaseServerClient();
-  const snapshot = await getHubspotSnapshot();
-  const portalId = await getOrgHubspotPortalId(supabase, orgId);
 
-  // ── SOURCE UNIQUE : cache Supabase ──────────────────────────────────
-  // Le sync ETL enrichi (syncWorkflowsEnriched) fetch /v4/flows/{id} pour
-  // chaque workflow et merge le détail dans raw_data. Donc le cache contient
-  // TOUT ce qu'on peut savoir d'un workflow, sans appel live à l'affichage.
-  const { workflows: allWorkflows, details } = await getCachedWorkflows(
-    supabase,
-    orgId,
-    portalId ?? undefined,
-  );
+  const contacts = await fetchAlignmentContacts(supabase, orgId);
+  const [velocity, handoff, salesCycle, dealToInvoice, invoiceToPayment, leakage, mrrAtRisk] = await Promise.all([
+    Promise.resolve(computeLifecycleVelocity(contacts)),
+    computeMqlHandoff(supabase, orgId, contacts),
+    computeRealSalesCycle(supabase, orgId),
+    computeReconciledMetric(supabase, orgId, "deal_won_to_first_invoice"),
+    computeReconciledMetric(supabase, orgId, "invoice_to_payment"),
+    computeReconciledMetric(supabase, orgId, "revenue_leakage"),
+    computeReconciledMetric(supabase, orgId, "mrr_at_risk"),
+  ]);
 
-  const activeWorkflows = allWorkflows.filter((w) => w.enabled);
-  const inactiveWorkflows = allWorkflows.filter((w) => !w.enabled);
-  const detailLoaded = details.length;
+  const noLifecycleDates = velocity.datedContacts === 0;
 
-  // Action stats agrégés depuis les détails locaux
-  const a = {
-    totalActions: details.reduce((s, d) => s + d.actions.length, 0),
-    byCategory: details.reduce(
-      (acc, d) => {
-        for (const action of d.actions) acc[action.category] = (acc[action.category] ?? 0) + 1;
-        return acc;
-      },
-      { set_property: 0, send_email: 0, create_task: 0, webhook: 0, branch: 0, delay: 0, create_engagement: 0, update_owner: 0, other: 0 } as Record<string, number>,
-    ),
-    outgoingWebhookHosts: [] as string[],
-  };
-  const failedDetailIds = activeWorkflows
-    .filter((w) => !w.hasDetail)
-    .map((w) => ({ id: w.id, name: w.name, reason: "Détail non disponible dans le cache (worker enrichi a échoué pour ce workflow)" }));
+  const tiles: StatTile[] = [
+    handoff.medianDaysToDeal != null
+      ? {
+          label: "MQL → deal créé",
+          value: fmtDays(handoff.medianDaysToDeal),
+          tone: "accent",
+          sub: "Relais marketing → ventes (médiane)",
+          verdict: { label: `${handoff.withDealCount}/${handoff.linkableCount} MQL avec deal`, tone: "pos" },
+        }
+      : { label: "MQL → deal créé", value: "—", tone: "neutral", sub: "Relais marketing → ventes", verdict: { label: "Donnée insuffisante", tone: "warn" } },
+    salesCycle.medianDays != null
+      ? { label: "Cycle de vente réel", value: fmtDays(salesCycle.medianDays), tone: "accent", sub: "Création → closing (deals gagnés)", verdict: { label: `${salesCycle.sample} deals mesurés`, tone: "pos" } }
+      : { label: "Cycle de vente réel", value: "—", tone: "neutral", sub: "Création → closing (deals gagnés)", verdict: { label: "Donnée insuffisante", tone: "warn" } },
+    delayTile("Deal gagné → 1re facture", "Relais ventes → finance (médiane)", dealToInvoice),
+    delayTile("Facture → encaissement", "DSO opérationnel (médiane)", invoiceToPayment),
+  ];
 
   return (
     <section className="space-y-8">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Audit exhaustif des workflows HubSpot — déclencheur, actions, re-enrollment, objectif.
-            {allWorkflows.length > 0 &&
-              ` ${allWorkflows.length} workflows détectés (${activeWorkflows.length} actifs, ${detailLoaded} analysés en profondeur).`}
-          </p>
-        </div>
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Alignement</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          L&apos;alignement entre vos services, mesuré sur vos données réelles : temps passé à chaque étape du
+          lifecycle, relais marketing → ventes, ventes → finance et finance → service client.
+        </p>
       </header>
 
       <InsightLockedBlock />
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
-      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_automatisations" categories={["crm"]}>
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_automatisations" categories={["crm", "billing", "support"]}>
 
-      {/* ── Synthèse compteurs ── */}
+      {/* Prérequis de collecte pas encore rempli → on le dit, on n'affiche pas de faux zéros. */}
+      {noLifecycleDates && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+          <p className="font-bold">⏳ Les dates d&apos;entrée en lifecycle stage ne sont pas encore collectées</p>
+          <p className="mt-1 leading-relaxed">
+            Le funnel de vélocité et le relais MQL → ventes s&apos;activeront après la prochaine synchronisation
+            HubSpot (les propriétés <code>hs_v2_date_entered_*</code> viennent d&apos;être ajoutées à la collecte).
+            Lance une resynchronisation complète depuis Paramètres → Intégrations pour couvrir tout l&apos;historique.
+          </p>
+        </div>
+      )}
+
+      <KpiStatTiles tiles={tiles} />
+
+      {/* ── Bloc 1 : vélocité du lifecycle (marketing → ventes) ── */}
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Workflows détectés
-            {allWorkflows.length > 0 && (
-              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                {activeWorkflows.length} actifs / {allWorkflows.length}
+            Vélocité du lifecycle
+            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              {velocity.datedContacts} contacts datés / {velocity.totalContacts}
+            </span>
+          </h2>
+        }
+      >
+        <p className="text-xs text-slate-500">
+          Temps médian passé par les contacts à chaque étape (lead → MQL → SQL → opportunité → client) et taux
+          de passage. C&apos;est ici qu&apos;on voit l&apos;étape qui gonfle — et donc l&apos;équipe qui a besoin
+          d&apos;aide, pas de reproches.
+        </p>
+        <div className="mt-4">
+          <BlockDataTable
+            title="Vélocité du lifecycle"
+            subtitle="temps médian par étape"
+            team="revops"
+            unit="count"
+            nameLabel="Étape"
+            valueLabel="Contacts entrés"
+            extraColumns={["Délai médian vers l'étape suivante", "Taux de passage", "Échantillon"]}
+            rows={velocity.steps.map((s) => ({
+              name: s.label,
+              value: s.reached,
+              unit: "count" as const,
+              cells: [
+                s.medianDaysToNext != null ? `${s.medianDaysToNext.toLocaleString("fr-FR")} j` : "—",
+                s.conversionPct != null ? `${s.conversionPct} %` : "—",
+                s.sample > 0 ? `${s.sample} contacts` : "—",
+              ],
+            }))}
+            footnote="Médiane sur les contacts dont la date d'entrée dans l'étape est connue (hs_v2_date_entered_*). « — » = échantillon vide, jamais un faux zéro."
+          />
+        </div>
+      </CollapsibleBlock>
+
+      {/* ── Bloc 2 : relais marketing → ventes ── */}
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            Relais marketing → ventes
+            {handoff.abandonedCount > 0 && (
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                {handoff.abandonedCount} MQL abandonnés
               </span>
             )}
           </h2>
         }
       >
-        {allWorkflows.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-500">
-              Aucun workflow détecté dans votre miroir Supabase. Lancez une réconciliation
-              complète depuis Settings → Intégrations → Parité.
-            </p>
-          </div>
-        )}
+        <p className="text-xs text-slate-500">
+          Le passage de témoin le plus critique : un MQL qualifié par le marketing doit devenir un deal côté
+          ventes. Délai médian, taux de prise en charge, et la liste nominative des MQL qui attendent depuis
+          plus de {handoff.abandonAfterDays} jours.
+        </p>
 
-        {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
-            title="Workflows détectés"
-            subtitle="workflows"
-            team="revops"
+            title="Relais marketing → ventes"
+            subtitle="prise en charge des MQL"
+            team="sales"
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
             rows={[
-              { name: "Workflows actifs", value: activeWorkflows.length, unit: "count" },
-              { name: "Workflows inactifs", value: inactiveWorkflows.length, unit: "count" },
-              { name: "Workflows total", value: allWorkflows.length, unit: "count" },
-              { name: "Actions analysées", value: a.totalActions, unit: "count" },
+              { name: "Contacts entrés en MQL (datés)", value: handoff.mqlCount, unit: "count" },
+              { name: "MQL rattachés à une entreprise (joignables)", value: handoff.linkableCount, unit: "count" },
+              { name: "MQL avec deal créé ensuite", value: handoff.withDealCount, unit: "count" },
+              { name: `MQL abandonnés (≥ ${handoff.abandonAfterDays} j sans deal)`, value: handoff.abandonedCount, unit: "count" },
             ]}
-            footnote="Source : miroir Supabase des workflows HubSpot. Actifs + inactifs = total."
+            footnote={`Délai médian MQL → premier deal de l'entreprise : ${fmtDays(handoff.medianDaysToDeal)}. Jointure contact → deals via company_id, sur les vraies dates HubSpot.`}
+          />
+        </div>
+
+        {handoff.abandoned.length > 0 && (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-red-100">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-red-100 bg-red-50/60 text-[11px] uppercase tracking-wide text-red-700">
+                  <th className="px-2.5 py-2 font-semibold">MQL en attente</th>
+                  <th className="px-2.5 py-2 font-semibold">Email</th>
+                  <th className="px-2.5 py-2 font-semibold">MQL depuis</th>
+                  <th className="px-2.5 py-2 text-right font-semibold">Attente</th>
+                </tr>
+              </thead>
+              <tbody>
+                {handoff.abandoned.map((c) => (
+                  <tr key={c.id} className="border-b border-slate-100 last:border-0 transition hover:bg-red-50/40">
+                    <td className="px-2.5 py-1.5 font-medium text-slate-900">{c.name}</td>
+                    <td className="px-2.5 py-1.5 text-slate-600">{c.email ?? "—"}</td>
+                    <td className="px-2.5 py-1.5 text-slate-600">{fmtDate(c.mqlDate)}</td>
+                    <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums text-red-600">{c.daysSince} j</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CollapsibleBlock>
+
+      {/* ── Bloc 3 : relais ventes → finance ── */}
+      <CollapsibleBlock
+        title={<h2 className="text-lg font-semibold text-slate-900">Relais ventes → finance</h2>}
+      >
+        <p className="text-xs text-slate-500">
+          Un deal gagné doit devenir une facture, puis un encaissement. Délais médians et fuite de revenu
+          (deals gagnés jamais facturés) — jointures réelles CRM × facturation sur company_id.
+        </p>
+        <div className="mt-4">
+          <BlockDataTable
+            title="Relais ventes → finance"
+            subtitle="du closing à l'encaissement"
+            team="finance"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              {
+                name: "Délai deal gagné → 1re facture (médiane, jours)",
+                value: dealToInvoice?.hasData ? dealToInvoice.value : 0,
+                unit: "count" as const,
+                cells: [dealToInvoice?.hasData ? `${dealToInvoice.sample} deals · couverture ${Math.round((dealToInvoice.coverage ?? 0) * 100)} %` : "Donnée insuffisante"],
+              },
+              {
+                name: "Délai facture → encaissement (médiane, jours)",
+                value: invoiceToPayment?.hasData ? invoiceToPayment.value : 0,
+                unit: "count" as const,
+                cells: [invoiceToPayment?.hasData ? `${invoiceToPayment.sample} factures · couverture ${Math.round((invoiceToPayment.coverage ?? 0) * 100)} %` : "Donnée insuffisante"],
+              },
+            ]}
+            extraColumns={["Fiabilité"]}
+            footnote={
+              leakage?.hasData
+                ? `Fuite de revenu : ${fmtEur(leakage.value)} de deals gagnés sans aucune facture (couverture ${Math.round((leakage.coverage ?? 0) * 100)} %).`
+                : "Fuite de revenu : donnée insuffisante (connectez un outil de facturation et vérifiez le rapprochement)."
+            }
           />
         </div>
       </CollapsibleBlock>
 
-      {/* ── ANALYSE ÉCRITE workflow par workflow ── */}
-      {allWorkflows.length > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              Analyse exhaustive workflow par workflow
-              <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
-                {detailLoaded} / {activeWorkflows.length} analysés
-              </span>
-            </h2>
-          }
-        >
-          <p className="text-xs text-slate-500">
-            <strong>{allWorkflows.length} workflows</strong> détectés depuis le miroir Supabase,
-            dont <strong>{activeWorkflows.length} actifs</strong>. Pour chaque actif où un détail
-            a pu être chargé live, on décrit en clair : l&apos;objet enrôlé, le déclencheur,
-            les types d&apos;actions, l&apos;état du re-enrollment, l&apos;objectif paramétré,
-            et l&apos;analyse contextuelle par profil de workflow.
-          </p>
-
-          {/* Diagnostic chargement détail */}
-          {failedDetailIds.length > 0 && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <p className="font-bold">
-                ⚠ {failedDetailIds.length} workflow{failedDetailIds.length > 1 ? "s" : ""} actifs sans détail enrichi
-              </p>
-              <p className="mt-1 text-[11px]">
-                Les workflows sont quand même listés en mode lite (nom + ID + état + dates +
-                révisions + lien HubSpot). Pour les enrichir : relance &laquo; Resync HubSpot &raquo;
-                qui re-tente le détail per workflow ; si toujours bloqué = workflow d&apos;un type
-                non supporté par l&apos;API détail (calculation, imported, custom object workflow).
-              </p>
-              <details className="mt-2">
-                <summary className="cursor-pointer font-semibold">Voir les workflows sans détail</summary>
-                <ul className="mt-1 space-y-0.5 pl-4">
-                  {failedDetailIds.slice(0, 20).map((f) => (
-                    <li key={f.id} className="text-[11px]">
-                      <span className="font-mono">{f.id}</span> — {f.name}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            </div>
-          )}
-
-          {!portalId && detailLoaded > 0 && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <p className="font-bold">⚠ Liens HubSpot non disponibles</p>
-              <p className="mt-1 text-[11px]">
-                Le portalId HubSpot n&apos;a pas pu être déterminé. Reconnectez HubSpot via OAuth.
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <WorkflowCarousel workflows={allWorkflows} details={details} />
-          </div>
-
-          {/* Données du bloc + alerte chirurgicale. */}
-          <div className="mt-4">
-            <BlockDataTable
-              title="Analyse exhaustive workflow par workflow"
-              subtitle="couverture de l'analyse"
-              team="revops"
-              unit="count"
-              nameLabel="Indicateur"
-              valueLabel="Valeur"
-              rows={[
-                { name: "Workflows analysés (détail chargé)", value: detailLoaded, unit: "count" },
-                { name: "Workflows actifs sans détail", value: failedDetailIds.length, unit: "count" },
-              ]}
-              footnote="Couverture de l'enrichissement : détails chargés vs workflows actifs restés en mode lite."
-            />
-          </div>
-        </CollapsibleBlock>
-      )}
+      {/* ── Bloc 4 : relais finance → service client ── */}
+      <CollapsibleBlock
+        title={<h2 className="text-lg font-semibold text-slate-900">Relais finance → service client</h2>}
+      >
+        <p className="text-xs text-slate-500">
+          La boucle se ferme côté rétention : le revenu récurrent exposé quand un compte facturé a un ticket
+          ouvert. Jointure abonnements × tickets sur company_id.
+        </p>
+        <div className="mt-4">
+          <BlockDataTable
+            title="Relais finance → service client"
+            subtitle="revenu récurrent sous tension"
+            team="csm"
+            unit="currency"
+            nameLabel="Indicateur"
+            valueLabel="Montant"
+            rows={[
+              {
+                name: "MRR à risque (comptes avec ticket ouvert)",
+                value: mrrAtRisk?.hasData ? mrrAtRisk.value : 0,
+                unit: "currency" as const,
+                cells: [mrrAtRisk?.hasData ? `couverture ${Math.round((mrrAtRisk.coverage ?? 0) * 100)} %` : "Donnée insuffisante"],
+              },
+            ]}
+            extraColumns={["Fiabilité"]}
+            footnote="Un MRR à risque élevé et durable = relais CS → finance à organiser (priorisation des tickets des comptes à fort MRR)."
+          />
+        </div>
+      </CollapsibleBlock>
 
       </PageSourcesGate>
 

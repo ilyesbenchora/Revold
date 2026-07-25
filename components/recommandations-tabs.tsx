@@ -19,7 +19,7 @@ export function RecommandationsTabs({ counts = {} }: Props) {
   const tabs: Array<{ href: string; label: string; emoji: string; count?: number }> = [
     { href: "/dashboard/audit/recommandations", label: "Vue d'ensemble", emoji: "🎯", count: undefined },
     { href: "/dashboard/audit/recommandations/donnees", label: "Propriétés", emoji: "🗂️", count: counts.donnees },
-    { href: "/dashboard/audit/recommandations/process", label: "Automatisations", emoji: "⚙️", count: counts.process },
+    { href: "/dashboard/audit/recommandations/process", label: "Alignement", emoji: "🤝", count: counts.process },
     { href: "/dashboard/audit/recommandations/performances", label: "Performances", emoji: "📈", count: counts.performances },
     { href: "/dashboard/audit/recommandations/paiement-facturation", label: "Trésorerie", emoji: "💰", count: counts.paiement },
     { href: "/dashboard/audit/recommandations/service-client", label: "Service Client", emoji: "🎧", count: counts.service_client },

@@ -20,9 +20,9 @@ const modules = [
   },
   {
     href: "/dashboard/agents/automatisations",
-    title: "Agent Automatisations",
-    description: "Cohérence des cycles, handoffs, règles de qualification, alignement sales-marketing.",
-    objective: "Supprimer les frictions entre équipes pour fluidifier le parcours prospect → client.",
+    title: "Agent Alignement",
+    description: "Relais entre services : vélocité du lifecycle, MQL → deal, deal → facture, rétention.",
+    objective: "Mesurer chaque passage de témoin entre équipes et poser des SLA là où le relais se rompt.",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2v4" /><path d="M12 18v4" />

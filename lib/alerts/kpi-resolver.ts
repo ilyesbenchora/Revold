@@ -305,12 +305,14 @@ export async function resolveKpiValue(
     }
 
     case "sales_cycle_days": {
-      let q = supabase.from("deals").select("created_at, close_date").eq("organization_id", orgId).eq("is_closed_won", true).not("close_date", "is", null);
+      // created_date = VRAIE createdate HubSpot (mappée par l'ETL) ; created_at
+      // (date d'insert Supabase) n'est qu'un repli pour les lignes historiques.
+      let q = supabase.from("deals").select("created_date, created_at, close_date").eq("organization_id", orgId).eq("is_closed_won", true).not("close_date", "is", null);
       q = applyDealFilters(q, filters);
       const { data } = await q;
       if (!data || data.length === 0) return 0;
       const totalDays = data.reduce((s, d) => {
-        const created = new Date(d.created_at).getTime();
+        const created = new Date(d.created_date ?? d.created_at).getTime();
         const closed = new Date(d.close_date).getTime();
         return s + Math.max(0, Math.round((closed - created) / 86400000));
       }, 0);

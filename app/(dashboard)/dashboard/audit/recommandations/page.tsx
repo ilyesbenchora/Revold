@@ -15,9 +15,9 @@ const SECTIONS = [
   },
   {
     href: "/dashboard/audit/recommandations/process",
-    emoji: "⚙️",
-    label: "Automatisations",
-    description: "Workflows, lifecycle stages, MEDDIC/BANT, handoff Marketing→Sales, rituels.",
+    emoji: "🤝",
+    label: "Alignement",
+    description: "Lifecycle stages, MEDDIC/BANT, handoff Marketing→Sales, rituels inter-équipes.",
     gradient: "from-indigo-500 to-blue-600",
   },
   {

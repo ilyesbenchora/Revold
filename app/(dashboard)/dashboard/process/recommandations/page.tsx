@@ -13,9 +13,9 @@ export default async function ProcessRecommandationsPage() {
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Automatisations</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Alignement</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Recommandations CRO/RevOps pour optimiser vos workflows et lifecycle stages.
+          Recommandations CRO/RevOps pour fluidifier les relais entre services et le lifecycle.
         </p>
       </header>
 

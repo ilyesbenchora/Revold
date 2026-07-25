@@ -47,7 +47,7 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
     },
     {
       id: "audit_automatisations",
-      label: "Données — Automatisations",
+      label: "Données — Alignement",
       href: "/dashboard/process",
       description: "Workflows actifs et règles d'automatisation HubSpot",
       diagKeys: [],

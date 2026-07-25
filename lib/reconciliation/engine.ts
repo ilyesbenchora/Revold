@@ -13,7 +13,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * une alerte ne se déclenche pas sur une jointure trop peu couverte (faux 0).
  */
 
-export type ReconResult = { value: number; coverage: number; hasData: boolean };
+export type ReconResult = {
+  value: number;
+  coverage: number;
+  hasData: boolean;
+  /** Recettes de délai : nombre de paires réellement mesurées. */
+  sample?: number;
+  /** Recettes de délai : population de départ (pour afficher « X sur Y »). */
+  denominator?: number;
+};
 export type ReconRecipe = {
   id: string;
   label: string;
@@ -75,6 +83,14 @@ async function openTicketCompanies(sb: SupabaseClient, orgId: string): Promise<S
 }
 
 const sum = (rows: Array<{ v: number | null }>) => rows.reduce((s, r) => s + (r.v || 0), 0);
+
+/** Médiane (0 si vide) — robuste aux outliers pour les recettes de délai. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 export const RECON_RECIPES: Record<string, ReconRecipe> = {
   crm_vs_billed_gap: {
@@ -177,6 +193,94 @@ export const RECON_RECIPES: Record<string, ReconRecipe> = {
       const linked = subs.filter((s) => s.company_id).length;
       const coverage = subs.length > 0 ? linked / subs.length : 0;
       return { value: Math.round(atRisk), coverage, hasData: subs.length > 0 };
+    },
+  },
+
+  // ── Recettes de DÉLAI (page Alignement) — valeur en JOURS (médiane, robuste
+  // aux outliers), unit "count". La couverture = part des lignes de départ
+  // réellement appariées : le gate anti-faux-zéro s'applique comme partout.
+  mql_to_deal_created: {
+    id: "mql_to_deal_created",
+    label: "Délai MQL → création de deal (jours)",
+    unit: "count",
+    desc: "Jours médians entre l'entrée d'un contact en MQL et la création du premier deal de son entreprise. Mesure le relais marketing → ventes.",
+    async compute(sb, orgId) {
+      const [mqls, deals] = await Promise.all([
+        selectAll<{ mql_date: string | null; company_id: string | null }>(sb, "contacts", "mql_date, company_id", (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (q as any).eq("organization_id", orgId).not("mql_date", "is", null)),
+        selectAll<{ created_date: string | null; company_id: string | null }>(sb, "deals", "created_date, company_id", (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (q as any).eq("organization_id", orgId).not("created_date", "is", null)),
+      ]);
+      const dealsByCompany = new Map<string, number[]>();
+      for (const d of deals) {
+        if (!d.company_id || !d.created_date) continue;
+        (dealsByCompany.get(d.company_id) ?? dealsByCompany.set(d.company_id, []).get(d.company_id)!)
+          .push(new Date(d.created_date).getTime());
+      }
+      const delays: number[] = [];
+      let linkable = 0;
+      for (const c of mqls) {
+        if (!c.company_id || !c.mql_date) continue;
+        linkable++;
+        const mqlAt = new Date(c.mql_date).getTime();
+        const after = (dealsByCompany.get(c.company_id) ?? []).filter((t) => t >= mqlAt);
+        if (after.length > 0) delays.push((Math.min(...after) - mqlAt) / 86_400_000);
+      }
+      const coverage = mqls.length > 0 ? delays.length / mqls.length : 0;
+      return { value: Math.round(median(delays) * 10) / 10, coverage, hasData: delays.length > 0, sample: delays.length, denominator: linkable };
+    },
+  },
+
+  deal_won_to_first_invoice: {
+    id: "deal_won_to_first_invoice",
+    label: "Délai deal gagné → 1re facture (jours)",
+    unit: "count",
+    desc: "Jours médians entre le closing d'un deal gagné et la première facture émise à son entreprise. Mesure le relais ventes → finance.",
+    async compute(sb, orgId) {
+      const [deals, invs] = await Promise.all([
+        selectAll<{ close_date: string | null; company_id: string | null }>(sb, "deals", "close_date, company_id", (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (q as any).eq("organization_id", orgId).eq("is_closed_won", true).not("close_date", "is", null)),
+        selectAll<{ issued_at: string | null; company_id: string | null }>(sb, "invoices", "issued_at, company_id", (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (q as any).eq("organization_id", orgId).not("issued_at", "is", null)),
+      ]);
+      const invByCompany = new Map<string, number[]>();
+      for (const i of invs) {
+        if (!i.company_id || !i.issued_at) continue;
+        (invByCompany.get(i.company_id) ?? invByCompany.set(i.company_id, []).get(i.company_id)!)
+          .push(new Date(i.issued_at).getTime());
+      }
+      const delays: number[] = [];
+      for (const d of deals) {
+        if (!d.company_id || !d.close_date) continue;
+        const closedAt = new Date(d.close_date).getTime();
+        const after = (invByCompany.get(d.company_id) ?? []).filter((t) => t >= closedAt);
+        if (after.length > 0) delays.push((Math.min(...after) - closedAt) / 86_400_000);
+      }
+      const coverage = deals.length > 0 ? delays.length / deals.length : 0;
+      return { value: Math.round(median(delays) * 10) / 10, coverage, hasData: delays.length > 0, sample: delays.length, denominator: deals.length };
+    },
+  },
+
+  invoice_to_payment: {
+    id: "invoice_to_payment",
+    label: "Délai facture → encaissement (jours)",
+    unit: "count",
+    desc: "Jours médians entre l'émission d'une facture et son paiement (DSO opérationnel). Factures avec issued_at ET paid_at.",
+    async compute(sb, orgId) {
+      const invs = await selectAll<{ issued_at: string | null; paid_at: string | null }>(
+        sb, "invoices", "issued_at, paid_at", (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (q as any).eq("organization_id", orgId).not("paid_at", "is", null));
+      const delays = invs
+        .filter((i) => i.issued_at && i.paid_at)
+        .map((i) => (new Date(i.paid_at!).getTime() - new Date(i.issued_at!).getTime()) / 86_400_000)
+        .filter((d) => d >= 0);
+      const coverage = invs.length > 0 ? delays.length / invs.length : 0;
+      return { value: Math.round(median(delays) * 10) / 10, coverage, hasData: delays.length > 0, sample: delays.length, denominator: invs.length };
     },
   },
 

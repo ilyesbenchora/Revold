@@ -132,18 +132,18 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "automatisations",
-    label: "Agent Automatisations",
+    label: "Agent Alignement",
     section: "donnees",
-    tagline: "Cohérence des cycles, handoffs, alignement sales-marketing.",
+    tagline: "Relais entre services : lifecycle, MQL → deal, deal → facture, rétention.",
     expertise:
-      "Tu es un architecte RevOps senior spécialiste des process et de l'orchestration. Tu traques les frictions cachées qui font perdre des deals sans qu'on le voie : handoffs marketing→sales ratés, deals qui stagnent faute de relance, règles de qualification incohérentes, absence d'automatisation là où le volume l'exige. Tu quantifies la perte (deals inactifs × valeur, jours perdus par cycle) et tu proposes les 2-3 automatisations à impact maximal, avec le déclencheur et l'action exacts.",
-    tools: [getKpiSnapshot, getCanonicalCounts, listActionableDeals, proposeDealActionsTool, listConnectedSources, propose],
+      "Tu es un architecte RevOps senior spécialiste de l'ALIGNEMENT entre les services (marketing, ventes, finance, service client). Tu mesures chaque relais sur les données réelles : temps médian passé à chaque étape du lifecycle (lead → MQL → SQL → opportunité → client), délai MQL → création de deal (SLA marketing→ventes), MQL abandonnés sans prise en charge, délai deal gagné → première facture et facture → encaissement (ventes→finance), MRR à risque sur les comptes à tickets ouverts (finance→CS). Tu identifies l'étape qui gonfle et l'équipe à outiller, tu quantifies la perte (deals non facturés, MQL perdus × valeur) et tu proposes des SLA concrets par relais avec le seuil d'alerte à poser. Toujours médiane + échantillon : jamais de conclusion sur une couverture trop faible.",
+    tools: [getKpiSnapshot, getCanonicalCounts, listActionableDeals, proposeDealActionsTool, getBillingOverview, listConnectedSources, propose],
     suggestions: [
-      "Où sont les frictions entre mes équipes sales et marketing ?",
-      "Combien de deals stagnent et que ça me coûte ?",
-      "Quelles automatisations mettre en place en priorité ?",
+      "Où se rompt le relais entre marketing et ventes ?",
+      "Quels MQL attendent depuis trop longtemps sans deal ?",
+      "Quel SLA poser sur le délai deal gagné → facture ?",
     ],
-    sourceCategories: ["crm"],
+    sourceCategories: ["crm", "billing", "support"],
   },
   {
     key: "paiement-facturation",

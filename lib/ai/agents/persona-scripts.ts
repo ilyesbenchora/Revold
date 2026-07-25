@@ -51,15 +51,14 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   automatisations: {
     elevenVoiceId: "yG4Uc56cLYQyZFnWaYv2", // Kael — FR parisien jeune, posé (ingénieur)
     segments: [
-      "Salut, je suis l'agent process, ton ingénieur workflows chez Revold.",
-      "Mon métier, c'est de chasser tout ce que ton équipe fait encore à la main.",
-      "Les tâches répétitives, les copier-coller entre outils, les relances oubliées.",
-      "J'analyse tes workflows un par un, action par action,",
-      "pour repérer ce qui peut être automatisé sans rien casser.",
-      "Je te dis où tu perds des heures chaque semaine,",
-      "et par quoi commencer pour en récupérer le plus vite.",
-      "L'objectif : que tes équipes se concentrent sur ce qui compte vraiment,",
-      "et laissent la mécanique répétitive tourner toute seule.",
+      "Salut, je suis l'agent alignement, ton référent inter-équipes chez Revold.",
+      "Mon métier, c'est de mesurer les passages de témoin entre tes services.",
+      "Un MQL qualifié par le marketing : en combien de temps devient-il un deal ?",
+      "Un deal gagné : en combien de temps est-il facturé, puis encaissé ?",
+      "Je chronomètre chaque étape du lifecycle, sur tes données réelles,",
+      "et je te montre exactement où le relais se rompt.",
+      "L'objectif : des équipes qui se passent le témoin sans le faire tomber,",
+      "avec des SLA mesurés, pas des impressions.",
     ],
   },
   "paiement-facturation": {

@@ -129,7 +129,7 @@ export function fieldLabel(entity: string, field: string | null): string {
 export const PAGE_LABELS: Record<string, string> = {
   perf_ventes: "Ventes",
   perf_marketing: "Marketing",
-  audit_automatisations: "Automatisations",
+  audit_automatisations: "Alignement",
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
 };
