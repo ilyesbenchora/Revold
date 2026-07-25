@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTableCard, type SavedTable } from "./data-table-card";
 import {
   ENTITY_DIMS,
+  entityLabel,
+  dimLabel,
   presetsForPage,
   filterPresetsBySources,
   PAGE_AGENT_KEY,
@@ -68,6 +70,38 @@ type Draft = {
   customKpi?: string;
   description?: string;
 };
+
+/** Câblage proposé par l'agent à l'étape « Vérification » (aucune table créée). */
+type Proposal = {
+  entity: string;
+  group_by: string;
+  measure: string;
+  field: string | null;
+  unit_mode: string;
+  title: string | null;
+  date_from: string | null;
+  date_to: string | null;
+  rowCount: number;
+  agent: string;
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  amount: "montant",
+  amount_total: "montant total",
+  amount_paid: "montant encaissé",
+  amount_due: "reste dû",
+  amount_in: "encaissements",
+  amount_out: "décaissements",
+  mrr: "MRR",
+};
+
+function measurePhrase(measure: string, field: string | null): string {
+  const f = field ? (FIELD_LABELS[field] ?? field) : null;
+  if (measure === "sum") return `Somme · ${f ?? "valeur"}`;
+  if (measure === "avg") return `Moyenne · ${f ?? "valeur"}`;
+  if (measure === "weighted") return `Projection pondérée · ${f ?? "montant"}`;
+  return "Nombre de lignes";
+}
 
 /**
  * Champ « Période » du funnel (création + édition) :
@@ -185,6 +219,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [period, setPeriod] = useState<string>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  // Étape « Vérification » : câblage proposé par l'agent + volumes par entité.
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [entityCounts, setEntityCounts] = useState<Record<string, number>>({});
+  const [proposalLoading, setProposalLoading] = useState(false);
 
   // Plage personnalisée incomplète ou inversée → on bloque la sauvegarde.
   const periodInvalid =
@@ -241,6 +279,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setPeriod("all");
     setCustomFrom("");
     setCustomTo("");
+    setProposal(null);
+    setEntityCounts({});
+    setProposalLoading(false);
   }
 
   function toggleSource(key: string) {
@@ -332,23 +373,75 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setStep(2);
   }
 
+  /** Texte du KPI courant (édition : textarea ; création : draft du funnel). */
+  const kpiText = () => (editingId ? customKpi : draft?.customKpi ?? customKpi).trim();
+
+  /**
+   * Étape « Vérification » : demande à l'agent une PROPOSITION de câblage
+   * (aucune table créée). `preferredEntity` = l'utilisateur impose la source
+   * de données depuis les alternatives affichées.
+   */
+  async function requestProposal(preferredEntity?: string) {
+    if (proposalLoading || !kpiText()) return;
+    setProposalLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/page-tables/agent-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_key: pageKey,
+          custom_kpi: kpiText(),
+          description: description.trim() || undefined,
+          sources: selected,
+          entity: preferredEntity,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.counts) setEntityCounts(d.counts);
+      if (res.ok && d.proposal) setProposal(d.proposal);
+      else setError(d.error || "Prévisualisation impossible.");
+    } catch {
+      setError("Prévisualisation impossible.");
+    } finally {
+      setProposalLoading(false);
+    }
+  }
+
   async function create() {
     if (!draft || saving) return;
+
+    // ── KPI personnalisé : passage obligatoire par l'étape Vérification ──
+    if (draft.custom && !proposal) {
+      await requestProposal();
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
-    // ── ÉDITION (agent : KPI + affichage ; le titre se renomme en ligne) ──
+    // Période « déjà précisée dans la description » : si l'agent a extrait des
+    // dates absolues, on les fige en plage personnalisée (comportement identique
+    // à l'ancien agent-create).
+    let periodPreset = periodValue();
+    if (periodPreset === PERIOD_FROM_DESCRIPTION && proposal?.date_from && proposal?.date_to) {
+      periodPreset = serializeCustomPeriod(proposal.date_from, proposal.date_to);
+    }
+
+    // ── ÉDITION : la spec confirmée est appliquée telle quelle (pas d'agent) ──
     if (editingId) {
       const res = await fetch(`/api/page-tables/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           view: draft.view,
-          period_preset: periodValue(),
-          // Réécriture du KPI / description / outils : le back ne relance l'agent que si l'un des trois change.
+          period_preset: periodPreset,
           custom_kpi: customKpi.trim(),
           description: description.trim(),
           sources: selected,
+          spec: proposal
+            ? { entity: proposal.entity, group_by: proposal.group_by, measure: proposal.measure, field: proposal.field, unit_mode: proposal.unit_mode }
+            : undefined,
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -364,11 +457,25 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     }
 
     // ── CRÉATION ────────────────────────────────────────────────────────
-    const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
-    const payload = draft.custom
-      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: periodValue(), sources: selected }
-      : { page_key: pageKey, ...draft, period_preset: periodValue(), sources: selected };
-    const res = await fetch(endpoint, {
+    // KPI personnalisé confirmé : la spec validée à l'écran est créée telle
+    // quelle. Presets déterministes : payload direct (comme avant).
+    const payload = draft.custom && proposal
+      ? {
+          page_key: pageKey,
+          title: draft.title.trim() || proposal.title || kpiText(),
+          entity: proposal.entity,
+          group_by: proposal.group_by,
+          measure: proposal.measure,
+          field: proposal.field,
+          unit_mode: proposal.unit_mode,
+          view: draft.view,
+          period_preset: periodPreset,
+          sources: selected,
+          custom_kpi: kpiText(),
+          description: description.trim() || undefined,
+        }
+      : { page_key: pageKey, ...draft, period_preset: periodPreset, sources: selected };
+    const res = await fetch("/api/page-tables", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -428,7 +535,99 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setOpen(false)}>
           <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            {editingId && draft ? (
+            {proposal && draft ? (
+              /* ── VÉRIFICATION : l'agent propose, l'utilisateur confirme ou corrige la source ── */
+              <div className="space-y-4">
+                <div>
+                  <h3 className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
+                    <span aria-hidden>✨</span> Vérification du câblage
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {proposal.agent} propose la donnée ci-dessous pour « {kpiText()} ». Confirme, ou choisis une autre source de données.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-accent/30 bg-indigo-50/40 p-4">
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Source de données</dt>
+                      <dd className="font-semibold text-slate-900">{entityLabel(proposal.entity)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Regroupement</dt>
+                      <dd className="font-medium text-slate-700">{dimLabel(proposal.entity, proposal.group_by)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Mesure</dt>
+                      <dd className="font-medium text-slate-700">{measurePhrase(proposal.measure, proposal.field)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Données trouvées</dt>
+                      <dd className={`font-semibold ${proposal.rowCount > 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                        {proposal.rowCount > 0 ? `${new Intl.NumberFormat("fr-FR").format(proposal.rowCount)} ligne${proposal.rowCount > 1 ? "s" : ""}` : "0 ligne"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {proposal.rowCount === 0 && (
+                  <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                    Aucune donnée sur cette source pour tes outils sélectionnés — la table serait vide. Choisis une autre source ci-dessous, ou vérifie tes synchronisations.
+                  </p>
+                )}
+
+                {Object.keys(entityCounts).filter((e) => e !== proposal.entity).length > 0 && (
+                  <div>
+                    <label className="text-xs font-medium text-slate-500">Autres sources de données possibles</label>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      En choisir une impose la source : {proposal.agent} recâble le KPI dessus.
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {Object.entries(entityCounts)
+                        .filter(([e]) => e !== proposal.entity)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([e, n]) => (
+                          <button
+                            key={e}
+                            type="button"
+                            disabled={proposalLoading}
+                            onClick={() => requestProposal(e)}
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
+                              n > 0
+                                ? "border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
+                                : "border-slate-100 bg-slate-50 text-slate-400"
+                            }`}
+                          >
+                            {entityLabel(e)} · {new Intl.NumberFormat("fr-FR").format(n)}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    onClick={() => { setProposal(null); setError(null); }}
+                    className="text-xs text-slate-400 hover:text-fuchsia-600"
+                  >
+                    ← Réécrire le KPI
+                  </button>
+                  <button
+                    onClick={create}
+                    disabled={saving || proposalLoading}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
+                  >
+                    {saving
+                      ? "Enregistrement…"
+                      : proposalLoading
+                        ? `${proposal.agent} recâble…`
+                        : editingId ? "Confirmer la mise à jour" : "Confirmer et créer"}
+                  </button>
+                </div>
+              </div>
+            ) : editingId && draft ? (
               /* ── ÉDITION : agent uniquement (KPI + affichage) ── */
               <div className="space-y-4">
                 <div>
@@ -533,11 +732,11 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   <button onClick={() => { setOpen(false); reset(); }} className="text-xs text-slate-400 hover:text-accent">Annuler</button>
                   <button
                     onClick={create}
-                    disabled={saving || !customKpi.trim() || periodInvalid}
+                    disabled={saving || proposalLoading || !customKpi.trim() || periodInvalid}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
-                    {!saving && <span aria-hidden>✨</span>}
-                    {saving ? `${agentName} peaufine…` : `Mettre à jour via ${agentName}`}
+                    {!saving && !proposalLoading && <span aria-hidden>✨</span>}
+                    {proposalLoading ? `${agentName} analyse…` : saving ? "Enregistrement…" : `Vérifier via ${agentName}`}
                   </button>
                 </div>
               </div>
@@ -774,13 +973,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </button>
                   <button
                     onClick={create}
-                    disabled={saving || (!draft.custom && !draft.title.trim()) || periodInvalid}
+                    disabled={saving || proposalLoading || (!draft.custom && !draft.title.trim()) || periodInvalid}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
-                    {draft.custom && !saving && <span aria-hidden>✨</span>}
-                    {saving
-                      ? draft.custom ? `${agentName} peaufine…` : "Création…"
-                      : draft.custom ? `Créer via ${agentName}` : "Créer la table"}
+                    {draft.custom && !saving && !proposalLoading && <span aria-hidden>✨</span>}
+                    {proposalLoading
+                      ? `${agentName} analyse…`
+                      : saving
+                        ? "Création…"
+                        : draft.custom ? `Vérifier via ${agentName}` : "Créer la table"}
                   </button>
                 </div>
               </div>

@@ -23,7 +23,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   const { id } = await params;
-  let body: { title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[] };
+  let body: {
+    title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[];
+    // Spec résolue et CONFIRMÉE à l'étape « Vérification » : appliquée telle
+    // quelle, sans re-passage par l'agent (ce qui est affiché est enregistré).
+    spec?: { entity?: string; group_by?: string; measure?: string; field?: string | null; unit_mode?: string | null };
+  };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const { data: existing } = await supabase
@@ -50,7 +55,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const sourcesChanged = newSources !== null && JSON.stringify(newSources) !== JSON.stringify(existingSources);
   if (sourcesChanged) update.sources = newSources;
   let agentName: string | null = null;
-  if ((kpiChanged || descriptionChanged || sourcesChanged) && (existing.custom_kpi || newKpi)) {
+  // Spec confirmée à l'étape « Vérification » → application directe (pas d'agent).
+  const confirmed = body.spec && typeof body.spec === "object" ? body.spec : null;
+  if (confirmed && typeof confirmed.entity === "string" && confirmed.entity && typeof confirmed.group_by === "string" && confirmed.group_by) {
+    update.entity = confirmed.entity;
+    update.group_by = confirmed.group_by;
+    update.measure = typeof confirmed.measure === "string" && confirmed.measure ? confirmed.measure : "count";
+    update.field = typeof confirmed.field === "string" && confirmed.field ? confirmed.field : null;
+    update.unit_mode = typeof confirmed.unit_mode === "string" && confirmed.unit_mode ? confirmed.unit_mode : null;
+    if (newKpi) update.custom_kpi = newKpi;
+    if (newDescription !== null) update.description = newDescription || null;
+  } else if ((kpiChanged || descriptionChanged || sourcesChanged) && (existing.custom_kpi || newKpi)) {
     const effectiveKpi = newKpi || (existing.custom_kpi as string | null) || "";
     if (!effectiveKpi) return NextResponse.json({ error: "KPI personnalisé requis" }, { status: 400 });
     const effectiveDescription = newDescription ?? (existing.description as string | null);

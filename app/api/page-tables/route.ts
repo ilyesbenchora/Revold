@@ -57,6 +57,9 @@ export async function POST(request: Request) {
     page_key?: string; title?: string; entity?: string; group_by?: string;
     measure?: string; field?: string | null; unit_mode?: string | null; view?: string;
     period_preset?: string; sources?: string[];
+    // KPI personnalisé confirmé à l'étape « Vérification » : la spec résolue par
+    // l'agent (déjà affichée à l'utilisateur) est créée telle quelle.
+    custom_kpi?: string | null; description?: string | null;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -78,6 +81,8 @@ export async function POST(request: Request) {
       view: body.view || "table",
       period_preset: cleanPeriod(body.period_preset),
       sources: cleanSources(body.sources),
+      custom_kpi: typeof body.custom_kpi === "string" && body.custom_kpi.trim() ? body.custom_kpi.trim() : null,
+      description: typeof body.description === "string" && body.description.trim() ? body.description.trim() : null,
       created_by: user.id,
     })
     .select(TABLE_COLS)

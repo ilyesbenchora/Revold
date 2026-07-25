@@ -75,15 +75,16 @@ const NO_MATCH_TOOL: Anthropic.Tool = {
 };
 
 export type ResolvedKpi =
-  | { ok: true; spec: AggregateSpec; unitMode: string; agentTitle: string | null; agentName: string }
+  | { ok: true; spec: AggregateSpec; unitMode: string; agentTitle: string | null; agentName: string; rowCount: number }
   | { ok: false; error: string; status: number; instructions?: string };
 
 /**
  * Volume réel de chaque entité canonique pour l'org (filtré par sources quand
  * l'entité porte primary_source). Garde-fou du câblage : l'agent ne doit pas
  * brancher un KPI sur un endpoint vide quand une autre entité a des données.
+ * Exporté pour l'étape « Vérification » du funnel (volumes des alternatives).
  */
-async function countEntityRows(
+export async function countEntityRows(
   supabase: Parameters<typeof computeAggregate>[0],
   orgId: string,
   sources: string[],
@@ -119,6 +120,8 @@ export async function resolveCustomKpiSpec(
   description?: string | null,
   /** Outils sources choisis dans le funnel (ex : ["pennylane"]) — contraignent le câblage. */
   sources: string[] = [],
+  /** Entité IMPOSÉE par l'utilisateur à l'étape « Vérification » (ex : "transactions"). */
+  preferredEntity?: string | null,
 ): Promise<ResolvedKpi> {
   const { key: anthropicKey, reason } = getAnthropicKey();
   const persona = getAgentPersona(PAGE_AGENT_KEY[pageKey]);
@@ -140,9 +143,18 @@ export async function resolveCustomKpiSpec(
           `(ex : « paiements » → invoices, dimension month_paid, somme de amount_paid). ` +
           `Si aucune combinaison cohérente avec ces outils n'existe, appelle no_reliable_match. `)
     : "";
+  // Entité imposée à l'étape « Vérification » : l'agent construit le câblage
+  // sur CETTE entité (dimension/mesure cohérentes) ou assume no_reliable_match.
+  const entityRule = preferredEntity
+    ? `CONTRAINTE ABSOLUE : l'utilisateur impose la source de données « ${preferredEntity} ». ` +
+      `Construis le câblage sur CETTE entité uniquement (choisis la dimension, la mesure et le champ ` +
+      `les plus fidèles au KPI sur cette entité). Si le KPI n'a vraiment aucun sens sur cette entité, ` +
+      `appelle no_reliable_match en expliquant pourquoi. `
+    : "";
   const system =
     `Tu es ${persona.name}, ${persona.role} chez Revold. ` +
     `Tu construis une table de données à partir du KPI décrit par l'utilisateur. ` +
+    entityRule +
     sourcesRule +
     `IMPÉRATIF DE FIABILITÉ : n'utilise QUE ce catalogue canonique — ${CANONICAL_DOC} ` +
     `Si une combinaison entité/dimension/mesure/champ répond FIDÈLEMENT au besoin (matching à 100 %), ` +
@@ -235,7 +247,8 @@ export async function resolveCustomKpiSpec(
   // « paiements » branché sur invoices alors que l'org n'a que des transactions
   // bancaires) → une relance avec les volumes réels par entité. L'agent recâble
   // sur un endpoint qui contient des données, ou assume no_reliable_match.
-  if (!check.error && check.hasData === false) {
+  // Désactivé quand l'utilisateur impose l'entité (choix assumé, volume affiché).
+  if (!preferredEntity && !check.error && check.hasData === false) {
     const counts = await countEntityRows(supabase, orgId, sources);
     const withData = Object.entries(counts).filter(([, n]) => n > 0);
     if ((counts[spec.entity] ?? 0) === 0 && withData.length > 0) {
@@ -293,5 +306,5 @@ export async function resolveCustomKpiSpec(
     };
   }
 
-  return { ok: true, spec, unitMode, agentTitle, agentName: persona.name };
+  return { ok: true, spec, unitMode, agentTitle, agentName: persona.name, rowCount: Number(check.totalRows) || 0 };
 }
