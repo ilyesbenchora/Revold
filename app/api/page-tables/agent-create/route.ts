@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       custom_kpi: kpi,
       description,
       sources,
+      pipeline: resolved.spec.pipeline ?? null,
       created_by: user.id,
     })
     .select(TABLE_COLS)

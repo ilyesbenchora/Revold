@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       measure: resolved.spec.measure || "count",
       field: resolved.spec.field ?? null,
       unit_mode: resolved.unitMode,
+      pipeline: resolved.spec.pipeline ?? null,
       title: resolved.agentTitle,
       date_from: resolved.spec.date_from ?? null,
       date_to: resolved.spec.date_to ?? null,

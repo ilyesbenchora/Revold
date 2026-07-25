@@ -27,6 +27,8 @@ export type SavedTable = {
   sources?: string[] | null;
   /** Affiche le total DANS la visualisation (badge graphique / centre anneau / pied de tableau). */
   show_total?: boolean | null;
+  /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
+  pipeline?: string | null;
 };
 
 type Row = { name: string; value: number };
@@ -89,7 +91,7 @@ export function DataTableCard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: { entity: table.entity, groupBy: table.group_by, measure: table.measure, field: table.field },
+          query: { entity: table.entity, groupBy: table.group_by, measure: table.measure, field: table.field, pipeline: table.pipeline ?? null },
           sources: table.sources ?? [],
           all: !p,
           date_from: p?.from,
@@ -106,7 +108,7 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, JSON.stringify(table.sources ?? [])]);
 
   // Ouverture directe sur la période par défaut choisie à la création :
   // preset recalculé à l'instant T, plage personnalisée figée, ou « période de
@@ -195,6 +197,7 @@ export function DataTableCard({
           )}
           <p className="mt-0.5 text-[11px] text-slate-400">
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
+            {table.pipeline && <> · pipeline {table.pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
           {(table.sources ?? []).length > 0 && (

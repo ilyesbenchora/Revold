@@ -26,6 +26,7 @@ export function TableAlertButton({ table, rows, team }: { table: SavedTable; row
         groupBy: table.group_by,
         measure: table.measure,
         field: table.field,
+        pipeline: table.pipeline ?? null,
         sources: table.sources ?? null,
       }}
       crossed={Boolean(table.custom_kpi)}

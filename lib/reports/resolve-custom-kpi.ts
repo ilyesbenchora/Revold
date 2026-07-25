@@ -34,6 +34,13 @@ const BUILD_TOOL: Anthropic.Tool = {
       groupBy: { type: "string", description: "Dimension de regroupement (voir la liste par entité)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
       field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr). Vide si count." },
+      pipeline: {
+        type: "string",
+        description:
+          "Deals UNIQUEMENT : si le KPI cible UN pipeline précis (ex : « dans le pipeline Storee retail »), " +
+          "son nom EXACT tel qu'écrit par l'utilisateur. Sans lui, les étapes homonymes de TOUS les pipelines " +
+          "sont mélangées — données fausses. Omettre si aucun pipeline n'est nommé.",
+      },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"], description: "count si comptage, currency si montant en €." },
       date_from: {
         type: "string",
@@ -212,7 +219,7 @@ export async function resolveCustomKpiSpec(
       }
       const inp = toolUse.input as {
         title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
-        date_from?: string; date_to?: string;
+        pipeline?: string; date_from?: string; date_to?: string;
       };
       // Période explicitement mentionnée dans le KPI/description → dates absolues
       // extraites par l'agent (validées au format), sinon null (pas de filtre).
@@ -228,6 +235,7 @@ export async function resolveCustomKpiSpec(
           groupBy: String(inp.groupBy ?? ""),
           measure: inp.measure ?? "count",
           field: inp.field ? String(inp.field) : null,
+          pipeline: inp.entity === "deals" && inp.pipeline?.trim() ? inp.pipeline.trim() : null,
           date_from: dFrom && dTo && dFrom <= dTo ? dFrom : null,
           date_to: dFrom && dTo && dFrom <= dTo ? dTo : null,
         },

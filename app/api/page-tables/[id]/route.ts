@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     show_total?: boolean;
     // Spec résolue et CONFIRMÉE à l'étape « Vérification » : appliquée telle
     // quelle, sans re-passage par l'agent (ce qui est affiché est enregistré).
-    spec?: { entity?: string; group_by?: string; measure?: string; field?: string | null; unit_mode?: string | null };
+    spec?: { entity?: string; group_by?: string; measure?: string; field?: string | null; unit_mode?: string | null; pipeline?: string | null };
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -66,6 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.measure = typeof confirmed.measure === "string" && confirmed.measure ? confirmed.measure : "count";
     update.field = typeof confirmed.field === "string" && confirmed.field ? confirmed.field : null;
     update.unit_mode = typeof confirmed.unit_mode === "string" && confirmed.unit_mode ? confirmed.unit_mode : null;
+    update.pipeline = typeof confirmed.pipeline === "string" && confirmed.pipeline.trim() ? confirmed.pipeline.trim() : null;
     if (newKpi) update.custom_kpi = newKpi;
     if (newDescription !== null) update.description = newDescription || null;
   } else if ((kpiChanged || descriptionChanged || sourcesChanged) && (existing.custom_kpi || newKpi)) {
@@ -84,6 +85,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.measure = resolved.spec.measure || "count";
     update.field = resolved.spec.field ?? null;
     update.unit_mode = resolved.unitMode;
+    update.pipeline = resolved.spec.pipeline ?? null;
     // Le titre reste la nomenclature de l'utilisateur : on ne le touche PAS ici
     // (il se renomme séparément en ligne, sans agent).
 

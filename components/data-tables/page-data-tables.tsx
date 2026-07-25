@@ -80,6 +80,8 @@ type Proposal = {
   measure: string;
   field: string | null;
   unit_mode: string;
+  /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
+  pipeline?: string | null;
   title: string | null;
   date_from: string | null;
   date_to: string | null;
@@ -418,7 +420,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: { entity: p.entity, groupBy: p.group_by, measure: p.measure, field: p.field },
+          query: { entity: p.entity, groupBy: p.group_by, measure: p.measure, field: p.field, pipeline: p.pipeline ?? null },
           sources: selected,
           all: true,
         }),
@@ -478,7 +480,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           description: description.trim(),
           sources: selected,
           spec: proposal
-            ? { entity: proposal.entity, group_by: proposal.group_by, measure: proposal.measure, field: proposal.field, unit_mode: proposal.unit_mode }
+            ? { entity: proposal.entity, group_by: proposal.group_by, measure: proposal.measure, field: proposal.field, unit_mode: proposal.unit_mode, pipeline: proposal.pipeline ?? null }
             : undefined,
         }),
       });
@@ -506,6 +508,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           measure: proposal.measure,
           field: proposal.field,
           unit_mode: proposal.unit_mode,
+          pipeline: proposal.pipeline ?? null,
           view: draft.view,
           period_preset: periodPreset,
           sources: selected,
@@ -591,6 +594,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       <dt className="text-xs text-slate-500">Source de données</dt>
                       <dd className="font-semibold text-slate-900">{entityLabel(proposal.entity)}</dd>
                     </div>
+                    {proposal.pipeline && (
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="flex items-center gap-1 text-xs text-slate-500">
+                          Pipeline
+                          <InfoHint text="La table est restreinte à CE pipeline : les étapes affichées sont uniquement les siennes (pas de mélange avec les étapes homonymes des autres pipelines)." />
+                        </dt>
+                        <dd className="text-xs font-semibold text-slate-900">{proposal.pipeline}</dd>
+                      </div>
+                    )}
                     {/* Regroupement et mesure ÉDITABLES : si le KPI est ambigu
                         (« paiements » = encaissements ? flux net ?), l'utilisateur
                         corrige ici — le total se recalcule immédiatement. */}

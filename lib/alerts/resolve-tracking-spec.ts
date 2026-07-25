@@ -59,6 +59,12 @@ const BUILD_TOOL: Anthropic.Tool = {
       measure: { type: "string", enum: ["count", "sum", "avg"] },
       field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr)." },
       target: { type: "string", description: "Ligne précise à isoler, ex 'active' pour abonnements actifs. Vide = total." },
+      pipeline: {
+        type: "string",
+        description:
+          "Deals UNIQUEMENT : si le KPI cible UN pipeline précis (ex : « pipeline Storee retail »), son nom EXACT. " +
+          "Sans lui, les étapes homonymes de tous les pipelines sont mélangées. Omettre si aucun pipeline n'est nommé.",
+      },
       multiplier: { type: "number", description: "Conversion linéaire déterministe. 12 pour MRR→ARR annuel. 1 sinon." },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"] },
     },
@@ -179,7 +185,7 @@ export async function resolveTrackingSpec(
     if (!toolUse) return heuristicWiring(args.kpiText, args.unit);
     const inp = toolUse.input as {
       mode?: string; recipe?: string; forecast_type?: string; entity?: string; groupBy?: string;
-      measure?: string; field?: string; target?: string; multiplier?: number; unit_mode?: string;
+      measure?: string; field?: string; target?: string; pipeline?: string; multiplier?: number; unit_mode?: string;
     };
 
     // Voie réconciliée : recette de jointure cross-source connue.
@@ -200,6 +206,7 @@ export async function resolveTrackingSpec(
         measure: inp.measure ?? "count",
         field: inp.field ? String(inp.field) : null,
         target: inp.target ? String(inp.target) : null,
+        pipeline: inp.entity === "deals" && inp.pipeline?.trim() ? inp.pipeline.trim() : null,
         multiplier: typeof inp.multiplier === "number" && inp.multiplier > 0 ? inp.multiplier : 1,
         unit_mode: inp.unit_mode ?? args.unit ?? "count",
       };

@@ -115,6 +115,15 @@ export function ChartWiringPanel({
               <dt className="text-xs text-slate-500">Source de données</dt>
               <dd className="text-xs font-semibold text-slate-900">{entityLabel(q.entity)}</dd>
             </div>
+            {q.pipeline && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="flex items-center gap-1 text-xs text-slate-500">
+                  Pipeline
+                  <InfoHint text="Le graphique est restreint à CE pipeline : pas de mélange avec les étapes homonymes des autres pipelines." />
+                </dt>
+                <dd className="text-xs font-semibold text-slate-900">{q.pipeline}</dd>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
                 Regroupement

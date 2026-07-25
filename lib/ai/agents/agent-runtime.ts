@@ -74,6 +74,8 @@ export type ChartQuery = {
   groupBy: string;
   measure?: string;
   field?: string;
+  /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
+  pipeline?: string;
 };
 
 /** Proposition de graphique : l'utilisateur choisit le type, l'UI rend la data. */
@@ -348,6 +350,7 @@ function normalizeReport(input: Record<string, unknown>): ReportSpec | null {
           groupBy: qo.groupBy,
           measure: typeof qo.measure === "string" ? qo.measure : undefined,
           field: typeof qo.field === "string" ? qo.field : undefined,
+          pipeline: typeof qo.pipeline === "string" && qo.pipeline ? qo.pipeline : undefined,
         };
       }
     }
@@ -397,6 +400,7 @@ function normalizeChartProposal(input: Record<string, unknown>): ChartProposal |
         groupBy: o.groupBy,
         measure: typeof o.measure === "string" ? o.measure : undefined,
         field: typeof o.field === "string" ? o.field : undefined,
+        pipeline: typeof o.pipeline === "string" && o.pipeline ? o.pipeline : undefined,
       };
     }
   }
