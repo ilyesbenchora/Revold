@@ -29,11 +29,11 @@ const SECTIONS: Section[] = [
     pages: [
       { key: "audit_donnees", label: "Audit qualité", description: "Qualité des données, audit d'onboarding des outils", mode: "multi" },
       { key: "audit_automatisations", label: "Alignement", description: "Relais entre services : lifecycle, MQL → deal, deal → facture", mode: "multi" },
-      { key: "audit_perf_ventes", label: "Performances Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
-      { key: "audit_perf_marketing", label: "Performances Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
+      { key: "audit_perf_ventes", label: "Performances — Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
+      { key: "audit_perf_marketing", label: "Performances — Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
       { key: "audit_paiement_facturation", label: "Trésorerie", description: "Invoices, subscriptions, quotes", mode: "multi" },
-      { key: "audit_paiement_facturation_paiement", label: "Paiement", description: "Encaissements, impayés, moyens de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_facturation", label: "Facturation", description: "Émission, relances, délais de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_paiement", label: "Paiement", description: "Encaissements, impayés, moyens de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_comptabilite", label: "Comptabilité", description: "Écritures, P&L réel, balance", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_previsionnel", label: "Prévisionnel", description: "Projection trésorerie, runway, échéances", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
@@ -45,15 +45,15 @@ const SECTIONS: Section[] = [
     title: "Dashboard",
     hint: "Sélection multiple — KPIs cross-outils dans la vue de pilotage.",
     pages: [
-      { key: "dashboard", label: "Dashboard", description: "Mes rapports — KPIs en temps réel", mode: "multi" },
+      { key: "dashboard", label: "Dashboard", description: "Vue d'ensemble & Mes rapports — KPIs en temps réel", mode: "multi" },
     ],
   },
   {
     id: "simulation",
-    title: "Simulations IA",
-    hint: "Sélection multiple — les simulations peuvent croiser plusieurs outils.",
+    title: "Prévisions",
+    hint: "Sélection multiple — les prévisions peuvent croiser plusieurs outils.",
     pages: [
-      { key: "simulation_ia", label: "Simulations IA", description: "Cycle de vente, revenue, data quality", mode: "multi" },
+      { key: "simulation_ia", label: "Prévisions", description: "Simulations : cycle de vente, revenue, data quality", mode: "multi" },
     ],
   },
   {
