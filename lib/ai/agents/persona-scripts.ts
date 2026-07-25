@@ -21,6 +21,12 @@ export type PersonaScript = {
   hedraVoiceId?: string;
   /** Voix ElevenLabs (FR native) — source vocale de production. */
   elevenVoiceId: string;
+  /**
+   * Tonalité ElevenLabs propre au persona (défauts : stability 0.5,
+   * similarity_boost 0.75, style 0). stability basse = plus expressif ;
+   * style haut = plus de caractère. À régler selon l'âge et le rôle.
+   */
+  voiceSettings?: { stability?: number; similarity_boost?: number; style?: number };
   /** Segments dits dans l'ordre ; chacun devient une ligne de sous-titre. */
   segments: string[];
 };
@@ -247,7 +253,11 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   },
   // ── Dashboard ──
   reporting: {
-    elevenVoiceId: "sOtdnM6kZo7osJcZj9ew", // Fred — FR standard, conversationnel (analyste clair)
+    // Alix est une JEUNE ANALYSTE (portrait : lunettes, sourire doux) — voix
+    // féminine jeune, douce et claire, française native.
+    elevenVoiceId: "MtmOw0YCJmdnFGEjqlkh", // Clarris — FR parisienne jeune, douce, conversationnelle
+    // Tonalité : posée et articulée (analyste pédagogue), un peu de vivacité.
+    voiceSettings: { stability: 0.55, similarity_boost: 0.8, style: 0.25 },
     segments: [
       "Bonjour, moi c'est Alix, ton analyste reporting chez Revold.",
       "Mon rôle, c'est de transformer tes données en quelque chose de lisible.",

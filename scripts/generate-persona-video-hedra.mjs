@@ -54,10 +54,18 @@ function loadScript(key) {
   if (!block) return null;
   const voice = /hedraVoiceId:\s*"([^"]+)"/.exec(block[1]);
   const eleven = /elevenVoiceId:\s*"([^"]+)"/.exec(block[1]);
+  // Tonalité par persona (stability/similarity_boost/style) — optionnelle.
+  const settingsBlock = /voiceSettings:\s*\{([^}]*)\}/.exec(block[1]);
+  const voiceSettings = {};
+  if (settingsBlock) {
+    for (const [, k, v] of settingsBlock[1].matchAll(/(stability|similarity_boost|style):\s*([\d.]+)/g)) {
+      voiceSettings[k] = Number(v);
+    }
+  }
   const segs = /segments:\s*\[([\s\S]*?)\]/.exec(block[1]);
   if (!segs) return null;
   const segments = [...segs[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\"/g, '"'));
-  return { hedraVoiceId: voice ? voice[1] : null, elevenVoiceId: eleven ? eleven[1] : null, segments };
+  return { hedraVoiceId: voice ? voice[1] : null, elevenVoiceId: eleven ? eleven[1] : null, voiceSettings, segments };
 }
 
 const ts = (sec) => {
@@ -248,7 +256,8 @@ async function main() {
         body: JSON.stringify({
           text: ttsText,
           model_id: "eleven_multilingual_v2",
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          // Tonalité : défauts + réglages propres au persona (persona-scripts.ts).
+          voice_settings: { stability: 0.5, similarity_boost: 0.75, ...script.voiceSettings },
         }),
       },
     );
@@ -306,10 +315,12 @@ async function main() {
       generated_video_inputs: {
         aspect_ratio: "1:1",
         resolution: "720p",
+        // Fin de référence (validée sur Sarah/equipes) : lèvres fermées, sourire
+        // doux SANS montrer les dents, regard caméra détendu jusqu'à la fin.
         text_prompt:
           "Le personnage parle face caméra, posture calme, léger sourire. " +
-          "Quand il a fini de parler, il ferme la bouche et adresse un sourire chaleureux et naturel à la caméra, " +
-          "détendu, jusqu'à la fin de la vidéo.",
+          "Quand il a fini de parler, il ferme complètement la bouche, lèvres jointes sans montrer les dents, " +
+          "et garde un sourire doux et détendu face caméra, immobile et serein, jusqu'à la toute fin de la vidéo.",
       },
     }),
   });
