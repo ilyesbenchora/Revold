@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
-import { cleanPeriod } from "@/app/api/page-tables/route";
+import { cleanPeriod, cleanSources, TABLE_COLS } from "@/app/api/page-tables/route";
 import { PERIOD_FROM_DESCRIPTION, serializeCustomPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
@@ -16,17 +16,18 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { page_key?: string; custom_kpi?: string; description?: string; view?: string; title?: string; period_preset?: string };
+  let body: { page_key?: string; custom_kpi?: string; description?: string; view?: string; title?: string; period_preset?: string; sources?: string[] };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const pageKey = body.page_key;
   const kpi = (body.custom_kpi || "").trim();
   const description = (body.description || "").trim() || null;
   const view = body.view || "table";
+  const sources = cleanSources(body.sources);
   if (!pageKey || !kpi) return NextResponse.json({ error: "KPI personnalisé requis" }, { status: 400 });
 
   const hubspotToken = await getHubSpotToken(supabase, orgId);
-  const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, pageKey, kpi, description);
+  const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, pageKey, kpi, description, sources);
   if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
 
   // Le titre part TOUJOURS du KPI écrit par l'utilisateur ; l'agent ne fait que
@@ -57,9 +58,10 @@ export async function POST(request: Request) {
       period_preset: periodPreset,
       custom_kpi: kpi,
       description,
+      sources,
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
+    .select(TABLE_COLS)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

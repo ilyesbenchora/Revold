@@ -45,6 +45,8 @@ export type SurgicalAggSpec = {
    * pipelines — donc une alerte fausse.
    */
   pipeline?: string | null;
+  /** Outils sources de la table d'origine — le cron applique le même filtre. */
+  sources?: string[] | null;
 };
 
 const CHANNELS: { key: string; icon: string; label: string }[] = [
@@ -198,6 +200,7 @@ export function SurgicalAlertButton({
                 field: aggSpec.field ?? null,
                 multiplier: aggSpec.multiplier ?? null,
                 pipeline: aggSpec.pipeline ?? null,
+                sources: aggSpec.sources?.length ? aggSpec.sources : null,
                 target,
               }
             : null,

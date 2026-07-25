@@ -15,6 +15,8 @@ export type AggSpec = {
    * Lève l'ambiguïté des libellés d'étape partagés entre pipelines.
    */
   pipeline?: string | null;
+  /** Outils sources de la table d'origine (ex : ["pennylane"]) — même filtre que son recalcul. */
+  sources?: string[] | null;
 };
 
 /**
@@ -31,7 +33,7 @@ export async function valueFromAggSpec(
 ): Promise<number | null> {
   if (!spec || !spec.entity || !spec.groupBy) return null;
   try {
-    const res = await computeAggregate(supabase, orgId, [], token, {
+    const res = await computeAggregate(supabase, orgId, Array.isArray(spec.sources) ? spec.sources : [], token, {
       entity: spec.entity,
       groupBy: spec.groupBy,
       measure: spec.measure || "count",

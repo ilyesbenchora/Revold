@@ -6,6 +6,9 @@ import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-
 import { TableAlertButton } from "./table-alert-button";
 import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
 import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
+import { getConnectableTool } from "@/lib/integrations/connect-catalog";
+import { toolDomain } from "@/lib/integrations/tool-domains";
+import { BrandLogo } from "@/components/brand-logo";
 import type { ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 export type SavedTable = {
@@ -20,6 +23,8 @@ export type SavedTable = {
   custom_kpi?: string | null;
   description?: string | null;
   period_preset?: string | null;
+  /** Outils sources choisis dans le funnel (ex : ["pennylane"]) — filtrent la donnée. */
+  sources?: string[] | null;
 };
 
 type Row = { name: string; value: number };
@@ -68,6 +73,7 @@ export function DataTableCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: { entity: table.entity, groupBy: table.group_by, measure: table.measure, field: table.field },
+          sources: table.sources ?? [],
           all: !p,
           date_from: p?.from,
           date_to: p?.to,
@@ -82,7 +88,8 @@ export function DataTableCard({
     } finally {
       setLoading(false);
     }
-  }, [table.entity, table.group_by, table.measure, table.field]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.entity, table.group_by, table.measure, table.field, JSON.stringify(table.sources ?? [])]);
 
   // Ouverture directe sur la période par défaut choisie à la création :
   // preset recalculé à l'instant T, plage personnalisée figée, ou « période de
@@ -173,6 +180,23 @@ export function DataTableCard({
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
+          {(table.sources ?? []).length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {(table.sources ?? []).map((key) => {
+                const tool = getConnectableTool(key);
+                return (
+                  <span
+                    key={key}
+                    title={`Données limitées à ${tool?.label ?? key}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-fuchsia-200 bg-fuchsia-50/70 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-700"
+                  >
+                    <BrandLogo domain={toolDomain(key)} alt={tool?.label ?? key} fallback={tool?.icon ?? "🔗"} size={11} />
+                    {tool?.label ?? key}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <TableAlertButton table={table} rows={rows} team={team} />

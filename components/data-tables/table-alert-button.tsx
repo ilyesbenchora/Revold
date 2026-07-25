@@ -2,6 +2,7 @@
 
 import { SurgicalAlertButton, type SurgicalUnit } from "./surgical-alert-button";
 import type { SavedTable } from "./data-table-card";
+import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 
 type Row = { name: string; value: number };
 
@@ -15,7 +16,7 @@ export function TableAlertButton({ table, rows, team }: { table: SavedTable; row
   return (
     <SurgicalAlertButton
       title={table.title}
-      scopeLabel={`la table « ${table.title} » (${table.entity} · groupé par ${table.group_by})`}
+      scopeLabel={`la table « ${table.title} » (${entityLabel(table.entity)} · ${dimLabel(table.entity, table.group_by)})`}
       impactScope={`la table ${table.title}`}
       rows={rows}
       team={team}
@@ -25,6 +26,7 @@ export function TableAlertButton({ table, rows, team }: { table: SavedTable; row
         groupBy: table.group_by,
         measure: table.measure,
         field: table.field,
+        sources: table.sources ?? null,
       }}
       crossed={Boolean(table.custom_kpi)}
       totalLabel="Total de la table"

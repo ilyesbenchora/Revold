@@ -3,13 +3,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
-import { cleanPeriod } from "@/app/api/page-tables/route";
+import { cleanPeriod, cleanSources, TABLE_COLS } from "@/app/api/page-tables/route";
 import { PERIOD_FROM_DESCRIPTION, serializeCustomPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const TABLE_COLS = "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at";
 
 /**
  * Édite une table de données.
@@ -25,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   const { id } = await params;
-  let body: { title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string };
+  let body: { title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[] };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const { data: existing } = await supabase
@@ -41,19 +39,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.view === "string" && body.view) update.view = body.view;
   if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
 
-  // Réécriture du KPI ou de sa description → on refait passer l'agent (uniquement
-  // si l'un des deux textes change ; la description affine l'interprétation).
+  // Réécriture du KPI, de sa description OU des outils sources → on refait passer
+  // l'agent (le câblage entité/dimension dépend des trois).
   const newKpi = typeof body.custom_kpi === "string" ? body.custom_kpi.trim() : null;
   const newDescription = typeof body.description === "string" ? body.description.trim() : null;
+  const newSources = Array.isArray(body.sources) ? cleanSources(body.sources) : null;
+  const existingSources = cleanSources(existing.sources);
   const kpiChanged = newKpi !== null && newKpi !== (existing.custom_kpi ?? "");
   const descriptionChanged = newDescription !== null && newDescription !== ((existing.description as string | null) ?? "");
+  const sourcesChanged = newSources !== null && JSON.stringify(newSources) !== JSON.stringify(existingSources);
+  if (sourcesChanged) update.sources = newSources;
   let agentName: string | null = null;
-  if (kpiChanged || descriptionChanged) {
+  if ((kpiChanged || descriptionChanged || sourcesChanged) && (existing.custom_kpi || newKpi)) {
     const effectiveKpi = newKpi || (existing.custom_kpi as string | null) || "";
     if (!effectiveKpi) return NextResponse.json({ error: "KPI personnalisé requis" }, { status: 400 });
     const effectiveDescription = newDescription ?? (existing.description as string | null);
+    const effectiveSources = newSources ?? existingSources;
     const hubspotToken = await getHubSpotToken(supabase, orgId);
-    const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, existing.page_key as string, effectiveKpi, effectiveDescription);
+    const resolved = await resolveCustomKpiSpec(supabase, orgId, hubspotToken, existing.page_key as string, effectiveKpi, effectiveDescription, effectiveSources);
     if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
     agentName = resolved.agentName;
     update.custom_kpi = effectiveKpi;

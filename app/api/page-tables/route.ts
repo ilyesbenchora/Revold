@@ -14,6 +14,15 @@ export function cleanPeriod(v: unknown): string {
   return sanitizeStoredPeriod(v);
 }
 
+/** Valide la liste d'outils sources reçue du client (clés texte, dédupliquées, max 12). */
+export function cleanSources(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((s): s is string => typeof s === "string" && !!s.trim()).map((s) => s.trim()))].slice(0, 12);
+}
+
+export const TABLE_COLS =
+  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, created_at";
+
 /** Liste les tables de données persistées d'une page. */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -27,7 +36,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("page_data_tables")
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
+    .select(TABLE_COLS)
     .eq("organization_id", orgId)
     .eq("page_key", pageKey)
     .order("created_at", { ascending: true });
@@ -47,7 +56,7 @@ export async function POST(request: Request) {
   let body: {
     page_key?: string; title?: string; entity?: string; group_by?: string;
     measure?: string; field?: string | null; unit_mode?: string | null; view?: string;
-    period_preset?: string;
+    period_preset?: string; sources?: string[];
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -68,9 +77,10 @@ export async function POST(request: Request) {
       unit_mode: body.unit_mode ?? null,
       view: body.view || "table",
       period_preset: cleanPeriod(body.period_preset),
+      sources: cleanSources(body.sources),
       created_by: user.id,
     })
-    .select("id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, created_at")
+    .select(TABLE_COLS)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -3,6 +3,7 @@ import { computeAggregate, type AggregateSpec } from "@/lib/ai/agents/tool-libra
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
+import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 
 // Catalogue canonique disponible (même contrat que aggregate_canonical) : garantit
 // que l'agent ne peut produire qu'une table 100 % calculable et fiable.
@@ -87,15 +88,33 @@ export async function resolveCustomKpiSpec(
   pageKey: string,
   kpi: string,
   description?: string | null,
+  /** Outils sources choisis dans le funnel (ex : ["pennylane"]) — contraignent le câblage. */
+  sources: string[] = [],
 ): Promise<ResolvedKpi> {
   const { key: anthropicKey, reason } = getAnthropicKey();
   const persona = getAgentPersona(PAGE_AGENT_KEY[pageKey]);
   if (!anthropicKey) return { ok: false, error: reason ?? "ANTHROPIC_API_KEY not configured", status: 500 };
 
   const client = new Anthropic({ apiKey: anthropicKey });
+  // Outils sources choisis dans le funnel → contrainte forte sur le câblage :
+  // les entités invoices/subscriptions portent la source de chaque ligne
+  // (Stripe, Pennylane, Chargebee…) ; deals/contacts/companies viennent du CRM.
+  const sourceLabels = sources.map((k) => getConnectableTool(k)?.label ?? k);
+  const crmSelected = sources.some((k) => getConnectableTool(k)?.category === "crm");
+  const sourcesRule = sources.length
+    ? `OUTILS SOURCES CHOISIS PAR L'UTILISATEUR : ${sourceLabels.join(", ")}. ` +
+      `Le KPI DOIT être câblé sur les données de ces outils. Les entités invoices et subscriptions ` +
+      `portent la source de chaque ligne (facturation/compta) ; deals, contacts et companies viennent du CRM. ` +
+      (crmSelected
+        ? ""
+        : `Aucun CRM n'est sélectionné : ne câble PAS sur deals/contacts/companies — vise invoices ou subscriptions ` +
+          `(ex : « paiements » → invoices, dimension month_paid, somme de amount_paid). ` +
+          `Si aucune combinaison cohérente avec ces outils n'existe, appelle no_reliable_match. `)
+    : "";
   const system =
     `Tu es ${persona.name}, ${persona.role} chez Revold. ` +
     `Tu construis une table de données à partir du KPI décrit par l'utilisateur. ` +
+    sourcesRule +
     `IMPÉRATIF DE FIABILITÉ : n'utilise QUE ce catalogue canonique — ${CANONICAL_DOC} ` +
     `Si une combinaison entité/dimension/mesure/champ répond FIDÈLEMENT au besoin (matching à 100 %), ` +
     `appelle build_data_table. Si le besoin ne correspond à AUCUNE combinaison du catalogue ` +
@@ -111,6 +130,7 @@ export async function resolveCustomKpiSpec(
   const userMessage =
     `KPI personnalisé demandé : « ${kpi} ».` +
     (desc ? ` Précisions de l'utilisateur pour bien l'interpréter : « ${desc} ».` : "") +
+    (sourceLabels.length ? ` Outils sources sélectionnés : ${sourceLabels.join(", ")}.` : "") +
     ` Construis la table correspondante.`;
 
   let spec: AggregateSpec;
@@ -166,7 +186,9 @@ export async function resolveCustomKpiSpec(
   // Validation déterministe : on rejette toute spec non calculable (fiabilité).
   // Dans ce cas l'agent génère des instructions concrètes de reformulation —
   // jamais de table créée sans câblage vérifié à 100 %.
-  const check = await computeAggregate(supabase, orgId, [], hubspotToken, spec);
+  // Validation avec le MÊME filtre de sources que le recalcul de la table :
+  // une spec qui ne renvoie rien pour ces outils est rejetée dès la création.
+  const check = await computeAggregate(supabase, orgId, sources, hubspotToken, spec);
   if (check.error) {
     let instructions = "";
     try {

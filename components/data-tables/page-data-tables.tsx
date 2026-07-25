@@ -254,6 +254,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setEditingId(table.id);
     setCustomKpi(table.custom_kpi || table.title);
     setDescription(table.description || "");
+    // Les outils croisés choisis à la création sont retrouvés tels quels.
+    setSelected(table.sources ?? []);
     const stored = parseStoredPeriod(table.period_preset);
     if (stored.kind === "custom") {
       setPeriod("custom");
@@ -343,9 +345,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         body: JSON.stringify({
           view: draft.view,
           period_preset: periodValue(),
-          // Réécriture du KPI / description : le back ne relance l'agent que si l'un des textes change.
+          // Réécriture du KPI / description / outils : le back ne relance l'agent que si l'un des trois change.
           custom_kpi: customKpi.trim(),
           description: description.trim(),
+          sources: selected,
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -363,8 +366,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     // ── CRÉATION ────────────────────────────────────────────────────────
     const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
     const payload = draft.custom
-      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: periodValue() }
-      : { page_key: pageKey, ...draft, period_preset: periodValue() };
+      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: periodValue(), sources: selected }
+      : { page_key: pageKey, ...draft, period_preset: periodValue(), sources: selected };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -434,6 +437,38 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     {agentName} met à jour la donnée selon ton KPI. Le titre se renomme directement sur la table.
                   </p>
                 </div>
+
+                {/* Outils croisés — retrouvés depuis la création, modifiables ici.
+                    Un changement relance l'agent pour recâbler la donnée. */}
+                {sources.length > 0 && (
+                  <div>
+                    <label className="text-xs font-medium text-slate-500">Outils croisés</label>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      Les données de la table sont limitées à ces outils. Modifier la sélection recâble la donnée.
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {sources.map((t) => {
+                        const on = selected.includes(t.key);
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => toggleSource(t.key)}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                              on
+                                ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            <BrandLogo domain={toolDomain(t.key)} alt={t.label} fallback={t.icon} size={13} />
+                            {t.label}
+                            {on && <span className="text-fuchsia-500">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
