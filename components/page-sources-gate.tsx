@@ -39,9 +39,13 @@ export async function PageSourcesGate({
     getToolKeys(supabase, orgId, pageKey),
   ]);
 
-  const catSet = new Set(categories);
+  // ISO Paramètres : le mapping fait foi tel quel. On n'applique PAS de filtre
+  // par catégorie ici — un outil explicitement choisi dans les paramètres doit
+  // apparaître sur la page, sinon l'utilisateur voit « rien » alors qu'il a
+  // configuré ses sources. Seule la communication (Slack, Teams…) est exclue.
+  void categories;
   const tools = connected.filter(
-    (t) => t.category !== "communication" && catSet.has(t.category) && mapped.includes(t.key),
+    (t) => t.category !== "communication" && mapped.includes(t.key),
   );
 
   if (tools.length === 0) {

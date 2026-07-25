@@ -14,6 +14,8 @@ import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 import type { AgentRedirect } from "@/lib/ai/agents/redirect";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
+import { BrandLogo } from "../brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 import type { Attachment } from "@/lib/attachments";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
@@ -414,10 +416,15 @@ export function PaiementAgentChat({
     setSessionEnd("none");
     setError(null);
     setTab("chat");
-    void runSend([], START_TEXT, id);
+    // Sources = reflet EXACT de l'agenda au moment du démarrage : les props sont
+    // fraîches ici alors que l'état `selected` peut être en retard d'un rendu
+    // (enregistrement du formulaire puis démarrage dans le même clic).
+    const srcs = coachingMode ? exactCoachingSources() : selected;
+    if (coachingMode) setSelected(srcs);
+    void runSend([], START_TEXT, id, srcs);
   }
 
-  async function runSend(base: Msg[], content: string, id: string) {
+  async function runSend(base: Msg[], content: string, id: string, srcs: string[] = selected) {
     if (loading) return;
     setError(null);
     setAskAnother(false);
@@ -425,7 +432,7 @@ export function PaiementAgentChat({
 
     const next: Msg[] = [...base, { role: "user", content }];
     setMessages(next);
-    upsertConversation(id, next, selected, attachments);
+    upsertConversation(id, next, srcs, attachments);
     setInput("");
     setLoading(true);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }));
@@ -438,7 +445,7 @@ export function PaiementAgentChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
-          sources: selected,
+          sources: srcs,
           coaching: coaching ?? null,
           // Fichiers du coaching (épinglés) + fichiers ajoutés dans le chat.
           attachments: [...contextFiles, ...attachments],
@@ -457,7 +464,7 @@ export function PaiementAgentChat({
       };
       const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
-      upsertConversation(id, finalMsgs, selected, attachments);
+      upsertConversation(id, finalMsgs, srcs, attachments);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -738,13 +745,13 @@ export function PaiementAgentChat({
                 <button
                   key={s.key}
                   onClick={() => toggleSource(s.key)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
                     on
                       ? "bg-gradient-to-r from-amber-100 via-fuchsia-100 to-amber-100 text-slate-800 ring-1 ring-fuchsia-200"
                       : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                   }`}
                 >
-                  <span className="mr-1">{s.icon}</span>
+                  <BrandLogo domain={toolDomain(s.key)} alt={s.label} fallback={s.icon} size={13} />
                   {s.label}
                 </button>
               );

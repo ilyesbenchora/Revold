@@ -19,7 +19,8 @@ const BUILD_TOOL: Anthropic.Tool = {
   description:
     "Construit une table de données FIABLE répondant au KPI personnalisé de l'utilisateur, " +
     "en utilisant UNIQUEMENT les entités/dimensions/champs canoniques disponibles. " +
-    "Choisis la combinaison la plus proche du besoin. Ne jamais inventer une entité, dimension ou champ.",
+    "À n'utiliser QUE si une combinaison canonique répond FIDÈLEMENT au besoin (matching à 100 %). " +
+    "Ne jamais inventer une entité, dimension ou champ, ni approximer un KPI qui n'existe pas dans le catalogue.",
   input_schema: {
     type: "object",
     properties: {
@@ -34,9 +35,36 @@ const BUILD_TOOL: Anthropic.Tool = {
   },
 };
 
+/**
+ * Échappatoire de l'agent : si AUCUN câblage fiable n'existe, il ne crée PAS de
+ * table — il explique pourquoi et donne des instructions concrètes pour
+ * reformuler la demande et retrouver le(s) KPI(s) voulus.
+ */
+const NO_MATCH_TOOL: Anthropic.Tool = {
+  name: "no_reliable_match",
+  description:
+    "À utiliser UNIQUEMENT si aucune combinaison canonique ne répond fidèlement au KPI demandé. " +
+    "Aucune table ne sera créée : explique pourquoi, et donne des instructions concrètes et actionnables " +
+    "pour modifier la demande (reformulation du KPI, précision de l'entité/dimension/mesure, outil à connecter) " +
+    "afin de retrouver le ou les KPIs demandés.",
+  input_schema: {
+    type: "object",
+    properties: {
+      reason: { type: "string", description: "Pourquoi aucun câblage fiable n'est possible (1 phrase)." },
+      instructions: {
+        type: "string",
+        description:
+          "Instructions concrètes pour l'utilisateur : comment reformuler le KPI ou la description de la table " +
+          "(entité, dimension, mesure du catalogue) pour obtenir le(s) KPI(s) demandés. 2-3 phrases max.",
+      },
+    },
+    required: ["reason", "instructions"],
+  },
+};
+
 export type ResolvedKpi =
   | { ok: true; spec: AggregateSpec; unitMode: string; agentTitle: string | null; agentName: string }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; instructions?: string };
 
 /**
  * Fait interpréter un KPI décrit en langage naturel par l'agent de la page vers
@@ -60,10 +88,13 @@ export async function resolveCustomKpiSpec(
     `Tu es ${persona.name}, ${persona.role} chez Revold. ` +
     `Tu construis une table de données à partir du KPI décrit par l'utilisateur. ` +
     `IMPÉRATIF DE FIABILITÉ : n'utilise QUE ce catalogue canonique — ${CANONICAL_DOC} ` +
-    `Traduis le besoin vers la combinaison entité/dimension/mesure/champ la plus proche et 100 % calculable. ` +
+    `Si une combinaison entité/dimension/mesure/champ répond FIDÈLEMENT au besoin (matching à 100 %), ` +
+    `appelle build_data_table. Si le besoin ne correspond à AUCUNE combinaison du catalogue ` +
+    `(KPI hors périmètre, donnée non disponible, intention ambiguë), appelle no_reliable_match : ` +
+    `on ne crée JAMAIS une table approximative — tes instructions aident l'utilisateur à reformuler. ` +
     `Si le besoin implique un montant en euros, mets unit_mode=currency ; sinon count. ` +
     `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
-    `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via l'outil.`;
+    `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via un outil.`;
 
   const desc = description?.trim();
   const userMessage =
@@ -77,14 +108,27 @@ export async function resolveCustomKpiSpec(
   try {
     const resp = await client.messages.create({
       model: "claude-opus-4-8",
-      max_tokens: 400,
+      max_tokens: 500,
       system,
-      tools: [BUILD_TOOL],
-      tool_choice: { type: "tool", name: "build_data_table" },
+      tools: [BUILD_TOOL, NO_MATCH_TOOL],
+      tool_choice: { type: "any" },
       messages: [{ role: "user", content: userMessage }],
     });
     const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (!toolUse) return { ok: false, error: "L'agent n'a pas pu interpréter ce KPI.", status: 422 };
+    // Pas de matching fiable → AUCUNE table créée ; l'agent explique comment
+    // modifier la demande pour retrouver le(s) KPI(s) voulus.
+    if (toolUse.name === "no_reliable_match") {
+      const nm = toolUse.input as { reason?: string; instructions?: string };
+      const reason = nm.reason?.trim() || `Aucun câblage fiable trouvé pour « ${kpi} ».`;
+      const instructions = nm.instructions?.trim() || "";
+      return {
+        ok: false,
+        error: [`${persona.name} : ${reason}`, instructions].filter(Boolean).join(" — "),
+        instructions: instructions || undefined,
+        status: 422,
+      };
+    }
     const inp = toolUse.input as {
       title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
     };
@@ -103,11 +147,43 @@ export async function resolveCustomKpiSpec(
   }
 
   // Validation déterministe : on rejette toute spec non calculable (fiabilité).
+  // Dans ce cas l'agent génère des instructions concrètes de reformulation —
+  // jamais de table créée sans câblage vérifié à 100 %.
   const check = await computeAggregate(supabase, orgId, [], hubspotToken, spec);
   if (check.error) {
+    let instructions = "";
+    try {
+      const help = await client.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 300,
+        system:
+          `Tu es ${persona.name}, ${persona.role} chez Revold. Catalogue canonique disponible : ${CANONICAL_DOC}`,
+        messages: [
+          {
+            role: "user",
+            content:
+              `Le KPI « ${kpi} » n'a pas pu être câblé sur une donnée réelle ` +
+              `(spec tentée : ${spec.entity}/${spec.groupBy}/${spec.measure}${spec.field ? `/${spec.field}` : ""} ; erreur : ${check.error}). ` +
+              `Donne en 2-3 phrases, adressées à l'utilisateur, des instructions concrètes pour modifier le contenu de sa demande de table ` +
+              `(reformulation du KPI, entité/dimension/mesure du catalogue à viser) afin de retrouver le ou les KPIs demandés. ` +
+              `Réponds uniquement avec ces instructions, sans préambule.`,
+          },
+        ],
+      });
+      instructions = help.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text.trim())
+        .join(" ")
+        .trim();
+    } catch {
+      /* fallback message générique ci-dessous */
+    }
     return {
       ok: false,
-      error: `L'agent n'a pas trouvé de donnée fiable pour « ${kpi} ». Reformule ou choisis un KPI proposé.`,
+      error:
+        `${persona.name} n'a pas trouvé de donnée fiable pour « ${kpi} » — aucune table créée. ` +
+        (instructions || "Reformule ta demande en précisant l'entité (deals, factures, subscriptions, tickets…), la dimension (par mois, par statut…) et la mesure (nombre, somme, moyenne)."),
+      instructions: instructions || undefined,
       status: 422,
     };
   }

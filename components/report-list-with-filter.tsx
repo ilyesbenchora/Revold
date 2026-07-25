@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { BrandLogo } from "./brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 
 const CATEGORIES = [
   { id: "all", label: "Tous" },
@@ -145,7 +147,7 @@ export function ReportListWithFilter({ reports, variant, availableTools, kpiPrev
                       : "border border-card-border bg-white text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  <span>{tool.icon}</span>
+                  <BrandLogo domain={toolDomain(tool.key)} alt={tool.label} fallback={tool.icon} size={15} />
                   {tool.label}
                   {isSelected && (
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -251,7 +253,7 @@ export function ReportListWithFilter({ reports, variant, availableTools, kpiPrev
                           key={src.key}
                           className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
                         >
-                          <span>{src.icon}</span>
+                          <BrandLogo domain={toolDomain(src.key)} alt={src.label} fallback={src.icon} size={13} />
                           {src.label}
                         </span>
                       ))}

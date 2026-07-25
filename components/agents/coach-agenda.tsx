@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
+import { BrandLogo } from "../brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 import type { Attachment } from "@/lib/attachments";
 
 const CADENCES = [
@@ -29,6 +31,17 @@ const QUICK_MEETINGS = [
   { label: "Dans 4 jours", days: 4 },
   { label: "Dans 6 jours", days: 6 },
 ];
+
+/**
+ * RDV « pour maintenant » : daté d'aujourd'hui et sans heure future. Dans ce
+ * cas le CTA devient « Commencer la séance » (enregistre PUIS ouvre le chat).
+ */
+function isMeetingNow(date: string, time: string): boolean {
+  if (!date || date !== offsetDate(0)) return false;
+  if (!time || !/^\d{2}:\d{2}$/.test(time)) return true; // aujourd'hui sans heure = maintenant
+  // Marge de 5 min : « 14h30 » saisi à 14h27 compte comme maintenant.
+  return new Date(`${date}T${time}:00`).getTime() <= Date.now() + 5 * 60 * 1000;
+}
 
 function calendarLinks(title: string, dateStr: string, details: string) {
   const start = `${dateStr}T10:00:00`;
@@ -106,7 +119,7 @@ export function CoachAgenda({
     setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setState("saving");
     setErrMsg(null);
     try {
@@ -125,17 +138,28 @@ export function CoachAgenda({
         }
         setErrMsg(reason);
         setState("error");
-        return;
+        return false;
       }
       setState("done");
       onSaved?.({ objectives, pains, cadence, next_meeting_at: nextMeeting || null, next_meeting_time: nextTime || null, sources, attachments });
       // RDV enregistré → on replie le bloc en confirmation compacte.
       if (nextMeeting) onCollapsedChange(true);
       setTimeout(() => setState("idle"), 2500);
+      return true;
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Erreur réseau");
       setState("error");
+      return false;
     }
+  }
+
+  // RDV pour maintenant → le CTA enregistre puis ouvre directement le chat
+  // avec l'agent (contexte complet : objectifs, pains, outils, fichiers).
+  const meetingIsNow = isMeetingNow(nextMeeting, nextTime);
+
+  async function saveAndMaybeStart() {
+    const ok = await save();
+    if (ok && meetingIsNow) onStart?.();
   }
 
   const field =
@@ -283,7 +307,7 @@ export function CoachAgenda({
                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <span>{s.icon}</span>
+                    <BrandLogo domain={toolDomain(s.key)} alt={s.label} fallback={s.icon} size={14} />
                     {s.label}
                     {active && <span className="text-fuchsia-500">✓</span>}
                   </button>
@@ -332,11 +356,14 @@ export function CoachAgenda({
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <button onClick={save} disabled={state === "saving"}
+        <button onClick={saveAndMaybeStart} disabled={state === "saving"}
           className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60">
-          {state === "saving" ? "Enregistrement…" : "Enregistrer la séance"}
+          {state === "saving" ? "Enregistrement…" : meetingIsNow ? "Commencer la séance" : "Enregistrer la séance"}
         </button>
-        {state === "done" && <span className="text-xs font-medium text-emerald-600">✓ Enregistré — ajoute le RDV à ton agenda ci-dessus</span>}
+        {meetingIsNow && state !== "saving" && (
+          <span className="text-[11px] text-slate-400">RDV immédiat — la séance s&apos;ouvre dans le chat</span>
+        )}
+        {state === "done" && !meetingIsNow && <span className="text-xs font-medium text-emerald-600">✓ Enregistré — ajoute le RDV à ton agenda ci-dessus</span>}
         {state === "error" && (
           <span className="text-xs text-red-500">Échec : {errMsg ?? "erreur inconnue"}</span>
         )}

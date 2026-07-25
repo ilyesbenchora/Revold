@@ -19,6 +19,22 @@ function isDue(d?: string | null, t?: string | null): boolean {
   const dt = meetingDate(d, t);
   return dt ? dt.getTime() <= Date.now() : false;
 }
+/** RDV daté d'aujourd'hui. */
+function isToday(d?: string | null): boolean {
+  if (!d) return false;
+  const now = new Date();
+  const [y, m, day] = d.split("-").map(Number);
+  return y === now.getFullYear() && m === now.getMonth() + 1 && day === now.getDate();
+}
+/**
+ * RDV encore pertinent pour la confirmation « Rendez-vous enregistré » : à venir,
+ * ou aujourd'hui (état « c'est l'heure »). Un RDV d'un jour passé n'affiche plus
+ * le bloc — il vit dans l'historique des rendez-vous en bas de page.
+ */
+function isUpcoming(d?: string | null, t?: string | null): boolean {
+  if (!d) return false;
+  return isToday(d) || !isDue(d, t);
+}
 
 /**
  * Espace de coaching : rend l'agenda (objectifs/pains/RDV/outils/fichiers) au-dessus
@@ -61,15 +77,22 @@ export function CoachingWorkspace({
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
   // lancer une séance sur une conversation vierge côté chat. Si le coaching vient
   // d'un rapport, on démarre automatiquement (nonce initial à 1).
-  // RDV échu au chargement → on démarre automatiquement la séance (le message
-  // de l'agent part à l'arrivée sur la page) ; sinon selon reportBrief.
-  const meetingDueAtLoad = isDue(initialAgenda.next_meeting_at, initialAgenda.next_meeting_time);
+  // RDV du JOUR échu au chargement → on démarre automatiquement la séance (le
+  // message de l'agent part à l'arrivée sur la page). Un RDV d'un jour passé ne
+  // relance rien : il vit dans l'historique.
+  const meetingDueAtLoad =
+    isToday(initialAgenda.next_meeting_at) &&
+    isDue(initialAgenda.next_meeting_at, initialAgenda.next_meeting_time);
   const [startNonce, setStartNonce] = useState(reportBrief || meetingDueAtLoad ? 1 : 0);
   const [sessionStatus, setSessionStatus] = useState<"idle" | "active" | "ended">("idle");
-  // Bloc replié (confirmation) affiché tant qu'un RDV existe.
-  const [collapsed, setCollapsed] = useState(Boolean(initialAgenda.next_meeting_at));
-  // Formulaire d'agenda ouvert par le bouton « + Créer un RDV… » (masqué sinon).
-  const [formOpen, setFormOpen] = useState(false);
+  // Bloc replié (confirmation) affiché uniquement pour un RDV à venir (ou du
+  // jour) — jamais pour un RDV passé.
+  const [collapsed, setCollapsed] = useState(
+    isUpcoming(initialAgenda.next_meeting_at, initialAgenda.next_meeting_time),
+  );
+  // Formulaire rendez-vous & objectif : OUVERT par défaut (sauf si une
+  // confirmation de RDV à venir prend sa place).
+  const [formOpen, setFormOpen] = useState(true);
   // Conversations remontées par le chat (bloc historique des rendez-vous).
   const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: number; count: number }[]>([]);
   const [openConv, setOpenConv] = useState<{ id: string; nonce: number } | null>(null);
@@ -79,11 +102,14 @@ export function CoachingWorkspace({
   const coachingCtx = reportBrief ?? { objectives: agenda.objectives ?? "", pains: agenda.pains ?? "" };
   // Un RDV programmé active le suivi de séance « coaching réalisé ».
   const hasMeeting = Boolean(agenda.next_meeting_at);
-  // RDV échu → CTA rouge + démarrage direct.
+  // RDV encore d'actualité (à venir ou aujourd'hui) → seul cas où la
+  // confirmation « Rendez-vous enregistré » a le droit d'exister.
+  const meetingUpcoming = isUpcoming(agenda.next_meeting_at, agenda.next_meeting_time);
+  // RDV du jour échu → CTA rouge + démarrage direct.
   const meetingDue = isDue(agenda.next_meeting_at, agenda.next_meeting_time);
-  // Confirmation visible tant qu'un RDV existe (disparaît quand il est effacé à
-  // la clôture de la séance).
-  const effectiveCollapsed = collapsed && hasMeeting;
+  // Confirmation visible uniquement pour un RDV à venir (disparaît quand il est
+  // effacé à la clôture de la séance, ou si la date est passée).
+  const effectiveCollapsed = collapsed && meetingUpcoming;
   const preselectedSources = agenda.sources ?? null;
   const contextAttachments = (agenda.attachments as Attachment[] | null) ?? null;
   // Agenda masqué par défaut : il s'ouvre via le bouton « + Créer un RDV… », ou

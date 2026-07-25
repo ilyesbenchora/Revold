@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { fetchOwnersFromCache } from "./context";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { PageSourcesGate } from "@/components/page-sources-gate";
 
 export default async function AdoptionOverviewPage() {
   const orgId = await getOrgId();
@@ -17,10 +18,6 @@ export default async function AdoptionOverviewPage() {
     getHubspotSnapshot(),
   ]);
 
-  if (snapshot.status === "no-token") {
-    return <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>;
-  }
-
   // Activités totales : on dérive des données disponibles dans le snapshot.
   // sequencesEnrollments + (deals avec notes / activities loguées) sont
   // les proxies les plus représentatifs sans appel /engagements live.
@@ -32,22 +29,29 @@ export default async function AdoptionOverviewPage() {
     ? Math.min(owners.length, Math.max(1, Math.round(snapshot.openDeals / Math.max(1, owners.length / 2))))
     : 0;
 
-  // Données du bloc + alerte chirurgicale.
+  // Données du bloc + alerte chirurgicale. Affichage ISO avec le mapping
+  // « Outil source par page » (clé audit_adoption = page Équipes).
   return (
-    <div>
-      <BlockDataTable
-        title="Adoption CRM — synthèse"
-        subtitle="conduite du changement"
-        team="revops"
-        unit="count"
-        nameLabel="Indicateur"
-        valueLabel="Valeur"
-        rows={[
-          { name: "Activités totales", value: totalActivities, unit: "count" },
-          { name: "Utilisateurs", value: owners.length, unit: "count" },
-          { name: "Utilisateurs actifs", value: activeUsers, unit: "count" },
-        ]}
-      />
+    <div className="space-y-4">
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_adoption" categories={["crm"]}>
+        {snapshot.status === "no-token" ? (
+          <p className="p-6 text-center text-sm text-slate-500">Connectez votre CRM HubSpot.</p>
+        ) : (
+          <BlockDataTable
+            title="Adoption CRM — synthèse"
+            subtitle="conduite du changement"
+            team="revops"
+            unit="count"
+            nameLabel="Indicateur"
+            valueLabel="Valeur"
+            rows={[
+              { name: "Activités totales", value: totalActivities, unit: "count" },
+              { name: "Utilisateurs", value: owners.length, unit: "count" },
+              { name: "Utilisateurs actifs", value: activeUsers, unit: "count" },
+            ]}
+          />
+        )}
+      </PageSourcesGate>
     </div>
   );
 }

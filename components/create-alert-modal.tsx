@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 
 type ToolOption = { key: string; label: string; icon: string; category?: string };
 
@@ -572,7 +573,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                                   className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
                                     on ? "border-accent bg-accent/10 text-accent" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                                   }`}>
-                                  <span>{t.icon}</span>{t.label}{on && <span className="text-[10px]">✓</span>}
+                                  <BrandLogo domain={toolDomain(t.key)} alt={t.label} fallback={t.icon} size={14} />{t.label}{on && <span className="text-[10px]">✓</span>}
                                 </button>
                               );
                             })}
@@ -588,7 +589,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                                 const sk = sourceKpis[key] ?? { value: "", unit: "percent" as const };
                                 return (
                                   <div key={key}>
-                                    <label className="mb-1 block text-[11px] font-medium text-slate-500">KPI {icon} {label}</label>
+                                    <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                                      KPI <BrandLogo domain={toolDomain(key)} alt={label} fallback={icon} size={13} /> {label}
+                                    </label>
                                     <div className="flex items-center gap-1.5">
                                       <input type="number" step="any" value={sk.value}
                                         onChange={(e) => setSourceKpi(key, { value: e.target.value })}

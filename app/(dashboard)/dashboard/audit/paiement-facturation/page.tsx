@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { getToolKeys } from "@/lib/integrations/tool-mappings";
 import {
   getSwitchableBillingTools,
   validateSourceParam,
@@ -45,9 +46,15 @@ export default async function PaiementFacturationOverviewPage({
     const single = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
     if (single) selectedKeys = [single];
   }
-  // AUCUN outil présélectionné : zéro sélection = état neutre. Les blocs et
-  // leurs tables s'activent quand l'utilisateur choisit ses sources — 1 clic
-  // direct, jamais de désélection préalable d'un outil imposé.
+  // Sans sélection d'URL : ISO avec les Paramètres — les outils choisis dans
+  // « Outil source par page » (Paramètres → Intégrations) sont présélectionnés.
+  // Sans mapping non plus : état neutre, l'utilisateur choisit ses sources.
+  if (selectedKeys.length === 0) {
+    const mappedKeys = await getToolKeys(supabase, orgId, "audit_paiement_facturation");
+    if (mappedKeys.length > 0) {
+      selectedKeys = switchableTools.filter((t) => mappedKeys.includes(t.key)).map((t) => t.key);
+    }
+  }
 
   // ── Règle d'affichage dynamique (déclarative, cf. source-switch.ts) ──
   //   0 outil   → invite, aucun bloc

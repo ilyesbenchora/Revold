@@ -1,6 +1,8 @@
 "use client";
 
 import { SectionLabel } from "./alert-ui";
+import { BrandLogo } from "../brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 
 export type ToolOption = { key: string; label: string; icon: string };
 
@@ -30,7 +32,6 @@ export function AlertCrossTools({
   primaryLabel?: string;
 }) {
   const labelOf = (k: string) => tools.find((t) => t.key === k)?.label ?? k;
-  const iconOf = (k: string) => tools.find((t) => t.key === k)?.icon ?? "🔗";
   const multi = value.sources.length >= 2;
 
   function toggle(k: string) {
@@ -63,7 +64,7 @@ export function AlertCrossTools({
                       : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                   }`}
                 >
-                  <span>{t.icon}</span>
+                  <BrandLogo domain={toolDomain(t.key)} alt={t.label} fallback={t.icon} size={14} />
                   {t.label}
                   {on && <span className="text-[10px]">✓</span>}
                 </button>
@@ -73,7 +74,7 @@ export function AlertCrossTools({
         )}
         {value.sources.length === 1 && (
           <p className="mt-1 text-[10px] text-slate-400">
-            Le KPI attendu porte sur {iconOf(value.sources[0])} {labelOf(value.sources[0])}. Sélectionne un 2ᵉ outil pour
+            Le KPI attendu porte sur {labelOf(value.sources[0])}. Sélectionne un 2ᵉ outil pour
             suivre un KPI par outil.
           </p>
         )}
@@ -83,7 +84,7 @@ export function AlertCrossTools({
       {multi && (
         <div>
           <SectionLabel>
-            2ᵉ KPI attendu — {iconOf(value.sources[1])} {labelOf(value.sources[1])}
+            2ᵉ KPI attendu — {labelOf(value.sources[1])}
           </SectionLabel>
           <div className="mt-1 flex items-center gap-1.5">
             <input
@@ -111,8 +112,8 @@ export function AlertCrossTools({
             </div>
           </div>
           <p className="mt-1 text-[10px] text-slate-400">
-            Le 1ᵉʳ KPI porte sur {iconOf(value.sources[0])} {labelOf(value.sources[0])}, ce 2ᵉ KPI sur{" "}
-            {iconOf(value.sources[1])} {labelOf(value.sources[1])}.
+            Le 1ᵉʳ KPI porte sur {labelOf(value.sources[0])}, ce 2ᵉ KPI sur{" "}
+            {labelOf(value.sources[1])}.
           </p>
         </div>
       )}

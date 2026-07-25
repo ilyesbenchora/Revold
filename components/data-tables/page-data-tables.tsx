@@ -12,6 +12,8 @@ import {
   type TableView,
 } from "@/lib/reports/data-table-presets";
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
+import { BrandLogo } from "../brand-logo";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 import { PERIOD_PRESETS, type PeriodPreset } from "@/lib/reports/periods";
 
 // Un KPI est déterministe (câblé précisément, sans agent) uniquement pour la
@@ -447,7 +449,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                                     on ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
                                   }`}
                                 >
-                                  <span className="text-base leading-none">{t.icon}</span>
+                                  <BrandLogo domain={toolDomain(t.key)} alt={t.label} fallback={t.icon} size={16} />
                                   <span className="min-w-0 flex-1 truncate font-medium">{t.label}</span>
                                   {on && (
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-600"><polyline points="20 6 9 17 4 12" /></svg>
