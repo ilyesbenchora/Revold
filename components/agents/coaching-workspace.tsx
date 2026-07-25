@@ -74,7 +74,17 @@ export function CoachingWorkspace({
   /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
   initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions";
 }) {
-  const [agenda, setAgenda] = useState<CoachAgendaInitial>(initialAgenda);
+  // Un NOUVEAU rendez-vous & objectif part de ZÉRO : l'agenda persisté ne
+  // pré-remplit le formulaire (objectifs, pains, outils, FICHIERS) que si un
+  // RDV est encore d'actualité (à venir ou aujourd'hui) — on est alors en
+  // modification de ce RDV. RDV passé ou aucun RDV → formulaire vierge ;
+  // la continuité entre séances est portée par la mémoire du coach, pas par
+  // le recyclage du formulaire.
+  const upcomingAtLoad = isUpcoming(initialAgenda.next_meeting_at, initialAgenda.next_meeting_time);
+  const baseAgenda: CoachAgendaInitial = upcomingAtLoad ? initialAgenda : {};
+  const [agenda, setAgenda] = useState<CoachAgendaInitial>(baseAgenda);
+  // Remonte le formulaire vierge (remount) après une clôture de séance.
+  const [formNonce, setFormNonce] = useState(0);
   // Incrémenté par le bouton « Démarrer un nouveau coaching » de l'agenda pour
   // lancer une séance sur une conversation vierge côté chat. Si le coaching vient
   // d'un rapport, on démarre automatiquement (nonce initial à 1).
@@ -120,26 +130,29 @@ export function CoachingWorkspace({
   // s'affiche en confirmation quand un RDV existe.
   const showAgenda = effectiveCollapsed || formOpen;
 
-  // Clôture de séance : on efface le RDV (cadence ponctuelle) pour que le bloc
-  // disparaisse, et on persiste l'effacement en base. Le plan d'action vient
-  // d'être régénéré côté serveur → on le recharge.
+  // Clôture de séance : REMISE À ZÉRO complète de l'agenda (RDV, objectifs,
+  // pains, outils, fichiers) — le prochain rendez-vous & objectif repart d'un
+  // formulaire vierge. La continuité vit dans la mémoire du coach (résumé +
+  // plan d'action), pas dans le formulaire. Le plan d'action vient d'être
+  // régénéré côté serveur → on le recharge.
   async function handleSessionComplete() {
     setPlanRefresh((n) => n + 1);
     if (!hasMeeting) return;
-    setAgenda((a) => ({ ...a, next_meeting_at: null, next_meeting_time: null }));
+    setAgenda({});
+    setFormNonce((n) => n + 1); // remonte un formulaire vierge
     try {
       await fetch("/api/coaching/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category,
-          objectives: agenda.objectives ?? "",
-          pains: agenda.pains ?? "",
-          cadence: agenda.cadence ?? "monthly",
+          objectives: "",
+          pains: "",
+          cadence: "monthly",
           next_meeting_at: null,
           next_meeting_time: null,
-          sources: agenda.sources ?? [],
-          attachments: agenda.attachments ?? [],
+          sources: [],
+          attachments: [],
         }),
       });
     } catch {
@@ -167,9 +180,12 @@ export function CoachingWorkspace({
       {showAgenda && (
       <div className="mb-6">
         <CoachAgenda
+          key={formNonce}
           category={category}
           label={coachLabel}
-          initial={initialAgenda}
+          // Pré-rempli UNIQUEMENT en modification d'un RDV encore d'actualité ;
+          // sinon formulaire vierge (nouveau rendez-vous & objectif = zéro).
+          initial={meetingUpcoming ? baseAgenda : {}}
           availableSources={availableSources}
           collapsed={effectiveCollapsed}
           onCollapsedChange={(v) => {

@@ -31,13 +31,16 @@ export function CategoryAgendaBlock({
   const router = useRouter();
   // Confirmation affichée uniquement pour un RDV encore à venir ; un RDV
   // passé/terminé n'affiche pas le bloc « rendez-vous enregistré ».
-  const [collapsed, setCollapsed] = useState(isFutureMeeting(initial.next_meeting_at, initial.next_meeting_time));
+  const future = isFutureMeeting(initial.next_meeting_at, initial.next_meeting_time);
+  const [collapsed, setCollapsed] = useState(future);
 
   return (
     <CoachAgenda
       category={category}
       label={coachLabel}
-      initial={initial}
+      // Nouveau rendez-vous & objectif = formulaire VIERGE (fichiers inclus) ;
+      // pré-rempli seulement en modification d'un RDV encore à venir.
+      initial={future ? initial : {}}
       availableSources={availableSources}
       collapsed={collapsed}
       onCollapsedChange={setCollapsed}
