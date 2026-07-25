@@ -52,8 +52,12 @@ export function CreateObjectiveModal() {
     setProposal(null); setCounts({}); setVerifying(false);
   }
 
-  /** KPI libre : demande le câblage à l'agent (rien n'est créé). */
-  async function requestPreview(preferredEntity?: string) {
+  /**
+   * KPI libre : demande le câblage à l'agent (rien n'est créé).
+   * `adjustedSpec` = mesure/champ corrigés par l'utilisateur → ré-évaluation
+   * déterministe de la spec telle quelle, sans repasser par l'agent.
+   */
+  async function requestPreview(preferredEntity?: string, adjustedSpec?: Record<string, unknown>) {
     if (verifying) return;
     setVerifying(true); setError(null);
     try {
@@ -67,6 +71,7 @@ export function CreateObjectiveModal() {
           value: target ? Number(target) : undefined,
           unit,
           entity: preferredEntity,
+          agg_spec: adjustedSpec,
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -208,6 +213,7 @@ export function CreateObjectiveModal() {
                 counts={counts}
                 loading={verifying}
                 onPickEntity={(e) => requestPreview(e)}
+                onAdjustSpec={(spec) => requestPreview(undefined, spec)}
               />
             )}
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTableCard, type SavedTable } from "./data-table-card";
 import {
   ENTITY_DIMS,
+  ENTITY_FIELDS,
   entityLabel,
   dimLabel,
   presetsForPage,
@@ -85,28 +86,11 @@ type Proposal = {
   agent: string;
 };
 
-const FIELD_LABELS: Record<string, string> = {
-  amount: "montant",
-  amount_total: "montant total",
-  amount_paid: "montant encaissé",
-  amount_due: "reste dû",
-  amount_in: "encaissements",
-  amount_out: "décaissements",
-  mrr: "MRR",
-};
-
-function measurePhrase(measure: string, field: string | null, entity?: string): string {
-  // Transactions bancaires : « amount » est le flux NET signé — le nommer
-  // explicitement pour qu'on ne le confonde jamais avec les encaissements.
-  const f = field
-    ? entity === "transactions" && field === "amount"
-      ? "flux net (encaissements − décaissements)"
-      : FIELD_LABELS[field] ?? field
-    : null;
-  if (measure === "sum") return `Somme · ${f ?? "valeur"}`;
-  if (measure === "avg") return `Moyenne · ${f ?? "valeur"}`;
-  if (measure === "weighted") return `Projection pondérée · ${f ?? "montant"}`;
-  return "Nombre de lignes";
+function fmtTotal(v: number, unit: string | null): string {
+  if (unit === "currency")
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  if (unit === "percent") return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(v)} %`;
+  return new Intl.NumberFormat("fr-FR").format(v);
 }
 
 /**
@@ -229,6 +213,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [entityCounts, setEntityCounts] = useState<Record<string, number>>({});
   const [proposalLoading, setProposalLoading] = useState(false);
+  // Total réel du câblage affiché (toutes périodes) — recalculé à chaque ajustement.
+  const [verifTotal, setVerifTotal] = useState<number | null>(null);
+  const [verifLoading, setVerifLoading] = useState(false);
 
   // Plage personnalisée incomplète ou inversée → on bloque la sauvegarde.
   const periodInvalid =
@@ -288,6 +275,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setProposal(null);
     setEntityCounts({});
     setProposalLoading(false);
+    setVerifTotal(null);
+    setVerifLoading(false);
   }
 
   function toggleSource(key: string) {
@@ -405,13 +394,55 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       });
       const d = await res.json().catch(() => ({}));
       if (d.counts) setEntityCounts(d.counts);
-      if (res.ok && d.proposal) setProposal(d.proposal);
-      else setError(d.error || "Prévisualisation impossible.");
+      if (res.ok && d.proposal) {
+        setProposal(d.proposal);
+        refreshVerif(d.proposal);
+      } else setError(d.error || "Prévisualisation impossible.");
     } catch {
       setError("Prévisualisation impossible.");
     } finally {
       setProposalLoading(false);
     }
+  }
+
+  /**
+   * Recalcule DÉTERMINISTE (toutes périodes) du câblage affiché : total réel +
+   * volume de lignes. Appelé à chaque ajustement manuel (regroupement, mesure)
+   * — la preuve chiffrée avant de confirmer, sans repasser par l'agent.
+   */
+  async function refreshVerif(p: Proposal) {
+    setVerifLoading(true);
+    try {
+      const res = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: { entity: p.entity, groupBy: p.group_by, measure: p.measure, field: p.field },
+          sources: selected,
+          all: true,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(d.data)) {
+        const total = d.data.reduce((s: number, r: { value?: number }) => s + (Number(r.value) || 0), 0);
+        setVerifTotal(total);
+        setProposal((prev) => (prev ? { ...prev, rowCount: Number(d.totalRows) || 0 } : prev));
+      } else {
+        setVerifTotal(null);
+      }
+    } catch {
+      setVerifTotal(null);
+    } finally {
+      setVerifLoading(false);
+    }
+  }
+
+  /** Ajustement manuel du câblage proposé (regroupement / mesure) → recalcul immédiat. */
+  function adjustProposal(patch: Partial<Proposal>) {
+    if (!proposal) return;
+    const np = { ...proposal, ...patch };
+    setProposal(np);
+    refreshVerif(np);
   }
 
   async function create() {
@@ -554,23 +585,80 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 </div>
 
                 <div className="rounded-xl border border-accent/30 bg-indigo-50/40 p-4">
-                  <dl className="space-y-2 text-sm">
+                  <dl className="space-y-2.5 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">Source de données</dt>
                       <dd className="font-semibold text-slate-900">{entityLabel(proposal.entity)}</dd>
                     </div>
+                    {/* Regroupement et mesure ÉDITABLES : si le KPI est ambigu
+                        (« paiements » = encaissements ? flux net ?), l'utilisateur
+                        corrige ici — le total se recalcule immédiatement. */}
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-xs text-slate-500">Regroupement</dt>
-                      <dd className="font-medium text-slate-700">{dimLabel(proposal.entity, proposal.group_by)}</dd>
+                      <dt className="shrink-0 text-xs text-slate-500">Regroupement</dt>
+                      <dd className="min-w-0">
+                        {(() => {
+                          const dims = ENTITY_DIMS[proposal.entity] ?? [];
+                          const opts = dims.some((d) => d.id === proposal.group_by)
+                            ? dims
+                            : [{ id: proposal.group_by, label: dimLabel(proposal.entity, proposal.group_by) }, ...dims];
+                          return (
+                            <select
+                              value={proposal.group_by}
+                              disabled={proposalLoading || verifLoading}
+                              onChange={(e) => adjustProposal({ group_by: e.target.value })}
+                              className="w-full max-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-accent"
+                            >
+                              {opts.map((d) => (
+                                <option key={d.id} value={d.id}>{d.label}</option>
+                              ))}
+                            </select>
+                          );
+                        })()}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-xs text-slate-500">Mesure</dt>
-                      <dd className="font-medium text-slate-700">{measurePhrase(proposal.measure, proposal.field, proposal.entity)}</dd>
+                      <dt className="shrink-0 text-xs text-slate-500">Mesure</dt>
+                      <dd className="min-w-0">
+                        {(() => {
+                          const fields = ENTITY_FIELDS[proposal.entity] ?? [];
+                          const cur = `${proposal.measure}:${proposal.field ?? ""}`;
+                          return (
+                            <select
+                              value={cur}
+                              disabled={proposalLoading || verifLoading}
+                              onChange={(e) => {
+                                const [measure, field] = e.target.value.split(":");
+                                const f = field || null;
+                                const unit = measure === "count" ? "count" : fields.find((x) => x.id === f)?.unit ?? proposal.unit_mode;
+                                adjustProposal({ measure, field: f, unit_mode: unit });
+                              }}
+                              className="w-full max-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-accent"
+                            >
+                              <option value="count:">Nombre de lignes</option>
+                              {fields.map((f) => (
+                                <optgroup key={f.id} label={f.label}>
+                                  <option value={`sum:${f.id}`}>Somme · {f.label}</option>
+                                  <option value={`avg:${f.id}`}>Moyenne · {f.label}</option>
+                                </optgroup>
+                              ))}
+                              {proposal.measure === "weighted" && (
+                                <option value={cur}>Projection pondérée</option>
+                              )}
+                            </select>
+                          );
+                        })()}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">Données trouvées</dt>
                       <dd className={`font-semibold ${proposal.rowCount > 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                        {proposal.rowCount > 0 ? `${new Intl.NumberFormat("fr-FR").format(proposal.rowCount)} ligne${proposal.rowCount > 1 ? "s" : ""}` : "0 ligne"}
+                        {verifLoading ? "…" : proposal.rowCount > 0 ? `${new Intl.NumberFormat("fr-FR").format(proposal.rowCount)} ligne${proposal.rowCount > 1 ? "s" : ""}` : "0 ligne"}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Total calculé (toutes périodes)</dt>
+                      <dd className={`font-semibold ${verifTotal != null && verifTotal !== 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                        {verifLoading ? "…" : verifTotal != null ? fmtTotal(verifTotal, proposal.unit_mode) : "—"}
                       </dd>
                     </div>
                   </dl>

@@ -270,8 +270,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setProposal(null); setCounts({}); setVerifying(false);
   }
 
-  /** KPI personnalisé : demande le câblage à l'agent (rien n'est créé). */
-  async function requestPreview(preferredEntity?: string) {
+  /**
+   * KPI personnalisé : demande le câblage à l'agent (rien n'est créé).
+   * `adjustedSpec` = mesure/champ corrigés par l'utilisateur → ré-évaluation
+   * déterministe de la spec telle quelle, sans repasser par l'agent.
+   */
+  async function requestPreview(preferredEntity?: string, adjustedSpec?: Record<string, unknown>) {
     if (verifying || !kpi) return;
     setVerifying(true);
     try {
@@ -286,6 +290,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           value: threshold ? Number(threshold) : undefined,
           unit: unitMode,
           entity: preferredEntity,
+          agg_spec: adjustedSpec,
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -909,6 +914,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           counts={counts}
                           loading={verifying}
                           onPickEntity={(e) => requestPreview(e)}
+                          onAdjustSpec={(spec) => requestPreview(undefined, spec)}
                         />
                       </div>
                     )}

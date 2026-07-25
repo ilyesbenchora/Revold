@@ -31,6 +31,9 @@ export async function POST(request: Request) {
   let body: {
     kpi_text?: string; description?: string; team?: string; category?: string;
     value?: number; unit?: string; entity?: string;
+    // Ajustement manuel du câblage à l'étape Vérification (mesure/champ corrigés
+    // par l'utilisateur) → ré-évaluation DÉTERMINISTE, sans repasser par l'agent.
+    agg_spec?: { entity?: string; groupBy?: string; measure?: string; field?: string | null; target?: string | null; multiplier?: number | null; unit_mode?: string };
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -39,6 +42,37 @@ export async function POST(request: Request) {
   const preferredEntity = typeof body.entity === "string" && body.entity.trim() ? body.entity.trim() : null;
 
   const token = await getHubSpotToken(supabase, orgId);
+
+  // ── Ajustement manuel : la spec corrigée par l'utilisateur est ré-évaluée
+  //    telle quelle (valeur actuelle réelle) — aucun agent impliqué. ──
+  const adj = body.agg_spec;
+  if (adj && typeof adj === "object" && typeof adj.entity === "string" && adj.entity && typeof adj.groupBy === "string" && adj.groupBy) {
+    const spec = {
+      entity: adj.entity,
+      groupBy: adj.groupBy,
+      measure: typeof adj.measure === "string" && adj.measure ? adj.measure : "count",
+      field: typeof adj.field === "string" && adj.field ? adj.field : null,
+      target: typeof adj.target === "string" && adj.target ? adj.target : null,
+      multiplier: typeof adj.multiplier === "number" && adj.multiplier > 0 ? adj.multiplier : 1,
+      unit_mode: typeof adj.unit_mode === "string" && adj.unit_mode ? adj.unit_mode : "count",
+    };
+    const [currentValue, counts] = await Promise.all([
+      valueFromAggSpec(supabase, orgId, token, spec),
+      countEntityRows(supabase, orgId, []),
+    ]);
+    return NextResponse.json({
+      resolution: {
+        mode: "aggregate",
+        forecast_type: null,
+        recon_recipe: null,
+        agg_spec: spec,
+        label: trackingLabel(null, spec, null),
+        current_value: currentValue,
+        unit_mode: spec.unit_mode,
+      },
+      counts,
+    });
+  }
   const [availableEntities, counts] = await Promise.all([
     loadEntitiesWithData(supabase, orgId).then((s) => [...s]),
     countEntityRows(supabase, orgId, []),

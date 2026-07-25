@@ -100,6 +100,32 @@ export function dimLabel(entity: string, dim: string): string {
   return ENTITY_DIMS[entity]?.find((d) => d.id === dim)?.label ?? dim;
 }
 
+/**
+ * Champs numériques agrégeables par entité, avec libellés humains — alimente le
+ * sélecteur « Mesure » de l'étape Vérification (tables, alertes, objectifs) :
+ * l'utilisateur corrige lui-même le champ quand son KPI est ambigu
+ * (ex : encaissements vs flux net sur les transactions bancaires).
+ */
+export const ENTITY_FIELDS: Record<string, { id: string; label: string; unit: TableUnit }[]> = {
+  deals: [{ id: "amount", label: "montant des deals", unit: "currency" }],
+  invoices: [
+    { id: "amount_total", label: "montant total facturé", unit: "currency" },
+    { id: "amount_paid", label: "montant encaissé", unit: "currency" },
+    { id: "amount_due", label: "reste dû (impayés)", unit: "currency" },
+  ],
+  subscriptions: [{ id: "mrr", label: "MRR", unit: "currency" }],
+  transactions: [
+    { id: "amount_in", label: "encaissements (entrées)", unit: "currency" },
+    { id: "amount_out", label: "décaissements (sorties)", unit: "currency" },
+    { id: "amount", label: "flux net (encaissements − décaissements)", unit: "currency" },
+  ],
+};
+
+export function fieldLabel(entity: string, field: string | null): string {
+  if (!field) return "valeur";
+  return ENTITY_FIELDS[entity]?.find((f) => f.id === field)?.label ?? field;
+}
+
 export const PAGE_LABELS: Record<string, string> = {
   perf_ventes: "Ventes",
   perf_marketing: "Marketing",

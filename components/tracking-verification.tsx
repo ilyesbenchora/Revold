@@ -1,6 +1,6 @@
 "use client";
 
-import { entityLabel } from "@/lib/reports/data-table-presets";
+import { entityLabel, ENTITY_FIELDS } from "@/lib/reports/data-table-presets";
 
 /** Câblage proposé par l'agent pour une alerte / un objectif (rien n'est créé). */
 export type TrackingProposal = {
@@ -36,20 +36,25 @@ export function TrackingVerification({
   counts,
   loading,
   onPickEntity,
+  onAdjustSpec,
 }: {
   proposal: TrackingProposal;
   counts: Record<string, number>;
   loading: boolean;
   onPickEntity: (entity: string) => void;
+  /** Ajustement manuel mesure/champ (mode agrégat) → ré-évaluation déterministe. */
+  onAdjustSpec?: (spec: Record<string, unknown>) => void;
 }) {
   const aggEntity = typeof proposal.agg_spec?.entity === "string" ? (proposal.agg_spec.entity as string) : null;
   const alternatives = Object.entries(counts).filter(([e]) => e !== aggEntity).sort(([, a], [, b]) => b - a);
+  const aggFields = aggEntity ? ENTITY_FIELDS[aggEntity] ?? [] : [];
+  const canAdjust = proposal.mode === "aggregate" && aggEntity && onAdjustSpec;
 
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-accent/30 bg-indigo-50/40 p-4">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500">✨ Vérification du câblage</p>
-        <dl className="mt-2 space-y-2 text-sm">
+        <dl className="mt-2 space-y-2.5 text-sm">
           <div className="flex items-center justify-between gap-3">
             <dt className="text-xs text-slate-500">Donnée suivie</dt>
             <dd className="text-right font-semibold text-slate-900">{proposal.label ?? "—"}</dd>
@@ -58,10 +63,39 @@ export function TrackingVerification({
             <dt className="text-xs text-slate-500">Méthode</dt>
             <dd className="text-right text-xs font-medium text-slate-600">{MODE_LABELS[proposal.mode]}</dd>
           </div>
+          {/* Mesure ÉDITABLE (mode agrégat) : si le KPI est ambigu (« paiements » =
+              encaissements ? flux net ?), l'utilisateur corrige ici — la valeur
+              actuelle se recalcule immédiatement, sans repasser par l'agent. */}
+          {canAdjust && (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="shrink-0 text-xs text-slate-500">Mesure</dt>
+              <dd className="min-w-0">
+                <select
+                  value={`${String(proposal.agg_spec?.measure ?? "count")}:${String(proposal.agg_spec?.field ?? "")}`}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const [measure, field] = e.target.value.split(":");
+                    const f = field || null;
+                    const unit = measure === "count" ? "count" : aggFields.find((x) => x.id === f)?.unit ?? proposal.unit_mode;
+                    onAdjustSpec!({ ...proposal.agg_spec, measure, field: f, unit_mode: unit });
+                  }}
+                  className="w-full max-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-accent"
+                >
+                  <option value="count:">Nombre de lignes</option>
+                  {aggFields.map((f) => (
+                    <optgroup key={f.id} label={f.label}>
+                      <option value={`sum:${f.id}`}>Somme · {f.label}</option>
+                      <option value={`avg:${f.id}`}>Moyenne · {f.label}</option>
+                    </optgroup>
+                  ))}
+                </select>
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <dt className="text-xs text-slate-500">Valeur actuelle calculée</dt>
             <dd className={`font-semibold ${proposal.current_value != null ? "text-emerald-600" : "text-rose-500"}`}>
-              {proposal.current_value != null ? fmtValue(proposal.current_value, proposal.unit_mode) : "Non calculable"}
+              {loading ? "…" : proposal.current_value != null ? fmtValue(proposal.current_value, proposal.unit_mode) : "Non calculable"}
             </dd>
           </div>
         </dl>
