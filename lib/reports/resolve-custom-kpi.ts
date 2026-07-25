@@ -30,6 +30,15 @@ const BUILD_TOOL: Anthropic.Tool = {
       measure: { type: "string", enum: ["count", "sum", "avg"] },
       field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, mrr). Vide si count." },
       unit_mode: { type: "string", enum: ["count", "currency", "percent"], description: "count si comptage, currency si montant en €." },
+      date_from: {
+        type: "string",
+        description:
+          "UNIQUEMENT si le KPI ou sa description mentionne EXPLICITEMENT une période (ex. « Q1 2026 », « depuis janvier », « sur 2025 ») : borne de début au format YYYY-MM-DD, résolue en dates absolues à partir de la date du jour. Omettre sinon.",
+      },
+      date_to: {
+        type: "string",
+        description: "Borne de fin YYYY-MM-DD de la période explicitement mentionnée. Omettre si aucune période n'est mentionnée.",
+      },
     },
     required: ["title", "entity", "groupBy", "measure"],
   },
@@ -93,6 +102,8 @@ export async function resolveCustomKpiSpec(
     `(KPI hors périmètre, donnée non disponible, intention ambiguë), appelle no_reliable_match : ` +
     `on ne crée JAMAIS une table approximative — tes instructions aident l'utilisateur à reformuler. ` +
     `Si le besoin implique un montant en euros, mets unit_mode=currency ; sinon count. ` +
+    `Date du jour : ${new Date().toISOString().slice(0, 10)}. Si le KPI ou sa description mentionne explicitement une période, ` +
+    `convertis-la en dates absolues (date_from/date_to) ; sinon n'envoie PAS ces champs. ` +
     `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
     `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via un outil.`;
 
@@ -131,16 +142,22 @@ export async function resolveCustomKpiSpec(
     }
     const inp = toolUse.input as {
       title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
+      date_from?: string; date_to?: string;
     };
     agentTitle = inp.title?.trim() || null;
     unitMode = inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count";
+    // Période explicitement mentionnée dans le KPI/description → dates absolues
+    // extraites par l'agent (validées au format), sinon null (pas de filtre).
+    const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+    const dFrom = inp.date_from && ISO_DATE.test(inp.date_from) ? inp.date_from : null;
+    const dTo = inp.date_to && ISO_DATE.test(inp.date_to) ? inp.date_to : null;
     spec = {
       entity: String(inp.entity ?? ""),
       groupBy: String(inp.groupBy ?? ""),
       measure: inp.measure ?? "count",
       field: inp.field ? String(inp.field) : null,
-      date_from: null,
-      date_to: null,
+      date_from: dFrom && dTo && dFrom <= dTo ? dFrom : null,
+      date_to: dFrom && dTo && dFrom <= dTo ? dTo : null,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erreur agent", status: 500 };

@@ -14,7 +14,12 @@ import {
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
-import { PERIOD_PRESETS, type PeriodPreset } from "@/lib/reports/periods";
+import {
+  PERIOD_PRESETS,
+  PERIOD_FROM_DESCRIPTION,
+  parseStoredPeriod,
+  serializeCustomPeriod,
+} from "@/lib/reports/periods";
 
 // Un KPI est déterministe (câblé précisément, sans agent) uniquement pour la
 // projection pondérée et les échéances fiscales. Tous les autres presets passent
@@ -64,6 +69,88 @@ type Draft = {
   description?: string;
 };
 
+/**
+ * Champ « Période » du funnel (création + édition) :
+ *  - « Déjà précisée dans la description » → l'agent applique la période telle
+ *    que décrite dans le texte du KPI, la table n'ajoute aucun re-filtre ;
+ *  - presets type HubSpot ;
+ *  - « Plage de dates personnalisée » → deux dates figées (du / au).
+ */
+function PeriodField({
+  period,
+  setPeriod,
+  customFrom,
+  setCustomFrom,
+  customTo,
+  setCustomTo,
+  showDescriptionOption,
+  invalid,
+}: {
+  period: string;
+  setPeriod: (v: string) => void;
+  customFrom: string;
+  setCustomFrom: (v: string) => void;
+  customTo: string;
+  setCustomTo: (v: string) => void;
+  /** Vrai quand le KPI a une description (parcours agent). */
+  showDescriptionOption: boolean;
+  invalid: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-slate-500">Période</label>
+      <select
+        value={period}
+        onChange={(e) => setPeriod(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+      >
+        {showDescriptionOption && (
+          <option value={PERIOD_FROM_DESCRIPTION}>✨ Déjà précisée dans la description</option>
+        )}
+        {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
+          <option key={p.id} value={p.id}>{p.label}</option>
+        ))}
+        <option value="custom">Plage de dates personnalisée</option>
+      </select>
+
+      {period === "custom" && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11px] text-slate-400">Du</label>
+            <input
+              type="date"
+              value={customFrom}
+              max={customTo || undefined}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="mt-0.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-400">Au</label>
+            <input
+              type="date"
+              value={customTo}
+              min={customFrom || undefined}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="mt-0.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+      )}
+
+      {invalid ? (
+        <p className="mt-1 text-[11px] text-rose-500">Renseigne une date de début et une date de fin (début ≤ fin).</p>
+      ) : period === PERIOD_FROM_DESCRIPTION ? (
+        <p className="mt-0.5 text-[11px] text-slate-400">
+          L&apos;agent applique la période telle que décrite dans le KPI — aucun filtre de date supplémentaire à l&apos;ouverture.
+        </p>
+      ) : (
+        <p className="mt-0.5 text-[11px] text-slate-400">La table s&apos;ouvre sur cette période (modifiable ensuite sur la table).</p>
+      )}
+    </div>
+  );
+}
+
 // Équipe/catégorie d'alerte associée à chaque page de tables de données.
 const PAGE_ALERT_TEAM: Record<string, string> = {
   perf_ventes: "sales",
@@ -93,7 +180,18 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [sources, setSources] = useState<SourceTool[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   // Période par défaut appliquée à l'ouverture de la table (étape Affichage).
-  const [period, setPeriod] = useState<PeriodPreset>("all");
+  // Valeurs possibles : preset, "description" (déjà précisée dans la
+  // description du KPI) ou "custom" (plage de dates ci-dessous).
+  const [period, setPeriod] = useState<string>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  // Plage personnalisée incomplète ou inversée → on bloque la sauvegarde.
+  const periodInvalid =
+    period === "custom" && (!customFrom || !customTo || customFrom > customTo);
+  // Valeur réellement persistée dans period_preset.
+  const periodValue = () =>
+    period === "custom" && customFrom && customTo ? serializeCustomPeriod(customFrom, customTo) : period;
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/page-tables?page_key=${encodeURIComponent(pageKey)}`);
@@ -141,6 +239,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setEditingId(null);
     setSelected([]);
     setPeriod("all");
+    setCustomFrom("");
+    setCustomTo("");
   }
 
   function toggleSource(key: string) {
@@ -154,7 +254,16 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setEditingId(table.id);
     setCustomKpi(table.custom_kpi || table.title);
     setDescription(table.description || "");
-    setPeriod((table.period_preset as PeriodPreset) || "all");
+    const stored = parseStoredPeriod(table.period_preset);
+    if (stored.kind === "custom") {
+      setPeriod("custom");
+      setCustomFrom(stored.from);
+      setCustomTo(stored.to);
+    } else {
+      setPeriod(stored.kind === "description" ? PERIOD_FROM_DESCRIPTION : stored.preset);
+      setCustomFrom("");
+      setCustomTo("");
+    }
     setDraft({
       entity: table.entity,
       group_by: table.group_by,
@@ -233,7 +342,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           view: draft.view,
-          period_preset: period,
+          period_preset: periodValue(),
           // Réécriture du KPI / description : le back ne relance l'agent que si l'un des textes change.
           custom_kpi: customKpi.trim(),
           description: description.trim(),
@@ -254,8 +363,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     // ── CRÉATION ────────────────────────────────────────────────────────
     const endpoint = draft.custom ? "/api/page-tables/agent-create" : "/api/page-tables";
     const payload = draft.custom
-      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: period }
-      : { page_key: pageKey, ...draft, period_preset: period };
+      ? { page_key: pageKey, custom_kpi: draft.customKpi, description: description.trim() || undefined, view: draft.view, title: draft.title || undefined, period_preset: periodValue() }
+      : { page_key: pageKey, ...draft, period_preset: periodValue() };
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -371,18 +480,16 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 </div>
 
                 {draft.entity !== "fiscal" && (
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Période</label>
-                    <select
-                      value={period}
-                      onChange={(e) => setPeriod(e.target.value as PeriodPreset)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
-                    >
-                      {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
-                        <option key={p.id} value={p.id}>{p.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <PeriodField
+                    period={period}
+                    setPeriod={setPeriod}
+                    customFrom={customFrom}
+                    setCustomFrom={setCustomFrom}
+                    customTo={customTo}
+                    setCustomTo={setCustomTo}
+                    showDescriptionOption
+                    invalid={periodInvalid}
+                  />
                 )}
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
@@ -391,7 +498,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   <button onClick={() => { setOpen(false); reset(); }} className="text-xs text-slate-400 hover:text-accent">Annuler</button>
                   <button
                     onClick={create}
-                    disabled={saving || !customKpi.trim()}
+                    disabled={saving || !customKpi.trim() || periodInvalid}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
                     {!saving && <span aria-hidden>✨</span>}
@@ -612,19 +719,16 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 {/* Période par défaut à l'ouverture de la table (hors échéances fiscales). */}
                 {draft.entity !== "fiscal" && (
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Période</label>
-                    <select
-                      value={period}
-                      onChange={(e) => setPeriod(e.target.value as PeriodPreset)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
-                    >
-                      {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
-                        <option key={p.id} value={p.id}>{p.label}</option>
-                      ))}
-                    </select>
-                    <p className="mt-0.5 text-[11px] text-slate-400">La table s&apos;ouvre sur cette période (modifiable ensuite sur la table).</p>
-                  </div>
+                  <PeriodField
+                    period={period}
+                    setPeriod={setPeriod}
+                    customFrom={customFrom}
+                    setCustomFrom={setCustomFrom}
+                    customTo={customTo}
+                    setCustomTo={setCustomTo}
+                    showDescriptionOption={!!draft.custom}
+                    invalid={periodInvalid}
+                  />
                 )}
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
@@ -635,7 +739,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </button>
                   <button
                     onClick={create}
-                    disabled={saving || (!draft.custom && !draft.title.trim())}
+                    disabled={saving || (!draft.custom && !draft.title.trim()) || periodInvalid}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold ${CTA_FUCHSIA} disabled:opacity-50`}
                   >
                     {draft.custom && !saving && <span aria-hidden>✨</span>}

@@ -15,7 +15,8 @@
  * Requiert HEDRA_API_KEY dans .env.local.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -169,6 +170,10 @@ async function main() {
 
   const imgPath = join(ROOT, `public/personas/${key}.png`);
   const text = script.segments.join(" ");
+  // Silence de fin (~1,4 s) : la vidéo Hedra dure exactement le temps de
+  // l'audio — sans ce silence, elle coupe brutalement dès le dernier mot.
+  // Avec lui, le personnage termine naturellement : bouche fermée, sourire.
+  const ttsText = `${text} <break time="1.4s" />`;
   console.log(`Persona : ${key}\nPortrait: ${imgPath}\nModèle  : ${modelArg || "character-3"}\nVoix    : ${script.elevenVoiceId || script.hedraVoiceId}\nTexte   : ${text.length} caractères`);
 
   const poll = async (genId, label) => {
@@ -201,7 +206,7 @@ async function main() {
         method: "POST",
         headers: { "xi-api-key": e.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({
-          text,
+          text: ttsText,
           model_id: "eleven_multilingual_v2",
           voice_settings: { stability: 0.5, similarity_boost: 0.75 },
         }),
@@ -226,7 +231,7 @@ async function main() {
   } else {
     const tts = await fetch(`${API}/generations`, {
       method: "POST", headers: JH,
-      body: JSON.stringify({ type: "text_to_speech", voice_id: script.hedraVoiceId, text, language: "French" }),
+      body: JSON.stringify({ type: "text_to_speech", voice_id: script.hedraVoiceId, text: ttsText, language: "French" }),
     });
     if (!tts.ok) { console.error(`TTS : ${tts.status} ${await tts.text()}`); process.exit(1); }
     const ttsJob = await tts.json();
@@ -261,7 +266,10 @@ async function main() {
       generated_video_inputs: {
         aspect_ratio: "1:1",
         resolution: "720p",
-        text_prompt: "Le personnage parle face caméra, posture calme, léger sourire",
+        text_prompt:
+          "Le personnage parle face caméra, posture calme, léger sourire. " +
+          "Quand il a fini de parler, il ferme la bouche et adresse un sourire chaleureux et naturel à la caméra, " +
+          "détendu, jusqu'à la fin de la vidéo.",
       },
     }),
   });

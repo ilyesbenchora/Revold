@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { PERIOD_PRESETS } from "@/lib/reports/periods";
+import { sanitizeStoredPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
 
-const PERIOD_IDS = new Set(PERIOD_PRESETS.map((p) => p.id as string));
-/** Valide un preset de période reçu du client (repli « all » si inconnu). */
+/**
+ * Valide une période reçue du client (repli « all » si inconnue).
+ * Accepte les presets, « description » (période déjà précisée dans la
+ * description du KPI) et « custom:YYYY-MM-DD..YYYY-MM-DD » (plage figée).
+ */
 export function cleanPeriod(v: unknown): string {
-  return typeof v === "string" && PERIOD_IDS.has(v) ? v : "all";
+  return sanitizeStoredPeriod(v);
 }
 
 /** Liste les tables de données persistées d'une page. */

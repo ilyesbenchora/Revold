@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
 import { cleanPeriod } from "@/app/api/page-tables/route";
+import { PERIOD_FROM_DESCRIPTION, serializeCustomPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,6 +33,15 @@ export async function POST(request: Request) {
   // le peaufiner à défaut (si l'utilisateur n'a rien saisi).
   const title = body.title?.trim() || resolved.agentTitle || kpi;
 
+  // Période « déjà précisée dans la description » : si l'agent a extrait des
+  // dates absolues du texte du KPI, on les fige en plage personnalisée — la
+  // table s'ouvrira réellement filtrée sur la période décrite. Sans dates
+  // extraites, la sentinelle est conservée (aucun re-filtre à l'ouverture).
+  let periodPreset = cleanPeriod(body.period_preset);
+  if (periodPreset === PERIOD_FROM_DESCRIPTION && resolved.spec.date_from && resolved.spec.date_to) {
+    periodPreset = serializeCustomPeriod(resolved.spec.date_from, resolved.spec.date_to);
+  }
+
   const { data, error } = await supabase
     .from("page_data_tables")
     .insert({
@@ -44,7 +54,7 @@ export async function POST(request: Request) {
       field: resolved.spec.field ?? null,
       unit_mode: resolved.unitMode,
       view,
-      period_preset: cleanPeriod(body.period_preset),
+      period_preset: periodPreset,
       custom_kpi: kpi,
       description,
       created_by: user.id,

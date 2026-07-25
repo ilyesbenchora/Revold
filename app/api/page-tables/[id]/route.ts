@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
 import { cleanPeriod } from "@/app/api/page-tables/route";
+import { PERIOD_FROM_DESCRIPTION, serializeCustomPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -64,6 +65,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.unit_mode = resolved.unitMode;
     // Le titre reste la nomenclature de l'utilisateur : on ne le touche PAS ici
     // (il se renomme séparément en ligne, sans agent).
+
+    // Période « déjà précisée dans la description » : si l'agent a extrait des
+    // dates absolues du texte, on les fige en plage personnalisée — la table
+    // s'ouvrira réellement filtrée sur la période décrite.
+    if (update.period_preset === PERIOD_FROM_DESCRIPTION && resolved.spec.date_from && resolved.spec.date_to) {
+      update.period_preset = serializeCustomPeriod(resolved.spec.date_from, resolved.spec.date_to);
+    }
   }
 
   if (Object.keys(update).length === 0) {

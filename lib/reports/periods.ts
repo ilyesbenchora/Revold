@@ -38,6 +38,56 @@ export function presetLabel(id: PeriodPreset): string {
   return PERIOD_PRESETS.find((p) => p.id === id)?.label ?? id;
 }
 
+// ── Période stockée sur une table de données (page_data_tables.period_preset) ──
+// La colonne texte accepte trois formes :
+//   - un preset ("all", "this_month", …)
+//   - "description" → la période est déjà précisée dans la description du KPI :
+//     l'agent l'a intégrée au câblage, la table s'ouvre sans re-filtre de date
+//   - "custom:YYYY-MM-DD..YYYY-MM-DD" → plage personnalisée figée
+
+/** Valeur sentinelle : période décrite dans la description (pas de re-filtre). */
+export const PERIOD_FROM_DESCRIPTION = "description";
+
+const CUSTOM_RE = /^custom:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/;
+
+export function serializeCustomPeriod(from: string, to: string): string {
+  return `custom:${from}..${to}`;
+}
+
+export type StoredPeriod =
+  | { kind: "preset"; preset: PeriodPreset }
+  | { kind: "description" }
+  | { kind: "custom"; from: string; to: string };
+
+export function parseStoredPeriod(raw: string | null | undefined): StoredPeriod {
+  if (!raw || raw === "all") return { kind: "preset", preset: "all" };
+  if (raw === PERIOD_FROM_DESCRIPTION) return { kind: "description" };
+  const m = CUSTOM_RE.exec(raw);
+  if (m) return { kind: "custom", from: m[1], to: m[2] };
+  if (PERIOD_PRESETS.some((p) => p.id === raw)) return { kind: "preset", preset: raw as PeriodPreset };
+  return { kind: "preset", preset: "all" };
+}
+
+/** Valide une période stockée reçue du client (repli « all » si inconnue). */
+export function sanitizeStoredPeriod(v: unknown): string {
+  if (typeof v !== "string") return "all";
+  if (v === PERIOD_FROM_DESCRIPTION) return v;
+  const m = CUSTOM_RE.exec(v);
+  if (m) return m[1] <= m[2] ? v : "all"; // bornes inversées → repli sûr
+  return PERIOD_PRESETS.some((p) => p.id === v && p.id !== "custom") ? v : "all";
+}
+
+const fmtFr = (iso: string): string =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+
+/** Libellé lisible d'une période stockée (pour la barre de période de la table). */
+export function storedPeriodLabel(raw: string | null | undefined): string {
+  const p = parseStoredPeriod(raw);
+  if (p.kind === "description") return "Période de la description";
+  if (p.kind === "custom") return `${fmtFr(p.from)} → ${fmtFr(p.to)}`;
+  return presetLabel(p.preset);
+}
+
 function fmt(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");

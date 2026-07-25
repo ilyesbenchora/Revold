@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
 import { TableAlertButton } from "./table-alert-button";
-import { computePeriod, presetLabel, type PeriodPreset } from "@/lib/reports/periods";
+import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
 import type { ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 export type SavedTable = {
@@ -83,12 +83,25 @@ export function DataTableCard({
     }
   }, [table.entity, table.group_by, table.measure, table.field]);
 
-  // Ouverture directe sur la période par défaut choisie à la création.
+  // Ouverture directe sur la période par défaut choisie à la création :
+  // preset recalculé à l'instant T, plage personnalisée figée, ou « période de
+  // la description » (l'agent l'a intégrée au câblage → aucun re-filtre).
   useEffect(() => {
-    const pp = (table.period_preset as PeriodPreset) || "all";
-    if (table.entity !== "fiscal" && pp && pp !== "all" && pp !== "custom") {
-      const { from, to } = computePeriod(pp, new Date());
-      const ap: AppliedPeriod = { preset: pp, from, to, label: presetLabel(pp) };
+    const stored = parseStoredPeriod(table.period_preset);
+    if (table.entity === "fiscal" || stored.kind === "description") {
+      load(null);
+    } else if (stored.kind === "custom") {
+      const ap: AppliedPeriod = {
+        preset: "custom",
+        from: stored.from,
+        to: stored.to,
+        label: storedPeriodLabel(table.period_preset),
+      };
+      setPeriod(ap);
+      load(ap);
+    } else if (stored.preset !== "all") {
+      const { from, to } = computePeriod(stored.preset, new Date());
+      const ap: AppliedPeriod = { preset: stored.preset, from, to, label: presetLabel(stored.preset) };
       setPeriod(ap);
       load(ap);
     } else {
