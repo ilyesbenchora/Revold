@@ -160,7 +160,7 @@ export function DataTableCard({
   }
 
   const total = rows.reduce((s, r) => s + (r.value || 0), 0);
-  const isChart = table.view === "bar" || table.view === "line" || table.view === "donut";
+  const isChart = table.view === "bar" || table.view === "line" || table.view === "donut" || table.view === "bloc";
   const block: ReportBlock = { type: table.view as ReportBlock["type"], title: table.title, data: rows };
 
   return (

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-presets";
+import { InfoHint } from "@/components/info-hint";
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 
@@ -59,6 +61,30 @@ const CHANNELS: { key: string; icon: string; label: string }[] = [
 function unitSym(u: SurgicalUnit): string {
   return u === "percent" ? "%" : u === "currency" ? "€" : "#";
 }
+
+function fmtVal(v: number, u: SurgicalUnit): string {
+  if (u === "currency")
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  if (u === "percent") return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(v)} %`;
+  return new Intl.NumberFormat("fr-FR").format(v);
+}
+
+function measurePhrase(spec: SurgicalAggSpec): string {
+  const m = spec.measure ?? "count";
+  if (m === "count" || !spec.field) return "Nombre de lignes";
+  const f = fieldLabel(spec.entity, spec.field);
+  if (m === "avg") return `Moyenne · ${f}`;
+  if (m === "weighted") return `Projection pondérée · ${f}`;
+  return `Somme · ${f}`;
+}
+
+type PipelineOption = { id: string; name: string };
+type VerifyState = {
+  loading: boolean;
+  rowCount: number | null;
+  targetValue: number | null;
+  error: string | null;
+};
 
 /**
  * CTA « alerte technique » chirurgical, générique : on ne suit QUE ce que la
@@ -125,6 +151,12 @@ export function SurgicalAlertButton({
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<"idle" | "saving" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
+  // Étape de CONFIRMATION avant création : le câblage réel (source, pipeline,
+  // regroupement, mesure) + la valeur actuelle calculée + le récap de l'alerte.
+  const [step, setStep] = useState<"form" | "confirm">("form");
+  const [pipeline, setPipeline] = useState<string | null>(aggSpec?.pipeline ?? null);
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
+  const [verify, setVerify] = useState<VerifyState>({ loading: false, rowCount: null, targetValue: null, error: null });
 
   const [alertTitle, setAlertTitle] = useState(`Alerte — ${title}`);
   const [target, setTarget] = useState(defaultTarget); // "Total" ou nom de ligne
@@ -141,13 +173,72 @@ export function SurgicalAlertButton({
   const [channels, setChannels] = useState<string[]>(["in_app"]);
 
   function reset() {
-    setState("idle"); setError(null);
+    setState("idle"); setError(null); setStep("form");
+    setPipeline(aggSpec?.pipeline ?? null);
+    setVerify({ loading: false, rowCount: null, targetValue: null, error: null });
     setAlertTitle(`Alerte — ${title}`); setTarget(defaultTarget); setThreshold(""); setUnit(baseUnit);
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
     setContinuous(true); setDateFrom(""); setDateTo(""); setDescription(""); setChannels(["in_app"]);
   }
   function toggleChannel(k: string) {
     setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
+  }
+
+  /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi). */
+  const runVerify = useCallback(async (pipelineOverride: string | null) => {
+    if (!aggSpec) return;
+    setVerify((v) => ({ ...v, loading: true, error: null }));
+    try {
+      const res = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: {
+            entity: aggSpec.entity,
+            groupBy: aggSpec.groupBy,
+            measure: aggSpec.measure,
+            field: aggSpec.field ?? undefined,
+            pipeline: pipelineOverride ?? undefined,
+          },
+          sources: aggSpec.sources ?? [],
+          all: true,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Recalcul impossible");
+      const data = (d.data ?? []) as SurgicalRow[];
+      const targetValue =
+        target === "Total"
+          ? data.reduce((s, r) => s + (Number(r.value) || 0), 0)
+          : data.find((r) => r.name === target)?.value ?? null;
+      setVerify({
+        loading: false,
+        rowCount: Number(d.totalRows) || data.length,
+        targetValue: targetValue == null ? null : Number(targetValue),
+        error: targetValue == null && target !== "Total" ? `La ligne « ${target} » n'existe pas avec ce câblage.` : null,
+      });
+    } catch (e) {
+      setVerify({ loading: false, rowCount: null, targetValue: null, error: e instanceof Error ? e.message : "Recalcul impossible" });
+    }
+  }, [aggSpec, target]);
+
+  /** Étape 1 → 2 : validation du formulaire puis vérification du câblage. */
+  async function goConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    if (!threshold) { setError("Renseigne le KPI à surveiller."); return; }
+    setError(null);
+    setStep("confirm");
+    if (aggSpec) {
+      // Pipelines de deals : sans restriction, les étapes homonymes de TOUS les
+      // pipelines s'agrègent — la confirmation permet de choisir le bon.
+      if (aggSpec.entity === "deals" && pipelines.length === 0) {
+        fetch("/api/pipelines")
+          .then((r) => (r.ok ? r.json() : { pipelines: [] }))
+          .then((d) => setPipelines(Array.isArray(d.pipelines) ? d.pipelines : []))
+          .catch(() => { /* sélecteur simplement absent */ });
+      }
+      runVerify(pipeline);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -199,7 +290,9 @@ export function SurgicalAlertButton({
                 measure: aggSpec.measure,
                 field: aggSpec.field ?? null,
                 multiplier: aggSpec.multiplier ?? null,
-                pipeline: aggSpec.pipeline ?? null,
+                // Pipeline CONFIRMÉ à l'étape de vérification (peut différer de
+                // celui de la table si l'utilisateur l'a corrigé).
+                pipeline: pipeline ?? null,
                 sources: aggSpec.sources?.length ? aggSpec.sources : null,
                 target,
               }
@@ -249,7 +342,7 @@ export function SurgicalAlertButton({
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => { if (state !== "saving") { setOpen(false); reset(); } }}>
-          <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="max-h-[90vh] w-full max-w-md space-y-3.5 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={step === "form" ? goConfirm : submit} className="max-h-[90vh] w-full max-w-md space-y-3.5 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             {state === "done" ? (
               <div className="py-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-fuchsia-100">
@@ -258,6 +351,135 @@ export function SurgicalAlertButton({
                 <p className="mt-3 text-sm font-semibold text-slate-900">Alerte technique créée</p>
                 <p className="mt-1 text-xs text-slate-500">Elle apparaît dans Mes alertes et la cloche.</p>
               </div>
+            ) : step === "confirm" ? (
+              <>
+                <div>
+                  <h3 className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
+                    <span className="h-2 w-2 rounded-full bg-fuchsia-500" /> Vérification avant création
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Le câblage réel de l&apos;alerte et son contenu — ce qui est affiché est exactement ce qui sera surveillé.
+                  </p>
+                </div>
+
+                {/* ── Câblage sur les données ── */}
+                {aggSpec ? (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-3">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-500">✨ Câblage sur les données</p>
+                    <dl className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Source de données</dt>
+                        <dd className="text-xs font-semibold text-slate-900">{entityLabel(aggSpec.entity)}</dd>
+                      </div>
+                      {aggSpec.entity === "deals" && (
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
+                            Pipeline
+                            <InfoHint text="Sans restriction de pipeline, les étapes homonymes de TOUS les pipelines s'agrègent — l'alerte serait fausse. Choisis le pipeline explicité dans le titre de la table." />
+                          </dt>
+                          <dd className="min-w-0">
+                            <select
+                              value={pipeline ?? ""}
+                              disabled={verify.loading}
+                              onChange={(e) => { const p = e.target.value || null; setPipeline(p); runVerify(p); }}
+                              className={`w-full max-w-48 rounded-lg border px-2 py-1 text-xs font-medium outline-none focus:border-fuchsia-400 ${pipeline ? "border-slate-200 bg-white text-slate-700" : "border-amber-300 bg-amber-50 text-amber-800"}`}
+                            >
+                              <option value="">⚠ Tous les pipelines (mélange)</option>
+                              {pipelines.map((p) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                              {pipeline && !pipelines.some((p) => p.id === pipeline) && (
+                                <option value={pipeline}>{pipeline}</option>
+                              )}
+                            </select>
+                          </dd>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Regroupement</dt>
+                        <dd className="text-xs font-semibold text-slate-900">{dimLabel(aggSpec.entity, aggSpec.groupBy)}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Mesure</dt>
+                        <dd className="text-xs font-semibold text-slate-900">{measurePhrase(aggSpec)}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Donnée suivie</dt>
+                        <dd className="text-xs font-semibold text-slate-900">{target === "Total" ? totalLabel : target}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Lignes trouvées</dt>
+                        <dd className={`text-xs font-semibold ${(verify.rowCount ?? 0) > 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                          {verify.loading ? "…" : verify.rowCount != null ? new Intl.NumberFormat("fr-FR").format(verify.rowCount) : "—"}
+                        </dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Valeur actuelle</dt>
+                        <dd className="text-xs font-bold tabular-nums text-slate-900">
+                          {verify.loading ? "…" : verify.targetValue != null ? fmtVal(verify.targetValue, unit) : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                    {verify.error && <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-600">{verify.error}</p>}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
+                    Cette donnée n&apos;est pas reproductible en agrégat direct : l&apos;agent rattachera le KPI aux
+                    vraies données à la création (résolution vérifiée avant activation).
+                  </div>
+                )}
+
+                {/* ── Contenu de l'alerte saisi en amont ── */}
+                <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Contenu de l&apos;alerte</p>
+                  <dl className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Titre</dt>
+                      <dd className="text-right text-xs font-semibold text-slate-900">{alertTitle.trim() || `Alerte — ${title}`}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Seuil</dt>
+                      <dd className="text-xs font-semibold text-slate-900">
+                        {direction === "below" ? "≤" : "≥"} {threshold}{unitSym(unit)}
+                        {second && threshold2 ? ` · 2ᵉ KPI : ${threshold2}${unitSym(unit2)}` : ""}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Période</dt>
+                      <dd className="text-xs font-semibold text-slate-900">{continuous ? "En continu" : `${dateFrom || "…"} → ${dateTo || "…"}`}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Canaux</dt>
+                      <dd className="text-xs font-semibold text-slate-900">{(channels.length ? channels : ["in_app"]).join(" · ")}</dd>
+                    </div>
+                    {description.trim() && (
+                      <div className="flex items-start justify-between gap-3">
+                        <dt className="shrink-0 text-xs text-slate-500">Contexte</dt>
+                        <dd className="text-right text-xs text-slate-700">{description.trim()}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+
+                {/* Seuil vs valeur actuelle : lecture immédiate de la pertinence. */}
+                {aggSpec && verify.targetValue != null && !verify.loading && threshold && (
+                  <p className="rounded-lg bg-indigo-50/60 px-3 py-2 text-[11px] text-indigo-800">
+                    Aujourd&apos;hui : <strong>{fmtVal(verify.targetValue, unit)}</strong> — l&apos;alerte se déclenchera{" "}
+                    {direction === "below" ? "si la valeur passe sous" : "si la valeur atteint"}{" "}
+                    <strong>{threshold}{unitSym(unit)}</strong>.
+                  </p>
+                )}
+
+                {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+                <div className="flex items-center justify-between pt-1">
+                  <button type="button" onClick={() => setStep("form")} className="text-xs text-slate-400 hover:text-fuchsia-600">← Modifier</button>
+                  <button type="submit" disabled={state === "saving" || verify.loading}
+                    className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-fuchsia-500 hover:to-indigo-500 disabled:opacity-50">
+                    {state === "saving" ? "Création…" : "Confirmer la création"}
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <div>
@@ -357,7 +579,7 @@ export function SurgicalAlertButton({
                   <button type="button" onClick={() => { setOpen(false); reset(); }} className="text-xs text-slate-400 hover:text-fuchsia-600">Annuler</button>
                   <button type="submit" disabled={state === "saving" || !threshold}
                     className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-fuchsia-500 hover:to-indigo-500 disabled:opacity-50">
-                    {state === "saving" ? "Création…" : "Créer l'alerte"}
+                    Vérifier le câblage →
                   </button>
                 </div>
               </>

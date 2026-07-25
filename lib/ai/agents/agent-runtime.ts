@@ -49,7 +49,7 @@ export type ProposedAction = {
 
 /** Bloc d'un rapport rendu par l'UI (KPI, graphique, table). */
 export type ReportBlock = {
-  type: "kpi" | "bar" | "line" | "area" | "donut" | "table";
+  type: "kpi" | "bar" | "line" | "area" | "donut" | "table" | "bloc";
   title?: string;
   label?: string;
   value?: string;

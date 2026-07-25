@@ -241,6 +241,7 @@ export const KPI_FORMATS = [
   { id: "area_chart", label: "Aire de tendance", hint: "Courbe avec aire remplie — volumes cumulés" },
   { id: "sparkline", label: "Sparkline (compact)", hint: "Mini-courbe condensée — tendance rapide" },
   { id: "evaluation", label: "Évaluation textuelle", hint: "Durée, cycle, délai — texte qualitatif coloré" },
+  { id: "bloc", label: "Bloc cockpit", hint: "Chiffre en héros, style cockpit Trésorerie — lecture directe de la valeur" },
 ] as const;
 
 export type KpiFormat = (typeof KPI_FORMATS)[number]["id"];

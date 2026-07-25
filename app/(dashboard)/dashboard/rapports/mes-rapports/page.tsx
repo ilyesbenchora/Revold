@@ -264,7 +264,7 @@ function generateInsight(title: string, metrics: string[], values: (string | nul
   });
 }
 
-type KpiFormatStored = "auto" | "gauge" | "donut" | "bar_h" | "bar_chart" | "line_chart" | "area_chart" | "sparkline" | "evaluation";
+type KpiFormatStored = "auto" | "gauge" | "donut" | "bar_h" | "bar_chart" | "line_chart" | "area_chart" | "sparkline" | "evaluation" | "bloc";
 
 type StoredFilters = {
   dateFilter?: string | null;

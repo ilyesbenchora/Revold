@@ -76,6 +76,58 @@ export function ReportChart({
     />
   );
 
+  // « Bloc » cockpit (inspiré du prévisionnel Trésorerie) : le chiffre en héros,
+  // en chiffres tabulaires, avec la ventilation des principaux segments en
+  // dessous — la retranscription chiffrée la plus directe possible.
+  if (block.type === "bloc") {
+    const sorted = [...data].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+    const top = sorted.slice(0, 3);
+    const rest = sorted.slice(3);
+    const restTotal = rest.reduce((s, d) => s + (Number(d.value) || 0), 0);
+    const share = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
+    return (
+      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          {block.title || "Total"}
+        </p>
+        <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{fullValue(total, unit)}</p>
+        <p className="mt-0.5 text-[11px] text-slate-400">
+          {data.length} segment{data.length > 1 ? "s" : ""}
+        </p>
+        {data.length > 1 && (
+          <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+            {top.map((d, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className="min-w-0 flex-1 truncate text-slate-600">{d.name}</span>
+                <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${i === 0 ? "bg-fuchsia-500" : "bg-indigo-400"}`}
+                    style={{ width: `${share(Number(d.value) || 0)}%` }}
+                  />
+                </div>
+                <span className="w-20 shrink-0 text-right font-semibold tabular-nums text-slate-900">
+                  {compactValue(Number(d.value) || 0, unit)}
+                </span>
+                <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-slate-400">
+                  {share(Number(d.value) || 0)} %
+                </span>
+              </div>
+            ))}
+            {rest.length > 0 && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="min-w-0 flex-1 truncate text-slate-400">+ {rest.length} autres</span>
+                <span className="w-20 shrink-0 text-right font-semibold tabular-nums text-slate-500">
+                  {compactValue(restTotal, unit)}
+                </span>
+                <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{share(restTotal)} %</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (block.type === "donut") {
     // Légende chiffrée à côté de l'anneau — même exigence de « retranscription
     // chiffrée » que les courbes cockpit : chaque segment affiche sa valeur et

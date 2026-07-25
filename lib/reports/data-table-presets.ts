@@ -4,7 +4,7 @@
 
 import type { ConnectableTool } from "@/lib/integrations/connect-catalog";
 
-export type TableView = "table" | "bar" | "line" | "donut";
+export type TableView = "table" | "bar" | "line" | "donut" | "bloc";
 // « weighted » = somme du champ pondérée par la probabilité de closing (deals HubSpot).
 export type TableMeasure = "count" | "sum" | "avg" | "weighted";
 export type TableUnit = "count" | "currency" | "percent";

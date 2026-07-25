@@ -3,7 +3,7 @@
 type Props = {
   label: string;
   value: string | null;
-  format?: "auto" | "gauge" | "donut" | "bar_h" | "bar_chart" | "line_chart" | "area_chart" | "sparkline" | "evaluation";
+  format?: "auto" | "gauge" | "donut" | "bar_h" | "bar_chart" | "line_chart" | "area_chart" | "sparkline" | "evaluation" | "bloc";
 };
 
 type KpiType =
@@ -15,6 +15,7 @@ type KpiType =
   | "area_chart"
   | "sparkline"
   | "evaluation"
+  | "bloc"
   | "currency"
   | "count"
   | "text";
@@ -344,6 +345,27 @@ function Evaluation({ value, label }: { value: string; label: string }) {
   );
 }
 
+// ── Bloc cockpit (style prévisionnel Trésorerie) : chiffre en héros ──
+function BlocViz({ value, label }: { value: string; label: string }) {
+  // "A · B · C" → héros = 1re partie, le reste en ventilation compacte.
+  const parts = value.split("·").map((s) => s.trim()).filter(Boolean);
+  const hero = parts[0] ?? value;
+  const rest = parts.slice(1);
+  return (
+    <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{hero}</p>
+      {rest.length > 0 && (
+        <div className="mt-2 space-y-0.5 border-t border-slate-100 pt-2">
+          {rest.map((r, i) => (
+            <p key={i} className="text-[11px] tabular-nums text-slate-500">{r}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Currency({ value }: { value: string }) {
   return <span className="text-base font-bold text-slate-900 tabular-nums">{value}</span>;
 }
@@ -385,6 +407,7 @@ export function KpiVisual({ label, value, format }: Props) {
       {type === "area_chart" && <LineChartViz value={value} fill={true} />}
       {type === "sparkline" && <Sparkline value={value} />}
       {type === "evaluation" && <Evaluation value={value} label={label} />}
+      {type === "bloc" && <BlocViz value={value} label={label} />}
       {type === "currency" && <Currency value={value} />}
       {type === "count" && <Count value={value} />}
       {type === "text" && <span className="text-xs text-slate-700">{value}</span>}

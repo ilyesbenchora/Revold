@@ -41,6 +41,8 @@ const VIEWS: { id: TableView; label: string; icon: string }[] = [
   { id: "bar", label: "Barres", icon: "M3 3v18h18M8 17V9M13 17V5M18 17v-6" },
   { id: "line", label: "Courbe", icon: "M3 3v18h18M6 14l4-4 3 3 5-6" },
   { id: "donut", label: "Anneau", icon: "M12 2a10 10 0 1 0 10 10M12 6a6 6 0 1 0 6 6" },
+  // Bloc cockpit (style prévisionnel Trésorerie) : chiffre en héros + ventilation.
+  { id: "bloc", label: "Bloc", icon: "M4 4h16v16H4zM8 9h8M8 13h5" },
 ];
 
 // Libellés lisibles des catégories d'outils source, pour regrouper le sélecteur.

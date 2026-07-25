@@ -10,12 +10,13 @@ const TYPE_META: Record<string, { icon: string; label: string }> = {
   line: { icon: "📈", label: "Courbe" },
   area: { icon: "🌄", label: "Aire" },
   donut: { icon: "🍩", label: "Donut" },
+  bloc: { icon: "🎛️", label: "Bloc" },
   table: { icon: "▦", label: "Table" },
   kpi: { icon: "🔢", label: "Indicateur" },
 };
 
 // Tous les formats proposés à l'utilisateur (ordre d'affichage).
-const ALL_TYPES = ["bar", "line", "area", "donut", "table", "kpi"];
+const ALL_TYPES = ["bar", "line", "area", "donut", "bloc", "table", "kpi"];
 
 export function ChartPicker({
   proposal,
