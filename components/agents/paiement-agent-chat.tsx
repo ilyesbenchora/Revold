@@ -141,7 +141,12 @@ export function PaiementAgentChat({
   const [hydrated, setHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">(initialTab ?? "chat");
+  // Pages coach : le chat ne s'ouvre QUE via les CTA (formulaire de RDV,
+  // « Reprendre » de l'historique, suggestion) — l'onglet Discussion n'existe
+  // pas à l'arrivée, on atterrit sur l'historique des rendez-vous.
+  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">(
+    initialTab ?? (coachingMode ? "history" : "chat"),
+  );
   const pathname = usePathname();
   // Alertes activées durant la session (suggestion OU depuis un rapport).
   const [activatedAlerts, setActivatedAlerts] = useState<ActivatedAlert[]>([]);
@@ -517,14 +522,20 @@ export function PaiementAgentChat({
       {/* Onglets + nouvelle conversation — flex-wrap pour ne JAMAIS rogner un
           onglet (notamment « Alertes ») sur une largeur réduite. */}
       <div className="flex flex-wrap items-center gap-1 border-b border-[var(--card-border)] px-3 py-2">
-        <button
-          onClick={() => setTab("chat")}
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-            tab === "chat" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
-          }`}
-        >
-          Discussion
-        </button>
+        {/* Pages coach : pas d'onglet Discussion — le chat s'ouvre uniquement
+            via les CTA (formulaire de RDV, « Reprendre », suggestion). On ne
+            l'affiche que lorsqu'une séance est ouverte/active, pour pouvoir y
+            revenir depuis les autres onglets sans perdre la session. */}
+        {(!coachingMode || tab === "chat" || coachingStatus === "active") && (
+          <button
+            onClick={() => setTab("chat")}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              tab === "chat" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            Discussion
+          </button>
+        )}
         <button
           onClick={() => setTab("history")}
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
