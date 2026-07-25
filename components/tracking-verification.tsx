@@ -1,6 +1,7 @@
 "use client";
 
 import { entityLabel, ENTITY_FIELDS } from "@/lib/reports/data-table-presets";
+import { InfoHint } from "@/components/info-hint";
 
 /** Câblage proposé par l'agent pour une alerte / un objectif (rien n'est créé). */
 export type TrackingProposal = {
@@ -68,7 +69,10 @@ export function TrackingVerification({
               actuelle se recalcule immédiatement, sans repasser par l'agent. */}
           {canAdjust && (
             <div className="flex items-center justify-between gap-3">
-              <dt className="shrink-0 text-xs text-slate-500">Mesure</dt>
+              <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
+                Mesure
+                <InfoHint text="Définit le chiffre suivi : nombre d'éléments, ou somme/moyenne du champ choisi sur la source. C'est cette valeur qui sera comparée au seuil (alerte) ou à la cible (objectif) à chaque contrôle." />
+              </dt>
               <dd className="min-w-0">
                 <select
                   value={`${String(proposal.agg_spec?.measure ?? "count")}:${String(proposal.agg_spec?.field ?? "")}`}

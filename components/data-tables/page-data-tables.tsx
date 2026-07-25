@@ -15,6 +15,7 @@ import {
   type TableView,
 } from "@/lib/reports/data-table-presets";
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
+import { InfoHint } from "@/components/info-hint";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import {
@@ -594,7 +595,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                         (« paiements » = encaissements ? flux net ?), l'utilisateur
                         corrige ici — le total se recalcule immédiatement. */}
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="shrink-0 text-xs text-slate-500">Regroupement</dt>
+                      <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
+                        Regroupement
+                        <InfoHint text="Définit les LIGNES de ta table (ou l'axe horizontal du graphique) : une ligne par mois, par statut, par catégorie… C'est la 1ʳᵉ colonne de la table." />
+                      </dt>
                       <dd className="min-w-0">
                         {(() => {
                           const dims = ENTITY_DIMS[proposal.entity] ?? [];
@@ -617,7 +621,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="shrink-0 text-xs text-slate-500">Mesure</dt>
+                      <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
+                        Mesure
+                        <InfoHint text="Définit la colonne « Valeur » : le chiffre calculé pour chaque ligne (nombre d'éléments, ou somme/moyenne du champ choisi). C'est la hauteur des barres / points de la courbe." />
+                      </dt>
                       <dd className="min-w-0">
                         {(() => {
                           const fields = ENTITY_FIELDS[proposal.entity] ?? [];
