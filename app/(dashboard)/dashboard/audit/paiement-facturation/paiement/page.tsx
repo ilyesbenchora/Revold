@@ -5,7 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
-import { fetchPaiementFacturationFor, fmt } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
@@ -50,6 +51,35 @@ export default async function PaiementPage({
         tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
         activeKey={activeSourceKey}
       />
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {data.hasData && (() => {
+        const churn = data.churnRate;
+        const tiles: StatTile[] = [
+          { label: "MRR", value: data.mrr > 0 ? fmtK(data.mrr) : "—", tone: "accent", sub: "Revenu mensuel récurrent" },
+          { label: "ARR", value: data.arr > 0 ? fmtK(data.arr) : "—", tone: "neutral", sub: "Annualisé (MRR × 12)" },
+          {
+            label: "Subscriptions actives",
+            value: String(data.activeSubsCount),
+            tone: "pos",
+            sub: `sur ${fmt(data.subscriptions.length)} au total`,
+            verdict: pastDueSubs === 0 ? { label: "Aucun paiement en échec", tone: "pos" }
+              : pastDueSubs <= 2 ? { label: `${pastDueSubs} past due`, tone: "warn" }
+              : { label: `${pastDueSubs} past due`, tone: "neg" },
+          },
+          {
+            label: "Taux de churn",
+            value: churn != null ? `${churn} %` : "—",
+            tone: churn == null ? "neutral" : churn <= 5 ? "pos" : churn <= 15 ? "accent" : "neg",
+            sub: "Annulés / total subscriptions",
+            verdict: churn == null ? undefined
+              : churn <= 5 ? { label: "Sain (< 5 %)", tone: "pos" }
+              : churn <= 15 ? { label: "À surveiller", tone: "warn" }
+              : { label: "Élevé (> 15 %)", tone: "neg" },
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={

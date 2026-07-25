@@ -132,6 +132,43 @@ function findFfmpeg() {
   return null;
 }
 
+/** Durée (secondes) d'un mp4 via ffprobe — null si ffprobe indisponible. */
+function probeDuration(path) {
+  const ffmpeg = findFfmpeg();
+  if (!ffmpeg) return null;
+  const ffprobe = ffmpeg === "ffmpeg" ? "ffprobe" : ffmpeg.replace(/ffmpeg(\.exe)?$/, "ffprobe$1");
+  try {
+    const out = execFileSync(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], { encoding: "utf8" });
+    const d = Number(out.trim());
+    return Number.isFinite(d) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prolonge la POSE FINALE (dernière image gelée + silence) de `seconds` s.
+ * Hedra trime le silence ajouté en fin d'audio : sans ça, la vidéo coupe dès
+ * le dernier mot. La dernière image rendue est la pose « à la Sarah » (lèvres
+ * fermées, sourire doux) — on la tient à l'écran.
+ */
+function freezeExtend(path, seconds) {
+  const ffmpeg = findFfmpeg();
+  if (!ffmpeg) return;
+  const dur = seconds.toFixed(2);
+  const tmp = path.replace(/\.mp4$/, ".hold.mp4");
+  execFileSync(ffmpeg, [
+    "-y", "-i", path,
+    "-vf", `tpad=stop_mode=clone:stop_duration=${dur}`,
+    "-af", `apad=pad_dur=${dur}`,
+    "-c:v", "libx264", "-crf", "27", "-preset", "slow", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "96k",
+    "-movflags", "+faststart",
+    tmp,
+  ], { stdio: ["ignore", "ignore", "inherit"] });
+  renameSync(tmp, path);
+}
+
 /**
  * Compresse le mp4 Hedra (~35 Mo brut) en H.264 web (~2 Mo, qualité intacte à
  * l'œil). Sans ffmpeg, on garde le fichier brut — un avertissement est loggé.
@@ -303,40 +340,79 @@ async function main() {
   if (!up.ok) { console.error(`Upload : ${up.status} ${await up.text()}`); process.exit(1); }
   console.log(`Portrait téléversé (asset ${assetId})`);
 
-  // 3. Générer la vidéo à partir du portrait + de l'audio.
-  const gen = await fetch(`${API}/generations`, {
-    method: "POST", headers: JH,
-    body: JSON.stringify({
-      type: "video",
-      ai_model_id: modelId,
-      start_keyframe_id: assetId,
-      audio_id: audioId,
-      // Le portrait est carré : on garde ce cadrage pour rester fidèle à l'avatar.
-      generated_video_inputs: {
-        aspect_ratio: "1:1",
-        resolution: "720p",
-        // Fin de référence (validée sur Sarah/equipes) : lèvres fermées, sourire
-        // doux SANS montrer les dents, regard caméra détendu jusqu'à la fin.
-        text_prompt:
-          "Le personnage parle face caméra, posture calme, léger sourire. " +
-          "Quand il a fini de parler, il ferme complètement la bouche, lèvres jointes sans montrer les dents, " +
-          "et garde un sourire doux et détendu face caméra, immobile et serein, jusqu'à la toute fin de la vidéo.",
-      },
-    }),
-  });
-  if (!gen.ok) { console.error(`Génération vidéo : ${gen.status} ${await gen.text()}`); process.exit(1); }
-  const genId = (await gen.json()).id;
-  console.log(`Vidéo en cours (tâche ${genId})…`);
-  const done = await poll(genId, "Vidéo");
+  // Durée audio attendue : dernier caractère prononcé + le silence de fin.
+  // Sert à DÉTECTER LES RENDUS TRONQUÉS (Hedra coupe parfois avant la fin de
+  // l'audio → personnage figé en pleine phrase, bouche ouverte).
+  const alignEnds = alignment?.character_end_times_seconds;
+  const expectedDur = alignEnds?.length ? alignEnds[alignEnds.length - 1] + 1.4 : null;
 
-  const url = done.url ?? done.asset?.url ?? done.download_url;
-  if (!url) { console.error(`\nPas d'URL dans la réponse : ${JSON.stringify(done).slice(0, 400)}`); process.exit(1); }
-
+  // 3. Générer la vidéo à partir du portrait + de l'audio. L'audio et le
+  //    portrait sont déjà téléversés : un rendu tronqué ne relance QUE la
+  //    génération vidéo (jusqu'à 3 tentatives).
   const outDir = join(ROOT, "public/personas/videos");
   mkdirSync(outDir, { recursive: true });
-  const bin = Buffer.from(await (await fetch(url)).arrayBuffer());
   const outPath = join(outDir, `${key}${outSuffix}.mp4`);
-  writeFileSync(outPath, bin);
+  let bin = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const gen = await fetch(`${API}/generations`, {
+      method: "POST", headers: JH,
+      body: JSON.stringify({
+        type: "video",
+        ai_model_id: modelId,
+        start_keyframe_id: assetId,
+        audio_id: audioId,
+        // Le portrait est carré : on garde ce cadrage pour rester fidèle à l'avatar.
+        generated_video_inputs: {
+          aspect_ratio: "1:1",
+          resolution: "720p",
+          // Fin de référence (validée sur Sarah/equipes) : lèvres fermées, sourire
+          // doux SANS montrer les dents, regard caméra détendu jusqu'à la fin.
+          text_prompt:
+            "Le personnage parle face caméra, posture calme, léger sourire. " +
+            "Quand il a fini de parler, il ferme complètement la bouche, lèvres jointes sans montrer les dents, " +
+            "et garde un sourire doux et détendu face caméra, immobile et serein, jusqu'à la toute fin de la vidéo.",
+        },
+      }),
+    });
+    if (!gen.ok) { console.error(`Génération vidéo : ${gen.status} ${await gen.text()}`); process.exit(1); }
+    const genId = (await gen.json()).id;
+    console.log(`Vidéo en cours (tâche ${genId}, tentative ${attempt}/3)…`);
+    const done = await poll(genId, "Vidéo");
+
+    const url = done.url ?? done.asset?.url ?? done.download_url;
+    if (!url) { console.error(`\nPas d'URL dans la réponse : ${JSON.stringify(done).slice(0, 400)}`); process.exit(1); }
+    // Téléchargement résilient : un ECONNRESET ne doit pas jeter le rendu.
+    bin = null;
+    for (let dl = 1; dl <= 3 && !bin; dl++) {
+      try {
+        bin = Buffer.from(await (await fetch(url)).arrayBuffer());
+      } catch (err) {
+        console.warn(`\nTéléchargement échoué (${err?.cause?.code ?? err?.message ?? err}) — retry ${dl}/3 dans 5 s…`);
+        await sleep(5000);
+      }
+    }
+    if (!bin) { console.error("Téléchargement impossible après 3 tentatives."); process.exit(1); }
+    writeFileSync(outPath, bin);
+
+    // Contrôle de durée : mp4 vs durée audio attendue.
+    //  - Petit déficit (≤ 2,5 s) : Hedra TRIME le silence de fin — comportement
+    //    systématique, inutile de re-rendre. On prolonge la pose finale en
+    //    post-prod (gel de la dernière image, validée « à la Sarah »).
+    //  - Gros déficit : vraie troncature en pleine phrase → nouveau rendu.
+    const actualDur = probeDuration(outPath);
+    if (expectedDur && actualDur && actualDur < expectedDur - 0.4) {
+      const deficit = expectedDur - actualDur;
+      if (deficit > 2.5) {
+        console.warn(`\nRendu tronqué (${actualDur.toFixed(1)} s < ${expectedDur.toFixed(1)} s attendues) — nouvelle tentative…`);
+        continue;
+      }
+      console.log(`\nSilence final trimé par Hedra (${deficit.toFixed(1)} s) — gel de la pose finale en post-prod.`);
+      freezeExtend(outPath, deficit);
+    } else if (actualDur) {
+      console.log(`\nDurée vérifiée : ${actualDur.toFixed(1)} s (attendu ≥ ${expectedDur ? expectedDur.toFixed(1) : "?"} s)`);
+    }
+    break;
+  }
   compressVideo(outPath);
 
   const duration = Number(done.duration) || text.length / 15;
@@ -345,7 +421,7 @@ async function main() {
     : buildVtt(script.segments, duration);
   writeFileSync(join(outDir, `${key}${outSuffix}.vtt`), vtt);
   console.log(`Sous-titres : ${alignment ? "alignés sur la voix (timestamps ElevenLabs)" : "prorata (repli)"}`);
-  console.log(`\n\nVidéo → public/personas/videos/${key}${outSuffix}.mp4 (${(bin.length / 1024 / 1024).toFixed(2)} Mo)`);
+  console.log(`\n\nVidéo → public/personas/videos/${key}${outSuffix}.mp4 (${(statSync(outPath).size / 1024 / 1024).toFixed(2)} Mo)`);
   console.log(`VTT   → ${script.segments.length} lignes sur ${duration.toFixed(1)} s`);
   console.log("\nAVANT DE PRODUIRE LA SÉRIE : extraire une image et vérifier l'absence de filigrane.");
 }

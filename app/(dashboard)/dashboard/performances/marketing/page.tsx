@@ -12,6 +12,7 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -89,6 +90,45 @@ export default async function PerformanceMarketingPage() {
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" categories={["crm", "ads"]}>
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {(() => {
+        const lc = buildLifecycleConversion(snapshot);
+        if (snapshot.totalContacts <= 0) return null;
+        const nativeContacts = contactSourcesGlobal
+          .filter((s) => nativeKeys.includes(s.source))
+          .reduce((n, s) => n + s.count, 0);
+        const nativePct = totalSourceContacts > 0 ? Math.round((nativeContacts / totalSourceContacts) * 100) : null;
+        const tiles: StatTile[] = [
+          { label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), tone: "accent", sub: `${lc.totalContactsInFunnel.toLocaleString("fr-FR")} dans le funnel lifecycle` },
+          {
+            label: "Conversion funnel",
+            value: lc.endToEndPct != null ? `${lc.endToEndPct} %` : "—",
+            tone: lc.endToEndPct == null ? "neutral" : lc.endToEndPct >= 10 ? "pos" : lc.endToEndPct >= 3 ? "accent" : "neg",
+            sub: "1ʳᵉ étape → dernière étape clé",
+            verdict: lc.endToEndPct == null ? undefined
+              : lc.endToEndPct >= 10 ? { label: "Solide (> 10 %)", tone: "pos" }
+              : lc.endToEndPct >= 3 ? { label: "Dans la norme", tone: "warn" }
+              : { label: "Faible (< 3 %)", tone: "neg" },
+          },
+          {
+            label: "Hors funnel",
+            value: lc.contactsOutsideFunnel.toLocaleString("fr-FR"),
+            tone: lc.contactsOutsideFunnel === 0 ? "pos" : "neutral",
+            sub: "Lifecycle vide ou custom",
+            verdict: snapshot.totalContacts > 0 && lc.contactsOutsideFunnel / snapshot.totalContacts > 0.3
+              ? { label: "Segmentation à revoir", tone: "warn" }
+              : undefined,
+          },
+          {
+            label: "Acquisition native",
+            value: nativePct != null ? `${nativePct} %` : "—",
+            tone: "neutral",
+            sub: "Formulaires, emails, site, workflows",
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       {/* Lifecycle conversion */}
       <CollapsibleBlock

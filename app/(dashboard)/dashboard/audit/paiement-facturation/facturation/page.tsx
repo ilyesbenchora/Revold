@@ -9,6 +9,7 @@ import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-fac
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 
 export default async function FacturationPage({
   searchParams,
@@ -59,6 +60,32 @@ export default async function FacturationPage({
         tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
         activeKey={activeSourceKey}
       />
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {data.hasData && (() => {
+        const tiles: StatTile[] = [
+          { label: "Factures émises", value: fmt(data.invoices.length), tone: "neutral", sub: data.avgInvoice != null && data.avgInvoice > 0 ? `${fmtK(data.avgInvoice)} en moyenne` : "Montant moyen —" },
+          { label: "Total encaissé", value: data.totalPaid > 0 ? fmtK(data.totalPaid) : "—", tone: "pos", sub: `${fmt(data.paidInvoicesCount)} factures payées` },
+          {
+            label: "Impayées",
+            value: String(data.unpaidInvoicesCount),
+            tone: data.unpaidInvoicesCount === 0 ? "pos" : "neg",
+            sub: data.totalUnpaidAmount > 0 ? `${fmtK(data.totalUnpaidAmount)} en attente` : "Rien en attente",
+            verdict: data.unpaidInvoicesCount === 0 ? { label: "Tout est encaissé", tone: "pos" }
+              : data.unpaidInvoicesCount <= 5 ? { label: "À relancer", tone: "warn" }
+              : { label: "Recouvrement critique", tone: "neg" },
+          },
+          {
+            label: "Retard > 30 jours",
+            value: String(overdueInvoices.length),
+            tone: overdueInvoices.length === 0 ? "pos" : "neg",
+            sub: "Factures échues depuis + de 30 j",
+            verdict: overdueInvoices.length === 0 ? { label: "DSO maîtrisé", tone: "pos" }
+              : { label: "DSO élevé", tone: "neg" },
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={

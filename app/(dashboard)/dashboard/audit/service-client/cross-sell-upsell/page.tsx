@@ -6,7 +6,8 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientCrossSellUpsellPage() {
@@ -60,6 +61,36 @@ export default async function ServiceClientCrossSellUpsellPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {(() => {
+        const tiles: StatTile[] = [
+          { label: "ARPU mensuel", value: arpu != null ? fmtK(arpu) : "—", tone: "accent", sub: "MRR / subs actives" },
+          {
+            label: "Clients sains",
+            value: healthyPct != null ? `${healthyPct} %` : "—",
+            tone: healthyPct == null ? "neutral" : healthyPct >= 70 ? "pos" : healthyPct >= 40 ? "accent" : "neg",
+            sub: "Sans ticket ouvert — candidats expansion",
+            verdict: healthyPct == null ? undefined
+              : healthyPct >= 70 ? { label: "Terrain favorable", tone: "pos" }
+              : healthyPct >= 40 ? { label: "Mitigé", tone: "warn" }
+              : { label: "Support surchargé", tone: "neg" },
+          },
+          {
+            label: "Potentiel d'expansion",
+            value: expansionPotentialMrr != null ? `${fmtK(expansionPotentialMrr)}/mois` : "—",
+            tone: "pos",
+            sub: "Clients sains × ARPU × 20 %",
+          },
+          {
+            label: "Multi-produit",
+            value: subsPerCustomer != null ? `${subsPerCustomer} subs/client` : "—",
+            tone: multiProductRate > 0 ? "pos" : "neutral",
+            sub: multiProductRate > 0 ? `${multiProductRate} % d'équipement au-delà de 1` : "1 produit par client",
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={

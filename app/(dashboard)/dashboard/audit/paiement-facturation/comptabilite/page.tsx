@@ -10,6 +10,7 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { computePnl } from "@/lib/audit/pnl";
 import { fmtK } from "@/lib/audit/paiement-facturation-data";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 
 /**
  * Sous-page « Comptabilité » de la section Trésorerie.
@@ -77,6 +78,31 @@ export default async function ComptabilitePage({
             </div>
           ) : (
             <>
+              {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+              {(() => {
+                const tiles: StatTile[] = [
+                  { label: "Produits (classe 7)", value: pnl.produits > 0 ? fmtK(pnl.produits) : "—", tone: "pos", sub: "CA + autres produits comptabilisés" },
+                  { label: "Charges (classe 6)", value: pnl.charges > 0 ? fmtK(pnl.charges) : "—", tone: "neg", sub: "Charges comptabilisées" },
+                  {
+                    label: "Résultat",
+                    value: fmtK(pnl.resultat),
+                    tone: pnl.resultat >= 0 ? "pos" : "neg",
+                    sub: "Produits − charges",
+                    verdict: pnl.resultat >= 0 ? { label: "Bénéficiaire", tone: "pos" } : { label: "Déficitaire", tone: "neg" },
+                  },
+                  {
+                    label: "Taux de marge comptable",
+                    value: pnl.tauxMarge != null ? `${pnl.tauxMarge} %` : "—",
+                    tone: pnl.tauxMarge == null ? "neutral" : pnl.tauxMarge >= 40 ? "pos" : pnl.tauxMarge >= 25 ? "accent" : "neg",
+                    sub: "Résultat / produits",
+                    verdict: pnl.tauxMarge == null ? undefined
+                      : pnl.tauxMarge >= 40 ? { label: "Excellent (> 40 %)", tone: "pos" }
+                      : pnl.tauxMarge >= 25 ? { label: "Correct", tone: "warn" }
+                      : { label: "Faible (< 25 %)", tone: "neg" },
+                  },
+                ];
+                return <KpiStatTiles tiles={tiles} />;
+              })()}
               {/* ── P&L ── */}
               <CollapsibleBlock
                 title={

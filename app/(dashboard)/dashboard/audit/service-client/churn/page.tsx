@@ -8,6 +8,7 @@ import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 
 export default async function ServiceClientChurnPage() {
   const orgId = await getOrgId();
@@ -58,6 +59,41 @@ export default async function ServiceClientChurnPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {(() => {
+        const tiles: StatTile[] = [
+          {
+            label: "Score de risque churn",
+            value: `${riskScore}/100`,
+            tone: riskScore >= 60 ? "neg" : riskScore >= 30 ? "accent" : "pos",
+            sub: "Churn + past due + urgence tickets",
+            verdict: riskScore >= 60 ? { label: "Critique", tone: "neg" }
+              : riskScore >= 30 ? { label: "À surveiller", tone: "warn" }
+              : { label: "Sous contrôle", tone: "pos" },
+          },
+          {
+            label: "Taux de churn",
+            value: churnRate != null ? `${churnRate} %` : "—",
+            tone: churnRate == null ? "neutral" : churnRate <= 5 ? "pos" : churnRate <= 15 ? "accent" : "neg",
+            sub: "Cible top quartile : < 5 %",
+          },
+          {
+            label: "Past due",
+            value: String(pastDueSubs),
+            tone: pastDueSubs === 0 ? "pos" : "neg",
+            sub: "Paiements échoués — churn imminent",
+            verdict: pastDueSubs === 0 ? { label: "Aucun", tone: "pos" } : { label: "Action immédiate", tone: "neg" },
+          },
+          {
+            label: "NRR (proxy)",
+            value: nrrProxy != null ? `${nrrProxy} %` : "—",
+            tone: nrrProxy == null ? "neutral" : nrrProxy >= 90 ? "pos" : nrrProxy >= 70 ? "accent" : "neg",
+            sub: "Subs actives / total",
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={

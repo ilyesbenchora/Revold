@@ -6,7 +6,8 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
+import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
 export default async function ServiceClientRenouvellementPage() {
@@ -61,6 +62,39 @@ export default async function ServiceClientRenouvellementPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {(() => {
+        const tiles: StatTile[] = [
+          {
+            label: "Renewal rate",
+            value: renewalRate != null ? `${renewalRate} %` : "—",
+            tone: renewalRate == null ? "neutral" : renewalRate >= 90 ? "pos" : renewalRate >= 70 ? "accent" : "neg",
+            sub: "Subs actives / total",
+            verdict: renewalRate == null ? undefined
+              : renewalRate >= 90 ? { label: "Excellent (> 90 %)", tone: "pos" }
+              : renewalRate >= 70 ? { label: "Correct", tone: "warn" }
+              : { label: "Fragile (< 70 %)", tone: "neg" },
+          },
+          {
+            label: "GRR",
+            value: grr != null ? `${grr} %` : "—",
+            tone: grr == null ? "neutral" : grr >= 95 ? "pos" : grr >= 85 ? "accent" : "neg",
+            sub: "Gross Revenue Retention",
+          },
+          { label: "ARR sécurisé", value: arrSecured > 0 ? fmtK(arrSecured) : "—", tone: "pos", sub: `${fmt(billing.activeSubsCount)} subs actives` },
+          {
+            label: "ARR à risque",
+            value: arrAtRisk > 0 ? fmtK(arrAtRisk) : "0 €",
+            tone: arrAtRisk === 0 ? "pos" : "neg",
+            sub: `${renewalAtRisk} compte${renewalAtRisk > 1 ? "s" : ""} exposé${renewalAtRisk > 1 ? "s" : ""}`,
+            verdict: arrAtRisk === 0 ? { label: "Rien d'exposé", tone: "pos" }
+              : arrAtRisk < arrSecured * 0.1 ? { label: "Exposition limitée", tone: "warn" }
+              : { label: "Exposition forte", tone: "neg" },
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={

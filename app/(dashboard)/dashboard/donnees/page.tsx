@@ -11,6 +11,7 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 // Conservé pour les cartes de synthèse par objet — ce n'est pas une vignette de titre de bloc.
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
@@ -404,6 +405,29 @@ export default async function DonneesPage() {
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]}>
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {(contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0) && (() => {
+        // Complétude moyenne des 9 métriques clés (3 par entité) affichées plus bas.
+        const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
+        const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
+        const tiles: StatTile[] = [
+          { label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(contactsCompany, contactsTotal)} % liés à une entreprise` },
+          { label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(companiesDomain, companiesTotal)} % avec domaine` },
+          { label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(dealsAmount, dealsTotal)} % avec montant` },
+          {
+            label: "Complétude moyenne",
+            value: avgFill != null ? `${avgFill} %` : "—",
+            tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
+            sub: "9 propriétés clés confondues",
+            verdict: avgFill == null ? undefined
+              : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
+              : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
+              : { label: "Base incomplète (< 50 %)", tone: "neg" },
+          },
+        ];
+        return <KpiStatTiles tiles={tiles} />;
+      })()}
 
       {/* ── HUBS SYNCHRONISÉS (CRM + outils tiers) ── */}
       {hubs.length > 0 && (
