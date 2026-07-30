@@ -49,11 +49,16 @@ export function RevoldLogo({
       {!compact && (
         <span
           aria-label={companyName}
-          className={`inline-flex shrink-0 items-center whitespace-nowrap text-lg leading-none ${labelClass}`}
+          className={`inline-flex shrink-0 items-baseline whitespace-nowrap text-lg leading-none ${labelClass}`}
           style={{ fontFamily: "var(--font-wordmark)", fontWeight: 200, letterSpacing: "0.02em" }}
         >
           <span aria-hidden>Rev</span>
-          {/* « o » = anneau incomplet (effet chargement), un peu plus gras */}
+          {/* « o » = anneau incomplet (effet chargement), un peu plus gras.
+              Alignement : items-baseline pose le BAS de l'anneau sur la ligne
+              de base (comme un « o » réel), la hauteur ≈ hauteur d'x d'Exo 2
+              et un léger translateY reproduit le dépassement optique des
+              lettres rondes — au lieu du centrage sur la ligne entière qui
+              faisait flotter l'anneau au-dessus de « Rev…ld ». */}
           <svg
             viewBox="0 0 32 32"
             aria-hidden
@@ -61,7 +66,7 @@ export function RevoldLogo({
             stroke="currentColor"
             strokeWidth="3.4"
             strokeLinecap="round"
-            style={{ width: "0.6em", height: "0.6em", margin: "0 0.02em" }}
+            style={{ width: "0.54em", height: "0.54em", margin: "0 0.03em", transform: "translateY(0.02em)" }}
           >
             <circle cx="16" cy="16" r="13" strokeDasharray="63 18" transform="rotate(-58 16 16)" />
           </svg>
