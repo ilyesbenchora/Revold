@@ -14,6 +14,7 @@ import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 import type { AgentRedirect } from "@/lib/ai/agents/redirect";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
+import { useVoice } from "./use-voice";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import type { Attachment } from "@/lib/attachments";
@@ -155,6 +156,30 @@ export function PaiementAgentChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // Couche vocale : dictée micro + réponses lues avec la voix du persona.
+  // Une question posée au micro reçoit TOUJOURS une réponse vocale ; le
+  // haut-parleur étend ça aux questions écrites (préférence mémorisée).
+  const voice = useVoice(agentKey);
+  const [voiceReplies, setVoiceReplies] = useState(false);
+  useEffect(() => {
+    try {
+      setVoiceReplies(localStorage.getItem("revold:agent:voice-replies") === "1");
+    } catch {
+      /* stockage indisponible : préférence non mémorisée */
+    }
+  }, []);
+  function toggleVoiceReplies() {
+    setVoiceReplies((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("revold:agent:voice-replies", next ? "1" : "0");
+      } catch {
+        /* stockage indisponible */
+      }
+      if (!next) voice.stopSpeaking();
+      return next;
+    });
+  }
   // Sources initiales : en coaching, reflet EXACT de l'agenda (peut être vide) ;
   // sinon, les sources pré-cochées, à défaut toutes.
   const initialSelected = coachingMode
@@ -414,12 +439,12 @@ export function PaiementAgentChat({
 
   const START_TEXT = "Démarrer ma séance de coaching du jour";
 
-  function send(text: string) {
+  function send(text: string, viaVoice = false) {
     const content = text.trim();
     if (!content || loading) return;
     const id = currentId ?? newId();
     if (!currentId) setCurrentId(id);
-    void runSend(messages, content, id);
+    void runSend(messages, content, id, selected, viaVoice);
   }
 
   // Démarre une séance de coaching sur une conversation vierge (bouton agenda).
@@ -439,7 +464,7 @@ export function PaiementAgentChat({
     void runSend([], START_TEXT, id, srcs);
   }
 
-  async function runSend(base: Msg[], content: string, id: string, srcs: string[] = selected) {
+  async function runSend(base: Msg[], content: string, id: string, srcs: string[] = selected, viaVoice = false) {
     if (loading) return;
     setError(null);
     setAskAnother(false);
@@ -480,6 +505,8 @@ export function PaiementAgentChat({
       const finalMsgs = [...next, assistant];
       setMessages(finalMsgs);
       upsertConversation(id, finalMsgs, srcs, attachments);
+      // Réponse vocale : question posée au micro, ou mode voix activé.
+      if (viaVoice || voiceReplies) void voice.speak(cleanText(assistant.content));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -942,6 +969,29 @@ export function PaiementAgentChat({
                 <AttachmentChips items={attachments} onRemove={removeAttachment} />
               </div>
             )}
+            {/* L'agent parle : indicateur + bouton pour couper la voix. */}
+            {voice.speaking && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-1.5">
+                <span className="flex items-end gap-0.5" aria-hidden>
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-0.5 animate-pulse rounded-full bg-indigo-500"
+                      style={{ height: `${8 + (i % 2) * 4}px`, animationDelay: `${i * 150}ms` }}
+                    />
+                  ))}
+                </span>
+                <span className="text-xs font-medium text-indigo-700">
+                  {persona ? `${persona.name} te répond à voix haute…` : "L'agent te répond à voix haute…"}
+                </span>
+                <button
+                  onClick={voice.stopSpeaking}
+                  className="ml-auto rounded-md border border-indigo-200 bg-white px-2 py-0.5 text-[11px] font-medium text-indigo-600 hover:bg-indigo-50"
+                >
+                  Couper
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <AttachMenu onAdd={addAttachment} disabled={loading} />
               <input
@@ -953,10 +1003,65 @@ export function PaiementAgentChat({
                     send(input);
                   }
                 }}
-                placeholder="Pose ta question à l'agent…"
+                placeholder={voice.listening ? "Je t'écoute… parle, j'envoie à la fin." : "Pose ta question à l'agent…"}
                 disabled={loading}
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:opacity-60"
+                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:opacity-60 ${
+                  voice.listening
+                    ? "border-rose-300 focus:border-rose-300 focus:ring-rose-100"
+                    : "border-slate-200 focus:border-fuchsia-300 focus:ring-fuchsia-100"
+                }`}
               />
+              {/* Micro : dicte la question, envoyée à la fin de la prise de
+                  parole — la réponse arrive alors en voix. */}
+              {voice.micSupported && (
+                <button
+                  onClick={() =>
+                    voice.listening
+                      ? voice.stopListening()
+                      : voice.startListening(setInput, (text) => send(text, true))
+                  }
+                  disabled={loading}
+                  title={voice.listening ? "Arrêter le micro" : "Parler à l'agent (réponse vocale)"}
+                  aria-label={voice.listening ? "Arrêter le micro" : "Parler à l'agent"}
+                  className={`rounded-lg border p-2 transition disabled:opacity-50 ${
+                    voice.listening
+                      ? "animate-pulse border-rose-300 bg-rose-50 text-rose-600"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-fuchsia-200 hover:bg-fuchsia-50 hover:text-fuchsia-600"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </button>
+              )}
+              {/* Haut-parleur : lit aussi à voix haute les réponses aux questions écrites. */}
+              <button
+                onClick={toggleVoiceReplies}
+                title={voiceReplies ? "Désactiver les réponses vocales" : "Activer les réponses vocales"}
+                aria-label={voiceReplies ? "Désactiver les réponses vocales" : "Activer les réponses vocales"}
+                className={`rounded-lg border p-2 transition ${
+                  voiceReplies
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                    : "border-slate-200 bg-white text-slate-400 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+                  {voiceReplies ? (
+                    <>
+                      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                    </>
+                  ) : (
+                    <>
+                      <line x1="16" y1="9" x2="22" y2="15" />
+                      <line x1="22" y1="9" x2="16" y2="15" />
+                    </>
+                  )}
+                </svg>
+              </button>
               <button
                 onClick={() => send(input)}
                 disabled={loading || !input.trim()}
