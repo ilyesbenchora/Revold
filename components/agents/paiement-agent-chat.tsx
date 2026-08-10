@@ -1003,7 +1003,7 @@ export function PaiementAgentChat({
                     send(input);
                   }
                 }}
-                placeholder={voice.listening ? "Je t'écoute… parle, j'envoie à la fin." : "Pose ta question à l'agent…"}
+                placeholder={voice.listening ? "Je t'écoute… reclique sur le micro pour envoyer." : "Pose ta question à l'agent…"}
                 disabled={loading}
                 className={`flex-1 rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:opacity-60 ${
                   voice.listening
@@ -1011,8 +1011,8 @@ export function PaiementAgentChat({
                     : "border-slate-200 focus:border-fuchsia-300 focus:ring-fuchsia-100"
                 }`}
               />
-              {/* Micro : dicte la question, envoyée à la fin de la prise de
-                  parole — la réponse arrive alors en voix. */}
+              {/* Micro : dicte la question, envoyée quand l'utilisateur
+                  arrête le micro — la réponse arrive alors en voix. */}
               {voice.micSupported && (
                 <button
                   onClick={() =>
@@ -1021,7 +1021,7 @@ export function PaiementAgentChat({
                       : voice.startListening(setInput, (text) => send(text, true))
                   }
                   disabled={loading}
-                  title={voice.listening ? "Arrêter le micro" : "Parler à l'agent (réponse vocale)"}
+                  title={voice.listening ? "Arrêter le micro et envoyer" : "Parler à l'agent (réponse vocale)"}
                   aria-label={voice.listening ? "Arrêter le micro" : "Parler à l'agent"}
                   className={`rounded-lg border p-2 transition disabled:opacity-50 ${
                     voice.listening

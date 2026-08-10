@@ -20,7 +20,7 @@ const modules = [
   },
   {
     href: "/dashboard/agents/automatisations",
-    title: "Agent Alignement",
+    title: "Agent Alignement Process & Outils",
     description: "Relais entre services : vélocité du lifecycle, MQL → deal, deal → facture, rétention.",
     objective: "Mesurer chaque passage de témoin entre équipes et poser des SLA là où le relais se rompt.",
     icon: (

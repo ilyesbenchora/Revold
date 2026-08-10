@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 
 // Axe de prévision (slug) → clé d'agent.
 const AXIS_AGENT: Record<string, string> = {
-  marketing: "prev-marketing",
   revenue: "prev-revenue",
 };
 

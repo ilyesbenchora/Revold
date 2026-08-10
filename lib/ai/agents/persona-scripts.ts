@@ -51,7 +51,7 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   automatisations: {
     elevenVoiceId: "yG4Uc56cLYQyZFnWaYv2", // Kael — FR parisien jeune, posé (ingénieur)
     segments: [
-      "Salut, je suis l'agent alignement, ton référent inter-équipes chez Revold.",
+      "Salut, moi c'est Théo, ton référent alignement process et outils chez Revold.",
       "Mon métier, c'est de mesurer les passages de témoin entre tes services.",
       "Un MQL qualifié par le marketing : en combien de temps devient-il un deal ?",
       "Un deal gagné : en combien de temps est-il facturé, puis encaissé ?",
@@ -146,41 +146,14 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
   "coaching-data": {
     elevenVoiceId: "sQfOhaIRbFZ7R8bP1x9f", // Amelie — FR jeune, calme (coach data, pédagogue)
     segments: [
-      "Bonjour, je suis Sofia, ta coach data chez Revold.",
+      "Bonjour, je suis Sofia, ta coach data et intégration chez Revold.",
       "Mon rôle, c'est de rendre tes données dignes de confiance.",
-      "Je les fiabilise, je les enrichis, je comble les manques",
-      "pour que tes décisions reposent sur du solide et pas sur du bruit.",
-      "Je t'explique simplement où sont les faiblesses",
-      "et comment les corriger, étape par étape.",
+      "Je les fiabilise, je comble les manques,",
+      "et je connecte ta stack pour que la donnée circule entre tes outils.",
+      "Je croise aussi tes sources : CRM, facturation, support,",
+      "pour révéler ce qu'aucun outil ne montre seul.",
       "Ma mission, c'est que tu puisses regarder un chiffre",
       "et y croire les yeux fermés.",
-    ],
-  },
-  "coaching-integration": {
-    elevenVoiceId: "jvSOBXJ1cP2sdvT5RgUP", // Richie Tekan — FR jeune, décontracté (coach intégration)
-    segments: [
-      "Salut, moi c'est Yanis, ton coach intégration chez Revold.",
-      "Mon rôle, c'est de connecter ta stack et de la faire adopter.",
-      "Des outils branchés, mais surtout des outils vraiment utilisés.",
-      "Je repère les connexions qui manquent, les données qui ne circulent pas,",
-      "et les équipes qui n'ont pas pris le pli.",
-      "Je maximise l'adoption pour que ta donnée soit unifiée",
-      "et enfin exploitable d'un outil à l'autre.",
-      "Ma mission, c'est une stack qui travaille pour toi,",
-      "pas une collection d'outils qui s'ignorent.",
-    ],
-  },
-  "coaching-cross-source": {
-    elevenVoiceId: "VcN1mmVCxio0RiBhJlwz", // Eda — FR parisienne, jeune, dynamique
-    segments: [
-      "Bonjour, je suis Nina, ta coach cross-source chez Revold.",
-      "Ma spécialité, c'est de croiser ce que tes outils gardent séparé.",
-      "Le CRM, la facturation, le support : chacun ne dit qu'une partie de l'histoire.",
-      "Je relie ces sources pour révéler ce qu'aucune ne montre seule.",
-      "Un client fidèle côté support mais en retard de paiement,",
-      "un deal gagné qui ne s'est jamais transformé en revenu.",
-      "Ma mission, c'est de faire parler tes données ensemble",
-      "pour que tu voies enfin le tableau complet.",
     ],
   },
   "coaching-data-model": {
@@ -209,19 +182,6 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
       "Plusieurs scénarios : le prudent, le probable, l'ambitieux.",
       "Ma mission, c'est de t'aider à anticiper",
       "au lieu de découvrir le résultat quand il est trop tard.",
-    ],
-  },
-  "prev-marketing": {
-    elevenVoiceId: "zVrWtLr70jn6SeaARX0i", // Kevin — FR jeune, créateur de contenu (énergique)
-    segments: [
-      "Salut, moi c'est Lucas, ton prévisionniste marketing chez Revold.",
-      "Je modélise tes leads et tes conversions à venir.",
-      "Combien d'inscrits, combien de qualifiés, combien de clients au bout.",
-      "Je pars de tes tendances réelles pour projeter les prochains mois.",
-      "Tu peux caler ton budget d'acquisition et tes objectifs avec confiance,",
-      "au lieu de naviguer à vue.",
-      "Ma mission, c'est de rendre ta croissance prévisible,",
-      "pour que chaque euro investi ait une cible claire.",
     ],
   },
   "prev-revenue": {

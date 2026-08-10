@@ -19,7 +19,6 @@ const FAMILY_KEYS = [
   "reporting",
   "proprietes",
   "service-client",
-  "prev-marketing",
   "automatisations",
   "coaching-data",
   "equipes",

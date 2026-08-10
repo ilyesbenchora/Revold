@@ -26,7 +26,7 @@ export type CoachPersona = {
 export const AGENT_PERSONAS: Record<string, CoachPersona> = {
   // Données
   performance: { name: "Chloé", emoji: "👩‍💻", role: "Analyste performance", pitch: "Je décortique tes deals, ton pipeline et ton win rate pour révéler où se cache la croissance — et les leviers concrets pour l'activer.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
-  automatisations: { name: "Agent alignement", emoji: "🧑‍🔧", role: "Référent alignement", pitch: "Je mesure les relais entre tes équipes — MQL → deal, deal → facture, facture → encaissement — pour révéler où le passage de témoin se rompt.", gradient: "from-indigo-50 via-white to-white", tint: "text-indigo-200" },
+  automatisations: { name: "Théo", emoji: "🧑‍🔧", role: "Référent alignement process & outils", pitch: "Je mesure les relais entre tes équipes — MQL → deal, deal → facture, facture → encaissement — pour révéler où le passage de témoin se rompt et quel process ou outil ajuster.", gradient: "from-indigo-50 via-white to-white", tint: "text-indigo-200" },
   "paiement-facturation": { name: "Inès", emoji: "👩‍💼", role: "Experte trésorerie", pitch: "Je réconcilie factures, paiements et impayés pour piloter le cash réel — pas seulement le pipeline théorique.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
   "service-client": { name: "Hugo", emoji: "🙋‍♂️", role: "Référent relation client", pitch: "Je croise tickets et comptes pour anticiper le churn et protéger tes revenus récurrents avant qu'il ne soit trop tard.", gradient: "from-rose-50 via-white to-white", tint: "text-rose-200" },
   equipes: { name: "Sarah", emoji: "🧑‍🤝‍🧑", role: "Coach d'équipes", pitch: "J'analyse la performance commercial par commercial pour équilibrer la charge et faire monter chacun en compétence.", gradient: "from-sky-50 via-white to-white", tint: "text-sky-200" },
@@ -34,13 +34,10 @@ export const AGENT_PERSONAS: Record<string, CoachPersona> = {
   // Coaching
   "coaching-ventes": { name: "Marc", emoji: "👨‍💼", role: "Coach des ventes", pitch: "Je traque les deals qui bloquent, muscle ton closing et fluidifie ton pipeline pour accélérer le chiffre.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
   "coaching-marketing": { name: "Léa", emoji: "👩‍🎨", role: "Coach marketing", pitch: "J'optimise tes sources d'acquisition et ton taux de conversion pour des leads plus qualifiés, à moindre coût.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
-  "coaching-data": { name: "Sofia", emoji: "👩‍🔬", role: "Coach data", pitch: "Je fiabilise et enrichis tes données pour que tes décisions reposent sur du solide, pas sur du bruit.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
-  "coaching-integration": { name: "Yanis", emoji: "👨‍💻", role: "Coach intégration", pitch: "Je maximise l'adoption de tes outils et connecte ta stack pour une donnée unifiée et vraiment exploitable.", gradient: "from-indigo-50 via-white to-white", tint: "text-indigo-200" },
-  "coaching-cross-source": { name: "Nina", emoji: "👩‍🚀", role: "Coach cross-source", pitch: "Je croise CRM, facturation et support pour révéler des insights invisibles source par source.", gradient: "from-fuchsia-50 via-white to-white", tint: "text-fuchsia-200" },
+  "coaching-data": { name: "Sofia", emoji: "👩‍🔬", role: "Coach data & intégration", pitch: "Je fiabilise tes données, connecte ta stack et croise tes sources pour que tes décisions reposent sur du solide, pas sur du bruit.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
   "coaching-data-model": { name: "Adam", emoji: "👨‍🏫", role: "Coach finance", pitch: "Je t'apprends à piloter ta trésorerie et ta comptabilité : encaissements, échéances, marges — pour décider sur le cash réel, pas sur l'intuition.", gradient: "from-violet-50 via-white to-white", tint: "text-violet-200" },
   // Prévisions
   "prev-ventes": { name: "Emma", emoji: "🧑‍🚀", role: "Prévisionniste ventes", pitch: "Je projette ton atterrissage commercial à partir de ton historique pour anticiper — au lieu de subir.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
-  "prev-marketing": { name: "Lucas", emoji: "👨‍🚀", role: "Prévisionniste marketing", pitch: "Je modélise tes leads et conversions futurs pour caler budget et objectifs d'acquisition avec confiance.", gradient: "from-orange-50 via-white to-white", tint: "text-orange-200" },
   "prev-revenue": { name: "Maya", emoji: "👩‍💼", role: "Prévisionniste revenue & ventes", pitch: "Je projette ton MRR/ARR, ton churn ET ton closing/pipeline en 3 scénarios pour sécuriser ta trajectoire de revenus et anticiper l'atterrissage commercial.", gradient: "from-teal-50 via-white to-white", tint: "text-teal-200" },
   "prev-donnees": { name: "Noah", emoji: "👨‍🔬", role: "Prévisionniste données", pitch: "J'anticipe la dérive de qualité de tes données pour agir avant qu'elle n'impacte tes décisions.", gradient: "from-sky-50 via-white to-white", tint: "text-sky-200" },
   // Dashboard
@@ -62,7 +59,6 @@ const FEMININE_AGENTS = new Set([
   "equipes",                // Sarah
   "coaching-marketing",     // Léa
   "coaching-data",          // Sofia
-  "coaching-cross-source",  // Nina
   "prev-ventes",            // Emma
   "prev-revenue",           // Maya
 ]);

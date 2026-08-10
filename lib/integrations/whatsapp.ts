@@ -5,7 +5,6 @@ export const WA_MENU_AGENTS: string[] = [
   "coaching-ventes",
   "coaching-marketing",
   "coaching-data",
-  "coaching-cross-source",
   "performance",
   "paiement-facturation",
   "reporting",

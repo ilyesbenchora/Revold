@@ -44,6 +44,12 @@ export function useVoice(agentKey: string) {
   const urlRef = useRef<string | null>(null);
   // Transcription finale accumulée pendant la session micro.
   const finalRef = useRef("");
+  // L'utilisateur a cliqué "stop" : le prochain onend envoie la transcription.
+  const manualStopRef = useRef(false);
+  // Session annulée (démontage) : ni relance ni envoi.
+  const cancelledRef = useRef(false);
+  // Erreur bloquante (micro refusé…) : on n'essaie pas de relancer.
+  const fatalErrorRef = useRef(false);
 
   useEffect(() => {
     setMicSupported(getRecognitionCtor() !== null);
@@ -67,6 +73,7 @@ export function useVoice(agentKey: string) {
   // Coupe l'audio et le micro quand on quitte la page de l'agent.
   useEffect(() => {
     return () => {
+      cancelledRef.current = true;
       recRef.current?.abort();
       stopSpeaking();
     };
@@ -113,13 +120,16 @@ export function useVoice(agentKey: string) {
   );
 
   const stopListening = useCallback(() => {
+    manualStopRef.current = true;
     recRef.current?.stop();
   }, []);
 
   /**
    * Démarre la dictée. `onInterim` reçoit le texte au fil de l'eau (pour le
-   * champ de saisie) ; `onFinal` reçoit la transcription complète à la fin
-   * de la prise de parole (déclenche l'envoi).
+   * champ de saisie) ; `onFinal` reçoit la transcription complète quand
+   * l'utilisateur arrête lui-même le micro (déclenche l'envoi). Les pauses
+   * ne coupent pas la dictée : si le navigateur s'arrête sur un silence, la
+   * reconnaissance est relancée en conservant le texte déjà transcrit.
    */
   const startListening = useCallback(
     (onInterim: (text: string) => void, onFinal: (text: string) => void) => {
@@ -128,9 +138,12 @@ export function useVoice(agentKey: string) {
       stopSpeaking();
       const rec = new Ctor();
       rec.lang = "fr-FR";
-      rec.continuous = false;
+      rec.continuous = true;
       rec.interimResults = true;
       finalRef.current = "";
+      manualStopRef.current = false;
+      cancelledRef.current = false;
+      fatalErrorRef.current = false;
       rec.onresult = (e) => {
         let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -141,12 +154,31 @@ export function useVoice(agentKey: string) {
         onInterim((finalRef.current + interim).trim());
       };
       rec.onend = () => {
+        if (cancelledRef.current) {
+          setListening(false);
+          recRef.current = null;
+          return;
+        }
+        // Silence : le navigateur coupe tout seul, on relance sans envoyer
+        // pour laisser l'utilisateur finir sa phrase.
+        if (!manualStopRef.current && !fatalErrorRef.current) {
+          try {
+            rec.start();
+            return;
+          } catch {
+            // Relance impossible : on finalise avec ce qu'on a.
+          }
+        }
         setListening(false);
         recRef.current = null;
         const text = finalRef.current.trim();
         if (text) onFinal(text);
       };
-      rec.onerror = () => {
+      rec.onerror = (e) => {
+        // Micro refusé ou indisponible : inutile de relancer en boucle.
+        if (e.error === "not-allowed" || e.error === "audio-capture" || e.error === "service-not-allowed") {
+          fatalErrorRef.current = true;
+        }
         // onend suit toujours onerror — l'état y est remis à zéro.
       };
       recRef.current = rec;

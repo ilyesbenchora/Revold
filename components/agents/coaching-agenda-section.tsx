@@ -12,7 +12,8 @@ const CAT_AGENT: Record<string, string> = {
   commercial: "coaching-ventes",
   marketing: "coaching-marketing",
   data: "coaching-data",
-  integration: "coaching-integration",
+  // Sofia (Coach Data & Intégration) a repris le périmètre intégration.
+  integration: "coaching-data",
   "data-model": "coaching-data-model",
 };
 
