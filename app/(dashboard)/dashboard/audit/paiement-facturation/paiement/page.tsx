@@ -46,12 +46,6 @@ export default async function PaiementPage({
 
       <PaiementFacturationTabs />
 
-      {/* Outil source des blocs : affichage + switch dynamique */}
-      <SourceToolSwitcher
-        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
-        activeKey={activeSourceKey}
-      />
-
       {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
       {data.hasData && (() => {
         const churn = data.churnRate;
@@ -181,6 +175,12 @@ export default async function PaiementPage({
           />
         )}
       </CollapsibleBlock>
+
+      {/* Outil source des blocs — rappel discret en bas de page, switch au clic */}
+      <SourceToolSwitcher
+        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKey={activeSourceKey}
+      />
     </section>
   );
 }

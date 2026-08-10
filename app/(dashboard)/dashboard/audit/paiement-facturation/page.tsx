@@ -10,7 +10,6 @@ import {
   validateSourcesParam,
   capabilitiesOf,
   availableCrossViews,
-  availableCrossCombos,
 } from "@/lib/audit/source-switch";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -113,22 +112,13 @@ export default async function PaiementFacturationOverviewPage({
 
       <PaiementFacturationTabs />
 
-      {/* Sources des blocs : sélection multiple → la page se recompose selon les capacités */}
-      <SourceToolSwitcher
-        mode="multi"
-        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
-        activeKeys={selectedKeys}
-        combos={availableCrossCombos(switchableTools)}
-        hint="Une option à la fois : un outil affiche ses blocs, une option croisée « A × B » affiche les vues croisées (ex : marge CRM × facturation)."
-      />
-
       {/* ── 0 outil : invite — rien ne s'affiche tant qu'aucune source n'est choisie ── */}
       {selectedKeys.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-sm font-medium text-slate-700">Choisis ta source ci-dessus pour activer les blocs.</p>
+          <p className="text-sm font-medium text-slate-700">Choisis ta source pour activer les blocs.</p>
           <p className="mt-1.5 text-xs text-slate-500">
-            Un outil affiche ses propres indicateurs ; une option croisée « A × B » affiche
-            les croisements entre outils (ex : marge CRM × facturation).
+            Sélectionne un outil via « Sources des blocs » en bas de page, ou dans
+            Paramètres → Intégrations → Outil source par page.
           </p>
         </div>
       )}
@@ -435,13 +425,24 @@ export default async function PaiementFacturationOverviewPage({
           <p className="text-sm text-slate-600">
             Aucune donnée trouvée dans {selectedKeys.map(labelOf).join(" + ")}.
             {switchableTools.length > 1
-              ? " Ajuste les sources ci-dessus, ou lance une synchronisation depuis Intégrations → Mes outils."
+              ? " Ajuste les sources via « Sources des blocs » ci-dessous, ou lance une synchronisation depuis Intégrations → Mes outils."
               : " Activez HubSpot Invoices/Payments ou connectez Stripe / Pennylane pour alimenter cette page automatiquement."}
           </p>
         </div>
       )}
 
       <PageDataTables pageKey="audit_paiement_facturation" />
+
+      {/* Sources des blocs — rappel discret en bas de page (les sources sont
+          pilotées par les Paramètres). Pas de raccourcis croisés « A × B » ici :
+          ces KPIs arriveront via les suggestions d'ajout/retrait de blocs. */}
+      <SourceToolSwitcher
+        mode="multi"
+        tools={switchableTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKeys={selectedKeys}
+        defaultOpen={selectedKeys.length === 0}
+        hint="Une option à la fois : un outil affiche ses blocs ; sélectionner deux outils dans les Paramètres affiche leurs vues croisées."
+      />
     </section>
   );
 }

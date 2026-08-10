@@ -6,7 +6,9 @@
  * Intégrations, table tool_mappings). Le gate croise mapping × outils
  * réellement connectés × catégories pertinentes pour la page :
  *   - AUCUN outil choisi → on n'affiche RIEN d'autre qu'une invite claire ;
- *   - sinon → barre des sources actives (pills logos) + le contenu de la page.
+ *   - sinon → le contenu de la page + rappel discret des sources actives en
+ *     bas de page (dropdown replié — les sources sont déjà connues puisque
+ *     choisies dans les Paramètres).
  *
  * Ajouter/retirer un outil dans les paramètres se répercute automatiquement
  * (pages force-dynamic).
@@ -67,26 +69,33 @@ export async function PageSourcesGate({
 
   return (
     <>
-      {/* Sources actives de la page — pilotées par les paramètres */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-        <span className="text-[11px] font-medium text-slate-500">Blocs alimentés par :</span>
-        {tools.map((t) => (
-          <span
-            key={t.key}
-            className="flex items-center gap-1.5 rounded-full border border-accent bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"
-          >
-            <BrandLogo domain={t.domain} alt={t.label} fallback={t.icon} size={14} />
-            {t.label}
-          </span>
-        ))}
-        <Link
-          href="/dashboard/parametres/integrations"
-          className="ml-auto text-[11px] font-medium text-slate-400 hover:text-fuchsia-600"
-        >
-          Gérer →
-        </Link>
-      </div>
       {children}
+      {/* Sources actives de la page — pilotées par les paramètres. Rappel
+          discret en bas de page : les sources sont choisies dans les
+          Paramètres, un clic suffit pour les revoir. */}
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 [&::-webkit-details-marker]:hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-90" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
+          Blocs alimentés par {tools.length} {tools.length > 1 ? "sources" : "source"}
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          {tools.map((t) => (
+            <span
+              key={t.key}
+              className="flex items-center gap-1.5 rounded-full border border-accent bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"
+            >
+              <BrandLogo domain={t.domain} alt={t.label} fallback={t.icon} size={14} />
+              {t.label}
+            </span>
+          ))}
+          <Link
+            href="/dashboard/parametres/integrations"
+            className="ml-auto text-[11px] font-medium text-slate-400 hover:text-fuchsia-600"
+          >
+            Gérer →
+          </Link>
+        </div>
+      </details>
     </>
   );
 }

@@ -64,11 +64,6 @@ export default async function ComptabilitePage({
         </div>
       ) : (
         <>
-          <SourceToolSwitcher
-            tools={ledgerTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
-            activeKey={activeKey ?? undefined}
-          />
-
           {!pnl?.hasData ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
               <p className="text-sm text-slate-600">
@@ -214,6 +209,12 @@ export default async function ComptabilitePage({
               )}
             </>
           )}
+
+          {/* Outil source des blocs — rappel discret en bas de page, switch au clic */}
+          <SourceToolSwitcher
+            tools={ledgerTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+            activeKey={activeKey ?? undefined}
+          />
         </>
       )}
     </section>

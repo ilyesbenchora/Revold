@@ -12,9 +12,14 @@
  *
  * Le rendu serveur est dynamique : la navigation se fait en transition
  * (router.replace) sans reload dur.
+ *
+ * Affichage discret : les sources sont choisies dans les Paramètres, donc pas
+ * besoin de les rappeler en dur en haut de page. Le switcher est un dropdown
+ * replié (en bas de page) — un clic déplie les pills pour voir/changer les
+ * sources. `defaultOpen` force l'état déplié (ex : aucune source choisie).
  */
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -28,6 +33,7 @@ export function SourceToolSwitcher({
   mode = "single",
   hint,
   combos = [],
+  defaultOpen = false,
 }: {
   tools: SwitcherTool[];
   /** mode single : outil dont les données sont affichées. */
@@ -43,11 +49,14 @@ export function SourceToolSwitcher({
    * croisements réellement possibles (availableCrossCombos), jamais en dur.
    */
   combos?: SwitcherCombo[];
+  /** Déplié au premier rendu (ex : aucune source sélectionnée → guider le choix). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(defaultOpen);
 
   if (tools.length === 0) return null;
 
@@ -90,12 +99,31 @@ export function SourceToolSwitcher({
     navigate(params);
   }
 
+  const activeCombo = combos.find(comboActive);
+  const summary =
+    activeCombo?.label ??
+    (selected.length > 0
+      ? tools.filter((t) => selected.includes(t.key)).map((t) => t.label).join(", ")
+      : "aucune sélection");
+
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition ${pending ? "opacity-60" : ""}`}>
+    <div className={`transition ${pending ? "opacity-60" : ""}`}>
+      {/* Toggle discret : les sources viennent des Paramètres, on ne les rappelle
+          qu'à la demande. */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-slate-600"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? "rotate-90" : ""}`} aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
+        Sources des blocs
+        <span className="font-normal text-slate-400/80">· {summary}</span>
+      </button>
+
+      {open && (
+      <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-medium text-slate-500">
-          {mode === "multi" ? "Sources des blocs :" : "Blocs alimentés par :"}
-        </span>
         {tools.map((t) => {
           const on = selected.includes(t.key);
           return (
@@ -152,6 +180,8 @@ export function SourceToolSwitcher({
       </div>
       {mode === "multi" && hint && (
         <p className="mt-1.5 text-[10px] text-slate-400">{hint}</p>
+      )}
+      </div>
       )}
     </div>
   );
