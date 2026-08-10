@@ -353,6 +353,7 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, `${key}${outSuffix}.mp4`);
   let bin = null;
+  let done = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const gen = await fetch(`${API}/generations`, {
       method: "POST", headers: JH,
@@ -377,7 +378,7 @@ async function main() {
     if (!gen.ok) { console.error(`Génération vidéo : ${gen.status} ${await gen.text()}`); process.exit(1); }
     const genId = (await gen.json()).id;
     console.log(`Vidéo en cours (tâche ${genId}, tentative ${attempt}/3)…`);
-    const done = await poll(genId, "Vidéo");
+    done = await poll(genId, "Vidéo");
 
     const url = done.url ?? done.asset?.url ?? done.download_url;
     if (!url) { console.error(`\nPas d'URL dans la réponse : ${JSON.stringify(done).slice(0, 400)}`); process.exit(1); }
