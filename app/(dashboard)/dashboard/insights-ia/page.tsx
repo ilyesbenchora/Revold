@@ -133,14 +133,16 @@ export default async function MesCoachingPage() {
     return new Date(`${p.next_meeting_at}T${t}:00`).getTime() > nowMs;
   });
 
+  // href : page dédiée du menu Coaching IA — la carte d'un agent redirige vers
+  // SA page (Ventes, Marketing…), pas vers la page agent générique.
   const categories = [
-    { id: "commercial", agentKey: "coaching-ventes", label: "Coach des ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
+    { id: "commercial", agentKey: "coaching-ventes", href: "/dashboard/insights-ia/commercial", label: "Coach des ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg> },
-    { id: "marketing", agentKey: "coaching-marketing", label: "Coach marketing", description: "Leads, conversion, sources, acquisition", sev: countSeverities(insightsByCategory.marketing),
+    { id: "marketing", agentKey: "coaching-marketing", href: "/dashboard/insights-ia/marketing", label: "Coach marketing", description: "Leads, conversion, sources, acquisition", sev: countSeverities(insightsByCategory.marketing),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
-    { id: "data", agentKey: "coaching-data", label: "Coach data & intégration", description: "Qualité des données, adoption des outils et insights multi-sources", sev: countSeverities([...insightsByCategory.data, ...visibleIntegrationInsights, ...crossSourceInsights]),
+    { id: "data", agentKey: "coaching-data", href: "/dashboard/insights-ia/data", label: "Coach data & intégration", description: "Qualité des données, adoption des outils et insights multi-sources", sev: countSeverities([...insightsByCategory.data, ...visibleIntegrationInsights, ...crossSourceInsights]),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" /></svg> },
-    { id: "data-model", agentKey: "coaching-data-model", label: "Coach finance", description: "Trésorerie, comptabilité et pilotage du cash", sev: countSeverities(dataModelInsights),
+    { id: "data-model", agentKey: "coaching-data-model", href: "/dashboard/insights-ia/data-model", label: "Coach finance", description: "Trésorerie, comptabilité et pilotage du cash", sev: countSeverities(dataModelInsights),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> },
   ];
 
@@ -236,7 +238,7 @@ export default async function MesCoachingPage() {
           {categories.map((cat) => {
             const persona = getAgentPersona(cat.agentKey);
             return (
-              <Link key={cat.id} href={`/dashboard/agents/${cat.agentKey}`}
+              <Link key={cat.id} href={cat.href}
                 className={`card group relative flex items-start gap-3 overflow-hidden bg-gradient-to-br ${persona.gradient} p-4 transition hover:border-accent/30 hover:shadow-md`}>
                 {/* Visage du coach en filigrane — discret, différent par coach */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
