@@ -99,14 +99,9 @@ export function ResolutionRules({
                 Part des enregistrements de chaque outil actif du mapping reliés à une entité HubSpot.
               </p>
             </div>
-            {/* Taux global — tous outils actifs confondus */}
+            {/* Taux global — tous outils actifs confondus (chiffre neutre, pages Paramètres) */}
             <div className="shrink-0 text-right">
-              <p className={`text-2xl font-bold tabular-nums ${
-                globalRate == null ? "text-slate-400"
-                : globalRate.pct >= 70 ? "text-emerald-600"
-                : globalRate.pct >= 40 ? "text-amber-600"
-                : "text-rose-600"
-              }`}>
+              <p className={`text-2xl font-bold tabular-nums ${globalRate == null ? "text-slate-400" : "text-slate-900"}`}>
                 {globalRate ? `${globalRate.pct} %` : "—"}
               </p>
               <p className="text-[10px] text-slate-400">
@@ -130,17 +125,12 @@ export function ResolutionRules({
                     <>
                       <div className="flex items-baseline justify-between text-xs">
                         <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
-                        <span className={`font-bold tabular-nums ${
-                          t.pct >= 70 ? "text-emerald-600" : t.pct >= 40 ? "text-amber-600" : "text-rose-600"
-                        }`}>
+                        <span className="font-bold tabular-nums text-slate-900">
                           {t.pct} % <span className="font-normal text-slate-400">({t.matched}/{t.total})</span>
                         </span>
                       </div>
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className={`h-full rounded-full ${t.pct >= 70 ? "bg-emerald-500" : t.pct >= 40 ? "bg-amber-500" : "bg-rose-500"}`}
-                          style={{ width: `${t.pct}%` }}
-                        />
+                        <div className="h-full rounded-full bg-slate-400" style={{ width: `${t.pct}%` }} />
                       </div>
                     </>
                   )}
@@ -160,7 +150,7 @@ export function ResolutionRules({
                     <span
                       key={r.id}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                        share ? "bg-indigo-50 text-indigo-700" : "bg-slate-50 text-slate-400"
+                        share ? "bg-slate-100 text-slate-700" : "bg-slate-50 text-slate-400"
                       }`}
                       title={share ? `${share.count} rapprochement${share.count > 1 ? "s" : ""} sur ${totalMatched}` : "Aucun rapprochement par cette règle"}
                     >
@@ -195,10 +185,7 @@ export function ResolutionRules({
                 {totalMatched > 0 ? (
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      (share?.pct ?? 0) >= 30 ? "bg-emerald-100 text-emerald-700" :
-                      (share?.pct ?? 0) >= 10 ? "bg-blue-100 text-blue-700" :
-                      (share?.count ?? 0) > 0 ? "bg-amber-100 text-amber-700" :
-                      "bg-slate-100 text-slate-500"
+                      (share?.count ?? 0) > 0 ? "bg-slate-100 text-slate-700" : "bg-slate-100 text-slate-400"
                     }`}
                     title={share
                       ? `${share.count} rapprochement${share.count > 1 ? "s" : ""} réalisé${share.count > 1 ? "s" : ""} par cette règle sur ${totalMatched}`

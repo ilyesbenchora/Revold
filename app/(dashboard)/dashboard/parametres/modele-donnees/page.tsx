@@ -303,34 +303,34 @@ export default async function ParametresModeleDonneesPage() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Liens source</p>
-          <p className="mt-1 text-2xl font-bold text-violet-600">{sourceLinksCount}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{sourceLinksCount}</p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">enregistrements d&apos;outils reliés au modèle</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Contacts</p>
-          <p className="mt-1 text-2xl font-bold text-blue-600">{contactsCount.toLocaleString("fr-FR")}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{contactsCount.toLocaleString("fr-FR")}</p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">HubSpot live</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Sociétés</p>
-          <p className="mt-1 text-2xl font-bold text-indigo-600">{companiesCount.toLocaleString("fr-FR")}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{companiesCount.toLocaleString("fr-FR")}</p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">HubSpot live</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Outils connectés</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">{allProviders.length}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{allProviders.length}</p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">sources du modèle</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Multi-source</p>
-          <p className="mt-1 text-2xl font-bold text-fuchsia-600">
+          <p className="mt-1 text-2xl font-bold text-slate-900">
             {linkStats.multiSourcePct != null ? `${linkStats.multiSourcePct} %` : "—"}
           </p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">entités reliées à ≥ 2 outils</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Règles actives</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">
+          <p className="mt-1 text-2xl font-bold text-slate-900">
             {mergedRules.filter((r) => r.enabled).length}/{mergedRules.length}
           </p>
           <p className="mt-0.5 text-[9px] leading-tight text-slate-400">résolution d&apos;entités</p>
@@ -436,19 +436,12 @@ export default async function ParametresModeleDonneesPage() {
 }
 
 // ── Stat badge helper ──
-function StatBadge({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+// Pages Paramètres : chiffres sans code couleur — badge neutre uniforme.
+function StatBadge({ label, count, total }: { label: string; count: number; total: number; color?: string }) {
   const pct = Math.round(count / total * 100);
-  const colors: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-700",
-    blue: "bg-blue-50 text-blue-700",
-    indigo: "bg-indigo-50 text-indigo-700",
-    amber: "bg-amber-50 text-amber-700",
-    violet: "bg-violet-50 text-violet-700",
-    slate: "bg-slate-100 text-slate-600",
-  };
   return (
-    <div className={`rounded-lg px-3 py-2 ${colors[color] ?? colors.slate}`}>
-      <p className="text-lg font-bold">{count}</p>
+    <div className="rounded-lg bg-slate-100 px-3 py-2 text-slate-700">
+      <p className="text-lg font-bold text-slate-900">{count}</p>
       <p className="text-[10px] font-medium">{label} ({pct} %)</p>
     </div>
   );
