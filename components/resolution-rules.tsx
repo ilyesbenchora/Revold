@@ -167,7 +167,6 @@ export function ResolutionRules({
       {rules.map((rule, idx) => {
         const isActive = states[rule.id] ?? rule.enabled;
         const isLocked = rule.id === "external_id_match";
-        const share = ruleShares[rule.id];
 
         return (
           <details key={rule.id} className={`card overflow-hidden transition ${!isActive ? "opacity-60" : ""}`} open={isActive && idx < 2}>
@@ -180,27 +179,8 @@ export function ResolutionRules({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {/* Part RÉELLE des rapprochements réalisés par cette règle (mesurée
-                    sur source_links) — remplace l'ancienne confiance théorique. */}
-                {totalMatched > 0 ? (
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      (share?.count ?? 0) > 0 ? "bg-slate-100 text-slate-700" : "bg-slate-100 text-slate-400"
-                    }`}
-                    title={share
-                      ? `${share.count} rapprochement${share.count > 1 ? "s" : ""} réalisé${share.count > 1 ? "s" : ""} par cette règle sur ${totalMatched}`
-                      : "Aucun rapprochement réalisé par cette règle pour le moment"}
-                  >
-                    {share ? `${share.pct} % des rapprochements` : "0 rapprochement"}
-                  </span>
-                ) : rule.confidence !== null && (
-                  <span
-                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500"
-                    title="Confiance théorique — aucun rapprochement mesuré pour l'instant"
-                  >
-                    ~{rule.confidence} %
-                  </span>
-                )}
+                {/* Pas de pourcentage ici : les taux par règle sont dans le panneau
+                    « Taux de rapprochement réel » au-dessus (doublon évité). */}
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); toggle(rule.id); }}
