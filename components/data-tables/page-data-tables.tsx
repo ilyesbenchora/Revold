@@ -187,6 +187,8 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
   audit_automatisations: "revops",
   audit_service_client: "csm",
   audit_paiement_facturation: "finance",
+  audit_adoption: "revops",
+  audit_donnees: "revops",
 };
 
 export function PageDataTables({ pageKey }: { pageKey: string }) {
@@ -238,6 +240,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   }, [pageKey]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // « ＋ Ajouter un bloc » (BlocksManager) crée des tables ici : on recharge.
+  useEffect(() => {
+    function onReload() { refresh(); }
+    window.addEventListener("revold:reload-page-tables", onReload);
+    return () => window.removeEventListener("revold:reload-page-tables", onReload);
+  }, [refresh]);
 
   // Charge les outils croisables de CETTE page. Source de vérité : le mapping
   // « Outil source par page » (Paramètres → Intégrations) — l'API filtre par

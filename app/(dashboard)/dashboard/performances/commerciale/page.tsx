@@ -18,9 +18,12 @@ import {
 } from "@/lib/integrations/hubspot-pipeline-conversion";
 import { computePipelineAnalyticsFromLocal } from "@/lib/sync/compute-pipeline-analytics";
 import { computeDealsSeries } from "@/lib/audit/deals-series";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { TresoLineChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { BlocksManager } from "@/components/data-tables/blocks-manager";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -53,11 +56,14 @@ export default async function PerformanceCommercialePage() {
 
   // KPIs + séries mensuelles depuis le miroir canonique (tuiles + graphes).
   const series = await computeDealsSeries(supabase, orgId);
-  const tiles: StatTile[] = series.hasData
+  // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
+  const custom = await getPageCustomization(supabase, orgId, "perf_ventes");
+  const tiles: DefaultTile[] = series.hasData
     ? [
-        { label: "CA signé", value: eur(series.caSigneTotal), tone: "pos", sub: "Deals gagnés · cumul" },
-        { label: "Pipeline pondéré", value: eur(series.pipelinePondere), tone: "accent", sub: "Deals ouverts × probabilité" },
+        { key: "ca_signe", label: "CA signé", value: eur(series.caSigneTotal), tone: "pos", sub: "Deals gagnés · cumul" },
+        { key: "pipeline_pondere", label: "Pipeline pondéré", value: eur(series.pipelinePondere), tone: "accent", sub: "Deals ouverts × probabilité" },
         {
+          key: "closing_rate",
           label: "Closing rate",
           value: series.closingRate != null ? `${series.closingRate} %` : "—",
           tone: series.closingRate == null ? "neutral" : series.closingRate >= 40 ? "pos" : series.closingRate >= 25 ? "accent" : "neg",
@@ -68,6 +74,7 @@ export default async function PerformanceCommercialePage() {
             : { label: "Faible (< 25 %)", tone: "neg" },
         },
         {
+          key: "cycle_vente",
           label: "Cycle de vente moyen",
           value: series.cycleMoyenJours != null ? `${series.cycleMoyenJours} j` : "—",
           tone: "neutral",
@@ -103,47 +110,66 @@ export default async function PerformanceCommercialePage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" categories={["crm"]}>
 
-      {/* ── Lecture en un coup d'œil : tuiles KPI colorées ── */}
-      {tiles.length > 0 && <KpiStatTiles tiles={tiles} />}
+      {/* ── Lecture en un coup d'œil : tuiles KPI configurables ── */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey="perf_ventes"
+        defaults={tiles}
+        customization={custom}
+      />
 
       {/* ── Graphes : CA signé par mois + cumul ── */}
-      {series.wonMonthly.length > 1 && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold text-slate-800">CA signé par mois</p>
-            <p className="mb-2 text-[10px] text-slate-400">Deals gagnés · 12 derniers mois</p>
-            <SimpleBarsChart points={series.wonMonthly} color="#10b981" />
+      {series.wonMonthly.length > 1 && !custom.hiddenBlocks.has("ca_charts") && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="ca_charts" label="Graphes CA signé">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-800">CA signé par mois</p>
+              <p className="mb-2 text-[10px] text-slate-400">Deals gagnés · 12 derniers mois</p>
+              <SimpleBarsChart points={series.wonMonthly} color="#10b981" />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-800">Cumul du CA signé</p>
+              <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
+              <TresoLineChart points={series.wonCumul} />
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold text-slate-800">Cumul du CA signé</p>
-            <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
-            <TresoLineChart points={series.wonCumul} />
-          </div>
-        </div>
+        </RemovableBlock>
       )}
 
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Pipeline Management
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-              {pipelineAnalytics.length} pipeline{pipelineAnalytics.length > 1 ? "s" : ""}
-            </span>
-          </h2>
-        }
-      >
-        <PipelineManagementCarousel pipelines={pipelineAnalytics} />
-      </CollapsibleBlock>
+      {!custom.hiddenBlocks.has("pipeline_management") && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="pipeline_management" label="Pipeline Management">
+          <CollapsibleBlock
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                Pipeline Management
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {pipelineAnalytics.length} pipeline{pipelineAnalytics.length > 1 ? "s" : ""}
+                </span>
+              </h2>
+            }
+          >
+            <PipelineManagementCarousel pipelines={pipelineAnalytics} />
+          </CollapsibleBlock>
+        </RemovableBlock>
+      )}
 
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Taux de conversion pipeline
-          </h2>
-        }
-      >
-        <PipelineConversionBlock conversions={pipelineConversions} />
-      </CollapsibleBlock>
+      {!custom.hiddenBlocks.has("pipeline_conversion") && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="pipeline_conversion" label="Taux de conversion pipeline">
+          <CollapsibleBlock
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                Taux de conversion pipeline
+              </h2>
+            }
+          >
+            <PipelineConversionBlock conversions={pipelineConversions} />
+          </CollapsibleBlock>
+        </RemovableBlock>
+      )}
+
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
+      <BlocksManager pageKey="perf_ventes" tablesPageKey="perf_ventes" hiddenBlocks={hiddenBlockList(custom)} />
 
       </PageSourcesGate>
 

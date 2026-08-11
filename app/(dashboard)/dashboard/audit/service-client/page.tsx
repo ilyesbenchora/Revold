@@ -12,8 +12,11 @@ import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { BlocksManager } from "@/components/data-tables/blocks-manager";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -46,6 +49,51 @@ export default async function ServiceClientOverviewPage() {
         .filter((t) => t.category === "support" && !t.comingSoon)
         .map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }));
 
+  // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
+  const custom = await getPageCustomization(supabase, orgId, "audit_service_client");
+
+  // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
+  const resolutionPct = data.hasData && data.tickets.length > 0
+    ? Math.round((data.closedTickets / data.tickets.length) * 100)
+    : null;
+  const defaultTiles: DefaultTile[] = data.hasData
+    ? [
+        { key: "tickets_ouverts", label: "Tickets ouverts", value: String(data.openTickets), tone: "accent", sub: `sur ${fmt(data.tickets.length)} analysés` },
+        {
+          key: "priorite_haute",
+          label: "Priorité haute",
+          value: String(data.urgentTickets),
+          tone: data.urgentTickets > 0 ? "neg" : "pos",
+          sub: "À traiter en premier",
+          verdict: data.urgentTickets === 0 ? { label: "Rien d'urgent", tone: "pos" }
+            : data.urgentTickets <= 3 ? { label: "À surveiller", tone: "warn" }
+            : { label: "Critique", tone: "neg" },
+        },
+        {
+          key: "taux_resolution",
+          label: "Taux de résolution",
+          value: resolutionPct != null ? `${resolutionPct} %` : "—",
+          tone: resolutionPct == null ? "neutral" : resolutionPct >= 80 ? "pos" : resolutionPct >= 50 ? "accent" : "neg",
+          sub: "Fermés / total",
+          verdict: resolutionPct == null ? undefined
+            : resolutionPct >= 80 ? { label: "Excellent (> 80 %)", tone: "pos" }
+            : resolutionPct >= 50 ? { label: "Correct", tone: "warn" }
+            : { label: "Faible (< 50 %)", tone: "neg" },
+        },
+        {
+          key: "resolution_moyenne",
+          label: "Résolution moyenne",
+          value: data.avgResolutionHours != null ? `${Math.round(data.avgResolutionHours)} h` : "—",
+          tone: "neutral",
+          sub: "Temps moyen de clôture",
+          verdict: data.avgResolutionHours == null ? undefined
+            : data.avgResolutionHours <= 24 ? { label: "Rapide (< 24 h)", tone: "pos" }
+            : data.avgResolutionHours <= 72 ? { label: "Dans la norme", tone: "warn" }
+            : { label: "Lent (> 72 h)", tone: "neg" },
+        },
+      ]
+    : [];
+
   return (
     <section className="space-y-6">
       <header className="flex items-start justify-between gap-4">
@@ -68,46 +116,17 @@ export default async function ServiceClientOverviewPage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_service_client" categories={["crm", "support"]}>
 
-      {/* ── Lecture en un coup d'œil : tuiles KPI colorées ── */}
-      {data.hasData && (() => {
-        const resolutionPct = data.tickets.length > 0
-          ? Math.round((data.closedTickets / data.tickets.length) * 100)
-          : null;
-        const tiles: StatTile[] = [
-          { label: "Tickets ouverts", value: String(data.openTickets), tone: "accent", sub: `sur ${fmt(data.tickets.length)} analysés` },
-          {
-            label: "Priorité haute",
-            value: String(data.urgentTickets),
-            tone: data.urgentTickets > 0 ? "neg" : "pos",
-            sub: "À traiter en premier",
-            verdict: data.urgentTickets === 0 ? { label: "Rien d'urgent", tone: "pos" }
-              : data.urgentTickets <= 3 ? { label: "À surveiller", tone: "warn" }
-              : { label: "Critique", tone: "neg" },
-          },
-          {
-            label: "Taux de résolution",
-            value: resolutionPct != null ? `${resolutionPct} %` : "—",
-            tone: resolutionPct == null ? "neutral" : resolutionPct >= 80 ? "pos" : resolutionPct >= 50 ? "accent" : "neg",
-            sub: "Fermés / total",
-            verdict: resolutionPct == null ? undefined
-              : resolutionPct >= 80 ? { label: "Excellent (> 80 %)", tone: "pos" }
-              : resolutionPct >= 50 ? { label: "Correct", tone: "warn" }
-              : { label: "Faible (< 50 %)", tone: "neg" },
-          },
-          {
-            label: "Résolution moyenne",
-            value: data.avgResolutionHours != null ? `${Math.round(data.avgResolutionHours)} h` : "—",
-            tone: "neutral",
-            sub: "Temps moyen de clôture",
-            verdict: data.avgResolutionHours == null ? undefined
-              : data.avgResolutionHours <= 24 ? { label: "Rapide (< 24 h)", tone: "pos" }
-              : data.avgResolutionHours <= 72 ? { label: "Dans la norme", tone: "warn" }
-              : { label: "Lent (> 72 h)", tone: "neg" },
-          },
-        ];
-        return <KpiStatTiles tiles={tiles} />;
-      })()}
+      {/* ── Lecture en un coup d'œil : tuiles KPI configurables ── */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey="audit_service_client"
+        defaults={defaultTiles}
+        customization={custom}
+      />
 
+      {!custom.hiddenBlocks.has("tickets_volume") && (
+      <RemovableBlock pageKey="audit_service_client" blockKey="tickets_volume" label="Volume de tickets">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -137,7 +156,11 @@ export default async function ServiceClientOverviewPage() {
           footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("satisfaction") && (
+      <RemovableBlock pageKey="audit_service_client" blockKey="satisfaction" label="Signaux satisfaction & engagement">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -163,6 +186,11 @@ export default async function ServiceClientOverviewPage() {
           footnote="Source : snapshot HubSpot (subscriptions, Inbox, feedback_submissions)."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
+
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
+      <BlocksManager pageKey="audit_service_client" tablesPageKey="audit_service_client" hiddenBlocks={hiddenBlockList(custom)} />
 
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">

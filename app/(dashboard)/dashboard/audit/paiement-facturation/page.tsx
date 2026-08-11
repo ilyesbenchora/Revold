@@ -20,8 +20,11 @@ import { computeCrossMargin } from "@/lib/audit/cross-margin";
 import { TresoLineChart, TresoFlowsChart } from "@/components/charts/treso-charts";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { BlocksManager } from "@/components/data-tables/blocks-manager";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 export default async function PaiementFacturationOverviewPage({
   searchParams,
@@ -100,6 +103,55 @@ export default async function PaiementFacturationOverviewPage({
     cashflowResults.some((c) => c.cf.hasData);
   const scoreData: PaiementFacturationData | undefined = billingResults[0]?.data;
 
+  // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
+  const custom = await getPageCustomization(supabase, orgId, "audit_paiement_facturation");
+
+  const eur = (n: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+  // Tuiles par défaut : disponibles uniquement en vue croisée (marge CRM × facturation).
+  const defaultTiles: DefaultTile[] = margin
+    ? [
+        {
+          key: "ca_signe",
+          label: "CA signé",
+          value: margin.caSigne > 0 ? eur(margin.caSigne) : "—",
+          tone: "neutral",
+          sub: `${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`,
+        },
+        {
+          key: "ca_encaisse",
+          label: "CA encaissé",
+          value: margin.caEncaisse > 0 ? eur(margin.caEncaisse) : "—",
+          tone: "accent",
+          sub: "Factures payées (facturation)",
+          verdict: margin.caSigne > 0
+            ? margin.ecartSigneEncaisse > 0
+              ? { label: `${eur(margin.ecartSigneEncaisse)} signés non encaissés`, tone: "warn" }
+              : { label: "Tout le signé est encaissé", tone: "pos" }
+            : undefined,
+        },
+        {
+          key: "taux_marge",
+          label: "Taux de marge",
+          value: margin.tauxMarge != null ? `${margin.tauxMarge} %` : "—",
+          tone: margin.tauxMarge == null ? "neutral" : margin.tauxMarge >= 40 ? "pos" : margin.tauxMarge >= 25 ? "accent" : "neg",
+          sub: "Marge brute / CA encaissé",
+          verdict: margin.tauxMarge == null ? undefined
+            : margin.tauxMarge >= 40 ? { label: "Excellent (> 40 %)", tone: "pos" }
+            : margin.tauxMarge >= 25 ? { label: "Correct", tone: "warn" }
+            : { label: "Faible (< 25 %)", tone: "neg" },
+        },
+        {
+          key: "prevision_marge",
+          label: "Prévision de marge",
+          value: margin.previsionMarge != null ? eur(margin.previsionMarge) : "—",
+          tone: "neutral",
+          sub: "Pipeline pondéré × taux de marge",
+        },
+      ]
+    : [];
+
   return (
     <section className="space-y-6">
       {/* Pas de CTA table ici : la section « Tables de données » en bas a le sien. */}
@@ -130,6 +182,17 @@ export default async function PaiementFacturationOverviewPage({
         />
       )}
 
+      {/* ── Tuiles KPI configurables : défauts en vue croisée + KPIs ajoutés ── */}
+      {selectedKeys.length > 0 && (
+        <ConfigurableKpiTiles
+          supabase={supabase}
+          orgId={orgId}
+          pageKey="audit_paiement_facturation"
+          defaults={defaultTiles}
+          customization={custom}
+        />
+      )}
+
       {/* ── 2+ outils sans croisement possible : on l'explique au lieu d'afficher du faux ── */}
       {isMulti && crossViews.length === 0 && (
         <div className="rounded-2xl border border-dashed border-fuchsia-200 bg-fuchsia-50/40 p-8 text-center">
@@ -152,7 +215,8 @@ export default async function PaiementFacturationOverviewPage({
         const showInvoices = data.invoices.length > 0;
         return (
           <div key={key} className="space-y-6">
-            {showSubs && (
+            {showSubs && !custom.hiddenBlocks.has(`subs_${key}`) && (
+              <RemovableBlock pageKey="audit_paiement_facturation" blockKey={`subs_${key}`} label={`Synthèse Revenue récurrent (${label})`}>
               <CollapsibleBlock
                 title={
                   <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -177,9 +241,11 @@ export default async function PaiementFacturationOverviewPage({
                   footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
                 />
               </CollapsibleBlock>
+              </RemovableBlock>
             )}
 
-            {showInvoices && (
+            {showInvoices && !custom.hiddenBlocks.has(`invoices_${key}`) && (
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey={`invoices_${key}`} label={`Synthèse Facturation (${label})`}>
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -204,6 +270,7 @@ export default async function PaiementFacturationOverviewPage({
                 footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
               />
             </CollapsibleBlock>
+            </RemovableBlock>
             )}
           </div>
         );
@@ -212,9 +279,10 @@ export default async function PaiementFacturationOverviewPage({
       {/* ── 1 outil : trésorerie (capacité cashflow — Pennylane & co) ── */}
       {singleTool && cashflowResults.map(({ key, cf }) => {
         const label = labelOf(key);
+        if (custom.hiddenBlocks.has(`cashflow_${key}`)) return null;
         return (
+          <RemovableBlock key={`cf-${key}`} pageKey="audit_paiement_facturation" blockKey={`cashflow_${key}`} label={`Trésorerie (${label})`}>
           <CollapsibleBlock
-            key={`cf-${key}`}
             title={
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 Trésorerie
@@ -287,6 +355,7 @@ export default async function PaiementFacturationOverviewPage({
               </div>
             )}
           </CollapsibleBlock>
+          </RemovableBlock>
         );
       })}
 
@@ -300,50 +369,12 @@ export default async function PaiementFacturationOverviewPage({
             {srcLabel}
           </span>
         );
-        const eur = (n: number) =>
-          new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-
-        const tiles: StatTile[] = [
-          {
-            label: "CA signé",
-            value: margin.caSigne > 0 ? eur(margin.caSigne) : "—",
-            tone: "neutral",
-            sub: `${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`,
-          },
-          {
-            label: "CA encaissé",
-            value: margin.caEncaisse > 0 ? eur(margin.caEncaisse) : "—",
-            tone: "accent",
-            sub: "Factures payées (facturation)",
-            verdict: margin.caSigne > 0
-              ? margin.ecartSigneEncaisse > 0
-                ? { label: `${eur(margin.ecartSigneEncaisse)} signés non encaissés`, tone: "warn" }
-                : { label: "Tout le signé est encaissé", tone: "pos" }
-              : undefined,
-          },
-          {
-            label: "Taux de marge",
-            value: margin.tauxMarge != null ? `${margin.tauxMarge} %` : "—",
-            tone: margin.tauxMarge == null ? "neutral" : margin.tauxMarge >= 40 ? "pos" : margin.tauxMarge >= 25 ? "accent" : "neg",
-            sub: "Marge brute / CA encaissé",
-            verdict: margin.tauxMarge == null ? undefined
-              : margin.tauxMarge >= 40 ? { label: "Excellent (> 40 %)", tone: "pos" }
-              : margin.tauxMarge >= 25 ? { label: "Correct", tone: "warn" }
-              : { label: "Faible (< 25 %)", tone: "neg" },
-          },
-          {
-            label: "Prévision de marge",
-            value: margin.previsionMarge != null ? eur(margin.previsionMarge) : "—",
-            tone: "neutral",
-            sub: "Pipeline pondéré × taux de marge",
-          },
-        ];
 
         return (
           <div className="space-y-6">
-            <KpiStatTiles tiles={tiles} />
-
             {/* ── Chiffre d'affaires : réconciliation signé (CRM) vs encaissé (facturation) ── */}
+            {!custom.hiddenBlocks.has("cross_ca") && (
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_ca" label={`Chiffre d'affaires (${srcLabel})`}>
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -367,8 +398,12 @@ export default async function PaiementFacturationOverviewPage({
                 footnote="Réconciliation du CA : ce que le CRM a signé vs ce que la facturation a réellement encaissé."
               />
             </CollapsibleBlock>
+            </RemovableBlock>
+            )}
 
             {/* ── Marge : rentabilité réelle sur l'encaissé ── */}
+            {!custom.hiddenBlocks.has("cross_marge") && (
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_marge" label={`Marge (${srcLabel})`}>
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -392,8 +427,12 @@ export default async function PaiementFacturationOverviewPage({
                 footnote="Marge brute = CA encaissé (facturation) − décaissements (trésorerie). Les deux flux viennent d'outils différents : c'est le croisement qui rend la marge calculable."
               />
             </CollapsibleBlock>
+            </RemovableBlock>
+            )}
 
             {/* ── Prévisions : projection du pipeline au taux de marge courant ── */}
+            {!custom.hiddenBlocks.has("cross_previsions") && (
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_previsions" label={`Prévisions (${srcLabel})`}>
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -416,6 +455,8 @@ export default async function PaiementFacturationOverviewPage({
                 footnote="Projection : la prévision applique le taux de marge courant au pipeline pondéré du CRM."
               />
             </CollapsibleBlock>
+            </RemovableBlock>
+            )}
           </div>
         );
       })()}
@@ -429,6 +470,15 @@ export default async function PaiementFacturationOverviewPage({
               : " Activez HubSpot Invoices/Payments ou connectez Stripe / Pennylane pour alimenter cette page automatiquement."}
           </p>
         </div>
+      )}
+
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
+      {selectedKeys.length > 0 && (
+        <BlocksManager
+          pageKey="audit_paiement_facturation"
+          tablesPageKey="audit_paiement_facturation"
+          hiddenBlocks={hiddenBlockList(custom)}
+        />
       )}
 
       <PageDataTables pageKey="audit_paiement_facturation" />

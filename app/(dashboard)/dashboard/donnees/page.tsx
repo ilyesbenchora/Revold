@@ -11,7 +11,11 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { BlocksManager } from "@/components/data-tables/blocks-manager";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 // Conservé pour les cartes de synthèse par objet — ce n'est pas une vignette de titre de bloc.
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
@@ -380,6 +384,31 @@ export default async function DonneesPage() {
     },
   ];
 
+  // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
+  const custom = await getPageCustomization(supabase, orgId, "audit_donnees");
+
+  // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
+  const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
+  const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
+  const defaultTiles: DefaultTile[] = (contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0)
+    ? [
+        { key: "contacts", label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(contactsCompany, contactsTotal)} % liés à une entreprise` },
+        { key: "entreprises", label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(companiesDomain, companiesTotal)} % avec domaine` },
+        { key: "transactions", label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(dealsAmount, dealsTotal)} % avec montant` },
+        {
+          key: "completude",
+          label: "Complétude moyenne",
+          value: avgFill != null ? `${avgFill} %` : "—",
+          tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
+          sub: "9 propriétés clés confondues",
+          verdict: avgFill == null ? undefined
+            : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
+            : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
+            : { label: "Base incomplète (< 50 %)", tone: "neg" },
+        },
+      ]
+    : [];
+
   return (
     <div className="space-y-6">
       {/* ── BANDEAU DIAGNOSTIC SNAPSHOT (si erreur) ── */}
@@ -406,28 +435,14 @@ export default async function DonneesPage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]}>
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
-      {(contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0) && (() => {
-        // Complétude moyenne des 9 métriques clés (3 par entité) affichées plus bas.
-        const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
-        const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
-        const tiles: StatTile[] = [
-          { label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(contactsCompany, contactsTotal)} % liés à une entreprise` },
-          { label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(companiesDomain, companiesTotal)} % avec domaine` },
-          { label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(dealsAmount, dealsTotal)} % avec montant` },
-          {
-            label: "Complétude moyenne",
-            value: avgFill != null ? `${avgFill} %` : "—",
-            tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
-            sub: "9 propriétés clés confondues",
-            verdict: avgFill == null ? undefined
-              : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
-              : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
-              : { label: "Base incomplète (< 50 %)", tone: "neg" },
-          },
-        ];
-        return <KpiStatTiles tiles={tiles} />;
-      })()}
+      {/* Lecture cockpit en un coup d'œil : tuiles KPI configurables */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey="audit_donnees"
+        defaults={defaultTiles}
+        customization={custom}
+      />
 
       {/* ── HUBS SYNCHRONISÉS (CRM + outils tiers) ── */}
       {hubs.length > 0 && (
@@ -447,6 +462,8 @@ export default async function DonneesPage() {
             </Link>
           </div>
 
+          {!custom.hiddenBlocks.has("hubs_cards") && (
+          <RemovableBlock pageKey="audit_donnees" blockKey="hubs_cards" label="Hubs synchronisés — cartes">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {hubs.map((h) => (
               <article key={h.key} className="card overflow-hidden">
@@ -495,10 +512,13 @@ export default async function DonneesPage() {
               </article>
             ))}
           </div>
+          </RemovableBlock>
+          )}
 
           {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
           <div className="mt-4 space-y-4">
             {hubs.map((h) => {
+              if (custom.hiddenBlocks.has(`hub_table_${h.key}`)) return null;
               const rows: BlockTableRow[] = [];
               for (const e of h.entities) {
                 rows.push({ name: e.label, value: e.count, unit: "count" });
@@ -511,16 +531,17 @@ export default async function DonneesPage() {
                 }
               }
               return (
-                <BlockDataTable
-                  key={`table-${h.key}`}
-                  title={`Hub ${h.label}`}
-                  subtitle={h.category}
-                  team="revops"
-                  unit="count"
-                  nameLabel="Entité"
-                  valueLabel="Valeur"
-                  rows={rows}
-                />
+                <RemovableBlock key={`table-${h.key}`} pageKey="audit_donnees" blockKey={`hub_table_${h.key}`} label={`Hub ${h.label}`}>
+                  <BlockDataTable
+                    title={`Hub ${h.label}`}
+                    subtitle={h.category}
+                    team="revops"
+                    unit="count"
+                    nameLabel="Entité"
+                    valueLabel="Valeur"
+                    rows={rows}
+                  />
+                </RemovableBlock>
               );
             })}
           </div>
@@ -528,6 +549,8 @@ export default async function DonneesPage() {
       )}
 
       {/* Object summary cards */}
+      {!custom.hiddenBlocks.has("objets_cards") && (
+      <RemovableBlock pageKey="audit_donnees" blockKey="objets_cards" label="Synthèse par objet — cartes">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {summaries.map((s) => (
           <Link key={s.label} href={s.href} className="card p-5 transition hover:shadow-md group">
@@ -555,8 +578,12 @@ export default async function DonneesPage() {
           </Link>
         ))}
       </div>
+      </RemovableBlock>
+      )}
 
       {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+      {!custom.hiddenBlocks.has("synthese_objets") && (
+      <RemovableBlock pageKey="audit_donnees" blockKey="synthese_objets" label="Synthèse par objet CRM">
       <div className="mt-4">
         <BlockDataTable
           title="Synthèse par objet CRM"
@@ -575,8 +602,15 @@ export default async function DonneesPage() {
           ])}
         />
       </div>
+      </RemovableBlock>
+      )}
+
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
+      <BlocksManager pageKey="audit_donnees" tablesPageKey="audit_donnees" hiddenBlocks={hiddenBlockList(custom)} />
 
       </PageSourcesGate>
+
+      <PageDataTables pageKey="audit_donnees" />
 
     </div>
   );

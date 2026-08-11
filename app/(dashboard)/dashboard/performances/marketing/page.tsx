@@ -12,7 +12,10 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { BlocksManager } from "@/components/data-tables/blocks-manager";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 const sourceLabels: Record<string, string> = {
   INTEGRATION: "Intégration native (Outlook, Gmail, etc.)",
@@ -70,6 +73,49 @@ export default async function PerformanceMarketingPage() {
 
   const totalSourceContacts = contactSourcesGlobal.reduce((s, c) => s + c.count, 0);
 
+  // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
+  const custom = await getPageCustomization(supabase, orgId, "perf_marketing");
+
+  // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
+  const lc = buildLifecycleConversion(snapshot);
+  const nativeContacts = contactSourcesGlobal
+    .filter((s) => nativeKeys.includes(s.source))
+    .reduce((n, s) => n + s.count, 0);
+  const nativePct = totalSourceContacts > 0 ? Math.round((nativeContacts / totalSourceContacts) * 100) : null;
+  const defaultTiles: DefaultTile[] = snapshot.totalContacts > 0
+    ? [
+        { key: "contacts", label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), tone: "accent", sub: `${lc.totalContactsInFunnel.toLocaleString("fr-FR")} dans le funnel lifecycle` },
+        {
+          key: "conversion_funnel",
+          label: "Conversion funnel",
+          value: lc.endToEndPct != null ? `${lc.endToEndPct} %` : "—",
+          tone: lc.endToEndPct == null ? "neutral" : lc.endToEndPct >= 10 ? "pos" : lc.endToEndPct >= 3 ? "accent" : "neg",
+          sub: "1ʳᵉ étape → dernière étape clé",
+          verdict: lc.endToEndPct == null ? undefined
+            : lc.endToEndPct >= 10 ? { label: "Solide (> 10 %)", tone: "pos" }
+            : lc.endToEndPct >= 3 ? { label: "Dans la norme", tone: "warn" }
+            : { label: "Faible (< 3 %)", tone: "neg" },
+        },
+        {
+          key: "hors_funnel",
+          label: "Hors funnel",
+          value: lc.contactsOutsideFunnel.toLocaleString("fr-FR"),
+          tone: lc.contactsOutsideFunnel === 0 ? "pos" : "neutral",
+          sub: "Lifecycle vide ou custom",
+          verdict: snapshot.totalContacts > 0 && lc.contactsOutsideFunnel / snapshot.totalContacts > 0.3
+            ? { label: "Segmentation à revoir", tone: "warn" }
+            : undefined,
+        },
+        {
+          key: "acquisition_native",
+          label: "Acquisition native",
+          value: nativePct != null ? `${nativePct} %` : "—",
+          tone: "neutral",
+          sub: "Formulaires, emails, site, workflows",
+        },
+      ]
+    : [];
+
   return (
     <section className="space-y-8">
       <header className="flex items-start justify-between gap-4">
@@ -91,58 +137,33 @@ export default async function PerformanceMarketingPage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" categories={["crm", "ads"]}>
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
-      {(() => {
-        const lc = buildLifecycleConversion(snapshot);
-        if (snapshot.totalContacts <= 0) return null;
-        const nativeContacts = contactSourcesGlobal
-          .filter((s) => nativeKeys.includes(s.source))
-          .reduce((n, s) => n + s.count, 0);
-        const nativePct = totalSourceContacts > 0 ? Math.round((nativeContacts / totalSourceContacts) * 100) : null;
-        const tiles: StatTile[] = [
-          { label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), tone: "accent", sub: `${lc.totalContactsInFunnel.toLocaleString("fr-FR")} dans le funnel lifecycle` },
-          {
-            label: "Conversion funnel",
-            value: lc.endToEndPct != null ? `${lc.endToEndPct} %` : "—",
-            tone: lc.endToEndPct == null ? "neutral" : lc.endToEndPct >= 10 ? "pos" : lc.endToEndPct >= 3 ? "accent" : "neg",
-            sub: "1ʳᵉ étape → dernière étape clé",
-            verdict: lc.endToEndPct == null ? undefined
-              : lc.endToEndPct >= 10 ? { label: "Solide (> 10 %)", tone: "pos" }
-              : lc.endToEndPct >= 3 ? { label: "Dans la norme", tone: "warn" }
-              : { label: "Faible (< 3 %)", tone: "neg" },
-          },
-          {
-            label: "Hors funnel",
-            value: lc.contactsOutsideFunnel.toLocaleString("fr-FR"),
-            tone: lc.contactsOutsideFunnel === 0 ? "pos" : "neutral",
-            sub: "Lifecycle vide ou custom",
-            verdict: snapshot.totalContacts > 0 && lc.contactsOutsideFunnel / snapshot.totalContacts > 0.3
-              ? { label: "Segmentation à revoir", tone: "warn" }
-              : undefined,
-          },
-          {
-            label: "Acquisition native",
-            value: nativePct != null ? `${nativePct} %` : "—",
-            tone: "neutral",
-            sub: "Formulaires, emails, site, workflows",
-          },
-        ];
-        return <KpiStatTiles tiles={tiles} />;
-      })()}
+      {/* Lecture cockpit en un coup d'œil : tuiles KPI configurables */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey="perf_marketing"
+        defaults={defaultTiles}
+        customization={custom}
+      />
 
       {/* Lifecycle conversion */}
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Lifecycle conversion (Lead → Customer)
-          </h2>
-        }
-      >
-        <LifecycleConversionBlock data={buildLifecycleConversion(snapshot)} />
-      </CollapsibleBlock>
+      {!custom.hiddenBlocks.has("lifecycle_conversion") && (
+        <RemovableBlock pageKey="perf_marketing" blockKey="lifecycle_conversion" label="Lifecycle conversion (Lead → Customer)">
+          <CollapsibleBlock
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                Lifecycle conversion (Lead → Customer)
+              </h2>
+            }
+          >
+            <LifecycleConversionBlock data={lc} />
+          </CollapsibleBlock>
+        </RemovableBlock>
+      )}
 
       {/* Tunnel d'acquisition par source d'origine */}
-      {contactSourcesGlobal.length > 0 && (
+      {contactSourcesGlobal.length > 0 && !custom.hiddenBlocks.has("sources_acquisition") && (
+        <RemovableBlock pageKey="perf_marketing" blockKey="sources_acquisition" label="Tunnel d'acquisition par source d'origine">
         <CollapsibleBlock
           title={
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -176,7 +197,11 @@ export default async function PerformanceMarketingPage() {
             />
           </div>
         </CollapsibleBlock>
+        </RemovableBlock>
       )}
+
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
+      <BlocksManager pageKey="perf_marketing" tablesPageKey="perf_marketing" hiddenBlocks={hiddenBlockList(custom)} />
 
       </PageSourcesGate>
 

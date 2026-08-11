@@ -132,6 +132,8 @@ export const PAGE_LABELS: Record<string, string> = {
   audit_automatisations: "Alignement",
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
+  audit_adoption: "Équipes",
+  audit_donnees: "Audit qualité",
 };
 
 export const TABLE_PRESETS: Record<string, TablePreset[]> = {
@@ -185,6 +187,21 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "subs_started_month", label: "Abonnements démarrés par mois", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
     { id: "mrr_canceled_month", label: "MRR annulé par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
+  audit_adoption: [
+    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+    { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
+    { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
+  ],
+  audit_donnees: [
+    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
+    { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
+    { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_industry", label: "Entreprises par industrie", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
+    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+    { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+  ],
 };
 
 /** Agent (persona) responsable de la création de KPIs personnalisés, par page. */
@@ -194,6 +211,8 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   audit_automatisations: "automatisations",
   audit_service_client: "service-client",
   audit_paiement_facturation: "paiement-facturation",
+  audit_adoption: "equipes",
+  audit_donnees: "proprietes",
 };
 
 export function presetsForPage(pageKey: string): TablePreset[] {

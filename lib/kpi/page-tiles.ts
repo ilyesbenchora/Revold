@@ -22,11 +22,16 @@ export type PageCustomization = {
   added: PageTileRow[];
   /** Clés des tuiles par défaut masquées → id de ligne (pour restaurer). */
   hiddenTiles: Map<string, string>;
-  /** Clés des blocs par défaut masqués → id de ligne (pour restaurer). */
-  hiddenBlocks: Map<string, string>;
+  /** Clés des blocs par défaut masqués → ligne (id pour restaurer + label affiché). */
+  hiddenBlocks: Map<string, { rowId: string; label: string }>;
 };
 
 const EMPTY: PageCustomization = { added: [], hiddenTiles: new Map(), hiddenBlocks: new Map() };
+
+/** Liste { rowId, label } des blocs masqués — props directes de BlocksManager. */
+export function hiddenBlockList(cust: PageCustomization): Array<{ rowId: string; label: string }> {
+  return [...cust.hiddenBlocks.values()];
+}
 
 /** Charge la personnalisation d'une page. Résilient : table absente → aucune perso. */
 export async function getPageCustomization(
@@ -47,7 +52,11 @@ export async function getPageCustomization(
     return {
       added: rows.filter((r) => r.kind === "kpi"),
       hiddenTiles: new Map(rows.filter((r) => r.kind === "hide_tile" && r.tile_key).map((r) => [r.tile_key as string, r.id])),
-      hiddenBlocks: new Map(rows.filter((r) => r.kind === "hide_block" && r.tile_key).map((r) => [r.tile_key as string, r.id])),
+      hiddenBlocks: new Map(
+        rows
+          .filter((r) => r.kind === "hide_block" && r.tile_key)
+          .map((r) => [r.tile_key as string, { rowId: r.id, label: r.title ?? (r.tile_key as string) }]),
+      ),
     };
   } catch {
     return EMPTY;
