@@ -70,47 +70,92 @@ export async function loadSourceLinkStats(
     const multi = [...byInternal.values()].filter((s) => s.size >= 2).length;
     const multiSourcePct = totalEntities > 0 ? Math.round((multi / totalEntities) * 100) : null;
 
-    // ── Taux CRM × outil (contacts + companies uniquement) ──
+    // ── Taux CRM × outil ──
+    // Priorité aux liens contact/company. Pour les outils qui ne synchronisent
+    // pas ces entités (ex : Pennylane → factures/abonnements), on mesure la part
+    // de leurs documents rattachés à une entreprise reliée au CRM.
     const providers = [...new Set(rows.map((r) => r.provider))].filter((p) => p !== crmProvider);
     const crmLinked = new Set(
       rows.filter((r) => r.provider === crmProvider).map((r) => `${r.entity_type}:${r.internal_id}`),
     );
 
+    /** ids d'entités (contacts/companies) confirmées reliées au CRM (hubspot_id posé). */
+    async function crmLinkedEntityIds(table: "contacts" | "companies", ids: string[]): Promise<Set<string>> {
+      const out = new Set<string>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const { data } = await supabase
+          .from(table)
+          .select("id")
+          .eq("organization_id", orgId)
+          .in("id", chunk)
+          .not("hubspot_id", "is", null);
+        for (const row of (data ?? []) as Array<{ id: string }>) out.add(row.id);
+      }
+      return out;
+    }
+
     const providerRates: ProviderMatchRate[] = [];
     for (const provider of providers) {
-      const pRows = rows.filter(
-        (r) => r.provider === provider && (r.entity_type === "contact" || r.entity_type === "company"),
-      );
-      if (pRows.length === 0) continue;
+      const allPRows = rows.filter((r) => r.provider === provider);
+      const ccRows = allPRows.filter((r) => r.entity_type === "contact" || r.entity_type === "company");
 
-      // 1. Rapide : l'entité a aussi un lien CRM dans source_links.
-      let matched = pRows.filter((r) => crmLinked.has(`${r.entity_type}:${r.internal_id}`)).length;
+      if (ccRows.length > 0) {
+        // 1. Rapide : l'entité a aussi un lien CRM dans source_links.
+        let matched = ccRows.filter((r) => crmLinked.has(`${r.entity_type}:${r.internal_id}`)).length;
 
-      // 2. Complément : le miroir CRM pose hubspot_id sur contacts/companies sans
-      //    forcément passer par source_links — on vérifie les non-matchés restants.
-      const unmatched = pRows.filter((r) => !crmLinked.has(`${r.entity_type}:${r.internal_id}`));
-      const crmLinkedIds = new Set<string>();
-      for (const entityType of ["contact", "company"] as const) {
-        const ids = [...new Set(unmatched.filter((r) => r.entity_type === entityType).map((r) => r.internal_id))];
-        const table = entityType === "contact" ? "contacts" : "companies";
+        // 2. Complément : le miroir CRM pose hubspot_id sur contacts/companies sans
+        //    forcément passer par source_links — on vérifie les non-matchés restants.
+        const unmatched = ccRows.filter((r) => !crmLinked.has(`${r.entity_type}:${r.internal_id}`));
+        const crmIds = new Set<string>();
+        for (const entityType of ["contact", "company"] as const) {
+          const ids = [...new Set(unmatched.filter((r) => r.entity_type === entityType).map((r) => r.internal_id))];
+          const table = entityType === "contact" ? "contacts" : "companies";
+          for (const id of await crmLinkedEntityIds(table, ids)) crmIds.add(id);
+        }
+        matched += unmatched.filter((r) => crmIds.has(r.internal_id)).length;
+
+        providerRates.push({
+          provider,
+          total: ccRows.length,
+          matched: Math.min(matched, ccRows.length),
+          pct: Math.round((Math.min(matched, ccRows.length) / ccRows.length) * 100),
+        });
+        continue;
+      }
+
+      // Repli documents : factures / abonnements → company_id → entreprise reliée au CRM.
+      const docRows = allPRows.filter((r) => r.entity_type === "invoice" || r.entity_type === "subscription");
+      if (docRows.length === 0) {
+        providerRates.push({ provider, total: 0, matched: 0, pct: 0 });
+        continue;
+      }
+      let matched = 0;
+      let total = 0;
+      for (const entityType of ["invoice", "subscription"] as const) {
+        const ids = [...new Set(docRows.filter((r) => r.entity_type === entityType).map((r) => r.internal_id))];
+        if (ids.length === 0) continue;
+        const table = entityType === "invoice" ? "invoices" : "subscriptions";
+        const docs: Array<{ id: string; company_id: string | null }> = [];
         for (let i = 0; i < ids.length; i += 200) {
           const chunk = ids.slice(i, i + 200);
-          const { data: linkedRows } = await supabase
+          const { data } = await supabase
             .from(table)
-            .select("id")
+            .select("id, company_id")
             .eq("organization_id", orgId)
-            .in("id", chunk)
-            .not("hubspot_id", "is", null);
-          for (const row of (linkedRows ?? []) as Array<{ id: string }>) crmLinkedIds.add(row.id);
+            .in("id", chunk);
+          docs.push(...((data ?? []) as Array<{ id: string; company_id: string | null }>));
         }
+        total += docs.length;
+        const companyIds = [...new Set(docs.map((d) => d.company_id).filter((c): c is string => !!c))];
+        const linkedCompanies = await crmLinkedEntityIds("companies", companyIds);
+        matched += docs.filter((d) => d.company_id && linkedCompanies.has(d.company_id)).length;
       }
-      matched += unmatched.filter((r) => crmLinkedIds.has(r.internal_id)).length;
-
       providerRates.push({
         provider,
-        total: pRows.length,
-        matched: Math.min(matched, pRows.length),
-        pct: Math.round((Math.min(matched, pRows.length) / pRows.length) * 100),
+        total,
+        matched,
+        pct: total > 0 ? Math.round((matched / total) * 100) : 0,
       });
     }
 

@@ -249,18 +249,30 @@ export default async function ParametresModeleDonneesPage() {
     }
   }
 
-  // Taux réels CRM × outil — uniquement les outils ACTIFS du mapping.
-  const toolRates: ToolMatchRate[] = linkStats.providerRates
-    .filter((r) => !disabledProviders.includes(r.provider))
+  // Taux réels CRM × outil — TOUS les outils actifs du mapping (un outil coché
+  // sans donnée rapprochée apparaît quand même, à 0, avec l'invite de sync).
+  const toolRates: ToolMatchRate[] = identifierRows
+    .filter((r) => r.provider !== "hubspot" && !disabledProviders.includes(r.provider))
     .map((r) => {
-      const tool = CONNECTABLE_TOOLS[r.provider];
+      const rate = linkStats.providerRates.find((p) => p.provider === r.provider);
       return {
-        ...r,
-        label: tool?.label ?? r.provider,
-        icon: tool?.icon ?? "🔌",
-        domain: tool?.domain ?? "",
+        provider: r.provider,
+        label: r.label,
+        icon: r.icon,
+        domain: r.domain,
+        total: rate?.total ?? 0,
+        matched: rate?.matched ?? 0,
+        pct: rate?.pct ?? 0,
       };
     });
+
+  // Taux global = tous les enregistrements des outils actifs, confondus.
+  const ratedTools = toolRates.filter((t) => t.total > 0);
+  const globalTotal = ratedTools.reduce((s, t) => s + t.total, 0);
+  const globalMatched = ratedTools.reduce((s, t) => s + t.matched, 0);
+  const globalRate = globalTotal > 0
+    ? { total: globalTotal, matched: globalMatched, pct: Math.round((globalMatched / globalTotal) * 100) }
+    : null;
 
   return (
     <section className="space-y-8">
@@ -385,6 +397,7 @@ export default async function ParametresModeleDonneesPage() {
           ruleShares={ruleShares}
           totalMatched={totalMatched}
           toolRates={toolRates}
+          globalRate={globalRate}
         />
       </div>
 

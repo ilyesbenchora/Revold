@@ -42,12 +42,15 @@ export function ResolutionRules({
   ruleShares = {},
   totalMatched = 0,
   toolRates = [],
+  globalRate = null,
 }: {
   rules: Rule[];
   /** Par rule id : combien de liens réels cette méthode a produits. */
   ruleShares?: Record<string, RuleShare | undefined>;
   totalMatched?: number;
   toolRates?: ToolMatchRate[];
+  /** Taux global : enregistrements des outils actifs reliés au CRM, tous outils confondus. */
+  globalRate?: { total: number; matched: number; pct: number } | null;
 }) {
   const [states, setStates] = useState<Record<string, boolean>>(
     Object.fromEntries(rules.map((r) => [r.id, r.enabled])),
@@ -87,35 +90,87 @@ export function ResolutionRules({
       {/* ── Taux RÉELS de rapprochement CRM × outil (suit les toggles du mapping) ── */}
       {toolRates.length > 0 && (
         <div className="card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Taux de rapprochement réel avec le CRM
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400">
-            Part des enregistrements de chaque outil actif du mapping reliés à une entité HubSpot.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Taux de rapprochement réel avec le CRM
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                Part des enregistrements de chaque outil actif du mapping reliés à une entité HubSpot.
+              </p>
+            </div>
+            {/* Taux global — tous outils actifs confondus */}
+            <div className="shrink-0 text-right">
+              <p className={`text-2xl font-bold tabular-nums ${
+                globalRate == null ? "text-slate-400"
+                : globalRate.pct >= 70 ? "text-emerald-600"
+                : globalRate.pct >= 40 ? "text-amber-600"
+                : "text-rose-600"
+              }`}>
+                {globalRate ? `${globalRate.pct} %` : "—"}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                global{globalRate ? ` (${globalRate.matched}/${globalRate.total})` : ""}
+              </p>
+            </div>
+          </div>
           <div className="mt-3 space-y-3">
             {toolRates.map((t) => (
               <div key={t.provider} className="flex items-center gap-3">
                 <BrandLogo domain={t.domain} alt={t.label} fallback={t.icon} size={24} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between text-xs">
-                    <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
-                    <span className={`font-bold tabular-nums ${
-                      t.pct >= 70 ? "text-emerald-600" : t.pct >= 40 ? "text-amber-600" : "text-rose-600"
-                    }`}>
-                      {t.pct} % <span className="font-normal text-slate-400">({t.matched}/{t.total})</span>
-                    </span>
-                  </div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full ${t.pct >= 70 ? "bg-emerald-500" : t.pct >= 40 ? "bg-amber-500" : "bg-rose-500"}`}
-                      style={{ width: `${t.pct}%` }}
-                    />
-                  </div>
+                  {t.total === 0 ? (
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
+                      <span className="text-[11px] text-slate-400">
+                        Aucun enregistrement rapproché — lance une synchronisation depuis Intégrations
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
+                        <span className={`font-bold tabular-nums ${
+                          t.pct >= 70 ? "text-emerald-600" : t.pct >= 40 ? "text-amber-600" : "text-rose-600"
+                        }`}>
+                          {t.pct} % <span className="font-normal text-slate-400">({t.matched}/{t.total})</span>
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${t.pct >= 70 ? "bg-emerald-500" : t.pct >= 40 ? "bg-amber-500" : "bg-rose-500"}`}
+                          style={{ width: `${t.pct}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+
+          {/* ── Taux par règle de rapprochement (mesuré sur les liens réels) ── */}
+          {totalMatched > 0 && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Par règle</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {rules.filter((r) => r.id !== "external_id_match").map((r) => {
+                  const share = ruleShares[r.id];
+                  return (
+                    <span
+                      key={r.id}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                        share ? "bg-indigo-50 text-indigo-700" : "bg-slate-50 text-slate-400"
+                      }`}
+                      title={share ? `${share.count} rapprochement${share.count > 1 ? "s" : ""} sur ${totalMatched}` : "Aucun rapprochement par cette règle"}
+                    >
+                      {r.rule} : {share ? `${share.pct} % (${share.count}/${totalMatched})` : "0"}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
