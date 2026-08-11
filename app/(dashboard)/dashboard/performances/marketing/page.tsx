@@ -11,6 +11,7 @@ import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { HBarChart } from "@/components/charts/hbar-chart";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
@@ -174,6 +175,20 @@ export default async function PerformanceMarketingPage() {
             </h2>
           }
         >
+          {/* Barres horizontales cockpit : lecture immédiate du mix d'acquisition */}
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-800">Mix d&apos;acquisition</p>
+            <p className="mb-3 text-[10px] text-slate-400">Contacts par source d&apos;origine · part du total</p>
+            <HBarChart
+              unit="count"
+              colorize
+              items={contactSourcesGlobal.map((s) => ({
+                label: sourceLabels[s.source] ?? s.source,
+                value: s.count,
+              }))}
+            />
+          </div>
+
           {/* Contacts par source + alerte chirurgicale. */}
           <div>
             <BlockDataTable

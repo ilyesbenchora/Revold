@@ -12,6 +12,11 @@ const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
 
 const fmtK = (v: number) =>
   Math.abs(v) >= 1000 ? `${Math.round(v / 1000).toLocaleString("fr-FR")} k€` : `${Math.round(v).toLocaleString("fr-FR")} €`;
+const fmtCount = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k` : Math.round(v).toLocaleString("fr-FR");
+
+export type ChartUnit = "currency" | "count";
+const fmtOf = (unit: ChartUnit) => (unit === "count" ? fmtCount : fmtK);
 
 export type SeriesPoint = { label: string; value: number };
 export type FlowsPoint = { label: string; in: number; out: number };
@@ -22,8 +27,9 @@ function niceScale(min: number, max: number): { min: number; max: number } {
   return { min: Math.min(0, min - pad), max: max + pad };
 }
 
-export function TresoLineChart({ points }: { points: SeriesPoint[] }) {
+export function TresoLineChart({ points, unit = "currency" }: { points: SeriesPoint[]; unit?: ChartUnit }) {
   if (points.length === 0) return null;
+  const fmtV = fmtOf(unit);
   const values = points.map((p) => p.value);
   const { min, max } = niceScale(Math.min(...values), Math.max(...values));
   const iw = W - PAD.left - PAD.right;
@@ -45,7 +51,7 @@ export function TresoLineChart({ points }: { points: SeriesPoint[] }) {
       {[max, (max + min) / 2, min].map((v, i) => (
         <g key={i}>
           <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
-          <text x={PAD.left - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#94a3b8">{fmtK(v)}</text>
+          <text x={PAD.left - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#94a3b8">{fmtV(v)}</text>
         </g>
       ))}
       {/* ligne zéro si le solde passe en négatif */}
@@ -64,7 +70,7 @@ export function TresoLineChart({ points }: { points: SeriesPoint[] }) {
       ))}
       {/* valeur du dernier point */}
       <text x={Math.min(x(points.length - 1) + 6, W - PAD.right)} y={y(last.value) - 8} textAnchor="end" fontSize="11" fontWeight="600" fill={last.value >= 0 ? "#059669" : "#e11d48"}>
-        {fmtK(last.value)}
+        {fmtV(last.value)}
       </text>
       <defs>
         <linearGradient id="tresoArea" x1="0" y1="0" x2="0" y2="1">
@@ -77,8 +83,9 @@ export function TresoLineChart({ points }: { points: SeriesPoint[] }) {
 }
 
 /** Barres mono-série (ex : CA signé par mois, tickets créés par mois…). */
-export function SimpleBarsChart({ points, color = "#6366f1" }: { points: SeriesPoint[]; color?: string }) {
+export function SimpleBarsChart({ points, color = "#6366f1", unit = "currency" }: { points: SeriesPoint[]; color?: string; unit?: ChartUnit }) {
   if (points.length === 0) return null;
+  const fmtV = fmtOf(unit);
   const maxV = Math.max(1, ...points.map((p) => p.value));
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
@@ -92,7 +99,7 @@ export function SimpleBarsChart({ points, color = "#6366f1" }: { points: SeriesP
       {[maxV, maxV / 2].map((v, i) => (
         <g key={i}>
           <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
-          <text x={PAD.left - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#94a3b8">{fmtK(v)}</text>
+          <text x={PAD.left - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#94a3b8">{fmtV(v)}</text>
         </g>
       ))}
       <line x1={PAD.left} x2={W - PAD.right} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth="1" />

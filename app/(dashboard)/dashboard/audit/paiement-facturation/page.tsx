@@ -17,7 +17,12 @@ import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs"
 import { fetchPaiementFacturationFor, fmt, fmtK, type PaiementFacturationData } from "@/lib/audit/paiement-facturation-data";
 import { computeCashflow } from "@/lib/audit/cashflow";
 import { computeCrossMargin } from "@/lib/audit/cross-margin";
-import { TresoLineChart, TresoFlowsChart } from "@/components/charts/treso-charts";
+import { computeTreasuryForecast, type TreasuryForecast } from "@/lib/audit/treasury-forecast";
+import type { OrgFiscalParams } from "@/lib/audit/fiscal-schedule";
+import { computeDealsSeries } from "@/lib/audit/deals-series";
+import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/charts/treso-charts";
+import { ForecastChart } from "@/components/charts/forecast-chart";
+import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
@@ -105,6 +110,22 @@ export default async function PaiementFacturationOverviewPage({
 
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_paiement_facturation");
+
+  // ── Séries pour les graphes de la vue croisée (style cockpit Lomed) :
+  //    CA signé par mois, marge mensuelle et projection 12 mois. ──
+  const dealsSeries = margin ? await computeDealsSeries(supabase, orgId) : null;
+  let forecast: TreasuryForecast | null = null;
+  if (margin) {
+    const { data: orgFiscal } = await supabase
+      .from("organizations")
+      .select("fiscal_tva_periodicite, fiscal_tva_prochaine, fiscal_tva_montant, fiscal_is_periodicite, fiscal_is_prochaine, fiscal_is_montant, fiscal_urssaf_periodicite, fiscal_urssaf_prochaine, fiscal_urssaf_montant")
+      .eq("id", orgId)
+      .maybeSingle();
+    forecast = await computeTreasuryForecast(supabase, orgId, crossCashflow, (orgFiscal ?? null) as OrgFiscalParams | null);
+  }
+  // Marge mensuelle approchée = encaissements − décaissements du mois (flux réels).
+  const margeMensuelle = (crossCashflow?.monthlyFlows ?? [])
+    .map((p) => ({ label: p.label, value: Math.round(p.in - p.out) }));
 
   const eur = (n: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -332,7 +353,16 @@ export default async function PaiementFacturationOverviewPage({
 
             {/* Ventilation des charges par catégorie (catégorisation Pennylane) */}
             {cf.chargesParCategorie.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold text-slate-800">Répartition des charges</p>
+                  <p className="mb-3 text-[10px] text-slate-400">Décaissements par catégorie · {label}</p>
+                  <HBarChart
+                    unit="currency"
+                    colorize
+                    items={cf.chargesParCategorie.map((c) => ({ label: c.label, value: Math.round(c.total) }))}
+                  />
+                </div>
                 <BlockDataTable
                   title={`Répartition des charges (${label})`}
                   subtitle={`catégories · ${label}`}
@@ -397,6 +427,22 @@ export default async function PaiementFacturationOverviewPage({
                 ]}
                 footnote="Réconciliation du CA : ce que le CRM a signé vs ce que la facturation a réellement encaissé."
               />
+
+              {/* CA signé par mois + cumul — lecture cockpit de la dynamique de signature */}
+              {dealsSeries && dealsSeries.wonMonthly.length > 1 && (
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold text-slate-800">CA signé par mois</p>
+                    <p className="mb-2 text-[10px] text-slate-400">Deals gagnés · 12 derniers mois (CRM)</p>
+                    <SimpleBarsChart points={dealsSeries.wonMonthly} color="#10b981" />
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold text-slate-800">Cumul du CA signé</p>
+                    <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
+                    <TresoLineChart points={dealsSeries.wonCumul} />
+                  </div>
+                </div>
+              )}
             </CollapsibleBlock>
             </RemovableBlock>
             )}
@@ -426,6 +472,17 @@ export default async function PaiementFacturationOverviewPage({
                 ]}
                 footnote="Marge brute = CA encaissé (facturation) − décaissements (trésorerie). Les deux flux viennent d'outils différents : c'est le croisement qui rend la marge calculable."
               />
+
+              {/* Marge mensuelle en courbe — flux réels encaissés − décaissés */}
+              {margeMensuelle.length > 1 && (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold text-slate-800">Marge mensuelle</p>
+                  <p className="mb-2 text-[10px] text-slate-400">
+                    Encaissements − décaissements du mois (flux réels TTC, 12 derniers mois)
+                  </p>
+                  <TresoLineChart points={margeMensuelle} />
+                </div>
+              )}
             </CollapsibleBlock>
             </RemovableBlock>
             )}
@@ -454,6 +511,22 @@ export default async function PaiementFacturationOverviewPage({
                 ]}
                 footnote="Projection : la prévision applique le taux de marge courant au pipeline pondéré du CRM."
               />
+
+              {/* Projection 12 mois en courbes — 3 scénarios (cockpit Lomed) */}
+              {forecast?.hasData && forecast.points.length > 1 && (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold text-slate-800">
+                    Projection de trésorerie · 12 mois
+                  </p>
+                  <p className="mb-2 text-[10px] text-slate-400">
+                    Prudent = factures ouvertes seules · Probable = + pipeline pondéré · Ambitieux = + pipeline plein —
+                    détail complet dans l&apos;onglet Prévisionnel
+                  </p>
+                  <ForecastChart
+                    points={forecast.points.map((p) => ({ label: p.label, prudent: p.soldePrudent, probable: p.soldeProbable, ambitieux: p.soldeAmbitieux }))}
+                  />
+                </div>
+              )}
             </CollapsibleBlock>
             </RemovableBlock>
             )}

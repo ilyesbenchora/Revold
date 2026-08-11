@@ -13,6 +13,8 @@ import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { SimpleBarsChart } from "@/components/charts/treso-charts";
+import { HBarChart } from "@/components/charts/hbar-chart";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { BlocksManager } from "@/components/data-tables/blocks-manager";
@@ -94,6 +96,35 @@ export default async function ServiceClientOverviewPage() {
       ]
     : [];
 
+  // ── Séries cockpit depuis les tickets analysés : volume mensuel + priorité ──
+  const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const byMonth = new Map<string, number>();
+  for (const t of data.tickets) {
+    const raw = t.properties.createdate;
+    if (!raw) continue;
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) continue;
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+  }
+  const ticketsMonthly = [...byMonth.keys()].sort().slice(-12).map((key) => {
+    const [yy, mm] = key.split("-");
+    return { label: `${MONTHS_FR[Number(mm) - 1]} ${yy.slice(2)}`, value: byMonth.get(key)! };
+  });
+
+  const PRIORITY_LABELS: Record<string, string> = { URGENT: "Urgente", HIGH: "Haute", MEDIUM: "Moyenne", LOW: "Basse" };
+  const byPriority = new Map<string, number>();
+  for (const t of data.tickets) {
+    const p = t.properties.hs_ticket_priority ?? "";
+    const label = PRIORITY_LABELS[p] ?? "Sans priorité";
+    byPriority.set(label, (byPriority.get(label) ?? 0) + 1);
+  }
+  const priorityOrder = ["Urgente", "Haute", "Moyenne", "Basse", "Sans priorité"];
+  const priorityColors: Record<string, string> = { Urgente: "#e11d48", Haute: "#f59e0b", Moyenne: "#6366f1", Basse: "#10b981", "Sans priorité": "#94a3b8" };
+  const ticketsByPriority = priorityOrder
+    .filter((l) => (byPriority.get(l) ?? 0) > 0)
+    .map((l) => ({ label: l, value: byPriority.get(l)!, color: priorityColors[l] }));
+
   return (
     <section className="space-y-6">
       <header className="flex items-start justify-between gap-4">
@@ -155,6 +186,26 @@ export default async function ServiceClientOverviewPage() {
           ]}
           footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
         />
+
+        {/* Graphes cockpit : volume mensuel + répartition par priorité */}
+        {(ticketsMonthly.length > 1 || ticketsByPriority.length > 0) && (
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {ticketsMonthly.length > 1 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Tickets créés par mois</p>
+                <p className="mb-2 text-[10px] text-slate-400">Volume entrant · 12 derniers mois</p>
+                <SimpleBarsChart points={ticketsMonthly} unit="count" color="#0ea5e9" />
+              </div>
+            )}
+            {ticketsByPriority.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Répartition par priorité</p>
+                <p className="mb-3 text-[10px] text-slate-400">Tickets analysés · part du total</p>
+                <HBarChart unit="count" items={ticketsByPriority} />
+              </div>
+            )}
+          </div>
+        )}
       </CollapsibleBlock>
       </RemovableBlock>
       )}

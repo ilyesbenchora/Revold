@@ -19,6 +19,7 @@ import {
 import { computePipelineAnalyticsFromLocal } from "@/lib/sync/compute-pipeline-analytics";
 import { computeDealsSeries } from "@/lib/audit/deals-series";
 import { TresoLineChart, SimpleBarsChart } from "@/components/charts/treso-charts";
+import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
@@ -133,6 +134,28 @@ export default async function PerformanceCommercialePage() {
               <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
               <TresoLineChart points={series.wonCumul} />
             </div>
+          </div>
+        </RemovableBlock>
+      )}
+
+      {/* ── Répartition du pipeline par étape : barres horizontales cockpit ── */}
+      {pipelineAnalytics.some((p) => p.totalDeals > 0) && !custom.hiddenBlocks.has("pipeline_stages_bars") && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="pipeline_stages_bars" label="Répartition du pipeline par étape">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {pipelineAnalytics.filter((p) => p.totalDeals > 0).map((p) => (
+              <div key={p.pipeline.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Pipeline par étape — {p.pipeline.label}</p>
+                <p className="mb-3 text-[10px] text-slate-400">
+                  Montant ouvert par étape · {p.totalDeals} deals · pondéré {eur(p.weightedAmount)}
+                </p>
+                <HBarChart
+                  unit="currency"
+                  items={p.stages
+                    .filter((s) => s.dealCount > 0)
+                    .map((s) => ({ label: `${s.stage.label} (${s.dealCount})`, value: Math.round(s.amount) }))}
+                />
+              </div>
+            ))}
           </div>
         </RemovableBlock>
       )}

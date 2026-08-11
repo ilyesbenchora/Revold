@@ -16,6 +16,7 @@ import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/c
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { HBarChart } from "@/components/charts/hbar-chart";
 // Conservé pour les cartes de synthèse par objet — ce n'est pas une vignette de titre de bloc.
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
@@ -579,6 +580,30 @@ export default async function DonneesPage() {
         ))}
       </div>
       </RemovableBlock>
+      )}
+
+      {/* ── Complétude des propriétés clés : barres horizontales cockpit ── */}
+      {summaries.some((s) => s.count > 0) && !custom.hiddenBlocks.has("completude_bars") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="completude_bars" label="Complétude des propriétés clés">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-800">Complétude des propriétés clés</p>
+            <p className="mb-3 text-[10px] text-slate-400">
+              % de fiches renseignées par propriété — vert ≥ 80 %, orange ≥ 50 %, rouge en dessous
+            </p>
+            <HBarChart
+              unit="percent"
+              items={summaries
+                .filter((s) => s.count > 0)
+                .flatMap((s) =>
+                  s.metrics.map((m) => ({
+                    label: `${s.label} · ${m.label}`,
+                    value: m.pct,
+                    color: m.pct >= 80 ? "#10b981" : m.pct >= 50 ? "#f59e0b" : "#f43f5e",
+                  })),
+                )}
+            />
+          </div>
+        </RemovableBlock>
       )}
 
       {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
