@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export type ConfigField = {
   label: string;
@@ -20,9 +21,34 @@ export type Rule = {
   configFields: ConfigField[];
 };
 
+/** Part réelle des rapprochements réalisés par une règle (mesurée sur source_links). */
+export type RuleShare = { count: number; pct: number };
+
+/** Taux réel de rapprochement CRM × outil (outils actifs du mapping des identifiants). */
+export type ToolMatchRate = {
+  provider: string;
+  label: string;
+  icon: string;
+  domain: string;
+  total: number;
+  matched: number;
+  pct: number;
+};
+
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
-export function ResolutionRules({ rules }: { rules: Rule[] }) {
+export function ResolutionRules({
+  rules,
+  ruleShares = {},
+  totalMatched = 0,
+  toolRates = [],
+}: {
+  rules: Rule[];
+  /** Par rule id : combien de liens réels cette méthode a produits. */
+  ruleShares?: Record<string, RuleShare | undefined>;
+  totalMatched?: number;
+  toolRates?: ToolMatchRate[];
+}) {
   const [states, setStates] = useState<Record<string, boolean>>(
     Object.fromEntries(rules.map((r) => [r.id, r.enabled])),
   );
@@ -58,9 +84,45 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
 
   return (
     <div className="space-y-3">
+      {/* ── Taux RÉELS de rapprochement CRM × outil (suit les toggles du mapping) ── */}
+      {toolRates.length > 0 && (
+        <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Taux de rapprochement réel avec le CRM
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Part des enregistrements de chaque outil actif du mapping reliés à une entité HubSpot.
+          </p>
+          <div className="mt-3 space-y-3">
+            {toolRates.map((t) => (
+              <div key={t.provider} className="flex items-center gap-3">
+                <BrandLogo domain={t.domain} alt={t.label} fallback={t.icon} size={24} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
+                    <span className={`font-bold tabular-nums ${
+                      t.pct >= 70 ? "text-emerald-600" : t.pct >= 40 ? "text-amber-600" : "text-rose-600"
+                    }`}>
+                      {t.pct} % <span className="font-normal text-slate-400">({t.matched}/{t.total})</span>
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full ${t.pct >= 70 ? "bg-emerald-500" : t.pct >= 40 ? "bg-amber-500" : "bg-rose-500"}`}
+                      style={{ width: `${t.pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {rules.map((rule, idx) => {
         const isActive = states[rule.id] ?? rule.enabled;
         const isLocked = rule.id === "external_id_match";
+        const share = ruleShares[rule.id];
 
         return (
           <details key={rule.id} className={`card overflow-hidden transition ${!isActive ? "opacity-60" : ""}`} open={isActive && idx < 2}>
@@ -73,13 +135,28 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {rule.confidence !== null && (
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    rule.confidence >= 95 ? "bg-emerald-100 text-emerald-700" :
-                    rule.confidence >= 80 ? "bg-blue-100 text-blue-700" :
-                    "bg-amber-100 text-amber-700"
-                  }`}>
-                    {rule.confidence} %
+                {/* Part RÉELLE des rapprochements réalisés par cette règle (mesurée
+                    sur source_links) — remplace l'ancienne confiance théorique. */}
+                {totalMatched > 0 ? (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                      (share?.pct ?? 0) >= 30 ? "bg-emerald-100 text-emerald-700" :
+                      (share?.pct ?? 0) >= 10 ? "bg-blue-100 text-blue-700" :
+                      (share?.count ?? 0) > 0 ? "bg-amber-100 text-amber-700" :
+                      "bg-slate-100 text-slate-500"
+                    }`}
+                    title={share
+                      ? `${share.count} rapprochement${share.count > 1 ? "s" : ""} réalisé${share.count > 1 ? "s" : ""} par cette règle sur ${totalMatched}`
+                      : "Aucun rapprochement réalisé par cette règle pour le moment"}
+                  >
+                    {share ? `${share.pct} % des rapprochements` : "0 rapprochement"}
+                  </span>
+                ) : rule.confidence !== null && (
+                  <span
+                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500"
+                    title="Confiance théorique — aucun rapprochement mesuré pour l'instant"
+                  >
+                    ~{rule.confidence} %
                   </span>
                 )}
                 <button

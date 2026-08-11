@@ -6,8 +6,10 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
-import { ResolutionRules, type Rule } from "@/components/resolution-rules";
-import { IdentifierMappingForm } from "@/components/identifier-mapping-form";
+import { ResolutionRules, type Rule, type RuleShare, type ToolMatchRate } from "@/components/resolution-rules";
+import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
+import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
+import { checkHubSpotProperty, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
 import { DedupRules, type DedupRule } from "@/components/dedup-rules";
 import { SyncFrequencyForm } from "@/components/sync-frequency-form";
@@ -118,35 +120,33 @@ export default async function ParametresModeleDonneesPage() {
   const companiesCount = snapshot.totalCompanies;
 
   // Configuration & resolution rules restent en Supabase (état app)
-  let sourceLinksCount = 0;
   let connectedProviders: string[] = [];
   let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string }> = [];
   let savedAuthority: Array<{ entity: string; field: string; priority: string[] }> = [];
   const savedFrequencies: Record<string, string> = {};
-  const matchStats: Record<string, number> = {};
+
+  // Stats réelles de rapprochement (paginées) : répartition par méthode,
+  // % multi-source et taux CRM × outil.
+  const linkStats = await loadSourceLinkStats(supabase, orgId);
+  const sourceLinksCount = linkStats.totalLinks;
+  const matchStats = linkStats.methodStats;
 
   try {
-    const [sl, integ, ruleConfigs, mappings, authority, freqs, matchData] = await Promise.all([
-      supabase.from("source_links").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
+    const [integ, ruleConfigs, mappings, authority, freqs] = await Promise.all([
       supabase.from("integrations").select("provider").eq("organization_id", orgId).eq("is_active", true),
       supabase.from("entity_resolution_config").select("rule_id, enabled, config").eq("organization_id", orgId),
       supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field").eq("organization_id", orgId),
       supabase.from("field_authority_config").select("entity, field, priority").eq("organization_id", orgId),
       supabase.from("sync_config").select("category, frequency").eq("organization_id", orgId),
-      supabase.from("source_links").select("match_method").eq("organization_id", orgId),
     ]);
 
-    sourceLinksCount = sl.count ?? 0;
     connectedProviders = (integ.data ?? []).map((i) => i.provider);
     savedRuleConfigs = (ruleConfigs.data ?? []) as typeof savedRuleConfigs;
     savedMappings = (mappings.data ?? []) as typeof savedMappings;
     savedAuthority = (authority.data ?? []) as typeof savedAuthority;
     for (const f of (freqs.data ?? []) as Array<{ category: string; frequency: string }>) {
       savedFrequencies[f.category] = f.frequency;
-    }
-    for (const row of (matchData.data ?? []) as Array<{ match_method: string }>) {
-      matchStats[row.match_method] = (matchStats[row.match_method] ?? 0) + 1;
     }
   } catch {}
 
@@ -190,21 +190,77 @@ export default async function ParametresModeleDonneesPage() {
   // Identifier mapping rows (only connected tools)
   const identifierRows = allProviders
     .map((provider) => {
-      const tool = CONNECTABLE_TOOLS[provider] ?? (provider === "hubspot" ? { label: "HubSpot", icon: "🟠", domain: "hubspot.com" } : null);
+      const tool = CONNECTABLE_TOOLS[provider] ?? (provider === "hubspot" ? { label: "HubSpot", icon: "🟧", domain: "hubspot.com" } : null);
       const ids = PROVIDER_IDENTIFIERS[provider];
       if (!tool || !ids) return null;
       return { provider, label: tool.label, icon: tool.icon, domain: tool.domain, identifiers: ids };
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
+  // Outils désactivés du mapping (toggle par outil, stocké en mapping_<provider>).
+  const disabledProviders = savedRuleConfigs
+    .filter((r) => r.rule_id.startsWith("mapping_") && !r.enabled)
+    .map((r) => r.rule_id.slice("mapping_".length));
+
+  // Vérification live des propriétés custom HubSpot du mapping (siren, siret, TVA) :
+  // le mapping ne vaut rien si la propriété n'existe pas dans le CRM.
+  const hubspotPropertyStatus: HubSpotPropertyStatus = {};
+  const hubspotIdentifiers = identifierRows.find((r) => r.provider === "hubspot")?.identifiers ?? [];
+  await Promise.all(
+    hubspotIdentifiers
+      .filter((id) => !id.native && id.canonicalField !== "external_id")
+      .map(async (id) => {
+        const mapped = savedMappings.find((m) => m.provider === "hubspot" && m.canonical_field === id.canonicalField);
+        const propName = mapped?.provider_field ?? id.defaultProviderField;
+        hubspotPropertyStatus[id.canonicalField] = await checkHubSpotProperty(
+          hsToken,
+          CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies",
+          propName,
+        );
+      }),
+  );
+
   // Match stats for display
   const totalMatched = Object.values(matchStats).reduce((s, v) => s + v, 0);
   const matchBySiren = matchStats["siren"] ?? 0;
   const matchByVat = matchStats["vat_number"] ?? 0;
+  const matchBySiret = matchStats["siret"] ?? 0;
   const matchByEmail = matchStats["exact_email"] ?? 0;
   const matchByDomain = matchStats["domain"] ?? 0;
+  const matchByName = matchStats["name"] ?? 0;
   const matchByLink = matchStats["existing_link"] ?? 0;
   const matchCreated = matchStats["created"] ?? 0;
+
+  // Part réelle des rapprochements par règle de résolution (source_links.match_method).
+  const ruleShares: Record<string, RuleShare | undefined> = {};
+  const RULE_TO_METHOD: Record<string, string> = {
+    siren_match: "siren",
+    vat_match: "vat_number",
+    siret_match: "siret",
+    exact_email: "exact_email",
+    external_id_match: "existing_link",
+    domain_match: "domain",
+    name_match: "name",
+  };
+  if (totalMatched > 0) {
+    for (const [ruleId, method] of Object.entries(RULE_TO_METHOD)) {
+      const count = matchStats[method] ?? 0;
+      if (count > 0) ruleShares[ruleId] = { count, pct: Math.round((count / totalMatched) * 100) };
+    }
+  }
+
+  // Taux réels CRM × outil — uniquement les outils ACTIFS du mapping.
+  const toolRates: ToolMatchRate[] = linkStats.providerRates
+    .filter((r) => !disabledProviders.includes(r.provider))
+    .map((r) => {
+      const tool = CONNECTABLE_TOOLS[r.provider];
+      return {
+        ...r,
+        label: tool?.label ?? r.provider,
+        icon: tool?.icon ?? "🔌",
+        domain: tool?.domain ?? "",
+      };
+    });
 
   return (
     <section className="space-y-8">
@@ -234,44 +290,60 @@ export default async function ParametresModeleDonneesPage() {
       {/* ── KPIs + Matching Stats ── */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
         <article className="card p-4 text-center">
-          <p className="text-[10px] font-medium uppercase text-slate-500">Liens sources</p>
+          <p className="text-[10px] font-medium uppercase text-slate-500">Liens source</p>
           <p className="mt-1 text-2xl font-bold text-violet-600">{sourceLinksCount}</p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">enregistrements d&apos;outils reliés au modèle</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Contacts</p>
           <p className="mt-1 text-2xl font-bold text-blue-600">{contactsCount.toLocaleString("fr-FR")}</p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">HubSpot live</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Sociétés</p>
           <p className="mt-1 text-2xl font-bold text-indigo-600">{companiesCount.toLocaleString("fr-FR")}</p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">HubSpot live</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Outils connectés</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">{allProviders.length}</p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">sources du modèle</p>
         </article>
         <article className="card p-4 text-center">
-          <p className="text-[10px] font-medium uppercase text-slate-500">Rapprochements</p>
-          <p className="mt-1 text-2xl font-bold text-fuchsia-600">{totalMatched}</p>
+          <p className="text-[10px] font-medium uppercase text-slate-500">Multi-source</p>
+          <p className="mt-1 text-2xl font-bold text-fuchsia-600">
+            {linkStats.multiSourcePct != null ? `${linkStats.multiSourcePct} %` : "—"}
+          </p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">entités reliées à ≥ 2 outils</p>
         </article>
         <article className="card p-4 text-center">
           <p className="text-[10px] font-medium uppercase text-slate-500">Règles actives</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
             {mergedRules.filter((r) => r.enabled).length}/{mergedRules.length}
           </p>
+          <p className="mt-0.5 text-[9px] leading-tight text-slate-400">résolution d&apos;entités</p>
         </article>
       </div>
 
       {/* ── Matching stats detail ── */}
       {totalMatched > 0 && (
         <div className="card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Répartition des rapprochements</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Comment les {totalMatched} liens ont été établis</p>
+          <p className="mt-1 mb-3 text-[11px] text-slate-400">
+            Chaque enregistrement importé d&apos;un outil est relié au modèle de données : soit rapproché
+            d&apos;une entité existante par un identifiant (SIREN, TVA, SIRET, email, domaine, nom),
+            soit déjà relié par son ID lors d&apos;une sync précédente, soit créé comme nouvelle entité
+            faute de correspondance.
+          </p>
           <div className="flex flex-wrap gap-3">
-            {matchBySiren > 0 && <StatBadge label="SIREN" count={matchBySiren} total={totalMatched} color="emerald" />}
-            {matchByVat > 0 && <StatBadge label="TVA" count={matchByVat} total={totalMatched} color="blue" />}
-            {matchByEmail > 0 && <StatBadge label="Email" count={matchByEmail} total={totalMatched} color="indigo" />}
-            {matchByDomain > 0 && <StatBadge label="Domaine" count={matchByDomain} total={totalMatched} color="amber" />}
-            {matchByLink > 0 && <StatBadge label="ID existant" count={matchByLink} total={totalMatched} color="violet" />}
-            {matchCreated > 0 && <StatBadge label="Nouveaux" count={matchCreated} total={totalMatched} color="slate" />}
+            {matchBySiren > 0 && <StatBadge label="Rapprochés par SIREN" count={matchBySiren} total={totalMatched} color="emerald" />}
+            {matchByVat > 0 && <StatBadge label="Rapprochés par n° TVA" count={matchByVat} total={totalMatched} color="blue" />}
+            {matchBySiret > 0 && <StatBadge label="Rapprochés par SIRET" count={matchBySiret} total={totalMatched} color="emerald" />}
+            {matchByEmail > 0 && <StatBadge label="Rapprochés par email" count={matchByEmail} total={totalMatched} color="indigo" />}
+            {matchByDomain > 0 && <StatBadge label="Rapprochés par domaine" count={matchByDomain} total={totalMatched} color="amber" />}
+            {matchByName > 0 && <StatBadge label="Rapprochés par nom" count={matchByName} total={totalMatched} color="amber" />}
+            {matchByLink > 0 && <StatBadge label="Déjà reliés (ID connu)" count={matchByLink} total={totalMatched} color="violet" />}
+            {matchCreated > 0 && <StatBadge label="Créés (aucune correspondance)" count={matchCreated} total={totalMatched} color="slate" />}
           </div>
         </div>
       )}
@@ -290,7 +362,12 @@ export default async function ParametresModeleDonneesPage() {
             <Link href="/dashboard/integration" className="mt-3 inline-flex text-sm font-medium text-accent hover:underline">Connecter un outil →</Link>
           </div>
         ) : (
-          <IdentifierMappingForm rows={identifierRows} savedMappings={savedMappings} />
+          <IdentifierMappingForm
+            rows={identifierRows}
+            savedMappings={savedMappings}
+            disabledProviders={disabledProviders}
+            hubspotPropertyStatus={hubspotPropertyStatus}
+          />
         )}
       </div>
 
@@ -301,8 +378,14 @@ export default async function ParametresModeleDonneesPage() {
         </h2>
         <p className="text-sm text-slate-500">
           Activez les règles de rapprochement selon vos outils. La première qui matche gagne.
+          Les pourcentages affichés sont mesurés sur vos données réelles (liens source).
         </p>
-        <ResolutionRules rules={mergedRules} />
+        <ResolutionRules
+          rules={mergedRules}
+          ruleShares={ruleShares}
+          totalMatched={totalMatched}
+          toolRates={toolRates}
+        />
       </div>
 
       {/* ── Matrice d'autorité ── */}

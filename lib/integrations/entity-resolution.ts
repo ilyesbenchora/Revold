@@ -152,7 +152,9 @@ async function loadResolutionConfig(sb: SupabaseClient, orgId: string): Promise<
       .select("rule_id, enabled, priority")
       .eq("organization_id", orgId);
     const rows = ((data ?? []) as { rule_id: string; enabled: boolean; priority: number | null }[]).filter(
-      (r) => typeof r.rule_id === "string" && !r.rule_id.startsWith("dedup_"),
+      // dedup_* = règles de déduplication, mapping_* = toggles d'outils du
+      // mapping des identifiants — ni l'un ni l'autre ne sont des règles de résolution.
+      (r) => typeof r.rule_id === "string" && !r.rule_id.startsWith("dedup_") && !r.rule_id.startsWith("mapping_"),
     );
     if (rows.length === 0) {
       _cfgCache.set(orgId, { cfg: empty, at: Date.now() });
