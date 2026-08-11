@@ -4,9 +4,13 @@
  * Enveloppe un bloc « en dur » d'une page pour le rendre retirable.
  * Le retrait enregistre un masquage (page_tiles, kind=hide_block) — le bloc
  * se réaffiche depuis « ＋ Ajouter un bloc » (BlocksManager).
+ *
+ * Le contrôle est une pastille « ✕ Retirer » en haut à GAUCHE (la flèche de
+ * repli des blocs est en haut à droite — ne pas superposer), avec une étape
+ * de confirmation pour éviter les retraits accidentels.
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 export function RemovableBlock({
@@ -22,6 +26,14 @@ export function RemovableBlock({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  // La demande de confirmation expire toute seule.
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirming]);
 
   async function hide() {
     if (busy) return;
@@ -35,6 +47,7 @@ export function RemovableBlock({
       if (res.ok) router.refresh();
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
   }
 
@@ -42,12 +55,16 @@ export function RemovableBlock({
     <div className="group/block relative">
       <button
         type="button"
-        title={`Retirer le bloc « ${label} »`}
+        title={confirming ? "Cliquer à nouveau pour confirmer" : `Retirer le bloc « ${label} »`}
         disabled={busy}
-        onClick={hide}
-        className="absolute -right-1 -top-1 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] font-bold text-slate-400 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 group-hover/block:flex"
+        onClick={() => (confirming ? hide() : setConfirming(true))}
+        className={`absolute -top-3 left-2 z-10 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm transition disabled:opacity-50 ${
+          confirming
+            ? "flex border-rose-300 bg-rose-50 text-rose-700"
+            : "hidden border-slate-200 bg-white text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 group-hover/block:flex"
+        }`}
       >
-        ✕
+        {confirming ? (busy ? "Retrait…" : "Confirmer le retrait ?") : "✕ Retirer"}
       </button>
       {children}
     </div>

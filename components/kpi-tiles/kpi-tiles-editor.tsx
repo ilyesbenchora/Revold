@@ -21,6 +21,8 @@ export type EditorTile = {
   value: string;
   tone?: "pos" | "neg" | "accent" | "neutral";
   sub?: string;
+  /** Couleur du sous-titre (évolution des tuiles ajoutées : ▲ vert / ▼ rouge). */
+  subTone?: "pos" | "neg" | "neutral";
   verdict?: StatTileVerdict;
 };
 
@@ -50,6 +52,12 @@ const VERDICT_TONE: Record<StatTileVerdict["tone"], string> = {
 };
 
 const UNIT_BADGE: Record<string, string> = { percent: "%", currency: "€", count: "#" };
+
+const SUB_TONE: Record<NonNullable<EditorTile["subTone"]>, string> = {
+  pos: "text-emerald-600 font-semibold",
+  neg: "text-rose-600 font-semibold",
+  neutral: "text-slate-400",
+};
 
 type CustomProposal = {
   forecast_type: string | null;
@@ -251,7 +259,7 @@ export function KpiTilesEditor({
               )}
               <p className="text-[11px] font-medium text-slate-500">{t.label}</p>
               <p className={`mt-1 text-xl font-bold tabular-nums ${VALUE_TONE[t.tone ?? "neutral"]}`}>{t.value}</p>
-              {t.sub && <p className="mt-0.5 text-[10px] text-slate-400">{t.sub}</p>}
+              {t.sub && <p className={`mt-0.5 text-[10px] ${SUB_TONE[t.subTone ?? "neutral"]}`}>{t.sub}</p>}
               {t.verdict && (
                 <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${VERDICT_TONE[t.verdict.tone]}`}>
                   {t.verdict.label}

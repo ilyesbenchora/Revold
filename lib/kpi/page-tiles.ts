@@ -15,6 +15,9 @@ export type PageTileRow = {
   agg_spec: AggSpec | null;
   unit_mode: string | null;
   position: number;
+  /** Référence d'évolution (valeur de la veille) — absentes si migration non appliquée. */
+  prev_value?: number | null;
+  prev_value_at?: string | null;
 };
 
 export type PageCustomization = {
@@ -40,13 +43,22 @@ export async function getPageCustomization(
   pageKey: string,
 ): Promise<PageCustomization> {
   try {
-    const { data, error } = await supabase
-      .from("page_tiles")
-      .select("id, kind, tile_key, title, forecast_type, agg_spec, unit_mode, position")
-      .eq("organization_id", orgId)
-      .eq("page_key", pageKey)
-      .order("position", { ascending: true })
-      .order("created_at", { ascending: true });
+    // Résilient à la migration prev_value non appliquée : on retire les
+    // colonnes d'évolution et on réessaie plutôt que perdre la perso.
+    const FULL_COLS = "id, kind, tile_key, title, forecast_type, agg_spec, unit_mode, position, prev_value, prev_value_at";
+    const BASE_COLS = "id, kind, tile_key, title, forecast_type, agg_spec, unit_mode, position";
+    const fetchWith = (cols: string) =>
+      supabase
+        .from("page_tiles")
+        .select(cols)
+        .eq("organization_id", orgId)
+        .eq("page_key", pageKey)
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true });
+    let { data, error } = await fetchWith(FULL_COLS);
+    if (error && /prev_value/.test(error.message)) {
+      ({ data, error } = await fetchWith(BASE_COLS));
+    }
     if (error || !data) return EMPTY;
     const rows = data as unknown as PageTileRow[];
     return {
@@ -75,11 +87,28 @@ export type ResolvedAddedTile = {
   rowId: string;
   label: string;
   value: string;
+  /** Évolution vs la référence de la veille (▲ vert / ▼ rouge / stable). */
+  sub?: string;
+  subTone?: "pos" | "neg" | "neutral";
 };
+
+/** Delta formaté dans l'unité de la tuile (percent → points). */
+function formatDelta(delta: number, unit: string | null): string {
+  const sign = delta > 0 ? "+" : "−";
+  const abs = Math.abs(delta);
+  if (unit === "percent") return `${sign}${abs.toLocaleString("fr-FR")} pts`;
+  if (unit === "currency")
+    return `${sign}${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(abs)}`;
+  return `${sign}${abs.toLocaleString("fr-FR")}`;
+}
+
+const DAY_MS = 24 * 3600 * 1000;
 
 /**
  * Résout la valeur ACTUELLE de chaque tuile ajoutée — même contrat que le cron
  * d'alertes : forecast_type → resolveKpiValue, sinon agg_spec → valueFromAggSpec.
+ * L'évolution compare à une référence quotidienne stockée sur la ligne
+ * (prev_value / prev_value_at, décalée dès qu'elle a plus de 24 h).
  */
 export async function resolveAddedTiles(
   supabase: SupabaseClient,
@@ -97,10 +126,40 @@ export async function resolveAddedTiles(
         if (r.forecast_type) value = await resolveKpiValue(supabase, orgId, r.forecast_type);
         else if (r.agg_spec) value = await valueFromAggSpec(supabase, orgId, token, r.agg_spec);
       } catch {}
+
+      let sub: string | undefined;
+      let subTone: "pos" | "neg" | "neutral" | undefined;
+      // "prev_value" absent de la ligne = migration non appliquée → pas d'évolution.
+      if ("prev_value" in r && value != null) {
+        const baseline = r.prev_value == null ? null : Number(r.prev_value);
+        const prevAtMs = r.prev_value_at ? Date.parse(r.prev_value_at) : null;
+        if (prevAtMs == null || Date.now() - prevAtMs > DAY_MS) {
+          // Décale la référence : l'évolution du jour repart de la valeur actuelle.
+          try {
+            await supabase
+              .from("page_tiles")
+              .update({ prev_value: value, prev_value_at: new Date().toISOString() })
+              .eq("organization_id", orgId)
+              .eq("id", r.id);
+          } catch {}
+        }
+        if (baseline != null && prevAtMs != null) {
+          const delta = value - baseline;
+          if (delta > 0) { sub = `▲ ${formatDelta(delta, r.unit_mode)}`; subTone = "pos"; }
+          else if (delta < 0) { sub = `▼ ${formatDelta(delta, r.unit_mode)}`; subTone = "neg"; }
+          else { sub = "Stable"; subTone = "neutral"; }
+        } else {
+          sub = "Évolution dès demain";
+          subTone = "neutral";
+        }
+      }
+
       return {
         rowId: r.id,
         label: r.title ?? r.forecast_type ?? "KPI",
         value: formatTileValue(value, r.unit_mode),
+        sub,
+        subTone,
       };
     }),
   );

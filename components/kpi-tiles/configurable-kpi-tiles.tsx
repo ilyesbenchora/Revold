@@ -53,7 +53,8 @@ export async function ConfigurableKpiTiles({
       label: a.label,
       value: a.value,
       tone: "accent",
-      sub: "KPI ajouté",
+      sub: a.sub,
+      subTone: a.subTone,
     })),
   ];
 
