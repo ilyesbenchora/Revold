@@ -393,12 +393,9 @@ export default async function PaiementFacturationOverviewPage({
              par objectif d'analyse — CA, marge, prévisions. Pas de titre
              « Croisement » : la sélection multi-sources le dit déjà. ── */}
       {margin && (() => {
+        // Pas de pastille sources dans les titres : le rappel « Sources des
+        // blocs » en bas de page joue déjà ce rôle.
         const srcLabel = selectedKeys.map(labelOf).join(" × ");
-        const srcPill = (
-          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-600">
-            {srcLabel}
-          </span>
-        );
 
         return (
           <div className="space-y-6">
@@ -409,7 +406,6 @@ export default async function PaiementFacturationOverviewPage({
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Chiffre d&apos;affaires
-                  {srcPill}
                 </h2>
               }
             >
@@ -454,7 +450,6 @@ export default async function PaiementFacturationOverviewPage({
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Marge
-                  {srcPill}
                 </h2>
               }
             >
@@ -494,7 +489,6 @@ export default async function PaiementFacturationOverviewPage({
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Prévisions
-                  {srcPill}
                 </h2>
               }
             >
