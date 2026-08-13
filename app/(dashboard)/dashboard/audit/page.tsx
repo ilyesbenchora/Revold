@@ -20,7 +20,8 @@ const AGENT_SOURCE_PAGES: Record<string, string[]> = {
     "audit_paiement_facturation_comptabilite",
     "audit_paiement_facturation_previsionnel",
   ],
-  "service-client": ["audit_service_client", "audit_appels"],
+  // La page Appels n'est reliée à aucun agent — elle n'active pas Service Client.
+  "service-client": ["audit_service_client"],
   equipes: ["audit_adoption"],
   proprietes: ["audit_donnees"],
 };
