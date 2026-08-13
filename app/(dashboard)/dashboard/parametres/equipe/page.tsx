@@ -99,7 +99,7 @@ export default async function EquipePage() {
 
       {/* ── Accès par page et par équipe (visualisation / modification / création) ── */}
       <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">🔐 Accès aux pages par équipe</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Accès aux pages par équipe</h2>
         <p className="text-sm text-slate-500">
           Comme «&nbsp;Outil source par page&nbsp;» : choisis, pour chaque page, ce que chaque équipe de l&apos;espace de
           travail peut faire. La visualisation pilote la navigation ; sans réglage, une page suit l&apos;accès par défaut

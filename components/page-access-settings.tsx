@@ -50,7 +50,6 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/performances/marketing", label: "Marketing", indent: true, defaultFrom: "/dashboard/performances" },
       { href: "/dashboard/performances/marketing/publicite", label: "Publicité", indent: true, defaultFrom: "/dashboard/performances" },
       { href: "/dashboard/appels", label: "Appels" },
-      { href: "/dashboard/process", label: "Alignement" },
       { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
       { href: "/dashboard/audit/paiement-facturation/facturation", label: "Facturation", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
       { href: "/dashboard/audit/paiement-facturation/paiement", label: "Paiement", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
