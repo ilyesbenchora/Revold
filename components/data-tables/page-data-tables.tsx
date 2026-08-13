@@ -247,6 +247,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   // période + pipeline conservés) ou visualisation (table/graphique/bloc,
   // section « Tables de données » à la suite des blocs).
   const [asTile, setAsTile] = useState(false);
+  // Valeur de la tuile pour les SUGGESTIONS (presets) : nombre total, ou
+  // POURCENTAGE d'une ligne sur le total (ex : % de contacts MQL). Les KPIs
+  // personnalisés passent par l'agent, qui câble le taux lui-même.
+  const [tileMode, setTileMode] = useState<"total" | "percent">("total");
+  const [tileTarget, setTileTarget] = useState<string>("");
+  const [tileTargetOpts, setTileTargetOpts] = useState<{ name: string; value: number }[] | null>(null);
   // Aperçu optionnel sur données réelles (presets déterministes — les KPIs
   // personnalisés ont déjà leur preuve chiffrée à l'étape Vérification).
   const [previewRows, setPreviewRows] = useState<{ name: string; value: number }[] | null>(null);
@@ -322,6 +328,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setPreviewRows(null);
     setPreviewLoading(false);
     setAsTile(false);
+    setTileMode("total");
+    setTileTarget("");
+    setTileTargetOpts(null);
   }
 
   function toggleSource(key: string) {
@@ -374,6 +383,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setError(null);
     setDescription("");
     setPreviewRows(null);
+    // Les lignes du mode « % d'une ligne » dépendent du KPI choisi.
+    setTileTarget("");
+    setTileTargetOpts(null);
     // Projection pondérée + échéances fiscales = KPIs déterministes précis (pas d'agent).
     // Tous les autres presets sont (re)câblés par l'agent sur la vraie donnée enrichie.
     if (isDeterministicPreset(p)) {
@@ -561,12 +573,20 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
             // KPI en taux câblé par l'agent : la tuile affiche le vrai pourcentage.
             ...(proposal.percent_of_total && proposal.target ? { target: proposal.target, percent_of_total: true } : {}),
           }
-        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, pipeline: pipelineId, sources: selected };
+        : {
+            entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field,
+            pipeline: pipelineId, sources: selected,
+            // Suggestion en mode « % d'une ligne » : la tuile affiche le vrai taux.
+            ...(tileMode === "percent" && tileTarget ? { target: tileTarget, percent_of_total: true } : {}),
+          };
       const spec = {
         ...base,
         ...(tilePeriod ? { period_preset: tilePeriod } : {}),
         ...(pipelineLabel ? { pipeline_label: pipelineLabel } : {}),
       };
+      const tileUnit = draft.custom && proposal
+        ? proposal.unit_mode
+        : tileMode === "percent" && tileTarget ? "percent" : draft.unit_mode;
       const res = await fetch("/api/page-tiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -575,7 +595,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           kind: "kpi",
           title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
           agg_spec: spec,
-          unit_mode: (draft.custom && proposal ? proposal.unit_mode : draft.unit_mode) ?? "count",
+          unit_mode: tileUnit ?? "count",
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -669,6 +689,32 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   }
 
   const dims = draft ? ENTITY_DIMS[draft.entity] ?? [] : [];
+
+  // ── Lignes réelles du regroupement (mode « % d'une ligne » des tuiles) :
+  //    chargées à la demande pour choisir la ligne cible du taux. ──
+  useEffect(() => {
+    if (!asTile || tileMode !== "percent" || !draft || draft.custom || tileTargetOpts !== null) return;
+    let alive = true;
+    fetch("/api/reports/recompute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field ?? undefined, pipeline: draft.pipeline ?? null },
+        sources: selected,
+        all: true,
+      }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!alive) return;
+        const rows = ok && Array.isArray(d.data) ? (d.data as { name: string; value: number }[]).filter((r) => r.name) : [];
+        setTileTargetOpts(rows);
+        if (rows.length > 0) setTileTarget((prev) => (prev && rows.some((r) => r.name === prev) ? prev : rows[0].name));
+      })
+      .catch(() => alive && setTileTargetOpts([]));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asTile, tileMode, draft?.entity, draft?.group_by, draft?.measure, draft?.field, draft?.pipeline, tileTargetOpts]);
 
   // ── Pipelines de deals (sélecteur « Pipeline » du regroupement par étape) :
   //    chargés à la demande dès qu'un regroupement par étape est en jeu. ──
@@ -1218,7 +1264,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
                     <select
                       value={draft.group_by}
-                      onChange={(e) => setDraft({ ...draft, group_by: e.target.value, pipeline: e.target.value === "stage" ? draft.pipeline : null })}
+                      onChange={(e) => { setDraft({ ...draft, group_by: e.target.value, pipeline: e.target.value === "stage" ? draft.pipeline : null }); setTileTarget(""); setTileTargetOpts(null); }}
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
                     >
                       {dims.map((d) => (
@@ -1302,10 +1348,64 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     ))}
                   </div>
                   {asTile && (
-                    <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                      La tuile garde la période et le pipeline choisis : ils sont rappelés dessus, et un preset
-                      (« ce trimestre »…) suit automatiquement la période courante.
-                    </p>
+                    <div className="mt-1.5 space-y-2 rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-[11px] text-slate-500">
+                        La tuile garde la période et le pipeline choisis : ils sont rappelés dessus, et un preset
+                        (« ce trimestre »…) suit automatiquement la période courante.
+                      </p>
+                      {/* Suggestions (presets) : valeur en NOMBRE total ou en % d'une
+                          ligne sur le total — l'évolution suit la même unité. */}
+                      {!draft.custom && (
+                        <div className="space-y-1.5">
+                          <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            {([
+                              { id: "total", label: "Nombre (total)" },
+                              { id: "percent", label: "% d'une ligne" },
+                            ] as const).map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setTileMode(m.id)}
+                                className={`flex-1 py-1.5 text-[11px] font-medium transition ${
+                                  tileMode === m.id ? "bg-accent text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+                                }`}
+                              >
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                          {tileMode === "percent" && (
+                            tileTargetOpts === null ? (
+                              <p className="text-[11px] text-slate-400">Chargement des lignes…</p>
+                            ) : tileTargetOpts.length === 0 ? (
+                              <p className="text-[11px] text-rose-500">Aucune ligne disponible pour ce regroupement.</p>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={tileTarget}
+                                  onChange={(e) => setTileTarget(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-700 outline-none focus:border-accent"
+                                >
+                                  {tileTargetOpts.map((r) => (
+                                    <option key={r.name} value={r.name}>{r.name}</option>
+                                  ))}
+                                </select>
+                                {(() => {
+                                  const totalAll = tileTargetOpts.reduce((s, r) => s + (Number(r.value) || 0), 0);
+                                  const tv = tileTargetOpts.find((r) => r.name === tileTarget)?.value ?? 0;
+                                  const pct = totalAll > 0 ? Math.round((tv / totalAll) * 1000) / 10 : null;
+                                  return (
+                                    <span className="shrink-0 text-xs font-bold tabular-nums text-slate-800">
+                                      {pct != null ? `${pct.toLocaleString("fr-FR")} %` : "—"}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
