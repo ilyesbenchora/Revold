@@ -500,7 +500,26 @@ export function PaiementAgentChat({
           attachments: [...contextFiles, ...attachments],
         }),
       });
-      const data = await res.json();
+      // Réponse non-JSON (page d'erreur Vercel, timeout) → message lisible.
+      const raw = await res.text();
+      let data: {
+        error?: string;
+        message?: string;
+        report?: ReportSpec | null;
+        chartProposal?: ChartProposal | null;
+        proposedAction?: ProposedAction | null;
+        dealAction?: DealActionProposal | null;
+        redirect?: AgentRedirect | null;
+      };
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Réponse illisible du serveur"
+            : `Le serveur n'a pas répondu à temps (erreur ${res.status}) — réessaie`,
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Erreur agent");
       const assistant: Msg = {
         role: "assistant",

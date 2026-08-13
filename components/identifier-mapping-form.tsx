@@ -50,6 +50,14 @@ const CANONICAL_TO_OBJECT: Record<string, string> = {
   email: "contacts",
 };
 
+// IDs de rapprochement multiples côté CRM : custom_id, custom_id_2, custom_id_3…
+// (un par outil relié au CRM — chaque paire CRM ↔ outil peut partager son propre code).
+const isCustomIdKey = (key: string) => /^custom_id(_\d+)?$/.test(key);
+const customIdRank = (key: string): number => {
+  const m = /^custom_id_(\d+)$/.exec(key);
+  return m ? Number(m[1]) : 1;
+};
+
 export function IdentifierMappingForm({
   rows,
   savedMappings,
@@ -74,8 +82,25 @@ export function IdentifierMappingForm({
         map[key] = saved?.provider_field ?? id.defaultProviderField;
       }
     }
+    // IDs de rapprochement supplémentaires du CRM (custom_id_2…) : hors
+    // catalogue, uniquement présents dans les mappings sauvegardés.
+    for (const m of savedMappings) {
+      if (m.provider === "hubspot" && /^custom_id_\d+$/.test(m.canonical_field)) {
+        map[`hubspot__${m.canonical_field}`] = m.provider_field;
+      }
+    }
     return map;
   });
+  // Liste ordonnée des IDs de rapprochement du CRM (au moins custom_id).
+  const [hubspotCustomIdKeys, setHubspotCustomIdKeys] = useState<string[]>(() => {
+    const saved = savedMappings
+      .filter((m) => m.provider === "hubspot" && isCustomIdKey(m.canonical_field))
+      .map((m) => m.canonical_field);
+    return [...new Set(["custom_id", ...saved])].sort((a, b) => customIdRank(a) - customIdRank(b));
+  });
+  // Clés retirées par l'utilisateur : envoyées vides à l'enregistrement pour
+  // supprimer le mapping côté serveur.
+  const [removedCustomIdKeys, setRemovedCustomIdKeys] = useState<string[]>([]);
   // Libellés HubSpot (champ d'aide) — pré-remplis avec le libellé réel quand la
   // vérification serveur a trouvé la propriété.
   const [labels, setLabels] = useState<Record<string, string>>(() => {
@@ -107,6 +132,42 @@ export function IdentifierMappingForm({
   }
 
   /**
+   * Identifiants affichés pour un outil. Côté CRM, l'« ID de rapprochement »
+   * unique du catalogue est déplié en autant de champs que d'IDs configurés
+   * (custom_id, custom_id_2…) — le CRM étant relié à plusieurs outils, chaque
+   * paire peut partager son propre code interne.
+   */
+  function expandIdentifiers(row: ProviderRow): Identifier[] {
+    if (row.provider !== "hubspot") return row.identifiers;
+    return row.identifiers.flatMap((id) => {
+      if (id.canonicalField !== "custom_id") return [id];
+      return hubspotCustomIdKeys.map((key, i) => ({
+        ...id,
+        canonicalField: key,
+        label: i === 0 ? id.label : `${id.label} ${i + 1}`,
+      }));
+    });
+  }
+
+  function addCustomIdKey() {
+    setHubspotCustomIdKeys((prev) => {
+      const next = `custom_id_${Math.max(...prev.map(customIdRank), 1) + 1}`;
+      setRemovedCustomIdKeys((rm) => rm.filter((k) => k !== next));
+      return [...prev, next];
+    });
+    setSaved(false);
+  }
+
+  function removeCustomIdKey(key: string) {
+    setHubspotCustomIdKeys((prev) => (prev.length > 1 ? prev.filter((k) => k !== key) : prev));
+    setRemovedCustomIdKeys((prev) => [...new Set([...prev, key])]);
+    setValues((prev) => ({ ...prev, [`hubspot__${key}`]: "" }));
+    setLabels((prev) => ({ ...prev, [key]: "" }));
+    setHsStatus((prev) => ({ ...prev, [key]: undefined }));
+    setSaved(false);
+  }
+
+  /**
    * Vérifie dans HubSpot les propriétés custom saisies (par nom interne, puis
    * par libellé). Quand le nom interne est faux mais que le libellé correspond
    * à une propriété existante, le nom interne trouvé est appliqué automatiquement.
@@ -116,7 +177,7 @@ export function IdentifierMappingForm({
   async function verifyHubSpotProperties(): Promise<{ status: HubSpotPropertyStatus; corrected: Record<string, string> } | null> {
     const hubspotRow = rows.find((r) => r.provider === "hubspot");
     if (!hubspotRow) return { status: {}, corrected: {} };
-    const checks = hubspotRow.identifiers
+    const checks = expandIdentifiers(hubspotRow)
       .filter((id) => !id.native && id.canonicalField !== "external_id")
       .map((id) => ({
         canonicalField: id.canonicalField,
@@ -208,7 +269,7 @@ export function IdentifierMappingForm({
       const missing = Object.entries(verified.status)
         .filter(([, st]) => st?.exists === false)
         .map(([field]) => {
-          const def = hubspotRow?.identifiers.find((i) => i.canonicalField === field);
+          const def = hubspotRow ? expandIdentifiers(hubspotRow).find((i) => i.canonicalField === field) : undefined;
           const typed = (values[`hubspot__${field}`] ?? "").trim() || (labels[field] ?? "").trim();
           return `« ${typed} » (${def?.label ?? field})`;
         });
@@ -231,11 +292,17 @@ export function IdentifierMappingForm({
     const mappings: SavedMapping[] = [];
     for (const row of rows) {
       if (disabled.has(row.provider)) continue;
-      for (const id of row.identifiers) {
+      for (const id of expandIdentifiers(row)) {
         if (id.native || id.canonicalField === "external_id") continue;
         const correctedName = row.provider === "hubspot" ? verified?.corrected[id.canonicalField] : undefined;
         const val = (correctedName ?? values[`${row.provider}__${id.canonicalField}`] ?? "").trim();
         mappings.push({ provider: row.provider, canonical_field: id.canonicalField, provider_field: val });
+      }
+    }
+    // IDs de rapprochement retirés : envoyés vides → le serveur supprime le mapping.
+    for (const key of removedCustomIdKeys) {
+      if (!hubspotCustomIdKeys.includes(key)) {
+        mappings.push({ provider: "hubspot", canonical_field: key, provider_field: "" });
       }
     }
     try {
@@ -257,7 +324,7 @@ export function IdentifierMappingForm({
       {rows.map((row) => {
         const isHubSpot = row.provider === "hubspot";
         const isDisabled = disabled.has(row.provider);
-        const shown = row.identifiers.filter((id) => id.canonicalField !== "external_id");
+        const shown = expandIdentifiers(row).filter((id) => id.canonicalField !== "external_id");
         // Natifs (1 champ, courts) et customs (2 champs HubSpot, hauts) dans des
         // grilles séparées : une même ligne de grille ne mélange plus les deux
         // hauteurs (sinon grand vide sous les champs courts).
@@ -267,6 +334,8 @@ export function IdentifierMappingForm({
         const renderIdentifier = (id: Identifier) => {
           const isHsCustom = isHubSpot && !id.native;
           const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
+          // ID de rapprochement du CRM : supprimable dès qu'il y en a plusieurs.
+          const removable = isHubSpot && isCustomIdKey(id.canonicalField) && hubspotCustomIdKeys.length > 1;
           return (
             <div key={id.canonicalField}>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
@@ -281,6 +350,17 @@ export function IdentifierMappingForm({
                 )}
                 {status?.exists === false && (
                   <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
+                )}
+                {removable && (
+                  <button
+                    type="button"
+                    onClick={() => removeCustomIdKey(id.canonicalField)}
+                    className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    title="Retirer cet ID de rapprochement"
+                    aria-label={`Retirer ${id.label}`}
+                  >
+                    ✕ Retirer
+                  </button>
                 )}
               </label>
               {isHsCustom ? (
@@ -383,7 +463,15 @@ export function IdentifierMappingForm({
                   )}
                 </div>
                 {isHubSpot && (
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={addCustomIdKey}
+                      className="text-xs font-medium text-accent hover:underline"
+                      title="Le CRM peut partager un code différent avec chaque outil relié"
+                    >
+                      + Ajouter un ID de rapprochement (autre outil)
+                    </button>
                     <button
                       type="button"
                       onClick={() => verifyHubSpotProperties()}

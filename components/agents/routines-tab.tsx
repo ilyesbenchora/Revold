@@ -72,7 +72,19 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
           attachments: [],
         }),
       });
-      const data = await res.json();
+      // Réponse non-JSON (page d'erreur Vercel, timeout, HTML) → message clair
+      // au lieu d'un « Unexpected token … is not valid JSON ».
+      const raw = await res.text();
+      let data: { error?: string; report?: unknown; chartProposal?: unknown };
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Réponse illisible du serveur"
+            : `Le serveur n'a pas répondu à temps (erreur ${res.status}) — relance la routine`,
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Erreur agent");
       const report = (data.report ?? null) as ReportSpec | null;
       const chart = (data.chartProposal ?? null) as ChartProposal | null;

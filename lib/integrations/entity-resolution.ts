@@ -214,7 +214,22 @@ async function runCompanyRule(sb: SupabaseClient, orgId: string, ruleId: string,
         .ilike("custom_id", pattern)
         .limit(1)
         .maybeSingle();
-      const id = (data?.id as string | undefined) ?? null;
+      let id = (data?.id as string | undefined) ?? null;
+      // CRM multi-outils : l'entreprise peut porter plusieurs IDs de
+      // rapprochement (custom_ids, stockés lowercase — un par outil relié).
+      // Silencieux si la migration custom_ids n'est pas appliquée.
+      if (!id) {
+        try {
+          const { data: viaList } = await sb
+            .from("companies")
+            .select("id")
+            .eq("organization_id", orgId)
+            .contains("custom_ids", [cid.toLowerCase()])
+            .limit(1)
+            .maybeSingle();
+          id = (viaList?.id as string | undefined) ?? null;
+        } catch {}
+      }
       return id ? { id, method: "custom_id", score: 1 } : null;
     }
     case "siren_match": {
@@ -407,6 +422,26 @@ export async function resolveCompany(
   // silence sans casser la création ni l'enrichissement. Jamais écrasé par du vide.
   if (customId && resolvedId) {
     await supabase.from("companies").update({ custom_id: customId }).eq("id", resolvedId).eq("organization_id", orgId);
+    // Ajout à la liste multi-IDs (custom_ids, lowercase) : le CRM peut partager
+    // un code différent avec chaque outil — on accumule sans jamais retirer.
+    // Silencieux si la migration custom_ids n'est pas appliquée.
+    try {
+      const { data: cur } = await supabase
+        .from("companies")
+        .select("custom_ids")
+        .eq("id", resolvedId)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const list: string[] = Array.isArray(cur?.custom_ids) ? (cur.custom_ids as string[]) : [];
+      const low = customId.toLowerCase();
+      if (!list.includes(low)) {
+        await supabase
+          .from("companies")
+          .update({ custom_ids: [...list, low] })
+          .eq("id", resolvedId)
+          .eq("organization_id", orgId);
+      }
+    } catch {}
   }
 
   await writeSourceLink(supabase, orgId, provider, externalId, "company", resolvedId!, method, score);

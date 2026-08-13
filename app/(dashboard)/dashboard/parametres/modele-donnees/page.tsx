@@ -241,6 +241,20 @@ export default async function ParametresModeleDonneesPage() {
         hubspotPropertyStatus[id.canonicalField] = check;
       }),
   );
+  // IDs de rapprochement supplémentaires du CRM (custom_id_2, custom_id_3…) :
+  // hors catalogue — vérifiés depuis les mappings sauvegardés.
+  await Promise.all(
+    savedMappings
+      .filter((m) => m.provider === "hubspot" && /^custom_id_\d+$/.test(m.canonical_field) && m.provider_field?.trim())
+      .map(async (m) => {
+        hubspotPropertyStatus[m.canonical_field] = await checkHubSpotProperty(
+          hsToken,
+          "companies",
+          m.provider_field.trim(),
+          "ID de rapprochement",
+        );
+      }),
+  );
 
   // Match stats for display
   const totalMatched = Object.values(matchStats).reduce((s, v) => s + v, 0);

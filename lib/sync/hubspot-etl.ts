@@ -338,16 +338,21 @@ function dedupeByKey<T>(rows: T[], key: (r: T) => string): T[] {
 }
 
 /**
- * Propriété HubSpot mappée sur l'« ID de rapprochement » (Paramètres → Modèle
- * de données). Null si non mappé — le nom doit être un nom interne valide.
+ * Propriétés HubSpot mappées sur les « ID de rapprochement » (Paramètres →
+ * Modèle de données). Le CRM peut en porter plusieurs — un par outil relié
+ * (custom_id, custom_id_2…). Vide si rien n'est mappé ; seuls les noms
+ * internes valides sont retenus.
  */
-async function loadCustomIdProperty(supabase: SupabaseClient, orgId: string): Promise<string | null> {
+async function loadCustomIdProperties(supabase: SupabaseClient, orgId: string): Promise<string[]> {
   try {
     const accessor = await loadIdentifierAccessor(supabase, orgId, "hubspot");
-    const path = accessor.paths.custom_id;
-    return path && /^[a-z0-9_]+$/i.test(path) ? path : null;
+    const props = Object.entries(accessor.paths)
+      .filter(([field]) => /^custom_id(_\d+)?$/.test(field))
+      .map(([, path]) => path)
+      .filter((p): p is string => !!p && /^[a-z0-9_]+$/i.test(p));
+    return [...new Set(props)];
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -355,7 +360,7 @@ async function upsertCompanies(
   supabase: SupabaseClient,
   orgId: string,
   records: Array<Record<string, unknown>>,
-  customIdProp: string | null = null,
+  customIdProps: string[] = [],
 ): Promise<number> {
   if (records.length === 0) return 0;
   const rowsRaw = records.map((r) => {
@@ -385,20 +390,37 @@ async function upsertCompanies(
     upserted += count ?? chunk.length;
   }
 
-  // ID de rapprochement (custom_id) : écrit à part, uniquement pour les records
-  // où la propriété mappée est renseignée — jamais d'écrasement par du vide, et
-  // un échec (migration companies.custom_id non appliquée) ne casse pas la sync.
-  if (customIdProp) {
+  // IDs de rapprochement : écrits à part, uniquement pour les records où au
+  // moins une propriété mappée est renseignée — jamais d'écrasement par du
+  // vide, et un échec (migration non appliquée) ne casse pas la sync.
+  // custom_id garde la première valeur (compat mono-ID) ; custom_ids porte
+  // toutes les valeurs normalisées (lowercase) pour le match multi-outils.
+  if (customIdProps.length > 0) {
     const cidRows = dedupeByKey(records, (r) => r.id as string)
       .map((r) => {
         const props = (r.properties as Record<string, string | null>) ?? {};
-        return { organization_id: orgId, hubspot_id: r.id as string, custom_id: pStr(props, customIdProp) };
+        const vals = customIdProps
+          .map((p) => pStr(props, p))
+          .filter((v): v is string => !!v);
+        return {
+          organization_id: orgId,
+          hubspot_id: r.id as string,
+          custom_id: vals[0] ?? null,
+          custom_ids: [...new Set(vals.map((v) => v.trim().toLowerCase()))],
+        };
       })
       .filter((r) => r.custom_id);
     for (let i = 0; i < cidRows.length; i += 500) {
-      await supabase
+      const chunk = cidRows.slice(i, i + 500);
+      const { error } = await supabase
         .from("companies")
-        .upsert(cidRows.slice(i, i + 500), { onConflict: "organization_id,hubspot_id" });
+        .upsert(chunk, { onConflict: "organization_id,hubspot_id" });
+      // Migration companies.custom_ids pas encore appliquée → retente sans la colonne.
+      if (error) {
+        await supabase
+          .from("companies")
+          .upsert(chunk.map(({ custom_ids: _c, ...rest }) => rest), { onConflict: "organization_id,hubspot_id" });
+      }
     }
   }
   return upserted;
@@ -839,14 +861,14 @@ export async function syncCrmObject(
 
   try {
     const watermark = mode === "full" ? null : await getWatermark(supabase, orgId, type);
-    // ID de rapprochement mappé (companies) : la propriété doit être demandée à
-    // l'API HubSpot pour apparaître dans les payloads.
-    const customIdProp = type === "companies" ? await loadCustomIdProperty(supabase, orgId) : null;
-    const { records, latest } = await syncViaSearch(token, type, watermark, customIdProp ? [customIdProp] : []);
+    // IDs de rapprochement mappés (companies) : les propriétés doivent être
+    // demandées à l'API HubSpot pour apparaître dans les payloads.
+    const customIdProps = type === "companies" ? await loadCustomIdProperties(supabase, orgId) : [];
+    const { records, latest } = await syncViaSearch(token, type, watermark, customIdProps);
 
     let upserted = 0;
     if (type === "contacts") upserted = await upsertContacts(supabase, orgId, records);
-    else if (type === "companies") upserted = await upsertCompanies(supabase, orgId, records, customIdProp);
+    else if (type === "companies") upserted = await upsertCompanies(supabase, orgId, records, customIdProps);
     else if (type === "deals") {
       // On rafraîchit d'abord la table de correspondance des étapes (pipeline_stages)
       // pour lier deals.stage_id sur des noms d'étapes RÉELS, jamais devinés.

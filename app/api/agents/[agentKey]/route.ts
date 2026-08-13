@@ -10,7 +10,10 @@ import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 
-export const maxDuration = 60;
+// 300 s (comme les crons) : un rapport complet de routine (KPIs + graphique +
+// table, plusieurs appels d'outils) dépasse facilement 60 s — au-delà, Vercel
+// coupait la fonction et renvoyait une page d'erreur texte (« An error o… »).
+export const maxDuration = 300;
 
 type Body = {
   messages?: AgentMessage[];
