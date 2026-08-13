@@ -46,14 +46,6 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
       evidenceCount: snapshot.totalContacts + snapshot.totalCompanies + snapshot.totalDeals,
     },
     {
-      id: "audit_automatisations",
-      label: "Données — Alignement",
-      href: "/dashboard/process",
-      description: "Workflows actifs et règles d'automatisation HubSpot",
-      diagKeys: [],
-      evidenceCount: snapshot.workflowsActiveCount,
-    },
-    {
       id: "audit_perf_ventes",
       label: "Données — Performances Ventes",
       href: "/dashboard/performances/commerciale",

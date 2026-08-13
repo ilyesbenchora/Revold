@@ -17,7 +17,6 @@ import Link from "next/link";
 
 const ALL_PAGE_KEYS = [
   "audit_donnees",
-  "audit_automatisations",
   "audit_perf_ventes",
   "audit_perf_marketing",
   "audit_paiement_facturation",

@@ -17,7 +17,9 @@ export const dynamic = "force-dynamic";
 // Page de la plateforme couverte par chaque agent — accessible depuis son chat.
 const AGENT_PAGE: Record<string, { href: string; label: string }> = {
   performance: { href: "/dashboard/performances", label: "Performances" },
-  automatisations: { href: "/dashboard/process", label: "Alignement" },
+  // La page Alignement a été supprimée : ses KPIs (relais inter-services)
+  // vivent en suggestions sur la page Trésorerie.
+  automatisations: { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "paiement-facturation": { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "service-client": { href: "/dashboard/audit/service-client", label: "Service Client" },
   equipes: { href: "/dashboard/conduite-changement", label: "Équipes" },

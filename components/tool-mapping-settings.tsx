@@ -28,7 +28,6 @@ const SECTIONS: Section[] = [
     hint: "Sélection multiple — Revold croise les outils choisis dans l'analyse de chaque page. Une sous-page sans sélection hérite du réglage de sa page parente.",
     pages: [
       { key: "audit_donnees", label: "Rapprochement données", description: "Qualité des données, audit d'onboarding des outils", mode: "multi" },
-      { key: "audit_automatisations", label: "Alignement", description: "Relais entre services : lifecycle, MQL → deal, deal → facture", mode: "multi" },
       { key: "audit_perf_ventes", label: "Performances — Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
       { key: "audit_perf_marketing", label: "Performances — Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
       { key: "audit_perf_ads", label: "Performances — Publicité", description: "Ads : dépenses, CPC/CPL, ROAS, conversions par campagne", mode: "multi", parentKey: "audit_perf_marketing" },

@@ -150,6 +150,19 @@ export async function resolveKpiValue(
   forecastType: string,
   filters: AlertFilters = {},
 ): Promise<number | null> {
+  // ── Recettes réconciliées cross-source (délais médians CRM × facturation) :
+  //    mêmes ids que le moteur de réconciliation — rend ces KPIs utilisables
+  //    en tuile de page (ex-tuiles Alignement, suggérées sur Trésorerie). ──
+  if (forecastType === "deal_won_to_first_invoice" || forecastType === "invoice_to_payment") {
+    const { computeReconciledMetric } = await import("@/lib/reconciliation/engine");
+    try {
+      const r = await computeReconciledMetric(supabase, orgId, forecastType);
+      return r && r.hasData ? r.value : null;
+    } catch {
+      return null;
+    }
+  }
+
   const { getHubSpotToken } = await import("@/lib/integrations/get-hubspot-token");
   const token = await getHubSpotToken(supabase, orgId);
 

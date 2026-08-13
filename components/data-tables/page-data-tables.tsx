@@ -29,10 +29,11 @@ import {
 } from "@/lib/reports/periods";
 
 // Un KPI est déterministe (câblé précisément, sans agent) uniquement pour la
-// projection pondérée et les échéances fiscales. Tous les autres presets passent
-// par l'agent pour être câblés sur la vraie donnée enrichie.
-function isDeterministicPreset(p: { measure: string; entity: string }): boolean {
-  return p.measure === "weighted" || p.entity === "fiscal";
+// projection pondérée, les échéances fiscales et les recettes réconciliées
+// (forecastType). Tous les autres presets passent par l'agent pour être câblés
+// sur la vraie donnée enrichie.
+function isDeterministicPreset(p: { measure: string; entity: string; forecastType?: string }): boolean {
+  return p.measure === "weighted" || p.entity === "fiscal" || !!p.forecastType;
 }
 
 // Catégories d'outils qui portent des DONNÉES à croiser. La communication
@@ -80,6 +81,8 @@ type Draft = {
   custom?: boolean;
   customKpi?: string;
   description?: string;
+  /** Recette réconciliée (délai médian cross-source) — TUILE uniquement, résolue par resolveKpiValue. */
+  forecastType?: string | null;
 };
 
 /** Fréquences d'affichage des regroupements temporels (month_*). */
@@ -227,7 +230,6 @@ function PeriodField({
 const PAGE_ALERT_TEAM: Record<string, string> = {
   perf_ventes: "sales",
   perf_marketing: "marketing",
-  audit_automatisations: "revops",
   audit_service_client: "csm",
   audit_paiement_facturation: "finance",
   audit_adoption: "revops",
@@ -448,7 +450,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         unit_mode: p.unit,
         view: p.view ?? "table",
         title: p.label,
+        forecastType: p.forecastType ?? null,
       });
+      // Recette réconciliée = valeur unique (délai médian) → tuile imposée.
+      if (p.tileOnly || p.forecastType) setAsTile(true);
     } else {
       setDraft({
         entity: p.entity,
@@ -572,6 +577,24 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     if (previewRows) { setPreviewRows(null); return; }
     if (!draft || previewLoading) return;
     setPreviewLoading(true);
+    // ── Recette réconciliée : valeur unique (délai médian) via l'API tracking. ──
+    if (draft.forecastType) {
+      try {
+        const res = await fetch("/api/tracking/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recon_recipe: draft.forecastType }),
+        });
+        const d = await res.json().catch(() => ({}));
+        const v = res.ok ? d?.resolution?.current_value : null;
+        setPreviewRows(typeof v === "number" ? [{ name: "Délai médian (jours)", value: v }] : []);
+      } catch {
+        setPreviewRows([]);
+      } finally {
+        setPreviewLoading(false);
+      }
+      return;
+    }
     try {
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
@@ -614,6 +637,32 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     if (asTile && !editingId) {
       setSaving(true);
       setError(null);
+
+      // ── Recette réconciliée (délai médian cross-source) : tuile résolue par
+      //    forecast_type — pas d'agg_spec ni de période (médiane historique). ──
+      if (draft.forecastType) {
+        const res = await fetch("/api/page-tiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            page_key: pageKey,
+            kind: "kpi",
+            title: draft.title.trim() || "KPI",
+            forecast_type: draft.forecastType,
+            unit_mode: draft.unit_mode ?? "count",
+          }),
+        });
+        const d = await res.json().catch(() => ({}));
+        setSaving(false);
+        if (res.ok) {
+          setOpen(false);
+          reset();
+          router.refresh();
+        } else {
+          setError(d.error || "Création impossible.");
+        }
+        return;
+      }
       const storedPeriod = periodValue();
       const tilePeriod = storedPeriod && storedPeriod !== "all" && storedPeriod !== PERIOD_FROM_DESCRIPTION ? storedPeriod : null;
       const pipelineId = draft.custom && proposal ? proposal.pipeline ?? null : draft.pipeline ?? null;
@@ -1419,6 +1468,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
+                  {draft.forecastType ? (
+                    // Recette réconciliée = une valeur unique (délai médian) : tuile imposée.
+                    <p className="mt-0.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                      Délai médian mesuré par le moteur de rapprochement (jointures réelles entre tes outils) —
+                      ce KPI s&apos;ajoute en <span className="font-semibold">tuile</span>, à la ligne de KPIs en haut de page.
+                    </p>
+                  ) : (
+                  <>
                   {/* Tuile KPI = chiffre simple, ajoutée À LA SUITE DES TUILES du haut
                       (là où « ＋ Ajouter un KPI »). Le Bloc, plus riche (chiffre héros
                       + ventilation), et les autres visualisations s'ajoutent à la
@@ -1449,7 +1506,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </button>
                     ))}
                   </div>
-                  {asTile && (
+                  </>
+                  )}
+                  {asTile && !draft.forecastType && (
                     <div className="mt-1.5 space-y-2 rounded-lg bg-slate-50 px-3 py-2">
                       <p className="text-[11px] text-slate-500">
                         La tuile garde la période et le pipeline choisis : ils sont rappelés dessus, et un preset
@@ -1547,8 +1606,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </div>
                 )}
 
-                {/* Période par défaut à l'ouverture de la table (hors échéances fiscales). */}
-                {draft.entity !== "fiscal" && (
+                {/* Période par défaut à l'ouverture de la table (hors échéances
+                    fiscales et recettes réconciliées : médiane historique). */}
+                {draft.entity !== "fiscal" && !draft.forecastType && (
                   <PeriodField
                     period={period}
                     setPeriod={setPeriod}

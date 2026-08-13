@@ -24,6 +24,19 @@ export type TablePreset = {
    * est proposé dès qu'un outil de la catégorie source de l'entité est connecté.
    */
   requiresKey?: string;
+  /**
+   * Catégories d'outils TOUTES requises dans la sélection (ex : ["crm",
+   * "billing"] pour un délai croisé deal × facture). Complète la catégorie de
+   * l'entité pour les KPIs réconciliés multi-sources.
+   */
+  requiresCategories?: ConnectableTool["category"][];
+  /**
+   * KPI résolu par resolveKpiValue (recette réconciliée, délai médian…) au lieu
+   * d'un agrégat entité × dimension. Toujours tuile uniquement (pas de lignes).
+   */
+  forecastType?: string;
+  /** Proposé uniquement comme TUILE (pas de table/graphique — valeur unique). */
+  tileOnly?: boolean;
 };
 
 // Catégorie d'outil qui alimente chaque entité canonique. Le funnel de création
@@ -131,7 +144,6 @@ export function fieldLabel(entity: string, field: string | null): string {
 export const PAGE_LABELS: Record<string, string> = {
   perf_ventes: "Ventes",
   perf_marketing: "Marketing",
-  audit_automatisations: "Alignement",
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
   audit_adoption: "Équipes",
@@ -165,18 +177,6 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "companies_industry", label: "Entreprises par industrie", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
     { id: "companies_country", label: "Entreprises par pays", entity: "companies", groupBy: "country", measure: "count", unit: "count", view: "bar" },
   ],
-  audit_automatisations: [
-    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
-    { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
-    { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
-    { id: "deals_closed_month", label: "Évolution des deals fermés", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
-    { id: "pipeline_created_month", label: "Évolution du pipeline créé (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
-    // Relais ventes → facturation : le deal gagné devient-il une facture ?
-    { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
-    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
-    { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
-  ],
   audit_service_client: [
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
@@ -201,6 +201,10 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "receivables_status", label: "Créances (impayés) par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
     { id: "real_cash_month", label: "Évolution du cash réel encaissé", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
     { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    // ── Relais inter-services (ex-tuiles Alignement) : délais médians mesurés
+    //    par le moteur de réconciliation (jointures réelles CRM × facturation) ──
+    { id: "deal_won_to_first_invoice", label: "Deal gagné → 1re facture (délai médian)", entity: "deals", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "deal_won_to_first_invoice", tileOnly: true, requiresCategories: ["crm", "billing"] },
+    { id: "invoice_to_payment", label: "Facture → encaissement (délai médian)", entity: "invoices", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "invoice_to_payment", tileOnly: true },
     // ── Échéances fiscales (config dans Paramètres → Organisation) ──
     { id: "fiscal_echeances", label: "Échéances fiscales (TVA · IS · URSSAF)", entity: "fiscal", groupBy: "echeance", measure: "sum", field: "montant", unit: "currency", view: "table" },
     // ── Abonnements / MRR ──
@@ -240,7 +244,6 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
 export const PAGE_AGENT_KEY: Record<string, string> = {
   perf_ventes: "performance",
   perf_marketing: "coaching-marketing",
-  audit_automatisations: "automatisations",
   audit_service_client: "service-client",
   audit_paiement_facturation: "paiement-facturation",
   audit_adoption: "equipes",
@@ -280,6 +283,9 @@ export function filterPresetsBySources(
   const selectedCats = new Set(selected.map((t) => t.category));
   return presets.filter((p) => {
     if (p.requiresKey && !selectedKeys.has(p.requiresKey)) return false;
+    // KPI croisé multi-sources : TOUTES les catégories requises sélectionnées
+    // (ex : deal → facture exige un CRM ET un outil de facturation).
+    if (p.requiresCategories && !p.requiresCategories.every((c) => selectedCats.has(c))) return false;
     const cat = presetSourceCategory(p);
     if (!cat) return true; // entité sans source connue → toujours proposée
     return selectedCats.has(cat);
