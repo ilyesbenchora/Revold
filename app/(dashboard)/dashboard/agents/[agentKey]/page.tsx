@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getToolKeys } from "@/lib/integrations/tool-mappings";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
@@ -27,9 +28,14 @@ export default async function AgentPage({
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
   const tools = orgId ? await getConnectedTools(supabase, orgId) : [];
-  const sources = tools
-    .filter((t) => agent.sourceCategories.includes(t.category))
-    .map((t) => ({ key: t.key, label: t.label, icon: t.icon, category: t.category }));
+  // Sélection explicite de Paramètres → « Outils sources par agent » : elle
+  // fait foi quand elle existe ; sinon l'agent retombe sur tous les outils
+  // connectés de son périmètre métier (sourceCategories).
+  const agentToolKeys = orgId ? await getToolKeys(supabase, orgId, `agent_${agentKey}`) : [];
+  const picked = agentToolKeys.length > 0
+    ? tools.filter((t) => agentToolKeys.includes(t.key))
+    : tools.filter((t) => agent.sourceCategories.includes(t.category));
+  const sources = picked.map((t) => ({ key: t.key, label: t.label, icon: t.icon, category: t.category }));
 
   // Agents coach : charge l'agenda (objectifs/pains/RDV) de la catégorie.
   const coachingCategory = COACHING_CATEGORY[agentKey] ?? null;

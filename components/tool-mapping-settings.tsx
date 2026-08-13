@@ -64,14 +64,47 @@ const SECTIONS: Section[] = [
       { key: "coaching_ia", label: "Coaching IA", description: "Insights Ventes / Marketing / Data / Intégrations", mode: "multi" },
     ],
   },
+  // Sources par AGENT (clés agent_<agentKey>) : chaque agent expert / coach
+  // n'analyse que les outils choisis ici. Sans sélection, l'agent retombe sur
+  // tous les outils connectés de son périmètre par défaut.
+  {
+    id: "agents_equipe",
+    title: "Agents — Mon équipe IA",
+    hint: "Sélection multiple — chaque agent expert n'analyse que les outils choisis. Sans sélection, l'agent utilise tous les outils connectés de son périmètre.",
+    pages: [
+      { key: "agent_performance", label: "Agent Performance", description: "Pipeline, deals, closing, forecast", mode: "multi" },
+      { key: "agent_automatisations", label: "Agent Alignement Process & Outils", description: "Relais entre services, lifecycle, workflows", mode: "multi" },
+      { key: "agent_paiement-facturation", label: "Agent Trésorerie", description: "Factures, encaissements, cash", mode: "multi" },
+      { key: "agent_service-client", label: "Agent Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
+      { key: "agent_equipes", label: "Agent Équipes", description: "Owners, équipes, discipline d'usage", mode: "multi" },
+      { key: "agent_proprietes", label: "Agent qualité des données", description: "Complétude, rapprochement, enrichissement", mode: "multi" },
+    ],
+  },
+  {
+    id: "agents_coachs",
+    title: "Agents — Coachs IA",
+    hint: "Sélection multiple — chaque coach n'exploite que les outils choisis. Sans sélection, le coach utilise tous les outils connectés de son périmètre.",
+    pages: [
+      { key: "agent_coaching-ventes", label: "Coach des ventes", description: "Deals, pipeline, closing", mode: "multi" },
+      { key: "agent_coaching-marketing", label: "Coach marketing", description: "Leads, conversion, acquisition", mode: "multi" },
+      { key: "agent_coaching-data", label: "Coach data & intégration", description: "Qualité des données, insights multi-sources", mode: "multi" },
+      { key: "agent_coaching-data-model", label: "Coach finance", description: "Trésorerie, comptabilité, cash", mode: "multi" },
+    ],
+  },
 ];
+
+/** Groupes de sections : "pages" = pages Revold · "agents" = agents & coachs. */
+const AGENT_SECTION_IDS = new Set(["agents_equipe", "agents_coachs"]);
 
 export function ToolMappingSettings({
   options,
   initialMappings,
+  only,
 }: {
   options: ConnectedToolOption[];
   initialMappings: Record<string, string[]>;
+  /** Restreint le rendu à un groupe de sections (bloc distinct dans la page). */
+  only?: "pages" | "agents";
 }) {
   const router = useRouter();
   const [mappings, setMappings] = useState<Record<string, string[]>>(initialMappings);
@@ -141,7 +174,9 @@ export function ToolMappingSettings({
         </p>
       )}
 
-      {SECTIONS.map((section) => {
+      {SECTIONS.filter((s) =>
+        only === "agents" ? AGENT_SECTION_IDS.has(s.id) : only === "pages" ? !AGENT_SECTION_IDS.has(s.id) : true,
+      ).map((section) => {
         const isCollapsed = collapsed[section.id] ?? false;
         return (
         <section key={section.id} className="card overflow-hidden">

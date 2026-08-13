@@ -30,6 +30,17 @@ const ALL_PAGE_KEYS = [
   "dashboard",
   "simulation_ia",
   "coaching_ia",
+  // Sources par agent (Mon équipe IA + Coachs IA) — clés agent_<agentKey>.
+  "agent_performance",
+  "agent_automatisations",
+  "agent_paiement-facturation",
+  "agent_service-client",
+  "agent_equipes",
+  "agent_proprietes",
+  "agent_coaching-ventes",
+  "agent_coaching-marketing",
+  "agent_coaching-data",
+  "agent_coaching-data-model",
 ];
 
 // Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel
@@ -368,6 +379,25 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         <ToolMappingSettings
           options={mappingOptions.filter((o) => o.category !== "communication")}
           initialMappings={mappingValues}
+          only="pages"
+        />
+      </div>
+
+      {/* Mapping outils sources par agent (Mon équipe IA + Coachs IA) */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          Outils sources par agent
+        </h2>
+        <p className="text-xs text-slate-500">
+          Même logique que le bloc ci-dessus, appliquée aux agents : pour chaque agent de
+          «&nbsp;Mon équipe IA&nbsp;» et chaque coach, choisissez les outils qu&apos;il utilisera
+          dans ses analyses, rapports et routines. <strong>Sans sélection</strong>, l&apos;agent
+          utilise par défaut tous les outils connectés de son périmètre métier.
+        </p>
+        <ToolMappingSettings
+          options={mappingOptions.filter((o) => o.category !== "communication")}
+          initialMappings={mappingValues}
+          only="agents"
         />
       </div>
 
