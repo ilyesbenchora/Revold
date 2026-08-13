@@ -208,11 +208,16 @@ export function AlertsDropdown() {
                         >
                           <div className="flex items-start gap-2">
                             <div className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                              n.type === "alert_resolved" ? "bg-emerald-100" : "bg-slate-100"
+                              n.type === "alert_resolved" ? "bg-emerald-100" : n.type === "routine_executed" ? "bg-fuchsia-100" : "bg-slate-100"
                             }`}>
                               {n.type === "alert_resolved" ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
                                   <path d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : n.type === "routine_executed" ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-600">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="12 6 12 12 16 14" />
                                 </svg>
                               ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">

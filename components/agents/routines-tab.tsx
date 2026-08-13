@@ -55,7 +55,7 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
     };
   }, [agentKey]);
 
-  async function runRoutine(r: Routine) {
+  async function runRoutine(r: Routine, opts?: { scheduled?: boolean }) {
     if (runningRef.current.has(r.id)) return;
     runningRef.current.add(r.id);
     setRunningIds([...runningRef.current]);
@@ -109,6 +109,23 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
         // sous le rapport visuel dans « Rapports enregistrés ».
         analysis: typeof data.message === "string" ? data.message : undefined,
       });
+      // Notification in-app (cloche du header) — UNIQUEMENT pour les
+      // exécutions programmées ; « Exécuter maintenant » reste silencieux
+      // (l'utilisateur est déjà devant le résultat).
+      if (opts?.scheduled) {
+        void fetch("/api/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "routine_executed",
+            title: `Routine exécutée : ${r.label}`,
+            body: `${agentLabel} a généré le rapport « ${title} » (${FREQUENCY_LABELS[r.frequency]} à ${r.time}).`,
+            link: `/dashboard/agents/${agentKey}`,
+          }),
+        }).catch(() => {
+          /* best-effort : la notif ne bloque jamais la routine */
+        });
+      }
     } catch (e) {
       updateRoutine(r.id, { lastError: e instanceof Error ? e.message : "Erreur inconnue" });
     } finally {
@@ -121,7 +138,7 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
   useEffect(() => {
     const tick = () => {
       for (const r of listAgentRoutines(agentKey)) {
-        if (isRoutineDue(r)) void runRoutine(r);
+        if (isRoutineDue(r)) void runRoutine(r, { scheduled: true });
       }
     };
     tick();

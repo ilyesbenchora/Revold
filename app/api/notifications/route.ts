@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createInAppNotification } from "@/lib/notifications/in-app";
 
 export async function GET() {
   const orgId = await getOrgId();
@@ -22,6 +23,42 @@ export async function GET() {
     { notifications: data ?? [], unreadCount },
     { headers: { "Cache-Control": "no-store" } },
   );
+}
+
+/**
+ * Création d'une notification in-app par le client. Volontairement restreint
+ * aux exécutions de routines programmées (les routines tournent côté client :
+ * l'insertion ne peut pas venir d'un cron serveur).
+ */
+export async function POST(request: Request) {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { type, title, body, link } = (await request.json()) as {
+    type?: string;
+    title?: string;
+    body?: string;
+    link?: string;
+  };
+  if (type !== "routine_executed") {
+    return NextResponse.json({ error: "Type de notification non autorisé" }, { status: 400 });
+  }
+  if (!title || typeof title !== "string" || !title.trim()) {
+    return NextResponse.json({ error: "Titre manquant" }, { status: 400 });
+  }
+
+  await createInAppNotification({
+    orgId,
+    userId: user.id,
+    type,
+    title: title.trim().slice(0, 200),
+    body: typeof body === "string" && body.trim() ? body.trim().slice(0, 500) : null,
+    link: typeof link === "string" && link.startsWith("/") ? link : null,
+  });
+  return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(request: Request) {
