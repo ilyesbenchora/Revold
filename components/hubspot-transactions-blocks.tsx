@@ -11,8 +11,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
 import { ContactAssociationsBlock } from "@/components/contact-associations-block";
-import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { SharedPropertiesBlock } from "@/components/shared-properties-block";
+import { ObjectSummaryCards } from "@/components/object-summary-cards";
+import { computeObjectSummaries } from "@/lib/audit/object-summaries";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 
@@ -25,9 +26,6 @@ type SharedProp = {
   isCustom: boolean;
   fillRate: number;
 };
-type SourceStat = { source: string; label: string; count: number; pct: number };
-type DrillDown = { value: string; count: number; pct: number };
-type DistributionResult = { sources: SourceStat[]; drillDown1: DrillDown[]; drillDown2: DrillDown[]; total: number };
 type AssociationStat = {
   targetObject: string;
   targetLabel: string;
@@ -39,77 +37,6 @@ type AssociationStat = {
 };
 
 const HS = "https://api.hubapi.com";
-
-// ── Distribution : pipeline + dealstage + source — deal-centric ──
-async function fetchDealDistribution(token: string): Promise<DistributionResult> {
-  // Récupère les pipelines + stages pour mapper les IDs aux labels
-  const pipelinesMap = new Map<string, string>();
-  const stagesMap = new Map<string, string>();
-  try {
-    const res = await fetch(`${HS}/crm/v3/pipelines/deals`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      for (const p of (data.results ?? []) as Array<{
-        id: string;
-        label: string;
-        stages?: Array<{ id: string; label: string }>;
-      }>) {
-        pipelinesMap.set(p.id, p.label);
-        for (const s of p.stages ?? []) stagesMap.set(s.id, s.label);
-      }
-    }
-  } catch {}
-
-  const stageCounts = new Map<string, number>();
-  const pipelineCounts = new Map<string, number>();
-  const sourceCounts = new Map<string, number>();
-  let totalFetched = 0;
-  let after: string | undefined;
-  let pages = 0;
-
-  while (pages < 100) {
-    const url = new URL(`${HS}/crm/v3/objects/deals`);
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", "dealstage,pipeline,deal_currency_code,hs_analytics_source");
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-    if (!res.ok) break;
-    const data = await res.json();
-    if ((data.results ?? []).length === 0) break;
-    for (const item of data.results) {
-      const p = item.properties ?? {};
-      if (p.dealstage) {
-        const label = stagesMap.get(p.dealstage) ?? p.dealstage;
-        stageCounts.set(label, (stageCounts.get(label) ?? 0) + 1);
-      }
-      if (p.pipeline) {
-        const label = pipelinesMap.get(p.pipeline) ?? p.pipeline;
-        pipelineCounts.set(label, (pipelineCounts.get(label) ?? 0) + 1);
-      }
-      if (p.hs_analytics_source) sourceCounts.set(p.hs_analytics_source, (sourceCounts.get(p.hs_analytics_source) ?? 0) + 1);
-      totalFetched++;
-    }
-    after = data.paging?.next?.after;
-    pages++;
-    if (!after) break;
-  }
-
-  if (totalFetched === 0) return { sources: [], drillDown1: [], drillDown2: [], total: 0 };
-
-  const toSorted = (map: Map<string, number>) =>
-    [...map.entries()]
-      .map(([k, v]) => ({ value: k, count: v, pct: Math.round((v / totalFetched) * 1000) / 10 }))
-      .sort((a, b) => b.count - a.count);
-
-  return {
-    sources: toSorted(stageCounts).slice(0, 20).map((s) => ({ source: s.value, label: s.value, count: s.count, pct: s.pct })),
-    drillDown1: toSorted(pipelineCounts).slice(0, 15),
-    drillDown2: toSorted(sourceCounts).slice(0, 15),
-    total: totalFetched,
-  };
-}
 
 // ── Associations deal-centric : combien de deals ont un contact / une company ──
 async function fetchDealAssociations(token: string): Promise<AssociationStat[]> {
@@ -267,15 +194,15 @@ export async function HubspotTransactionsBlocks({
 
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
-  let distributionData: DistributionResult = { sources: [], drillDown1: [], drillDown2: [], total: 0 };
   let sharedProps: SharedProp[] = [];
+  let summaries: Awaited<ReturnType<typeof computeObjectSummaries>> = [];
 
   if (hubspotToken) {
-    [propertyUsage, associationStats, distributionData, sharedProps] = await Promise.all([
+    [propertyUsage, associationStats, sharedProps, summaries] = await Promise.all([
       fetchPropertyUsage(hubspotToken),
       fetchDealAssociations(hubspotToken),
-      fetchDealDistribution(hubspotToken),
       fetchSharedProperties(hubspotToken),
+      computeObjectSummaries(supabase, orgId),
     ]);
   }
 
@@ -345,39 +272,16 @@ export async function HubspotTransactionsBlocks({
         </div>
       )}
 
-      {distributionData.sources.length > 0 && (
+      {/* ── Synthèse par objet : cartes Contacts / Entreprises / Transactions
+             (déplacées depuis la vue d'ensemble, à la place de la distribution
+             pipeline & stages). ── */}
+      {summaries.some((s) => s.count > 0) && (
         <div>
-          <h2 className="text-sm font-semibold text-slate-900 mb-1">Distribution pipeline & stages</h2>
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Synthèse par objet</h2>
           <p className="text-[11px] text-slate-500 mb-3">
-            Répartition des deals par stage, pipeline et source d&apos;origine
+            Volumes et complétude des propriétés clés par objet CRM
           </p>
-          <div className="card p-4">
-            <TrackingSourcesBlock
-              sources={distributionData.sources}
-              drillDown1={distributionData.drillDown1}
-              drillDown2={distributionData.drillDown2}
-              total={distributionData.total}
-            />
-          </div>
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
-            <BlockDataTable
-              title="Distribution pipeline & stages"
-              subtitle="stages"
-              team="revops"
-              unit="count"
-              nameLabel="Stage"
-              valueLabel="Deals"
-              extraColumns={["Part"]}
-              rows={distributionData.sources.map((s) => ({
-                name: s.label,
-                value: s.count,
-                unit: "count" as const,
-                cells: [`${s.pct} %`],
-              }))}
-              footnote={`${distributionData.total.toLocaleString("fr-FR")} deals analysés`}
-            />
-          </div>
+          <ObjectSummaryCards summaries={summaries} />
         </div>
       )}
 
