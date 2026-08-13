@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
@@ -12,6 +13,22 @@ import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
 export const dynamic = "force-dynamic";
+
+// Page de la plateforme couverte par chaque agent — accessible depuis son chat.
+const AGENT_PAGE: Record<string, { href: string; label: string }> = {
+  performance: { href: "/dashboard/performances", label: "Performances" },
+  automatisations: { href: "/dashboard/process", label: "Alignement" },
+  "paiement-facturation": { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
+  "service-client": { href: "/dashboard/audit/service-client", label: "Service Client" },
+  equipes: { href: "/dashboard/conduite-changement", label: "Équipes" },
+  proprietes: { href: "/dashboard/donnees", label: "Rapprochement données" },
+  "coaching-ventes": { href: "/dashboard/insights-ia/commercial", label: "Coaching Ventes" },
+  "coaching-marketing": { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
+  "coaching-data": { href: "/dashboard/insights-ia/data", label: "Coaching Data" },
+  "coaching-data-model": { href: "/dashboard/insights-ia/data-model", label: "Coaching Finance" },
+  "prev-revenue": { href: "/dashboard/simulations", label: "Prévisions" },
+  reporting: { href: "/dashboard/reporting", label: "Dashboard" },
+};
 
 export default async function AgentPage({
   params,
@@ -106,17 +123,28 @@ export default async function AgentPage({
           aria-hidden
           className="pointer-events-none absolute -right-6 -bottom-10 h-40 w-40 select-none rounded-full object-cover opacity-[0.14]"
         />
-        <div className="relative z-10 flex items-start gap-3">
-          <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} agentKey={agent.key} role={persona.role} pitch={persona.pitch} size={48} />
-          <div>
-            <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-              <span>✨</span> {coachingCategory ? "Coach" : "Agent"} · augmenté par l&apos;IA
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AgentProfileAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agent.key)} agentKey={agent.key} role={persona.role} pitch={persona.pitch} size={48} />
+            <div>
+              <div className="mb-0.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                <span>✨</span> {coachingCategory ? "Coach" : "Agent"} · augmenté par l&apos;IA
+              </div>
+              <h1 className="text-xl font-semibold text-slate-900">
+                {persona.name}, ton {persona.role.toLowerCase()}
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-600">{agent.tagline}</p>
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">
-              {persona.name}, ton {persona.role.toLowerCase()}
-            </h1>
-            <p className="mt-0.5 text-sm text-slate-600">{agent.tagline}</p>
           </div>
+          {/* Accès direct à la page de la plateforme couverte par cet agent. */}
+          {AGENT_PAGE[agent.key] && (
+            <Link
+              href={AGENT_PAGE[agent.key].href}
+              className="shrink-0 rounded-lg border border-white/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:text-accent"
+            >
+              Page {AGENT_PAGE[agent.key].label} →
+            </Link>
+          )}
         </div>
       </div>
 
