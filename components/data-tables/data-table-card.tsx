@@ -316,6 +316,7 @@ export function DataTableCard({
             onApply={(p) => { setPeriod(p); load(p); }}
             loading={loading}
             activeLabel={period?.label ?? "Toutes périodes"}
+            applied={period}
           />
           {/* Fréquence d'affichage — sur TOUTES les tables : granularité de
               l'axe temporel, ou bascule temporelle d'un regroupement non

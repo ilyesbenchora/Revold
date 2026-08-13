@@ -197,7 +197,7 @@ export function ReportArtifact({
 
   return (
     <div className="space-y-2">
-      <ReportPeriodBar onApply={applyPeriod} loading={loading} activeLabel={period?.label ?? null} />
+      <ReportPeriodBar onApply={applyPeriod} loading={loading} activeLabel={period?.label ?? null} applied={period} />
 
       {(() => {
         const dataBlocks = curReport?.blocks.filter((b) => b.type === "kpi" || (Array.isArray(b.data) && b.data.length)) ?? [];

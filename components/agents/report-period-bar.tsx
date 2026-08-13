@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PERIOD_PRESETS, computePeriod, presetLabel, type PeriodPreset } from "@/lib/reports/periods";
 
 export type AppliedPeriod = { preset: PeriodPreset; from: string; to: string; label: string };
@@ -14,15 +14,28 @@ export function ReportPeriodBar({
   onApply,
   loading = false,
   activeLabel,
+  applied = null,
 }: {
   onApply: (p: AppliedPeriod) => void;
   loading?: boolean;
   /** Libellé de la période actuellement appliquée (affiché à droite). */
   activeLabel?: string | null;
+  /** Période appliquée par le parent (ex : période par défaut choisie à la
+   *  création de la table) — le sélecteur la reflète au lieu de « Choisir… ». */
+  applied?: AppliedPeriod | null;
 }) {
-  const [preset, setPreset] = useState<PeriodPreset | "">("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [preset, setPreset] = useState<PeriodPreset | "">(applied?.preset ?? "");
+  const [from, setFrom] = useState(applied?.from ?? "");
+  const [to, setTo] = useState(applied?.to ?? "");
+
+  // La période appliquée en amont (période par défaut du funnel de création)
+  // se reflète dans le sélecteur — sans re-déclencher onApply.
+  useEffect(() => {
+    if (!applied) return;
+    setPreset(applied.preset);
+    setFrom(applied.from);
+    setTo(applied.to);
+  }, [applied?.preset, applied?.from, applied?.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function choose(id: PeriodPreset) {
     setPreset(id);
