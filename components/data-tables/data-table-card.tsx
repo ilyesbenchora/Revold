@@ -89,6 +89,24 @@ export function DataTableCard({
   // Regroupement effectivement affiché (axe temporel de repli si fréquence active).
   const effectiveGroupBy = isTimeDim ? table.group_by : granularity && fallbackTimeDim ? fallbackTimeDim : table.group_by;
 
+  // Nom lisible du pipeline ciblé (table.pipeline stocke l'id externe HubSpot).
+  const [pipelineName, setPipelineName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!table.pipeline) { setPipelineName(null); return; }
+    let alive = true;
+    fetch("/api/pipelines")
+      .then((r) => (r.ok ? r.json() : { pipelines: [] }))
+      .then((d) => {
+        if (!alive) return;
+        const found = (d.pipelines ?? []).find(
+          (p: { id: string; name: string }) => p.id === table.pipeline || p.name === table.pipeline,
+        );
+        setPipelineName(found?.name ?? table.pipeline);
+      })
+      .catch(() => alive && setPipelineName(table.pipeline ?? null));
+    return () => { alive = false; };
+  }, [table.pipeline]);
+
   // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
   async function toggleShowTotal() {
     const next = !showTotal;
@@ -250,7 +268,7 @@ export function DataTableCard({
           )}
           <p className="mt-0.5 text-[11px] text-slate-400">
             {entityLabel(table.entity)} · {dimLabel(table.entity, effectiveGroupBy)}
-            {table.pipeline && <> · pipeline {table.pipeline}</>}
+            {table.pipeline && <> · pipeline {pipelineName ?? table.pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
           {(table.sources ?? []).length > 0 && (
@@ -339,11 +357,20 @@ export function DataTableCard({
           <div className="flex h-40 items-center justify-center text-xs text-slate-400">Aucune donnée sur cette période.</div>
         ) : isChart ? (
           <div className="relative">
-            {/* Vue « Bloc » : la période active est rappelée DANS le bloc,
-                en pastille discrète (le chiffre héros n'a pas d'axe daté). */}
-            {table.view === "bloc" && period && (
-              <span className="absolute right-1 top-1 z-10 rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                {period.label}
+            {/* Vue « Bloc » : période active + pipeline ciblé rappelés DANS le
+                bloc, en pastilles discrètes (le chiffre héros n'a pas d'axe). */}
+            {table.view === "bloc" && (period || table.pipeline) && (
+              <span className="absolute right-1 top-1 z-10 flex items-center gap-1">
+                {table.pipeline && (
+                  <span className="rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-medium text-indigo-600">
+                    {pipelineName ?? table.pipeline}
+                  </span>
+                )}
+                {period && (
+                  <span className="rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                    {period.label}
+                  </span>
+                )}
               </span>
             )}
             <ReportChart block={block} unit={table.unit_mode} showTotal={showTotal} />
