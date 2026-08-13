@@ -12,7 +12,7 @@
  * un tableau s'ajoute en dessous, dans « Tables de données ».
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StatTileVerdict } from "@/components/kpi-stat-tiles";
 import { SurgicalAlertButton, blockSourceKey, type SurgicalUnit } from "@/components/data-tables/surgical-alert-button";
@@ -101,6 +101,39 @@ export function KpiTilesEditor({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Drag & drop des tuiles (mode édition) : réordonner en glissant, ordre
+  // persisté côté serveur (page_tiles kind='tile_order') — optimiste. ──
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  const [orderedKeys, setOrderedKeys] = useState<string[] | null>(null);
+  const displayTiles = useMemo(() => {
+    if (!orderedKeys) return tiles;
+    const idx = new Map(orderedKeys.map((k, i) => [k, i]));
+    return [...tiles].sort(
+      (a, b) => (idx.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (idx.get(b.key) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [tiles, orderedKeys]);
+
+  function moveTile(fromKey: string, toKey: string) {
+    if (fromKey === toKey) return;
+    const keys = displayTiles.map((t) => t.key);
+    const from = keys.indexOf(fromKey);
+    const to = keys.indexOf(toKey);
+    if (from < 0 || to < 0) return;
+    keys.splice(to, 0, ...keys.splice(from, 1));
+    setOrderedKeys(keys);
+    void fetch("/api/page-tiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page_key: pageKey, kind: "tile_order", order: keys }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Réorganisation non enregistrée.");
+      }
+    });
+  }
+
   /** Ouvre le funnel unique de création (PageDataTables sur la même page). */
   function openBuilder() {
     window.dispatchEvent(new CustomEvent("revold:open-data-table"));
@@ -172,10 +205,47 @@ export function KpiTilesEditor({
         </button>
       </div>
 
+      {editing && displayTiles.length > 1 && (
+        <p className="text-right text-[11px] text-slate-400">⠿ Glisse les tuiles pour choisir leur ordre.</p>
+      )}
+
       {tiles.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {tiles.map((t) => (
-            <div key={t.key} className="group/tile relative rounded-xl border border-slate-200 bg-white p-4">
+          {displayTiles.map((t) => (
+            <div
+              key={t.key}
+              draggable={editing}
+              onDragStart={(e) => {
+                setDragKey(t.key);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (editing && dragKey && dragKey !== t.key) {
+                  e.preventDefault();
+                  setOverKey(t.key);
+                }
+              }}
+              onDragLeave={() => setOverKey((k) => (k === t.key ? null : k))}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragKey) moveTile(dragKey, t.key);
+                setDragKey(null);
+                setOverKey(null);
+              }}
+              onDragEnd={() => {
+                setDragKey(null);
+                setOverKey(null);
+              }}
+              className={`group/tile relative rounded-xl border bg-white p-4 ${
+                editing ? "cursor-grab active:cursor-grabbing" : ""
+              } ${
+                overKey === t.key && dragKey && dragKey !== t.key
+                  ? "border-fuchsia-400 ring-2 ring-fuchsia-200"
+                  : dragKey === t.key
+                    ? "border-fuchsia-300 opacity-60"
+                    : "border-slate-200"
+              }`}
+            >
               {editing ? (
                 <button
                   type="button"

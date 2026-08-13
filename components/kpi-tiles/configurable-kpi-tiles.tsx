@@ -86,6 +86,13 @@ export async function ConfigurableKpiTiles({
     })),
   ];
 
+  // Ordre drag & drop persisté (Personnaliser les KPIs) : tuiles connues dans
+  // l'ordre choisi, nouvelles tuiles à la suite (tri stable).
+  if (cust.tileOrder.length > 0) {
+    const idx = new Map(cust.tileOrder.map((k, i) => [k, i]));
+    tiles.sort((a, b) => (idx.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (idx.get(b.key) ?? Number.MAX_SAFE_INTEGER));
+  }
+
   const hiddenDefaults = defaults
     .filter((d) => cust.hiddenTiles.has(d.key))
     .map((d) => ({ key: d.key, label: d.label, rowId: cust.hiddenTiles.get(d.key) as string }));

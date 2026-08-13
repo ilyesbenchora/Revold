@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DataTableCard, type SavedTable } from "./data-table-card";
 import { DataPreview } from "./blocks-manager";
+import { usePageEditMode } from "./page-edit-mode";
 import {
   ENTITY_DIMS,
   ENTITY_FIELDS,
@@ -240,6 +241,30 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
   const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
+  // ── Drag & drop des tables (mode « Personnaliser les KPIs ») : réordonner en
+  // glissant, positions persistées (page_data_tables.position), optimiste. ──
+  const editing = usePageEditMode();
+  const [dragTableId, setDragTableId] = useState<string | null>(null);
+  const [overTableId, setOverTableId] = useState<string | null>(null);
+  function moveTable(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    setTables((prev) => {
+      const arr = [...prev];
+      const from = arr.findIndex((t) => t.id === fromId);
+      const to = arr.findIndex((t) => t.id === toId);
+      if (from < 0 || to < 0) return prev;
+      arr.splice(to, 0, ...arr.splice(from, 1));
+      // Persistance best-effort : position = index de chaque table.
+      arr.forEach((t, i) => {
+        void fetch(`/api/page-tables/${t.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: i }),
+        }).catch(() => {});
+      });
+      return arr;
+    });
+  }
   const [open, setOpen] = useState(false);
   // 1 = Sources à croiser + KPI (fusionnés sur la même étape) · 2 = Affichage
   const [step, setStep] = useState<1 | 2>(1);
@@ -766,17 +791,56 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       {/* Pas d'en-tête de section : les visualisations créées s'enchaînent
           directement avec les graphiques du haut de page — seul le CTA de
           création vit en bas de page. */}
+      {editing && tables.length > 1 && (
+        <p className="text-right text-[11px] text-slate-400">⠿ Glisse les tables pour choisir leur ordre.</p>
+      )}
       {tables.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {tables.map((t) => (
-            <DataTableCard
+            <div
               key={t.id}
-              table={t}
-              team={alertTeam}
-              onEdit={openEdit}
-              onUpdated={(nt) => setTables((prev) => prev.map((x) => (x.id === nt.id ? nt : x)))}
-              onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))}
-            />
+              draggable={editing}
+              onDragStart={(e) => {
+                setDragTableId(t.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (editing && dragTableId && dragTableId !== t.id) {
+                  e.preventDefault();
+                  setOverTableId(t.id);
+                }
+              }}
+              onDragLeave={() => setOverTableId((k) => (k === t.id ? null : k))}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragTableId) moveTable(dragTableId, t.id);
+                setDragTableId(null);
+                setOverTableId(null);
+              }}
+              onDragEnd={() => {
+                setDragTableId(null);
+                setOverTableId(null);
+              }}
+              className={
+                editing
+                  ? `rounded-2xl ring-2 transition ${
+                      overTableId === t.id && dragTableId && dragTableId !== t.id
+                        ? "ring-fuchsia-300"
+                        : dragTableId === t.id
+                          ? "opacity-60 ring-fuchsia-200"
+                          : "ring-transparent"
+                    } cursor-grab active:cursor-grabbing`
+                  : undefined
+              }
+            >
+              <DataTableCard
+                table={t}
+                team={alertTeam}
+                onEdit={openEdit}
+                onUpdated={(nt) => setTables((prev) => prev.map((x) => (x.id === nt.id ? nt : x)))}
+                onDeleted={(id) => setTables((prev) => prev.filter((x) => x.id !== id))}
+              />
+            </div>
           ))}
         </div>
       )}

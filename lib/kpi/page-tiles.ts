@@ -15,7 +15,7 @@ type TileAggSpec = AggSpec & { period_preset?: string; pipeline_label?: string }
 
 export type PageTileRow = {
   id: string;
-  kind: "kpi" | "hide_tile" | "hide_block";
+  kind: "kpi" | "hide_tile" | "hide_block" | "tile_order";
   tile_key: string | null;
   title: string | null;
   forecast_type: string | null;
@@ -34,9 +34,11 @@ export type PageCustomization = {
   hiddenTiles: Map<string, string>;
   /** Clés des blocs par défaut masqués → ligne (id pour restaurer + label affiché). */
   hiddenBlocks: Map<string, { rowId: string; label: string }>;
+  /** Ordre drag & drop de TOUTES les tuiles (clés, défaut + ajoutées) — vide = ordre naturel. */
+  tileOrder: string[];
 };
 
-const EMPTY: PageCustomization = { added: [], hiddenTiles: new Map(), hiddenBlocks: new Map() };
+const EMPTY: PageCustomization = { added: [], hiddenTiles: new Map(), hiddenBlocks: new Map(), tileOrder: [] };
 
 export type HiddenBlockMeta = { view?: string; description?: string };
 
@@ -82,7 +84,10 @@ export async function getPageCustomization(
     }
     if (error || !data) return EMPTY;
     const rows = data as unknown as PageTileRow[];
+    // Ordre drag & drop des tuiles (ligne kind='tile_order', agg_spec.order).
+    const orderRaw = (rows.find((r) => r.kind === "tile_order")?.agg_spec as unknown as { order?: unknown } | null)?.order;
     return {
+      tileOrder: Array.isArray(orderRaw) ? orderRaw.filter((k): k is string => typeof k === "string") : [],
       added: rows.filter((r) => r.kind === "kpi"),
       hiddenTiles: new Map(rows.filter((r) => r.kind === "hide_tile" && r.tile_key).map((r) => [r.tile_key as string, r.id])),
       hiddenBlocks: new Map(

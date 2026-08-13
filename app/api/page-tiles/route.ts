@@ -4,7 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 
 export const dynamic = "force-dynamic";
 
-const KINDS = new Set(["kpi", "hide_tile", "hide_block"]);
+const KINDS = new Set(["kpi", "hide_tile", "hide_block", "tile_order"]);
 const UNITS = new Set(["percent", "currency", "count"]);
 
 /** Liste la personnalisation d'une page (tuiles ajoutées + masquages). */
@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     page_key?: string; kind?: string; tile_key?: string | null; title?: string | null;
     forecast_type?: string | null; agg_spec?: Record<string, unknown> | null;
     unit_mode?: string | null; position?: number;
+    /** kind='tile_order' : ordre complet des clés de tuiles (drag & drop). */
+    order?: unknown;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -48,6 +50,42 @@ export async function POST(request: Request) {
   if (!body.page_key || !KINDS.has(kind)) {
     return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
   }
+
+  // ── Ordre des tuiles (drag & drop) : UNE ligne par page, upsert manuel
+  // (l'index unique est partiel → pas d'ON CONFLICT possible via l'API). ──
+  if (kind === "tile_order") {
+    const order = Array.isArray(body.order)
+      ? body.order.filter((k): k is string => typeof k === "string" && !!k.trim()).slice(0, 100)
+      : null;
+    if (!order || order.length === 0) {
+      return NextResponse.json({ error: "order (liste de clés) requis" }, { status: 400 });
+    }
+    const { data: existing } = await supabase
+      .from("page_tiles")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("page_key", body.page_key)
+      .eq("kind", "tile_order")
+      .maybeSingle();
+    const { error } = existing
+      ? await supabase.from("page_tiles").update({ agg_spec: { order } }).eq("id", existing.id)
+      : await supabase.from("page_tiles").insert({
+          organization_id: orgId,
+          page_key: body.page_key,
+          kind: "tile_order",
+          tile_key: "__order__",
+          agg_spec: { order },
+          created_by: user.id,
+        });
+    if (error) {
+      const msg = /check|kind/i.test(error.message)
+        ? "Migration 20260814000001_page_layout_order non appliquée (kind tile_order refusé)."
+        : error.message;
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (kind === "kpi") {
     // Une tuile KPI doit être résoluble : forecast_type OU agg_spec (contrat cron).
     const hasForecast = typeof body.forecast_type === "string" && body.forecast_type.trim();

@@ -21,7 +21,7 @@ export function cleanSources(v: unknown): string[] {
 }
 
 export const TABLE_COLS =
-  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, pipeline, granularity, created_at";
+  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, pipeline, granularity, position, created_at";
 
 /** Fréquences temporelles valides (dimensions month_*). */
 export const VALID_GRANULARITIES = new Set(["day", "week", "month", "quarter", "semester", "year"]);
@@ -41,12 +41,15 @@ export async function GET(request: Request) {
   // retire la colonne fautive et on réessaie plutôt que casser la liste.
   let cols = TABLE_COLS;
   for (let i = 0; i < 4; i++) {
-    const { data, error } = await supabase
+    // Ordre : position (drag & drop) puis date de création — sans tri position
+    // si la colonne n'est pas migrée (elle a été retirée de cols à l'essai précédent).
+    let query = supabase
       .from("page_data_tables")
       .select(cols)
       .eq("organization_id", orgId)
-      .eq("page_key", pageKey)
-      .order("created_at", { ascending: true });
+      .eq("page_key", pageKey);
+    if (cols.includes("position")) query = query.order("position", { ascending: true, nullsFirst: false });
+    const { data, error } = await query.order("created_at", { ascending: true });
     if (!error) return NextResponse.json({ tables: data ?? [] });
     const m = /column .*?([a-z_0-9]+) does not exist/i.exec(error.message);
     if (m && cols.includes(`, ${m[1]}`)) { cols = cols.replace(`, ${m[1]}`, ""); continue; }

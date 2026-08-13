@@ -28,6 +28,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     show_total?: boolean;
     // Fréquence des dimensions temporelles (day/week/month/quarter/semester/year).
     granularity?: string | null;
+    // Ordre d'affichage sur la page (drag & drop du mode personnalisation).
+    position?: number;
     // Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes.
     pipeline?: string | null;
     // Spec résolue et CONFIRMÉE à l'étape « Vérification » : appliquée telle
@@ -50,6 +52,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
   // Option d'affichage : total dans la visualisation (simple toggle, sans agent).
   if (typeof body.show_total === "boolean") update.show_total = body.show_total;
+  // Ordre d'affichage (drag & drop) — simple entier, sans agent.
+  if (typeof body.position === "number" && Number.isFinite(body.position)) update.position = Math.trunc(body.position);
   // Fréquence temporelle (simple option d'affichage, sans agent).
   if (body.granularity === null) update.granularity = null;
   else if (typeof body.granularity === "string" && VALID_GRANULARITIES.has(body.granularity)) update.granularity = body.granularity;
