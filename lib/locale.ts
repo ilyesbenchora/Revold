@@ -111,26 +111,26 @@ export function formatBucketLabel(key: string, locale: string): string {
 }
 
 /**
- * Espacement des ticks de l'axe X selon la nature des buckets (prop `interval`
- * recharts = nombre de ticks SAUTÉS entre deux affichés) :
- *   jour    → un tick tous les 5 jours (interval 4),
- *   semaine → un tick par semaine (interval 0, libellés espacés de 7 jours).
- * Au-delà de ~24 ticks visibles, l'espacement est multiplié pour rester
- * lisible (toujours en multiples de 5 j / 7 j). undefined = laisser recharts
- * gérer (buckets non journaliers/hebdomadaires).
+ * Espacement STRATÉGIQUE des ticks de l'axe X pour les fréquences jour et
+ * semaine (prop `interval` recharts = nombre de ticks SAUTÉS entre deux
+ * affichés). Un libellé jj/mm/aaaa est large : on vise AU PLUS ~8 dates
+ * visibles quelle que soit la période — tous les points restent tracés, seuls
+ * les libellés sont échantillonnés, sur des pas ronds :
+ *   jour    → pas en multiples de 5 jours (5, 10, 15, 50… selon la période),
+ *   semaine → pas en semaines entières (1, 2, 4, 7… selon la période).
+ * undefined = laisser recharts gérer (buckets non journaliers/hebdomadaires).
  */
 export function bucketTickInterval(rawKeys: string[]): number | undefined {
-  if (rawKeys.length < 2) return undefined;
-  const MAX_TICKS = 24;
+  const n = rawKeys.length;
+  if (n < 2) return undefined;
+  const TARGET_TICKS = 8;
   if (rawKeys.every((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))) {
-    let iv = 4; // 5 jours
-    while (rawKeys.length / (iv + 1) > MAX_TICKS) iv += 5;
-    return iv;
+    const step = Math.max(5, Math.ceil(Math.ceil(n / TARGET_TICKS) / 5) * 5);
+    return step - 1;
   }
   if (rawKeys.every((k) => /^\d{4}-W\d{2}$/.test(k))) {
-    let iv = 0; // 7 jours
-    while (rawKeys.length / (iv + 1) > MAX_TICKS) iv += 1;
-    return iv;
+    const step = Math.max(1, Math.ceil(n / TARGET_TICKS));
+    return step - 1;
   }
   return undefined;
 }
