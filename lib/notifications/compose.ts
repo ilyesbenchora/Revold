@@ -19,8 +19,9 @@ const TEAM_PERSONA: Record<string, string> = {
   sales: "performance",
   commercial: "performance",
   marketing: "coaching-marketing",
-  revops: "automatisations",
-  ops: "automatisations",
+  // Agent Théo (automatisations) supprimé : RevOps/Ops relèvent de Chloé et Karim.
+  revops: "performance",
+  ops: "proprietes",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",

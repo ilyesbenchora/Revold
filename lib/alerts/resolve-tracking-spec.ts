@@ -14,8 +14,9 @@ const TEAM_PERSONA: Record<string, string> = {
   sales: "performance",
   commercial: "performance",
   marketing: "coaching-marketing",
-  revops: "automatisations",
-  ops: "automatisations",
+  // Agent Théo (automatisations) supprimé : RevOps/Ops relèvent de Chloé et Karim.
+  revops: "performance",
+  ops: "proprietes",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",
@@ -140,7 +141,7 @@ export async function resolveTrackingSpec(
   if (!apiKey) return heuristicWiring(args.kpiText, args.unit);
 
   const available = args.availableEntities ?? [];
-  const persona = getAgentPersona(TEAM_PERSONA[args.team ?? ""] ?? TEAM_PERSONA[args.category ?? ""] ?? "automatisations");
+  const persona = getAgentPersona(TEAM_PERSONA[args.team ?? ""] ?? TEAM_PERSONA[args.category ?? ""] ?? "performance");
   // Entité imposée à l'étape « Vérification » : câblage en mode aggregate sur
   // CETTE entité, dimension/mesure/champ les plus fidèles au KPI.
   const entityRule = args.preferredEntity

@@ -74,7 +74,6 @@ const SECTIONS: Section[] = [
     hint: "Sélection multiple — chaque agent expert n'analyse que les outils choisis. Sans sélection, l'agent utilise tous les outils connectés de son périmètre.",
     pages: [
       { key: "agent_performance", label: "Agent Performance", description: "Pipeline, deals, closing, forecast", mode: "multi" },
-      { key: "agent_automatisations", label: "Agent Alignement Process & Outils", description: "Relais entre services, lifecycle, workflows", mode: "multi" },
       { key: "agent_paiement-facturation", label: "Agent Trésorerie", description: "Factures, encaissements, cash", mode: "multi" },
       { key: "agent_service-client", label: "Agent Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
       { key: "agent_equipes", label: "Agent Équipes", description: "Owners, équipes, discipline d'usage", mode: "multi" },

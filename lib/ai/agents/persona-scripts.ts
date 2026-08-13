@@ -48,19 +48,6 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
       "Et si un indicateur décroche, je te le dis avant que ça coûte cher.",
     ],
   },
-  automatisations: {
-    elevenVoiceId: "yG4Uc56cLYQyZFnWaYv2", // Kael — FR parisien jeune, posé (ingénieur)
-    segments: [
-      "Salut, moi c'est Théo, ton référent alignement process et outils chez Revold.",
-      "Mon métier, c'est de mesurer les passages de témoin entre tes services.",
-      "Un MQL qualifié par le marketing : en combien de temps devient-il un deal ?",
-      "Un deal gagné : en combien de temps est-il facturé, puis encaissé ?",
-      "Je chronomètre chaque étape du lifecycle, sur tes données réelles,",
-      "et je te montre exactement où le relais se rompt.",
-      "L'objectif : des équipes qui se passent le témoin sans le faire tomber,",
-      "avec des SLA mesurés, pas des impressions.",
-    ],
-  },
   "paiement-facturation": {
     elevenVoiceId: "a2NqrzzRklNWkb04aqW1", // Helene — FR chaleureuse, posée (finance)
     segments: [
