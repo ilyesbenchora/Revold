@@ -315,7 +315,15 @@ export function DataTableCard({
           <ReportPeriodBar
             onApply={(p) => { setPeriod(p); load(p); }}
             loading={loading}
-            activeLabel={period?.label ?? "Toutes périodes"}
+            // KPI personnalisé avec période « déjà précisée dans la description » :
+            // le filtre est intégré au câblage par l'agent — on l'affiche tel quel
+            // au lieu d'un « Toutes périodes » trompeur.
+            activeLabel={
+              period?.label ??
+              (parseStoredPeriod(table.period_preset).kind === "description"
+                ? "Période de la description"
+                : "Toutes périodes")
+            }
             applied={period}
           />
           {/* Fréquence d'affichage — sur TOUTES les tables : granularité de
