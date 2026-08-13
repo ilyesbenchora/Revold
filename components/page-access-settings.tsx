@@ -124,6 +124,13 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
   const [rules, setRules] = useState<Record<string, Access>>(initialRules);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Sous-pages repliées par défaut sous leur parent (Performances, Trésorerie,
+  // Service Client…) — même esprit qu'« Outil source par page ». expanded[href
+  // du parent] = true → sous-pages visibles. Sections repliables aussi.
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const toggleParent = (href: string) => setExpandedParents((e) => ({ ...e, [href]: !e[href] }));
+  const toggleSection = (id: string) => setCollapsedSections((c) => ({ ...c, [id]: !c[id] }));
 
   function accessFor(sectionId: string, row: PageRow): Access {
     const saved = rules[row.href];
@@ -188,9 +195,16 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
 
       {SECTIONS.map((section) => (
         <div key={section.id} className="card overflow-hidden">
-          <div className="border-b border-card-border bg-slate-50/60 px-4 py-2.5">
+          <button
+            type="button"
+            onClick={() => toggleSection(section.id)}
+            className="flex w-full items-center gap-2 border-b border-card-border bg-slate-50/60 px-4 py-2.5 text-left transition hover:bg-slate-100/60"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-slate-400 transition-transform ${collapsedSections[section.id] ? "-rotate-90" : ""}`} aria-hidden><polyline points="6 9 12 15 18 9" /></svg>
             <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>
-          </div>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{section.pages.length}</span>
+          </button>
+          {!collapsedSections[section.id] && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -205,6 +219,9 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
               </thead>
               <tbody>
                 {section.pages.map((p) => {
+                  // Sous-page masquée tant que son parent n'est pas déplié.
+                  if (p.indent && p.defaultFrom && !expandedParents[p.defaultFrom]) return null;
+                  const childCount = p.indent ? 0 : section.pages.filter((c) => c.defaultFrom === p.href).length;
                   const access = accessFor(section.id, p);
                   const pending = pendingHref === p.href;
                   return (
@@ -212,6 +229,16 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
                       <td className={`px-4 py-2.5 font-medium ${p.indent ? "pl-8 text-slate-500" : "text-slate-700"}`}>
                         {p.indent && <span className="mr-1 text-slate-300" aria-hidden>↳</span>}
                         {p.label}
+                        {childCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleParent(p.href)}
+                            className="ml-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 transition hover:border-fuchsia-200 hover:text-fuchsia-600"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expandedParents[p.href] ? "" : "-rotate-90"}`} aria-hidden><polyline points="6 9 12 15 18 9" /></svg>
+                            {childCount} sous-page{childCount > 1 ? "s" : ""}
+                          </button>
+                        )}
                       </td>
                       {TEAMS.map((t) => (
                         <td key={t.id} className="px-3 py-2.5">
@@ -245,6 +272,7 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
               </tbody>
             </table>
           </div>
+          )}
         </div>
       ))}
     </div>
