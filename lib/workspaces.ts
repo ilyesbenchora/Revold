@@ -61,10 +61,11 @@ type NavRule = Partial<Record<"audit" | "coaching" | "previsions" | "dashboard" 
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   all: { audit: "all", coaching: "all", previsions: "all", dashboard: "all", integrations: "all", alertes: "all" },
-  // Le coach data (page Données) est accessible dans TOUS les espaces : la
+  // Accessibles dans TOUS les espaces : « Mon équipe IA » (/dashboard/audit,
+  // le hub des agents experts de la section Données) et le coach data — la
   // qualité des données concerne chaque pôle.
   sales: {
-    audit: ["/dashboard/performances", "/dashboard/process"],
+    audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/process"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
@@ -72,7 +73,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
     alertes: "all",
   },
   marketing: {
-    audit: ["/dashboard/performances", "/dashboard/donnees"],
+    audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
@@ -80,14 +81,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
     alertes: "all",
   },
   cs: {
-    audit: ["/dashboard/audit/service-client"],
+    audit: ["/dashboard/audit", "/dashboard/audit/service-client"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   finance: {
-    audit: ["/dashboard/audit/paiement-facturation"],
+    audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
