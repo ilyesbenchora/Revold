@@ -146,7 +146,7 @@ export const PAGE_LABELS: Record<string, string> = {
   perf_marketing: "Marketing",
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
-  audit_adoption: "Équipes",
+  audit_adoption: "Équipes & Adoption",
   audit_donnees: "Rapprochement données",
 };
 

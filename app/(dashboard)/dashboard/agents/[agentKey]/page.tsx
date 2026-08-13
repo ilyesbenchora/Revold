@@ -22,7 +22,7 @@ const AGENT_PAGE: Record<string, { href: string; label: string }> = {
   automatisations: { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "paiement-facturation": { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "service-client": { href: "/dashboard/audit/service-client", label: "Service Client" },
-  equipes: { href: "/dashboard/conduite-changement", label: "Équipes" },
+  equipes: { href: "/dashboard/conduite-changement", label: "Équipes & Adoption" },
   proprietes: { href: "/dashboard/donnees", label: "Rapprochement données" },
   "coaching-ventes": { href: "/dashboard/insights-ia/commercial", label: "Coaching Ventes" },
   "coaching-marketing": { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
