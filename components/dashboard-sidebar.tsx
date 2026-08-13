@@ -589,9 +589,10 @@ export function DashboardSidebar({
               >
                 {item.icon}
               </Link>
-              {/* Tooltip volant : libellé — sauf l'icône d'accueil, qui se
-                  passe de texte (l'aria-label reste pour l'accessibilité). */}
-              {item.href !== "/dashboard" && (
+              {/* Tooltip volant : libellé — sauf les icônes d'accueil et de
+                  paramètres, explicites sans texte (l'aria-label reste pour
+                  l'accessibilité). */}
+              {item.href !== "/dashboard" && item.href !== "/dashboard/parametres" && (
                 <div className="invisible absolute left-full top-1/2 z-50 ml-1 -translate-y-1/2 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
                   {item.label}
                 </div>
