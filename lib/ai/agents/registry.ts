@@ -195,7 +195,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "equipes",
-    label: "Agent Équipes",
+    label: "Agent Équipes & Adoption",
     section: "donnees",
     tagline: "Adoption de la stack, discipline CRM, activités loguées.",
     expertise:
@@ -210,7 +210,7 @@ const AGENT_LIST: AgentDef[] = [
   },
   {
     key: "proprietes",
-    label: "Agent Propriétés",
+    label: "Agent Rapprochement de données",
     section: "donnees",
     tagline: "Qualité, complétude, doublons, rapprochement des données.",
     expertise:

@@ -47,7 +47,7 @@ const modules = [
   },
   {
     href: "/dashboard/agents/equipes",
-    title: "Agent Équipes",
+    title: "Agent Équipes & Adoption",
     description: "Usage de la stack par équipe, connexions utilisateurs, activités loguées, discipline CRM.",
     objective: "Mesurer l'adoption réelle des outils par les équipes pour maximiser le ROI de la stack.",
     icon: (
@@ -62,7 +62,7 @@ const modules = [
   },
   {
     href: "/dashboard/agents/proprietes",
-    title: "Agent qualité des données",
+    title: "Agent Rapprochement de données",
     description: "Qualité, complétude, doublons, enrichissement par objet CRM.",
     objective: "Fiabiliser la base pour que chaque reporting et scoring reflète la réalité.",
     icon: (
