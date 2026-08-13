@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
 import { TableAlertButton } from "./table-alert-button";
-import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
-import { entityLabel, dimLabel, ENTITY_DIMS } from "@/lib/reports/data-table-presets";
+import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel, serializeCustomPeriod } from "@/lib/reports/periods";
+import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
@@ -46,6 +46,9 @@ const GRANULARITY_OPTIONS: { id: string; label: string }[] = [
 
 type Row = { name: string; value: number };
 
+/** Période « Toutes les données » affichée dans le sélecteur (aucun filtre). */
+const ALL_PERIOD: AppliedPeriod = { preset: "all", from: "", to: "", label: "Toutes les données" };
+
 function formatValue(v: number, unit: string | null): string {
   const loc = currentLocale();
   if (unit === "currency") return new Intl.NumberFormat(loc, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -77,17 +80,12 @@ export function DataTableCard({
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(table.title);
   const [showTotal, setShowTotal] = useState(Boolean(table.show_total));
-  // Fréquence d'affichage — persistée sur la table, disponible sur TOUTES les
-  // tables : sur un regroupement temporel elle règle la granularité de l'axe ;
-  // sur un regroupement non temporel (étape, statut…), choisir une fréquence
-  // bascule l'axe sur la date par défaut de l'entité (« Aucune » = regroupement
-  // d'origine).
+  // Fréquence d'affichage — UNIQUEMENT sur les regroupements temporels (date de
+  // création / closing…), choisis à la création. Sur un regroupement par étape
+  // de pipeline ou de lifecycle, changer la fréquence basculerait l'axe sur une
+  // date et casserait complètement le rapport : le sélecteur n'apparaît pas.
   const isTimeDim = table.group_by.startsWith("month_");
-  const fallbackTimeDim = (ENTITY_DIMS[table.entity] ?? []).find((d) => d.id.startsWith("month_"))?.id ?? null;
-  const canGranularity = isTimeDim || fallbackTimeDim !== null;
-  const [granularity, setGranularity] = useState(table.granularity ?? (isTimeDim ? "month" : ""));
-  // Regroupement effectivement affiché (axe temporel de repli si fréquence active).
-  const effectiveGroupBy = isTimeDim ? table.group_by : granularity && fallbackTimeDim ? fallbackTimeDim : table.group_by;
+  const [granularity, setGranularity] = useState(table.granularity ?? "month");
 
   // Nom lisible du pipeline ciblé (table.pipeline stocke l'id externe HubSpot).
   const [pipelineName, setPipelineName] = useState<string | null>(null);
@@ -133,21 +131,20 @@ export function DataTableCard({
         setRows(Array.isArray(d.data) ? d.data : []);
         return;
       }
-      // Fréquence active sur une table non temporelle → l'axe passe sur la
-      // dimension de date par défaut de l'entité, à la granularité choisie.
+      // La fréquence ne s'applique QU'AUX regroupements temporels — le
+      // regroupement choisi à la création (étape, statut…) reste intangible.
       const gr = g ?? granularity;
-      const groupBy = isTimeDim ? table.group_by : gr && fallbackTimeDim ? fallbackTimeDim : table.group_by;
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: {
             entity: table.entity,
-            groupBy,
+            groupBy: table.group_by,
             measure: table.measure,
             field: table.field,
             pipeline: table.pipeline ?? null,
-            granularity: gr || null,
+            granularity: isTimeDim ? gr || null : null,
           },
           sources: table.sources ?? [],
           all: !p,
@@ -165,7 +162,7 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, isTimeDim, fallbackTimeDim, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, isTimeDim, JSON.stringify(table.sources ?? [])]);
 
   // Changement de fréquence : recalcul immédiat + persistance (sans agent).
   // « Aucune » (tables non temporelles) est persisté en null.
@@ -207,6 +204,22 @@ export function DataTableCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
+
+  // Changement de période sur la carte : recalcul immédiat + PERSISTANCE
+  // (comme la fréquence) — la période choisie survit au refresh de la page.
+  async function applyPeriod(p: AppliedPeriod) {
+    const normalized = p.preset === "all" ? null : p;
+    setPeriod(normalized);
+    load(normalized);
+    const stored = p.preset === "custom" ? serializeCustomPeriod(p.from, p.to) : p.preset;
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ period_preset: stored }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+  }
 
   async function remove() {
     if (deleting) return;
@@ -267,10 +280,16 @@ export function DataTableCard({
             </div>
           )}
           <p className="mt-0.5 text-[11px] text-slate-400">
-            {entityLabel(table.entity)} · {dimLabel(table.entity, effectiveGroupBy)}
-            {table.pipeline && <> · pipeline {pipelineName ?? table.pipeline}</>}
+            {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
+          {/* Pipeline ciblé : PASTILLE visible sur le rapport (graphique compris). */}
+          {table.pipeline && (
+            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+              Pipeline {pipelineName ?? table.pipeline}
+            </span>
+          )}
           {(table.sources ?? []).length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {(table.sources ?? []).map((key) => {
@@ -313,7 +332,7 @@ export function DataTableCard({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <ReportPeriodBar
-            onApply={(p) => { setPeriod(p); load(p); }}
+            onApply={applyPeriod}
             loading={loading}
             // KPI personnalisé avec période « déjà précisée dans la description » :
             // le filtre est intégré au câblage par l'agent — on l'affiche tel quel
@@ -324,12 +343,14 @@ export function DataTableCard({
                 ? "Période de la description"
                 : "Toutes périodes")
             }
-            applied={period}
+            // Sans filtre actif (table sur « Toutes les données »), le sélecteur
+            // affiche « Toutes les données » plutôt qu'un « Choisir… » ambigu.
+            applied={period ?? (parseStoredPeriod(table.period_preset).kind === "preset" ? ALL_PERIOD : null)}
           />
-          {/* Fréquence d'affichage — sur TOUTES les tables : granularité de
-              l'axe temporel, ou bascule temporelle d'un regroupement non
-              temporel (« Aucune » = regroupement d'origine). */}
-          {canGranularity && (
+          {/* Fréquence — UNIQUEMENT sur les regroupements temporels (date de
+              création / closing) : sur les étapes de pipeline ou de lifecycle,
+              la modifier casserait le rapport (pas de sélecteur). */}
+          {isTimeDim && (
             <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
               Fréquence
               <select
@@ -338,7 +359,6 @@ export function DataTableCard({
                 onChange={(e) => applyGranularity(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
               >
-                {!isTimeDim && <option value="">Aucune ({dimLabel(table.entity, table.group_by)})</option>}
                 {GRANULARITY_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
@@ -389,7 +409,7 @@ export function DataTableCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2 font-medium">{dimLabel(table.entity, effectiveGroupBy)}</th>
+                  <th className="px-3 py-2 font-medium">{dimLabel(table.entity, table.group_by)}</th>
                   <th className="px-3 py-2 text-right font-medium">Valeur</th>
                 </tr>
               </thead>
