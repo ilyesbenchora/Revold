@@ -101,15 +101,40 @@ export async function loadToolAudits(
       if (count) entityCounts[type] = count;
     }
 
-    // Dernière sync (réussie ou non)
+    // HubSpot : l'ETL dédié alimente le miroir canonique sans forcément passer
+    // par source_links — on compte les entités importées (hubspot_id posé) pour
+    // afficher les mêmes volumes que les autres outils.
+    if (tool.key === "hubspot") {
+      const mirrors: Array<{ table: string; type: string }> = [
+        { table: "contacts", type: "contact" },
+        { table: "companies", type: "company" },
+        { table: "deals", type: "deal" },
+        { table: "tickets", type: "ticket" },
+      ];
+      for (const m of mirrors) {
+        try {
+          const { count } = await supabase
+            .from(m.table)
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", orgId)
+            .not("hubspot_id", "is", null);
+          if (count && count > (entityCounts[m.type] ?? 0)) entityCounts[m.type] = count;
+        } catch {}
+      }
+    }
+
+    // Dernière sync (réussie ou non). L'ETL HubSpot n'écrit pas completed_at
+    // (contrairement aux connecteurs) : on trie sur started_at et on retombe
+    // dessus — sinon HubSpot apparaissait « jamais synchronisé » à tort.
     const { data: lastLog } = await supabase
       .from("sync_logs")
-      .select("completed_at, status, error_message")
+      .select("started_at, completed_at, status, error_message")
       .eq("organization_id", orgId)
       .eq("source", tool.key)
-      .order("completed_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    const syncAt = (lastLog?.completed_at ?? lastLog?.started_at) as string | null | undefined;
 
     out.push({
       key: tool.key,
@@ -119,11 +144,11 @@ export async function loadToolAudits(
       category: tool.category,
       entityCounts,
       report: reportByProvider.get(tool.key) ?? null,
-      lastSync: lastLog?.completed_at
+      lastSync: syncAt
         ? {
-            at: lastLog.completed_at as string,
-            status: (lastLog.status as string) ?? "completed",
-            error: (lastLog.error_message as string | null) ?? null,
+            at: syncAt,
+            status: (lastLog?.status as string) ?? "completed",
+            error: (lastLog?.error_message as string | null) ?? null,
           }
         : null,
       mappedPages: pagesPerTool.get(tool.key) ?? 0,
