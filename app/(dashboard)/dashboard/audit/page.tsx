@@ -1,14 +1,34 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
+import { getToolKeysBatch } from "@/lib/integrations/tool-mappings";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { AgentInsightsCounts } from "@/components/agents/agent-insights-counts";
 
+// Pages « Outil source par page » couvertes par chaque agent : l'agent est
+// GRISÉ tant qu'aucune source n'est sélectionnée sur au moins une de ses pages
+// (onboarding d'un nouveau client : les agents s'activent page par page).
+const AGENT_SOURCE_PAGES: Record<string, string[]> = {
+  performance: ["audit_perf_ventes", "audit_perf_marketing", "audit_perf_ads"],
+  "paiement-facturation": [
+    "audit_paiement_facturation",
+    "audit_paiement_facturation_facturation",
+    "audit_paiement_facturation_paiement",
+    "audit_paiement_facturation_comptabilite",
+    "audit_paiement_facturation_previsionnel",
+  ],
+  "service-client": ["audit_service_client", "audit_appels"],
+  equipes: ["audit_adoption"],
+  proprietes: ["audit_donnees"],
+};
+
 const modules = [
   {
     href: "/dashboard/agents/performance",
-    title: "Agent Performance",
+    title: "Agent Performances",
     description: "Closing rate, cycle de vente, vélocité pipeline, pilotage commercial & marketing.",
     objective: "Identifier les leviers de croissance et les goulots d'étranglement business.",
     icon: (
@@ -77,6 +97,18 @@ const modules = [
 ];
 
 export default async function AuditPage() {
+  // Sources sélectionnées par page (Paramètres → Intégrations → Outil source
+  // par page) : un agent sans AUCUNE source sur ses pages est grisé.
+  const orgId = await getOrgId();
+  const supabase = await createSupabaseServerClient();
+  const allPageKeys = [...new Set(Object.values(AGENT_SOURCE_PAGES).flat())];
+  const mappings = orgId ? await getToolKeysBatch(supabase, orgId, allPageKeys) : {};
+  const agentEnabled = (key: string): boolean => {
+    const pages = AGENT_SOURCE_PAGES[key];
+    if (!pages) return true;
+    return pages.some((p) => (mappings[p] ?? []).length > 0);
+  };
+
   return (
     <section className="space-y-8">
       <header>
@@ -90,6 +122,43 @@ export default async function AuditPage() {
         {modules.map((m) => {
           const key = m.href.replace("/dashboard/agents/", "");
           const persona = getAgentPersona(key);
+          const enabled = agentEnabled(key);
+          if (!enabled) {
+            // Agent grisé : aucune source sélectionnée sur ses pages — on guide
+            // vers les Paramètres au lieu d'ouvrir un chat sans données.
+            return (
+              <div
+                key={m.href}
+                className={`card relative overflow-hidden bg-gradient-to-br ${persona.gradient} opacity-55 grayscale`}
+                title="Aucune source sélectionnée pour les pages de cet agent"
+              >
+                <div className={`h-1 bg-gradient-to-r ${m.color}`} />
+                <div className="relative z-10 p-5">
+                  <div className="flex items-start gap-3">
+                    <AgentProfileAvatar
+                      name={persona.name}
+                      emoji={persona.emoji}
+                      image={personaImagePath(key)} agentKey={key}
+                      role={persona.role}
+                      pitch={persona.pitch}
+                      size={44}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold text-slate-400">✨ {persona.name} · Agent IA</p>
+                      <h2 className="text-base font-semibold text-slate-900">{m.title}</h2>
+                      <p className="mt-1 text-sm text-slate-600">{m.description}</p>
+                      <p className="mt-3 text-[11px] font-medium text-slate-600">
+                        Aucune source sélectionnée —{" "}
+                        <Link href="/dashboard/parametres/integrations" className="pointer-events-auto underline hover:text-accent">
+                          choisis les outils de ses pages dans Paramètres → Intégrations
+                        </Link>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
           return (
             <Link
               key={m.href}
