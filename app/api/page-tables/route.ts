@@ -21,7 +21,10 @@ export function cleanSources(v: unknown): string[] {
 }
 
 export const TABLE_COLS =
-  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, pipeline, created_at";
+  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, pipeline, granularity, created_at";
+
+/** Fréquences temporelles valides (dimensions month_*). */
+export const VALID_GRANULARITIES = new Set(["day", "week", "month", "quarter", "semester", "year"]);
 
 /** Liste les tables de données persistées d'une page. */
 export async function GET(request: Request) {
@@ -69,6 +72,8 @@ export async function POST(request: Request) {
     custom_kpi?: string | null; description?: string | null;
     // Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes.
     pipeline?: string | null;
+    // Fréquence des dimensions temporelles (day/week/month/quarter/semester/year).
+    granularity?: string | null;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -93,6 +98,7 @@ export async function POST(request: Request) {
       custom_kpi: typeof body.custom_kpi === "string" && body.custom_kpi.trim() ? body.custom_kpi.trim() : null,
       description: typeof body.description === "string" && body.description.trim() ? body.description.trim() : null,
       pipeline: typeof body.pipeline === "string" && body.pipeline.trim() ? body.pipeline.trim() : null,
+      granularity: typeof body.granularity === "string" && VALID_GRANULARITIES.has(body.granularity) ? body.granularity : null,
       created_by: user.id,
     })
     .select(TABLE_COLS)

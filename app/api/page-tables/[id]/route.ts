@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { resolveCustomKpiSpec } from "@/lib/reports/resolve-custom-kpi";
-import { cleanPeriod, cleanSources, TABLE_COLS } from "@/app/api/page-tables/route";
+import { cleanPeriod, cleanSources, TABLE_COLS, VALID_GRANULARITIES } from "@/app/api/page-tables/route";
 import { PERIOD_FROM_DESCRIPTION, serializeCustomPeriod } from "@/lib/reports/periods";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let body: {
     title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[];
     show_total?: boolean;
+    // Fréquence des dimensions temporelles (day/week/month/quarter/semester/year).
+    granularity?: string | null;
+    // Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes.
+    pipeline?: string | null;
     // Spec résolue et CONFIRMÉE à l'étape « Vérification » : appliquée telle
     // quelle, sans re-passage par l'agent (ce qui est affiché est enregistré).
     spec?: { entity?: string; group_by?: string; measure?: string; field?: string | null; unit_mode?: string | null; pipeline?: string | null };
@@ -46,6 +50,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
   // Option d'affichage : total dans la visualisation (simple toggle, sans agent).
   if (typeof body.show_total === "boolean") update.show_total = body.show_total;
+  // Fréquence temporelle (simple option d'affichage, sans agent).
+  if (body.granularity === null) update.granularity = null;
+  else if (typeof body.granularity === "string" && VALID_GRANULARITIES.has(body.granularity)) update.granularity = body.granularity;
+  // Pipeline ciblé (deals · regroupement par étape) — hors spec agent.
+  if (body.pipeline === null) update.pipeline = null;
+  else if (typeof body.pipeline === "string" && body.pipeline.trim() && !body.spec) update.pipeline = body.pipeline.trim();
 
   // Réécriture du KPI, de sa description OU des outils sources → on refait passer
   // l'agent (le câblage entité/dimension dépend des trois).

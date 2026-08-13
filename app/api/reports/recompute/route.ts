@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   let body: {
-    query?: { entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null };
+    query?: { entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null; granularity?: string | null };
     date_from?: string;
     date_to?: string;
     all?: boolean;
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     measure: q.measure,
     field: q.field ?? null,
     pipeline: typeof q.pipeline === "string" && q.pipeline.trim() ? q.pipeline.trim() : null,
+    granularity: typeof q.granularity === "string" && q.granularity.trim() ? q.granularity.trim() : null,
     date_from: from,
     date_to: to,
   };

@@ -29,7 +29,19 @@ export type SavedTable = {
   show_total?: boolean | null;
   /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
   pipeline?: string | null;
+  /** Fréquence des dimensions temporelles (day/week/month/quarter/semester/year — null = month). */
+  granularity?: string | null;
 };
+
+/** Fréquences d'affichage des regroupements temporels (month_*). */
+const GRANULARITY_OPTIONS: { id: string; label: string }[] = [
+  { id: "day", label: "Jour" },
+  { id: "week", label: "Semaine" },
+  { id: "month", label: "Mois" },
+  { id: "quarter", label: "Trimestre" },
+  { id: "semester", label: "Semestre" },
+  { id: "year", label: "Année" },
+];
 
 type Row = { name: string; value: number };
 
@@ -60,6 +72,9 @@ export function DataTableCard({
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(table.title);
   const [showTotal, setShowTotal] = useState(Boolean(table.show_total));
+  // Fréquence d'affichage des regroupements temporels — persistée sur la table.
+  const isTimeDim = table.group_by.startsWith("month_");
+  const [granularity, setGranularity] = useState(table.granularity ?? "month");
 
   // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
   async function toggleShowTotal() {
@@ -75,7 +90,7 @@ export function DataTableCard({
     else setShowTotal(!next);
   }
 
-  const load = useCallback(async (p: AppliedPeriod | null) => {
+  const load = useCallback(async (p: AppliedPeriod | null, g?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -91,7 +106,14 @@ export function DataTableCard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: { entity: table.entity, groupBy: table.group_by, measure: table.measure, field: table.field, pipeline: table.pipeline ?? null },
+          query: {
+            entity: table.entity,
+            groupBy: table.group_by,
+            measure: table.measure,
+            field: table.field,
+            pipeline: table.pipeline ?? null,
+            granularity: g ?? granularity,
+          },
           sources: table.sources ?? [],
           all: !p,
           date_from: p?.from,
@@ -108,7 +130,20 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, JSON.stringify(table.sources ?? [])]);
+
+  // Changement de fréquence : recalcul immédiat + persistance (sans agent).
+  async function applyGranularity(g: string) {
+    setGranularity(g);
+    load(period, g);
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ granularity: g }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+  }
 
   // Ouverture directe sur la période par défaut choisie à la création :
   // preset recalculé à l'instant T, plage personnalisée figée, ou « période de
@@ -240,11 +275,30 @@ export function DataTableCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <ReportPeriodBar
-          onApply={(p) => { setPeriod(p); load(p); }}
-          loading={loading}
-          activeLabel={period?.label ?? "Toutes périodes"}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ReportPeriodBar
+            onApply={(p) => { setPeriod(p); load(p); }}
+            loading={loading}
+            activeLabel={period?.label ?? "Toutes périodes"}
+          />
+          {/* Fréquence d'affichage (regroupements temporels) : l'axe passe du
+              mois au jour / semaine / trimestre / semestre / année. */}
+          {isTimeDim && (
+            <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+              Fréquence
+              <select
+                value={granularity}
+                disabled={loading}
+                onChange={(e) => applyGranularity(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+              >
+                {GRANULARITY_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-400 transition hover:text-slate-600">
           <input
             type="checkbox"

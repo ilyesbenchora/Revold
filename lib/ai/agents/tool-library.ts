@@ -612,6 +612,63 @@ function dateColumnFor(entity: string, groupBy: string): string | null {
   return def[entity] ?? null;
 }
 
+/** Fréquences d'affichage des dimensions temporelles (month_*). */
+export const TIME_GRANULARITIES = ["day", "week", "month", "quarter", "semester", "year"] as const;
+export type TimeGranularity = (typeof TIME_GRANULARITIES)[number];
+
+/** Semaine ISO « YYYY-Www » d'une date (lundi = 1er jour). */
+function isoWeekKey(y: number, m: number, d: number): string {
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+/** Bucket temporel d'une valeur date selon la fréquence (clés triables). */
+function timeBucketOf(v: unknown, g: TimeGranularity): string | null {
+  const s = String(v ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return monthOf(v);
+  const [y, m, d] = s.split("-").map(Number);
+  switch (g) {
+    case "day": return s;
+    case "week": return isoWeekKey(y, m, d);
+    case "quarter": return `${y}-T${Math.ceil(m / 3)}`;
+    case "semester": return `${y}-S${m <= 6 ? 1 : 2}`;
+    case "year": return String(y);
+    default: return s.slice(0, 7);
+  }
+}
+
+/**
+ * Clés temporelles continues entre deux dates pour la fréquence donnée (buckets
+ * vides inclus → axes réguliers). null si la plage dépasse le plafond de la
+ * fréquence (on retombe alors sur les clés observées, triées).
+ */
+function timeKeysBetween(from: string, to: string, g: TimeGranularity): string[] | null {
+  const CAPS: Record<TimeGranularity, number> = { day: 400, week: 160, month: 120, quarter: 60, semester: 40, year: 30 };
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return null;
+  const out: string[] = [];
+  const cur = new Date(start);
+  for (let i = 0; i < CAPS[g] + 40; i++) {
+    const key = timeBucketOf(cur.toISOString().slice(0, 10), g);
+    if (key && out[out.length - 1] !== key) out.push(key);
+    if (out.length > CAPS[g]) return null;
+    if (cur >= end) break;
+    // Pas d'itération : le plus petit incrément sûr par fréquence.
+    if (g === "day") cur.setUTCDate(cur.getUTCDate() + 1);
+    else if (g === "week") cur.setUTCDate(cur.getUTCDate() + 7);
+    else cur.setUTCMonth(cur.getUTCMonth() + 1);
+  }
+  // Bucket de la borne de fin (si le dernier pas l'a dépassée sans l'inclure).
+  const endKey = timeBucketOf(to, g);
+  if (endKey && out[out.length - 1] !== endKey) out.push(endKey);
+  return out;
+}
+
 /** Mois YYYY-MM entre deux dates (inclus). */
 function monthKeysBetween(from: string, to: string): string[] {
   const [fy, fm] = from.split("-").map(Number);
@@ -642,6 +699,11 @@ export type AggregateSpec = {
    * partagent un libellé d'étape.
    */
   pipeline?: string | null;
+  /**
+   * Fréquence d'affichage des dimensions temporelles (month_*) :
+   * day | week | month (défaut) | quarter | semester | year.
+   */
+  granularity?: string | null;
 };
 
 /**
@@ -758,6 +820,15 @@ export async function computeAggregate(
   }
 
   const isMonth = groupBy.startsWith("month_");
+  // Fréquence d'affichage des dimensions temporelles : le bucket est recalculé
+  // depuis la vraie colonne de date (jour, semaine ISO, trimestre, semestre, année).
+  const granularity: TimeGranularity = (TIME_GRANULARITIES as readonly string[]).includes(String(input.granularity))
+    ? (String(input.granularity) as TimeGranularity)
+    : "month";
+  if (isMonth && granularity !== "month") {
+    const col = dateColumnFor(entity, groupBy);
+    if (col) resolveDim = (r) => timeBucketOf(r[col], granularity);
+  }
   const acc: Record<string, { sum: number; count: number; weighted: number }> = {};
   for (const r of scoped) {
     const key = resolveDim(r);
@@ -780,7 +851,12 @@ export async function computeAggregate(
 
   let out: { group: string; value: number }[];
   if (isMonth) {
-    const keys = from && to ? monthKeysBetween(from, to) : monthKeys(months);
+    // Axe continu (buckets vides inclus) quand la plage est bornée ; sinon les
+    // clés observées, triées chronologiquement (formats triables par fréquence).
+    const keys =
+      granularity === "month"
+        ? (from && to ? monthKeysBetween(from, to) : monthKeys(months))
+        : (from && to ? timeKeysBetween(from, to, granularity) : null) ?? Object.keys(acc).sort();
     out = keys.map((k) => ({ group: k, value: valueOf(acc[k] ?? { sum: 0, count: 0, weighted: 0 }) }));
   } else {
     out = Object.entries(acc)
@@ -792,6 +868,7 @@ export async function computeAggregate(
     hasData: scoped.length > 0,
     entity, groupBy, measure, field: field ?? undefined,
     pipeline: wantPipeline,
+    granularity: isMonth ? granularity : undefined,
     rows: out, totalRows: scoped.length,
     period: from && to ? { from, to } : null,
   };

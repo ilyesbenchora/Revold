@@ -71,11 +71,25 @@ type Draft = {
   unit_mode: string | null;
   view: TableView;
   title: string;
+  /** Fréquence des dimensions temporelles (day/week/month/quarter/semester/year). */
+  granularity?: string;
+  /** Deals · regroupement par étape : pipeline ciblé (évite les étapes homonymes). */
+  pipeline?: string | null;
   /** Vrai = KPI personnalisé construit par l'agent (entité/dimension décidées en back). */
   custom?: boolean;
   customKpi?: string;
   description?: string;
 };
+
+/** Fréquences d'affichage des regroupements temporels (month_*). */
+const GRANULARITY_OPTIONS: { id: string; label: string }[] = [
+  { id: "day", label: "Jour" },
+  { id: "week", label: "Semaine" },
+  { id: "month", label: "Mois" },
+  { id: "quarter", label: "Trimestre" },
+  { id: "semester", label: "Semestre" },
+  { id: "year", label: "Année" },
+];
 
 /** Câblage proposé par l'agent à l'étape « Vérification » (aucune table créée). */
 type Proposal = {
@@ -337,6 +351,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       unit_mode: table.unit_mode,
       view: (table.view as TableView) || "table",
       title: table.title,
+      granularity: table.granularity ?? undefined,
+      pipeline: table.pipeline ?? null,
       custom: true,
       customKpi: table.custom_kpi || table.title,
     });
@@ -484,7 +500,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field ?? undefined },
+          query: {
+            entity: draft.entity,
+            groupBy: draft.group_by,
+            measure: draft.measure,
+            field: draft.field ?? undefined,
+            pipeline: draft.pipeline ?? null,
+            granularity: draft.granularity ?? null,
+          },
           sources: selected,
           all: true,
         }),
@@ -518,7 +541,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       // même filtre que le recalcul de table (valueFromAggSpec → computeAggregate).
       const spec = draft.custom && proposal
         ? { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field, pipeline: proposal.pipeline ?? null, sources: selected }
-        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, sources: selected };
+        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, pipeline: draft.pipeline ?? null, sources: selected };
       const res = await fetch("/api/page-tiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -565,6 +588,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           custom_kpi: customKpi.trim(),
           description: description.trim(),
           sources: selected,
+          granularity: draft.granularity ?? null,
           spec: proposal
             ? { entity: proposal.entity, group_by: proposal.group_by, measure: proposal.measure, field: proposal.field, unit_mode: proposal.unit_mode, pipeline: proposal.pipeline ?? null }
             : undefined,
@@ -595,6 +619,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           field: proposal.field,
           unit_mode: proposal.unit_mode,
           pipeline: proposal.pipeline ?? null,
+          granularity: draft.granularity ?? null,
           view: draft.view,
           period_preset: periodPreset,
           sources: selected,
@@ -619,6 +644,22 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   }
 
   const dims = draft ? ENTITY_DIMS[draft.entity] ?? [] : [];
+
+  // ── Pipelines de deals (sélecteur « Pipeline » du regroupement par étape) :
+  //    chargés à la demande dès qu'un regroupement par étape est en jeu. ──
+  const [pipelineOpts, setPipelineOpts] = useState<{ id: string; name: string }[] | null>(null);
+  const needsPipeline =
+    (draft?.entity === "deals" && draft.group_by === "stage") ||
+    (proposal?.entity === "deals" && proposal.group_by === "stage");
+  useEffect(() => {
+    if (!needsPipeline || pipelineOpts !== null) return;
+    let alive = true;
+    fetch("/api/pipelines")
+      .then((r) => (r.ok ? r.json() : { pipelines: [] }))
+      .then((d) => alive && setPipelineOpts(Array.isArray(d.pipelines) ? d.pipelines : []))
+      .catch(() => alive && setPipelineOpts([]));
+    return () => { alive = false; };
+  }, [needsPipeline, pipelineOpts]);
 
   return (
     <section className="space-y-4">
@@ -680,13 +721,49 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       <dt className="text-xs text-slate-500">Source de données</dt>
                       <dd className="font-semibold text-slate-900">{entityLabel(proposal.entity)}</dd>
                     </div>
-                    {proposal.pipeline && (
+                    {(proposal.pipeline || (proposal.entity === "deals" && proposal.group_by === "stage")) && (
                       <div className="flex items-center justify-between gap-3">
                         <dt className="flex items-center gap-1 text-xs text-slate-500">
                           Pipeline
                           <InfoHint text="La table est restreinte à CE pipeline : les étapes affichées sont uniquement les siennes (pas de mélange avec les étapes homonymes des autres pipelines)." />
                         </dt>
-                        <dd className="text-xs font-semibold text-slate-900">{proposal.pipeline}</dd>
+                        <dd className="min-w-0">
+                          <select
+                            value={proposal.pipeline ?? ""}
+                            disabled={proposalLoading || verifLoading}
+                            onChange={(e) => adjustProposal({ pipeline: e.target.value || null })}
+                            className="w-full max-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-accent"
+                          >
+                            <option value="">Tous les pipelines (étapes mélangées)</option>
+                            {(pipelineOpts ?? []).map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                            {proposal.pipeline && !(pipelineOpts ?? []).some((p) => p.id === proposal.pipeline) && (
+                              <option value={proposal.pipeline}>{proposal.pipeline}</option>
+                            )}
+                          </select>
+                        </dd>
+                      </div>
+                    )}
+                    {/* Regroupement temporel → fréquence de l'axe (persistée sur la table). */}
+                    {proposal.group_by.startsWith("month_") && draft && (
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="flex items-center gap-1 text-xs text-slate-500">
+                          Fréquence
+                          <InfoHint text="Granularité de l'axe temporel : jour, semaine, mois, trimestre, semestre ou année. Modifiable ensuite directement sur le rapport, à côté de la période." />
+                        </dt>
+                        <dd className="min-w-0">
+                          <select
+                            value={draft.granularity ?? "month"}
+                            disabled={proposalLoading || verifLoading}
+                            onChange={(e) => setDraft({ ...draft, granularity: e.target.value })}
+                            className="w-full max-w-56 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-accent"
+                          >
+                            {GRANULARITY_OPTIONS.map((o) => (
+                              <option key={o.id} value={o.id}>{o.label}</option>
+                            ))}
+                          </select>
+                        </dd>
                       </div>
                     )}
                     {/* Regroupement et mesure ÉDITABLES : si le KPI est ambigu
@@ -1122,11 +1199,52 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
                     <select
                       value={draft.group_by}
-                      onChange={(e) => setDraft({ ...draft, group_by: e.target.value })}
+                      onChange={(e) => setDraft({ ...draft, group_by: e.target.value, pipeline: e.target.value === "stage" ? draft.pipeline : null })}
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
                     >
                       {dims.map((d) => (
                         <option key={d.id} value={d.id}>{d.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Regroupement par étape → CHOIX DU PIPELINE : sans lui, les
+                    étapes homonymes de tous les pipelines seraient mélangées. */}
+                {!draft.custom && draft.entity === "deals" && draft.group_by === "stage" && (
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                      Pipeline
+                      <InfoHint text="Restreint la table à CE pipeline : les étapes affichées sont uniquement les siennes. « Tous » mélange les étapes homonymes de tous les pipelines." />
+                    </label>
+                    <select
+                      value={draft.pipeline ?? ""}
+                      onChange={(e) => setDraft({ ...draft, pipeline: e.target.value || null })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+                    >
+                      <option value="">Tous les pipelines (étapes mélangées)</option>
+                      {(pipelineOpts ?? []).map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Regroupement temporel → FRÉQUENCE de l'axe (jour, semaine,
+                    mois, trimestre, semestre, année). */}
+                {!draft.custom && draft.group_by.startsWith("month_") && (
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                      Fréquence
+                      <InfoHint text="Granularité de l'axe temporel : une barre / un point par jour, semaine, mois, trimestre, semestre ou année. Modifiable ensuite directement sur le rapport, à côté de la période." />
+                    </label>
+                    <select
+                      value={draft.granularity ?? "month"}
+                      onChange={(e) => setDraft({ ...draft, granularity: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
+                    >
+                      {GRANULARITY_OPTIONS.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
                       ))}
                     </select>
                   </div>
