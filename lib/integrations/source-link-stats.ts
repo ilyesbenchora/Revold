@@ -3,7 +3,7 @@
 //  - % d'entités multi-sources (reliées à ≥ 2 outils) ;
 //  - taux de rapprochement CRM × outil : part des enregistrements d'un outil
 //    dont l'entité canonique est reliée au CRM (hubspot_id posé sur
-//    contacts/companies — même définition que les orphelins de l'Audit qualité).
+//    contacts/companies — même définition que les orphelins de l'Audit données).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 

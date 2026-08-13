@@ -133,7 +133,7 @@ export const PAGE_LABELS: Record<string, string> = {
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
   audit_adoption: "Équipes",
-  audit_donnees: "Audit qualité",
+  audit_donnees: "Audit données",
 };
 
 export const TABLE_PRESETS: Record<string, TablePreset[]> = {

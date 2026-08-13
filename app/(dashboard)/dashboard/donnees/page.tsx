@@ -20,6 +20,24 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { BlockHeaderIcon } from "@/components/ventes-ui";
 import Link from "next/link";
 
+// Identifiants entreprise pilotés par les règles cochées dans Paramètres →
+// Modèle de données → « Règles de résolution d'entités ». Une règle décochée
+// fait disparaître sa métrique d'enrichissement du bloc Entreprises.
+const COMPANY_RULE_IDENTIFIERS: Array<{
+  ruleId: string;
+  canonical: string;
+  label: string;
+  defaultEnabled: boolean;
+  defaultField: string;
+}> = [
+  { ruleId: "siren_match", canonical: "siren", label: "SIREN", defaultEnabled: true, defaultField: "siren" },
+  { ruleId: "siret_match", canonical: "siret", label: "SIRET", defaultEnabled: true, defaultField: "siret" },
+  { ruleId: "vat_match", canonical: "vat_number", label: "N° TVA", defaultEnabled: true, defaultField: "vat_number" },
+  { ruleId: "name_match", canonical: "company_name", label: "Nom", defaultEnabled: false, defaultField: "name" },
+];
+
+type SummaryMetric = { label: string; pct: number; missing?: boolean };
+
 type ToolEntityCount = {
   label: string;
   count: number;
@@ -102,6 +120,60 @@ export default async function DonneesPage() {
 
   const pct = (filled: number, t: number) => (t > 0 ? Math.round((filled / t) * 100) : 0);
 
+  // ── Enrichissement Entreprises selon les règles de résolution cochées ──
+  // On lit l'état des règles (entity_resolution_config) et le mapping des
+  // propriétés HubSpot (identifier_field_mapping), puis on compte en live les
+  // entreprises dont la propriété est renseignée (HAS_PROPERTY).
+  let identifierMetrics: SummaryMetric[] = [];
+  if (companiesTotal > 0) {
+    let savedRules: Array<{ rule_id: string; enabled: boolean }> = [];
+    let hubspotFieldMap: Record<string, string> = {};
+    try {
+      const [rulesRes, mappingRes] = await Promise.all([
+        supabase.from("entity_resolution_config").select("rule_id, enabled").eq("organization_id", orgId),
+        supabase.from("identifier_field_mapping").select("canonical_field, provider_field").eq("organization_id", orgId).eq("provider", "hubspot"),
+      ]);
+      savedRules = (rulesRes.data ?? []) as typeof savedRules;
+      hubspotFieldMap = Object.fromEntries(
+        ((mappingRes.data ?? []) as Array<{ canonical_field: string; provider_field: string }>).map((m) => [m.canonical_field, m.provider_field]),
+      );
+    } catch {}
+
+    const activeIdentifiers = COMPANY_RULE_IDENTIFIERS.filter((def) => {
+      const saved = savedRules.find((r) => r.rule_id === def.ruleId);
+      return saved ? saved.enabled : def.defaultEnabled;
+    });
+
+    if (hubspotToken && activeIdentifiers.length > 0) {
+      const results = await Promise.all(
+        activeIdentifiers.map(async (def): Promise<SummaryMetric | null> => {
+          const propName = (hubspotFieldMap[def.canonical] ?? def.defaultField).trim();
+          if (!propName) return null;
+          try {
+            const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                filterGroups: [{ filters: [{ propertyName: propName, operator: "HAS_PROPERTY" }] }],
+                limit: 1,
+              }),
+            });
+            if (res.ok) {
+              const d = await res.json();
+              return { label: def.label, pct: pct(d.total ?? 0, companiesTotal) };
+            }
+            // 400 = propriété inexistante dans le portail (mapping à créer côté CRM).
+            if (res.status === 400) return { label: def.label, pct: 0, missing: true };
+            return null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      identifierMetrics = results.filter((m): m is SummaryMetric => m !== null);
+    }
+  }
+
   // ── Hubs synchronisés : HubSpot + outils tiers connectés à Revold ──
   const connectedTools = await getConnectedTools(supabase, orgId);
   const hubs: ToolHub[] = [];
@@ -178,7 +250,7 @@ export default async function DonneesPage() {
     const def = CONNECTABLE_TOOLS[tool.key];
     if (!def) continue;
     // Outils de communication (Slack, Teams…) : canaux de notification,
-    // pas des sources de données — hors périmètre de l'audit qualité.
+    // pas des sources de données — hors périmètre de l'audit données.
     if (def.category === "communication") continue;
 
     const entities: ToolEntityCount[] = [];
@@ -384,7 +456,7 @@ export default async function DonneesPage() {
     count: number;
     icon: "users" | "building" | "briefcase";
     tone: "blue" | "violet" | "orange";
-    metrics: Array<{ label: string; pct: number }>;
+    metrics: SummaryMetric[];
   }> = [
     {
       label: "Contacts",
@@ -408,6 +480,8 @@ export default async function DonneesPage() {
         { label: "Domaine", pct: pct(companiesDomain, companiesTotal) },
         { label: "Secteur", pct: pct(companiesIndustry, companiesTotal) },
         { label: "CA", pct: pct(companiesRevenue, companiesTotal) },
+        // Identifiants issus des règles de résolution cochées (SIREN, SIRET, TVA…).
+        ...identifierMetrics,
       ],
     },
     {
@@ -430,17 +504,22 @@ export default async function DonneesPage() {
   // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
   const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
   const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
+  // Code couleur des tuiles : vert ≥ 80 %, indigo ≥ 50 %, rouge en dessous.
+  const toneForPct = (p: number): DefaultTile["tone"] => (p >= 80 ? "pos" : p >= 50 ? "accent" : "neg");
+  const contactsPct = pct(contactsCompany, contactsTotal);
+  const companiesPct = pct(companiesDomain, companiesTotal);
+  const dealsPct = pct(dealsAmount, dealsTotal);
   const defaultTiles: DefaultTile[] = (contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0)
     ? [
-        { key: "contacts", label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(contactsCompany, contactsTotal)} % liés à une entreprise` },
-        { key: "entreprises", label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(companiesDomain, companiesTotal)} % avec domaine` },
-        { key: "transactions", label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: "accent", sub: `${pct(dealsAmount, dealsTotal)} % avec montant` },
+        { key: "contacts", label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: toneForPct(contactsPct), sub: `${contactsPct} % liés à une entreprise` },
+        { key: "entreprises", label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: toneForPct(companiesPct), sub: `${companiesPct} % avec domaine` },
+        { key: "transactions", label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: toneForPct(dealsPct), sub: `${dealsPct} % avec montant` },
         {
           key: "completude",
           label: "Complétude moyenne",
           value: avgFill != null ? `${avgFill} %` : "—",
           tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
-          sub: "9 propriétés clés confondues",
+          sub: `${allMetrics.length} propriétés clés confondues`,
           verdict: avgFill == null ? undefined
             : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
             : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
@@ -566,7 +645,14 @@ export default async function DonneesPage() {
               {s.metrics.map((m) => (
                 <div key={m.label}>
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">{m.label}</span>
+                    <span className="text-slate-500">
+                      {m.label}
+                      {m.missing && (
+                        <span className="ml-1.5 rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700" title="Créez la propriété dans HubSpot puis mappez-la dans Paramètres → Modèle de données">
+                          propriété absente du CRM
+                        </span>
+                      )}
+                    </span>
                     <span className={`font-semibold ${m.pct >= 80 ? "text-emerald-600" : m.pct >= 50 ? "text-amber-600" : "text-red-500"}`}>{m.pct} %</span>
                   </div>
                   <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">

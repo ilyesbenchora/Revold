@@ -343,7 +343,7 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   }
 
   // Rapport d'audit (couverture SIREN/TVA/email + méthodes de match) —
-  // affiché dans Audit qualité → Audit onboarding.
+  // affiché dans Audit données → Audit onboarding.
   await recordConnectorAudit(ctx.supabase, ctx.orgId, PROVIDER, {
     ran_at: new Date().toISOString(),
     totals: {

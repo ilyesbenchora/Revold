@@ -150,7 +150,7 @@ export async function loadIdentifierAccessor(
   return { provider, paths, overridden, extract, coverage };
 }
 
-// ── Audit de sync (rapport montré dans Audit qualité → Audit onboarding) ────
+// ── Audit de sync (rapport montré dans Audit données → Audit onboarding) ────
 
 export type ConnectorAuditReport = {
   ran_at: string;

@@ -246,7 +246,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
   });
 
   // Rapport d'audit (couverture des identifiants + méthodes de match) —
-  // affiché dans Audit qualité → Audit onboarding.
+  // affiché dans Audit données → Audit onboarding.
   await recordConnectorAudit(supabase, orgId, PROVIDER, {
     ran_at: new Date().toISOString(),
     totals: {

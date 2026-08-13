@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Audit qualité → Audit onboarding.
+ * Audit données → Audit onboarding.
  *
  * Tout ce que Revold détecte quand un outil est branché, outil par outil :
  * volumes importés, méthodes de rapprochement réellement utilisées, couverture
