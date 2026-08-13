@@ -93,7 +93,15 @@ const ITEMS: { key: keyof Counts; label: string; tab: string; icon: React.ReactN
   },
 ];
 
-export function AgentInsightsCounts({ agentKey }: { agentKey: string }) {
+export function AgentInsightsCounts({
+  agentKey,
+  discussionsLabel,
+}: {
+  agentKey: string;
+  /** Libellé du compteur de discussions — « coachings faits » (coachs, défaut)
+   *  ou « discussions faites » (agents experts de Mon équipe IA). */
+  discussionsLabel?: string;
+}) {
   const router = useRouter();
   const [counts, setCounts] = useState<Counts | null>(null);
 
@@ -110,22 +118,25 @@ export function AgentInsightsCounts({ agentKey }: { agentKey: string }) {
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {ITEMS.map((it) => (
-        <span
-          key={it.key}
-          role="button"
-          tabIndex={0}
-          title={`Voir les ${it.label}`}
-          onClick={(e) => open(e, it.tab)}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") open(e, it.tab); }}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:bg-white hover:text-accent hover:ring-1 hover:ring-accent/30"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {it.icon}
-          </svg>
-          {counts === null ? "…" : counts[it.key]} {it.label}
-        </span>
-      ))}
+      {ITEMS.map((it) => {
+        const label = it.key === "discussions" && discussionsLabel ? discussionsLabel : it.label;
+        return (
+          <span
+            key={it.key}
+            role="button"
+            tabIndex={0}
+            title={`Voir les ${label}`}
+            onClick={(e) => open(e, it.tab)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") open(e, it.tab); }}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:bg-white hover:text-accent hover:ring-1 hover:ring-accent/30"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {it.icon}
+            </svg>
+            {counts === null ? "…" : counts[it.key]} {label}
+          </span>
+        );
+      })}
     </div>
   );
 }

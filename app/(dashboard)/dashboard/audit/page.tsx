@@ -95,7 +95,7 @@ export default async function AuditPage() {
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Données</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Mon équipe disponible 24/7</h1>
         <p className="mt-1 text-sm text-slate-500">
           Choisis un agent expert pour analyser ta donnée en conversationnel et cross-source.
         </p>
@@ -139,7 +139,7 @@ export default async function AuditPage() {
                       <span className="font-medium text-slate-600">Objectif :</span> {m.objective}
                     </p>
                     <div className="mt-3">
-                      <AgentInsightsCounts agentKey={key} />
+                      <AgentInsightsCounts agentKey={key} discussionsLabel="discussions faites" />
                     </div>
                   </div>
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300 group-hover:text-accent transition">
