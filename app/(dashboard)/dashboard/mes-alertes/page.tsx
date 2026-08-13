@@ -53,7 +53,7 @@ export default async function MesAlertesPage() {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Mes alertes</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Alertes</h1>
           <p className="mt-1 text-sm text-slate-500">
             Toutes tes alertes de suivi — créées depuis un agent, un pipeline, ou de zéro.
           </p>
