@@ -8,6 +8,8 @@ export type AggSpec = {
   field?: string | null;
   /** Ligne précise à isoler (ex : "active" pour les abonnements actifs) ; vide = total. */
   target?: string | null;
+  /** KPI en TAUX : valeur = 100 × ligne cible (target) / total des lignes. */
+  percent_of_total?: boolean | null;
   /** Transformation linéaire déterministe (ex : 12 pour passer du MRR à l'ARR). */
   multiplier?: number | null;
   /**
@@ -48,6 +50,14 @@ export async function valueFromAggSpec(
     if (res.error) return null;
     const rows = (res.rows as { group: string; value: number }[] | undefined) ?? [];
     const target = spec.target;
+
+    // KPI en taux : part de la ligne cible sur le total (1 décimale).
+    if (spec.percent_of_total && target) {
+      const totalAll = rows.reduce((s, r) => s + (r.value || 0), 0);
+      const targetVal = rows.find((r) => r.group.toLowerCase() === target.toLowerCase())?.value ?? 0;
+      return totalAll > 0 ? Math.round((targetVal / totalAll) * 1000) / 10 : null;
+    }
+
     const base = !target || target === "Total"
       ? rows.reduce((s, r) => s + (r.value || 0), 0)
       : (rows.find((r) => r.group === target)?.value ?? 0);

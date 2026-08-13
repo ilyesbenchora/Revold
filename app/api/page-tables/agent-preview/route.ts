@@ -54,6 +54,9 @@ export async function POST(request: Request) {
       date_to: resolved.spec.date_to ?? null,
       rowCount: resolved.rowCount,
       agent: resolved.agentName,
+      // KPI en taux : ligne cible / total × 100 (unit_mode percent).
+      target: resolved.percentTarget ?? null,
+      percent_of_total: !!resolved.percentTarget,
     },
     counts,
   });

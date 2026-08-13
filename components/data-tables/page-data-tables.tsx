@@ -105,6 +105,9 @@ type Proposal = {
   date_to: string | null;
   rowCount: number;
   agent: string;
+  /** KPI en TAUX câblé par l'agent : valeur = 100 × ligne cible / total. */
+  target?: string | null;
+  percent_of_total?: boolean;
 };
 
 function fmtTotal(v: number, unit: string | null): string {
@@ -471,7 +474,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       const d = await res.json().catch(() => ({}));
       if (res.ok && Array.isArray(d.data)) {
         const total = d.data.reduce((s: number, r: { value?: number }) => s + (Number(r.value) || 0), 0);
-        setVerifTotal(total);
+        // KPI en taux : la preuve chiffrée est le POURCENTAGE réel (cible/total),
+        // pas la somme des lignes.
+        if (p.percent_of_total && p.target) {
+          const tv = d.data.find((r: { name?: string }) => String(r.name ?? "").toLowerCase() === p.target!.toLowerCase());
+          setVerifTotal(total > 0 ? Math.round(((Number(tv?.value) || 0) / total) * 1000) / 10 : null);
+        } else {
+          setVerifTotal(total);
+        }
         setProposal((prev) => (prev ? { ...prev, rowCount: Number(d.totalRows) || 0 } : prev));
       } else {
         setVerifTotal(null);
@@ -545,7 +555,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         ? (pipelineOpts ?? []).find((p) => p.id === pipelineId || p.name === pipelineId)?.name ?? pipelineId
         : null;
       const base = draft.custom && proposal
-        ? { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field, pipeline: pipelineId, sources: selected }
+        ? {
+            entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field,
+            pipeline: pipelineId, sources: selected,
+            // KPI en taux câblé par l'agent : la tuile affiche le vrai pourcentage.
+            ...(proposal.percent_of_total && proposal.target ? { target: proposal.target, percent_of_total: true } : {}),
+          }
         : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, pipeline: pipelineId, sources: selected };
       const spec = {
         ...base,
@@ -840,7 +855,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <dt className="text-xs text-slate-500">Total calculé (toutes périodes)</dt>
+                      <dt className="text-xs text-slate-500">
+                        {proposal.percent_of_total ? `Taux calculé (${proposal.target ?? "cible"} / total)` : "Total calculé (toutes périodes)"}
+                      </dt>
                       <dd className={`font-semibold ${verifTotal != null && verifTotal !== 0 ? "text-emerald-600" : "text-slate-500"}`}>
                         {verifLoading ? "…" : verifTotal != null ? fmtTotal(verifTotal, proposal.unit_mode) : "—"}
                       </dd>

@@ -41,7 +41,15 @@ const BUILD_TOOL: Anthropic.Tool = {
           "son nom EXACT tel qu'écrit par l'utilisateur. Sans lui, les étapes homonymes de TOUS les pipelines " +
           "sont mélangées — données fausses. Omettre si aucun pipeline n'est nommé.",
       },
-      unit_mode: { type: "string", enum: ["count", "currency", "percent"], description: "count si comptage, currency si montant en €." },
+      unit_mode: { type: "string", enum: ["count", "currency", "percent"], description: "count si comptage, currency si montant en €, percent si percent_target est renseigné (taux)." },
+      percent_target: {
+        type: "string",
+        description:
+          "UNIQUEMENT si le KPI est un TAUX / POURCENTAGE (« taux de », « % de », « part de ») : " +
+          "la valeur EXACTE de la ligne cible dans la dimension groupBy, dont la part du total constitue le KPI " +
+          "(ex : groupBy=mql → « MQL » ; groupBy=status → « active » ; groupBy=stage → nom de l'étape gagnée). " +
+          "Le KPI vaut alors 100 × valeur(cible) / total, et unit_mode DOIT être percent. Omettre pour un volume ou un montant.",
+      },
       date_from: {
         type: "string",
         description:
@@ -84,7 +92,16 @@ const NO_MATCH_TOOL: Anthropic.Tool = {
 };
 
 export type ResolvedKpi =
-  | { ok: true; spec: AggregateSpec; unitMode: string; agentTitle: string | null; agentName: string; rowCount: number }
+  | {
+      ok: true;
+      spec: AggregateSpec;
+      unitMode: string;
+      agentTitle: string | null;
+      agentName: string;
+      rowCount: number;
+      /** KPI en TAUX : valeur de la ligne cible dont la part du total est le KPI (100 × cible / total). */
+      percentTarget?: string | null;
+    }
   | { ok: false; error: string; status: number; instructions?: string };
 
 /**
@@ -171,6 +188,9 @@ export async function resolveCustomKpiSpec(
     `(KPI hors périmètre, donnée non disponible, intention ambiguë), appelle no_reliable_match : ` +
     `on ne crée JAMAIS une table approximative — tes instructions aident l'utilisateur à reformuler. ` +
     `Si le besoin implique un montant en euros, mets unit_mode=currency ; sinon count. ` +
+    `KPI en TAUX / POURCENTAGE (« taux de », « % de », « part de ») : choisis la dimension qui sépare la cible du reste, ` +
+    `renseigne percent_target avec la valeur EXACTE de la ligne cible et mets unit_mode=percent — ` +
+    `le KPI affiché sera 100 × cible / total, calculé sur les données réelles. ` +
     `Date du jour : ${new Date().toISOString().slice(0, 10)}. Si le KPI ou sa description mentionne explicitement une période, ` +
     `convertis-la en dates absolues (date_from/date_to) ; sinon n'envoie PAS ces champs. ` +
     `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
@@ -184,7 +204,7 @@ export async function resolveCustomKpiSpec(
     ` Construis la table correspondante.`;
 
   type AskResult =
-    | { kind: "spec"; spec: AggregateSpec; unitMode: string; agentTitle: string | null }
+    | { kind: "spec"; spec: AggregateSpec; unitMode: string; agentTitle: string | null; percentTarget: string | null }
     | { kind: "error"; res: ResolvedKpi & { ok: false } };
 
   // Un tour d'interprétation par l'agent. `extraContext` = relance du garde-fou
@@ -219,7 +239,7 @@ export async function resolveCustomKpiSpec(
       }
       const inp = toolUse.input as {
         title?: string; entity?: string; groupBy?: string; measure?: string; field?: string; unit_mode?: string;
-        pipeline?: string; date_from?: string; date_to?: string;
+        pipeline?: string; date_from?: string; date_to?: string; percent_target?: string;
       };
       // Période explicitement mentionnée dans le KPI/description → dates absolues
       // extraites par l'agent (validées au format), sinon null (pas de filtre).
@@ -229,7 +249,10 @@ export async function resolveCustomKpiSpec(
       return {
         kind: "spec",
         agentTitle: inp.title?.trim() || null,
-        unitMode: inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count",
+        percentTarget: inp.percent_target?.trim() || null,
+        unitMode: inp.percent_target?.trim()
+          ? "percent"
+          : inp.unit_mode === "currency" ? "currency" : inp.unit_mode === "percent" ? "percent" : "count",
         spec: {
           entity: String(inp.entity ?? ""),
           groupBy: String(inp.groupBy ?? ""),
@@ -247,7 +270,7 @@ export async function resolveCustomKpiSpec(
 
   let attempt = await ask();
   if (attempt.kind === "error") return attempt.res;
-  let { spec, unitMode, agentTitle } = attempt;
+  let { spec, unitMode, agentTitle, percentTarget } = attempt;
 
   // Validation déterministe : on rejette toute spec non calculable (fiabilité).
   // Exécutée avec le MÊME filtre de sources que le recalcul de la table.
@@ -273,7 +296,7 @@ export async function resolveCustomKpiSpec(
       const recheck = await computeAggregate(supabase, orgId, sources, hubspotToken, retry.spec);
       if (!recheck.error) {
         attempt = retry;
-        ({ spec, unitMode, agentTitle } = retry);
+        ({ spec, unitMode, agentTitle, percentTarget } = retry);
         check = recheck;
       }
     }
@@ -316,5 +339,24 @@ export async function resolveCustomKpiSpec(
     };
   }
 
-  return { ok: true, spec, unitMode, agentTitle, agentName: persona.name, rowCount: Number(check.totalRows) || 0 };
+  // KPI en taux : la ligne cible doit exister dans les données réelles — on la
+  // normalise sur le libellé exact des lignes (matching insensible à la casse).
+  if (percentTarget) {
+    const rows = (check.rows as { group: string; value: number }[] | undefined) ?? [];
+    const found = rows.find((r) => r.group.toLowerCase() === percentTarget!.toLowerCase());
+    if (found) {
+      percentTarget = found.group;
+    } else if (rows.length > 0) {
+      const groups = rows.slice(0, 12).map((r) => `« ${r.group} »`).join(", ");
+      return {
+        ok: false,
+        error:
+          `${persona.name} : la ligne cible « ${percentTarget} » du taux n'existe pas dans les données ` +
+          `(${spec.entity} · ${spec.groupBy}). Lignes disponibles : ${groups}. Reformule le KPI en visant l'une d'elles.`,
+        status: 422,
+      };
+    }
+  }
+
+  return { ok: true, spec, unitMode, agentTitle, agentName: persona.name, rowCount: Number(check.totalRows) || 0, percentTarget };
 }
