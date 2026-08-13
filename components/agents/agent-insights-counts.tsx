@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { listAgentRoutines } from "./routines";
 
 /**
  * Compteurs d'activité d'un agent, lus depuis l'historique local des
@@ -14,8 +15,8 @@ import { useRouter } from "next/navigation";
  * de la carte-lien de l'agent, on stoppe la propagation pour ouvrir le bon onglet.
  */
 
-type Counts = { discussions: number; suggestions: number; alerts: number; actions: number };
-const ZERO: Counts = { discussions: 0, suggestions: 0, alerts: 0, actions: 0 };
+type Counts = { discussions: number; suggestions: number; alerts: number; actions: number; routines: number };
+const ZERO: Counts = { discussions: 0, suggestions: 0, alerts: 0, actions: 0, routines: 0 };
 
 function readCounts(agentKey: string): Counts {
   try {
@@ -34,7 +35,9 @@ function readCounts(agentKey: string): Counts {
         if (m.dealAction) actions++; // action pipeline proposée
       }
     }
-    return { discussions: convs.length, suggestions, alerts, actions };
+    // Routines actives de l'agent (localStorage revold:agent-routines:v1).
+    const routines = listAgentRoutines(agentKey).filter((r) => r.active).length;
+    return { discussions: convs.length, suggestions, alerts, actions, routines };
   } catch {
     return ZERO;
   }
@@ -76,6 +79,17 @@ const ITEMS: { key: keyof Counts; label: string; tab: string; icon: React.ReactN
     label: "actions",
     tab: "actions",
     icon: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
+  },
+  {
+    key: "routines",
+    label: "routines",
+    tab: "routines",
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </>
+    ),
   },
 ];
 
