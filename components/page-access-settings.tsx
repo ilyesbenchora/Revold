@@ -94,11 +94,11 @@ const SECTIONS: Section[] = [
   },
   {
     id: "alertes",
-    title: "Alertes",
+    title: "Suivi",
     pages: [
-      { href: "/dashboard/mes-alertes", label: "Mes alertes" },
+      { href: "/dashboard/mes-alertes", label: "Alertes" },
       { href: "/dashboard/mes-alertes/objectifs", label: "Objectifs" },
-      { href: "/dashboard/mes-alertes/calendrier", label: "Calendrier alertes" },
+      { href: "/dashboard/mes-alertes/calendrier", label: "Calendrier" },
     ],
   },
 ];
