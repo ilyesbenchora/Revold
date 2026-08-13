@@ -43,26 +43,28 @@ export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]>
 };
 
 // Dimensions disponibles par entité → le paramètre « Grouper par » façon Notion.
+// Les dimensions temporelles (id month_*) sont libellées « Date de … » : la
+// granularité de l'axe (jour, semaine, mois…) est choisie via « Fréquence ».
 export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
   deals: [
     { id: "stage", label: "Étape du pipeline" },
-    { id: "month_created", label: "Mois de création" },
-    { id: "month_closed", label: "Mois de closing" },
+    { id: "month_created", label: "Date de création" },
+    { id: "month_closed", label: "Date de closing" },
   ],
   invoices: [
     { id: "status", label: "Statut" },
     { id: "source", label: "Source" },
-    { id: "month_issued", label: "Mois d'émission" },
-    { id: "month_paid", label: "Mois de paiement" },
+    { id: "month_issued", label: "Date d'émission" },
+    { id: "month_paid", label: "Date de paiement" },
   ],
   subscriptions: [
     { id: "status", label: "Statut" },
     { id: "source", label: "Source" },
-    { id: "month_started", label: "Mois de début" },
-    { id: "month_canceled", label: "Mois d'annulation" },
+    { id: "month_started", label: "Date de début" },
+    { id: "month_canceled", label: "Date d'annulation" },
   ],
   transactions: [
-    { id: "month_transaction", label: "Mois" },
+    { id: "month_transaction", label: "Date de transaction" },
     { id: "direction", label: "Sens (encaissement / décaissement)" },
     { id: "category", label: "Catégorie" },
     { id: "source", label: "Source" },
