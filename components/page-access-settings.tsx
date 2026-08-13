@@ -73,7 +73,6 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
       { href: "/dashboard/insights-ia/data", label: "Coaching Data & intégrations" },
       { href: "/dashboard/insights-ia/data-model", label: "Coaching Finance" },
-      { href: "/dashboard/insights-ia/calendrier", label: "Calendrier coaching" },
     ],
   },
   {

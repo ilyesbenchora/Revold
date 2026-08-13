@@ -66,7 +66,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   // qualité des données concerne chaque pôle.
   sales: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
@@ -74,7 +74,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   },
   marketing: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
@@ -82,14 +82,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   },
   cs: {
     audit: ["/dashboard/audit", "/dashboard/audit/service-client"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   finance: {
     audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",

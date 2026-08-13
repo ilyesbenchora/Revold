@@ -137,8 +137,8 @@ export default async function DashboardOverviewPage() {
       ai: true,
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          <path d="M23 6l-9.5 9.5-5-5L1 18" />
+          <polyline points="17 6 23 6 23 12" />
         </svg>
       ),
     },
@@ -153,6 +153,19 @@ export default async function DashboardOverviewPage() {
           <path d="M4 11a9 9 0 0 1 9 9" />
           <path d="M4 4a16 16 0 0 1 16 16" />
           <circle cx="5" cy="19" r="1" />
+        </svg>
+      ),
+    },
+    {
+      label: "Suivi",
+      description: "Alertes, objectifs et calendrier : surveillez vos seuils et soyez prévenu dès qu'un KPI décroche.",
+      href: "/dashboard/mes-alertes",
+      cta: "Voir mes alertes",
+      gradient: "from-rose-500 to-red-500",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
       ),
     },
