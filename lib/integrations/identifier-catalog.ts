@@ -7,7 +7,7 @@
  */
 
 export type IdentifierDef = {
-  canonicalField: "siren" | "siret" | "vat_number" | "external_id" | "email" | "domain" | "company_name";
+  canonicalField: "siren" | "siret" | "vat_number" | "custom_id" | "external_id" | "email" | "domain" | "company_name";
   label: string;
   /** Default field name in the provider (user can override) */
   defaultProviderField: string;
@@ -27,6 +27,7 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Propriété custom HubSpot (à créer si inexistant)", native: false },
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et la facturation (optionnel)", native: false },
     { canonicalField: "external_id", label: "ID Company", defaultProviderField: "hs_object_id", hint: "ID natif HubSpot (automatique)", native: true },
   ],
   salesforce: [
@@ -59,6 +60,7 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer Stripe", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "metadata.siren", hint: "Stocké dans customer.metadata.siren", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "tax_id", hint: "Tax ID natif Stripe (si configuré)", native: true },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, ex : metadata.code_client (optionnel)", native: false },
     { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "cus_XXXXX (automatique)", native: true },
   ],
   pennylane: [
@@ -67,6 +69,7 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "registration_number", hint: "Champ natif Pennylane — toujours renseigné", native: true },
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Champ natif Pennylane", native: true },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Champ natif Pennylane", native: true },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, ex : reference ou external_reference (optionnel)", native: false },
     { canonicalField: "external_id", label: "Client ID", defaultProviderField: "id", hint: "ID natif Pennylane (automatique)", native: true },
   ],
   sellsy: [
@@ -89,12 +92,14 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer Chargebee", native: true },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Champ natif Chargebee (si TVA activée)", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "cf_siren", hint: "Custom field Chargebee (à créer : cf_siren)", native: false },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, ex : cf_code_client (optionnel)", native: false },
     { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "ID natif Chargebee (automatique)", native: true },
   ],
   gocardless: [
     { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "company_name", hint: "Champ natif du customer GoCardless", native: true },
     { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du customer GoCardless", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "metadata.siren", hint: "Stocké dans customer.metadata.siren", native: false },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, ex : metadata.code_client (optionnel)", native: false },
     { canonicalField: "external_id", label: "Customer ID", defaultProviderField: "id", hint: "CU_XXXXX (automatique)", native: true },
   ],
   sage: [
@@ -102,6 +107,7 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du contact Sage", native: true },
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "registered_number", hint: "N° d'immatriculation natif Sage (SIREN/SIRET)", native: true },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "tax_number", hint: "Champ natif Sage", native: true },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, ex : reference (optionnel)", native: false },
     { canonicalField: "external_id", label: "Contact ID", defaultProviderField: "id", hint: "ID natif Sage (automatique)", native: true },
   ],
 
@@ -122,6 +128,13 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
 
 /** Canonical identifier definitions (Tier 1 + Tier 2 only — fiable) */
 export const CANONICAL_IDENTIFIERS = [
+  {
+    field: "custom_id" as const,
+    label: "ID de rapprochement (custom)",
+    description: "Votre code client interne, maintenu par vos équipes dans le CRM et la facturation. Déterministe : fiable à 100 % quand il est renseigné des deux côtés.",
+    confidence: 100,
+    tier: 1,
+  },
   {
     field: "siren" as const,
     label: "SIREN",

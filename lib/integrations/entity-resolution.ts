@@ -9,9 +9,14 @@
  * (SIREN → VAT → domaine) pour ne jamais casser la synchro.
  *
  * Règles disponibles :
- *   Company : siren_match, vat_match, siret_match, domain_match, name_match
+ *   Company : custom_id_match, siren_match, vat_match, siret_match, domain_match, name_match
  *   Contact : exact_email
  *   (external_id_match = source_links, toujours actif via existing_link)
+ *
+ * custom_id_match = « ID de rapprochement » : le code client INTERNE de l'org,
+ * maintenu par ses équipes dans le CRM et la facturation (mappé dans
+ * Paramètres → Modèle de données). À ne pas confondre avec existing_link,
+ * qui repose sur les IDs techniques des outils mémorisés par Revold.
  *
  * Chaque call écrit une ligne `source_links` → les syncs suivantes sont O(1).
  */
@@ -21,6 +26,7 @@ import { sourceWinsField } from "./field-authority";
 
 export type MatchMethod =
   | "existing_link"
+  | "custom_id"
   | "siren"
   | "siret"
   | "vat_number"
@@ -47,6 +53,8 @@ type CompanyInput = {
   siren?: string | null;
   siret?: string | null;
   vatNumber?: string | null;
+  /** ID de rapprochement custom (code client interne de l'org, mappé par outil). */
+  customId?: string | null;
 };
 
 // ── Normalizers ────────────────────────────────────────────────────────────
@@ -135,7 +143,7 @@ async function writeSourceLink(sb: SupabaseClient, orgId: string, provider: stri
 
 type ResolutionConfig = { company: string[]; contact: string[]; hasConfig: boolean };
 
-const COMPANY_RULE_IDS = ["siren_match", "vat_match", "siret_match", "domain_match", "name_match"];
+const COMPANY_RULE_IDS = ["custom_id_match", "siren_match", "vat_match", "siret_match", "domain_match", "name_match"];
 const CONTACT_RULE_IDS = ["exact_email"];
 
 // Cache mémoire court (60 s) : une sync traite les entités en rafale, on évite
@@ -162,7 +170,7 @@ async function loadResolutionConfig(sb: SupabaseClient, orgId: string): Promise<
     }
     // Ordre = priorité configurée, tiebreak par rang canonique (fiable d'abord).
     const RANK: Record<string, number> = {
-      siren_match: 1, vat_match: 2, siret_match: 3, domain_match: 4, name_match: 5, exact_email: 1,
+      custom_id_match: 0, siren_match: 1, vat_match: 2, siret_match: 3, domain_match: 4, name_match: 5, exact_email: 1,
     };
     const enabled = rows
       .filter((r) => r.enabled)
@@ -172,6 +180,12 @@ async function loadResolutionConfig(sb: SupabaseClient, orgId: string): Promise<
       contact: enabled.map((r) => r.rule_id).filter((id) => CONTACT_RULE_IDS.includes(id)),
       hasConfig: true,
     };
+    // custom_id_match est actif par défaut tant que l'utilisateur ne l'a pas
+    // explicitement désactivé (règle sans risque : elle ne s'applique que si un
+    // ID de rapprochement est mappé ET présent sur le record).
+    if (!rows.some((r) => r.rule_id === "custom_id_match") && !cfg.company.includes("custom_id_match")) {
+      cfg.company.unshift("custom_id_match");
+    }
     _cfgCache.set(orgId, { cfg, at: Date.now() });
     return cfg;
   } catch {
@@ -187,6 +201,22 @@ async function runCompanyRule(sb: SupabaseClient, orgId: string, ruleId: string,
     return (data?.id as string | undefined) ?? null;
   };
   switch (ruleId) {
+    case "custom_id_match": {
+      const cid = input.customId?.trim();
+      if (!cid) return null;
+      // Insensible à la casse (les outils ne normalisent pas pareil) ; % et _
+      // échappés pour un match exact via ilike.
+      const pattern = cid.replace(/[%_\\]/g, "\\$&");
+      const { data } = await sb
+        .from("companies")
+        .select("id")
+        .eq("organization_id", orgId)
+        .ilike("custom_id", pattern)
+        .limit(1)
+        .maybeSingle();
+      const id = (data?.id as string | undefined) ?? null;
+      return id ? { id, method: "custom_id", score: 1 } : null;
+    }
     case "siren_match": {
       const siren = normalizeSiren(input.siren) ?? normalizeSiren(input.siret);
       if (!siren) return null;
@@ -312,7 +342,7 @@ export async function resolveCompany(
   const cfg = await loadResolutionConfig(supabase, orgId);
   // Sécurité : jamais de matching à zéro (créerait des doublons). Un set vide
   // retombe sur l'ordre par défaut sûr.
-  const order = cfg.hasConfig && cfg.company.length > 0 ? cfg.company : ["siren_match", "vat_match", "domain_match"];
+  const order = cfg.hasConfig && cfg.company.length > 0 ? cfg.company : ["custom_id_match", "siren_match", "vat_match", "domain_match"];
   for (const ruleId of order) {
     const m = await runCompanyRule(supabase, orgId, ruleId, input);
     if (m) {
@@ -324,6 +354,7 @@ export async function resolveCompany(
   }
 
   const siren = normalizeSiren(input.siren) ?? normalizeSiren(input.siret);
+  const customId = input.customId?.trim() || null;
 
   // 3. Create canonical company (ou enrichit les identifiants si match)
   if (!resolvedId) {
@@ -369,6 +400,13 @@ export async function resolveCompany(
     if (Object.keys(updates).length > 0) {
       await supabase.from("companies").update(updates).eq("id", resolvedId).eq("organization_id", orgId);
     }
+  }
+
+  // ID de rapprochement : écrit à part (jamais avec les autres colonnes) — si la
+  // migration companies.custom_id n'est pas appliquée, seul cet update échoue en
+  // silence sans casser la création ni l'enrichissement. Jamais écrasé par du vide.
+  if (customId && resolvedId) {
+    await supabase.from("companies").update({ custom_id: customId }).eq("id", resolvedId).eq("organization_id", orgId);
   }
 
   await writeSourceLink(supabase, orgId, provider, externalId, "company", resolvedId!, method, score);

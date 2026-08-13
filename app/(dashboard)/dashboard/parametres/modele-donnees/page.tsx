@@ -36,6 +36,12 @@ const DEFAULT_FIELD_AUTHORITY = [
 // ── Default resolution rules ──
 const DEFAULT_RESOLUTION_RULES: Rule[] = [
   {
+    id: "custom_id_match", rule: "Match par ID de rapprochement (custom)", entity: "Company", confidence: 100, enabled: true,
+    description: "Votre code client interne, maintenu par vos équipes dans le CRM et vos outils de facturation. C'est la clé de rapprochement la plus fiable quand elle est renseignée des deux côtés : mappez le champ « ID de rapprochement » de chaque outil dans le bloc Mapping des identifiants ci-dessus.",
+    warning: "L'ID doit être strictement identique d'un outil à l'autre (la casse est ignorée). La règle ne s'applique qu'aux outils où le champ « ID de rapprochement » est mappé.",
+    configFields: [],
+  },
+  {
     id: "siren_match", rule: "Match par SIREN", entity: "Company", confidence: 99, enabled: true,
     description: "Le SIREN (9 chiffres INSEE) identifie une personne morale française de manière unique et permanente.",
     warning: "Un même groupe peut avoir plusieurs SIRENs (1 par entité juridique : holding, filiale, SCI…).",
@@ -72,8 +78,8 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     ],
   },
   {
-    id: "external_id_match", rule: "Match par ID client externe", entity: "Contact + Company", confidence: 100, enabled: true,
-    description: "Chaque outil attribue un ID unique. Revold crée ces liens automatiquement dans source_links. Toujours actif.",
+    id: "external_id_match", rule: "Liaison par ID technique des outils (automatique)", entity: "Contact + Company", confidence: 100, enabled: true,
+    description: "Chaque outil attribue son propre ID technique (hs_object_id, cus_XXXXX…). Après un premier rapprochement, Revold mémorise le lien dans source_links et retrouve l'entité directement aux syncs suivantes. Toujours actif. À ne pas confondre avec votre ID de rapprochement custom (règle dédiée plus haut), qui repose sur VOTRE code client saisi dans les outils.",
     warning: null,
     configFields: [
       { label: "Remplissage automatique", type: "select", options: ["Oui — Revold écrit l'ID dans le CRM après le 1er match", "Non — uniquement lecture"], value: "Oui — Revold écrit l'ID dans le CRM après le 1er match" },
@@ -159,14 +165,25 @@ export default async function ParametresModeleDonneesPage() {
     (p) => CONNECTABLE_TOOLS[p]?.label ?? (p === "hubspot" ? "HubSpot" : p),
   );
 
+  // Règle « ID de rapprochement » : la description reprend les champs réellement
+  // mappés dans le bloc Mapping des identifiants — l'utilisateur voit d'un coup
+  // d'œil sur quels champs concrets la règle s'appuie.
+  const customIdMappings = savedMappings.filter((m) => m.canonical_field === "custom_id" && m.provider_field?.trim());
+  const customIdNote = customIdMappings.length > 0
+    ? ` Champs actuellement mappés : ${customIdMappings
+        .map((m) => `${CONNECTABLE_TOOLS[m.provider]?.label ?? (m.provider === "hubspot" ? "HubSpot" : m.provider)} → ${m.provider_field}`)
+        .join(" · ")}.`
+    : " Aucun champ « ID de rapprochement » n'est mappé pour l'instant — la règle reste sans effet tant qu'aucun outil n'est configuré.";
+
   // Resolution rules: merge saved enabled/config into defaults
   const mergedRules: Rule[] = DEFAULT_RESOLUTION_RULES.map((rule) => {
     const saved = savedRuleConfigs.find((s) => s.rule_id === rule.id);
-    if (!saved) return rule;
+    const base = rule.id === "custom_id_match" ? { ...rule, description: rule.description + customIdNote } : rule;
+    if (!saved) return base;
     return {
-      ...rule,
+      ...base,
       enabled: saved.enabled,
-      configFields: rule.configFields.map((cf) => ({
+      configFields: base.configFields.map((cf) => ({
         ...cf,
         value: (saved.config as Record<string, string>)[cf.label] ?? cf.value,
       })),
@@ -212,6 +229,9 @@ export default async function ParametresModeleDonneesPage() {
       .map(async (id) => {
         const mapped = savedMappings.find((m) => m.provider === "hubspot" && m.canonical_field === id.canonicalField);
         const propName = mapped?.provider_field ?? id.defaultProviderField;
+        // Identifiant optionnel non mappé (ex : ID de rapprochement) : pas de
+        // vérification — sinon badge « absente du CRM » trompeur sur un champ vide.
+        if (!propName.trim()) return;
         const check = await checkHubSpotProperty(
           hsToken,
           CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies",
@@ -224,6 +244,7 @@ export default async function ParametresModeleDonneesPage() {
 
   // Match stats for display
   const totalMatched = Object.values(matchStats).reduce((s, v) => s + v, 0);
+  const matchByCustomId = matchStats["custom_id"] ?? 0;
   const matchBySiren = matchStats["siren"] ?? 0;
   const matchByVat = matchStats["vat_number"] ?? 0;
   const matchBySiret = matchStats["siret"] ?? 0;
@@ -236,6 +257,7 @@ export default async function ParametresModeleDonneesPage() {
   // Part réelle des rapprochements par règle de résolution (source_links.match_method).
   const ruleShares: Record<string, RuleShare | undefined> = {};
   const RULE_TO_METHOD: Record<string, string> = {
+    custom_id_match: "custom_id",
     siren_match: "siren",
     vat_match: "vat_number",
     siret_match: "siret",
@@ -350,6 +372,7 @@ export default async function ParametresModeleDonneesPage() {
             faute de correspondance.
           </p>
           <div className="flex flex-wrap gap-3">
+            {matchByCustomId > 0 && <StatBadge label="Rapprochés par ID de rapprochement" count={matchByCustomId} total={totalMatched} color="emerald" />}
             {matchBySiren > 0 && <StatBadge label="Rapprochés par SIREN" count={matchBySiren} total={totalMatched} color="emerald" />}
             {matchByVat > 0 && <StatBadge label="Rapprochés par n° TVA" count={matchByVat} total={totalMatched} color="blue" />}
             {matchBySiret > 0 && <StatBadge label="Rapprochés par SIRET" count={matchBySiret} total={totalMatched} color="emerald" />}

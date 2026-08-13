@@ -65,13 +65,14 @@ export const sageConnector: SourceConnector = async (ctx) => {
       audit.bumpUnmatched("contact_sans_email");
     }
 
-    if (ids.siren || ids.siret || ids.vat_number || name) {
+    if (ids.custom_id || ids.siren || ids.siret || ids.vat_number || name) {
       const company = await resolveCompany(ctx.supabase, ctx.orgId, PROVIDER, c.id, {
         name,
         domain: ids.domain ?? emailDomain(email),
         siren: ids.siren ?? c.registered_number,
         siret: ids.siret,
         vatNumber: ids.vat_number ?? c.tax_number,
+        customId: ids.custom_id,
       });
       if (company) {
         sageToCompany.set(c.id, company.id);

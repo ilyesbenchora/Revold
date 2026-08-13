@@ -73,13 +73,14 @@ export const gocardlessConnector: SourceConnector = async (ctx) => {
       audit.bumpUnmatched("customer_sans_email");
     }
 
-    if (ids.siren || ids.siret || ids.vat_number || companyName) {
+    if (ids.custom_id || ids.siren || ids.siret || ids.vat_number || companyName) {
       const company = await resolveCompany(ctx.supabase, ctx.orgId, PROVIDER, c.id, {
         name: companyName,
         domain: ids.domain ?? emailDomain(email),
         siren: ids.siren,
         siret: ids.siret,
         vatNumber: ids.vat_number,
+        customId: ids.custom_id,
       });
       if (company) {
         customerToCompany.set(c.id, company.id);

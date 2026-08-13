@@ -111,7 +111,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
       audit.bumpUnmatched("customer_sans_email");
     }
 
-    const hasCompanySignal = ids.siren || ids.siret || ids.vat_number || ids.company_name || ids.domain;
+    const hasCompanySignal = ids.custom_id || ids.siren || ids.siret || ids.vat_number || ids.company_name || ids.domain;
     if (hasCompanySignal) {
       const company = await resolveCompany(supabase, orgId, PROVIDER, c.id, {
         name: ids.company_name ?? c.name,
@@ -119,6 +119,7 @@ export const stripeConnector: SourceConnector = async (ctx) => {
         siren: ids.siren,
         siret: ids.siret,
         vatNumber: ids.vat_number,
+        customId: ids.custom_id,
       });
       if (company) {
         customerToCompany.set(c.id, company.id);

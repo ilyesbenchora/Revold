@@ -80,5 +80,6 @@ export const CANONICAL_TO_HUBSPOT_OBJECT: Record<string, string> = {
   siren: "companies",
   siret: "companies",
   vat_number: "companies",
+  custom_id: "companies",
   email: "contacts",
 };

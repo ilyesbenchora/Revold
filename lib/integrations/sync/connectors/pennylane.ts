@@ -96,13 +96,14 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       audit.bumpUnmatched("client_sans_email");
     }
 
-    if (ids.siren || ids.siret || ids.vat_number || ids.company_name || c.name) {
+    if (ids.custom_id || ids.siren || ids.siret || ids.vat_number || ids.company_name || c.name) {
       const company = await resolveCompany(ctx.supabase, ctx.orgId, PROVIDER, String(c.id), {
         name: ids.company_name ?? c.name,
         domain: ids.domain ?? emailDomain(email),
         siren: ids.siren,
         siret: ids.siret,
         vatNumber: ids.vat_number,
+        customId: ids.custom_id,
       });
       if (company) {
         customerIdToCompany.set(c.id, company.id);

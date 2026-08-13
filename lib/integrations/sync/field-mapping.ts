@@ -107,7 +107,10 @@ export async function loadIdentifierAccessor(
   const paths: Partial<Record<CanonicalIdentifier, string>> = {};
   const native: Partial<Record<CanonicalIdentifier, boolean>> = {};
   for (const d of defs) {
-    paths[d.canonicalField] = d.defaultProviderField;
+    // Identifiant optionnel sans défaut (ex : custom_id « ID de rapprochement ») :
+    // pas de chemin tant que l'utilisateur ne l'a pas mappé — sinon la couverture
+    // compterait un champ vide sur 100 % des records.
+    if (d.defaultProviderField) paths[d.canonicalField] = d.defaultProviderField;
     native[d.canonicalField] = d.native;
   }
   const overridden = new Set<string>();

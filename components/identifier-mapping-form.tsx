@@ -46,6 +46,7 @@ const CANONICAL_TO_OBJECT: Record<string, string> = {
   siren: "companies",
   siret: "companies",
   vat_number: "companies",
+  custom_id: "companies",
   email: "contacts",
 };
 
@@ -225,14 +226,16 @@ export function IdentifierMappingForm({
     // 2. Enregistrement du mapping (champs non natifs uniquement, outils actifs uniquement).
     //    Les noms internes corrigés par la vérification (retrouvés via le libellé)
     //    priment sur l'état local, qui peut ne pas avoir encore re-rendu.
+    //    Un champ vidé est envoyé avec provider_field vide → le serveur supprime
+    //    le mapping (sinon un ancien mapping resterait actif à la sync).
     const mappings: SavedMapping[] = [];
     for (const row of rows) {
       if (disabled.has(row.provider)) continue;
       for (const id of row.identifiers) {
         if (id.native || id.canonicalField === "external_id") continue;
         const correctedName = row.provider === "hubspot" ? verified?.corrected[id.canonicalField] : undefined;
-        const val = correctedName ?? values[`${row.provider}__${id.canonicalField}`];
-        if (val) mappings.push({ provider: row.provider, canonical_field: id.canonicalField, provider_field: val });
+        const val = (correctedName ?? values[`${row.provider}__${id.canonicalField}`] ?? "").trim();
+        mappings.push({ provider: row.provider, canonical_field: id.canonicalField, provider_field: val });
       }
     }
     try {
@@ -254,6 +257,85 @@ export function IdentifierMappingForm({
       {rows.map((row) => {
         const isHubSpot = row.provider === "hubspot";
         const isDisabled = disabled.has(row.provider);
+        const shown = row.identifiers.filter((id) => id.canonicalField !== "external_id");
+        // Natifs (1 champ, courts) et customs (2 champs HubSpot, hauts) dans des
+        // grilles séparées : une même ligne de grille ne mélange plus les deux
+        // hauteurs (sinon grand vide sous les champs courts).
+        const nativeIds = shown.filter((id) => id.native);
+        const customIds = shown.filter((id) => !id.native);
+
+        const renderIdentifier = (id: Identifier) => {
+          const isHsCustom = isHubSpot && !id.native;
+          const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
+          return (
+            <div key={id.canonicalField}>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                {id.label}
+                {id.native ? (
+                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">NATIF</span>
+                ) : (
+                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">CUSTOM</span>
+                )}
+                {status?.exists === true && (
+                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM</span>
+                )}
+                {status?.exists === false && (
+                  <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
+                )}
+              </label>
+              {isHsCustom ? (
+                // Propriété custom HubSpot : libellé (celui affiché dans HubSpot)
+                // et nom interne (celui utilisé par l'API) sont deux choses
+                // distinctes — deux champs pour éviter toute confusion.
+                <div className="mt-1 space-y-2">
+                  <div>
+                    <p className="text-[10px] font-medium text-slate-400">Nom de la propriété (libellé affiché dans HubSpot)</p>
+                    <input
+                      type="text"
+                      value={labels[id.canonicalField] ?? ""}
+                      onChange={(e) => updateLabel(id.canonicalField, e.target.value)}
+                      placeholder="ex : Numéro de TVA"
+                      className={`${inputClass} mt-0.5`}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-slate-400">Nom interne (utilisé par l&apos;API — minuscules, sans espaces ni accents)</p>
+                    <input
+                      type="text"
+                      value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                      onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                      placeholder="ex : numero_de_tva"
+                      className={`${inputClass} mt-0.5 font-mono ${status?.exists === false ? "border-rose-300" : ""}`}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    {id.hint} — le nom interne est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
+                    la propriété. En cas de doute, saisissez le libellé : Revold retrouvera le nom interne à la vérification.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                    onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                    className={`${inputClass} mt-1`}
+                    readOnly={id.native}
+                  />
+                  <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
+                </>
+              )}
+              {status?.exists === false && (
+                <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
+                  Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé. Créez-la
+                  (HubSpot → Paramètres → Propriétés → Entreprises), puis saisissez son libellé ou son
+                  nom interne ici et enregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
+                </p>
+              )}
+            </div>
+          );
+        };
+
         return (
           <div key={row.provider} className={`card p-5 transition ${isDisabled ? "opacity-50 grayscale" : ""}`}>
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -292,78 +374,13 @@ export function IdentifierMappingForm({
               </p>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {row.identifiers.filter((id) => id.canonicalField !== "external_id").map((id) => {
-                    const isHsCustom = isHubSpot && !id.native;
-                    const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
-                    return (
-                      <div key={id.canonicalField}>
-                        <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                          {id.label}
-                          {id.native ? (
-                            <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">NATIF</span>
-                          ) : (
-                            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">CUSTOM</span>
-                          )}
-                          {status?.exists === true && (
-                            <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM</span>
-                          )}
-                          {status?.exists === false && (
-                            <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
-                          )}
-                        </label>
-                        {isHsCustom ? (
-                          // Propriété custom HubSpot : libellé (celui affiché dans HubSpot)
-                          // et nom interne (celui utilisé par l'API) sont deux choses
-                          // distinctes — deux champs pour éviter toute confusion.
-                          <div className="mt-1 space-y-2">
-                            <div>
-                              <p className="text-[10px] font-medium text-slate-400">Nom de la propriété (libellé affiché dans HubSpot)</p>
-                              <input
-                                type="text"
-                                value={labels[id.canonicalField] ?? ""}
-                                onChange={(e) => updateLabel(id.canonicalField, e.target.value)}
-                                placeholder="ex : Numéro de TVA"
-                                className={`${inputClass} mt-0.5`}
-                              />
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-medium text-slate-400">Nom interne (utilisé par l&apos;API — minuscules, sans espaces ni accents)</p>
-                              <input
-                                type="text"
-                                value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
-                                onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                                placeholder="ex : numero_de_tva"
-                                className={`${inputClass} mt-0.5 font-mono ${status?.exists === false ? "border-rose-300" : ""}`}
-                              />
-                            </div>
-                            <p className="text-[10px] text-slate-400">
-                              {id.hint} — le nom interne est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
-                              la propriété. En cas de doute, saisissez le libellé : Revold retrouvera le nom interne à la vérification.
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            <input
-                              type="text"
-                              value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
-                              onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                              className={`${inputClass} mt-1`}
-                              readOnly={id.native}
-                            />
-                            <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
-                          </>
-                        )}
-                        {status?.exists === false && (
-                          <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
-                            Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé. Créez-la
-                            (HubSpot → Paramètres → Propriétés → Entreprises), puis saisissez son libellé ou son
-                            nom interne ici et enregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="space-y-4">
+                  {nativeIds.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{nativeIds.map(renderIdentifier)}</div>
+                  )}
+                  {customIds.length > 0 && (
+                    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">{customIds.map(renderIdentifier)}</div>
+                  )}
                 </div>
                 {isHubSpot && (
                   <div className="mt-3 flex justify-end">
