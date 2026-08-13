@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/cached";
+import { LocaleSettings } from "@/components/locale-settings";
 
 const PRICING = [
   {
@@ -130,6 +131,12 @@ export default async function MonComptePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Langue & format des dates : appliqué dynamiquement aux dates/nombres */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">🌍 Langue &amp; format des dates</h2>
+        <LocaleSettings />
       </div>
 
       {/* Souscription actuelle */}

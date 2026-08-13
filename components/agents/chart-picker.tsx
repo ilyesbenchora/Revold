@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ReportChart } from "./agent-report";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
+import { formatBucketLabel, useLocale } from "@/lib/locale";
 import type { ChartProposal, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const TYPE_META: Record<string, { icon: string; label: string }> = {
@@ -36,6 +37,8 @@ export function ChartPicker({
     onTypeChange?.(t);
   }
 
+  // Langue choisie : buckets temporels et nombres localisés (mise à jour dynamique).
+  const locale = useLocale();
   const total = proposal.data.reduce((s, d) => s + (typeof d.value === "number" ? d.value : 0), 0);
   const avg = proposal.data.length ? total / proposal.data.length : 0;
 
@@ -74,9 +77,9 @@ export function ChartPicker({
             <tbody>
               {proposal.data.map((d, i) => (
                 <tr key={i} className="border-b border-slate-100 last:border-0">
-                  <td className="px-2 py-1.5 text-slate-700">{d.name}</td>
+                  <td className="px-2 py-1.5 text-slate-700">{formatBucketLabel(d.name, locale)}</td>
                   <td className="px-2 py-1.5 text-right font-medium text-slate-900">
-                    {d.value.toLocaleString("fr-FR")}
+                    {d.value.toLocaleString(locale)}
                   </td>
                 </tr>
               ))}
@@ -86,11 +89,11 @@ export function ChartPicker({
           <div className="grid grid-cols-3 gap-2 p-2">
             <div className="rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Total</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(total).toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(total).toLocaleString(locale)}</p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Moyenne</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(avg).toLocaleString("fr-FR")}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(avg).toLocaleString(locale)}</p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Éléments</p>

@@ -6,6 +6,7 @@ import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-
 import { TableAlertButton } from "./table-alert-button";
 import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
 import { entityLabel, dimLabel, ENTITY_DIMS } from "@/lib/reports/data-table-presets";
+import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { BrandLogo } from "@/components/brand-logo";
@@ -46,9 +47,10 @@ const GRANULARITY_OPTIONS: { id: string; label: string }[] = [
 type Row = { name: string; value: number };
 
 function formatValue(v: number, unit: string | null): string {
-  if (unit === "currency") return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const loc = currentLocale();
+  if (unit === "currency") return new Intl.NumberFormat(loc, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   if (unit === "percent") return `${v.toFixed(1)} %`;
-  return new Intl.NumberFormat("fr-FR").format(v);
+  return new Intl.NumberFormat(loc).format(v);
 }
 
 export function DataTableCard({
@@ -65,6 +67,9 @@ export function DataTableCard({
   onUpdated: (table: SavedTable) => void;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
+  // Langue choisie (Mon compte) : formate les buckets temporels et les nombres,
+  // mise à jour dynamique au changement.
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
@@ -346,7 +351,7 @@ export function DataTableCard({
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-t border-slate-50">
-                    <td className="px-3 py-2 text-slate-700">{r.name || "—"}</td>
+                    <td className="px-3 py-2 text-slate-700">{r.name ? formatBucketLabel(r.name, locale) : "—"}</td>
                     <td className="px-3 py-2 text-right font-medium text-slate-900">{formatValue(r.value, table.unit_mode)}</td>
                   </tr>
                 ))}

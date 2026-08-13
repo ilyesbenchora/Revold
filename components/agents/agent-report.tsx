@@ -15,6 +15,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
+import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -23,21 +24,23 @@ export type ChartUnit = "currency" | "percent" | "count" | string | null;
 
 /** Format compact pour l'axe Y (« 32 M€ », « 450 k€ ») — style cockpit Trésorerie. */
 function compactValue(v: number, unit?: ChartUnit): string {
+  const loc = currentLocale();
   if (unit === "percent") return `${Math.round(v)} %`;
   const cur = unit === "currency";
   const abs = Math.abs(v);
   if (abs >= 1_000_000)
-    return `${(v / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M${cur ? "€" : ""}`;
-  if (abs >= 1_000) return `${Math.round(v / 1_000).toLocaleString("fr-FR")} k${cur ? "€" : ""}`;
-  return `${Math.round(v).toLocaleString("fr-FR")}${cur ? " €" : ""}`;
+    return `${(v / 1_000_000).toLocaleString(loc, { maximumFractionDigits: 1 })} M${cur ? "€" : ""}`;
+  if (abs >= 1_000) return `${Math.round(v / 1_000).toLocaleString(loc)} k${cur ? "€" : ""}`;
+  return `${Math.round(v).toLocaleString(loc)}${cur ? " €" : ""}`;
 }
 
 /** Format complet pour le tooltip (« 5 430 200 € »). */
 function fullValue(v: number, unit?: ChartUnit): string {
+  const loc = currentLocale();
   if (unit === "currency")
-    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+    return new Intl.NumberFormat(loc, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   if (unit === "percent") return `${v.toFixed(1)} %`;
-  return new Intl.NumberFormat("fr-FR").format(v);
+  return new Intl.NumberFormat(loc).format(v);
 }
 
 const TOOLTIP_STYLE = {
@@ -58,7 +61,11 @@ export function ReportChart({
   /** Affiche le total DANS la visualisation : badge (barres/courbe) ou centre de l'anneau. */
   showTotal?: boolean;
 }) {
-  const data = block.data ?? [];
+  // Buckets temporels → libellés localisés (« 2026-01 » → « Janvier 2026 »),
+  // dans la langue choisie (Mon compte → Langue & formats). Les clés non
+  // temporelles (étape, statut…) passent telles quelles.
+  const locale = useLocale();
+  const data = (block.data ?? []).map((d) => ({ ...d, name: formatBucketLabel(d.name, locale) }));
   if (data.length === 0) return null;
 
   const total = data.reduce((s, d) => s + (Number(d.value) || 0), 0);
