@@ -41,8 +41,9 @@ export type HiddenBlockMeta = { view?: string; description?: string };
 export function hiddenBlockList(
   cust: PageCustomization,
   meta?: (blockKey: string) => HiddenBlockMeta | undefined,
-): Array<{ rowId: string; label: string; view?: string; description?: string }> {
+): Array<{ key: string; rowId: string; label: string; view?: string; description?: string }> {
   return [...cust.hiddenBlocks.entries()].map(([key, h]) => ({
+    key,
     rowId: h.rowId,
     label: h.label,
     ...(meta?.(key) ?? {}),

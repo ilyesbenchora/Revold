@@ -9,8 +9,8 @@ export type DonneesToolTab = { key: string; label: string };
 export function DonneesTabs({ toolTabs = [] }: { toolTabs?: DonneesToolTab[] }) {
   const pathname = usePathname();
   const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
+    // « Audit onboarding » a fusionné dans la Vue d'ensemble (Audit par outil + Plan d'action IA).
     { href: "/dashboard/donnees", label: "Vue d'ensemble" },
-    { href: "/dashboard/donnees/onboarding", label: "Audit onboarding", highlight: true },
     // Onglets dynamiques : un par outil connecté (HubSpot, Stripe, Pennylane…).
     ...toolTabs.map((t) => ({ href: `/dashboard/donnees/outils/${t.key}`, label: t.label })),
   ];

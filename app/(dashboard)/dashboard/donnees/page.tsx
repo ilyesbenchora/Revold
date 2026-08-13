@@ -9,8 +9,10 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { BrandLogo } from "@/components/brand-logo";
-import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
+import { ToolAuditCard } from "@/components/tool-audit-card";
+import { RecommendationCard } from "@/components/recommendation-card";
+import { loadToolAudits, buildOnboardingRecommendations } from "@/lib/audit/onboarding-audit";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
@@ -185,6 +187,12 @@ export default async function DonneesPage() {
     .sort((a, b) => b[1] - a[1])
     .map(([k, v]) => ({ label: MATCH_METHOD_LABELS[k] ?? k, value: v }));
 
+  // ── Audit onboarding (ex-onglet dédié, désormais dans la vue d'ensemble) :
+  //    ce que Revold a détecté outil par outil + plan d'action IA. ──
+  const auditTools = connectedTools.filter((t) => CONNECTABLE_TOOLS[t.key]?.category !== "communication");
+  const toolAudits = auditTools.length > 0 ? await loadToolAudits(supabase, orgId, auditTools) : [];
+  const onboardingRecos = buildOnboardingRecommendations(toolAudits);
+
   const summaries: Array<{
     label: string;
     href: string;
@@ -195,7 +203,7 @@ export default async function DonneesPage() {
   }> = [
     {
       label: "Contacts",
-      href: "/dashboard/donnees/onboarding",
+      href: "/dashboard/donnees/outils/hubspot",
       count: contactsTotal,
       icon: "users",
       tone: "blue",
@@ -207,7 +215,7 @@ export default async function DonneesPage() {
     },
     {
       label: "Entreprises",
-      href: "/dashboard/donnees/onboarding",
+      href: "/dashboard/donnees/outils/hubspot",
       count: companiesTotal,
       icon: "building",
       tone: "violet",
@@ -437,56 +445,64 @@ export default async function DonneesPage() {
       </RemovableBlock>
       )}
 
-      {/* ── Complétude des propriétés clés : barres horizontales cockpit ── */}
-      {summaries.some((s) => s.count > 0) && !custom.hiddenBlocks.has("completude_bars") && (
-        <RemovableBlock pageKey="audit_donnees" blockKey="completude_bars" label="Complétude des propriétés clés">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold text-slate-800">Complétude des propriétés clés</p>
-            <p className="mb-3 text-[10px] text-slate-400">
-              % de fiches renseignées par propriété — vert ≥ 80 %, orange ≥ 50 %, rouge en dessous
-            </p>
-            <HBarChart
-              unit="percent"
-              items={summaries
-                .filter((s) => s.count > 0)
-                .flatMap((s) =>
-                  s.metrics.map((m) => ({
-                    label: `${s.label} · ${m.label}`,
-                    value: m.pct,
-                    color: m.pct >= 80 ? "#10b981" : m.pct >= 50 ? "#f59e0b" : "#f43f5e",
-                  })),
-                )}
-            />
+      {/* ── Audit onboarding : ce que Revold a détecté outil par outil (ex-onglet dédié) ── */}
+      {toolAudits.length > 0 && !custom.hiddenBlocks.has("audit_outils") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="audit_outils" label="Audit par outil">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Audit par outil</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Volumes importés, méthodes de rapprochement réellement utilisées et couverture de vos
+                identifiants (SIREN, N° TVA, email). Le mapping des champs se configure dans{" "}
+                <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-accent hover:underline">
+                  Paramètres → Modèle de données
+                </Link>
+                .
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {toolAudits.map((tool) => (
+                <ToolAuditCard key={tool.key} tool={tool} />
+              ))}
+            </div>
           </div>
         </RemovableBlock>
       )}
 
-      {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-      {!custom.hiddenBlocks.has("synthese_objets") && (
-      <RemovableBlock pageKey="audit_donnees" blockKey="synthese_objets" label="Synthèse par objet CRM">
-      <div className="mt-4">
-        <BlockDataTable
-          title="Synthèse par objet CRM"
-          subtitle="volumes et complétude"
-          team="revops"
-          unit="count"
-          nameLabel="Donnée"
-          valueLabel="Valeur"
-          rows={summaries.flatMap<BlockTableRow>((s) => [
-            { name: s.label, value: s.count, unit: "count" },
-            ...s.metrics.map<BlockTableRow>((m) => ({
-              name: `${s.label} — ${m.label}`,
-              value: m.pct,
-              unit: "percent" as const,
-            })),
-          ])}
-        />
-      </div>
-      </RemovableBlock>
+      {/* ── Plan d'action IA issu de l'audit ── */}
+      {onboardingRecos.length > 0 && !custom.hiddenBlocks.has("plan_action") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="plan_action" label="Plan d'action IA">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Plan d&apos;action IA</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Les actions détectées par l&apos;audit — configuration Revold ET optimisations de process
+                internes dans vos outils. Activez une action pour la transformer en coaching IA suivi.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {onboardingRecos.map((reco) => (
+                <RecommendationCard key={reco.id} reco={reco} />
+              ))}
+            </div>
+          </div>
+        </RemovableBlock>
       )}
 
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager pageKey="audit_donnees" tablesPageKey="audit_donnees" hiddenBlocks={hiddenBlockList(custom)} />
+      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions.
+          (Les blocs « Synthèse par objet CRM » et « Complétude des propriétés clés »
+          ont été supprimés de la page : on filtre leurs éventuels masquages.) */}
+      <BlocksManager
+        pageKey="audit_donnees"
+        tablesPageKey="audit_donnees"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          crm_match_rate: { view: "chart-bar", description: "Taux de rapprochement réel CRM × outil + santé du croisement" },
+          match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
+          objets_cards: { view: "tiles", description: "Cartes Contacts / Entreprises / Transactions avec complétude" },
+          audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },
+          plan_action: { view: "table", description: "Plan d'action IA issu de l'audit d'onboarding" },
+        }[key])).filter((h) => !["synthese_objets", "completude_bars"].includes(h.key))}
+      />
 
       </PageSourcesGate>
 
