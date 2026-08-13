@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { updateAlertResilient } from "@/lib/alerts/resilient";
+import { RECON_RECIPES } from "@/lib/reconciliation/engine";
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -28,6 +29,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     cross_sources?: string[] | null;
     threshold_secondary?: number | null;
     unit_mode_secondary?: string | null;
+    // Câblage revalidé à l'édition (étape Vérification) — appliqué tel quel.
+    forecast_type?: string | null;
+    agg_spec?: Record<string, unknown> | null;
+    recon_recipe?: string | null;
   };
   try {
     body = await request.json();
@@ -62,6 +67,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   ) {
     patch.unit_mode_secondary = body.unit_mode_secondary;
   }
+  // Câblage revalidé (étape Vérification de l'édition) — appliqué tel quel.
+  if (body.forecast_type === null || typeof body.forecast_type === "string") patch.forecast_type = body.forecast_type;
+  if (body.agg_spec === null || (body.agg_spec && typeof body.agg_spec === "object" && typeof body.agg_spec.entity === "string")) {
+    patch.agg_spec = body.agg_spec;
+  }
+  if (body.recon_recipe === null) patch.recon_spec = null;
+  else if (typeof body.recon_recipe === "string" && body.recon_recipe in RECON_RECIPES) patch.recon_spec = { recipe: body.recon_recipe };
 
   const { error } = await updateAlertResilient(supabase, patch, { id, organization_id: orgId });
   if (error) return NextResponse.json({ error }, { status: 500 });

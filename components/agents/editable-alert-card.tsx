@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { AlertBody, ALERT_CHANNELS, useAvailableChannels } from "./alert-ui";
 import { AlertDeadline } from "./alert-deadline";
 import { TrackingBadge } from "./tracking-badge";
+import { TrackingVerification } from "@/components/tracking-verification";
+import { useWiringPreview } from "@/components/use-wiring-preview";
 import type { AggSpec } from "@/lib/alerts/agg-value";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -51,12 +53,29 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
   const [continuous, setContinuous] = useState(!alert.date_to);
   const [channels, setChannels] = useState<string[]>(alert.notification_channels ?? []);
   const { available } = useAvailableChannels();
+  // Vérification du câblage à l'édition — même mécanique que la création.
+  const { proposal, counts, verifying, requestPreview, resetProposal } = useWiringPreview();
 
   function toggleChannel(k: string) {
     setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
   }
 
   async function save() {
+    // Étape Vérification d'abord : le câblage (existant ré-évalué en déterministe,
+    // ou re-proposé par l'agent si le titre a changé) est affiché puis validé.
+    if (!proposal) {
+      const titleChanged = title.trim() !== alert.title.trim();
+      const ok = await requestPreview({
+        kpiText: title.trim(),
+        team: alert.category,
+        unit: kpiFormat,
+        description: description || null,
+        forecastType: titleChanged ? null : alert.forecast_type ?? null,
+        reconRecipe: titleChanged ? null : alert.recon_spec?.recipe ?? null,
+        aggSpec: titleChanged ? null : ((alert.agg_spec as Record<string, unknown> | null) ?? null),
+      });
+      if (ok) return; // câblage affiché — l'utilisateur confirme au clic suivant
+    }
     setBusy(true);
     try {
       await fetch(`/api/alerts/${alert.id}`, {
@@ -71,9 +90,18 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
           date_from: dateFrom || null,
           date_to: continuous ? null : dateTo || null,
           notification_channels: channels,
+          // Câblage validé à l'écran — appliqué tel quel.
+          ...(proposal
+            ? {
+                forecast_type: proposal.forecast_type,
+                agg_spec: proposal.agg_spec ?? null,
+                recon_recipe: proposal.recon_recipe ?? null,
+              }
+            : {}),
         }),
       });
       setEditing(false);
+      resetProposal();
       router.refresh();
     } finally {
       setBusy(false);
@@ -108,7 +136,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
         <div className="space-y-2.5">
           <div>
             <label className={lbl}>Objectif</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
+            <input value={title} onChange={(e) => { setTitle(e.target.value); resetProposal(); }} className={field} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -159,11 +187,22 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
               })}
             </div>
           </div>
+          {/* Vérification du câblage : affichée avant l'enregistrement, comme à la création. */}
+          {proposal && (
+            <TrackingVerification
+              proposal={proposal}
+              counts={counts}
+              loading={verifying}
+              onPickEntity={(e) => requestPreview({ kpiText: title.trim(), team: alert.category, unit: kpiFormat, entity: e })}
+              onAdjustSpec={(spec) => requestPreview({ kpiText: title.trim(), adjustedSpec: spec })}
+            />
+          )}
+
           <div className="flex items-center gap-2 pt-1">
-            <button onClick={save} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">
-              {busy ? "Enregistrement…" : "Enregistrer"}
+            <button onClick={save} disabled={busy || verifying} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">
+              {verifying ? "Vérification…" : busy ? "Enregistrement…" : !proposal ? "Vérifier le câblage" : "Confirmer et enregistrer"}
             </button>
-            <button onClick={() => setEditing(false)} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => { setEditing(false); resetProposal(); }} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               Annuler
             </button>
           </div>

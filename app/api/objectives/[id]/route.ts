@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { RECON_RECIPES } from "@/lib/reconciliation/engine";
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -29,6 +30,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (b.unit_mode === "percent" || b.unit_mode === "count" || b.unit_mode === "currency") patch.unit_mode = b.unit_mode;
   if (b.direction === "above" || b.direction === "below") patch.direction = b.direction;
   if (typeof b.forecast_type === "string" || b.forecast_type === null) patch.forecast_type = b.forecast_type;
+  // Câblage revalidé à l'édition (étape Vérification) — appliqué tel quel.
+  if (b.agg_spec === null || (b.agg_spec && typeof b.agg_spec === "object" && typeof (b.agg_spec as Record<string, unknown>).entity === "string")) {
+    patch.agg_spec = b.agg_spec;
+  }
+  if (b.recon_recipe === null) patch.recon_spec = null;
+  else if (typeof b.recon_recipe === "string" && b.recon_recipe in RECON_RECIPES) patch.recon_spec = { recipe: b.recon_recipe };
   if (b.date_from === null || (typeof b.date_from === "string" && dateRe.test(b.date_from))) patch.date_from = b.date_from;
   if (b.date_to === null || (typeof b.date_to === "string" && dateRe.test(b.date_to))) patch.date_to = b.date_to;
   if (b.status === "active" || b.status === "archived") patch.status = b.status;

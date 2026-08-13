@@ -178,12 +178,15 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   }
 
   /**
-   * KPI personnalisé : demande le câblage à l'agent (rien n'est créé).
-   * `adjustedSpec` = mesure/champ corrigés par l'utilisateur → ré-évaluation
-   * déterministe de la spec telle quelle, sans repasser par l'agent.
+   * Étape Vérification SYSTÉMATIQUE (comme le funnel des tables de données) :
+   *  - KPI catalogué → câblage connu, ré-évalué en DÉTERMINISTE (valeur réelle) ;
+   *  - KPI personnalisé → l'agent propose le câblage ;
+   *  - `preferredEntity` (imposer une source) → re-câblage agent contraint ;
+   *  - `adjustedSpec` (mesure/champ corrigés) → ré-évaluation déterministe.
+   * Retourne true si un câblage a été obtenu.
    */
-  async function requestPreview(preferredEntity?: string, adjustedSpec?: Record<string, unknown>) {
-    if (verifying || !kpi) return;
+  async function requestPreview(preferredEntity?: string, adjustedSpec?: Record<string, unknown>): Promise<boolean> {
+    if (verifying || !kpi) return false;
     setVerifying(true);
     try {
       const res = await fetch("/api/tracking/preview", {
@@ -196,26 +199,39 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           category: kpi.category,
           value: threshold ? Number(threshold) : undefined,
           unit: unitMode,
+          // KPI catalogué : câblage déterministe (sauf re-câblage/ajustement manuel).
+          forecast_type: kpiId !== "custom" && !preferredEntity && !adjustedSpec ? kpiId : undefined,
           entity: preferredEntity,
           agg_spec: adjustedSpec,
         }),
       });
       const d = await res.json().catch(() => ({}));
       if (d.counts) setCounts(d.counts);
-      if (res.ok && d.resolution) setProposal(d.resolution);
+      if (res.ok && d.resolution) { setProposal(d.resolution); return true; }
+      return false;
     } catch {
       /* la création restera possible : le back garde son fallback déterministe */
+      return false;
     } finally {
       setVerifying(false);
     }
   }
+
+  // Le câblage s'affiche dès l'arrivée sur l'étape finale — l'agent/le moteur
+  // vérifie, montre la donnée réellement suivie, et l'utilisateur valide.
+  useEffect(() => {
+    if (open && step === 4 && kpiId && !proposal && !verifying) {
+      requestPreview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, step, kpiId]);
 
   function toggleChannel(ch: string) {
     setSelectedChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]);
   }
 
   function selectTeam(t: string) { setTeam(t); setKpiId(""); setStep(2); }
-  function selectKpi(k: KpiDef) { setKpiId(k.id); setAlertTitle(k.label); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setStep(3); }
+  function selectKpi(k: KpiDef) { setKpiId(k.id); setAlertTitle(k.label); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setProposal(null); setStep(3); }
 
   function togglePipeline(id: string) {
     setSelectedPipelines((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
@@ -238,11 +254,12 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     e.preventDefault();
     if (!kpi || !threshold) return;
 
-    // KPI personnalisé : étape Vérification d'abord — l'agent propose le
-    // câblage (donnée suivie + valeur actuelle), l'utilisateur confirme.
-    if (kpiId === "custom" && !proposal) {
-      await requestPreview();
-      return;
+    // Étape Vérification d'abord — TOUJOURS (catalogué comme personnalisé) :
+    // le câblage est affiché et validé avant la création. Si la vérification
+    // échoue (réseau…), on laisse créer : le back garde son fallback.
+    if (!proposal) {
+      const ok = await requestPreview();
+      if (ok) return;
     }
 
     setState("loading");
@@ -298,10 +315,11 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           description: parts.join(". ") + ".",
           impact: `Notification quand le KPI ${dirLabel} ${threshold}${unit}`,
           category: kpi.category,
-          // KPI perso : câblage CONFIRMÉ à l'étape Vérification, envoyé tel quel.
-          forecast_type: kpiId === "custom" ? (proposal?.forecast_type ?? null) : kpi.id,
-          agg_spec: kpiId === "custom" ? (proposal?.agg_spec ?? null) : null,
-          recon_recipe: kpiId === "custom" ? (proposal?.recon_recipe ?? null) : null,
+          // Câblage CONFIRMÉ à l'étape Vérification, envoyé tel quel
+          // (repli : l'id du KPI catalogué si la vérification a échoué).
+          forecast_type: proposal?.forecast_type ?? (kpiId !== "custom" ? kpi.id : null),
+          agg_spec: proposal?.agg_spec ?? null,
+          recon_recipe: proposal?.recon_recipe ?? null,
           threshold: Number(threshold),
           direction,
           team,
@@ -812,9 +830,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       </p>
                     )}
 
-                    {/* Étape « Vérification » (KPI personnalisé) : le câblage proposé par
-                        l'agent doit être confirmé avant la création. */}
-                    {kpiId === "custom" && proposal && (
+                    {/* Étape « Vérification » : le câblage (catalogué ou proposé par
+                        l'agent) est affiché SYSTÉMATIQUEMENT et validé avant la création. */}
+                    {proposal && (
                       <div className="mt-4">
                         <TrackingVerification
                           proposal={proposal}
@@ -839,9 +857,9 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                             ? "Vérification…"
                             : state === "loading"
                               ? "Création..."
-                              : kpiId === "custom" && !proposal
+                              : !proposal
                                 ? "Vérifier le câblage"
-                                : kpiId === "custom" ? "Confirmer et créer" : "Créer l'alerte"}
+                                : "Confirmer et créer"}
                         </button>
                       </div>
                     </div>

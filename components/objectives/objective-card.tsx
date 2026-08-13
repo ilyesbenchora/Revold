@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDeadline } from "@/components/agents/alert-deadline";
 import { TrackingBadge } from "@/components/agents/tracking-badge";
+import { TrackingVerification } from "@/components/tracking-verification";
+import { useWiringPreview } from "@/components/use-wiring-preview";
 import { isSoon } from "@/lib/alerts/deadline";
 import { ANALYSIS_SUGGESTIONS } from "@/lib/ai/agents/analysis-suggestions";
 import type { AggSpec } from "@/lib/alerts/agg-value";
@@ -69,6 +71,8 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
   const [showPlan, setShowPlan] = useState(isSoon(o.date_to, 14));
   const [planText, setPlanText] = useState<string | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  // Vérification du câblage à l'édition — même mécanique que la création.
+  const { proposal, counts, verifying, requestPreview, resetProposal } = useWiringPreview();
 
   async function generatePlan() {
     setPlanLoading(true);
@@ -96,8 +100,24 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
   const suggestions = (ANALYSIS_SUGGESTIONS[plan.sugCat] ?? []).slice(0, 4);
 
   async function save() {
+    // Étape Vérification d'abord : le câblage (existant ré-évalué en déterministe,
+    // ou re-proposé par l'agent si le titre a changé) est affiché puis validé.
+    if (!proposal) {
+      const titleChanged = title.trim() !== o.title.trim();
+      const ok = await requestPreview({
+        kpiText: title.trim(),
+        team: o.category,
+        unit,
+        description: description || null,
+        forecastType: titleChanged ? null : o.forecast_type,
+        reconRecipe: titleChanged ? null : o.recon_spec?.recipe ?? null,
+        aggSpec: titleChanged ? null : ((o.agg_spec as Record<string, unknown> | null) ?? null),
+      });
+      if (ok) return; // câblage affiché — l'utilisateur confirme au clic suivant
+    }
     setBusy(true);
     try {
+      const hasWiring = !!(proposal?.forecast_type || proposal?.agg_spec || proposal?.recon_recipe);
       await fetch(`/api/objectives/${o.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -106,14 +126,23 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
           target: target ? Number(target) : null,
           unit_mode: unit,
           direction,
-          current_value: o.forecast_type ? undefined : current ? Number(current) : null,
+          current_value: hasWiring || o.forecast_type ? undefined : current ? Number(current) : null,
           date_from: dateFrom || null,
           date_to: dateTo || null,
           description,
           impact,
+          // Câblage validé à l'écran — appliqué tel quel.
+          ...(proposal
+            ? {
+                forecast_type: proposal.forecast_type,
+                agg_spec: proposal.agg_spec ?? null,
+                recon_recipe: proposal.recon_recipe ?? null,
+              }
+            : {}),
         }),
       });
       setEditing(false);
+      resetProposal();
       router.refresh();
     } finally {
       setBusy(false);
@@ -146,7 +175,7 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
 
       {editing ? (
         <div className="space-y-2.5">
-          <div><label className={lbl}>Objectif</label><input value={title} onChange={(e) => setTitle(e.target.value)} className={field} /></div>
+          <div><label className={lbl}>Objectif</label><input value={title} onChange={(e) => { setTitle(e.target.value); resetProposal(); }} className={field} /></div>
           <div className="grid grid-cols-2 gap-2">
             <div><label className={lbl}>Cible</label><input type="number" value={target} onChange={(e) => setTarget(e.target.value)} className={field} placeholder="Ex : 200000" /></div>
             <div>
@@ -169,9 +198,23 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
           </div>
           <div><label className={lbl}>Description</label><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} /></div>
           <div><label className={lbl}>Impact attendu</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
+
+          {/* Vérification du câblage : affichée avant l'enregistrement, comme à la création. */}
+          {proposal && (
+            <TrackingVerification
+              proposal={proposal}
+              counts={counts}
+              loading={verifying}
+              onPickEntity={(e) => requestPreview({ kpiText: title.trim(), team: o.category, unit, entity: e })}
+              onAdjustSpec={(spec) => requestPreview({ kpiText: title.trim(), adjustedSpec: spec })}
+            />
+          )}
+
           <div className="flex gap-2 pt-1">
-            <button onClick={save} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">{busy ? "Enregistrement…" : "Enregistrer"}</button>
-            <button onClick={() => setEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
+            <button onClick={save} disabled={busy || verifying} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">
+              {verifying ? "Vérification…" : busy ? "Enregistrement…" : !proposal ? "Vérifier le câblage" : "Confirmer et enregistrer"}
+            </button>
+            <button onClick={() => { setEditing(false); resetProposal(); }} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
           </div>
         </div>
       ) : (

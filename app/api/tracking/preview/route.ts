@@ -31,17 +31,66 @@ export async function POST(request: Request) {
   let body: {
     kpi_text?: string; description?: string; team?: string; category?: string;
     value?: number; unit?: string; entity?: string;
+    // KPI catalogué (ou câblage existant en édition) → ré-évaluation
+    // DÉTERMINISTE du câblage, sans agent : le funnel montre le câblage réel.
+    forecast_type?: string;
+    recon_recipe?: string;
     // Ajustement manuel du câblage à l'étape Vérification (mesure/champ corrigés
     // par l'utilisateur) → ré-évaluation DÉTERMINISTE, sans repasser par l'agent.
     agg_spec?: { entity?: string; groupBy?: string; measure?: string; field?: string | null; target?: string | null; multiplier?: number | null; unit_mode?: string };
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
+  const token = await getHubSpotToken(supabase, orgId);
+
+  // ── KPI catalogué : câblage déjà connu (forecast_type) — on calcule la
+  //    valeur actuelle et on renvoie la proposition telle quelle. ──
+  if (typeof body.forecast_type === "string" && body.forecast_type.trim()) {
+    const ft = body.forecast_type.trim();
+    const [currentValue, counts] = await Promise.all([
+      resolveKpiValue(supabase, orgId, ft, {}).catch(() => null),
+      countEntityRows(supabase, orgId, []),
+    ]);
+    return NextResponse.json({
+      resolution: {
+        mode: "forecast",
+        forecast_type: ft,
+        recon_recipe: null,
+        agg_spec: null,
+        label: trackingLabel(ft, null, null),
+        current_value: currentValue,
+        unit_mode: body.unit ?? null,
+      },
+      counts,
+    });
+  }
+
+  // ── Recette réconciliée existante (édition) : ré-évaluation déterministe. ──
+  if (typeof body.recon_recipe === "string" && body.recon_recipe.trim()) {
+    const recipe = body.recon_recipe.trim();
+    let currentValue: number | null = null;
+    try {
+      const res = await computeReconciledMetric(supabase, orgId, recipe);
+      currentValue = res && res.hasData ? res.value : null;
+    } catch {}
+    const counts = await countEntityRows(supabase, orgId, []);
+    return NextResponse.json({
+      resolution: {
+        mode: "reconciled",
+        forecast_type: null,
+        recon_recipe: recipe,
+        agg_spec: null,
+        label: trackingLabel(null, null, recipe),
+        current_value: currentValue,
+        unit_mode: body.unit ?? null,
+      },
+      counts,
+    });
+  }
+
   const kpiText = (body.kpi_text || "").trim();
   if (!kpiText) return NextResponse.json({ error: "KPI requis" }, { status: 400 });
   const preferredEntity = typeof body.entity === "string" && body.entity.trim() ? body.entity.trim() : null;
-
-  const token = await getHubSpotToken(supabase, orgId);
 
   // ── Ajustement manuel : la spec corrigée par l'utilisateur est ré-évaluée
   //    telle quelle (valeur actuelle réelle) — aucun agent impliqué. ──

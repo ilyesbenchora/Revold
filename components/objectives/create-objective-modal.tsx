@@ -53,9 +53,11 @@ export function CreateObjectiveModal() {
   }
 
   /**
-   * KPI libre : demande le câblage à l'agent (rien n'est créé).
-   * `adjustedSpec` = mesure/champ corrigés par l'utilisateur → ré-évaluation
-   * déterministe de la spec telle quelle, sans repasser par l'agent.
+   * Étape Vérification SYSTÉMATIQUE (comme le funnel des tables de données) :
+   *  - KPI catalogué → câblage connu, ré-évalué en DÉTERMINISTE (valeur réelle) ;
+   *  - KPI libre → l'agent propose le câblage ;
+   *  - `preferredEntity` (imposer une source) → re-câblage agent contraint ;
+   *  - `adjustedSpec` (mesure/champ corrigés) → ré-évaluation déterministe.
    */
   async function requestPreview(preferredEntity?: string, adjustedSpec?: Record<string, unknown>) {
     if (verifying) return;
@@ -65,11 +67,13 @@ export function CreateObjectiveModal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kpi_text: title.trim(),
+          kpi_text: title.trim() || KPIS.find((k) => k.id === forecast)?.label || "",
           description: description.trim() || undefined,
           team, category: team,
           value: target ? Number(target) : undefined,
           unit,
+          // KPI catalogué : câblage déterministe (sauf re-câblage/ajustement manuel).
+          forecast_type: !preferredEntity && !adjustedSpec && forecast ? forecast : undefined,
           entity: preferredEntity,
           agg_spec: adjustedSpec,
         }),
@@ -86,6 +90,7 @@ export function CreateObjectiveModal() {
   }
   function pickKpi(id: string) {
     setForecast(id);
+    setProposal(null);
     const k = KPIS.find((x) => x.id === id);
     if (k) setUnit(k.unit);
   }
@@ -94,9 +99,9 @@ export function CreateObjectiveModal() {
     e.preventDefault();
     if (!title.trim() || !target) { setError("Titre et cible requis."); return; }
 
-    // KPI libre (pas d'indicateur catalogué choisi) : étape Vérification d'abord —
-    // l'agent propose le câblage, l'utilisateur confirme ou impose la source.
-    if (!forecast && !proposal) { await requestPreview(); return; }
+    // Étape Vérification d'abord — TOUJOURS : le câblage (catalogué ou proposé
+    // par l'agent) est affiché et validé avant la création.
+    if (!proposal) { await requestPreview(); return; }
 
     setBusy(true); setError(null);
     try {
@@ -107,7 +112,7 @@ export function CreateObjectiveModal() {
           title: title.trim(),
           team, category: team,
           // Câblage confirmé à l'écran (appliqué tel quel, sans re-passage agent).
-          forecast_type: forecast || proposal?.forecast_type || null,
+          forecast_type: proposal?.forecast_type ?? (forecast || null),
           agg_spec: proposal?.agg_spec ?? null,
           recon_recipe: proposal?.recon_recipe ?? null,
           target: Number(target),
@@ -206,8 +211,8 @@ export function CreateObjectiveModal() {
             <div><label className={lbl}>Description</label><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} /></div>
             <div><label className={lbl}>Impact attendu</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
 
-            {/* Étape « Vérification » : câblage proposé (KPI libre uniquement). */}
-            {!forecast && proposal && (
+            {/* Étape « Vérification » : câblage affiché SYSTÉMATIQUEMENT avant création. */}
+            {proposal && (
               <TrackingVerification
                 proposal={proposal}
                 counts={counts}
@@ -224,7 +229,7 @@ export function CreateObjectiveModal() {
                   ? "Vérification…"
                   : busy
                     ? "Création…"
-                    : !forecast && !proposal ? "Vérifier le câblage" : !forecast ? "Confirmer et créer" : "Créer l'objectif"}
+                    : !proposal ? "Vérifier le câblage" : "Confirmer et créer"}
               </button>
             </div>
           </form>
