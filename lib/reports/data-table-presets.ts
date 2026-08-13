@@ -138,61 +138,81 @@ export const PAGE_LABELS: Record<string, string> = {
   audit_donnees: "Rapprochement données",
 };
 
+// AUCUNE période / fréquence dans les libellés : la granularité temporelle
+// (jour, semaine, mois…) et la période d'analyse se choisissent aux étapes
+// suivantes (« Fréquence » + « Période » de la table). Les dimensions month_*
+// signifient seulement « évolution dans le temps ».
 export const TABLE_PRESETS: Record<string, TablePreset[]> = {
   perf_ventes: [
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
     { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
-    { id: "revenue_month", label: "CA signé par mois", entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" },
-    { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "weighted_forecast_stage", label: "Projection pondérée par étape", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
     { id: "avg_amount_stage", label: "Montant moyen par étape", entity: "deals", groupBy: "stage", measure: "avg", field: "amount", unit: "currency", view: "bar" },
-    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
-    { id: "avg_amount_month", label: "Panier moyen signé par mois", entity: "deals", groupBy: "month_closed", measure: "avg", field: "amount", unit: "currency", view: "line" },
+    { id: "revenue_month", label: "Évolution du CA signé", entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" },
+    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "deals_closed_month", label: "Évolution des deals fermés", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "avg_amount_month", label: "Évolution du panier moyen signé", entity: "deals", groupBy: "month_closed", measure: "avg", field: "amount", unit: "currency", view: "line" },
+    { id: "pipeline_created_month", label: "Évolution du pipeline créé (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
   ],
   perf_marketing: [
     { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
     { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
-    { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
-    { id: "pipeline_created_month", label: "Pipeline créé par mois (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
+    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "pipeline_created_month", label: "Évolution du pipeline créé (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
     { id: "pipeline_stage", label: "Pipeline par étape (montant)", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
+    { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_industry", label: "Entreprises par industrie", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_country", label: "Entreprises par pays", entity: "companies", groupBy: "country", measure: "count", unit: "count", view: "bar" },
   ],
   audit_automatisations: [
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
-    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
-    { id: "pipeline_created_month", label: "Pipeline créé par mois (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
+    { id: "deals_closed_month", label: "Évolution des deals fermés", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "pipeline_created_month", label: "Évolution du pipeline créé (montant)", entity: "deals", groupBy: "month_created", measure: "sum", field: "amount", unit: "currency", view: "line" },
+    // Relais ventes → facturation : le deal gagné devient-il une facture ?
+    { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
+    { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
   ],
   audit_service_client: [
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
     { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
     { id: "subs_status", label: "Abonnements par statut", entity: "subscriptions", groupBy: "status", measure: "count", unit: "count", view: "donut" },
-    { id: "subs_canceled_month", label: "Abonnements annulés par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "count", unit: "count", view: "line" },
+    { id: "subs_canceled_month", label: "Évolution des abonnements annulés", entity: "subscriptions", groupBy: "month_canceled", measure: "count", unit: "count", view: "line" },
+    // Churn MRR + dynamique d'acquisition d'abonnements
+    { id: "mrr_canceled_month", label: "Évolution du MRR annulé (churn)", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
+    { id: "subs_started_month", label: "Évolution des abonnements démarrés", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
+    { id: "subs_source", label: "Abonnements par source", entity: "subscriptions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
   ],
   audit_paiement_facturation: [
     // ── HubSpot : projection pondérée du pipeline (probabilité de closing HubSpot) ──
     { id: "weighted_forecast_stage", label: "Projection pondérée des transactions gagnées", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
     // ── Transactions bancaires (Pennylane & co) : paiements réels, même sans facture ──
-    { id: "tx_in_month", label: "Encaissements par mois (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_in", unit: "currency", view: "line" },
-    { id: "tx_out_month", label: "Décaissements par mois (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_out", unit: "currency", view: "line" },
+    { id: "tx_in_month", label: "Évolution des encaissements (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_in", unit: "currency", view: "line" },
+    { id: "tx_out_month", label: "Évolution des décaissements (transactions)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount_out", unit: "currency", view: "line" },
+    { id: "tx_net_month", label: "Évolution du flux net (encaissements − décaissements)", entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount", unit: "currency", view: "line" },
     { id: "tx_out_category", label: "Dépenses par catégorie", entity: "transactions", groupBy: "category", measure: "sum", field: "amount_out", unit: "currency", view: "bar" },
     // ── Stripe / compta : factures, créances (impayés) et cash réel encaissé ──
     { id: "invoices_status", label: "Factures par statut", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
-    { id: "invoiced_month", label: "Montant facturé par mois", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },
+    { id: "invoiced_month", label: "Évolution du montant facturé", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },
     { id: "receivables_status", label: "Créances (impayés) par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
-    { id: "real_cash_month", label: "Cash réel encaissé par mois", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
+    { id: "real_cash_month", label: "Évolution du cash réel encaissé", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
+    { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
     // ── Échéances fiscales (config dans Paramètres → Organisation) ──
     { id: "fiscal_echeances", label: "Échéances fiscales (TVA · IS · URSSAF)", entity: "fiscal", groupBy: "echeance", measure: "sum", field: "montant", unit: "currency", view: "table" },
     // ── Abonnements / MRR ──
     { id: "mrr_status", label: "MRR par statut d'abonnement", entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" },
-    { id: "subs_started_month", label: "Abonnements démarrés par mois", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
-    { id: "mrr_canceled_month", label: "MRR annulé par mois", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
+    { id: "subs_started_month", label: "Évolution des abonnements démarrés", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
+    { id: "mrr_canceled_month", label: "Évolution du MRR annulé", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
   audit_adoption: [
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "deals_created_month", label: "Deals créés par mois", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
-    { id: "deals_closed_month", label: "Deals fermés par mois", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "deals_closed_month", label: "Évolution des deals fermés", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
     { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
     { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
   ],
@@ -201,8 +221,13 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
     { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
     { id: "companies_industry", label: "Entreprises par industrie", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_country", label: "Entreprises par pays", entity: "companies", groupBy: "country", measure: "count", unit: "count", view: "bar" },
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
     { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    // Provenance des documents synchronisés — cœur du rapprochement multi-outils
+    { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "subs_source", label: "Abonnements par source", entity: "subscriptions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "tx_source", label: "Transactions bancaires par source", entity: "transactions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
   ],
 };
 

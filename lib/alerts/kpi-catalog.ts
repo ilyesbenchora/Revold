@@ -26,7 +26,7 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
   sales: [
     // ── Performance closing ──
     { id: "closing_rate", label: "Closing rate", description: "% de deals gagnés sur les deals clôturés — le KPI roi de la performance commerciale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés sur la période", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "revenue_won", label: "CA signé", description: "Chiffre d'affaires total des deals gagnés", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "deals_won_count", label: "Deals gagnés", description: "Nombre de deals remportés — volume de closing", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés — levier de croissance", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     // ── Santé du pipeline ──
@@ -45,7 +45,7 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
     // ── Conversion funnel ──
     { id: "conversion_rate", label: "Taux de conversion Lead→Opp", description: "% de contacts convertis en opportunités — efficacité du funnel", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
     { id: "mql_to_sql_rate", label: "Conversion MQL→SQL", description: "% de MQL acceptés par les sales — alignement marketing-ventes", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés sur la période — contribution marketing au pipeline", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
+    { id: "deals_count", label: "Deals créés", description: "Volume de deals créés — contribution marketing au pipeline", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: true },
     // ── Sources d'acquisition ──
     { id: "contacts_by_source", label: "Contacts par source", description: "Volume de contacts acquis via une ou plusieurs sources d'origine", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
     { id: "source_to_lifecycle", label: "Source → Lifecycle", description: "% de contacts d'une source qui atteignent une phase du cycle de vie — ROI par canal", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
