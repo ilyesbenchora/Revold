@@ -176,6 +176,13 @@ html[data-theme="violet-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-
   &.from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.16); }
   &.from-blue-50 { --tw-gradient-from: rgba(59, 130, 246, 0.16); }
   &.from-teal-50 { --tw-gradient-from: rgba(20, 184, 166, 0.14); }
+  &.from-orange-50 { --tw-gradient-from: rgba(249, 115, 22, 0.13); }
+  &.from-rose-100 { --tw-gradient-from: rgba(244, 63, 94, 0.22); }
+  &.from-purple-100 { --tw-gradient-from: rgba(168, 85, 247, 0.22); }
+  &.to-amber-50 { --tw-gradient-to: rgba(245, 158, 11, 0.13); }
+  &.to-orange-50 { --tw-gradient-to: rgba(249, 115, 22, 0.13); }
+  &.to-fuchsia-50 { --tw-gradient-to: rgba(217, 70, 239, 0.13); }
+  &.to-fuchsia-100 { --tw-gradient-to: rgba(217, 70, 239, 0.24); }
 }
 
 /* ── Graphiques recharts en mode sombre : grilles, axes, labels, donuts ──

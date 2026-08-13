@@ -39,7 +39,7 @@ export default async function PrevisionAxisPage({ params }: { params: Promise<{ 
         Prévisions
       </Link>
 
-      <div className={`theme-exempt relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
+      <div className={`relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={personaImagePath(agent.key)}
