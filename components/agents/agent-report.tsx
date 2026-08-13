@@ -15,7 +15,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
-import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
+import { bucketTickInterval, currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -65,6 +65,10 @@ export function ReportChart({
   // dans la langue choisie (Mon compte → Langue & formats). Les clés non
   // temporelles (étape, statut…) passent telles quelles.
   const locale = useLocale();
+  // Espacement des ticks pour les fréquences jour (tous les 5 jours) et
+  // semaine (toutes les semaines, 7 jours entre libellés) — calculé sur les
+  // clés BRUTES avant traduction.
+  const tickInterval = bucketTickInterval((block.data ?? []).map((d) => d.name));
   const data = (block.data ?? []).map((d) => ({ ...d, name: formatBucketLabel(d.name, locale) }));
   if (data.length === 0) return null;
 
@@ -202,7 +206,7 @@ export function ReportChart({
   const axis = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} interval={tickInterval} />
       <YAxis
         tick={{ fontSize: 10, fill: "#94a3b8" }}
         tickLine={false}
