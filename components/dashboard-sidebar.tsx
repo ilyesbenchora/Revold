@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   WORKSPACES,
+  WORKSPACE_COOKIE,
   availableWorkspaces,
   workspaceDef,
   isGroupVisible,
@@ -419,18 +420,21 @@ export function DashboardSidebar({
   memberCounts?: Record<string, number>;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isAccountActive = pathname.startsWith(accountLink.href);
 
   // Espaces de travail accessibles (POC) : admin → tous ; membre → le sien.
   const available = availableWorkspaces(role, pole);
   const [ws, setWs] = useState<WorkspaceId>(available[0]);
 
-  // Hydratation : l'admin retrouve son dernier espace choisi ; le membre reste
-  // verrouillé sur le sien.
+  // Hydratation : l'admin retrouve son dernier espace choisi (cookie d'abord —
+  // c'est lui que lisent les pages serveur — puis localStorage historique) ;
+  // le membre reste verrouillé sur le sien.
   useEffect(() => {
     if (available.length <= 1) return;
     try {
-      const saved = localStorage.getItem("revold:workspace") as WorkspaceId | null;
+      const fromCookie = document.cookie.match(new RegExp(`(?:^|; )${WORKSPACE_COOKIE}=([^;]*)`))?.[1] as WorkspaceId | undefined;
+      const saved = fromCookie ?? (localStorage.getItem("revold:workspace") as WorkspaceId | null);
       if (saved && available.includes(saved)) setWs(saved);
     } catch {
       /* ignore */
@@ -442,9 +446,14 @@ export function DashboardSidebar({
     setWs(id);
     try {
       localStorage.setItem("revold:workspace", id);
+      // Cookie lisible côté serveur : les pages (vue d'ensemble Coaching…)
+      // filtrent leur contenu sur le même espace que la sidebar.
+      document.cookie = `${WORKSPACE_COOKIE}=${id}; path=/; max-age=31536000; samesite=lax`;
     } catch {
       /* ignore */
     }
+    // Re-rend les pages serveur avec le nouvel espace.
+    router.refresh();
   }
 
   const canSwitch = available.length > 1;

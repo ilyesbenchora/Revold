@@ -9,6 +9,8 @@ import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/co
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { AgentInsightsCounts } from "@/components/agents/agent-insights-counts";
+import { isChildVisible } from "@/lib/workspaces";
+import { getActiveWorkspace } from "@/lib/workspaces-server";
 import {
   buildContext,
   fetchDismissals,
@@ -133,9 +135,14 @@ export default async function MesCoachingPage() {
     return new Date(`${p.next_meeting_at}T${t}:00`).getTime() > nowMs;
   });
 
+  // Espace de travail actif : la vue d'ensemble ne montre que les coachs de
+  // l'espace (mêmes règles que la sidebar) — un membre Ventes ne voit pas le
+  // coach marketing, etc. L'espace global montre tout.
+  const ws = await getActiveWorkspace();
+
   // href : page dédiée du menu Coaching IA — la carte d'un agent redirige vers
   // SA page (Ventes, Marketing…), pas vers la page agent générique.
-  const categories = [
+  const allCategories = [
     { id: "commercial", agentKey: "coaching-ventes", href: "/dashboard/insights-ia/commercial", label: "Coach des ventes", description: "Deals, pipeline, closing, workflows", sev: countSeverities(insightsByCategory.commercial),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg> },
     { id: "marketing", agentKey: "coaching-marketing", href: "/dashboard/insights-ia/marketing", label: "Coach marketing", description: "Leads, conversion, sources, acquisition", sev: countSeverities(insightsByCategory.marketing),
@@ -145,6 +152,8 @@ export default async function MesCoachingPage() {
     { id: "data-model", agentKey: "coaching-data-model", href: "/dashboard/insights-ia/data-model", label: "Coach finance", description: "Trésorerie, comptabilité et pilotage du cash", sev: countSeverities(dataModelInsights),
       icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> },
   ];
+  // Cartes visibles = coachs dont la page dédiée est autorisée dans l'espace.
+  const categories = allCategories.filter((c) => isChildVisible(ws, "coaching", c.href));
 
   // Fetch realized/removed insights with full snapshot
   const { data: allDismissals } = await supabase

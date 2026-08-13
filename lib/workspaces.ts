@@ -8,6 +8,12 @@
 
 export type WorkspaceId = "all" | "sales" | "marketing" | "cs" | "finance";
 
+/**
+ * Cookie miroir du choix d'espace (admin) : lisible côté serveur pour que les
+ * pages (ex : vue d'ensemble Coaching) filtrent leur contenu comme la sidebar.
+ */
+export const WORKSPACE_COOKIE = "revold_workspace";
+
 export type WorkspaceDef = { id: WorkspaceId; label: string; icon: string; desc: string };
 
 export const WORKSPACES: WorkspaceDef[] = [
@@ -55,9 +61,11 @@ type NavRule = Partial<Record<"audit" | "coaching" | "previsions" | "dashboard" 
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   all: { audit: "all", coaching: "all", previsions: "all", dashboard: "all", integrations: "all", alertes: "all" },
+  // Le coach data (page Données) est accessible dans TOUS les espaces : la
+  // qualité des données concerne chaque pôle.
   sales: {
     audit: ["/dashboard/performances", "/dashboard/process"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
@@ -73,13 +81,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   },
   cs: {
     audit: ["/dashboard/audit/service-client"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/calendrier"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   finance: {
     audit: ["/dashboard/audit/paiement-facturation"],
+    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
     integrations: "all",
