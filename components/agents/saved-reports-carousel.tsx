@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ReportArtifact } from "./report-artifact";
+import { RoutineReportCard } from "./routine-report-card";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
 import { listSavedReports, removeSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 
@@ -47,15 +48,34 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: "smooth" });
   }
 
-  const hasMany = reports.length > 1;
+  // Rapports issus d'une routine : affichés en PLEINE LARGEUR sous le chat
+  // (visuel cockpit détaillé + analyse écrite). Les rapports enregistrés à la
+  // main gardent le carrousel compact.
+  const routineReports = reports.filter((r) => r.origin === "routine");
+  const manualReports = reports.filter((r) => r.origin !== "routine");
+  const hasMany = manualReports.length > 1;
 
   return (
+    <>
+    {routineReports.length > 0 && (
+      <section className="mt-6 space-y-4">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <span>🕘</span> Rapports de routine
+          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{routineReports.length}</span>
+        </h2>
+        {routineReports.map((r) => (
+          <RoutineReportCard key={r.id} report={r} onDelete={del} />
+        ))}
+      </section>
+    )}
+
+    {(manualReports.length > 0 || routineReports.length === 0) && (
     <section className="mt-6 space-y-3">
       <div className="flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
           {title}
-          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{reports.length}</span>
+          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{manualReports.length}</span>
         </h2>
         {hasMany && (
           <div className="ml-auto flex items-center gap-1.5">
@@ -79,7 +99,7 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
         )}
       </div>
 
-      {hydrated && reports.length === 0 ? (
+      {hydrated && manualReports.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
           Aucun rapport enregistré. Lance une analyse dans le chat ci-dessus puis clique sur
           <span className="font-medium text-slate-700"> « 💾 Enregistrer le rapport »</span>, ou active une
@@ -90,7 +110,7 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
           ref={trackRef}
           className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 scroll-smooth"
         >
-          {reports.map((r) => (
+          {manualReports.map((r) => (
             <div
               key={r.id}
               className="card snap-start shrink-0 p-4"
@@ -124,5 +144,7 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
         </div>
       )}
     </section>
+    )}
+    </>
   );
 }

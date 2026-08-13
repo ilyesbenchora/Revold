@@ -20,6 +20,8 @@ export type SavedReport = {
   origin?: "chat" | "routine";
   /** Libellé de la routine à l'origine du rapport (badge dans les listes). */
   routineLabel?: string;
+  /** Analyse écrite détaillée de l'agent (rapports de routine, affichage pleine largeur). */
+  analysis?: string;
 };
 
 export const SAVED_REPORTS_KEY = "revold:saved-reports:v1";

@@ -75,7 +75,7 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
       // Réponse non-JSON (page d'erreur Vercel, timeout, HTML) → message clair
       // au lieu d'un « Unexpected token … is not valid JSON ».
       const raw = await res.text();
-      let data: { error?: string; report?: unknown; chartProposal?: unknown };
+      let data: { error?: string; message?: string; report?: unknown; chartProposal?: unknown };
       try {
         data = JSON.parse(raw);
       } catch {
@@ -105,6 +105,9 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
         },
         origin: "routine",
         routineLabel: r.label,
+        // Analyse écrite détaillée de l'agent : affichée en pleine largeur
+        // sous le rapport visuel dans « Rapports enregistrés ».
+        analysis: typeof data.message === "string" ? data.message : undefined,
       });
     } catch (e) {
       updateRoutine(r.id, { lastError: e instanceof Error ? e.message : "Erreur inconnue" });

@@ -14,13 +14,17 @@ export const FREQUENCY_LABELS: Record<RoutineFrequency, string> = {
 };
 
 /**
- * Directive ajoutée au prompt d'une routine : impose un rapport VISUEL avec la
- * même exigence de qualité que les tables de données (KPIs, graphique, table,
- * et query sur chaque bloc pour le recalcul déterministe par période).
+ * Directive ajoutée au prompt d'une routine : impose un rapport VISUEL
+ * EXHAUSTIF (même exigence de qualité que les tables de données) doublé d'une
+ * analyse écrite détaillée — le rapport de routine est lu sans conversation,
+ * il doit se suffire à lui-même.
  */
 export const ROUTINE_REPORT_DIRECTIVE = `
 
-Rends ta réponse sous forme de RAPPORT VISUEL via render_report — même exigence de qualité que les tables de données : des blocs kpi pour les chiffres clés, un graphique (bar, line ou donut) pour la tendance ou la répartition, et un bloc table pour le détail. Sur CHAQUE bloc issu d'aggregate_canonical, ajoute son champ query (entity/groupBy/measure/field) pour le recalcul déterministe par période. Chiffres réels uniquement — si une donnée manque, dis-le. Ne mets JAMAIS la période dans le titre.`;
+Ce rapport est généré par une ROUTINE : il sera lu tel quel, sans conversation — il doit se suffire à lui-même. Rends ta réponse en DEUX volets complémentaires, sans te limiter en longueur :
+1) Un RAPPORT VISUEL COMPLET via render_report — sois EXHAUSTIF : une rangée de blocs kpi avec TOUS les chiffres clés pertinents du périmètre (pas seulement 2-3), PLUSIEURS graphiques (bar/line/area pour la tendance ou la comparaison, donut pour la répartition) et une table détaillée ligne à ligne (les deals, factures ou enregistrements concrets qui composent les chiffres). Sur CHAQUE bloc issu d'aggregate_canonical, ajoute son champ query (entity/groupBy/measure/field) pour le recalcul déterministe. Ne mets JAMAIS la période dans le titre.
+2) Une ANALYSE ÉCRITE détaillée et structurée dans ta réponse texte : les chiffres marquants et ce qu'ils signifient, la tendance vs la période précédente, les écarts et anomalies détectés, les causes probables, les risques, et 2-3 recommandations concrètes et priorisées. Sois le plus exhaustif possible dans cette analyse.
+Chiffres réels uniquement — si une donnée manque pour la période, dis-le franchement.`;
 
 /** Routines suggérées par coach — habitudes de chat adaptées au métier. */
 const SUGGESTIONS: Record<string, RoutineSuggestion[]> = {
