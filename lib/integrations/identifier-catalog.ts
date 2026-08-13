@@ -27,7 +27,7 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Propriété custom HubSpot (à créer si inexistant)", native: false },
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false },
-    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et la facturation (optionnel)", native: false },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et un outil relié — ajoutez-en un par outil si chaque paire a son propre code (optionnel)", native: false },
     { canonicalField: "external_id", label: "ID Company", defaultProviderField: "hs_object_id", hint: "ID natif HubSpot (automatique)", native: true },
   ],
   salesforce: [
