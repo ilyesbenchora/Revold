@@ -105,6 +105,13 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${dmSans.variable} ${wordmark.variable} h-full antialiased`}>
       <head>
+        {/* Anti-flash : applique le thème sombre violet AVANT le premier rendu
+            (préférence Paramètres → Apparence, stockée en localStorage). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("revold:theme")==="violet-dark")document.documentElement.dataset.theme="violet-dark"}catch(e){}`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}

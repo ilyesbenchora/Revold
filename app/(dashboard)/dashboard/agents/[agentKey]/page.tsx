@@ -91,7 +91,7 @@ export default async function AgentPage({
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-6">
-      <div className={`relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
+      <div className={`theme-exempt relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
         {/* Visage de l'agent en filigrane, discret et propre à cet agent */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

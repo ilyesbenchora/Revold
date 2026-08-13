@@ -80,7 +80,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   } catch {}
 
   return (
-    <div className="min-h-screen bg-background">
+    // .dashboard-shell : périmètre du mode sombre violet (Paramètres → Apparence).
+    <div className="dashboard-shell min-h-screen bg-background">
       <DashboardHeader companyName={orgName} connectedTools={connectedTools} />
       <div className="flex w-full">
         <DashboardSidebar role={role} pole={pole} memberCounts={memberCounts} />

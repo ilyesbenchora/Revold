@@ -31,6 +31,138 @@ body {
   border-radius: 0.875rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   MODE SOMBRE « VIOLET FUCHSIA » — activé depuis Paramètres → Apparence.
+   L'attribut data-theme="violet-dark" est posé sur <html> (script anti-flash
+   dans le layout racine) ; le thème est SCOPÉ à la plateforme (.dashboard-shell)
+   pour ne pas toucher le site marketing. Les composants utilisent des classes
+   utilitaires claires en dur (bg-white, text-slate-900…) : on les remappe ici
+   vers la palette violette. Un bloc marqué .theme-exempt (et tout son contenu)
+   échappe au remap — utilisé pour les cartes déjà sombres (rapports de routine)
+   et les en-têtes pastel des personas.
+   ═══════════════════════════════════════════════════════════════════════ */
+html[data-theme="violet-dark"] .dashboard-shell {
+  --background: #150a26;
+  --foreground: #f4eefb;
+  --card: #211237;
+  --card-border: #3b2460;
+  --accent: #8b93f8;
+  --accent-soft: rgba(99, 102, 241, 0.18);
+  color: var(--foreground);
+  color-scheme: dark;
+}
+html[data-theme="violet-dark"] .dashboard-shell input::placeholder,
+html[data-theme="violet-dark"] .dashboard-shell textarea::placeholder {
+  color: #7d68a6;
+}
+
+html[data-theme="violet-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-exempt *) {
+  /* ── Fonds neutres ── */
+  &.bg-white { background-color: #211237; }
+  &[class*="bg-white/"] { background-color: rgba(33, 18, 55, 0.75); }
+  &.bg-slate-50 { background-color: #1c0f31; }
+  &[class*="bg-slate-50/"] { background-color: rgba(42, 24, 71, 0.55); }
+  &.bg-slate-100 { background-color: #2a1847; }
+  &[class*="bg-slate-100/"] { background-color: rgba(42, 24, 71, 0.7); }
+  &.bg-slate-200 { background-color: #35205a; }
+  &.bg-background { background-color: var(--background); }
+
+  /* ── Fonds colorés doux → teintes néon translucides ── */
+  &.bg-fuchsia-50 { background-color: rgba(217, 70, 239, 0.13); }
+  &[class*="bg-fuchsia-50/"] { background-color: rgba(217, 70, 239, 0.1); }
+  &.bg-fuchsia-100 { background-color: rgba(217, 70, 239, 0.24); }
+  &.bg-indigo-50 { background-color: rgba(99, 102, 241, 0.16); }
+  &[class*="bg-indigo-50/"] { background-color: rgba(99, 102, 241, 0.12); }
+  &.bg-indigo-100 { background-color: rgba(99, 102, 241, 0.26); }
+  &.bg-emerald-50 { background-color: rgba(16, 185, 129, 0.13); }
+  &[class*="bg-emerald-50/"] { background-color: rgba(16, 185, 129, 0.1); }
+  &.bg-emerald-100 { background-color: rgba(16, 185, 129, 0.22); }
+  &.bg-amber-50 { background-color: rgba(245, 158, 11, 0.13); }
+  &[class*="bg-amber-50/"] { background-color: rgba(245, 158, 11, 0.1); }
+  &.bg-amber-100 { background-color: rgba(245, 158, 11, 0.22); }
+  &.bg-red-50 { background-color: rgba(239, 68, 68, 0.14); }
+  &.bg-rose-50 { background-color: rgba(244, 63, 94, 0.14); }
+  &.bg-blue-50 { background-color: rgba(59, 130, 246, 0.16); }
+
+  /* ── Survols ── */
+  &[class*="hover:bg-white"]:hover { background-color: #281845; }
+  &[class*="hover:bg-slate-50"]:hover { background-color: #281545; }
+  &[class*="hover:bg-slate-100"]:hover { background-color: #33205a; }
+  &[class*="hover:bg-slate-200"]:hover { background-color: #3d2769; }
+  &[class*="hover:bg-fuchsia-50"]:hover { background-color: rgba(217, 70, 239, 0.18); }
+  &[class*="hover:bg-fuchsia-100"]:hover { background-color: rgba(217, 70, 239, 0.3); }
+  &[class*="hover:bg-indigo-50"]:hover { background-color: rgba(99, 102, 241, 0.22); }
+  &[class*="hover:bg-indigo-100"]:hover { background-color: rgba(99, 102, 241, 0.32); }
+  &[class*="hover:bg-emerald-100"]:hover { background-color: rgba(16, 185, 129, 0.28); }
+  &[class*="hover:bg-amber-100"]:hover { background-color: rgba(245, 158, 11, 0.28); }
+  &[class*="hover:bg-red-50"]:hover { background-color: rgba(239, 68, 68, 0.2); }
+
+  /* ── Textes neutres (hiérarchie lisible sur fond violet) ── */
+  &.text-slate-900 { color: #f6f1fc; }
+  &.text-slate-800 { color: #ece2f8; }
+  &.text-slate-700 { color: #d9c9ee; }
+  &.text-slate-600 { color: #bda7dd; }
+  &.text-slate-500 { color: #9d83c4; }
+  &.text-slate-400 { color: #8169a8; }
+  &.text-slate-300 { color: #61497f; }
+  &[class*="hover:text-slate-800"]:hover { color: #ece2f8; }
+  &[class*="hover:text-slate-700"]:hover { color: #d9c9ee; }
+
+  /* ── Textes colorés → variantes claires ── */
+  &.text-fuchsia-700 { color: #f0abfc; }
+  &.text-fuchsia-600, &.text-fuchsia-500 { color: #e879f9; }
+  &.text-indigo-700 { color: #b4bcfd; }
+  &.text-indigo-600, &.text-indigo-500 { color: #a5b4fc; }
+  &.text-emerald-700, &.text-emerald-800 { color: #6ee7b7; }
+  &.text-emerald-600 { color: #34d399; }
+  &.text-amber-800, &.text-amber-700 { color: #fcd34d; }
+  &.text-amber-600 { color: #fbbf24; }
+  &.text-red-600, &.text-red-500 { color: #fca5a5; }
+  &.text-rose-700, &.text-rose-600 { color: #fda4af; }
+  &.text-blue-700 { color: #93c5fd; }
+  &[class*="hover:text-red-"]:hover { color: #fca5a5; }
+  &[class*="hover:text-fuchsia-"]:hover { color: #f0abfc; }
+  &[class*="hover:text-indigo-"]:hover { color: #b4bcfd; }
+  &[class*="hover:text-emerald-"]:hover { color: #6ee7b7; }
+
+  /* ── Bordures & anneaux ── */
+  &.border-slate-100 { border-color: #2f1d4c; }
+  &.border-slate-200 { border-color: #3b2460; }
+  &.border-slate-300 { border-color: #4a2f78; }
+  &.border-fuchsia-100 { border-color: rgba(232, 121, 249, 0.25); }
+  &.border-fuchsia-200 { border-color: rgba(232, 121, 249, 0.4); }
+  &.border-fuchsia-300 { border-color: rgba(232, 121, 249, 0.55); }
+  &.border-indigo-100 { border-color: rgba(129, 140, 248, 0.28); }
+  &.border-indigo-200 { border-color: rgba(129, 140, 248, 0.42); }
+  &.border-indigo-300 { border-color: rgba(129, 140, 248, 0.55); }
+  &.border-emerald-200 { border-color: rgba(52, 211, 153, 0.38); }
+  &.border-emerald-300 { border-color: rgba(52, 211, 153, 0.5); }
+  &.border-amber-200 { border-color: rgba(251, 191, 36, 0.38); }
+  &.border-red-200 { border-color: rgba(248, 113, 113, 0.38); }
+  &.border-rose-200 { border-color: rgba(251, 113, 133, 0.38); }
+  &.border-rose-300 { border-color: rgba(251, 113, 133, 0.5); }
+  &.border-blue-200 { border-color: rgba(96, 165, 250, 0.38); }
+  &[class*="hover:border-fuchsia-200"]:hover { border-color: rgba(232, 121, 249, 0.5); }
+  &[class*="hover:border-indigo-200"]:hover { border-color: rgba(129, 140, 248, 0.5); }
+  &.ring-slate-200 { --tw-ring-color: #3b2460; }
+  &.ring-fuchsia-100 { --tw-ring-color: rgba(232, 121, 249, 0.25); }
+  &.ring-fuchsia-200 { --tw-ring-color: rgba(232, 121, 249, 0.4); }
+  &.ring-indigo-100 { --tw-ring-color: rgba(129, 140, 248, 0.3); }
+  &.ring-indigo-200 { --tw-ring-color: rgba(129, 140, 248, 0.42); }
+  &.divide-slate-100 > :not(:first-child) { border-color: #2f1d4c; }
+
+  /* ── Dégradés clairs récurrents ── */
+  &.from-slate-50 { --tw-gradient-from: #1c0f31; }
+  &.from-white { --tw-gradient-from: #211237; }
+  &.to-white { --tw-gradient-to: #211237; }
+  &.from-fuchsia-50 { --tw-gradient-from: rgba(217, 70, 239, 0.13); }
+  &.from-indigo-50 { --tw-gradient-from: rgba(99, 102, 241, 0.16); }
+  &.to-indigo-50 { --tw-gradient-to: rgba(99, 102, 241, 0.16); }
+  &.from-amber-100 { --tw-gradient-from: rgba(245, 158, 11, 0.22); }
+  &.via-fuchsia-100 { --tw-gradient-via: rgba(217, 70, 239, 0.24); }
+  &.to-amber-100 { --tw-gradient-to: rgba(245, 158, 11, 0.22); }
+}
+
 /* Blog & legal prose styling */
 .prose-revold h2 {
   margin-top: 2.5rem;

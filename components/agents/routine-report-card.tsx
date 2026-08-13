@@ -348,7 +348,7 @@ function ChartOnly({ chart }: { chart: ChartProposal }) {
 
 export function RoutineReportCard({ report: r, onDelete }: { report: SavedReport; onDelete: (id: string) => void }) {
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-indigo-500/25 bg-slate-950 shadow-[0_0_60px_-18px_rgba(99,102,241,0.5)]">
+    <article className="theme-exempt relative overflow-hidden rounded-2xl border border-indigo-500/25 bg-slate-950 shadow-[0_0_60px_-18px_rgba(99,102,241,0.5)]">
       {/* Halos néon + grille — la touche futuriste du cockpit */}
       <div className="pointer-events-none absolute -right-28 -top-28 h-72 w-72 rounded-full bg-fuchsia-600/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-28 -left-28 h-72 w-72 rounded-full bg-indigo-600/20 blur-3xl" />
