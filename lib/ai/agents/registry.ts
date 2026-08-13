@@ -106,7 +106,7 @@ const AGENT_LIST: AgentDef[] = [
   // ══════════════ Section DONNÉES ══════════════
   {
     key: "performance",
-    label: "Agent Performance",
+    label: "Agent Performances",
     section: "donnees",
     tagline: "Pilotage commercial & marketing : closing, cycle, pipeline, vélocité.",
     expertise:
