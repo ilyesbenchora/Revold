@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DataTableCard, type SavedTable } from "./data-table-card";
+import { DataPreview } from "./blocks-manager";
 import {
   ENTITY_DIMS,
   ENTITY_FIELDS,
@@ -192,6 +194,7 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
 };
 
 export function PageDataTables({ pageKey }: { pageKey: string }) {
+  const router = useRouter();
   const allPresets = useMemo(() => presetsForPage(pageKey), [pageKey]);
   const alertTeam = PAGE_ALERT_TEAM[pageKey] ?? "revops";
   const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
@@ -223,6 +226,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   // Total réel du câblage affiché (toutes périodes) — recalculé à chaque ajustement.
   const [verifTotal, setVerifTotal] = useState<number | null>(null);
   const [verifLoading, setVerifLoading] = useState(false);
+  // Destination du KPI : tuile (bloc classique, 1ʳᵉ ligne de la page) ou
+  // visualisation (table/graphique, section « Tables de données » en dessous).
+  const [asTile, setAsTile] = useState(false);
+  // Aperçu optionnel sur données réelles (presets déterministes — les KPIs
+  // personnalisés ont déjà leur preuve chiffrée à l'étape Vérification).
+  const [previewRows, setPreviewRows] = useState<{ name: string; value: number }[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Plage personnalisée incomplète ou inversée → on bloque la sauvegarde.
   const periodInvalid =
@@ -291,6 +301,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setProposalLoading(false);
     setVerifTotal(null);
     setVerifLoading(false);
+    setAsTile(false);
+    setPreviewRows(null);
+    setPreviewLoading(false);
   }
 
   function toggleSource(key: string) {
@@ -340,6 +353,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   function pickPreset(p: TablePreset) {
     setError(null);
     setDescription("");
+    setPreviewRows(null);
     // Projection pondérée + échéances fiscales = KPIs déterministes précis (pas d'agent).
     // Tous les autres presets sont (re)câblés par l'agent sur la vraie donnée enrichie.
     if (isDeterministicPreset(p)) {
@@ -371,6 +385,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   function startCustom() {
     if (!customKpi.trim()) return;
     setError(null);
+    setPreviewRows(null);
     const kpi = customKpi.trim();
     // En édition : on conserve titre + affichage existants, on met à jour le KPI.
     // En création : le titre reprend le KPI écrit ; l'agent choisit la donnée en back.
@@ -459,12 +474,72 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     refreshVerif(np);
   }
 
+  /** Aperçu optionnel : recalcul réel de la spec du draft (presets déterministes). */
+  async function togglePreview() {
+    if (previewRows) { setPreviewRows(null); return; }
+    if (!draft || previewLoading) return;
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field ?? undefined },
+          sources: selected,
+          all: true,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      setPreviewRows(res.ok && Array.isArray(d.data) ? d.data : []);
+    } catch {
+      setPreviewRows([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   async function create() {
     if (!draft || saving) return;
 
     // ── KPI personnalisé : passage obligatoire par l'étape Vérification ──
     if (draft.custom && !proposal) {
       await requestProposal();
+      return;
+    }
+
+    // ── TUILE KPI (bloc classique) : créée dans page_tiles → elle apparaît sur
+    //    la 1ʳᵉ ligne de la page, avant « ＋ Ajouter un KPI ». Les visualisations
+    //    (table/graphique) restent des page_data_tables, en dessous. Même spec
+    //    d'agrégation que les tables (entity/groupBy/measure) : un seul funnel.
+    if (asTile && !editingId) {
+      setSaving(true);
+      setError(null);
+      // `sources` = outils croisés choisis à l'étape 1 : la tuile applique le
+      // même filtre que le recalcul de table (valueFromAggSpec → computeAggregate).
+      const spec = draft.custom && proposal
+        ? { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field, pipeline: proposal.pipeline ?? null, sources: selected }
+        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, sources: selected };
+      const res = await fetch("/api/page-tiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_key: pageKey,
+          kind: "kpi",
+          title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
+          agg_spec: spec,
+          unit_mode: (draft.custom && proposal ? proposal.unit_mode : draft.unit_mode) ?? "count",
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (res.ok) {
+        setOpen(false);
+        reset();
+        // Les tuiles sont rendues côté serveur (ConfigurableKpiTiles) : refresh.
+        router.refresh();
+      } else {
+        setError(d.error || "Création impossible.");
+      }
       return;
     }
 
@@ -1059,13 +1134,28 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
-                  <div className="mt-1 grid grid-cols-4 gap-2">
+                  {/* Une tuile est un bloc classique : elle rejoint la 1ʳᵉ ligne de
+                      la page (avant « ＋ Ajouter un KPI »). Les graphiques et
+                      tableaux s'ajoutent en dessous, dans « Tables de données ». */}
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    Tuile KPI = bloc classique, ajouté sur la première ligne de la page. Graphiques et tableaux s&apos;ajoutent en dessous.
+                  </p>
+                  <div className="mt-1 grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setAsTile(true)}
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
+                        asTile ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="6" width="16" height="12" rx="2" /><path d="M8 11h5M8 14h8" /></svg>
+                      Tuile KPI
+                    </button>
                     {VIEWS.map((v) => (
                       <button
                         key={v.id}
-                        onClick={() => setDraft({ ...draft, view: v.id })}
+                        onClick={() => { setAsTile(false); setDraft({ ...draft, view: v.id }); }}
                         className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
-                          draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                          !asTile && draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
                         }`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={v.icon} /></svg>
@@ -1075,8 +1165,49 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </div>
                 </div>
 
-                {/* Période par défaut à l'ouverture de la table (hors échéances fiscales). */}
-                {draft.entity !== "fiscal" && (
+                {/* Aperçu OPTIONNEL sur données réelles (presets déterministes — les
+                    KPIs personnalisés ont leur preuve chiffrée à la Vérification). */}
+                {!draft.custom && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={togglePreview}
+                      disabled={previewLoading}
+                      className="text-xs font-medium text-fuchsia-600 hover:underline disabled:opacity-50"
+                    >
+                      {previewLoading ? "Calcul de l'aperçu…" : previewRows ? "Masquer l'aperçu" : "👁 Aperçu sur tes données (optionnel)"}
+                    </button>
+                    {previewRows && previewRows.length === 0 && (
+                      <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">
+                        Aucune donnée pour ce KPI pour le moment.
+                      </p>
+                    )}
+                    {previewRows && previewRows.length > 0 && (
+                      asTile ? (
+                        <div className="mt-2 w-48 rounded-xl border border-slate-200 bg-white p-4">
+                          <p className="truncate text-[11px] font-medium text-slate-500">{draft.title || "Tuile KPI"}</p>
+                          <p className="mt-1 text-xl font-bold tabular-nums text-indigo-600">
+                            {fmtTotal(previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0), draft.unit_mode)}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 rounded-xl border border-slate-100 p-3">
+                          <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* Période par défaut à l'ouverture de la table (hors échéances
+                    fiscales et tuiles — une tuile affiche la valeur globale,
+                    recalculée en continu). */}
+                {asTile && (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                    La tuile affiche la valeur globale, recalculée en continu sur tes données.
+                  </p>
+                )}
+                {draft.entity !== "fiscal" && !asTile && (
                   <PeriodField
                     period={period}
                     setPeriod={setPeriod}
@@ -1105,7 +1236,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       ? `${agentName} analyse…`
                       : saving
                         ? "Création…"
-                        : draft.custom ? `Vérifier via ${agentName}` : "Créer la table"}
+                        : draft.custom ? `Vérifier via ${agentName}` : asTile ? "Créer la tuile" : "Créer la table"}
                   </button>
                 </div>
               </div>

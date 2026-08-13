@@ -48,7 +48,7 @@ const VIEW_LABELS: Record<string, string> = {
 
 const PALETTE = ["#6366f1", "#8b5cf6", "#0ea5e9", "#f59e0b", "#10b981", "#f43f5e", "#64748b", "#a855f7"];
 
-function fmtVal(v: number, unit: string): string {
+export function fmtVal(v: number, unit: string): string {
   if (unit === "currency")
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   if (unit === "percent") return `${v.toLocaleString("fr-FR")} %`;
@@ -138,8 +138,9 @@ function SchematicPreview({ view }: { view?: string }) {
   );
 }
 
-/* ── Aperçu RÉEL grand format d'un preset (données recalculées) ── */
-function DataPreview({ rows, view, unit }: { rows: PreviewRow[]; view: string; unit: string }) {
+/* ── Aperçu RÉEL grand format d'un preset (données recalculées) — aussi
+      utilisé par l'aperçu optionnel du funnel de création (PageDataTables). ── */
+export function DataPreview({ rows, view, unit }: { rows: { name: string; value: number }[]; view: string; unit: string }) {
   const top = rows.slice(0, 10);
   const max = Math.max(...top.map((r) => Math.abs(r.value)), 1);
 
