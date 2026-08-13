@@ -397,10 +397,13 @@ export function DashboardSidebar({
   role = null,
   pole = null,
   memberCounts = {},
+  pageAccess = {},
 }: {
   role?: string | null;
   pole?: string | null;
   memberCounts?: Record<string, number>;
+  /** Accès par page (Paramètres → Utilisateurs & équipes) : href → équipe → visualisation. */
+  pageAccess?: Record<string, Record<string, boolean>>;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -521,7 +524,15 @@ export function DashboardSidebar({
       <nav className="flex-1 space-y-1 px-2">
         {visibleLinks.map((item) => {
           if (isGroup(item)) {
-            const children = item.children.filter((c) => isChildVisible(ws, item.id, c.href));
+            // Règle explicite « Utilisateurs & équipes » (visualisation) : elle
+            // prime sur l'accès par défaut de l'espace ; l'espace global voit tout.
+            const children = item.children.filter((c) => {
+              if (ws !== "all") {
+                const explicit = pageAccess[c.href]?.[ws];
+                if (typeof explicit === "boolean") return explicit;
+              }
+              return isChildVisible(ws, item.id, c.href);
+            });
             if (children.length === 0) return null;
             const groupActive = children.some((c) => isChildActive(pathname, c.href));
             const open = openGroupId === item.id;

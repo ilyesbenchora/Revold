@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { TeamManagement } from "@/components/team-management";
+import { PageAccessSettings } from "@/components/page-access-settings";
 import { getCurrentRole } from "@/lib/auth/rbac";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -40,6 +41,22 @@ export default async function EquipePage() {
       .order("created_at");
     members = fb.data as typeof members;
   }
+  // Règles d'accès par page (matrice Utilisateurs & équipes) — résilient si la
+  // migration page_access n'est pas appliquée (aucune règle).
+  let accessRules: Record<string, Record<string, Record<string, boolean>>> = {};
+  try {
+    const { data: rows } = await supabase
+      .from("page_access")
+      .select("page_href, access")
+      .eq("organization_id", orgId);
+    for (const r of rows ?? []) {
+      const row = r as { page_href: string; access: Record<string, Record<string, boolean>> | null };
+      if (row.page_href && row.access) accessRules[row.page_href] = row.access;
+    }
+  } catch {
+    accessRules = {};
+  }
+
   const { data: pending } = await supabase
     .from("invitations")
     .select("id, email, role, expires_at, created_at")
@@ -53,7 +70,7 @@ export default async function EquipePage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Gérez votre équipe : invitations, rôles, pôles, suppressions. Le pôle définit l&apos;espace de travail du membre (Ventes, Marketing, Service client, Paiement) : il ne voit que les sections de son pôle. L&apos;admin garde l&apos;accès à tous les espaces (switcher en haut de la barre latérale).
+          Utilisateurs &amp; équipes : invitations, rôles, pôles, et accès aux pages par équipe. Le pôle définit l&apos;espace de travail du membre (Ventes, Marketing, Service client, Finance) ; la matrice ci-dessous affine, page par page, ce que chaque équipe peut voir, modifier ou créer. L&apos;admin garde l&apos;accès à tous les espaces (switcher en haut de la barre latérale).
         </p>
       </header>
 
@@ -79,6 +96,17 @@ export default async function EquipePage() {
           createdAt: p.created_at as string,
         }))}
       />
+
+      {/* ── Accès par page et par équipe (visualisation / modification / création) ── */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">🔐 Accès aux pages par équipe</h2>
+        <p className="text-sm text-slate-500">
+          Comme «&nbsp;Outil source par page&nbsp;» : choisis, pour chaque page, ce que chaque équipe de l&apos;espace de
+          travail peut faire. La visualisation pilote la navigation ; sans réglage, une page suit l&apos;accès par défaut
+          de l&apos;espace.
+        </p>
+        <PageAccessSettings initialRules={accessRules} />
+      </div>
     </section>
   );
 }

@@ -23,12 +23,7 @@ export default async function ParametresGeneralPage({
   }
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: org }, { data: profiles }] = await Promise.all([
-    supabase.from("organizations").select("*").eq("id", orgId).single(),
-    supabase.from("profiles").select("id, full_name, role, created_at").eq("organization_id", orgId).order("created_at"),
-  ]);
-
-  const team = profiles ?? [];
+  const { data: org } = await supabase.from("organizations").select("*").eq("id", orgId).single();
 
   return (
     <section className="space-y-8">
@@ -167,42 +162,8 @@ export default async function ParametresGeneralPage({
         </form>
       </div>
 
-      {/* Équipe */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Équipe
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{team.length}</span>
-        </h2>
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
-                <th className="px-5 py-2">Nom</th>
-                <th className="px-5 py-2">Rôle</th>
-                <th className="px-5 py-2">Depuis</th>
-              </tr>
-            </thead>
-            <tbody>
-              {team.map((m) => (
-                <tr key={m.id} className="border-b border-card-border last:border-0">
-                  <td className="px-5 py-2.5 font-medium text-slate-800">{m.full_name}</td>
-                  <td className="px-5 py-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.role === "admin" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"}`}>
-                      {m.role}
-                    </span>
-                  </td>
-                  <td className="px-5 py-2.5 text-slate-500">
-                    {m.created_at ? new Date(m.created_at).toLocaleDateString("fr-FR") : "—"}
-                  </td>
-                </tr>
-              ))}
-              {team.length === 0 && (
-                <tr><td colSpan={3} className="px-5 py-4 text-center text-slate-400">Aucun membre.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Le bloc Équipe vit désormais dans Paramètres → Utilisateurs & équipes
+          (gestion complète : invitations, rôles, pôles, accès par page). */}
 
     </section>
   );
