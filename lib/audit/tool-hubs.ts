@@ -54,6 +54,61 @@ export async function countCanonicalForProvider(
 const pct = (filled: number, t: number) => (t > 0 ? Math.round((filled / t) * 100) : 0);
 
 /**
+ * Compte, parmi les enregistrements d'un provider (via source_links), ceux dont
+ * la ligne canonique a `nullColumn` vide — c'est la mesure directe d'un
+ * problème de rapprochement (ex : contact Pennylane sans hubspot_id, facture
+ * sans company_id).
+ */
+async function countUnlinked(
+  supabase: SupabaseClient,
+  orgId: string,
+  provider: string,
+  entityType: string,
+  table: string,
+  nullColumn: string,
+): Promise<{ total: number; unlinked: number; linkedPct: number }> {
+  let total = 0;
+  let unlinked = 0;
+  try {
+    const { data: links } = await supabase
+      .from("source_links")
+      .select("internal_id")
+      .eq("organization_id", orgId)
+      .eq("provider", provider)
+      .eq("entity_type", entityType)
+      .limit(1000);
+    const ids = [...new Set((links ?? []).map((l) => l.internal_id as string))];
+    total = ids.length;
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const { count } = await supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .in("id", chunk)
+        .is(nullColumn, null);
+      unlinked += count ?? 0;
+    }
+  } catch {}
+  return { total, unlinked, linkedPct: total > 0 ? Math.round(((total - unlinked) / total) * 100) : 0 };
+}
+
+// Identifiants de rapprochement côté CRM — mêmes règles que Paramètres →
+// « Règles de résolution d'entités » : sans SIREN/SIRET/TVA dans HubSpot,
+// les factures et paiements ne peuvent pas être rapprochés au CRM.
+const HUBSPOT_MATCH_IDENTIFIERS: Array<{
+  ruleId: string;
+  canonical: string;
+  label: string;
+  defaultEnabled: boolean;
+  defaultField: string;
+}> = [
+  { ruleId: "siren_match", canonical: "siren", label: "SIREN", defaultEnabled: true, defaultField: "siren" },
+  { ruleId: "siret_match", canonical: "siret", label: "SIRET", defaultEnabled: true, defaultField: "siret" },
+  { ruleId: "vat_match", canonical: "vat_number", label: "N° TVA", defaultEnabled: true, defaultField: "vat_number" },
+];
+
+/**
  * Construit les hubs synchronisés. `only` limite au hub d'un seul outil
  * (clé catalogue, ex : "hubspot", "pennylane") — utilisé par les sous-pages.
  */
@@ -107,7 +162,71 @@ export async function buildToolHubs(
       } catch {}
     }
 
-    const hsGaps: ToolHub["gaps"] = [];
+    // ── Problèmes de rapprochement : couverture des identifiants forts ──
+    // Une entreprise HubSpot sans SIREN/SIRET/TVA ne peut être rapprochée à la
+    // facturation que par domaine/nom (faible). On mesure la couverture réelle
+    // des propriétés mappées, pour chaque règle de résolution cochée.
+    const matchGaps: ToolHub["gaps"] = [];
+    if (hubspotToken && companiesTotal > 0) {
+      let savedRules: Array<{ rule_id: string; enabled: boolean }> = [];
+      let fieldMap: Record<string, string> = {};
+      try {
+        const [rulesRes, mappingRes] = await Promise.all([
+          supabase.from("entity_resolution_config").select("rule_id, enabled").eq("organization_id", orgId),
+          supabase.from("identifier_field_mapping").select("canonical_field, provider_field").eq("organization_id", orgId).eq("provider", "hubspot"),
+        ]);
+        savedRules = (rulesRes.data ?? []) as typeof savedRules;
+        fieldMap = Object.fromEntries(
+          ((mappingRes.data ?? []) as Array<{ canonical_field: string; provider_field: string }>).map((m) => [m.canonical_field, m.provider_field]),
+        );
+      } catch {}
+
+      const active = HUBSPOT_MATCH_IDENTIFIERS.filter((def) => {
+        const saved = savedRules.find((r) => r.rule_id === def.ruleId);
+        return saved ? saved.enabled : def.defaultEnabled;
+      });
+
+      await Promise.all(
+        active.map(async (def) => {
+          const propName = (fieldMap[def.canonical] ?? def.defaultField).trim();
+          if (!propName) return;
+          try {
+            const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                filterGroups: [{ filters: [{ propertyName: propName, operator: "HAS_PROPERTY" }] }],
+                limit: 1,
+              }),
+            });
+            if (res.ok) {
+              const d = await res.json();
+              const covPct = pct(d.total ?? 0, companiesTotal);
+              if (covPct < 70) {
+                matchGaps.push({
+                  entity: "Entreprises",
+                  field: `${def.label} renseigné — rapprochement facturation limité`,
+                  pct: covPct,
+                  severity: covPct < 40 ? "critical" : "warning",
+                });
+              }
+            } else if (res.status === 400) {
+              // Propriété inexistante dans le portail : la règle cochée ne peut rien rapprocher.
+              matchGaps.push({
+                entity: "Entreprises",
+                field: `${def.label} : propriété « ${propName} » absente du CRM — créez-la puis vérifiez le mapping`,
+                pct: 0,
+                severity: "critical",
+              });
+            }
+          } catch {}
+        }),
+      );
+      // Ordre stable (Promise.all ne garantit pas l'ordre d'insertion).
+      matchGaps.sort((a, b) => a.field.localeCompare(b.field));
+    }
+
+    const hsGaps: ToolHub["gaps"] = [...matchGaps];
     if (contactsTotal > 0 && phonePct < 50) hsGaps.push({ entity: "Contacts", field: "Téléphone", pct: phonePct, severity: phonePct < 20 ? "critical" : "warning" });
     if (contactsTotal > 0 && companyPct < 70) hsGaps.push({ entity: "Contacts", field: "Entreprise liée", pct: companyPct, severity: companyPct < 40 ? "critical" : "warning" });
     if (contactsTotal > 0 && titlePct < 50) hsGaps.push({ entity: "Contacts", field: "Poste", pct: titlePct, severity: titlePct < 20 ? "critical" : "warning" });
@@ -288,18 +407,51 @@ export async function buildToolHubs(
           return 0; // migration non appliquée → table absente
         }
       };
-      const [clientInv, supplierInv, bankTx, bankAccts, ledgerMonths] = await Promise.all([
+      const [clientInv, supplierInv, bankTx, bankAccts, ledgerMonths, plContacts, plCompanies, plInvoices] = await Promise.all([
         countCanonicalForProvider(supabase, orgId, "pennylane", "invoice"),
         countCanonicalForProvider(supabase, orgId, "pennylane", "supplier_invoice"),
         countBySource("bank_transactions"),
         countBySource("bank_accounts"),
         countBySource("ledger_balances"),
+        // Rapprochement : clients/sociétés Pennylane reliés (ou non) au CRM,
+        // factures clients reliées (ou non) à une entreprise.
+        countUnlinked(supabase, orgId, "pennylane", "contact", "contacts", "hubspot_id"),
+        countUnlinked(supabase, orgId, "pennylane", "company", "companies", "hubspot_id"),
+        countUnlinked(supabase, orgId, "pennylane", "invoice", "invoices", "company_id"),
       ]);
-      if (clientInv > 0) entities.push({ label: "Factures clients", count: clientInv });
+      if (plContacts.total > 0) entities.push({ label: "Clients", count: plContacts.total, enrichmentPct: plContacts.linkedPct, enrichmentLabel: "liés à HubSpot" });
+      if (plCompanies.total > 0) entities.push({ label: "Sociétés", count: plCompanies.total, enrichmentPct: plCompanies.linkedPct, enrichmentLabel: "rapprochées HubSpot" });
+      if (clientInv > 0) entities.push({ label: "Factures clients", count: clientInv, enrichmentPct: plInvoices.total > 0 ? plInvoices.linkedPct : undefined, enrichmentLabel: plInvoices.total > 0 ? "reliées à une entreprise" : undefined });
       if (supplierInv > 0) entities.push({ label: "Factures fournisseurs", count: supplierInv });
       if (bankTx > 0) entities.push({ label: "Transactions bancaires", count: bankTx });
       if (bankAccts > 0) entities.push({ label: "Comptes bancaires", count: bankAccts });
       if (ledgerMonths > 0) entities.push({ label: "Écritures agrégées (compte × mois)", count: ledgerMonths });
+
+      // ── Problèmes de rapprochement (mêmes seuils que le hub Stripe) ──
+      if (plContacts.total > 0 && plContacts.linkedPct < 70) {
+        gaps.push({
+          entity: "Clients",
+          field: `${plContacts.unlinked} sans contact HubSpot`,
+          pct: plContacts.linkedPct,
+          severity: plContacts.linkedPct < 40 ? "critical" : "warning",
+        });
+      }
+      if (plCompanies.total > 0 && plCompanies.linkedPct < 70) {
+        gaps.push({
+          entity: "Sociétés",
+          field: `${plCompanies.unlinked} sans fiche HubSpot — vérifiez SIREN/TVA côté CRM`,
+          pct: plCompanies.linkedPct,
+          severity: plCompanies.linkedPct < 40 ? "critical" : "warning",
+        });
+      }
+      if (plInvoices.total > 0 && plInvoices.linkedPct < 70) {
+        gaps.push({
+          entity: "Factures clients",
+          field: `${plInvoices.unlinked} sans entreprise rapprochée — CA non attribuable par compte`,
+          pct: plInvoices.linkedPct,
+          severity: plInvoices.linkedPct < 40 ? "critical" : "warning",
+        });
+      }
       if (entities.length === 0) {
         gaps.push({ entity: tool.label, field: "Aucune donnée synchronisée — relancez la sync", pct: 0, severity: "critical" });
       }
