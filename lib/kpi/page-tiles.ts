@@ -5,6 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { parseStoredPeriod, computePeriod, presetLabel, storedPeriodLabel } from "@/lib/reports/periods";
+
+/**
+ * agg_spec d'une tuile : la spec d'agrégat + les options d'affichage embarquées
+ * (période choisie au funnel, libellé du pipeline ciblé).
+ */
+type TileAggSpec = AggSpec & { period_preset?: string; pipeline_label?: string };
 
 export type PageTileRow = {
   id: string;
@@ -108,6 +115,8 @@ export type ResolvedAddedTile = {
   /** Évolution vs la référence de la veille (▲ vert / ▼ rouge / stable). */
   sub?: string;
   subTone?: "pos" | "neg" | "neutral";
+  /** Contexte de calcul affiché en tout petit : pipeline ciblé · période. */
+  meta?: string;
 };
 
 /** Delta formaté dans l'unité de la tuile (percent → points). */
@@ -140,9 +149,33 @@ export async function resolveAddedTiles(
   return Promise.all(
     added.map(async (r) => {
       let value: number | null = null;
+      let meta: string | undefined;
       try {
         if (r.forecast_type) value = await resolveKpiValue(supabase, orgId, r.forecast_type);
-        else if (r.agg_spec) value = await valueFromAggSpec(supabase, orgId, token, r.agg_spec);
+        else if (r.agg_spec) {
+          const spec = r.agg_spec as TileAggSpec;
+          // Période choisie au funnel : preset relatif recalculé à CHAQUE affichage
+          // (« ce trimestre » suit le trimestre courant), plage custom figée.
+          let dateFrom: string | null = null;
+          let dateTo: string | null = null;
+          let periodLabel: string | null = null;
+          if (spec.period_preset) {
+            const stored = parseStoredPeriod(spec.period_preset);
+            if (stored.kind === "custom") {
+              dateFrom = stored.from;
+              dateTo = stored.to;
+              periodLabel = storedPeriodLabel(spec.period_preset);
+            } else if (stored.kind !== "description" && stored.preset !== "all") {
+              const p = computePeriod(stored.preset, new Date());
+              dateFrom = p.from;
+              dateTo = p.to;
+              periodLabel = presetLabel(stored.preset);
+            }
+          }
+          value = await valueFromAggSpec(supabase, orgId, token, { ...spec, date_from: dateFrom, date_to: dateTo });
+          const parts = [spec.pipeline_label, periodLabel].filter(Boolean);
+          if (parts.length > 0) meta = parts.join(" · ");
+        }
       } catch {}
 
       let sub: string | undefined;
@@ -180,6 +213,7 @@ export async function resolveAddedTiles(
         rawUnit: r.unit_mode,
         sub,
         subTone,
+        meta,
       };
     }),
   );

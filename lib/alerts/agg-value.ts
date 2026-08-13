@@ -17,6 +17,9 @@ export type AggSpec = {
   pipeline?: string | null;
   /** Outils sources de la table d'origine (ex : ["pennylane"]) — même filtre que son recalcul. */
   sources?: string[] | null;
+  /** Période exacte (tuiles KPI à période figée/preset) — filtre déterministe sur la date de l'entité. */
+  date_from?: string | null;
+  date_to?: string | null;
 };
 
 /**
@@ -39,6 +42,8 @@ export async function valueFromAggSpec(
       measure: spec.measure || "count",
       field: spec.field ?? null,
       pipeline: spec.pipeline ?? null,
+      date_from: spec.date_from ?? null,
+      date_to: spec.date_to ?? null,
     });
     if (res.error) return null;
     const rows = (res.rows as { group: string; value: number }[] | undefined) ?? [];

@@ -34,6 +34,8 @@ export type EditorTile = {
   sub?: string;
   /** Couleur du sous-titre (évolution des tuiles ajoutées : ▲ vert / ▼ rouge). */
   subTone?: "pos" | "neg" | "neutral";
+  /** Contexte de calcul (pipeline ciblé · période) — affiché en tout petit. */
+  meta?: string;
   verdict?: StatTileVerdict;
 };
 
@@ -205,6 +207,7 @@ export function KpiTilesEditor({
               <p className="text-[11px] font-medium text-slate-500">{t.label}</p>
               <p className={`mt-1 text-xl font-bold tabular-nums ${VALUE_TONE[t.tone ?? "neutral"]}`}>{t.value}</p>
               {t.sub && <p className={`mt-0.5 text-[10px] ${SUB_TONE[t.subTone ?? "neutral"]}`}>{t.sub}</p>}
+              {t.meta && <p className="mt-0.5 truncate text-[9px] text-slate-400" title={t.meta}>{t.meta}</p>}
               {t.verdict && (
                 <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${VERDICT_TONE[t.verdict.tone]}`}>
                   {t.verdict.label}

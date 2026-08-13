@@ -240,8 +240,10 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   // Total réel du câblage affiché (toutes périodes) — recalculé à chaque ajustement.
   const [verifTotal, setVerifTotal] = useState<number | null>(null);
   const [verifLoading, setVerifLoading] = useState(false);
-  // Destination du KPI : tuile (bloc classique, 1ʳᵉ ligne de la page) ou
-  // visualisation (table/graphique, section « Tables de données » en dessous).
+  // Destination du KPI : tuile (rejoint la ligne de tuiles en haut de page,
+  // période + pipeline conservés) ou visualisation (table/graphique/bloc,
+  // section « Tables de données » à la suite des blocs).
+  const [asTile, setAsTile] = useState(false);
   // Aperçu optionnel sur données réelles (presets déterministes — les KPIs
   // personnalisés ont déjà leur preuve chiffrée à l'étape Vérification).
   const [previewRows, setPreviewRows] = useState<{ name: string; value: number }[] | null>(null);
@@ -316,6 +318,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setVerifLoading(false);
     setPreviewRows(null);
     setPreviewLoading(false);
+    setAsTile(false);
   }
 
   function toggleSource(key: string) {
@@ -528,6 +531,50 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       return;
     }
 
+    // ── TUILE KPI : créée dans page_tiles → elle rejoint la ligne de tuiles en
+    //    haut de page (« ＋ Ajouter un KPI »). La période choisie (preset relatif
+    //    recalculé en continu, ou plage figée) et le pipeline ciblé sont
+    //    embarqués dans l'agg_spec et rappelés sur la tuile. ──
+    if (asTile && !editingId) {
+      setSaving(true);
+      setError(null);
+      const storedPeriod = periodValue();
+      const tilePeriod = storedPeriod && storedPeriod !== "all" && storedPeriod !== PERIOD_FROM_DESCRIPTION ? storedPeriod : null;
+      const pipelineId = draft.custom && proposal ? proposal.pipeline ?? null : draft.pipeline ?? null;
+      const pipelineLabel = pipelineId
+        ? (pipelineOpts ?? []).find((p) => p.id === pipelineId || p.name === pipelineId)?.name ?? pipelineId
+        : null;
+      const base = draft.custom && proposal
+        ? { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field, pipeline: pipelineId, sources: selected }
+        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, pipeline: pipelineId, sources: selected };
+      const spec = {
+        ...base,
+        ...(tilePeriod ? { period_preset: tilePeriod } : {}),
+        ...(pipelineLabel ? { pipeline_label: pipelineLabel } : {}),
+      };
+      const res = await fetch("/api/page-tiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_key: pageKey,
+          kind: "kpi",
+          title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
+          agg_spec: spec,
+          unit_mode: (draft.custom && proposal ? proposal.unit_mode : draft.unit_mode) ?? "count",
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (res.ok) {
+        setOpen(false);
+        reset();
+        // Les tuiles sont rendues côté serveur (ConfigurableKpiTiles) : refresh.
+        router.refresh();
+      } else {
+        setError(d.error || "Création impossible.");
+      }
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -1207,19 +1254,29 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
-                  {/* Le « Bloc » (chiffre en héros + ventilation) remplace l'ancienne
-                      « Tuile KPI » (doublon) : toutes les visualisations s'ajoutent à
-                      la suite des blocs de la page, dans « Tables de données ». */}
+                  {/* Tuile KPI = chiffre simple, ajoutée À LA SUITE DES TUILES du haut
+                      (là où « ＋ Ajouter un KPI »). Le Bloc, plus riche (chiffre héros
+                      + ventilation), et les autres visualisations s'ajoutent à la
+                      suite des blocs de la page, dans « Tables de données ». */}
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    La visualisation s&apos;ajoute à la suite des blocs de la page.
+                    Tuile KPI = rejoint la ligne de tuiles en haut de page. Les autres visualisations s&apos;ajoutent à la suite des blocs.
                   </p>
                   <div className="mt-1 grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setAsTile(true)}
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
+                        asTile ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="6" width="16" height="12" rx="2" /><path d="M8 11h5M8 14h8" /></svg>
+                      Tuile KPI
+                    </button>
                     {VIEWS.map((v) => (
                       <button
                         key={v.id}
-                        onClick={() => setDraft({ ...draft, view: v.id })}
+                        onClick={() => { setAsTile(false); setDraft({ ...draft, view: v.id }); }}
                         className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
-                          draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                          !asTile && draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
                         }`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={v.icon} /></svg>
@@ -1227,6 +1284,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </button>
                     ))}
                   </div>
+                  {asTile && (
+                    <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                      La tuile garde la période et le pipeline choisis : ils sont rappelés dessus, et un preset
+                      (« ce trimestre »…) suit automatiquement la période courante.
+                    </p>
+                  )}
                 </div>
 
                 {/* Aperçu OPTIONNEL sur données réelles (presets déterministes — les
@@ -1247,9 +1310,18 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </p>
                     )}
                     {previewRows && previewRows.length > 0 && (
-                      <div className="mt-2 rounded-xl border border-slate-100 p-3">
-                        <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
-                      </div>
+                      asTile ? (
+                        <div className="mt-2 w-48 rounded-xl border border-slate-200 bg-white p-4">
+                          <p className="truncate text-[11px] font-medium text-slate-500">{draft.title || "Tuile KPI"}</p>
+                          <p className="mt-1 text-xl font-bold tabular-nums text-indigo-600">
+                            {fmtTotal(previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0), draft.unit_mode)}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 rounded-xl border border-slate-100 p-3">
+                          <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -1284,7 +1356,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       ? `${agentName} analyse…`
                       : saving
                         ? "Création…"
-                        : draft.custom ? `Vérifier via ${agentName}` : "Créer la table"}
+                        : draft.custom && !proposal ? `Vérifier via ${agentName}` : asTile ? "Créer la tuile" : "Créer la table"}
                   </button>
                 </div>
               </div>

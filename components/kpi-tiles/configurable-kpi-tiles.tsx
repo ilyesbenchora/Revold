@@ -82,6 +82,7 @@ export async function ConfigurableKpiTiles({
       tone: "accent",
       sub: a.sub,
       subTone: a.subTone,
+      meta: a.meta,
     })),
   ];
 
