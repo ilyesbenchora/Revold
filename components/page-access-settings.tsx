@@ -29,7 +29,14 @@ const RIGHTS: { id: "view" | "edit" | "create"; label: string; icon: string }[] 
   { id: "create", label: "Création", icon: "＋" },
 ];
 
-type PageRow = { href: string; label: string };
+type PageRow = {
+  href: string;
+  label: string;
+  /** Sous-page : indentée sous son parent, défaut hérité du parent. */
+  indent?: boolean;
+  /** href dont hériter l'accès par défaut (parent de la sous-page). */
+  defaultFrom?: string;
+};
 type Section = { id: string; title: string; pages: PageRow[] };
 
 const SECTIONS: Section[] = [
@@ -39,10 +46,21 @@ const SECTIONS: Section[] = [
     pages: [
       { href: "/dashboard/audit", label: "Mon équipe IA" },
       { href: "/dashboard/performances", label: "Performances" },
+      { href: "/dashboard/performances/commerciale", label: "Ventes", indent: true, defaultFrom: "/dashboard/performances" },
+      { href: "/dashboard/performances/marketing", label: "Marketing", indent: true, defaultFrom: "/dashboard/performances" },
+      { href: "/dashboard/performances/marketing/publicite", label: "Publicité", indent: true, defaultFrom: "/dashboard/performances" },
       { href: "/dashboard/appels", label: "Appels" },
       { href: "/dashboard/process", label: "Alignement" },
       { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
+      { href: "/dashboard/audit/paiement-facturation/facturation", label: "Facturation", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
+      { href: "/dashboard/audit/paiement-facturation/paiement", label: "Paiement", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
+      { href: "/dashboard/audit/paiement-facturation/comptabilite", label: "Comptabilité", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
+      { href: "/dashboard/audit/paiement-facturation/previsionnel", label: "Prévisionnel", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
       { href: "/dashboard/audit/service-client", label: "Service Client" },
+      { href: "/dashboard/audit/service-client/process", label: "Process", indent: true, defaultFrom: "/dashboard/audit/service-client" },
+      { href: "/dashboard/audit/service-client/churn", label: "Churn", indent: true, defaultFrom: "/dashboard/audit/service-client" },
+      { href: "/dashboard/audit/service-client/renouvellement", label: "Renouvellement", indent: true, defaultFrom: "/dashboard/audit/service-client" },
+      { href: "/dashboard/audit/service-client/cross-sell-upsell", label: "Cross-sell / Upsell", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/conduite-changement", label: "Équipes & Adoption" },
       { href: "/dashboard/donnees", label: "Rapprochement données" },
     ],
@@ -88,11 +106,15 @@ const SECTIONS: Section[] = [
 
 type Access = Record<string, Record<string, boolean>>; // équipe → droit → autorisé
 
-/** Accès par défaut d'une page : l'état des espaces de travail (WORKSPACE_NAV). */
-function defaultAccess(sectionId: string, href: string): Access {
+/**
+ * Accès par défaut d'une page : l'état des espaces de travail (WORKSPACE_NAV).
+ * Une sous-page hérite du défaut de sa page parente (defaultFrom).
+ */
+function defaultAccess(sectionId: string, row: PageRow): Access {
+  const ref = row.defaultFrom ?? row.href;
   const out: Access = {};
   for (const t of TEAMS) {
-    const visible = isChildVisible(t.id, sectionId, href);
+    const visible = isChildVisible(t.id, sectionId, ref);
     out[t.id] = { view: visible, edit: visible, create: visible };
   }
   return out;
@@ -104,9 +126,9 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function accessFor(sectionId: string, href: string): Access {
-    const saved = rules[href];
-    const def = defaultAccess(sectionId, href);
+  function accessFor(sectionId: string, row: PageRow): Access {
+    const saved = rules[row.href];
+    const def = defaultAccess(sectionId, row);
     if (!saved) return def;
     // Fusion : les droits non enregistrés retombent sur le défaut.
     const out: Access = {};
@@ -116,8 +138,9 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
     return out;
   }
 
-  function toggle(sectionId: string, href: string, team: string, right: "view" | "edit" | "create") {
-    const cur = accessFor(sectionId, href);
+  function toggle(sectionId: string, row: PageRow, team: string, right: "view" | "edit" | "create") {
+    const href = row.href;
+    const cur = accessFor(sectionId, row);
     const next: Access = JSON.parse(JSON.stringify(cur));
     const on = !next[team][right];
     next[team][right] = on;
@@ -183,11 +206,14 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
               </thead>
               <tbody>
                 {section.pages.map((p) => {
-                  const access = accessFor(section.id, p.href);
+                  const access = accessFor(section.id, p);
                   const pending = pendingHref === p.href;
                   return (
                     <tr key={p.href} className="border-b border-slate-50 last:border-0">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{p.label}</td>
+                      <td className={`px-4 py-2.5 font-medium ${p.indent ? "pl-8 text-slate-500" : "text-slate-700"}`}>
+                        {p.indent && <span className="mr-1 text-slate-300" aria-hidden>↳</span>}
+                        {p.label}
+                      </td>
                       {TEAMS.map((t) => (
                         <td key={t.id} className="px-3 py-2.5">
                           <div className="flex items-center justify-center gap-1">
@@ -200,7 +226,7 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
                                   disabled={pending}
                                   title={`${r.label} — ${t.label} ${on ? "(autorisé)" : "(refusé)"}`}
                                   aria-pressed={on}
-                                  onClick={() => toggle(section.id, p.href, t.id, r.id)}
+                                  onClick={() => toggle(section.id, p, t.id, r.id)}
                                   className={`flex h-6 w-6 items-center justify-center rounded-md border text-[11px] transition disabled:opacity-50 ${
                                     on
                                       ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"

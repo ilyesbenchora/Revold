@@ -45,6 +45,14 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  // Feedback visuel des changements de rôle/pôle : « … » pendant l'appel,
+  // « ✓ Enregistré » quelques secondes après (clé = `${champ}-${membre}`).
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  function flashSaved(key: string) {
+    setSavedKey(key);
+    setTimeout(() => setSavedKey((k) => (k === key ? null : k)), 2500);
+  }
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();
@@ -76,32 +84,44 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
   async function changeRole(memberId: string, newRole: string) {
     if (!confirm(`Changer le rôle pour "${newRole}" ?`)) return;
     setError(null);
-    const res = await fetch(`/api/team/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: newRole }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Erreur changement de rôle.");
-      return;
+    setSavingKey(`role-${memberId}`);
+    try {
+      const res = await fetch(`/api/team/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Erreur changement de rôle.");
+        return;
+      }
+      flashSaved(`role-${memberId}`);
+      router.refresh();
+    } finally {
+      setSavingKey(null);
     }
-    router.refresh();
   }
 
   async function changePole(memberId: string, newPole: string) {
     setError(null);
-    const res = await fetch(`/api/team/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pole: newPole || null }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Erreur changement de pôle.");
-      return;
+    setSavingKey(`pole-${memberId}`);
+    try {
+      const res = await fetch(`/api/team/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pole: newPole || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Erreur changement de pôle.");
+        return;
+      }
+      flashSaved(`pole-${memberId}`);
+      router.refresh();
+    } finally {
+      setSavingKey(null);
     }
-    router.refresh();
   }
 
   async function removeMember(memberId: string, name: string) {
@@ -136,12 +156,14 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@exemple.fr"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none"
               />
+              {/* bg-white explicite : le thème sombre le remappe → le champ se
+                  fond au fond au lieu de rester blanc. */}
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none"
               >
                 {ROLE_OPTIONS.filter((o) => isAdmin || o.value === "rep").map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -205,31 +227,45 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
                   </td>
                   <td className="px-3 py-3">
                     {isAdmin && !isMe ? (
-                      <select
-                        defaultValue={m.role}
-                        onChange={(e) => changeRole(m.id, e.target.value)}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                      >
-                        {ROLE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                      <span className="inline-flex items-center gap-1.5">
+                        <select
+                          defaultValue={m.role}
+                          disabled={savingKey === `role-${m.id}`}
+                          onChange={(e) => changeRole(m.id, e.target.value)}
+                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs disabled:opacity-60"
+                        >
+                          {ROLE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                        {savingKey === `role-${m.id}` && <span className="text-[11px] text-slate-400">…</span>}
+                        {savedKey === `role-${m.id}` && (
+                          <span className="text-[11px] font-semibold text-emerald-600">✓ Enregistré</span>
+                        )}
+                      </span>
                     ) : (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{m.roleLabel}</span>
                     )}
                   </td>
                   <td className="px-3 py-3">
                     {isAdmin ? (
-                      <select
-                        defaultValue={m.pole ?? ""}
-                        onChange={(e) => changePole(m.id, e.target.value)}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                      >
-                        <option value="">Global (tout)</option>
-                        {POLE_OPTIONS.map((p) => (
-                          <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
-                        ))}
-                      </select>
+                      <span className="inline-flex items-center gap-1.5">
+                        <select
+                          defaultValue={m.pole ?? ""}
+                          disabled={savingKey === `pole-${m.id}`}
+                          onChange={(e) => changePole(m.id, e.target.value)}
+                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs disabled:opacity-60"
+                        >
+                          <option value="">Global (tout)</option>
+                          {POLE_OPTIONS.map((p) => (
+                            <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                          ))}
+                        </select>
+                        {savingKey === `pole-${m.id}` && <span className="text-[11px] text-slate-400">…</span>}
+                        {savedKey === `pole-${m.id}` && (
+                          <span className="text-[11px] font-semibold text-emerald-600">✓ Enregistré</span>
+                        )}
+                      </span>
                     ) : (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                         {POLE_OPTIONS.find((p) => p.id === m.pole)?.label ?? "Global"}
