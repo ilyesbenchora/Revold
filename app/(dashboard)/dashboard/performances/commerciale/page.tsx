@@ -20,7 +20,7 @@ import { computePipelineAnalyticsFromLocal } from "@/lib/sync/compute-pipeline-a
 import { computeDealsSeries } from "@/lib/audit/deals-series";
 import { TresoLineChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { HBarChart } from "@/components/charts/hbar-chart";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
@@ -205,6 +205,8 @@ export default async function PerformanceCommercialePage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="perf_ventes" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" />
 
       <CreateAlertModal hideTrigger />
     </section>

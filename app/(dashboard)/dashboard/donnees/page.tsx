@@ -8,7 +8,7 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { BrandLogo } from "@/components/brand-logo";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { ToolAuditCard } from "@/components/tool-audit-card";
 import { RecommendationCard } from "@/components/recommendation-card";
 import { loadToolAudits, buildOnboardingRecommendations } from "@/lib/audit/onboarding-audit";
@@ -324,6 +324,8 @@ export default async function DonneesPage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="audit_donnees" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_donnees" />
 
     </div>
   );

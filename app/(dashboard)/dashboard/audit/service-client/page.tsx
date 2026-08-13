@@ -12,7 +12,7 @@ import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { SimpleBarsChart } from "@/components/charts/treso-charts";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -263,6 +263,8 @@ export default async function ServiceClientOverviewPage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="audit_service_client" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_service_client" />
     </section>
   );
 }

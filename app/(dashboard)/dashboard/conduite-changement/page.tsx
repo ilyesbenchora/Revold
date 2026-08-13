@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { fetchOwnersFromCache } from "./context";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
@@ -110,6 +110,8 @@ export default async function AdoptionOverviewPage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="audit_adoption" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_adoption" />
     </div>
   );
 }

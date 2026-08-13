@@ -21,7 +21,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { computeReconciledMetric, type ReconResult } from "@/lib/reconciliation/engine";
 import {
@@ -297,6 +297,8 @@ export default async function AlignementPage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="audit_automatisations" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_automatisations" />
     </section>
   );
 }

@@ -10,7 +10,7 @@ import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-bloc
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { PageSourcesGate } from "@/components/page-sources-gate";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -229,6 +229,8 @@ export default async function PerformanceMarketingPage() {
       </PageSourcesGate>
 
       <PageDataTables pageKey="perf_marketing" />
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" />
 
       <CreateAlertModal hideTrigger />
     </section>
