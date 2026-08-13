@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { WORKSPACE_COOKIE, type WorkspaceId } from "@/lib/workspaces";
 
 const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/performances/commerciale", label: "Ventes" },
@@ -10,12 +12,38 @@ const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/performances/marketing/publicite", label: "Publicité" },
 ];
 
+/**
+ * Onglets filtrés par ESPACE DE TRAVAIL (même source que la sidebar : cookie
+ * puis localStorage) : l'espace Ventes ne voit que l'onglet Ventes ;
+ * Marketing voit Marketing + Publicité (qui lui appartiennent) ; l'espace
+ * global voit tout.
+ */
+function visibleTabs(ws: WorkspaceId) {
+  if (ws === "sales") return tabs.filter((t) => t.href === "/dashboard/performances/commerciale");
+  if (ws === "marketing") return tabs.filter((t) => t.href !== "/dashboard/performances/commerciale");
+  return tabs;
+}
+
 export function PerformancesTabs() {
   const pathname = usePathname();
+  const [ws, setWs] = useState<WorkspaceId>("all");
+  useEffect(() => {
+    try {
+      const fromCookie = document.cookie.match(new RegExp(`(?:^|; )${WORKSPACE_COOKIE}=([^;]*)`))?.[1] as
+        | WorkspaceId
+        | undefined;
+      const saved = fromCookie ?? (localStorage.getItem("revold:workspace") as WorkspaceId | null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved) setWs(saved);
+    } catch {
+      /* cookie/stockage indisponible → tous les onglets */
+    }
+  }, []);
+
   return (
     <div className="border-b border-card-border">
       <div className="flex gap-1">
-        {tabs.map((t) => {
+        {visibleTabs(ws).map((t) => {
           // « Marketing » ne doit pas rester actif sur sa sous-page Publicité.
           const isActive =
             t.href === "/dashboard/performances/marketing"

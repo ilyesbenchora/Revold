@@ -65,7 +65,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   // le hub des agents experts de la section Données) et le coach data — la
   // qualité des données concerne chaque pôle.
   sales: {
-    audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels"],
+    audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
@@ -88,7 +88,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
     alertes: "all",
   },
   finance: {
-    audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation"],
+    audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model", "/dashboard/insights-ia/calendrier"],
     previsions: "all",
     dashboard: "all",
