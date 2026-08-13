@@ -5,7 +5,7 @@ import { ReportChart } from "@/components/agents/agent-report";
 import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
 import { TableAlertButton } from "./table-alert-button";
 import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel } from "@/lib/reports/periods";
-import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
+import { entityLabel, dimLabel, ENTITY_DIMS } from "@/lib/reports/data-table-presets";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { BrandLogo } from "@/components/brand-logo";
@@ -72,9 +72,17 @@ export function DataTableCard({
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(table.title);
   const [showTotal, setShowTotal] = useState(Boolean(table.show_total));
-  // Fréquence d'affichage des regroupements temporels — persistée sur la table.
+  // Fréquence d'affichage — persistée sur la table, disponible sur TOUTES les
+  // tables : sur un regroupement temporel elle règle la granularité de l'axe ;
+  // sur un regroupement non temporel (étape, statut…), choisir une fréquence
+  // bascule l'axe sur la date par défaut de l'entité (« Aucune » = regroupement
+  // d'origine).
   const isTimeDim = table.group_by.startsWith("month_");
-  const [granularity, setGranularity] = useState(table.granularity ?? "month");
+  const fallbackTimeDim = (ENTITY_DIMS[table.entity] ?? []).find((d) => d.id.startsWith("month_"))?.id ?? null;
+  const canGranularity = isTimeDim || fallbackTimeDim !== null;
+  const [granularity, setGranularity] = useState(table.granularity ?? (isTimeDim ? "month" : ""));
+  // Regroupement effectivement affiché (axe temporel de repli si fréquence active).
+  const effectiveGroupBy = isTimeDim ? table.group_by : granularity && fallbackTimeDim ? fallbackTimeDim : table.group_by;
 
   // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
   async function toggleShowTotal() {
@@ -102,17 +110,21 @@ export function DataTableCard({
         setRows(Array.isArray(d.data) ? d.data : []);
         return;
       }
+      // Fréquence active sur une table non temporelle → l'axe passe sur la
+      // dimension de date par défaut de l'entité, à la granularité choisie.
+      const gr = g ?? granularity;
+      const groupBy = isTimeDim ? table.group_by : gr && fallbackTimeDim ? fallbackTimeDim : table.group_by;
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: {
             entity: table.entity,
-            groupBy: table.group_by,
+            groupBy,
             measure: table.measure,
             field: table.field,
             pipeline: table.pipeline ?? null,
-            granularity: g ?? granularity,
+            granularity: gr || null,
           },
           sources: table.sources ?? [],
           all: !p,
@@ -130,16 +142,17 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, isTimeDim, fallbackTimeDim, JSON.stringify(table.sources ?? [])]);
 
   // Changement de fréquence : recalcul immédiat + persistance (sans agent).
+  // « Aucune » (tables non temporelles) est persisté en null.
   async function applyGranularity(g: string) {
     setGranularity(g);
     load(period, g);
     const res = await fetch(`/api/page-tables/${table.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ granularity: g }),
+      body: JSON.stringify({ granularity: g || null }),
     });
     const d = await res.json().catch(() => ({}));
     if (res.ok && d.table) onUpdated(d.table);
@@ -231,7 +244,7 @@ export function DataTableCard({
             </div>
           )}
           <p className="mt-0.5 text-[11px] text-slate-400">
-            {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
+            {entityLabel(table.entity)} · {dimLabel(table.entity, effectiveGroupBy)}
             {table.pipeline && <> · pipeline {table.pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
@@ -281,9 +294,10 @@ export function DataTableCard({
             loading={loading}
             activeLabel={period?.label ?? "Toutes périodes"}
           />
-          {/* Fréquence d'affichage (regroupements temporels) : l'axe passe du
-              mois au jour / semaine / trimestre / semestre / année. */}
-          {isTimeDim && (
+          {/* Fréquence d'affichage — sur TOUTES les tables : granularité de
+              l'axe temporel, ou bascule temporelle d'un regroupement non
+              temporel (« Aucune » = regroupement d'origine). */}
+          {canGranularity && (
             <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
               Fréquence
               <select
@@ -292,6 +306,7 @@ export function DataTableCard({
                 onChange={(e) => applyGranularity(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
               >
+                {!isTimeDim && <option value="">Aucune ({dimLabel(table.entity, table.group_by)})</option>}
                 {GRANULARITY_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
@@ -324,7 +339,7 @@ export function DataTableCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2 font-medium">{dimLabel(table.entity, table.group_by)}</th>
+                  <th className="px-3 py-2 font-medium">{dimLabel(table.entity, effectiveGroupBy)}</th>
                   <th className="px-3 py-2 text-right font-medium">Valeur</th>
                 </tr>
               </thead>
