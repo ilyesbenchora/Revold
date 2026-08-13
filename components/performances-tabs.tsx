@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/performances/commerciale", label: "Ventes" },
   { href: "/dashboard/performances/marketing", label: "Marketing" },
+  // Sous-page Publicité (Ads) : préparée, s'active avec un outil publicitaire.
+  { href: "/dashboard/performances/marketing/publicite", label: "Publicité" },
 ];
 
 export function PerformancesTabs() {
@@ -14,7 +16,11 @@ export function PerformancesTabs() {
     <div className="border-b border-card-border">
       <div className="flex gap-1">
         {tabs.map((t) => {
-          const isActive = pathname === t.href || pathname.startsWith(t.href);
+          // « Marketing » ne doit pas rester actif sur sa sous-page Publicité.
+          const isActive =
+            t.href === "/dashboard/performances/marketing"
+              ? pathname.startsWith(t.href) && !pathname.startsWith("/dashboard/performances/marketing/publicite")
+              : pathname === t.href || pathname.startsWith(t.href);
           return (
             <Link
               key={t.href}

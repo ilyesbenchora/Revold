@@ -31,6 +31,8 @@ const SECTIONS: Section[] = [
       { key: "audit_automatisations", label: "Alignement", description: "Relais entre services : lifecycle, MQL → deal, deal → facture", mode: "multi" },
       { key: "audit_perf_ventes", label: "Performances — Ventes", description: "Pipeline, deals, closing, forecast", mode: "multi" },
       { key: "audit_perf_marketing", label: "Performances — Marketing", description: "Funnel d'acquisition, formulaires, campagnes", mode: "multi" },
+      { key: "audit_perf_ads", label: "Performances — Publicité", description: "Ads : dépenses, CPC/CPL, ROAS, conversions par campagne", mode: "multi", parentKey: "audit_perf_marketing" },
+      { key: "audit_appels", label: "Appels", description: "Phoning : volume, durée moyenne, taux de décroché", mode: "multi" },
       { key: "audit_paiement_facturation", label: "Trésorerie", description: "Invoices, subscriptions, quotes", mode: "multi" },
       { key: "audit_paiement_facturation_facturation", label: "Facturation", description: "Émission, relances, délais de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_paiement", label: "Paiement", description: "Encaissements, impayés, moyens de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
