@@ -190,7 +190,7 @@ export default async function DonneesPage() {
   // ── Audit onboarding (ex-onglet dédié, désormais dans la vue d'ensemble) :
   //    ce que Revold a détecté outil par outil + plan d'action IA. ──
   const auditTools = connectedTools.filter((t) => CONNECTABLE_TOOLS[t.key]?.category !== "communication");
-  const toolAudits = auditTools.length > 0 ? await loadToolAudits(supabase, orgId, auditTools) : [];
+  const toolAudits = auditTools.length > 0 ? await loadToolAudits(supabase, orgId, auditTools, hubspotToken) : [];
   const onboardingRecos = buildOnboardingRecommendations(toolAudits);
 
   const summaries: Array<{

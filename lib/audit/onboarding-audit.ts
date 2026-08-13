@@ -15,8 +15,9 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Recommendation, ActionStep } from "@/lib/audit/recommendations-library";
-import type { ConnectorAuditReport } from "@/lib/integrations/sync/field-mapping";
+import type { ConnectorAuditReport, IdentifierCoverage } from "@/lib/integrations/sync/field-mapping";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import type { ConnectedToolOption } from "@/lib/integrations/tool-mappings";
 
 export type ToolAuditData = {
@@ -57,11 +58,122 @@ export const IDENTIFIER_LABELS: Record<string, string> = {
 
 const ENTITY_TYPES = ["contact", "company", "deal", "invoice", "supplier_invoice", "subscription", "payment", "ticket"];
 
+/** Objet HubSpot porteur de chaque identifiant canonique (couverture live). */
+const HUBSPOT_IDENTIFIER_OBJECT: Record<string, "companies" | "contacts"> = {
+  company_name: "companies",
+  domain: "companies",
+  siren: "companies",
+  siret: "companies",
+  vat_number: "companies",
+  email: "contacts",
+};
+
+/** Compte HubSpot les enregistrements dont une propriété est renseignée. */
+async function hubspotHasPropertyCount(
+  token: string,
+  objectType: "companies" | "contacts",
+  property: string,
+): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filterGroups: [{ filters: [{ propertyName: property, operator: "HAS_PROPERTY" }] }],
+        limit: 1,
+      }),
+    });
+    if (!res.ok) return null; // 400 = propriété inexistante dans le portail
+    const d = await res.json();
+    return typeof d.total === "number" ? d.total : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Rapport synthétique HubSpot : son ETL dédié ne passe pas par le framework des
+ * connecteurs (pas de connector_audits) — on reconstruit les mêmes sections que
+ * Stripe/Pennylane : couverture des identifiants mesurée EN LIVE sur le portail
+ * (HAS_PROPERTY, mapping de Paramètres → Modèle de données respecté) et
+ * méthodes de rapprochement depuis source_links.
+ */
+async function buildHubSpotSyntheticReport(
+  supabase: SupabaseClient,
+  orgId: string,
+  token: string,
+  entityCounts: Record<string, number>,
+): Promise<ConnectorAuditReport | null> {
+  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter((d) => d.canonicalField !== "external_id");
+  if (defs.length === 0) return null;
+
+  // Overrides du mapping des identifiants (Paramètres → Modèle de données).
+  let overrides: Record<string, string> = {};
+  try {
+    const { data } = await supabase
+      .from("identifier_field_mapping")
+      .select("canonical_field, provider_field")
+      .eq("organization_id", orgId)
+      .eq("provider", "hubspot");
+    overrides = Object.fromEntries(
+      ((data ?? []) as Array<{ canonical_field: string; provider_field: string }>).map((m) => [m.canonical_field, m.provider_field]),
+    );
+  } catch {}
+
+  const identifier_coverage: IdentifierCoverage = {};
+  await Promise.all(
+    defs.map(async (def) => {
+      const objectType = HUBSPOT_IDENTIFIER_OBJECT[def.canonicalField] ?? "companies";
+      const total = objectType === "companies" ? (entityCounts.company ?? 0) : (entityCounts.contact ?? 0);
+      if (total === 0) return;
+      const property = (overrides[def.canonicalField] ?? def.defaultProviderField).trim();
+      if (!property) return;
+      const present = await hubspotHasPropertyCount(token, objectType, property);
+      identifier_coverage[def.canonicalField] = {
+        present: present ?? 0,
+        total,
+        path: property,
+        native: def.native,
+        overridden: def.canonicalField in overrides,
+      };
+    }),
+  );
+  if (Object.keys(identifier_coverage).length === 0) return null;
+
+  // Méthodes de rapprochement réellement enregistrées pour HubSpot (source_links).
+  const contact_match: Record<string, number> = {};
+  const company_match: Record<string, number> = {};
+  try {
+    const { data } = await supabase
+      .from("source_links")
+      .select("entity_type, match_method")
+      .eq("organization_id", orgId)
+      .eq("provider", "hubspot")
+      .limit(5000);
+    for (const row of (data ?? []) as Array<{ entity_type: string; match_method: string | null }>) {
+      if (!row.match_method) continue;
+      const bucket = row.entity_type === "company" ? company_match : row.entity_type === "contact" ? contact_match : null;
+      if (bucket) bucket[row.match_method] = (bucket[row.match_method] ?? 0) + 1;
+    }
+  } catch {}
+
+  return {
+    ran_at: new Date().toISOString(),
+    totals: entityCounts,
+    contact_match,
+    company_match,
+    unmatched: {},
+    identifier_coverage,
+  };
+}
+
 /** Charge le view-model d'audit pour chaque outil connecté. */
 export async function loadToolAudits(
   supabase: SupabaseClient,
   orgId: string,
   connected: ConnectedToolOption[],
+  /** Token HubSpot — permet la couverture live des identifiants du CRM. */
+  hubspotToken?: string | null,
 ): Promise<ToolAuditData[]> {
   // Mappings de pages : combien de pages chaque outil alimente-t-il ?
   const { data: mappingRows } = await supabase
@@ -134,7 +246,35 @@ export async function loadToolAudits(
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const syncAt = (lastLog?.completed_at ?? lastLog?.started_at) as string | null | undefined;
+    let syncAt = (lastLog?.completed_at ?? lastLog?.started_at) as string | null | undefined;
+    let syncStatus = (lastLog?.status as string) ?? "completed";
+    let syncError = (lastLog?.error_message as string | null) ?? null;
+
+    // HubSpot sans aucun sync_log (sync initiale hors framework) : si le miroir
+    // contient des données, la sync a forcément eu lieu — on date via l'intégration.
+    if (!syncAt && tool.key === "hubspot" && Object.values(entityCounts).some((n) => n > 0)) {
+      try {
+        const { data: integ } = await supabase
+          .from("integrations")
+          .select("updated_at")
+          .eq("organization_id", orgId)
+          .eq("provider", "hubspot")
+          .eq("is_active", true)
+          .maybeSingle();
+        if (integ?.updated_at) {
+          syncAt = integ.updated_at as string;
+          syncStatus = "completed";
+          syncError = null;
+        }
+      } catch {}
+    }
+
+    // Rapport : celui du connecteur, sinon rapport synthétique HubSpot
+    // (couverture live des identifiants — mêmes sections que Stripe/Pennylane).
+    let report = reportByProvider.get(tool.key) ?? null;
+    if (!report && tool.key === "hubspot" && hubspotToken) {
+      report = await buildHubSpotSyntheticReport(supabase, orgId, hubspotToken, entityCounts);
+    }
 
     out.push({
       key: tool.key,
@@ -143,12 +283,12 @@ export async function loadToolAudits(
       icon: tool.icon,
       category: tool.category,
       entityCounts,
-      report: reportByProvider.get(tool.key) ?? null,
+      report,
       lastSync: syncAt
         ? {
             at: syncAt,
-            status: (lastLog?.status as string) ?? "completed",
-            error: (lastLog?.error_message as string | null) ?? null,
+            status: syncStatus,
+            error: syncError,
           }
         : null,
       mappedPages: pagesPerTool.get(tool.key) ?? 0,
