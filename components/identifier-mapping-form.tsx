@@ -22,8 +22,20 @@ type ProviderRow = {
 
 type SavedMapping = { provider: string; canonical_field: string; provider_field: string };
 
-/** true = propriété présente dans HubSpot · false = absente · null/undefined = invérifiable. */
-export type HubSpotPropertyStatus = Record<string, boolean | null>;
+/** État de vérification d'une propriété custom HubSpot du mapping. */
+export type HubSpotPropertyState = {
+  /** true = présente dans HubSpot · false = absente · null = invérifiable. */
+  exists: boolean | null;
+  /** Libellé réel de la propriété quand elle a été trouvée. */
+  label: string | null;
+  /** Nom interne retrouvé via le libellé quand le nom saisi n'existait pas. */
+  suggestedName: string | null;
+};
+
+/** Statut par identifiant canonique (clé = canonicalField). */
+export type HubSpotPropertyStatus = Record<string, HubSpotPropertyState | undefined>;
+
+const UNVERIFIED: HubSpotPropertyState = { exists: null, label: null, suggestedName: null };
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
@@ -63,6 +75,15 @@ export function IdentifierMappingForm({
     }
     return map;
   });
+  // Libellés HubSpot (champ d'aide) — pré-remplis avec le libellé réel quand la
+  // vérification serveur a trouvé la propriété.
+  const [labels, setLabels] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const [field, st] of Object.entries(hubspotPropertyStatus)) {
+      if (st?.label) map[field] = st.label;
+    }
+    return map;
+  });
   const [disabled, setDisabled] = useState<Set<string>>(() => new Set(disabledProviders));
   const [hsStatus, setHsStatus] = useState<HubSpotPropertyStatus>(hubspotPropertyStatus);
   const [checking, setChecking] = useState(false);
@@ -74,40 +95,73 @@ export function IdentifierMappingForm({
   function update(provider: string, canonicalField: string, value: string) {
     setValues((prev) => ({ ...prev, [`${provider}__${canonicalField}`]: value }));
     // La valeur a changé : le statut vérifié ne vaut plus pour ce champ.
-    if (provider === "hubspot") setHsStatus((prev) => ({ ...prev, [canonicalField]: null }));
+    if (provider === "hubspot") setHsStatus((prev) => ({ ...prev, [canonicalField]: UNVERIFIED }));
     setSaved(false);
   }
 
-  /** Vérifie dans HubSpot les propriétés custom actuellement saisies. */
-  async function verifyHubSpotProperties(): Promise<HubSpotPropertyStatus | null> {
+  function updateLabel(canonicalField: string, value: string) {
+    setLabels((prev) => ({ ...prev, [canonicalField]: value }));
+    setHsStatus((prev) => ({ ...prev, [canonicalField]: UNVERIFIED }));
+    setSaved(false);
+  }
+
+  /**
+   * Vérifie dans HubSpot les propriétés custom saisies (par nom interne, puis
+   * par libellé). Quand le nom interne est faux mais que le libellé correspond
+   * à une propriété existante, le nom interne trouvé est appliqué automatiquement.
+   * Retourne le statut + les noms corrigés (clé = canonicalField), ou null si
+   * la vérification a échoué (réseau…).
+   */
+  async function verifyHubSpotProperties(): Promise<{ status: HubSpotPropertyStatus; corrected: Record<string, string> } | null> {
     const hubspotRow = rows.find((r) => r.provider === "hubspot");
-    if (!hubspotRow) return {};
+    if (!hubspotRow) return { status: {}, corrected: {} };
     const checks = hubspotRow.identifiers
       .filter((id) => !id.native && id.canonicalField !== "external_id")
       .map((id) => ({
         canonicalField: id.canonicalField,
         objectType: CANONICAL_TO_OBJECT[id.canonicalField] ?? "companies",
         name: (values[`hubspot__${id.canonicalField}`] ?? "").trim(),
+        label: (labels[id.canonicalField] ?? "").trim(),
       }))
-      .filter((c) => c.name);
-    if (checks.length === 0) return {};
+      .filter((c) => c.name || c.label);
+    if (checks.length === 0) return { status: {}, corrected: {} };
     setChecking(true);
     try {
       const res = await fetch("/api/settings/hubspot-properties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checks: checks.map(({ objectType, name }) => ({ objectType, name })) }),
+        body: JSON.stringify({ checks: checks.map(({ objectType, name, label }) => ({ objectType, name, label })) }),
       });
       if (!res.ok) return null;
       const d = await res.json();
-      const results = (d.results ?? []) as Array<{ name: string; exists: boolean | null }>;
-      const next: HubSpotPropertyStatus = {};
-      for (const c of checks) {
-        const r = results.find((x) => x.name === c.name);
-        next[c.canonicalField] = r?.exists ?? null;
-      }
-      setHsStatus((prev) => ({ ...prev, ...next }));
-      return next;
+      const results = (d.results ?? []) as Array<{ exists: boolean | null; label: string | null; suggestedName: string | null }>;
+      const status: HubSpotPropertyStatus = {};
+      const corrected: Record<string, string> = {};
+      const nextLabels: Record<string, string> = {};
+      // Les résultats sont renvoyés dans le même ordre que les checks.
+      checks.forEach((c, i) => {
+        const r = results[i];
+        if (!r) {
+          status[c.canonicalField] = UNVERIFIED;
+          return;
+        }
+        if (r.exists === false && r.suggestedName) {
+          // Propriété retrouvée via son libellé → on applique son nom interne.
+          corrected[c.canonicalField] = r.suggestedName;
+          status[c.canonicalField] = { exists: true, label: r.label, suggestedName: r.suggestedName };
+        } else {
+          status[c.canonicalField] = { exists: r.exists, label: r.label, suggestedName: null };
+        }
+        if (r.label) nextLabels[c.canonicalField] = r.label;
+      });
+      setValues((prev) => {
+        const next = { ...prev };
+        for (const [field, name] of Object.entries(corrected)) next[`hubspot__${field}`] = name;
+        return next;
+      });
+      setLabels((prev) => ({ ...prev, ...nextLabels }));
+      setHsStatus((prev) => ({ ...prev, ...status }));
+      return { status, corrected };
     } catch {
       return null;
     } finally {
@@ -150,16 +204,18 @@ export function IdentifierMappingForm({
     const verified = await verifyHubSpotProperties();
     if (verified) {
       const hubspotRow = rows.find((r) => r.provider === "hubspot");
-      const missing = Object.entries(verified)
-        .filter(([, exists]) => exists === false)
+      const missing = Object.entries(verified.status)
+        .filter(([, st]) => st?.exists === false)
         .map(([field]) => {
           const def = hubspotRow?.identifiers.find((i) => i.canonicalField === field);
-          return `« ${values[`hubspot__${field}`]} » (${def?.label ?? field})`;
+          const typed = (values[`hubspot__${field}`] ?? "").trim() || (labels[field] ?? "").trim();
+          return `« ${typed} » (${def?.label ?? field})`;
         });
       if (missing.length > 0) {
         setError(
           `Propriété${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} dans HubSpot : ${missing.join(", ")}. ` +
-          "Créez-la d'abord dans HubSpot (Paramètres → Propriétés → Entreprises), puis saisissez son nom exact ici et réenregistrez.",
+          "Créez-la d'abord dans HubSpot (Paramètres → Propriétés → Entreprises), puis saisissez son nom interne exact " +
+          "(ou son libellé : Revold retrouvera le nom interne) et réenregistrez.",
         );
         setSaving(false);
         return;
@@ -167,12 +223,15 @@ export function IdentifierMappingForm({
     }
 
     // 2. Enregistrement du mapping (champs non natifs uniquement, outils actifs uniquement).
+    //    Les noms internes corrigés par la vérification (retrouvés via le libellé)
+    //    priment sur l'état local, qui peut ne pas avoir encore re-rendu.
     const mappings: SavedMapping[] = [];
     for (const row of rows) {
       if (disabled.has(row.provider)) continue;
       for (const id of row.identifiers) {
         if (id.native || id.canonicalField === "external_id") continue;
-        const val = values[`${row.provider}__${id.canonicalField}`];
+        const correctedName = row.provider === "hubspot" ? verified?.corrected[id.canonicalField] : undefined;
+        const val = correctedName ?? values[`${row.provider}__${id.canonicalField}`];
         if (val) mappings.push({ provider: row.provider, canonical_field: id.canonicalField, provider_field: val });
       }
     }
@@ -235,7 +294,8 @@ export function IdentifierMappingForm({
               <>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {row.identifiers.filter((id) => id.canonicalField !== "external_id").map((id) => {
-                    const status = isHubSpot && !id.native ? hsStatus[id.canonicalField] : undefined;
+                    const isHsCustom = isHubSpot && !id.native;
+                    const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
                     return (
                       <div key={id.canonicalField}>
                         <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
@@ -245,26 +305,60 @@ export function IdentifierMappingForm({
                           ) : (
                             <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">CUSTOM</span>
                           )}
-                          {status === true && (
+                          {status?.exists === true && (
                             <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM</span>
                           )}
-                          {status === false && (
+                          {status?.exists === false && (
                             <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
                           )}
                         </label>
-                        <input
-                          type="text"
-                          value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
-                          onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                          className={`${inputClass} mt-1 ${status === false ? "border-rose-300" : ""}`}
-                          readOnly={id.native}
-                        />
-                        <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
-                        {status === false && (
+                        {isHsCustom ? (
+                          // Propriété custom HubSpot : libellé (celui affiché dans HubSpot)
+                          // et nom interne (celui utilisé par l'API) sont deux choses
+                          // distinctes — deux champs pour éviter toute confusion.
+                          <div className="mt-1 space-y-2">
+                            <div>
+                              <p className="text-[10px] font-medium text-slate-400">Nom de la propriété (libellé affiché dans HubSpot)</p>
+                              <input
+                                type="text"
+                                value={labels[id.canonicalField] ?? ""}
+                                onChange={(e) => updateLabel(id.canonicalField, e.target.value)}
+                                placeholder="ex : Numéro de TVA"
+                                className={`${inputClass} mt-0.5`}
+                              />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-medium text-slate-400">Nom interne (utilisé par l&apos;API — minuscules, sans espaces ni accents)</p>
+                              <input
+                                type="text"
+                                value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                                onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                                placeholder="ex : numero_de_tva"
+                                className={`${inputClass} mt-0.5 font-mono ${status?.exists === false ? "border-rose-300" : ""}`}
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400">
+                              {id.hint} — le nom interne est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
+                              la propriété. En cas de doute, saisissez le libellé : Revold retrouvera le nom interne à la vérification.
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                              onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                              className={`${inputClass} mt-1`}
+                              readOnly={id.native}
+                            />
+                            <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
+                          </>
+                        )}
+                        {status?.exists === false && (
                           <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
-                            Cette propriété n&apos;existe pas dans HubSpot. Créez-la (HubSpot → Paramètres →
-                            Propriétés → Entreprises), puis saisissez son nom exact ici et enregistrez :
-                            Revold revérifiera avant d&apos;appliquer le mapping.
+                            Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé. Créez-la
+                            (HubSpot → Paramètres → Propriétés → Entreprises), puis saisissez son libellé ou son
+                            nom interne ici et enregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
                           </p>
                         )}
                       </div>

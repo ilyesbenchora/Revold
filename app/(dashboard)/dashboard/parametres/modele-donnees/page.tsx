@@ -218,7 +218,7 @@ export default async function ParametresModeleDonneesPage() {
           propName,
           id.label,
         );
-        hubspotPropertyStatus[id.canonicalField] = check.exists;
+        hubspotPropertyStatus[id.canonicalField] = check;
       }),
   );
 
