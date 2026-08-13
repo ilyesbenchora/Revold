@@ -29,17 +29,20 @@ const HEADERS: Record<string, { title: string; sub: string }> = {
   },
 };
 
+// Vue d'ensemble (« Mes Coachs IA ») : pas de nom de page — la promesse fait
+// office de titre, suivie d'une phrase d'accompagnement.
 const DEFAULT = {
-  title: "Coaching IA",
-  sub: "Tes coachs experts par catégorie. Choisis un coach, fixe tes objectifs et suis tes actions.",
+  title: "Tes coachs experts par catégorie. Choisis un coach, fixe tes objectifs et suis tes actions",
+  sub: "Chaque coach s'appuie sur tes données réelles : il prépare tes séances, te challenge sur tes objectifs et transforme chaque décision en actions suivies.",
 };
 
 export function CoachingHeader() {
   const pathname = usePathname();
   const h = HEADERS[pathname] ?? DEFAULT;
+  const isOverview = !HEADERS[pathname];
   return (
     <header>
-      <h1 className="text-2xl font-semibold text-slate-900">{h.title}</h1>
+      <h1 className={`font-semibold text-slate-900 ${isOverview ? "max-w-3xl text-xl leading-snug" : "text-2xl"}`}>{h.title}</h1>
       <p className="mt-1 text-sm text-slate-500">{h.sub}</p>
     </header>
   );
