@@ -330,7 +330,7 @@ export function buildOnboardingRecommendations(tools: ToolAuditData[]): Recommen
         impact: "Tant que la première sync n'a pas tourné, les KPIs, alertes et croisements qui dépendent de cet outil restent vides.",
         actionPlan: [
           step(1, `Lancer la première synchronisation depuis Paramètres → Intégrations → ${t.label} → « Synchroniser »`, "Aujourd'hui", "S"),
-          step(2, "Vérifier le rapport d'import dans Audit données → Audit onboarding (volumes, rapprochements)", "Aujourd'hui", "S"),
+          step(2, "Vérifier le rapport d'import dans Rapprochement données → Audit par outil (volumes, rapprochements)", "Aujourd'hui", "S"),
           step(3, "Choisir les pages alimentées par cet outil (Paramètres → Intégrations → Outil source par page)", "Cette semaine", "S"),
         ],
         coachingCategory: "integration",
