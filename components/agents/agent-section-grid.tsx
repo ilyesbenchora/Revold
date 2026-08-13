@@ -46,7 +46,7 @@ export function AgentSectionGrid({
             <Link
               key={a.key}
               href={`/dashboard/agents/${a.key}`}
-              className={`theme-exempt group card relative overflow-hidden bg-gradient-to-br ${persona.gradient} transition hover:shadow-lg hover:-translate-y-0.5`}
+              className={`group card relative overflow-hidden bg-gradient-to-br ${persona.gradient} transition hover:shadow-lg hover:-translate-y-0.5`}
             >
               <div className="h-1 bg-gradient-to-r from-amber-400 via-fuchsia-500 to-indigo-600" />
               {/* Portrait en filigrane */}

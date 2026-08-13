@@ -38,8 +38,10 @@ body {
    pour ne pas toucher le site marketing. Les composants utilisent des classes
    utilitaires claires en dur (bg-white, text-slate-900…) : on les remappe ici
    vers la palette violette. Un bloc marqué .theme-exempt (et tout son contenu)
-   échappe au remap — utilisé pour les cartes déjà sombres (rapports de routine)
-   et les en-têtes pastel des personas.
+   échappe au remap — réservé aux blocs déjà sombres par design. Attention :
+   les variables CSS (--card…) cascadent quand même dedans, donc un .card
+   theme-exempt garde un FOND sombre avec des textes non remappés (illisible) —
+   les cartes personas ne sont plus exemptées pour cette raison.
    ═══════════════════════════════════════════════════════════════════════ */
 html[data-theme="violet-dark"] .dashboard-shell {
   --background: #150a26;
@@ -131,7 +133,9 @@ html[data-theme="violet-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-
   &.border-slate-300 { border-color: #4a2f78; }
   &.border-fuchsia-100 { border-color: rgba(232, 121, 249, 0.25); }
   &.border-fuchsia-200 { border-color: rgba(232, 121, 249, 0.4); }
+  &[class*="border-fuchsia-200/"] { border-color: rgba(232, 121, 249, 0.4); }
   &.border-fuchsia-300 { border-color: rgba(232, 121, 249, 0.55); }
+  &[class*="border-fuchsia-300/"] { border-color: rgba(232, 121, 249, 0.55); }
   &.border-indigo-100 { border-color: rgba(129, 140, 248, 0.28); }
   &.border-indigo-200 { border-color: rgba(129, 140, 248, 0.42); }
   &.border-indigo-300 { border-color: rgba(129, 140, 248, 0.55); }
@@ -155,12 +159,23 @@ html[data-theme="violet-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-
   &.from-slate-50 { --tw-gradient-from: #1c0f31; }
   &.from-white { --tw-gradient-from: #211237; }
   &.to-white { --tw-gradient-to: #211237; }
+  &.via-white { --tw-gradient-via: #211237; }
   &.from-fuchsia-50 { --tw-gradient-from: rgba(217, 70, 239, 0.13); }
+  &[class*="from-fuchsia-50/"] { --tw-gradient-from: rgba(217, 70, 239, 0.1); }
   &.from-indigo-50 { --tw-gradient-from: rgba(99, 102, 241, 0.16); }
   &.to-indigo-50 { --tw-gradient-to: rgba(99, 102, 241, 0.16); }
   &.from-amber-100 { --tw-gradient-from: rgba(245, 158, 11, 0.22); }
   &.via-fuchsia-100 { --tw-gradient-via: rgba(217, 70, 239, 0.24); }
   &.to-amber-100 { --tw-gradient-to: rgba(245, 158, 11, 0.22); }
+  /* Dégradés pastel des cartes personas (from-X-50 via-white to-white) →
+     teintes néon translucides sur fond carte, texte remappé lisible. */
+  &.from-amber-50 { --tw-gradient-from: rgba(245, 158, 11, 0.13); }
+  &.from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, 0.13); }
+  &.from-rose-50 { --tw-gradient-from: rgba(244, 63, 94, 0.14); }
+  &.from-sky-50 { --tw-gradient-from: rgba(14, 165, 233, 0.15); }
+  &.from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.16); }
+  &.from-blue-50 { --tw-gradient-from: rgba(59, 130, 246, 0.16); }
+  &.from-teal-50 { --tw-gradient-from: rgba(20, 184, 166, 0.14); }
 }
 
 /* ── Graphiques recharts en mode sombre : grilles, axes, labels, donuts ──

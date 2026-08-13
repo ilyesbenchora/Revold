@@ -61,7 +61,7 @@ export async function CoachingAgendaSection({ category }: { category: string }) 
   return (
     <section className="mt-8 space-y-3">
       {/* En-tête : met en avant le coaching personnalisé avec l'agent adéquat */}
-      <div className={`theme-exempt flex items-center gap-3 rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-4 py-3`}>
+      <div className={`flex items-center gap-3 rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-4 py-3`}>
         <AgentAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agentKey)} size={44} />
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Coaching personnalisé</p>

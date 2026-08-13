@@ -109,7 +109,7 @@ export default async function AuditPage() {
             <Link
               key={m.href}
               href={m.href}
-              className={`theme-exempt group card relative overflow-hidden bg-gradient-to-br ${persona.gradient} transition hover:shadow-lg hover:-translate-y-0.5`}
+              className={`group card relative overflow-hidden bg-gradient-to-br ${persona.gradient} transition hover:shadow-lg hover:-translate-y-0.5`}
             >
               <div className={`h-1 bg-gradient-to-r ${m.color}`} />
               {/* eslint-disable-next-line @next/next/no-img-element */}
