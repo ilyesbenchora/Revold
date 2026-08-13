@@ -163,6 +163,39 @@ html[data-theme="violet-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-
   &.to-amber-100 { --tw-gradient-to: rgba(245, 158, 11, 0.22); }
 }
 
+/* ── Graphiques recharts en mode sombre : grilles, axes, labels, donuts ──
+   Les couleurs sont posées en ATTRIBUTS SVG par recharts → le CSS les
+   surcharge pour TOUS les graphiques du dashboard d'un coup. Les cartes
+   .theme-exempt (rapports de routine, déjà sombres) gardent leur rendu. */
+html[data-theme="violet-dark"] .dashboard-shell .recharts-wrapper:not(.theme-exempt *) {
+  /* grille discrète violette (remplace les gris quasi blancs) */
+  & .recharts-cartesian-grid line { stroke: rgba(157, 131, 196, 0.18) !important; }
+  & .recharts-cartesian-axis line { stroke: rgba(157, 131, 196, 0.25) !important; }
+  /* ticks d'axes et textes secondaires → lavande lisible */
+  & text[fill="#64748b"], & text[fill="#94a3b8"], & text[fill="#475569"] { fill: #9d83c4 !important; }
+  /* totaux / valeurs héros (centre de donut, labels sombres) → blanc cassé */
+  & text[fill="#0f172a"], & text[fill="#1e293b"] { fill: #f6f1fc !important; }
+  /* valeurs au-dessus des barres/courbes → indigo & fuchsia clairs */
+  & text[fill="#4f46e5"] { fill: #a5b4fc !important; }
+  & text[fill="#c026d3"] { fill: #f0abfc !important; }
+  /* anneaux de donut : la séparation blanche devient couleur de carte */
+  & .recharts-pie path[stroke="#fff"], & .recharts-pie path[stroke="#ffffff"] { stroke: #211237 !important; }
+  /* surbrillance au survol (curseur de tooltip) */
+  & .recharts-tooltip-cursor { fill: rgba(139, 147, 248, 0.08) !important; stroke: rgba(139, 147, 248, 0.25) !important; }
+}
+/* Tooltips : fond violet nuit + halo fuchsia (surclasse les styles inline) */
+html[data-theme="violet-dark"] .dashboard-shell .recharts-tooltip-wrapper:not(.theme-exempt *) .recharts-default-tooltip {
+  background: rgba(21, 10, 38, 0.97) !important;
+  border: 1px solid rgba(139, 147, 248, 0.45) !important;
+  box-shadow: 0 6px 24px rgba(217, 70, 239, 0.25) !important;
+}
+html[data-theme="violet-dark"] .dashboard-shell .recharts-tooltip-wrapper:not(.theme-exempt *) .recharts-tooltip-label {
+  color: #f6f1fc !important;
+}
+html[data-theme="violet-dark"] .dashboard-shell .recharts-tooltip-wrapper:not(.theme-exempt *) .recharts-tooltip-item {
+  color: #d9c9ee !important;
+}
+
 /* Blog & legal prose styling */
 .prose-revold h2 {
   margin-top: 2.5rem;
