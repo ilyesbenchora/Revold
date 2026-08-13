@@ -6,7 +6,6 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
-import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
@@ -178,6 +177,9 @@ export default async function DonneesPage() {
     if (tool.key === "hubspot") continue; // déjà traité au-dessus
     const def = CONNECTABLE_TOOLS[tool.key];
     if (!def) continue;
+    // Outils de communication (Slack, Teams…) : canaux de notification,
+    // pas des sources de données — hors périmètre de l'audit qualité.
+    if (def.category === "communication") continue;
 
     const entities: ToolEntityCount[] = [];
     const gaps: ToolHub["gaps"] = [];
@@ -309,6 +311,43 @@ export default async function DonneesPage() {
           field: `${liveSuffix.trim()} détectée — relancez la sync pour activer les analyses cross-source HubSpot`,
           pct: 0,
           severity: "warning",
+        });
+      }
+    } else if (tool.key === "pennylane") {
+      // Pennylane ne pose des source_links que sur les factures (invoice /
+      // supplier_invoice) ; flux bancaires, comptes et écritures vivent dans
+      // leurs tables dédiées (primary_source) — le compteur générique voyait
+      // donc 0 ligne pour ce hub.
+      const countBySource = async (table: string) => {
+        try {
+          const { count } = await supabase
+            .from(table)
+            .select("*", { count: "exact", head: true })
+            .eq("organization_id", orgId)
+            .eq("primary_source", "pennylane");
+          return count ?? 0;
+        } catch {
+          return 0; // migration non appliquée → table absente
+        }
+      };
+      const [clientInv, supplierInv, bankTx, bankAccts, ledgerMonths] = await Promise.all([
+        countCanonicalForProvider(supabase, orgId, "pennylane", "invoice"),
+        countCanonicalForProvider(supabase, orgId, "pennylane", "supplier_invoice"),
+        countBySource("bank_transactions"),
+        countBySource("bank_accounts"),
+        countBySource("ledger_balances"),
+      ]);
+      if (clientInv > 0) entities.push({ label: "Factures clients", count: clientInv });
+      if (supplierInv > 0) entities.push({ label: "Factures fournisseurs", count: supplierInv });
+      if (bankTx > 0) entities.push({ label: "Transactions bancaires", count: bankTx });
+      if (bankAccts > 0) entities.push({ label: "Comptes bancaires", count: bankAccts });
+      if (ledgerMonths > 0) entities.push({ label: "Écritures agrégées (compte × mois)", count: ledgerMonths });
+      if (entities.length === 0) {
+        gaps.push({
+          entity: tool.label,
+          field: "Aucune donnée synchronisée — relancez la sync",
+          pct: 0,
+          severity: "critical",
         });
       }
     } else {
@@ -463,60 +502,8 @@ export default async function DonneesPage() {
             </Link>
           </div>
 
-          {!custom.hiddenBlocks.has("hubs_cards") && (
-          <RemovableBlock pageKey="audit_donnees" blockKey="hubs_cards" label="Hubs synchronisés — cartes">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {hubs.map((h) => (
-              <article key={h.key} className="card overflow-hidden">
-                <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-slate-50/60 p-4">
-                  <div className="flex items-center gap-3">
-                    <BrandLogo domain={h.domain} alt={h.label} fallback={h.icon} size={36} />
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">{h.label}</h3>
-                      <p className="text-[11px] text-slate-500 capitalize">{h.category}</p>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                    ✓ Connecté
-                  </span>
-                </div>
-                <ul className="divide-y divide-slate-100">
-                  {h.entities.map((e) => (
-                    <li key={e.label} className="flex items-center justify-between px-4 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-medium text-slate-700">{e.label}</p>
-                        {e.enrichmentLabel && (
-                          <p className="text-[10px] text-slate-400">{e.enrichmentLabel}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {e.enrichmentPct != null && e.count > 0 && (
-                          <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              e.enrichmentPct >= 70
-                                ? "bg-emerald-100 text-emerald-700"
-                                : e.enrichmentPct >= 40
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-rose-100 text-rose-700"
-                            }`}
-                          >
-                            {e.enrichmentPct}%
-                          </span>
-                        )}
-                        <span className="text-sm font-bold text-slate-900 tabular-nums">
-                          {e.count.toLocaleString("fr-FR")}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-          </RemovableBlock>
-          )}
-
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
+          {/* Un table normalisée par hub + alerte chirurgicale. (Les cartes
+              « ✓ Connecté » en doublon ont été retirées : Intégrations fait foi.) */}
           <div className="mt-4 space-y-4">
             {hubs.map((h) => {
               if (custom.hiddenBlocks.has(`hub_table_${h.key}`)) return null;
@@ -533,15 +520,28 @@ export default async function DonneesPage() {
               }
               return (
                 <RemovableBlock key={`table-${h.key}`} pageKey="audit_donnees" blockKey={`hub_table_${h.key}`} label={`Hub ${h.label}`}>
-                  <BlockDataTable
-                    title={`Hub ${h.label}`}
-                    subtitle={h.category}
-                    team="revops"
-                    unit="count"
-                    nameLabel="Entité"
-                    valueLabel="Valeur"
-                    rows={rows}
-                  />
+                  {rows.length > 0 ? (
+                    <BlockDataTable
+                      title={`Hub ${h.label}`}
+                      subtitle={h.category}
+                      team="revops"
+                      unit="count"
+                      nameLabel="Entité"
+                      valueLabel="Valeur"
+                      rows={rows}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
+                      <p className="text-sm font-medium text-slate-700">Hub {h.label} : aucune donnée synchronisée.</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Lance une synchronisation depuis{" "}
+                        <Link href="/dashboard/integration" className="font-medium text-fuchsia-600 hover:underline">
+                          Intégrations → Mes outils
+                        </Link>{" "}
+                        pour alimenter ce hub.
+                      </p>
+                    </div>
+                  )}
                 </RemovableBlock>
               );
             })}
