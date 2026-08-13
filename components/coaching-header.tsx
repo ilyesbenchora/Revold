@@ -12,8 +12,8 @@ const HEADERS: Record<string, { title: string; sub: string }> = {
     sub: "Les actions de coaching acquisition à mener : leads, conversion, sources.",
   },
   "/dashboard/insights-ia/data": {
-    title: "Coaching Data à faire",
-    sub: "Les actions à mener pour fiabiliser ta donnée : complétude, doublons, enrichissement.",
+    title: "Coaching Data & Intégrations à faire",
+    sub: "Les actions pour fiabiliser ta donnée et ta stack d'outils : complétude, doublons, enrichissement, connexions.",
   },
   "/dashboard/insights-ia/integration": {
     title: "Coaching Intégration à faire",

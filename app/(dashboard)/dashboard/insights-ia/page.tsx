@@ -36,10 +36,10 @@ function countSeverities(items: Array<{ severity: string }>): SeverityCounts {
 const CAT_LABELS: Record<string, string> = {
   commercial: "Ventes",
   marketing: "Marketing",
-  data: "Data",
+  data: "Data & intégrations",
   integration: "Intégration",
   "cross-source": "Cross-source",
-  "data-model": "Modèle de données",
+  "data-model": "Finance",
 };
 function catLabel(c: string): string {
   return CAT_LABELS[c] ?? c;
