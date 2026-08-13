@@ -242,7 +242,6 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [verifLoading, setVerifLoading] = useState(false);
   // Destination du KPI : tuile (bloc classique, 1ʳᵉ ligne de la page) ou
   // visualisation (table/graphique, section « Tables de données » en dessous).
-  const [asTile, setAsTile] = useState(false);
   // Aperçu optionnel sur données réelles (presets déterministes — les KPIs
   // personnalisés ont déjà leur preuve chiffrée à l'étape Vérification).
   const [previewRows, setPreviewRows] = useState<{ name: string; value: number }[] | null>(null);
@@ -315,7 +314,6 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setProposalLoading(false);
     setVerifTotal(null);
     setVerifLoading(false);
-    setAsTile(false);
     setPreviewRows(null);
     setPreviewLoading(false);
   }
@@ -530,41 +528,6 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       return;
     }
 
-    // ── TUILE KPI (bloc classique) : créée dans page_tiles → elle apparaît sur
-    //    la 1ʳᵉ ligne de la page, avant « ＋ Ajouter un KPI ». Les visualisations
-    //    (table/graphique) restent des page_data_tables, en dessous. Même spec
-    //    d'agrégation que les tables (entity/groupBy/measure) : un seul funnel.
-    if (asTile && !editingId) {
-      setSaving(true);
-      setError(null);
-      // `sources` = outils croisés choisis à l'étape 1 : la tuile applique le
-      // même filtre que le recalcul de table (valueFromAggSpec → computeAggregate).
-      const spec = draft.custom && proposal
-        ? { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field, pipeline: proposal.pipeline ?? null, sources: selected }
-        : { entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field, pipeline: draft.pipeline ?? null, sources: selected };
-      const res = await fetch("/api/page-tiles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          page_key: pageKey,
-          kind: "kpi",
-          title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
-          agg_spec: spec,
-          unit_mode: (draft.custom && proposal ? proposal.unit_mode : draft.unit_mode) ?? "count",
-        }),
-      });
-      const d = await res.json().catch(() => ({}));
-      setSaving(false);
-      if (res.ok) {
-        setOpen(false);
-        reset();
-        // Les tuiles sont rendues côté serveur (ConfigurableKpiTiles) : refresh.
-        router.refresh();
-      } else {
-        setError(d.error || "Création impossible.");
-      }
-      return;
-    }
 
     setSaving(true);
     setError(null);
@@ -1244,28 +1207,19 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
-                  {/* Une tuile est un bloc classique : elle rejoint la 1ʳᵉ ligne de
-                      la page (avant « ＋ Ajouter un KPI »). Les graphiques et
-                      tableaux s'ajoutent en dessous, dans « Tables de données ». */}
+                  {/* Le « Bloc » (chiffre en héros + ventilation) remplace l'ancienne
+                      « Tuile KPI » (doublon) : toutes les visualisations s'ajoutent à
+                      la suite des blocs de la page, dans « Tables de données ». */}
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    Tuile KPI = bloc classique, ajouté sur la première ligne de la page. Graphiques et tableaux s&apos;ajoutent en dessous.
+                    La visualisation s&apos;ajoute à la suite des blocs de la page.
                   </p>
                   <div className="mt-1 grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setAsTile(true)}
-                      className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
-                        asTile ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="6" width="16" height="12" rx="2" /><path d="M8 11h5M8 14h8" /></svg>
-                      Tuile KPI
-                    </button>
                     {VIEWS.map((v) => (
                       <button
                         key={v.id}
-                        onClick={() => { setAsTile(false); setDraft({ ...draft, view: v.id }); }}
+                        onClick={() => setDraft({ ...draft, view: v.id })}
                         className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] transition ${
-                          !asTile && draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                          draft.view === v.id ? "border-accent bg-indigo-50/60 text-accent" : "border-slate-200 text-slate-500 hover:border-slate-300"
                         }`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={v.icon} /></svg>
@@ -1293,31 +1247,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       </p>
                     )}
                     {previewRows && previewRows.length > 0 && (
-                      asTile ? (
-                        <div className="mt-2 w-48 rounded-xl border border-slate-200 bg-white p-4">
-                          <p className="truncate text-[11px] font-medium text-slate-500">{draft.title || "Tuile KPI"}</p>
-                          <p className="mt-1 text-xl font-bold tabular-nums text-indigo-600">
-                            {fmtTotal(previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0), draft.unit_mode)}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-2 rounded-xl border border-slate-100 p-3">
-                          <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
-                        </div>
-                      )
+                      <div className="mt-2 rounded-xl border border-slate-100 p-3">
+                        <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* Période par défaut à l'ouverture de la table (hors échéances
-                    fiscales et tuiles — une tuile affiche la valeur globale,
-                    recalculée en continu). */}
-                {asTile && (
-                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                    La tuile affiche la valeur globale, recalculée en continu sur tes données.
-                  </p>
-                )}
-                {draft.entity !== "fiscal" && !asTile && (
+                {/* Période par défaut à l'ouverture de la table (hors échéances fiscales). */}
+                {draft.entity !== "fiscal" && (
                   <PeriodField
                     period={period}
                     setPeriod={setPeriod}
@@ -1346,7 +1284,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       ? `${agentName} analyse…`
                       : saving
                         ? "Création…"
-                        : draft.custom ? `Vérifier via ${agentName}` : asTile ? "Créer la tuile" : "Créer la table"}
+                        : draft.custom ? `Vérifier via ${agentName}` : "Créer la table"}
                   </button>
                 </div>
               </div>

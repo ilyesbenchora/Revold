@@ -338,7 +338,16 @@ export function DataTableCard({
         ) : rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-slate-400">Aucune donnée sur cette période.</div>
         ) : isChart ? (
-          <ReportChart block={block} unit={table.unit_mode} showTotal={showTotal} />
+          <div className="relative">
+            {/* Vue « Bloc » : la période active est rappelée DANS le bloc,
+                en pastille discrète (le chiffre héros n'a pas d'axe daté). */}
+            {table.view === "bloc" && period && (
+              <span className="absolute right-1 top-1 z-10 rounded-full bg-slate-100/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                {period.label}
+              </span>
+            )}
+            <ReportChart block={block} unit={table.unit_mode} showTotal={showTotal} />
+          </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-100">
             <table className="w-full text-sm">
