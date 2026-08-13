@@ -84,7 +84,7 @@ export default async function AgentPage({
   const persona = getAgentPersona(agent.key);
 
   // Deep-link d'onglet depuis les compteurs d'agent (?tab=history|suggestions|alerts|actions).
-  const TABS = ["chat", "history", "alerts", "suggestions", "actions"] as const;
+  const TABS = ["chat", "history", "alerts", "suggestions", "actions", "routines"] as const;
   const initialTab = typeof sp.tab === "string" && (TABS as readonly string[]).includes(sp.tab)
     ? (sp.tab as (typeof TABS)[number])
     : undefined;

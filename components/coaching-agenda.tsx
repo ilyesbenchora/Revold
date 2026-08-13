@@ -24,8 +24,17 @@ function CoachCard({ coach, initial }: { coach: Coach; initial: Agenda }) {
   const [cadence, setCadence] = useState(initial.cadence ?? "monthly");
   const [nextMeeting, setNextMeeting] = useState(initial.next_meeting_at ?? "");
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+  // Champs obligatoires (objectifs, pains, cadence) : erreurs de validation.
+  const [fieldErrors, setFieldErrors] = useState<{ objectives?: boolean; pains?: boolean }>({});
 
   async function save() {
+    const errs = { objectives: !objectives.trim(), pains: !pains.trim() };
+    if (errs.objectives || errs.pains) {
+      setFieldErrors(errs);
+      setState("error");
+      return;
+    }
+    setFieldErrors({});
     setState("saving");
     try {
       const res = await fetch("/api/coaching/agenda", {
@@ -69,40 +78,49 @@ function CoachCard({ coach, initial }: { coach: Coach; initial: Agenda }) {
 
       <div className="space-y-2.5">
         <div>
-          <label className={lbl}>Objectifs à suivre</label>
+          <label className={lbl}>Objectifs à suivre <span className="text-red-500">*</span></label>
           <textarea
             value={objectives}
-            onChange={(e) => setObjectives(e.target.value)}
+            onChange={(e) => {
+              setObjectives(e.target.value);
+              if (fieldErrors.objectives && e.target.value.trim()) setFieldErrors((p) => ({ ...p, objectives: false }));
+            }}
             rows={2}
+            required
             placeholder="Ex : passer le win rate de 22 % à 30 % ce trimestre"
-            className={field}
+            className={`${field} ${fieldErrors.objectives ? "border-red-300 focus:border-red-300 focus:ring-red-100" : ""}`}
           />
+          {fieldErrors.objectives && <p className="mt-0.5 text-[11px] text-red-500">Champ obligatoire.</p>}
         </div>
         <div>
-          <label className={lbl}>Pains / points de vigilance</label>
+          <label className={lbl}>Pains / points de vigilance <span className="text-red-500">*</span></label>
           <textarea
             value={pains}
-            onChange={(e) => setPains(e.target.value)}
+            onChange={(e) => {
+              setPains(e.target.value);
+              if (fieldErrors.pains && e.target.value.trim()) setFieldErrors((p) => ({ ...p, pains: false }));
+            }}
             rows={2}
+            required
             placeholder="Ex : cycle de vente trop long sur les gros comptes"
-            className={field}
+            className={`${field} ${fieldErrors.pains ? "border-red-300 focus:border-red-300 focus:ring-red-100" : ""}`}
           />
+          {fieldErrors.pains && <p className="mt-0.5 text-[11px] text-red-500">Champ obligatoire.</p>}
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={lbl}>Cadence des RDV</label>
-            <select value={cadence} onChange={(e) => setCadence(e.target.value)} className={field}>
-              {CADENCES.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={lbl}>Prochain RDV</label>
-            <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className={field} />
-          </div>
+        <div>
+          <label className={lbl}>Cadence des RDV <span className="text-red-500">*</span></label>
+          <select value={cadence} onChange={(e) => setCadence(e.target.value)} required className={field}>
+            {CADENCES.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Date SOUS la cadence. */}
+        <div>
+          <label className={lbl}>Prochain RDV</label>
+          <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className={field} />
         </div>
       </div>
 
@@ -116,7 +134,11 @@ function CoachCard({ coach, initial }: { coach: Coach; initial: Agenda }) {
         </button>
         {state === "done" && <span className="text-xs font-medium text-emerald-600">✓ Enregistré</span>}
         {state === "error" && (
-          <span className="text-xs text-red-500">Échec — la table coaching_agendas est-elle créée ?</span>
+          <span className="text-xs text-red-500">
+            {fieldErrors.objectives || fieldErrors.pains
+              ? "Renseigne les champs obligatoires : objectifs et pains."
+              : "Échec — la table coaching_agendas est-elle créée ?"}
+          </span>
         )}
       </div>
     </div>

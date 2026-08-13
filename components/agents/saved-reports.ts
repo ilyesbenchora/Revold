@@ -16,6 +16,10 @@ export type SavedReport = {
   alert: { title: string; description: string; impact?: string; category?: string; channels?: string[] };
   alertId?: string;
   savedAt: number;
+  /** Provenance : rapport généré automatiquement par une routine de chat. */
+  origin?: "chat" | "routine";
+  /** Libellé de la routine à l'origine du rapport (badge dans les listes). */
+  routineLabel?: string;
 };
 
 export const SAVED_REPORTS_KEY = "revold:saved-reports:v1";

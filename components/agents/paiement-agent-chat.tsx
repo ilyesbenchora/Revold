@@ -14,6 +14,7 @@ import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 import type { AgentRedirect } from "@/lib/ai/agents/redirect";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
+import { RoutinesTab, useAgentRoutines } from "./routines-tab";
 import { useVoice } from "./use-voice";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
@@ -129,7 +130,7 @@ export function PaiementAgentChat({
   /** Personnage de l'agent (avatar dans les bulles de réponse). */
   persona?: { name: string; emoji: string; image?: string | null } | null;
   /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
-  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions";
+  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions" | "routines";
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -145,9 +146,17 @@ export function PaiementAgentChat({
   // Pages coach : le chat ne s'ouvre QUE via les CTA (formulaire de RDV,
   // « Reprendre » de l'historique, suggestion) — l'onglet Discussion n'existe
   // pas à l'arrivée, on atterrit sur l'historique des rendez-vous.
-  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions">(
+  const [tab, setTab] = useState<"chat" | "history" | "alerts" | "suggestions" | "actions" | "routines">(
     initialTab ?? (coachingMode ? "history" : "chat"),
   );
+  // Routines de chat : questions récurrentes exécutées automatiquement (le
+  // rapport généré rejoint « Rapports enregistrés » avec le badge Routine).
+  const { routines, runningIds, runRoutine } = useAgentRoutines(
+    agentKey,
+    agentLabel,
+    sources.map((s) => s.key),
+  );
+  const activeRoutines = routines.filter((r) => r.active).length;
   const pathname = usePathname();
   // Alertes activées durant la session (suggestion OU depuis un rapport).
   const [activatedAlerts, setActivatedAlerts] = useState<ActivatedAlert[]>([]);
@@ -585,6 +594,19 @@ export function PaiementAgentChat({
           )}
         </button>
         <button
+          onClick={() => setTab("routines")}
+          className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+            tab === "routines" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <span>🕘</span> Routines
+          {activeRoutines > 0 && (
+            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+              {activeRoutines}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setTab("actions")}
           className={`flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
             tab === "actions" ? "bg-accent-soft text-accent" : "text-slate-500 hover:bg-slate-100"
@@ -688,6 +710,17 @@ export function PaiementAgentChat({
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Onglet Routines (habitudes de chat : rapports récurrents) ── */}
+      {tab === "routines" && (
+        <RoutinesTab
+          agentKey={agentKey}
+          agentLabel={persona?.name ?? agentLabel}
+          routines={routines}
+          runningIds={runningIds}
+          onRunNow={runRoutine}
+        />
       )}
 
       {/* ── Onglet Actions (exécutables dans le CRM, human-in-the-loop) ── */}

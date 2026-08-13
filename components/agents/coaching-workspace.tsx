@@ -72,7 +72,7 @@ export function CoachingWorkspace({
   /** Personnage de l'agent (avatar dans les bulles). */
   persona?: { name: string; emoji: string; image?: string | null } | null;
   /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
-  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions";
+  initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions" | "routines";
 }) {
   // Un NOUVEAU rendez-vous & objectif part de ZÉRO : l'agenda persisté ne
   // pré-remplit le formulaire (objectifs, pains, outils, FICHIERS) que si un

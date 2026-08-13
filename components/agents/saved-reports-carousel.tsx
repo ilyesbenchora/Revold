@@ -81,8 +81,9 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
 
       {hydrated && reports.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-          Aucun rapport enregistré. Lance une analyse dans le chat ci-dessus, puis clique sur
-          <span className="font-medium text-slate-700"> « 💾 Enregistrer le rapport »</span> sous le rapport.
+          Aucun rapport enregistré. Lance une analyse dans le chat ci-dessus puis clique sur
+          <span className="font-medium text-slate-700"> « 💾 Enregistrer le rapport »</span>, ou active une
+          <span className="font-medium text-slate-700"> 🕘 routine</span> pour recevoir un rapport récurrent ici.
         </div>
       ) : (
         <div
@@ -98,7 +99,17 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-slate-900">{stripPeriodFromTitle(r.title)}</h3>
-                  <div className="text-xs text-slate-400">Enregistré le {fmtDate(r.savedAt)}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                    {r.origin === "routine" && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700"
+                        title={r.routineLabel ? `Généré par la routine « ${r.routineLabel} »` : "Généré par une routine"}
+                      >
+                        🕘 Routine{r.routineLabel ? ` · ${r.routineLabel}` : ""}
+                      </span>
+                    )}
+                    <span>{r.origin === "routine" ? "Généré le" : "Enregistré le"} {fmtDate(r.savedAt)}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => del(r.id)}

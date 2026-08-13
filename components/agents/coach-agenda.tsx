@@ -118,12 +118,24 @@ export function CoachAgenda({
   const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments ?? []);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Champs obligatoires (objectifs, pains, cadence) : erreurs de validation.
+  const [fieldErrors, setFieldErrors] = useState<{ objectives?: boolean; pains?: boolean }>({});
 
   function toggleSource(key: string) {
     setSources((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   }
 
   async function save(): Promise<boolean> {
+    // Objectifs, pains et cadence sont OBLIGATOIRES : le coach s'appuie dessus
+    // pour orienter la séance (la cadence a toujours une valeur via le select).
+    const errs = { objectives: !objectives.trim(), pains: !pains.trim() };
+    if (errs.objectives || errs.pains) {
+      setFieldErrors(errs);
+      setErrMsg("Renseigne les champs obligatoires : objectifs et pains.");
+      setState("error");
+      return false;
+    }
+    setFieldErrors({});
     setState("saving");
     setErrMsg(null);
     try {
@@ -265,36 +277,55 @@ export function CoachAgenda({
 
       <div className="mt-4 space-y-3">
         <div>
-          <label className={lbl}>Objectifs à atteindre</label>
-          <textarea value={objectives} onChange={(e) => setObjectives(e.target.value)} rows={2}
-            placeholder={`Ex : passer le win rate de 22 % à 30 % ce trimestre`} className={field} />
+          <label className={lbl}>Objectifs à atteindre <span className="text-red-500">*</span></label>
+          <textarea
+            value={objectives}
+            onChange={(e) => {
+              setObjectives(e.target.value);
+              if (fieldErrors.objectives && e.target.value.trim()) setFieldErrors((p) => ({ ...p, objectives: false }));
+            }}
+            rows={2}
+            required
+            placeholder={`Ex : passer le win rate de 22 % à 30 % ce trimestre`}
+            className={`${field} ${fieldErrors.objectives ? "border-red-300 focus:border-red-300 focus:ring-red-100" : ""}`}
+          />
+          {fieldErrors.objectives && <p className="mt-0.5 text-[11px] text-red-500">Champ obligatoire.</p>}
         </div>
         <div>
-          <label className={lbl}>Pains / points de vigilance</label>
-          <textarea value={pains} onChange={(e) => setPains(e.target.value)} rows={2}
-            placeholder="Ex : cycle de vente trop long sur les gros comptes" className={field} />
+          <label className={lbl}>Pains / points de vigilance <span className="text-red-500">*</span></label>
+          <textarea
+            value={pains}
+            onChange={(e) => {
+              setPains(e.target.value);
+              if (fieldErrors.pains && e.target.value.trim()) setFieldErrors((p) => ({ ...p, pains: false }));
+            }}
+            rows={2}
+            required
+            placeholder="Ex : cycle de vente trop long sur les gros comptes"
+            className={`${field} ${fieldErrors.pains ? "border-red-300 focus:border-red-300 focus:ring-red-100" : ""}`}
+          />
+          {fieldErrors.pains && <p className="mt-0.5 text-[11px] text-red-500">Champ obligatoire.</p>}
         </div>
-        <div className={cadence === "once" ? "" : "grid grid-cols-2 gap-2"}>
+        <div>
+          <label className={lbl}>Cadence des RDV <span className="text-red-500">*</span></label>
+          <select value={cadence} onChange={(e) => setCadence(e.target.value)} required className={field}>
+            {CADENCES.map((c) => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        {/* Date SOUS la cadence. Cadence répétitive : date de départ de la
+            récurrence. En « Une seule fois », la date se choisit via les
+            raccourcis du bas. */}
+        {cadence !== "once" && (
           <div>
-            <label className={lbl}>Cadence des RDV</label>
-            <select value={cadence} onChange={(e) => setCadence(e.target.value)} className={field}>
-              {CADENCES.map((c) => (
-                <option key={c.key} value={c.key}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-          {/* Cadence répétitive uniquement : date de départ de la récurrence.
-              En « Une seule fois », la date se choisit via les raccourcis du bas. */}
-          {cadence !== "once" && (
-            <div>
-              <label className={lbl}>Prochain RDV</label>
-              <div className="mt-1 flex gap-1.5">
-                <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
-                <input type="time" value={nextTime ?? ""} onChange={(e) => setNextTime(e.target.value)} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
-              </div>
+            <label className={lbl}>Prochain RDV</label>
+            <div className="mt-1 flex gap-1.5">
+              <input type="date" value={nextMeeting ?? ""} onChange={(e) => setNextMeeting(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
+              <input type="time" value={nextTime ?? ""} onChange={(e) => setNextTime(e.target.value)} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100" />
             </div>
-          )}
-        </div>
+          </div>
+        )}
         {availableSources.length > 0 && (
           <div>
             <label className={lbl}>Outils à croiser pendant la séance</label>
