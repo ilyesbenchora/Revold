@@ -40,11 +40,13 @@ export default async function AdoptionOverviewPage() {
   // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
   const adoptionPct = owners.length > 0 ? Math.round((activeUsers / owners.length) * 100) : null;
   const defaultTiles: DefaultTile[] = [
-    { key: "utilisateurs_crm", label: "Utilisateurs CRM", value: String(owners.length), tone: "accent", sub: "Owners déclarés" },
+    { key: "utilisateurs_crm", label: "Utilisateurs CRM", value: String(owners.length), raw: owners.length, rawUnit: "count", tone: "accent", sub: "Owners déclarés" },
     {
       key: "utilisateurs_actifs",
       label: "Utilisateurs actifs",
       value: String(activeUsers),
+      raw: activeUsers,
+      rawUnit: "count",
       tone: adoptionPct != null && adoptionPct >= 70 ? "pos" : "neutral",
       sub: "Au moins 1 deal ou activité",
     },
@@ -52,6 +54,8 @@ export default async function AdoptionOverviewPage() {
       key: "taux_adoption",
       label: "Taux d'adoption",
       value: adoptionPct != null ? `${adoptionPct} %` : "—",
+      raw: adoptionPct,
+      rawUnit: "percent",
       tone: adoptionPct == null ? "neutral" : adoptionPct >= 70 ? "pos" : adoptionPct >= 40 ? "accent" : "neg",
       sub: "Actifs / utilisateurs",
       verdict: adoptionPct == null ? undefined
@@ -59,7 +63,7 @@ export default async function AdoptionOverviewPage() {
         : adoptionPct >= 40 ? { label: "À accompagner", tone: "warn" }
         : { label: "Adoption faible (< 40 %)", tone: "neg" },
     },
-    { key: "activites_totales", label: "Activités totales", value: totalActivities.toLocaleString("fr-FR"), tone: "neutral", sub: "Séquences + deals travaillés" },
+    { key: "activites_totales", label: "Activités totales", value: totalActivities.toLocaleString("fr-FR"), raw: totalActivities, rawUnit: "count", tone: "neutral", sub: "Séquences + deals travaillés" },
   ];
 
   // Données du bloc + alerte chirurgicale. Affichage ISO avec le mapping
@@ -99,7 +103,13 @@ export default async function AdoptionOverviewPage() {
             )}
 
             {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-            <BlocksManager pageKey="audit_adoption" tablesPageKey="audit_adoption" hiddenBlocks={hiddenBlockList(custom)} />
+            <BlocksManager
+              pageKey="audit_adoption"
+              tablesPageKey="audit_adoption"
+              hiddenBlocks={hiddenBlockList(custom, (key) => ({
+                adoption_synthese: { view: "table", description: "Synthèse adoption CRM : activités, utilisateurs, actifs" },
+              }[key]))}
+            />
           </>
         )}
       </PageSourcesGate>

@@ -85,11 +85,13 @@ export default async function PerformanceMarketingPage() {
   const nativePct = totalSourceContacts > 0 ? Math.round((nativeContacts / totalSourceContacts) * 100) : null;
   const defaultTiles: DefaultTile[] = snapshot.totalContacts > 0
     ? [
-        { key: "contacts", label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), tone: "accent", sub: `${lc.totalContactsInFunnel.toLocaleString("fr-FR")} dans le funnel lifecycle` },
+        { key: "contacts", label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), raw: snapshot.totalContacts, rawUnit: "count", tone: "accent", sub: `${lc.totalContactsInFunnel.toLocaleString("fr-FR")} dans le funnel lifecycle` },
         {
           key: "conversion_funnel",
           label: "Conversion funnel",
           value: lc.endToEndPct != null ? `${lc.endToEndPct} %` : "—",
+          raw: lc.endToEndPct,
+          rawUnit: "percent",
           tone: lc.endToEndPct == null ? "neutral" : lc.endToEndPct >= 10 ? "pos" : lc.endToEndPct >= 3 ? "accent" : "neg",
           sub: "1ʳᵉ étape → dernière étape clé",
           verdict: lc.endToEndPct == null ? undefined
@@ -101,6 +103,8 @@ export default async function PerformanceMarketingPage() {
           key: "hors_funnel",
           label: "Hors funnel",
           value: lc.contactsOutsideFunnel.toLocaleString("fr-FR"),
+          raw: lc.contactsOutsideFunnel,
+          rawUnit: "count",
           tone: lc.contactsOutsideFunnel === 0 ? "pos" : "neutral",
           sub: "Lifecycle vide ou custom",
           verdict: snapshot.totalContacts > 0 && lc.contactsOutsideFunnel / snapshot.totalContacts > 0.3
@@ -111,6 +115,8 @@ export default async function PerformanceMarketingPage() {
           key: "acquisition_native",
           label: "Acquisition native",
           value: nativePct != null ? `${nativePct} %` : "—",
+          raw: nativePct,
+          rawUnit: "percent",
           tone: "neutral",
           sub: "Formulaires, emails, site, workflows",
         },
@@ -216,7 +222,14 @@ export default async function PerformanceMarketingPage() {
       )}
 
       {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager pageKey="perf_marketing" tablesPageKey="perf_marketing" hiddenBlocks={hiddenBlockList(custom)} />
+      <BlocksManager
+        pageKey="perf_marketing"
+        tablesPageKey="perf_marketing"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          lifecycle_conversion: { view: "funnel", description: "Funnel Lead → Customer avec taux de passage par étape" },
+          sources_acquisition: { view: "table", description: "Contacts par source d'origine (part du total, natif/externe)" },
+        }[key]))}
+      />
 
       </PageSourcesGate>
 

@@ -31,9 +31,22 @@ export type PageCustomization = {
 
 const EMPTY: PageCustomization = { added: [], hiddenTiles: new Map(), hiddenBlocks: new Map() };
 
-/** Liste { rowId, label } des blocs masqués — props directes de BlocksManager. */
-export function hiddenBlockList(cust: PageCustomization): Array<{ rowId: string; label: string }> {
-  return [...cust.hiddenBlocks.values()];
+export type HiddenBlockMeta = { view?: string; description?: string };
+
+/**
+ * Liste des blocs masqués — props directes de BlocksManager. `meta` (optionnel)
+ * décrit la visualisation d'origine de chaque bloc (clé → { view, description })
+ * pour l'afficher dans la liste de suggestions avec le bon aperçu.
+ */
+export function hiddenBlockList(
+  cust: PageCustomization,
+  meta?: (blockKey: string) => HiddenBlockMeta | undefined,
+): Array<{ rowId: string; label: string; view?: string; description?: string }> {
+  return [...cust.hiddenBlocks.entries()].map(([key, h]) => ({
+    rowId: h.rowId,
+    label: h.label,
+    ...(meta?.(key) ?? {}),
+  }));
 }
 
 /** Charge la personnalisation d'une page. Résilient : table absente → aucune perso. */
@@ -87,6 +100,10 @@ export type ResolvedAddedTile = {
   rowId: string;
   label: string;
   value: string;
+  /** Valeur numérique brute (null si non résoluble) — alimente l'alerte chirurgicale. */
+  raw: number | null;
+  /** Unité de la tuile (percent | currency | count). */
+  rawUnit: string | null;
   /** Évolution vs la référence de la veille (▲ vert / ▼ rouge / stable). */
   sub?: string;
   subTone?: "pos" | "neg" | "neutral";
@@ -158,6 +175,8 @@ export async function resolveAddedTiles(
         rowId: r.id,
         label: r.title ?? r.forecast_type ?? "KPI",
         value: formatTileValue(value, r.unit_mode),
+        raw: value,
+        rawUnit: r.unit_mode,
         sub,
         subTone,
       };

@@ -61,12 +61,14 @@ export default async function PerformanceCommercialePage() {
   const custom = await getPageCustomization(supabase, orgId, "perf_ventes");
   const tiles: DefaultTile[] = series.hasData
     ? [
-        { key: "ca_signe", label: "CA signé", value: eur(series.caSigneTotal), tone: "pos", sub: "Deals gagnés · cumul" },
-        { key: "pipeline_pondere", label: "Pipeline pondéré", value: eur(series.pipelinePondere), tone: "accent", sub: "Deals ouverts × probabilité" },
+        { key: "ca_signe", label: "CA signé", value: eur(series.caSigneTotal), raw: series.caSigneTotal, rawUnit: "currency", tone: "pos", sub: "Deals gagnés · cumul" },
+        { key: "pipeline_pondere", label: "Pipeline pondéré", value: eur(series.pipelinePondere), raw: series.pipelinePondere, rawUnit: "currency", tone: "accent", sub: "Deals ouverts × probabilité" },
         {
           key: "closing_rate",
           label: "Closing rate",
           value: series.closingRate != null ? `${series.closingRate} %` : "—",
+          raw: series.closingRate,
+          rawUnit: "percent",
           tone: series.closingRate == null ? "neutral" : series.closingRate >= 40 ? "pos" : series.closingRate >= 25 ? "accent" : "neg",
           sub: "Gagnés / clôturés",
           verdict: series.closingRate == null ? undefined
@@ -78,6 +80,8 @@ export default async function PerformanceCommercialePage() {
           key: "cycle_vente",
           label: "Cycle de vente moyen",
           value: series.cycleMoyenJours != null ? `${series.cycleMoyenJours} j` : "—",
+          raw: series.cycleMoyenJours,
+          rawUnit: "count",
           tone: "neutral",
           sub: "Création → closing (gagnés)",
           verdict: series.cycleMoyenJours == null ? undefined
@@ -191,8 +195,18 @@ export default async function PerformanceCommercialePage() {
         </RemovableBlock>
       )}
 
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager pageKey="perf_ventes" tablesPageKey="perf_ventes" hiddenBlocks={hiddenBlockList(custom)} />
+      {/* Ajouter un bloc : liste unifiée — blocs de la page retirés (visualisation
+          d'origine) + presets avec aperçu réel. */}
+      <BlocksManager
+        pageKey="perf_ventes"
+        tablesPageKey="perf_ventes"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          ca_charts: { view: "chart-line", description: "CA signé par mois + cumul — 2 graphiques" },
+          pipeline_stages_bars: { view: "chart-bar", description: "Montant ouvert par étape, par pipeline" },
+          pipeline_management: { view: "carousel", description: "Carrousel d'analyse par pipeline (volumes, montants, vélocité)" },
+          pipeline_conversion: { view: "funnel", description: "Taux de conversion étape par étape" },
+        }[key]))}
+      />
 
       </PageSourcesGate>
 

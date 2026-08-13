@@ -137,6 +137,8 @@ export default async function PaiementFacturationOverviewPage({
           key: "ca_signe",
           label: "CA signé",
           value: margin.caSigne > 0 ? eur(margin.caSigne) : "—",
+          raw: margin.caSigne > 0 ? Math.round(margin.caSigne) : null,
+          rawUnit: "currency",
           tone: "neutral",
           sub: `${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`,
         },
@@ -144,6 +146,8 @@ export default async function PaiementFacturationOverviewPage({
           key: "ca_encaisse",
           label: "CA encaissé",
           value: margin.caEncaisse > 0 ? eur(margin.caEncaisse) : "—",
+          raw: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null,
+          rawUnit: "currency",
           tone: "accent",
           sub: "Factures payées (facturation)",
           verdict: margin.caSigne > 0
@@ -156,6 +160,8 @@ export default async function PaiementFacturationOverviewPage({
           key: "taux_marge",
           label: "Taux de marge",
           value: margin.tauxMarge != null ? `${margin.tauxMarge} %` : "—",
+          raw: margin.tauxMarge,
+          rawUnit: "percent",
           tone: margin.tauxMarge == null ? "neutral" : margin.tauxMarge >= 40 ? "pos" : margin.tauxMarge >= 25 ? "accent" : "neg",
           sub: "Marge brute / CA encaissé",
           verdict: margin.tauxMarge == null ? undefined
@@ -167,6 +173,8 @@ export default async function PaiementFacturationOverviewPage({
           key: "prevision_marge",
           label: "Prévision de marge",
           value: margin.previsionMarge != null ? eur(margin.previsionMarge) : "—",
+          raw: margin.previsionMarge != null ? Math.round(margin.previsionMarge) : null,
+          rawUnit: "currency",
           tone: "neutral",
           sub: "Pipeline pondéré × taux de marge",
         },
@@ -544,7 +552,15 @@ export default async function PaiementFacturationOverviewPage({
         <BlocksManager
           pageKey="audit_paiement_facturation"
           tablesPageKey="audit_paiement_facturation"
-          hiddenBlocks={hiddenBlockList(custom)}
+          hiddenBlocks={hiddenBlockList(custom, (key) => {
+            if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn" };
+            if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen" };
+            if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges" };
+            if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)" };
+            if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)" };
+            if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)" };
+            return undefined;
+          })}
         />
       )}
 

@@ -212,11 +212,13 @@ export default async function ParametresModeleDonneesPage() {
       .map(async (id) => {
         const mapped = savedMappings.find((m) => m.provider === "hubspot" && m.canonical_field === id.canonicalField);
         const propName = mapped?.provider_field ?? id.defaultProviderField;
-        hubspotPropertyStatus[id.canonicalField] = await checkHubSpotProperty(
+        const check = await checkHubSpotProperty(
           hsToken,
           CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies",
           propName,
+          id.label,
         );
+        hubspotPropertyStatus[id.canonicalField] = check.exists;
       }),
   );
 

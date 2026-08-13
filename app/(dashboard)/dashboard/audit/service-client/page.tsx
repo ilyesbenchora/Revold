@@ -60,11 +60,13 @@ export default async function ServiceClientOverviewPage() {
     : null;
   const defaultTiles: DefaultTile[] = data.hasData
     ? [
-        { key: "tickets_ouverts", label: "Tickets ouverts", value: String(data.openTickets), tone: "accent", sub: `sur ${fmt(data.tickets.length)} analysés` },
+        { key: "tickets_ouverts", label: "Tickets ouverts", value: String(data.openTickets), raw: data.openTickets, rawUnit: "count", tone: "accent", sub: `sur ${fmt(data.tickets.length)} analysés` },
         {
           key: "priorite_haute",
           label: "Priorité haute",
           value: String(data.urgentTickets),
+          raw: data.urgentTickets,
+          rawUnit: "count",
           tone: data.urgentTickets > 0 ? "neg" : "pos",
           sub: "À traiter en premier",
           verdict: data.urgentTickets === 0 ? { label: "Rien d'urgent", tone: "pos" }
@@ -75,6 +77,8 @@ export default async function ServiceClientOverviewPage() {
           key: "taux_resolution",
           label: "Taux de résolution",
           value: resolutionPct != null ? `${resolutionPct} %` : "—",
+          raw: resolutionPct,
+          rawUnit: "percent",
           tone: resolutionPct == null ? "neutral" : resolutionPct >= 80 ? "pos" : resolutionPct >= 50 ? "accent" : "neg",
           sub: "Fermés / total",
           verdict: resolutionPct == null ? undefined
@@ -86,6 +90,8 @@ export default async function ServiceClientOverviewPage() {
           key: "resolution_moyenne",
           label: "Résolution moyenne",
           value: data.avgResolutionHours != null ? `${Math.round(data.avgResolutionHours)} h` : "—",
+          raw: data.avgResolutionHours != null ? Math.round(data.avgResolutionHours) : null,
+          rawUnit: "count",
           tone: "neutral",
           sub: "Temps moyen de clôture",
           verdict: data.avgResolutionHours == null ? undefined
@@ -241,7 +247,14 @@ export default async function ServiceClientOverviewPage() {
       )}
 
       {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager pageKey="audit_service_client" tablesPageKey="audit_service_client" hiddenBlocks={hiddenBlockList(custom)} />
+      <BlocksManager
+        pageKey="audit_service_client"
+        tablesPageKey="audit_service_client"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
+          satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
+        }[key]))}
+      />
 
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">

@@ -11,6 +11,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StatTileVerdict } from "@/components/kpi-stat-tiles";
+import { SurgicalAlertButton, blockSourceKey } from "@/components/data-tables/surgical-alert-button";
+
+export type TileAlertRow = { name: string; value: number };
 
 export type EditorTile = {
   key: string;
@@ -70,12 +73,18 @@ type CustomProposal = {
 export function KpiTilesEditor({
   pageKey,
   team,
+  alertTeam = "revops",
+  alertRows = [],
   tiles,
   hiddenDefaults,
   suggestions,
 }: {
   pageKey: string;
   team: string;
+  /** Équipe de l'alerte chirurgicale (sales | marketing | finance | csm | revops). */
+  alertTeam?: string;
+  /** Tuiles avec valeur numérique — lignes sélectionnables de l'alerte. */
+  alertRows?: TileAlertRow[];
   tiles: EditorTile[];
   hiddenDefaults: HiddenDefault[];
   suggestions: EditorSuggestion[];
@@ -228,6 +237,19 @@ export function KpiTilesEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-3">
+        {/* Alerte chirurgicale sur les tuiles — même système que les tables de données. */}
+        {alertRows.length > 0 && (
+          <SurgicalAlertButton
+            title="KPIs de la page"
+            scopeLabel={`les tuiles KPI de la page (${alertRows.map((r) => r.name).join(", ")})`}
+            impactScope="les KPIs de la page"
+            rows={alertRows}
+            team={alertTeam}
+            unit="count"
+            allowTotal={false}
+            sourceKey={blockSourceKey("kpis-page", pageKey)}
+          />
+        )}
         {editing && hiddenDefaults.length > 0 && (
           <span className="text-[11px] text-slate-400">
             {hiddenDefaults.length} tuile{hiddenDefaults.length > 1 ? "s" : ""} masquée{hiddenDefaults.length > 1 ? "s" : ""}
