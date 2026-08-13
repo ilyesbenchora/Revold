@@ -17,7 +17,6 @@ import { SimpleBarsChart } from "@/components/charts/treso-charts";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 export default async function ServiceClientOverviewPage() {
@@ -160,6 +159,11 @@ export default async function ServiceClientOverviewPage() {
         pageKey="audit_service_client"
         defaults={defaultTiles}
         customization={custom}
+        tablesPageKey="audit_service_client"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
+          satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
+        }[key]))}
       />
 
       {!custom.hiddenBlocks.has("tickets_volume") && (
@@ -246,15 +250,6 @@ export default async function ServiceClientOverviewPage() {
       </RemovableBlock>
       )}
 
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager
-        pageKey="audit_service_client"
-        tablesPageKey="audit_service_client"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
-          satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
-        }[key]))}
-      />
 
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">

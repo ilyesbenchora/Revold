@@ -8,7 +8,6 @@ import { PageSourcesGate } from "@/components/page-sources-gate";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 export default async function AdoptionOverviewPage() {
@@ -82,6 +81,10 @@ export default async function AdoptionOverviewPage() {
               pageKey="audit_adoption"
               defaults={defaultTiles}
               customization={custom}
+              tablesPageKey="audit_adoption"
+              hiddenBlocks={hiddenBlockList(custom, (key) => ({
+                adoption_synthese: { view: "table", description: "Synthèse adoption CRM : activités, utilisateurs, actifs" },
+              }[key]))}
             />
 
             {!custom.hiddenBlocks.has("adoption_synthese") && (
@@ -102,14 +105,6 @@ export default async function AdoptionOverviewPage() {
               </RemovableBlock>
             )}
 
-            {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-            <BlocksManager
-              pageKey="audit_adoption"
-              tablesPageKey="audit_adoption"
-              hiddenBlocks={hiddenBlockList(custom, (key) => ({
-                adoption_synthese: { view: "table", description: "Synthèse adoption CRM : activités, utilisateurs, actifs" },
-              }[key]))}
-            />
           </>
         )}
       </PageSourcesGate>

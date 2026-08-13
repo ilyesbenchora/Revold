@@ -11,9 +11,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StatTileVerdict } from "@/components/kpi-stat-tiles";
-import { SurgicalAlertButton, blockSourceKey } from "@/components/data-tables/surgical-alert-button";
-
-export type TileAlertRow = { name: string; value: number };
+import { SurgicalAlertButton, blockSourceKey, type SurgicalUnit } from "@/components/data-tables/surgical-alert-button";
+import { BlockSuggestionList, type HiddenBlock } from "@/components/data-tables/blocks-manager";
+import { setPageEditMode } from "@/components/data-tables/page-edit-mode";
 
 export type EditorTile = {
   key: string;
@@ -22,6 +22,10 @@ export type EditorTile = {
   rowId?: string;
   label: string;
   value: string;
+  /** Valeur numérique brute — rend la tuile alertable (cloche individuelle). */
+  raw?: number | null;
+  /** Unité de la valeur brute (percent | currency | count). */
+  rawUnit?: SurgicalUnit;
   tone?: "pos" | "neg" | "accent" | "neutral";
   sub?: string;
   /** Couleur du sous-titre (évolution des tuiles ajoutées : ▲ vert / ▼ rouge). */
@@ -74,23 +78,32 @@ export function KpiTilesEditor({
   pageKey,
   team,
   alertTeam = "revops",
-  alertRows = [],
   tiles,
   hiddenDefaults,
   suggestions,
+  tablesPageKey,
+  hiddenBlocks = [],
 }: {
   pageKey: string;
   team: string;
   /** Équipe de l'alerte chirurgicale (sales | marketing | finance | csm | revops). */
   alertTeam?: string;
-  /** Tuiles avec valeur numérique — lignes sélectionnables de l'alerte. */
-  alertRows?: TileAlertRow[];
   tiles: EditorTile[];
   hiddenDefaults: HiddenDefault[];
   suggestions: EditorSuggestion[];
+  /** Clé page_data_tables — active la section « Blocs de la page » dans le panneau d'ajout. */
+  tablesPageKey?: string;
+  /** Blocs de la page retirés (réaffichables avec leur visualisation d'origine). */
+  hiddenBlocks?: HiddenBlock[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  // Propage le mode édition à toute la page : les pastilles « ✕ Retirer »
+  // des blocs (RemovableBlock) ne s'affichent que pendant la personnalisation.
+  useEffect(() => {
+    setPageEditMode(editing);
+    return () => setPageEditMode(false);
+  }, [editing]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -237,19 +250,6 @@ export function KpiTilesEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-3">
-        {/* Alerte chirurgicale sur les tuiles — même système que les tables de données. */}
-        {alertRows.length > 0 && (
-          <SurgicalAlertButton
-            title="KPIs de la page"
-            scopeLabel={`les tuiles KPI de la page (${alertRows.map((r) => r.name).join(", ")})`}
-            impactScope="les KPIs de la page"
-            rows={alertRows}
-            team={alertTeam}
-            unit="count"
-            allowTotal={false}
-            sourceKey={blockSourceKey("kpis-page", pageKey)}
-          />
-        )}
         {editing && hiddenDefaults.length > 0 && (
           <span className="text-[11px] text-slate-400">
             {hiddenDefaults.length} tuile{hiddenDefaults.length > 1 ? "s" : ""} masquée{hiddenDefaults.length > 1 ? "s" : ""}
@@ -267,8 +267,8 @@ export function KpiTilesEditor({
       {tiles.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {tiles.map((t) => (
-            <div key={t.key} className="relative rounded-xl border border-slate-200 bg-white p-4">
-              {editing && (
+            <div key={t.key} className="group/tile relative rounded-xl border border-slate-200 bg-white p-4">
+              {editing ? (
                 <button
                   type="button"
                   title="Retirer cette tuile"
@@ -278,6 +278,23 @@ export function KpiTilesEditor({
                 >
                   ✕
                 </button>
+              ) : (
+                // Alerte chirurgicale INDIVIDUELLE par tuile — cloche seule (tuile petite).
+                typeof t.raw === "number" && !Number.isNaN(t.raw) && (
+                  <span className="absolute right-1.5 top-1.5 opacity-0 transition group-hover/tile:opacity-100">
+                    <SurgicalAlertButton
+                      title={t.label}
+                      scopeLabel={`la tuile KPI « ${t.label} »`}
+                      impactScope={`le KPI ${t.label}`}
+                      rows={[{ name: t.label, value: t.raw }]}
+                      team={alertTeam}
+                      unit={t.rawUnit ?? "count"}
+                      allowTotal={false}
+                      sourceKey={blockSourceKey(`kpi-${t.label}`, pageKey)}
+                      iconOnly
+                    />
+                  </span>
+                )
               )}
               <p className="text-[11px] font-medium text-slate-500">{t.label}</p>
               <p className={`mt-1 text-xl font-bold tabular-nums ${VALUE_TONE[t.tone ?? "neutral"]}`}>{t.value}</p>
@@ -333,10 +350,10 @@ export function KpiTilesEditor({
         </div>
       )}
 
-      {/* ── Panneau suggestions (même logique que l'étape KPI de l'alerte) ── */}
+      {/* ── Panneau suggestions : tuiles KPI + blocs de la page (CTA unique) ── */}
       {editing && panelOpen && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Suggestions de la plateforme</p>
+          <p className="text-sm font-semibold text-slate-900">Tuiles KPI</p>
           <p className="mt-0.5 text-xs text-slate-500">
             KPIs adaptés à cette page, selon tes outils connectés. La valeur est recalculée en continu sur tes données.
           </p>
@@ -408,6 +425,14 @@ export function KpiTilesEditor({
               </div>
             )}
           </div>
+
+          {/* ── Blocs de la page : même point d'entrée que les tuiles (CTA unique) ── */}
+          {tablesPageKey && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <p className="text-sm font-semibold text-slate-900">Blocs</p>
+              <BlockSuggestionList tablesPageKey={tablesPageKey} hiddenBlocks={hiddenBlocks} />
+            </div>
+          )}
         </div>
       )}
     </div>

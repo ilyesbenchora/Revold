@@ -28,7 +28,6 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 export default async function PaiementFacturationOverviewPage({
@@ -219,6 +218,16 @@ export default async function PaiementFacturationOverviewPage({
           pageKey="audit_paiement_facturation"
           defaults={defaultTiles}
           customization={custom}
+          tablesPageKey="audit_paiement_facturation"
+          hiddenBlocks={hiddenBlockList(custom, (key) => {
+            if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn" };
+            if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen" };
+            if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges" };
+            if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)" };
+            if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)" };
+            if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)" };
+            return undefined;
+          })}
         />
       )}
 
@@ -545,23 +554,6 @@ export default async function PaiementFacturationOverviewPage({
               : " Activez HubSpot Invoices/Payments ou connectez Stripe / Pennylane pour alimenter cette page automatiquement."}
           </p>
         </div>
-      )}
-
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      {selectedKeys.length > 0 && (
-        <BlocksManager
-          pageKey="audit_paiement_facturation"
-          tablesPageKey="audit_paiement_facturation"
-          hiddenBlocks={hiddenBlockList(custom, (key) => {
-            if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn" };
-            if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen" };
-            if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges" };
-            if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)" };
-            if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)" };
-            if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)" };
-            return undefined;
-          })}
-        />
       )}
 
       <PageDataTables pageKey="audit_paiement_facturation" />

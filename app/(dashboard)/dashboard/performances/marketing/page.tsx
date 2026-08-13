@@ -15,7 +15,6 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { buildLifecycleConversion } from "@/lib/sync/compute-lifecycle-conversion";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 const sourceLabels: Record<string, string> = {
@@ -144,13 +143,19 @@ export default async function PerformanceMarketingPage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" categories={["crm", "ads"]}>
 
-      {/* Lecture cockpit en un coup d'œil : tuiles KPI configurables */}
+      {/* Lecture cockpit en un coup d'œil : tuiles KPI configurables (CTA unique :
+          le panneau d'ajout contient aussi les blocs de la page) */}
       <ConfigurableKpiTiles
         supabase={supabase}
         orgId={orgId}
         pageKey="perf_marketing"
         defaults={defaultTiles}
         customization={custom}
+        tablesPageKey="perf_marketing"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          lifecycle_conversion: { view: "funnel", description: "Funnel Lead → Customer avec taux de passage par étape" },
+          sources_acquisition: { view: "table", description: "Contacts par source d'origine (part du total, natif/externe)" },
+        }[key]))}
       />
 
       {/* Lifecycle conversion */}
@@ -220,16 +225,6 @@ export default async function PerformanceMarketingPage() {
         </CollapsibleBlock>
         </RemovableBlock>
       )}
-
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions. */}
-      <BlocksManager
-        pageKey="perf_marketing"
-        tablesPageKey="perf_marketing"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          lifecycle_conversion: { view: "funnel", description: "Funnel Lead → Customer avec taux de passage par étape" },
-          sources_acquisition: { view: "table", description: "Contacts par source d'origine (part du total, natif/externe)" },
-        }[key]))}
-      />
 
       </PageSourcesGate>
 

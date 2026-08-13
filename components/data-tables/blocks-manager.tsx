@@ -1,15 +1,19 @@
 "use client";
 
 /**
- * « ＋ Ajouter un bloc » — liste UNIFIÉE de suggestions pour la page :
- *  - les blocs de la page retirés (page_tiles, kind=hide_block) : réaffichés en
- *    1 clic, en conservant leur visualisation d'origine (aperçu schématique) ;
- *  - les presets de la page (TABLE_PRESETS, filtrés par outils connectés) :
- *    créés comme page_data_tables, avec APERÇU RÉEL de la visualisation
- *    (recalcul déterministe /api/reports/recompute) avant l'ajout.
+ * Liste de suggestions de blocs — intégrée au panneau « Personnaliser les
+ * KPIs → Ajouter un KPI » (CTA unique, pas de bouton dédié) :
+ *  - blocs de la page retirés (page_tiles, kind=hide_block) : réaffichés en
+ *    1 clic, en conservant leur visualisation d'origine ;
+ *  - presets de la page (TABLE_PRESETS, filtrés par outils connectés) : créés
+ *    comme page_data_tables.
+ * La sélection d'un bloc ouvre une FENÊTRE d'aperçu pleine qualité : données
+ * réelles (recalcul déterministe /api/reports/recompute) rendues dans la
+ * visualisation cible — mêmes standards visuels que les tables de données.
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   filterPresetsBySources,
@@ -42,6 +46,8 @@ const VIEW_LABELS: Record<string, string> = {
   bloc: "Bloc",
 };
 
+const PALETTE = ["#6366f1", "#8b5cf6", "#0ea5e9", "#f59e0b", "#10b981", "#f43f5e", "#64748b", "#a855f7"];
+
 function fmtVal(v: number, unit: string): string {
   if (unit === "currency")
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -49,17 +55,22 @@ function fmtVal(v: number, unit: string): string {
   return v.toLocaleString("fr-FR");
 }
 
-/* ── Aperçu schématique (blocs de la page : la visualisation exacte revient au réaffichage) ── */
+/* ── Aperçu schématique grand format (blocs de la page : la visualisation
+      exacte — carrousel, funnel… — revient telle quelle au réaffichage) ── */
 function SchematicPreview({ view }: { view?: string }) {
   const v = view ?? "table";
   if (v === "carousel") {
     return (
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className={`h-16 flex-1 rounded-lg border border-slate-200 ${i === 1 ? "bg-slate-100" : "bg-slate-50"} p-2`}>
-            <div className="h-2 w-2/3 rounded bg-slate-300" />
-            <div className="mt-2 h-1.5 w-full rounded bg-slate-200" />
-            <div className="mt-1 h-1.5 w-4/5 rounded bg-slate-200" />
+          <div key={i} className={`h-32 flex-1 rounded-xl border p-3 ${i === 1 ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200 bg-slate-50"}`}>
+            <div className="h-2.5 w-2/3 rounded bg-indigo-300" />
+            <div className="mt-3 space-y-1.5">
+              {[100, 75, 50].map((w, j) => (
+                <div key={j} className="h-2 rounded bg-indigo-200" style={{ width: `${w}%` }} />
+              ))}
+            </div>
+            <div className="mt-3 h-2 w-1/2 rounded bg-slate-300" />
           </div>
         ))}
       </div>
@@ -67,104 +78,114 @@ function SchematicPreview({ view }: { view?: string }) {
   }
   if (v === "funnel") {
     return (
-      <div className="space-y-1">
+      <div className="space-y-2">
         {[100, 72, 45, 22].map((w, i) => (
-          <div key={i} className="h-3 rounded bg-slate-300/80" style={{ width: `${w}%` }} />
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-6 rounded-lg" style={{ width: `${w}%`, background: PALETTE[i] }} />
+            <span className="text-[11px] font-semibold text-slate-500">{w} %</span>
+          </div>
         ))}
       </div>
     );
   }
   if (v === "chart-line" || v === "line") {
     return (
-      <svg viewBox="0 0 240 60" className="h-16 w-full">
-        <polyline points="0,50 40,42 80,45 120,30 160,24 200,14 240,8" fill="none" stroke="#94a3b8" strokeWidth="2.5" />
+      <svg viewBox="0 0 480 140" className="w-full">
+        <polyline points="0,120 60,100 120,108 180,72 240,60 300,36 360,42 420,20 480,12" fill="none" stroke="#6366f1" strokeWidth="3" />
+        <polyline points="0,120 60,100 120,108 180,72 240,60 300,36 360,42 420,20 480,12 480,140 0,140" fill="#6366f1" opacity="0.08" />
       </svg>
     );
   }
   if (v === "chart-bar" || v === "bar") {
     return (
-      <div className="flex h-16 items-end gap-1.5">
-        {[35, 60, 45, 80, 55, 70, 40, 90].map((h, i) => (
-          <div key={i} className="flex-1 rounded-t bg-slate-300" style={{ height: `${h}%` }} />
+      <div className="flex h-36 items-end gap-2">
+        {[35, 60, 45, 80, 55, 70, 40, 90, 65, 50].map((h, i) => (
+          <div key={i} className="flex-1 rounded-t-lg" style={{ height: `${h}%`, background: PALETTE[i % PALETTE.length] }} />
         ))}
       </div>
     );
   }
   if (v === "tiles") {
     return (
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-4 gap-3">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-10 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-            <div className="h-1.5 w-2/3 rounded bg-slate-300" />
-            <div className="mt-1.5 h-2 w-1/2 rounded bg-slate-400" />
+          <div key={i} className="h-20 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="h-2 w-2/3 rounded bg-slate-300" />
+            <div className="mt-2.5 h-3.5 w-1/2 rounded bg-indigo-300" />
           </div>
         ))}
       </div>
     );
   }
-  // table / bloc / donut / défaut
   if (v === "donut") {
     return (
-      <svg viewBox="0 0 60 60" className="mx-auto h-16 w-16">
-        <circle cx="30" cy="30" r="22" fill="none" stroke="#e2e8f0" strokeWidth="9" />
-        <circle cx="30" cy="30" r="22" fill="none" stroke="#94a3b8" strokeWidth="9" strokeDasharray="80 58" transform="rotate(-90 30 30)" />
+      <svg viewBox="0 0 120 120" className="mx-auto h-36 w-36">
+        <circle cx="60" cy="60" r="44" fill="none" stroke="#e2e8f0" strokeWidth="18" />
+        <circle cx="60" cy="60" r="44" fill="none" stroke="#6366f1" strokeWidth="18" strokeDasharray="160 116" transform="rotate(-90 60 60)" />
+        <circle cx="60" cy="60" r="44" fill="none" stroke="#8b5cf6" strokeWidth="18" strokeDasharray="70 206" strokeDashoffset="-160" transform="rotate(-90 60 60)" />
       </svg>
     );
   }
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className={`flex justify-between px-2 py-1.5 ${i > 0 ? "border-t border-slate-100" : "bg-slate-50"}`}>
-          <div className="h-2 w-1/3 rounded bg-slate-300" />
-          <div className="h-2 w-10 rounded bg-slate-300" />
+    <div className="overflow-hidden rounded-xl border border-slate-200">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className={`flex justify-between px-4 py-2.5 ${i > 0 ? "border-t border-slate-100" : "bg-slate-50"}`}>
+          <div className="h-2.5 w-1/3 rounded bg-slate-300" />
+          <div className="h-2.5 w-16 rounded bg-indigo-200" />
         </div>
       ))}
     </div>
   );
 }
 
-/* ── Aperçu RÉEL d'un preset (données recalculées) ── */
+/* ── Aperçu RÉEL grand format d'un preset (données recalculées) ── */
 function DataPreview({ rows, view, unit }: { rows: PreviewRow[]; view: string; unit: string }) {
-  const top = rows.slice(0, 8);
+  const top = rows.slice(0, 10);
   const max = Math.max(...top.map((r) => Math.abs(r.value)), 1);
 
   if (view === "line") {
-    const pts = rows.slice(0, 24);
+    const pts = rows.slice(0, 36);
     const mx = Math.max(...pts.map((r) => r.value), 1);
-    const step = pts.length > 1 ? 240 / (pts.length - 1) : 240;
-    const points = pts.map((r, i) => `${i * step},${58 - (r.value / mx) * 52}`).join(" ");
+    const step = pts.length > 1 ? 480 / (pts.length - 1) : 480;
+    const points = pts.map((r, i) => `${i * step},${132 - (r.value / mx) * 120}`).join(" ");
     return (
-      <svg viewBox="0 0 240 60" className="h-20 w-full">
-        <polyline points={points} fill="none" stroke="#6366f1" strokeWidth="2.5" />
-      </svg>
+      <div>
+        <svg viewBox="0 0 480 140" className="w-full">
+          <polyline points={`${points} 480,140 0,140`} fill="#6366f1" opacity="0.08" />
+          <polyline points={points} fill="none" stroke="#6366f1" strokeWidth="3" />
+        </svg>
+        <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+          <span>{pts[0]?.name}</span>
+          <span>{pts[pts.length - 1]?.name}</span>
+        </div>
+      </div>
     );
   }
   if (view === "donut") {
-    const seg = rows.slice(0, 5);
+    const seg = rows.slice(0, 6);
     const total = seg.reduce((s, r) => s + Math.abs(r.value), 0) || 1;
-    const C = 2 * Math.PI * 22;
-    const palette = ["#6366f1", "#8b5cf6", "#0ea5e9", "#f59e0b", "#94a3b8"];
-    // Segments précalculés (fraction + offset cumulé) — pas de mutation au rendu.
+    const C = 2 * Math.PI * 44;
     const segments = seg.map((r, i) => ({
       name: r.name,
-      color: palette[i],
+      value: r.value,
+      color: PALETTE[i % PALETTE.length],
       frac: Math.abs(r.value) / total,
       offset: seg.slice(0, i).reduce((s, x) => s + Math.abs(x.value) / total, 0),
     }));
     return (
-      <div className="flex items-center gap-3">
-        <svg viewBox="0 0 60 60" className="h-20 w-20 shrink-0">
+      <div className="flex items-center gap-6">
+        <svg viewBox="0 0 120 120" className="h-40 w-40 shrink-0">
           {segments.map((s) => (
-            <circle key={s.name} cx="30" cy="30" r="22" fill="none" stroke={s.color} strokeWidth="9"
-              strokeDasharray={`${s.frac * C} ${C - s.frac * C}`} strokeDashoffset={-s.offset * C} transform="rotate(-90 30 30)" />
+            <circle key={s.name} cx="60" cy="60" r="44" fill="none" stroke={s.color} strokeWidth="18"
+              strokeDasharray={`${s.frac * C} ${C - s.frac * C}`} strokeDashoffset={-s.offset * C} transform="rotate(-90 60 60)" />
           ))}
         </svg>
-        <ul className="min-w-0 flex-1 space-y-0.5 text-[10px] text-slate-500">
-          {seg.map((r, i) => (
-            <li key={r.name} className="flex items-center gap-1.5 truncate">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: palette[i] }} />
-              <span className="truncate">{r.name}</span>
-              <span className="ml-auto font-semibold text-slate-700">{fmtVal(r.value, unit)}</span>
+        <ul className="min-w-0 flex-1 space-y-1.5 text-xs text-slate-600">
+          {segments.map((s) => (
+            <li key={s.name} className="flex items-center gap-2 truncate">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+              <span className="truncate">{s.name}</span>
+              <span className="ml-auto font-semibold text-slate-800">{fmtVal(s.value, unit)}</span>
             </li>
           ))}
         </ul>
@@ -173,14 +194,14 @@ function DataPreview({ rows, view, unit }: { rows: PreviewRow[]; view: string; u
   }
   if (view === "bar") {
     return (
-      <div className="space-y-1">
-        {top.map((r) => (
-          <div key={r.name} className="flex items-center gap-2 text-[10px]">
-            <span className="w-24 shrink-0 truncate text-slate-500">{r.name}</span>
-            <div className="h-2.5 flex-1 overflow-hidden rounded bg-slate-100">
-              <div className="h-full rounded bg-indigo-400" style={{ width: `${(Math.abs(r.value) / max) * 100}%` }} />
+      <div className="space-y-2">
+        {top.map((r, i) => (
+          <div key={r.name} className="flex items-center gap-3 text-xs">
+            <span className="w-32 shrink-0 truncate text-slate-500">{r.name}</span>
+            <div className="h-4 flex-1 overflow-hidden rounded-md bg-slate-100">
+              <div className="h-full rounded-md" style={{ width: `${(Math.abs(r.value) / max) * 100}%`, background: PALETTE[i % PALETTE.length] }} />
             </div>
-            <span className="w-16 shrink-0 text-right font-semibold text-slate-700">{fmtVal(r.value, unit)}</span>
+            <span className="w-20 shrink-0 text-right font-semibold tabular-nums text-slate-800">{fmtVal(r.value, unit)}</span>
           </div>
         ))}
       </div>
@@ -188,9 +209,9 @@ function DataPreview({ rows, view, unit }: { rows: PreviewRow[]; view: string; u
   }
   // table / bloc
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 text-[11px]">
-      {rows.slice(0, 6).map((r, i) => (
-        <div key={r.name} className={`flex justify-between px-2.5 py-1 ${i > 0 ? "border-t border-slate-100" : "bg-slate-50 font-medium"}`}>
+    <div className="overflow-hidden rounded-xl border border-slate-200 text-sm">
+      {rows.slice(0, 8).map((r, i) => (
+        <div key={r.name} className={`flex justify-between px-4 py-2 ${i > 0 ? "border-t border-slate-100" : "bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-400"}`}>
           <span className="truncate text-slate-600">{r.name}</span>
           <span className="ml-3 shrink-0 font-semibold tabular-nums text-slate-800">{fmtVal(r.value, unit)}</span>
         </div>
@@ -199,48 +220,86 @@ function DataPreview({ rows, view, unit }: { rows: PreviewRow[]; view: string; u
   );
 }
 
+/**
+ * Compat : CTA autonome « ＋ Ajouter un bloc » — encore utilisé par la page
+ * Audit données (refonte en cours). Les autres pages passent par le panneau
+ * « Personnaliser les KPIs » (BlockSuggestionList intégrée, CTA unique).
+ */
 export function BlocksManager({
   pageKey,
   tablesPageKey,
   hiddenBlocks,
 }: {
-  /** Clé page_tiles (masquages de blocs en dur) — réservée aux évolutions (les restaurations passent par rowId). */
   pageKey: string;
-  /** Clé page_data_tables de la page (création des nouveaux blocs). */
   tablesPageKey: string;
   hiddenBlocks: HiddenBlock[];
 }) {
   void pageKey;
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className={`text-xs font-medium hover:underline ${open ? "text-slate-500" : "text-accent"}`}
+        >
+          {open ? "Fermer" : "＋ Ajouter un bloc"}
+        </button>
+      </div>
+      {open && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Suggestions de blocs</p>
+          <BlockSuggestionList tablesPageKey={tablesPageKey} hiddenBlocks={hiddenBlocks} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Liste des suggestions de blocs — la sélection ouvre la fenêtre d'aperçu.
+ */
+export function BlockSuggestionList({
+  tablesPageKey,
+  hiddenBlocks,
+}: {
+  /** Clé page_data_tables de la page (création des nouveaux blocs). */
+  tablesPageKey: string;
+  hiddenBlocks: HiddenBlock[];
+}) {
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tools, setTools] = useState<SourceTool[] | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  /** Entrée dépliée (aperçu visible) : `hidden-<rowId>` ou `preset-<id>`. */
-  const [selected, setSelected] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
+  /** Bloc sélectionné → fenêtre d'aperçu ouverte. */
+  const [selectedHidden, setSelectedHidden] = useState<HiddenBlock | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<TablePreset | null>(null);
+  const [preview, setPreview] = useState<PreviewState>({ loading: false, rows: null, error: null });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (!open || tools !== null) return;
+    if (tools !== null) return;
     let alive = true;
     fetch(`/api/integrations/connected?page_key=${encodeURIComponent(tablesPageKey)}`)
       .then((r) => (r.ok ? r.json() : { tools: [] }))
       .then((d) => alive && setTools(Array.isArray(d.tools) ? d.tools : []))
       .catch(() => alive && setTools([]));
     return () => { alive = false; };
-  }, [open, tools, tablesPageKey]);
+  }, [tools, tablesPageKey]);
 
   const presets = useMemo(
     () => filterPresetsBySources(presetsForPage(tablesPageKey), tools ?? []).filter((p) => !addedIds.has(p.id)),
     [tablesPageKey, tools, addedIds],
   );
 
-  /** Aperçu réel d'un preset : recalcul déterministe (mêmes chiffres que le bloc créé). */
-  function loadPresetPreview(p: TablePreset) {
-    const key = `preset-${p.id}`;
-    if (previews[key]?.rows || previews[key]?.loading) return;
-    setPreviews((prev) => ({ ...prev, [key]: { loading: true, rows: null, error: null } }));
+  function openPresetPreview(p: TablePreset) {
+    setSelectedHidden(null);
+    setSelectedPreset(p);
+    setPreview({ loading: true, rows: null, error: null });
     fetch("/api/reports/recompute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -253,11 +312,15 @@ export function BlocksManager({
       .then(async (r) => {
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error ?? "Aperçu indisponible");
-        setPreviews((prev) => ({ ...prev, [key]: { loading: false, rows: Array.isArray(d.data) ? d.data : [], error: null } }));
+        setPreview({ loading: false, rows: Array.isArray(d.data) ? d.data : [], error: null });
       })
-      .catch((e: Error) => {
-        setPreviews((prev) => ({ ...prev, [key]: { loading: false, rows: null, error: e.message } }));
-      });
+      .catch((e: Error) => setPreview({ loading: false, rows: null, error: e.message }));
+  }
+
+  function closeModal() {
+    setSelectedHidden(null);
+    setSelectedPreset(null);
+    setPreview({ loading: false, rows: null, error: null });
   }
 
   async function restore(h: HiddenBlock) {
@@ -267,6 +330,7 @@ export function BlocksManager({
     try {
       const res = await fetch(`/api/page-tiles/${h.rowId}`, { method: "DELETE" });
       if (!res.ok) { setError("Impossible de réafficher ce bloc."); return; }
+      closeModal();
       router.refresh();
     } finally {
       setBusy(null);
@@ -299,7 +363,7 @@ export function BlocksManager({
         return;
       }
       setAddedIds((prev) => new Set(prev).add(p.id));
-      setSelected(null);
+      closeModal();
       // La section « Tables de données » (composant client) recharge sa liste.
       window.dispatchEvent(new CustomEvent("revold:reload-page-tables"));
       router.refresh();
@@ -308,128 +372,140 @@ export function BlocksManager({
     }
   }
 
+  const modalOpen = selectedHidden !== null || selectedPreset !== null;
+
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className={`text-xs font-medium hover:underline ${open ? "text-slate-500" : "text-accent"}`}
-        >
-          {open ? "Fermer" : "＋ Ajouter un bloc"}
-        </button>
+    <div className="space-y-2">
+      <p className="mt-0.5 text-xs text-slate-500">
+        Clique sur un bloc pour ouvrir l&apos;aperçu de sa visualisation avant de l&apos;ajouter.
+        Les blocs de la page retirés gardent leur visualisation d&apos;origine.
+      </p>
+
+      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+        {/* ── Blocs de la page retirés ── */}
+        {hiddenBlocks.map((h) => (
+          <button
+            key={h.rowId}
+            type="button"
+            onClick={() => { setSelectedPreset(null); setSelectedHidden(h); }}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-accent hover:bg-accent/5"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-slate-800">{h.label}</span>
+              <span className="block truncate text-xs text-slate-500">
+                {h.description ?? "Bloc de la page — visualisation d'origine conservée"}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600">
+              {VIEW_LABELS[h.view ?? "table"] ?? "Bloc"}
+            </span>
+          </button>
+        ))}
+
+        {/* ── Presets (nouveaux blocs) ── */}
+        {tools === null && <p className="py-4 text-center text-xs text-slate-400">Chargement…</p>}
+        {tools !== null && presets.length === 0 && hiddenBlocks.length === 0 && (
+          <p className="py-4 text-center text-xs text-slate-400">
+            Aucune suggestion disponible — connecte un outil compatible ou crée un KPI personnalisé depuis « Tables de données ».
+          </p>
+        )}
+        {presets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => openPresetPreview(p)}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-accent hover:bg-accent/5"
+          >
+            <span className="text-sm font-medium text-slate-800">{p.label}</span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                {VIEW_LABELS[p.view ?? "table"]}
+              </span>
+              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-500">
+                {p.unit === "currency" ? "€" : p.unit === "percent" ? "%" : "#"}
+              </span>
+            </span>
+          </button>
+        ))}
       </div>
 
-      {open && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Suggestions de blocs</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Clique sur un KPI pour voir un aperçu de sa visualisation avant de l&apos;ajouter.
-            Les blocs de la page retirés gardent leur visualisation d&apos;origine.
-          </p>
+      {error && <p className="text-xs text-rose-600">{error}</p>}
 
-          <div className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
-            {/* ── Blocs de la page retirés — même visualisation au réaffichage ── */}
-            {hiddenBlocks.map((h) => {
-              const key = `hidden-${h.rowId}`;
-              const isSelected = selected === key;
-              return (
-                <div key={key} className={`rounded-xl border transition ${isSelected ? "border-accent" : "border-slate-200"}`}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(isSelected ? null : key)}
-                    className="flex w-full items-center justify-between gap-3 p-3 text-left"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-slate-800">{h.label}</span>
-                      <span className="block text-xs text-slate-500">
-                        {h.description ?? "Bloc de la page — visualisation d'origine conservée"}
-                      </span>
-                    </span>
-                    <span className="shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600">
-                      {VIEW_LABELS[h.view ?? "table"] ?? "Bloc"}
-                    </span>
-                  </button>
-                  {isSelected && (
-                    <div className="border-t border-slate-100 p-3">
-                      <SchematicPreview view={h.view} />
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          type="button"
-                          disabled={busy != null}
-                          onClick={() => restore(h)}
-                          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-                        >
-                          {busy === `restore-${h.rowId}` ? "Réaffichage…" : "Réafficher ce bloc"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+      {/* ── Fenêtre d'aperçu pleine qualité ── */}
+      {mounted && modalOpen && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4" onClick={closeModal}>
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  {selectedHidden?.label ?? selectedPreset?.label}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {selectedHidden
+                    ? selectedHidden.description ?? "Bloc de la page — il revient exactement tel qu'il était."
+                    : `Aperçu sur tes données réelles · ${VIEW_LABELS[selectedPreset?.view ?? "table"]}`}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">
+                {VIEW_LABELS[(selectedHidden ? selectedHidden.view : selectedPreset?.view) ?? "table"] ?? "Bloc"}
+              </span>
+            </div>
 
-            {/* ── Presets (nouveaux blocs) — aperçu réel avant ajout ── */}
-            {tools === null && <p className="py-4 text-center text-xs text-slate-400">Chargement…</p>}
-            {tools !== null && presets.length === 0 && hiddenBlocks.length === 0 && (
-              <p className="py-4 text-center text-xs text-slate-400">
-                Aucune suggestion disponible — connecte un outil compatible ou crée un KPI personnalisé depuis « Tables de données ».
+            <div className="mt-4 min-h-36">
+              {selectedHidden && <SchematicPreview view={selectedHidden.view} />}
+              {selectedPreset && preview.loading && (
+                <p className="py-10 text-center text-xs text-slate-400">Calcul de l&apos;aperçu sur tes données…</p>
+              )}
+              {selectedPreset && preview.error && (
+                <p className="py-8 text-center text-xs text-rose-500">{preview.error}</p>
+              )}
+              {selectedPreset && preview.rows && preview.rows.length === 0 && (
+                <p className="py-10 text-center text-xs text-slate-400">Aucune donnée pour ce KPI pour le moment.</p>
+              )}
+              {selectedPreset && preview.rows && preview.rows.length > 0 && (
+                <DataPreview rows={preview.rows} view={selectedPreset.view ?? "table"} unit={selectedPreset.unit} />
+              )}
+            </div>
+
+            {selectedHidden && (
+              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                Aperçu schématique : ce bloc utilise une visualisation dédiée de la page
+                (carrousel, funnel…) — il se réaffiche exactement comme avant son retrait.
               </p>
             )}
-            {presets.map((p) => {
-              const key = `preset-${p.id}`;
-              const isSelected = selected === key;
-              const preview = previews[key];
-              return (
-                <div key={key} className={`rounded-xl border transition ${isSelected ? "border-accent" : "border-slate-200"}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelected(isSelected ? null : key);
-                      if (!isSelected) loadPresetPreview(p);
-                    }}
-                    className="flex w-full items-center justify-between gap-3 p-3 text-left"
-                  >
-                    <span className="text-sm font-medium text-slate-800">{p.label}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                        {VIEW_LABELS[p.view ?? "table"]}
-                      </span>
-                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-500">
-                        {p.unit === "currency" ? "€" : p.unit === "percent" ? "%" : "#"}
-                      </span>
-                    </span>
-                  </button>
-                  {isSelected && (
-                    <div className="border-t border-slate-100 p-3">
-                      {preview?.loading && <p className="py-3 text-center text-xs text-slate-400">Calcul de l&apos;aperçu…</p>}
-                      {preview?.error && <p className="py-2 text-center text-xs text-rose-500">{preview.error}</p>}
-                      {preview?.rows && preview.rows.length === 0 && (
-                        <p className="py-3 text-center text-xs text-slate-400">Aucune donnée pour ce KPI pour le moment.</p>
-                      )}
-                      {preview?.rows && preview.rows.length > 0 && (
-                        <DataPreview rows={preview.rows} view={p.view ?? "table"} unit={p.unit} />
-                      )}
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          type="button"
-                          disabled={busy != null}
-                          onClick={() => addPreset(p)}
-                          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-                        >
-                          {busy === `add-${p.id}` ? "Ajout…" : "Ajouter ce bloc"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {error && <p className="text-xs text-rose-600">{error}</p>}
+            <div className="mt-4 flex items-center justify-between">
+              <button type="button" onClick={closeModal} className="text-xs text-slate-400 hover:text-slate-600">
+                Annuler
+              </button>
+              {selectedHidden && (
+                <button
+                  type="button"
+                  disabled={busy != null}
+                  onClick={() => restore(selectedHidden)}
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy ? "Réaffichage…" : "Réafficher ce bloc"}
+                </button>
+              )}
+              {selectedPreset && (
+                <button
+                  type="button"
+                  disabled={busy != null || preview.loading}
+                  onClick={() => addPreset(selectedPreset)}
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy ? "Ajout…" : "Ajouter ce bloc"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

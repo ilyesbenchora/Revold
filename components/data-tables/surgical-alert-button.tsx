@@ -105,6 +105,7 @@ export function SurgicalAlertButton({
   allowTotal = true,
   totalLabel = "Total du bloc",
   sourceKey,
+  iconOnly = false,
 }: {
   /** Nom affiché de la source (bloc ou table). */
   title: string;
@@ -123,6 +124,8 @@ export function SurgicalAlertButton({
   totalLabel?: string;
   /** Identifie la table pour compter les alertes déjà posées dessus. */
   sourceKey?: string;
+  /** Déclencheur compact : cloche seule, sans libellé (petits blocs / tuiles). */
+  iconOnly?: boolean;
 }) {
   const defaultTarget = allowTotal ? "Total" : rows[0]?.name ?? "Total";
   const key = sourceKey ?? blockSourceKey(title);
@@ -313,19 +316,21 @@ export function SurgicalAlertButton({
 
   return (
     <>
-      {/* CTA discret rouge/fuchsia */}
+      {/* CTA discret rouge/fuchsia — cloche seule en mode compact (tuiles). */}
       <button
         type="button"
         onClick={() => { reset(); setOpen(true); }}
         title="Créer une alerte chirurgicale sur ces données"
-        className="inline-flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-gradient-to-r from-rose-50 to-fuchsia-50 px-2 py-1 text-[11px] font-semibold text-fuchsia-700 transition hover:border-fuchsia-300 hover:from-rose-100 hover:to-fuchsia-100"
+        className={iconOnly
+          ? "inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-300 transition hover:bg-fuchsia-50 hover:text-fuchsia-600"
+          : "inline-flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-gradient-to-r from-rose-50 to-fuchsia-50 px-2 py-1 text-[11px] font-semibold text-fuchsia-700 transition hover:border-fuchsia-300 hover:from-rose-100 hover:to-fuchsia-100"}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
-        Alerte
+        {!iconOnly && "Alerte"}
       </button>
 
-      {/* Alertes déjà posées sur cette table : compteur + accès direct. */}
-      {linked.length > 0 && (
+      {/* Alertes déjà posées sur cette table : compteur + accès direct (masqué en mode compact). */}
+      {!iconOnly && linked.length > 0 && (
         <a
           href={`/dashboard/mes-alertes#alerte-${linked[0].id}`}
           title={

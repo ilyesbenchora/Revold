@@ -13,7 +13,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StatTile } from "@/components/kpi-stat-tiles";
 import { getPageCustomization, resolveAddedTiles, type PageCustomization } from "@/lib/kpi/page-tiles";
 import { tileSuggestionsForPage, PAGE_TILE_TEAM } from "@/lib/kpi/tile-catalog";
-import { KpiTilesEditor, type EditorTile, type TileAlertRow } from "./kpi-tiles-editor";
+import { KpiTilesEditor, type EditorTile } from "./kpi-tiles-editor";
+import type { HiddenBlock } from "@/components/data-tables/blocks-manager";
 
 export type DefaultTile = StatTile & {
   key: string;
@@ -39,6 +40,8 @@ export async function ConfigurableKpiTiles({
   pageKey,
   defaults,
   customization,
+  tablesPageKey,
+  hiddenBlocks,
 }: {
   supabase: SupabaseClient;
   orgId: string;
@@ -46,6 +49,10 @@ export async function ConfigurableKpiTiles({
   defaults: DefaultTile[];
   /** Perso déjà chargée par la page (évite un second fetch quand elle gère aussi ses blocs). */
   customization?: PageCustomization;
+  /** Clé page_data_tables — active la section « Blocs » dans le panneau d'ajout (CTA unique). */
+  tablesPageKey?: string;
+  /** Blocs de la page retirés, réaffichables depuis le même panneau. */
+  hiddenBlocks?: HiddenBlock[];
 }) {
   const cust = customization ?? (await getPageCustomization(supabase, orgId, pageKey));
 
@@ -58,6 +65,8 @@ export async function ConfigurableKpiTiles({
       kind: "default",
       label: d.label,
       value: d.value,
+      raw: d.raw,
+      rawUnit: d.rawUnit,
       tone: d.tone,
       sub: d.sub,
       verdict: d.verdict,
@@ -68,6 +77,8 @@ export async function ConfigurableKpiTiles({
       rowId: a.rowId,
       label: a.label,
       value: a.value,
+      raw: a.raw,
+      rawUnit: (a.rawUnit === "percent" || a.rawUnit === "currency" ? a.rawUnit : "count"),
       tone: "accent",
       sub: a.sub,
       subTone: a.subTone,
@@ -78,26 +89,16 @@ export async function ConfigurableKpiTiles({
     .filter((d) => cust.hiddenTiles.has(d.key))
     .map((d) => ({ key: d.key, label: d.label, rowId: cust.hiddenTiles.get(d.key) as string }));
 
-  // Lignes de l'alerte chirurgicale : chaque tuile avec valeur numérique connue
-  // (mêmes lignes sélectionnables que sur une table de données).
-  const alertRows: TileAlertRow[] = [
-    ...visibleDefaults
-      .filter((d) => typeof d.raw === "number" && !Number.isNaN(d.raw))
-      .map((d) => ({ name: d.label, value: d.raw as number })),
-    ...added
-      .filter((a) => typeof a.raw === "number" && !Number.isNaN(a.raw))
-      .map((a) => ({ name: a.label, value: a.raw as number })),
-  ];
-
   return (
     <KpiTilesEditor
       pageKey={pageKey}
       team={PAGE_TILE_TEAM[pageKey] ?? "revops"}
       alertTeam={PAGE_SURGICAL_TEAM[pageKey] ?? "revops"}
-      alertRows={alertRows}
       tiles={tiles}
       hiddenDefaults={hiddenDefaults}
       suggestions={tileSuggestionsForPage(pageKey)}
+      tablesPageKey={tablesPageKey}
+      hiddenBlocks={hiddenBlocks}
     />
   );
 }

@@ -23,7 +23,6 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 const eur = (v: number) =>
@@ -115,13 +114,21 @@ export default async function PerformanceCommercialePage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" categories={["crm"]}>
 
-      {/* ── Lecture en un coup d'œil : tuiles KPI configurables ── */}
+      {/* ── Lecture en un coup d'œil : tuiles KPI configurables (CTA unique :
+             le panneau d'ajout contient aussi les blocs de la page) ── */}
       <ConfigurableKpiTiles
         supabase={supabase}
         orgId={orgId}
         pageKey="perf_ventes"
         defaults={tiles}
         customization={custom}
+        tablesPageKey="perf_ventes"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          ca_charts: { view: "chart-line", description: "CA signé par mois + cumul — 2 graphiques" },
+          pipeline_stages_bars: { view: "chart-bar", description: "Montant ouvert par étape, par pipeline" },
+          pipeline_management: { view: "carousel", description: "Carrousel d'analyse par pipeline (volumes, montants, vélocité)" },
+          pipeline_conversion: { view: "funnel", description: "Taux de conversion étape par étape" },
+        }[key]))}
       />
 
       {/* ── Graphes : CA signé par mois + cumul ── */}
@@ -194,19 +201,6 @@ export default async function PerformanceCommercialePage() {
           </CollapsibleBlock>
         </RemovableBlock>
       )}
-
-      {/* Ajouter un bloc : liste unifiée — blocs de la page retirés (visualisation
-          d'origine) + presets avec aperçu réel. */}
-      <BlocksManager
-        pageKey="perf_ventes"
-        tablesPageKey="perf_ventes"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          ca_charts: { view: "chart-line", description: "CA signé par mois + cumul — 2 graphiques" },
-          pipeline_stages_bars: { view: "chart-bar", description: "Montant ouvert par étape, par pipeline" },
-          pipeline_management: { view: "carousel", description: "Carrousel d'analyse par pipeline (volumes, montants, vélocité)" },
-          pipeline_conversion: { view: "funnel", description: "Taux de conversion étape par étape" },
-        }[key]))}
-      />
 
       </PageSourcesGate>
 
