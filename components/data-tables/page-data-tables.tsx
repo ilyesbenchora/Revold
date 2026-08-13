@@ -118,6 +118,29 @@ function fmtTotal(v: number, unit: string | null): string {
 }
 
 /**
+ * Évolution en POURCENTAGE (dernière période vs précédente) pour les KPIs à
+ * dimension temporelle (month_*) — la preuve chiffrée qu'un KPI « Évolution
+ * de … » évolue vraiment, affichée dès l'aperçu de vérification.
+ */
+function EvolutionBadge({ rows, groupBy }: { rows: { name: string; value: number }[]; groupBy: string }) {
+  if (!groupBy.startsWith("month_") || rows.length < 2) return null;
+  const prev = Number(rows[rows.length - 2]?.value) || 0;
+  const last = Number(rows[rows.length - 1]?.value) || 0;
+  if (prev === 0) return null;
+  const pct = Math.round(((last - prev) / prev) * 1000) / 10;
+  const up = pct >= 0;
+  return (
+    <p className={`mt-1 text-[11px] font-semibold ${up ? "text-emerald-600" : "text-rose-600"}`}>
+      {up ? "▲" : "▼"} {up ? "+" : ""}
+      {pct.toLocaleString("fr-FR")} %{" "}
+      <span className="font-normal text-slate-400">
+        {rows[rows.length - 1]?.name} vs {rows[rows.length - 2]?.name}
+      </span>
+    </p>
+  );
+}
+
+/**
  * Champ « Période » du funnel (création + édition) :
  *  - « Déjà précisée dans la description » → l'agent applique la période telle
  *    que décrite dans le texte du KPI, la table n'ajoute aucun re-filtre ;
@@ -242,6 +265,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [proposalLoading, setProposalLoading] = useState(false);
   // Total réel du câblage affiché (toutes périodes) — recalculé à chaque ajustement.
   const [verifTotal, setVerifTotal] = useState<number | null>(null);
+  // Lignes du recalcul — pour l'évolution en % des câblages temporels (month_*).
+  const [verifRows, setVerifRows] = useState<{ name: string; value: number }[] | null>(null);
   const [verifLoading, setVerifLoading] = useState(false);
   // Destination du KPI : tuile (rejoint la ligne de tuiles en haut de page,
   // période + pipeline conservés) ou visualisation (table/graphique/bloc,
@@ -324,6 +349,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setEntityCounts({});
     setProposalLoading(false);
     setVerifTotal(null);
+    setVerifRows(null);
     setVerifLoading(false);
     setPreviewRows(null);
     setPreviewLoading(false);
@@ -494,12 +520,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         } else {
           setVerifTotal(total);
         }
+        setVerifRows(d.data);
         setProposal((prev) => (prev ? { ...prev, rowCount: Number(d.totalRows) || 0 } : prev));
       } else {
         setVerifTotal(null);
+        setVerifRows(null);
       }
     } catch {
       setVerifTotal(null);
+      setVerifRows(null);
     } finally {
       setVerifLoading(false);
     }
@@ -908,6 +937,15 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                         {verifLoading ? "…" : verifTotal != null ? fmtTotal(verifTotal, proposal.unit_mode) : "—"}
                       </dd>
                     </div>
+                    {/* Câblage temporel : l'évolution en % — la preuve qu'on suit bien une évolution. */}
+                    {!verifLoading && proposal.group_by.startsWith("month_") && verifRows && verifRows.length > 1 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Évolution</dt>
+                        <dd>
+                          <EvolutionBadge rows={verifRows} groupBy={proposal.group_by} />
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
 
@@ -1428,14 +1466,16 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     )}
                     {previewRows && previewRows.length > 0 && (
                       asTile ? (
-                        <div className="mt-2 w-48 rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="mt-2 w-56 rounded-xl border border-slate-200 bg-white p-4">
                           <p className="truncate text-[11px] font-medium text-slate-500">{draft.title || "Tuile KPI"}</p>
                           <p className="mt-1 text-xl font-bold tabular-nums text-indigo-600">
                             {fmtTotal(previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0), draft.unit_mode)}
                           </p>
+                          <EvolutionBadge rows={previewRows} groupBy={draft.group_by} />
                         </div>
                       ) : (
                         <div className="mt-2 rounded-xl border border-slate-100 p-3">
+                          <EvolutionBadge rows={previewRows} groupBy={draft.group_by} />
                           <DataPreview rows={previewRows} view={draft.view} unit={draft.unit_mode ?? "count"} />
                         </div>
                       )
