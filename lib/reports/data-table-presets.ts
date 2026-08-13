@@ -208,26 +208,31 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "subs_started_month", label: "Évolution des abonnements démarrés", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
     { id: "mrr_canceled_month", label: "Évolution du MRR annulé", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
+  // Équipes (agent Équipes) : discipline d'USAGE des outils — rythme de saisie,
+  // hygiène du pipeline, qualification et complétude des fiches. Pas de KPIs
+  // business génériques : ils vivent sur Performances.
   audit_adoption: [
-    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
-    { id: "deals_closed_month", label: "Évolution des deals fermés", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
-    { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
-    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
-    { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
+    { id: "deals_created_month", label: "Rythme de création de deals (activité CRM de l'équipe)", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
+    { id: "deals_closed_month", label: "Rythme de clôture des deals (discipline de closing)", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
+    { id: "deals_stage", label: "Hygiène du pipeline : deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+    { id: "contacts_mql", label: "Discipline de qualification : contacts MQL renseignés / non", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
+    { id: "contacts_sql", label: "Discipline de qualification : contacts SQL renseignés / non", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
+    { id: "companies_segment", label: "Segmentation des fiches entreprises (champ segment rempli)", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_industry", label: "Complétude du champ industrie des entreprises", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
+    { id: "tickets_status", label: "Discipline de traitement des tickets (statuts à jour)", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
   ],
+  // Rapprochement données (agent qualité des données) : câblage et provenance
+  // multi-outils — quels documents viennent de quel outil, volumes synchronisés
+  // dans le temps, complétude des champs qui servent au rapprochement.
   audit_donnees: [
-    { id: "contacts_mql", label: "Contacts MQL / non-MQL", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
-    { id: "contacts_sql", label: "Contacts SQL / non-SQL", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
-    { id: "companies_segment", label: "Entreprises par segment", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
-    { id: "companies_industry", label: "Entreprises par industrie", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
-    { id: "companies_country", label: "Entreprises par pays", entity: "companies", groupBy: "country", measure: "count", unit: "count", view: "bar" },
-    { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "tickets_status", label: "Tickets par statut", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
-    // Provenance des documents synchronisés — cœur du rapprochement multi-outils
-    { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
-    { id: "subs_source", label: "Abonnements par source", entity: "subscriptions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
-    { id: "tx_source", label: "Transactions bancaires par source", entity: "transactions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "invoices_source", label: "Provenance des factures (rapprochement multi-outils)", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "subs_source", label: "Provenance des abonnements (rapprochement multi-outils)", entity: "subscriptions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "tx_source", label: "Provenance des transactions bancaires (rapprochement multi-outils)", entity: "transactions", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    { id: "invoices_synced_month", label: "Volume de factures synchronisées dans le temps", entity: "invoices", groupBy: "month_issued", measure: "count", unit: "count", view: "line" },
+    { id: "tx_synced_month", label: "Volume de transactions synchronisées dans le temps", entity: "transactions", groupBy: "month_transaction", measure: "count", unit: "count", view: "line" },
+    { id: "subs_synced_month", label: "Volume d'abonnements synchronisés dans le temps", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
+    { id: "invoices_status", label: "Qualité du champ statut des factures", entity: "invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    { id: "companies_country", label: "Complétude du champ pays des entreprises", entity: "companies", groupBy: "country", measure: "count", unit: "count", view: "bar" },
   ],
 };
 
