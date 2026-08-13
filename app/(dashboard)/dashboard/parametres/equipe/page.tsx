@@ -70,7 +70,7 @@ export default async function EquipePage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Utilisateurs &amp; équipes : invitations, rôles, pôles, et accès aux pages par équipe. Le pôle définit l&apos;espace de travail du membre (Ventes, Marketing, Service client, Finance) ; la matrice ci-dessous affine, page par page, ce que chaque équipe peut voir, modifier ou créer. L&apos;admin garde l&apos;accès à tous les espaces (switcher en haut de la barre latérale).
+          Utilisateurs &amp; équipes : invitations, rôles, pôles, et accès aux pages par équipe. Le pôle définit l&apos;espace de travail du membre (Ventes, Marketing, Service client, Comptabilité) ; la matrice ci-dessous affine, page par page, ce que chaque équipe peut voir, modifier ou créer. L&apos;admin garde l&apos;accès à tous les espaces (switcher en haut de la barre latérale).
         </p>
       </header>
 

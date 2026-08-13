@@ -20,7 +20,7 @@ const TEAMS: { id: Exclude<WorkspaceId, "all">; label: string; icon: string }[] 
   { id: "sales", label: "Ventes", icon: "💼" },
   { id: "marketing", label: "Marketing", icon: "📣" },
   { id: "cs", label: "Service client", icon: "🤝" },
-  { id: "finance", label: "Finance/ADV", icon: "💳" },
+  { id: "finance", label: "Comptabilité", icon: "💳" },
 ];
 
 const RIGHTS: { id: "view" | "edit" | "create"; label: string; icon: string }[] = [
