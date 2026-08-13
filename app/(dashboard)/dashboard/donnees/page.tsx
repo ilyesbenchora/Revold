@@ -7,7 +7,8 @@ import { getBarColor } from "@/lib/score-utils";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
-import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
+import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
+import { BrandLogo } from "@/components/brand-logo";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate } from "@/components/page-sources-gate";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
@@ -38,42 +39,17 @@ const COMPANY_RULE_IDENTIFIERS: Array<{
 
 type SummaryMetric = { label: string; pct: number; missing?: boolean };
 
-type ToolEntityCount = {
-  label: string;
-  count: number;
-  enrichmentPct?: number;
-  enrichmentLabel?: string;
+/** Libellés utilisateur des méthodes de rapprochement (match_method). */
+const MATCH_METHOD_LABELS: Record<string, string> = {
+  siren: "SIREN",
+  siret: "SIRET",
+  vat_number: "N° TVA",
+  exact_email: "Email exact",
+  domain: "Domaine",
+  name: "Nom d'entreprise",
+  existing_link: "Lien existant",
+  created: "Créé sans correspondance",
 };
-
-type ToolHub = {
-  key: string;
-  label: string;
-  domain: string;
-  icon: string;
-  category: string;
-  entities: ToolEntityCount[];
-  /** Champs / hubs critiques manquants (low enrichment ou compteur à 0). */
-  gaps: Array<{ entity: string; field: string; pct: number; severity: "critical" | "warning" }>;
-};
-
-async function countCanonicalForProvider(
-  supabase: import("@supabase/supabase-js").SupabaseClient,
-  orgId: string,
-  provider: string,
-  entityType: string,
-): Promise<number> {
-  try {
-    const { count } = await supabase
-      .from("source_links")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", orgId)
-      .eq("provider", provider)
-      .eq("entity_type", entityType);
-    return count ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 export default async function DonneesPage() {
   const orgId = await getOrgId();
@@ -174,281 +150,40 @@ export default async function DonneesPage() {
     }
   }
 
-  // ── Hubs synchronisés : HubSpot + outils tiers connectés à Revold ──
-  const connectedTools = await getConnectedTools(supabase, orgId);
-  const hubs: ToolHub[] = [];
-
-  // HubSpot hub : on l'affiche dès que le snapshot est OK ou qu'on a au moins
-  // une métrique HubSpot non nulle. NE PAS dépendre uniquement de hubspotToken
-  // (qui peut renvoyer null si le refresh échoue, alors que le snapshot est
-  // déjà mis en cache request-scope plus tôt — c'est ce qui faisait
-  // disparaître la carte HubSpot pendant que la page Settings continuait à
-  // afficher les données live).
-  const hubspotConnected =
-    snapshot.status === "ok" ||
-    (snapshot.totalContacts + snapshot.totalCompanies + snapshot.totalDeals) > 0;
-  if (hubspotConnected) {
-    const hsGaps: ToolHub["gaps"] = [];
-    const phonePct = pct(contactsPhone, contactsTotal);
-    const companyPct = pct(contactsCompany, contactsTotal);
-    const titlePct = pct(contactsTitle, contactsTotal);
-    const domainPct = pct(companiesDomain, companiesTotal);
-    const industryPct = pct(companiesIndustry, companiesTotal);
-    const revenuePct = pct(companiesRevenue, companiesTotal);
-    const amountPct = pct(dealsAmount, dealsTotal);
-    const closeDatePct = pct(dealsCloseDate, dealsTotal);
-    const ownerPct = pct(dealsOwner, dealsTotal);
-
-    if (contactsTotal > 0 && phonePct < 50) hsGaps.push({ entity: "Contacts", field: "Téléphone", pct: phonePct, severity: phonePct < 20 ? "critical" : "warning" });
-    if (contactsTotal > 0 && companyPct < 70) hsGaps.push({ entity: "Contacts", field: "Entreprise liée", pct: companyPct, severity: companyPct < 40 ? "critical" : "warning" });
-    if (contactsTotal > 0 && titlePct < 50) hsGaps.push({ entity: "Contacts", field: "Poste", pct: titlePct, severity: titlePct < 20 ? "critical" : "warning" });
-    if (companiesTotal > 0 && domainPct < 70) hsGaps.push({ entity: "Entreprises", field: "Domaine", pct: domainPct, severity: domainPct < 40 ? "critical" : "warning" });
-    if (companiesTotal > 0 && industryPct < 50) hsGaps.push({ entity: "Entreprises", field: "Secteur", pct: industryPct, severity: industryPct < 20 ? "critical" : "warning" });
-    if (companiesTotal > 0 && revenuePct < 30) hsGaps.push({ entity: "Entreprises", field: "CA", pct: revenuePct, severity: revenuePct < 10 ? "critical" : "warning" });
-    if (dealsTotal > 0 && amountPct < 80) hsGaps.push({ entity: "Deals", field: "Montant", pct: amountPct, severity: amountPct < 50 ? "critical" : "warning" });
-    if (dealsTotal > 0 && closeDatePct < 80) hsGaps.push({ entity: "Deals", field: "Date closing", pct: closeDatePct, severity: closeDatePct < 50 ? "critical" : "warning" });
-    if (dealsTotal > 0 && ownerPct < 80) hsGaps.push({ entity: "Deals", field: "Propriétaire", pct: ownerPct, severity: ownerPct < 50 ? "critical" : "warning" });
-
-    // Helper qui transforme un statut diagnostic en label utilisateur
-    const diag = snapshot.kpiDiagnostics ?? {};
-    const labelFromDiag = (key: string, fallback?: string): string | undefined => {
-      const d = diag[key];
-      if (!d || d.status === "ok") return fallback;
-      if (d.status === "no_scope") return "Scope OAuth manquant";
-      if (d.status === "addon_missing") return "Hub HubSpot non activé";
-      if (d.status === "bad_property") return "Propriété inexistante";
-      if (d.status === "endpoint_error") return `Erreur HubSpot (${d.httpCode ?? "?"})`;
-      if (d.status === "network_error") return "Erreur réseau";
-      return fallback;
+  // ── Rapprochement inter-outils : stats RÉELLES mesurées sur source_links.
+  //    (Les volumes bruts par outil vivent désormais dans les onglets dédiés
+  //    par outil — la vue d'ensemble analyse le CROISEMENT des données.) ──
+  const [connectedTools, linkStats] = await Promise.all([
+    getConnectedTools(supabase, orgId),
+    loadSourceLinkStats(supabase, orgId),
+  ]);
+  const reconTools = connectedTools.filter((t) => {
+    const def = CONNECTABLE_TOOLS[t.key];
+    return t.key !== "hubspot" && def && def.category !== "communication";
+  });
+  // Taux CRM × outil — un outil connecté sans donnée rapprochée apparaît
+  // quand même, à 0, avec l'invite de sync (même règle que les Paramètres).
+  const toolRates = reconTools.map((t) => {
+    const rate = linkStats.providerRates.find((pr) => pr.provider === t.key);
+    return {
+      provider: t.key,
+      label: t.label,
+      icon: t.icon,
+      domain: t.domain,
+      total: rate?.total ?? 0,
+      matched: rate?.matched ?? 0,
+      pct: rate?.pct ?? 0,
     };
-
-    hubs.push({
-      key: "hubspot",
-      label: "HubSpot",
-      domain: "hubspot.com",
-      icon: "🟧",
-      category: "CRM",
-      entities: [
-        { label: "Contacts", count: contactsTotal, enrichmentPct: Math.round((phonePct + companyPct + titlePct) / 3), enrichmentLabel: labelFromDiag("totalContacts", "champs clés") },
-        { label: "Entreprises", count: companiesTotal, enrichmentPct: Math.round((domainPct + industryPct + revenuePct) / 3), enrichmentLabel: labelFromDiag("totalCompanies", "champs clés") },
-        { label: "Deals", count: dealsTotal, enrichmentPct: Math.round((amountPct + closeDatePct + ownerPct) / 3), enrichmentLabel: labelFromDiag("totalDeals", "champs clés") },
-        { label: "Tickets", count: snapshot.totalTickets, enrichmentLabel: labelFromDiag("tickets", snapshot.totalTickets === 0 ? "Service Hub désactivé ou sans tickets" : undefined) },
-        { label: "Conversations", count: snapshot.totalConversations, enrichmentLabel: labelFromDiag("conversations") },
-        { label: "Quotes", count: snapshot.totalQuotes, enrichmentLabel: labelFromDiag("quotes") },
-        { label: "Forms", count: snapshot.formsCount, enrichmentLabel: labelFromDiag("forms") },
-        { label: "Workflows", count: snapshot.workflowsCount, enrichmentLabel: snapshot.workflowsActiveCount > 0 ? `${snapshot.workflowsActiveCount} actifs` : labelFromDiag("workflows") },
-        { label: "Listes", count: snapshot.listsCount, enrichmentLabel: labelFromDiag("lists") },
-        { label: "Custom Objects", count: snapshot.customObjectsCount, enrichmentLabel: labelFromDiag("custom_objects") },
-      ].filter((e) => e.count > 0 || ["Contacts", "Entreprises", "Deals", "Tickets"].includes(e.label) || e.enrichmentLabel), // garde aussi les 0 avec un label diag
-      gaps: hsGaps,
-    });
-  }
-
-  // Stripe (et autres outils non-CRM) : entités synchronisées via source_links
-  for (const tool of connectedTools) {
-    if (tool.key === "hubspot") continue; // déjà traité au-dessus
-    const def = CONNECTABLE_TOOLS[tool.key];
-    if (!def) continue;
-    // Outils de communication (Slack, Teams…) : canaux de notification,
-    // pas des sources de données — hors périmètre de l'audit données.
-    if (def.category === "communication") continue;
-
-    const entities: ToolEntityCount[] = [];
-    const gaps: ToolHub["gaps"] = [];
-
-    if (tool.key === "stripe") {
-      // 1. On lit d'abord ce qu'on a en local (source_links) — rapide.
-      // Wrappé en try/catch global : aucune erreur Stripe ne doit casser
-      // la page Propriétés.
-      let stripeContacts = 0;
-      let stripeInvoices = 0;
-      let stripeSubs = 0;
-      let liveCounts: { customers: number; invoices: number; subscriptions: number; truncated: boolean; error?: string } | null = null;
-      let stripeBlockError: string | null = null;
-
-      try {
-        [stripeContacts, stripeInvoices, stripeSubs] = await Promise.all([
-          countCanonicalForProvider(supabase, orgId, "stripe", "contact"),
-          countCanonicalForProvider(supabase, orgId, "stripe", "invoice"),
-          countCanonicalForProvider(supabase, orgId, "stripe", "subscription"),
-        ]);
-
-        // 2. Si la sync n'a rien produit en local (source_links vide) MAIS
-        //    qu'on a une clé Stripe valide, on lit LIVE chez Stripe.
-        const localTotal = stripeContacts + stripeInvoices + stripeSubs;
-        if (localTotal === 0) {
-          const { data: stripeRow } = await supabase
-            .from("integrations")
-            .select("access_token")
-            .eq("organization_id", orgId)
-            .eq("provider", "stripe")
-            .eq("is_active", true)
-            .maybeSingle();
-          if (stripeRow?.access_token) {
-            liveCounts = await fetchStripeLiveCounts(stripeRow.access_token as string);
-          }
-        }
-      } catch (err) {
-        stripeBlockError = err instanceof Error ? err.message.slice(0, 200) : "Erreur Stripe";
-      }
-
-      // 3. On combine : la valeur live l'emporte sur la valeur locale (0)
-      const customersCount = liveCounts ? liveCounts.customers : stripeContacts;
-      const invoicesCount = liveCounts ? liveCounts.invoices : stripeInvoices;
-      const subsCount = liveCounts ? liveCounts.subscriptions : stripeSubs;
-
-      // Contacts Stripe sans lien HubSpot — gap critique (uniquement si on a
-      // synchronisé localement, sinon pas de notion d'orphelin)
-      let orphanCount = 0;
-      let linkedPct = 0;
-      if (stripeContacts > 0) {
-        try {
-          const { data: links } = await supabase
-            .from("source_links")
-            .select("internal_id")
-            .eq("organization_id", orgId)
-            .eq("provider", "stripe")
-            .eq("entity_type", "contact")
-            .limit(1000);
-          const ids = (links ?? []).map((l) => l.internal_id as string);
-          for (let i = 0; i < ids.length; i += 200) {
-            const chunk = ids.slice(i, i + 200);
-            const { count } = await supabase
-              .from("contacts")
-              .select("id", { count: "exact", head: true })
-              .eq("organization_id", orgId)
-              .in("id", chunk)
-              .is("hubspot_id", null);
-            orphanCount += count ?? 0;
-          }
-        } catch {}
-        linkedPct = Math.round(((stripeContacts - orphanCount) / stripeContacts) * 100);
-      }
-
-      const liveSuffix = liveCounts ? " (live Stripe)" : "";
-      entities.push(
-        {
-          label: "Customers",
-          count: customersCount,
-          enrichmentPct: stripeContacts > 0 ? linkedPct : undefined,
-          enrichmentLabel: stripeContacts > 0
-            ? "liés à HubSpot"
-            : liveCounts
-              ? "lecture directe Stripe — sync à relancer pour matcher avec HubSpot"
-              : undefined,
-        },
-        { label: "Invoices", count: invoicesCount, enrichmentLabel: liveCounts ? `live Stripe${liveCounts.truncated ? " (≥)" : ""}` : undefined },
-        { label: "Subscriptions", count: subsCount, enrichmentLabel: liveCounts ? `live Stripe${liveCounts.truncated ? " (≥)" : ""}` : undefined },
-      );
-
-      if (stripeContacts > 0 && linkedPct < 70) {
-        gaps.push({
-          entity: "Customers",
-          field: `${orphanCount} sans contact HubSpot`,
-          pct: linkedPct,
-          severity: linkedPct < 40 ? "critical" : "warning",
-        });
-      }
-      if (stripeBlockError) {
-        gaps.push({
-          entity: "Stripe",
-          field: `Erreur lecture Stripe : ${stripeBlockError.slice(0, 80)}`,
-          pct: 0,
-          severity: "critical",
-        });
-      } else if (liveCounts?.error) {
-        gaps.push({
-          entity: "Stripe",
-          field: `Erreur API Stripe : ${liveCounts.error.slice(0, 80)}`,
-          pct: 0,
-          severity: "critical",
-        });
-      } else if (
-        customersCount === 0 &&
-        invoicesCount === 0 &&
-        subsCount === 0
-      ) {
-        gaps.push({
-          entity: "Stripe",
-          field: "Aucune donnée détectée dans Stripe — vérifiez la clé secrète",
-          pct: 0,
-          severity: "critical",
-        });
-      } else if (stripeContacts + stripeInvoices + stripeSubs === 0 && liveCounts) {
-        // Live OK mais sync locale jamais lancée → pas un gap critique,
-        // juste une suggestion de relancer la sync pour activer les
-        // analyses cross-source.
-        gaps.push({
-          entity: "Sync locale",
-          field: `${liveSuffix.trim()} détectée — relancez la sync pour activer les analyses cross-source HubSpot`,
-          pct: 0,
-          severity: "warning",
-        });
-      }
-    } else if (tool.key === "pennylane") {
-      // Pennylane ne pose des source_links que sur les factures (invoice /
-      // supplier_invoice) ; flux bancaires, comptes et écritures vivent dans
-      // leurs tables dédiées (primary_source) — le compteur générique voyait
-      // donc 0 ligne pour ce hub.
-      const countBySource = async (table: string) => {
-        try {
-          const { count } = await supabase
-            .from(table)
-            .select("*", { count: "exact", head: true })
-            .eq("organization_id", orgId)
-            .eq("primary_source", "pennylane");
-          return count ?? 0;
-        } catch {
-          return 0; // migration non appliquée → table absente
-        }
-      };
-      const [clientInv, supplierInv, bankTx, bankAccts, ledgerMonths] = await Promise.all([
-        countCanonicalForProvider(supabase, orgId, "pennylane", "invoice"),
-        countCanonicalForProvider(supabase, orgId, "pennylane", "supplier_invoice"),
-        countBySource("bank_transactions"),
-        countBySource("bank_accounts"),
-        countBySource("ledger_balances"),
-      ]);
-      if (clientInv > 0) entities.push({ label: "Factures clients", count: clientInv });
-      if (supplierInv > 0) entities.push({ label: "Factures fournisseurs", count: supplierInv });
-      if (bankTx > 0) entities.push({ label: "Transactions bancaires", count: bankTx });
-      if (bankAccts > 0) entities.push({ label: "Comptes bancaires", count: bankAccts });
-      if (ledgerMonths > 0) entities.push({ label: "Écritures agrégées (compte × mois)", count: ledgerMonths });
-      if (entities.length === 0) {
-        gaps.push({
-          entity: tool.label,
-          field: "Aucune donnée synchronisée — relancez la sync",
-          pct: 0,
-          severity: "critical",
-        });
-      }
-    } else {
-      // Autres outils : compte générique multi-entités
-      const types = ["contact", "company", "invoice", "subscription", "ticket", "deal"];
-      for (const t of types) {
-        const c = await countCanonicalForProvider(supabase, orgId, tool.key, t);
-        if (c > 0) entities.push({ label: t.charAt(0).toUpperCase() + t.slice(1) + "s", count: c });
-      }
-      if (entities.length === 0) {
-        gaps.push({
-          entity: tool.label,
-          field: "Aucune donnée synchronisée — relancez la sync",
-          pct: 0,
-          severity: "critical",
-        });
-      }
-    }
-
-    hubs.push({
-      key: tool.key,
-      label: tool.label,
-      domain: def.domain,
-      icon: def.icon,
-      category: def.category,
-      entities,
-      gaps,
-    });
-  }
+  });
+  const ratedTools = toolRates.filter((t) => t.total > 0);
+  const globalTotal = ratedTools.reduce((s, t) => s + t.total, 0);
+  const globalMatched = ratedTools.reduce((s, t) => s + t.matched, 0);
+  const globalRate = globalTotal > 0
+    ? { total: globalTotal, matched: globalMatched, pct: Math.round((globalMatched / globalTotal) * 100) }
+    : null;
+  const methodItems = Object.entries(linkStats.methodStats)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => ({ label: MATCH_METHOD_LABELS[k] ?? k, value: v }));
 
   const summaries: Array<{
     label: string;
@@ -486,7 +221,7 @@ export default async function DonneesPage() {
     },
     {
       label: "Transactions",
-      href: "/dashboard/donnees/transactions",
+      href: "/dashboard/donnees/outils/hubspot",
       count: dealsTotal,
       icon: "briefcase",
       tone: "orange",
@@ -563,69 +298,103 @@ export default async function DonneesPage() {
         customization={custom}
       />
 
-      {/* ── HUBS SYNCHRONISÉS (CRM + outils tiers) ── */}
-      {hubs.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              Hubs synchronisés
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                {hubs.length}
-              </span>
-            </h2>
-            <Link
-              href="/dashboard/integration"
-              className="text-xs font-medium text-accent hover:underline"
-            >
-              Gérer les intégrations →
-            </Link>
+      {/* ── RAPPROCHEMENT INTER-OUTILS : la donnée croisée, pas les volumes
+             bruts (les hubs par outil vivent dans leurs onglets dédiés). ── */}
+      {toolRates.length > 0 && !custom.hiddenBlocks.has("crm_match_rate") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="crm_match_rate" label="Taux de rapprochement réel avec le CRM">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Taux de rapprochement réel avec le CRM
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Part des enregistrements de chaque outil connecté reliés à une entité HubSpot —
+                  règles configurables dans{" "}
+                  <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-fuchsia-600 hover:underline">
+                    Paramètres → Modèle de données
+                  </Link>
+                  .
+                </p>
+              </div>
+              {/* Taux global — tous outils confondus */}
+              <div className="shrink-0 text-right">
+                <p className={`text-2xl font-bold tabular-nums ${globalRate == null ? "text-slate-400" : "text-slate-900"}`}>
+                  {globalRate ? `${globalRate.pct} %` : "—"}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  global{globalRate ? ` (${globalRate.matched}/${globalRate.total})` : ""}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-3">
+              {toolRates.map((t) => (
+                <div key={t.provider} className="flex items-center gap-3">
+                  <BrandLogo domain={t.domain} alt={t.label} fallback={t.icon} size={24} />
+                  <div className="min-w-0 flex-1">
+                    {t.total === 0 ? (
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
+                        <span className="text-[11px] text-slate-400">
+                          Aucun enregistrement rapproché — lance une synchronisation depuis Intégrations
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline justify-between text-xs">
+                          <span className="font-medium text-slate-700">{t.label} × HubSpot</span>
+                          <span className="font-bold tabular-nums text-slate-900">
+                            {t.pct} % <span className="font-normal text-slate-400">({t.matched}/{t.total})</span>
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`h-full rounded-full ${t.pct >= 70 ? "bg-emerald-500" : t.pct >= 40 ? "bg-amber-400" : "bg-rose-400"}`}
+                            style={{ width: `${t.pct}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* KPIs de détail : santé du croisement inter-outils */}
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3">
+              <div>
+                <p className="text-lg font-bold tabular-nums text-slate-900">
+                  {linkStats.multiSourcePct != null ? `${linkStats.multiSourcePct} %` : "—"}
+                </p>
+                <p className="text-[10px] text-slate-400">entités multi-sources (≥ 2 outils)</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold tabular-nums text-slate-900">
+                  {linkStats.totalLinks.toLocaleString("fr-FR")}
+                </p>
+                <p className="text-[10px] text-slate-400">liens de rapprochement mesurés</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold tabular-nums text-slate-900">
+                  {methodItems[0]?.label ?? "—"}
+                </p>
+                <p className="text-[10px] text-slate-400">méthode de rapprochement dominante</p>
+              </div>
+            </div>
           </div>
+        </RemovableBlock>
+      )}
 
-          {/* Un table normalisée par hub + alerte chirurgicale. (Les cartes
-              « ✓ Connecté » en doublon ont été retirées : Intégrations fait foi.) */}
-          <div className="mt-4 space-y-4">
-            {hubs.map((h) => {
-              if (custom.hiddenBlocks.has(`hub_table_${h.key}`)) return null;
-              const rows: BlockTableRow[] = [];
-              for (const e of h.entities) {
-                rows.push({ name: e.label, value: e.count, unit: "count" });
-                if (e.enrichmentPct != null && e.count > 0) {
-                  rows.push({
-                    name: `${e.label} — enrichissement`,
-                    value: e.enrichmentPct,
-                    unit: "percent",
-                  });
-                }
-              }
-              return (
-                <RemovableBlock key={`table-${h.key}`} pageKey="audit_donnees" blockKey={`hub_table_${h.key}`} label={`Hub ${h.label}`}>
-                  {rows.length > 0 ? (
-                    <BlockDataTable
-                      title={`Hub ${h.label}`}
-                      subtitle={h.category}
-                      team="revops"
-                      unit="count"
-                      nameLabel="Entité"
-                      valueLabel="Valeur"
-                      rows={rows}
-                    />
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
-                      <p className="text-sm font-medium text-slate-700">Hub {h.label} : aucune donnée synchronisée.</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Lance une synchronisation depuis{" "}
-                        <Link href="/dashboard/integration" className="font-medium text-fuchsia-600 hover:underline">
-                          Intégrations → Mes outils
-                        </Link>{" "}
-                        pour alimenter ce hub.
-                      </p>
-                    </div>
-                  )}
-                </RemovableBlock>
-              );
-            })}
+      {/* Répartition des rapprochements par méthode (SIREN, TVA, email…) */}
+      {methodItems.length > 0 && !custom.hiddenBlocks.has("match_methods") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="match_methods" label="Méthodes de rapprochement">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-800">Méthodes de rapprochement</p>
+            <p className="mb-3 text-[10px] text-slate-400">
+              Comment les enregistrements des outils ont été reliés entre eux — mesuré sur les liens réels
+            </p>
+            <HBarChart unit="count" colorize items={methodItems} />
           </div>
-        </div>
+        </RemovableBlock>
       )}
 
       {/* Object summary cards */}

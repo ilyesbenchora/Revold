@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export function DonneesTabs() {
+/** Onglet outil : une sous-page dédiée apparaît pour chaque outil connecté. */
+export type DonneesToolTab = { key: string; label: string };
+
+export function DonneesTabs({ toolTabs = [] }: { toolTabs?: DonneesToolTab[] }) {
   const pathname = usePathname();
   const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
     { href: "/dashboard/donnees", label: "Vue d'ensemble" },
     { href: "/dashboard/donnees/onboarding", label: "Audit onboarding", highlight: true },
-    { href: "/dashboard/donnees/transactions", label: "Transactions" },
+    // Onglets dynamiques : un par outil connecté (HubSpot, Stripe, Pennylane…).
+    ...toolTabs.map((t) => ({ href: `/dashboard/donnees/outils/${t.key}`, label: t.label })),
   ];
 
   return (
     <div className="border-b border-card-border">
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {tabs.map((t) => {
           const isActive = pathname === t.href;
           return (

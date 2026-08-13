@@ -1,20 +1,21 @@
-export const maxDuration = 60;
+/**
+ * Blocs d'audit transactions HubSpot — associations, propriétés multi-objets,
+ * distribution pipeline & stages, utilisation des propriétés.
+ *
+ * Migrés depuis l'ancienne sous-page Audit données → Transactions vers la
+ * sous-page dédiée HubSpot (Audit données → onglet HubSpot). Le bloc « Toutes
+ * les propriétés transactions » a été supprimé au passage.
+ */
 
-export const dynamic = "force-dynamic";
-
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { PropertyCarousel } from "@/components/property-carousel";
 import { PropertyUsageBlock } from "@/components/property-usage-block";
 import { ContactAssociationsBlock } from "@/components/contact-associations-block";
 import { TrackingSourcesBlock } from "@/components/tracking-sources-block";
 import { SharedPropertiesBlock } from "@/components/shared-properties-block";
 import { fetchPropertyUsage, type PropertyUsage } from "@/lib/integrations/property-usage";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { PageSourcesGate } from "@/components/page-sources-gate";
 
-type PropStat = { name: string; label: string; fillRate: number; isCustom: boolean };
 type SharedProp = {
   name: string;
   label: string;
@@ -42,8 +43,8 @@ const HS = "https://api.hubapi.com";
 // ── Distribution : pipeline + dealstage + source — deal-centric ──
 async function fetchDealDistribution(token: string): Promise<DistributionResult> {
   // Récupère les pipelines + stages pour mapper les IDs aux labels
-  let pipelinesMap = new Map<string, string>();
-  let stagesMap = new Map<string, string>();
+  const pipelinesMap = new Map<string, string>();
+  const stagesMap = new Map<string, string>();
   try {
     const res = await fetch(`${HS}/crm/v3/pipelines/deals`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -246,32 +247,23 @@ async function fetchSharedProperties(token: string): Promise<SharedProp[]> {
     .sort((a, b) => b.objects.length - a.objects.length || a.name.localeCompare(b.name));
 }
 
-export default async function DonneesTransactionsPage() {
-  const orgId = await getOrgId();
-  if (!orgId) return null;
-
-  const supabase = await createSupabaseServerClient();
+export async function HubspotTransactionsBlocks({
+  supabase,
+  orgId,
+}: {
+  supabase: SupabaseClient;
+  orgId: string;
+}) {
   const hubspotToken = await getHubSpotToken(supabase, orgId);
-  const snapshot = await getHubspotSnapshot();
 
-  const totalDeals = snapshot.totalDeals;
-
-  // Fill rates Supabase pré-calculés pour deals
+  // Fill rates Supabase pré-calculés pour deals — servent au filtrage des
+  // propriétés (le bloc « Toutes les propriétés transactions » a été retiré).
   const { data: fillRateRows } = await supabase
     .from("property_fill_rates")
     .select("property_name, label, is_custom, fill_rate")
     .eq("organization_id", orgId)
     .eq("object_type", "deals")
     .order("fill_rate", { ascending: false });
-
-  const allPropertyStats: PropStat[] = (fillRateRows ?? [])
-    .map((r) => ({
-      name: r.property_name,
-      label: r.label,
-      fillRate: r.fill_rate,
-      isCustom: r.is_custom,
-    }))
-    .filter((p) => p.fillRate > 0 || p.isCustom);
 
   let propertyUsage: PropertyUsage[] = [];
   let associationStats: AssociationStat[] = [];
@@ -293,52 +285,12 @@ export default async function DonneesTransactionsPage() {
   );
   propertyUsage = propertyUsage.filter((p) => !zeroHubspotNames.has(p.name) || p.isCustom);
 
-  const fillRateMap = new Map(allPropertyStats.map((p) => [p.name, p.fillRate]));
+  const fillRateMap = new Map((fillRateRows ?? []).map((r) => [r.property_name as string, r.fill_rate as number]));
   for (const sp of sharedProps) sp.fillRate = fillRateMap.get(sp.name) ?? -1;
   sharedProps = sharedProps.filter((p) => p.fillRate > 0 || p.isCustom);
 
-  const hasData = allPropertyStats.length > 0;
-
   return (
     <div className="space-y-6">
-      {/* 0 source par défaut : les blocs ne s'affichent que si un outil est
-          choisi pour la page dans Paramètres → Intégrations (source de vérité). */}
-      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm"]}>
-      {!hasData && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-medium text-amber-800">
-            Les taux d&apos;enrichissement transactions sont en cours de calcul. Disponibles dans quelques minutes.
-          </p>
-        </div>
-      )}
-
-      {hasData && (
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900 mb-1">Toutes les propriétés transactions</h2>
-          <p className="text-[11px] text-slate-500 mb-3">
-            {allPropertyStats.length} propriétés triées par taux d&apos;enrichissement sur {totalDeals.toLocaleString("fr-FR")} deals
-          </p>
-          <div className="card p-4">
-            <PropertyCarousel properties={allPropertyStats} />
-          </div>
-          {/* Mêmes données que le bloc ci-dessus, en table normalisée + alerte chirurgicale. */}
-          <div className="mt-4">
-            <BlockDataTable
-              title="Toutes les propriétés transactions"
-              subtitle="transactions"
-              team="revops"
-              unit="count"
-              nameLabel="Indicateur"
-              valueLabel="Valeur"
-              rows={[
-                { name: "Propriétés suivies", value: allPropertyStats.length, unit: "count" },
-                { name: "Deals", value: totalDeals, unit: "count" },
-              ]}
-            />
-          </div>
-        </div>
-      )}
-
       {associationStats.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Associations des transactions</h2>
@@ -452,7 +404,6 @@ export default async function DonneesTransactionsPage() {
           </div>
         </div>
       )}
-      </PageSourcesGate>
     </div>
   );
 }
