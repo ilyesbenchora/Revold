@@ -27,13 +27,13 @@ export type HomeKpiSuggestion = {
 const MAX_KPIS = 5;
 
 const GROUP_LABELS: Record<string, string> = {
-  sales: "💼 Ventes",
-  marketing: "📣 Marketing",
-  cs: "🤝 Service client",
-  revops: "🎯 RevOps",
-  ops: "🗄️ Données",
-  billing: "💳 Facturation & trésorerie",
-  support: "🎧 Support",
+  sales: "Ventes",
+  marketing: "Marketing",
+  cs: "Service client",
+  revops: "RevOps",
+  ops: "Données",
+  billing: "Facturation & trésorerie",
+  support: "Support",
 };
 
 /**
