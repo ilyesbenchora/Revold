@@ -15,6 +15,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StatTileVerdict } from "@/components/kpi-stat-tiles";
+import type { TileDrill } from "@/lib/kpi/page-tiles";
+import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
 import { SurgicalAlertButton, blockSourceKey, type SurgicalUnit } from "@/components/data-tables/surgical-alert-button";
 import type { HiddenBlock } from "@/components/data-tables/blocks-manager";
 import { setPageEditMode } from "@/components/data-tables/page-edit-mode";
@@ -37,6 +39,8 @@ export type EditorTile = {
   /** Contexte de calcul (pipeline ciblé · période) — affiché en tout petit. */
   meta?: string;
   verdict?: StatTileVerdict;
+  /** Drill-down : clic sur la tuile → détail des enregistrements (tuiles agg_spec). */
+  drill?: TileDrill | null;
 };
 
 export type EditorSuggestion = {
@@ -100,6 +104,12 @@ export function KpiTilesEditor({
   }, [editing]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Drill-down d'une tuile (hors mode édition) : détail des enregistrements.
+  const [drillTarget, setDrillTarget] = useState<DrilldownTarget | null>(null);
+  function openTileDrill(t: EditorTile) {
+    if (!t.drill || editing) return;
+    setDrillTarget({ ...t.drill, bucket: null, title: t.label });
+  }
 
   // ── Drag & drop des tuiles (mode édition) : réordonner en glissant, ordre
   // persisté côté serveur (page_tiles kind='tile_order') — optimiste. ──
@@ -236,8 +246,10 @@ export function KpiTilesEditor({
                 setDragKey(null);
                 setOverKey(null);
               }}
+              onClick={() => openTileDrill(t)}
+              title={!editing && t.drill ? "Voir le détail des enregistrements" : undefined}
               className={`group/tile relative rounded-xl border bg-white p-4 ${
-                editing ? "cursor-grab active:cursor-grabbing" : ""
+                editing ? "cursor-grab active:cursor-grabbing" : t.drill ? "cursor-pointer transition hover:border-indigo-300 hover:shadow-sm" : ""
               } ${
                 overKey === t.key && dragKey && dragKey !== t.key
                   ? "border-fuchsia-400 ring-2 ring-fuchsia-200"
@@ -259,7 +271,11 @@ export function KpiTilesEditor({
               ) : (
                 // Alerte chirurgicale INDIVIDUELLE par tuile — cloche seule (tuile petite).
                 typeof t.raw === "number" && !Number.isNaN(t.raw) && (
-                  <span className="absolute right-1.5 top-1.5 opacity-0 transition group-hover/tile:opacity-100">
+                  // stopPropagation : la cloche ne doit pas ouvrir le drill-down de la tuile.
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-1.5 top-1.5 opacity-0 transition group-hover/tile:opacity-100"
+                  >
                     <SurgicalAlertButton
                       title={t.label}
                       scopeLabel={`la tuile KPI « ${t.label} »`}
@@ -308,6 +324,9 @@ export function KpiTilesEditor({
       )}
 
       {error && <p className="text-xs text-rose-600">{error}</p>}
+
+      {/* Modal de détail (drill-down d'une tuile) */}
+      <DrilldownModal target={drillTarget} onClose={() => setDrillTarget(null)} />
 
       {/* ── Tuiles masquées : réafficher ── */}
       {editing && hiddenDefaults.length > 0 && (

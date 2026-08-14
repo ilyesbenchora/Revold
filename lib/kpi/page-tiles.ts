@@ -122,6 +122,15 @@ export type ResolvedAddedTile = {
   subTone?: "pos" | "neg" | "neutral";
   /** Contexte de calcul affiché en tout petit : pipeline ciblé · période. */
   meta?: string;
+  /** Drill-down : requête déterministe + filtres de la tuile (agg_spec) — null si non détaillable. */
+  drill?: TileDrill | null;
+};
+
+/** Cible de drill-down d'une tuile KPI (mêmes filtres que son calcul). */
+export type TileDrill = {
+  query: { entity: string; groupBy: string; measure?: string; field?: string; pipeline?: string };
+  sources: string[];
+  period: { from?: string; to?: string; all?: boolean };
 };
 
 /** Delta formaté dans l'unité de la tuile (percent → points). */
@@ -155,6 +164,7 @@ export async function resolveAddedTiles(
     added.map(async (r) => {
       let value: number | null = null;
       let meta: string | undefined;
+      let drill: TileDrill | null = null;
       try {
         if (r.forecast_type) value = await resolveKpiValue(supabase, orgId, r.forecast_type);
         else if (r.agg_spec) {
@@ -180,6 +190,20 @@ export async function resolveAddedTiles(
           value = await valueFromAggSpec(supabase, orgId, token, { ...spec, date_from: dateFrom, date_to: dateTo });
           const parts = [spec.pipeline_label, periodLabel].filter(Boolean);
           if (parts.length > 0) meta = parts.join(" · ");
+          // Drill-down de la tuile : mêmes filtres que son calcul (bucket = tous).
+          if (typeof spec.entity === "string" && spec.entity && typeof spec.groupBy === "string" && spec.groupBy) {
+            drill = {
+              query: {
+                entity: spec.entity,
+                groupBy: spec.groupBy,
+                measure: spec.measure,
+                field: spec.field ?? undefined,
+                pipeline: spec.pipeline ?? undefined,
+              },
+              sources: Array.isArray(spec.sources) ? spec.sources : [],
+              period: dateFrom && dateTo ? { from: dateFrom, to: dateTo, all: false } : { all: true },
+            };
+          }
         }
       } catch {}
 
@@ -219,6 +243,7 @@ export async function resolveAddedTiles(
         sub,
         subTone,
         meta,
+        drill,
       };
     }),
   );

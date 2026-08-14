@@ -83,6 +83,7 @@ export async function ConfigurableKpiTiles({
       sub: a.sub,
       subTone: a.subTone,
       meta: a.meta,
+      drill: a.drill ?? null,
     })),
   ];
 
