@@ -53,7 +53,7 @@ const PRICING = [
       "Tout Business inclus",
       "Intégrations illimitées",
       "Rapports illimités",
-      "Actions avancées & playbooks",
+      "Participation au développement produit",
       "Utilisateurs illimités · rôles & permissions",
       "Advisor RevOps dédié · SLA",
     ],

@@ -50,7 +50,7 @@ const PRICING = [
       "Tout Business inclus",
       "Intégrations illimitées",
       "Rapports illimités",
-      "Actions avancées & playbooks",
+      "Participation au développement produit",
       "Analyses & actions illimitées",
       "Utilisateurs illimités · rôles & permissions",
     ],
