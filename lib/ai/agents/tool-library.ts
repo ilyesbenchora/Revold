@@ -1014,12 +1014,18 @@ export async function computeAggregate(
       .sort((a, b) => b.value - a.value)
       .slice(0, 50);
   }
+  // Outils réellement présents dans le résultat (tables multi-sources) : permet
+  // d'afficher la pastille « données croisées » sur les rapports sans filtre.
+  const sourcesUsed = spec.hasSource
+    ? [...new Set(scoped.map((r) => (typeof r.primary_source === "string" ? r.primary_source : "")).filter(Boolean))]
+    : [];
   return {
     hasData: scoped.length > 0,
     entity, groupBy, measure, field: field ?? undefined,
     pipeline: wantPipeline,
     granularity: isMonth ? granularity : undefined,
     rows: out, totalRows: scoped.length,
+    sources_used: sourcesUsed.length > 0 ? sourcesUsed : undefined,
     period: from && to ? { from, to } : null,
   };
 }

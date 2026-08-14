@@ -61,6 +61,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       data: rows.map((r) => ({ name: r.group, value: r.value })),
       totalRows: result.totalRows ?? 0,
+      // Outils réellement croisés dans le résultat (pastilles sur la carte).
+      sources_used: Array.isArray(result.sources_used) ? result.sources_used : [],
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erreur de recalcul" }, { status: 500 });

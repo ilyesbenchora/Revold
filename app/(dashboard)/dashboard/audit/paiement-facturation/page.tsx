@@ -107,12 +107,34 @@ export default async function PaiementFacturationOverviewPage({
     cashflowResults.some((c) => c.cf.hasData);
   const scoreData: PaiementFacturationData | undefined = billingResults[0]?.data;
 
+  // ── Outils qui alimentent RÉELLEMENT chaque bloc croisé (pastilles honnêtes :
+  //    avec plusieurs outils de facturation sélectionnés, l'encaissé vient du
+  //    premier outil facturation — pas de tous). ──
+  const crmKey = selectedKeys.find((k) => capabilitiesOf(k).includes("deals")) ?? null;
+  const billingUsedKey = crossBillingEntry?.key ?? null;
+  const cashflowUsedKey = cashflowResults[0]?.key ?? null;
+  const chipLabels = (keys: Array<string | null>) => [...new Set(keys.filter((k): k is string => !!k))].map(labelOf);
+
+  // ── Page mono-outil : bloc « Chiffre d'affaires » (CA signé — CRM seul,
+  //    ou réconciliation signé vs encaissé sur la page d'un outil de
+  //    facturation). Marge et Prévisions restent en vue croisée. ──
+  const singleKey = singleTool ? selectedKeys[0] : null;
+  const singleIsCrm = singleKey ? capabilitiesOf(singleKey).includes("deals") : false;
+  const singleCa = singleKey
+    ? await computeCrossMargin(supabase, orgId, {
+        caEncaisse: singleIsCrm ? 0 : (billingResults.find((b) => b.key === singleKey)?.data.totalPaid ?? 0),
+        decaissements: null,
+      })
+    : null;
+  const connectedCrmLabel =
+    switchableTools.find((t) => capabilitiesOf(t.key).includes("deals"))?.label ?? "CRM";
+
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_paiement_facturation");
 
   // ── Séries pour les graphes de la vue croisée (style cockpit Lomed) :
   //    CA signé par mois, marge mensuelle et projection 12 mois. ──
-  const dealsSeries = margin ? await computeDealsSeries(supabase, orgId) : null;
+  const dealsSeries = margin || (singleCa?.hasDeals && singleIsCrm) ? await computeDealsSeries(supabase, orgId) : null;
   let forecast: TreasuryForecast | null = null;
   if (margin) {
     const { data: orgFiscal } = await supabase
@@ -223,6 +245,7 @@ export default async function PaiementFacturationOverviewPage({
             if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn" };
             if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen" };
             if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges" };
+            if (key === "ca_signe") return { view: "table", description: "Chiffre d'affaires : CA signé (et réconciliation encaissé sur un outil de facturation)" };
             if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)" };
             if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)" };
             if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)" };
@@ -242,6 +265,67 @@ export default async function PaiementFacturationOverviewPage({
             combine un CRM (deals) avec un outil de facturation — ou garde un seul outil pour voir ses blocs.
           </p>
         </div>
+      )}
+
+      {/* ── 1 outil : Chiffre d'affaires — le CA signé (CRM) a sa place sur la
+             page HubSpot ; sur la page d'un outil de facturation, il est
+             réconcilié avec l'encaissé de CET outil. Les pastilles disent
+             d'où vient chaque donnée. ── */}
+      {singleKey && singleCa?.hasDeals && !custom.hiddenBlocks.has("ca_signe") && (
+        <RemovableBlock pageKey="audit_paiement_facturation" blockKey="ca_signe" label="Chiffre d'affaires">
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              Chiffre d&apos;affaires
+              {(singleIsCrm ? [labelOf(singleKey)] : [connectedCrmLabel, labelOf(singleKey)]).map((l) => (
+                <span key={l} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{l}</span>
+              ))}
+            </h2>
+          }
+        >
+          <BlockDataTable
+            title="Chiffre d'affaires"
+            subtitle={singleIsCrm ? `deals · ${labelOf(singleKey)}` : `deals (${connectedCrmLabel}) × invoices (${labelOf(singleKey)})`}
+            team="finance"
+            unit="currency"
+            nameLabel="Indicateur"
+            extraColumns={["Détail"]}
+            rows={
+              singleIsCrm
+                ? [
+                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency", cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${labelOf(singleKey)})`] },
+                    { name: "Pipeline pondéré", value: singleCa.pipelinePondere > 0 ? singleCa.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
+                  ]
+                : [
+                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency", cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${connectedCrmLabel})`] },
+                    { name: "CA encaissé", value: singleCa.caEncaisse > 0 ? Math.round(singleCa.caEncaisse) : null, unit: "currency", cells: [`Factures payées (${labelOf(singleKey)})`] },
+                    { name: "Écart signé vs encaissé", value: singleCa.caSigne > 0 || singleCa.caEncaisse > 0 ? Math.round(singleCa.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
+                  ]
+            }
+            footnote={
+              singleIsCrm
+                ? "CA signé : somme des deals gagnés du CRM — la facturation vit sur les pages des outils de facturation."
+                : `Réconciliation du CA : signé côté ${connectedCrmLabel}, encaissé côté ${labelOf(singleKey)} uniquement.`
+            }
+          />
+
+          {/* CA signé par mois + cumul — uniquement sur la page du CRM */}
+          {singleIsCrm && dealsSeries && dealsSeries.wonMonthly.length > 1 && (
+            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">CA signé par mois</p>
+                <p className="mb-2 text-[10px] text-slate-400">Deals gagnés · 12 derniers mois ({labelOf(singleKey)})</p>
+                <SimpleBarsChart points={dealsSeries.wonMonthly} color="#10b981" />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Cumul du CA signé</p>
+                <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
+                <TresoLineChart points={dealsSeries.wonCumul} />
+              </div>
+            </div>
+          )}
+        </CollapsibleBlock>
+        </RemovableBlock>
       )}
 
       {/* ── 1 outil : SES blocs — conditionnés aux DONNÉES RÉELLES, pas aux
@@ -410,24 +494,30 @@ export default async function PaiementFacturationOverviewPage({
              par objectif d'analyse — CA, marge, prévisions. Pas de titre
              « Croisement » : la sélection multi-sources le dit déjà. ── */}
       {margin && (() => {
-        // Pas de pastille sources dans les titres : le rappel « Sources des
-        // blocs » en bas de page joue déjà ce rôle.
-        const srcLabel = selectedKeys.map(labelOf).join(" × ");
+        // Pastilles par bloc = les outils qui alimentent RÉELLEMENT ce bloc
+        // (pas toute la sélection : l'encaissé vient d'UN outil de facturation).
+        const caChips = chipLabels([crmKey, billingUsedKey]);
+        const margeChips = chipLabels([billingUsedKey, cashflowUsedKey]);
+        const prevChips = chipLabels([crmKey, billingUsedKey, cashflowUsedKey]);
+        const chip = (l: string) => (
+          <span key={l} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{l}</span>
+        );
 
         return (
           <div className="space-y-6">
             {/* ── Chiffre d'affaires : réconciliation signé (CRM) vs encaissé (facturation) ── */}
             {!custom.hiddenBlocks.has("cross_ca") && (
-            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_ca" label={`Chiffre d'affaires (${srcLabel})`}>
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_ca" label="Chiffre d'affaires">
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Chiffre d&apos;affaires
+                  {caChips.map(chip)}
                 </h2>
               }
             >
               <BlockDataTable
-                title={`Chiffre d'affaires (${srcLabel})`}
+                title="Chiffre d'affaires"
                 subtitle="deals × invoices"
                 team="finance"
                 unit="currency"
@@ -462,16 +552,17 @@ export default async function PaiementFacturationOverviewPage({
 
             {/* ── Marge : rentabilité réelle sur l'encaissé ── */}
             {!custom.hiddenBlocks.has("cross_marge") && (
-            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_marge" label={`Marge (${srcLabel})`}>
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_marge" label="Marge">
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Marge
+                  {margeChips.map(chip)}
                 </h2>
               }
             >
               <BlockDataTable
-                title={`Marge (${srcLabel})`}
+                title="Marge"
                 subtitle="invoices × cashflow"
                 team="finance"
                 unit="currency"
@@ -501,16 +592,17 @@ export default async function PaiementFacturationOverviewPage({
 
             {/* ── Prévisions : projection du pipeline au taux de marge courant ── */}
             {!custom.hiddenBlocks.has("cross_previsions") && (
-            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_previsions" label={`Prévisions (${srcLabel})`}>
+            <RemovableBlock pageKey="audit_paiement_facturation" blockKey="cross_previsions" label="Prévisions">
             <CollapsibleBlock
               title={
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                   Prévisions
+                  {prevChips.map(chip)}
                 </h2>
               }
             >
               <BlockDataTable
-                title={`Prévisions (${srcLabel})`}
+                title="Prévisions"
                 subtitle="pipeline × taux de marge"
                 team="finance"
                 unit="currency"

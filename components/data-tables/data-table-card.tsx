@@ -71,6 +71,9 @@ export function DataTableCard({
   onUpdated: (table: SavedTable) => void;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
+  // Outils réellement croisés dans le résultat (rapport sans filtre de source) :
+  // renvoyés par le recompute, affichés en pastilles sous le titre.
+  const [sourcesUsed, setSourcesUsed] = useState<string[]>([]);
   // Langue choisie (Mon compte) : formate les buckets temporels et les nombres,
   // mise à jour dynamique au changement.
   const locale = useLocale();
@@ -178,6 +181,7 @@ export function DataTableCard({
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Erreur de calcul");
       setRows(Array.isArray(d.data) ? d.data : []);
+      setSourcesUsed(Array.isArray(d.sources_used) ? d.sources_used : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
       setRows([]);
@@ -310,7 +314,7 @@ export function DataTableCard({
             {table.pipeline && <> · Pipeline {pipelineName ?? table.pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
-          {(table.sources ?? []).length > 0 && (
+          {(table.sources ?? []).length > 0 ? (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {(table.sources ?? []).map((key) => {
                 const tool = getConnectableTool(key);
@@ -326,7 +330,26 @@ export function DataTableCard({
                 );
               })}
             </div>
-          )}
+          ) : sourcesUsed.length > 1 ? (
+            /* Rapport sans filtre dont le résultat CROISE plusieurs outils :
+               pastilles des outils réellement présents dans les données. */
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-slate-400">Données croisées :</span>
+              {sourcesUsed.map((key) => {
+                const tool = getConnectableTool(key);
+                return (
+                  <span
+                    key={key}
+                    title={`Le résultat contient des données ${tool?.label ?? key}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50/70 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700"
+                  >
+                    <BrandLogo domain={toolDomain(key)} alt={tool?.label ?? key} fallback={tool?.icon ?? "🔗"} size={11} />
+                    {tool?.label ?? key}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <TableAlertButton table={table} rows={rows} team={team} />
