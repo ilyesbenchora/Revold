@@ -729,100 +729,75 @@ const DETAIL_COLUMNS: Record<string, string> = {
   contacts: "full_name, email, lifecycle_stage, hs_created_at, is_mql, is_sql",
 };
 
-export type DetailColumn = { id: string; label: string; kind?: "text" | "currency" | "date" | "count" };
+export type DetailColumn = {
+  id: string;
+  label: string;
+  kind?: "text" | "currency" | "date" | "count" | "percent";
+  /** Colonne affichée par défaut (false = suggestion activable dans le modal). */
+  default?: boolean;
+};
 
-const DETAIL_PROJECTIONS: Record<
-  string,
-  { columns: DetailColumn[]; row: (r: Record<string, unknown>) => unknown[] }
-> = {
-  deals: {
-    columns: [
-      { id: "name", label: "Deal" },
-      { id: "company", label: "Entreprise" },
-      { id: "stage", label: "Étape" },
-      { id: "amount", label: "Montant", kind: "currency" },
-      { id: "created", label: "Créé le", kind: "date" },
-      { id: "closed", label: "Closing", kind: "date" },
-    ],
-    row: (r) => [
-      r.name ?? "—",
-      relField(r.companies, "name") ?? "—",
-      relName(r.pipeline_stages),
-      Number(r.amount) || 0,
-      r.created_date ?? null,
-      r.close_date ?? null,
-    ],
-  },
-  invoices: {
-    columns: [
-      { id: "number", label: "Facture" },
-      { id: "company", label: "Client" },
-      { id: "status", label: "Statut" },
-      { id: "amount_total", label: "Montant", kind: "currency" },
-      { id: "amount_due", label: "Restant dû", kind: "currency" },
-      { id: "issued", label: "Émise le", kind: "date" },
-      { id: "source", label: "Source" },
-    ],
-    row: (r) => [
-      r.number ?? "—",
-      relField(r.companies, "name") ?? "—",
-      r.status ?? "—",
-      Number(r.amount_total) || 0,
-      Number(r.amount_due) || 0,
-      r.issued_at ?? null,
-      r.primary_source ?? "—",
-    ],
-  },
-  subscriptions: {
-    columns: [
-      { id: "company", label: "Client" },
-      { id: "status", label: "Statut" },
-      { id: "mrr", label: "MRR", kind: "currency" },
-      { id: "started", label: "Début", kind: "date" },
-      { id: "canceled", label: "Annulé le", kind: "date" },
-      { id: "source", label: "Source" },
-    ],
-    row: (r) => [
-      relField(r.companies, "name") ?? "—",
-      r.status ?? "—",
-      Number(r.mrr) || 0,
-      r.started_at ?? null,
-      r.canceled_at ?? null,
-      r.primary_source ?? "—",
-    ],
-  },
-  transactions: {
-    columns: [
-      { id: "label", label: "Libellé" },
-      { id: "date", label: "Date", kind: "date" },
-      { id: "amount", label: "Montant", kind: "currency" },
-      { id: "category", label: "Catégorie" },
-      { id: "source", label: "Source" },
-    ],
-    row: (r) => [r.label ?? "—", r.date ?? null, Number(r.amount) || 0, r.category ?? "—", r.primary_source ?? "—"],
-  },
-  companies: {
-    columns: [
-      { id: "name", label: "Entreprise" },
-      { id: "segment", label: "Segment" },
-      { id: "industry", label: "Industrie" },
-      { id: "country", label: "Pays" },
-    ],
-    row: (r) => [r.name ?? "—", r.segment ?? "—", r.industry ?? "—", r.country_code ?? "—"],
-  },
-  contacts: {
-    columns: [
-      { id: "name", label: "Contact" },
-      { id: "email", label: "Email" },
-      { id: "lifecycle", label: "Lifecycle" },
-      { id: "created", label: "Créé le", kind: "date" },
-    ],
-    row: (r) => [r.full_name ?? "—", r.email ?? "—", r.lifecycle_stage ?? "—", r.hs_created_at ?? null],
-  },
-  tickets: {
-    columns: [{ id: "status", label: "Statut" }],
-    row: (r) => [r.status ?? "—"],
-  },
+/**
+ * Catalogue de colonnes de détail par entité : les colonnes `default` sont
+ * affichées d'emblée, les autres sont des SUGGESTIONS activables dans le modal
+ * (« Colonnes »). Le serveur renvoie TOUTES les valeurs — l'affichage se
+ * filtre côté client, instantanément.
+ */
+type DetailField = DetailColumn & { value: (r: Record<string, unknown>) => unknown };
+const DETAIL_FIELDS: Record<string, DetailField[]> = {
+  deals: [
+    { id: "name", label: "Deal", default: true, value: (r) => r.name ?? "—" },
+    { id: "company", label: "Entreprise", default: true, value: (r) => relField(r.companies, "name") ?? "—" },
+    { id: "stage", label: "Étape", default: true, value: (r) => relName(r.pipeline_stages) },
+    { id: "amount", label: "Montant", kind: "currency", default: true, value: (r) => Number(r.amount) || 0 },
+    { id: "created", label: "Créé le", kind: "date", default: true, value: (r) => r.created_date ?? null },
+    { id: "closed", label: "Closing", kind: "date", default: true, value: (r) => r.close_date ?? null },
+    { id: "pipeline", label: "Pipeline", value: (r) => relField(r.pipeline_stages, "pipeline_name") ?? "—" },
+    { id: "probability", label: "Probabilité", kind: "percent", value: (r) => relNum(r.pipeline_stages, "probability") },
+  ],
+  invoices: [
+    { id: "number", label: "Facture", default: true, value: (r) => r.number ?? "—" },
+    { id: "company", label: "Client", default: true, value: (r) => relField(r.companies, "name") ?? "—" },
+    { id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" },
+    { id: "amount_total", label: "Montant", kind: "currency", default: true, value: (r) => Number(r.amount_total) || 0 },
+    { id: "amount_due", label: "Restant dû", kind: "currency", default: true, value: (r) => Number(r.amount_due) || 0 },
+    { id: "issued", label: "Émise le", kind: "date", default: true, value: (r) => r.issued_at ?? null },
+    { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
+    { id: "amount_paid", label: "Payé", kind: "currency", value: (r) => Number(r.amount_paid) || 0 },
+    { id: "paid", label: "Payée le", kind: "date", value: (r) => r.paid_at ?? null },
+    { id: "due", label: "Échéance", kind: "date", value: (r) => r.due_at ?? null },
+  ],
+  subscriptions: [
+    { id: "company", label: "Client", default: true, value: (r) => relField(r.companies, "name") ?? "—" },
+    { id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" },
+    { id: "mrr", label: "MRR", kind: "currency", default: true, value: (r) => Number(r.mrr) || 0 },
+    { id: "started", label: "Début", kind: "date", default: true, value: (r) => r.started_at ?? null },
+    { id: "canceled", label: "Annulé le", kind: "date", default: true, value: (r) => r.canceled_at ?? null },
+    { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
+    { id: "arr", label: "ARR", kind: "currency", value: (r) => Math.round((Number(r.mrr) || 0) * 12) },
+  ],
+  transactions: [
+    { id: "label", label: "Libellé", default: true, value: (r) => r.label ?? "—" },
+    { id: "date", label: "Date", kind: "date", default: true, value: (r) => r.date ?? null },
+    { id: "amount", label: "Montant", kind: "currency", default: true, value: (r) => Number(r.amount) || 0 },
+    { id: "category", label: "Catégorie", default: true, value: (r) => r.category ?? "—" },
+    { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
+  ],
+  companies: [
+    { id: "name", label: "Entreprise", default: true, value: (r) => r.name ?? "—" },
+    { id: "segment", label: "Segment", default: true, value: (r) => r.segment ?? "—" },
+    { id: "industry", label: "Industrie", default: true, value: (r) => r.industry ?? "—" },
+    { id: "country", label: "Pays", default: true, value: (r) => r.country_code ?? "—" },
+  ],
+  contacts: [
+    { id: "name", label: "Contact", default: true, value: (r) => r.full_name ?? "—" },
+    { id: "email", label: "Email", default: true, value: (r) => r.email ?? "—" },
+    { id: "lifecycle", label: "Lifecycle", default: true, value: (r) => r.lifecycle_stage ?? "—" },
+    { id: "created", label: "Créé le", kind: "date", default: true, value: (r) => r.hs_created_at ?? null },
+    { id: "mql", label: "MQL", value: (r) => (r.is_mql ? "Oui" : "—") },
+    { id: "sql", label: "SQL", value: (r) => (r.is_sql ? "Oui" : "—") },
+  ],
+  tickets: [{ id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" }],
 };
 
 /**
@@ -966,8 +941,8 @@ export async function computeAggregate(
     const bucket =
       typeof input.detailBucket === "string" && input.detailBucket !== "" ? input.detailBucket : null;
     const matched = bucket == null ? scoped : scoped.filter((r) => resolveDim(r) === bucket);
-    const proj = DETAIL_PROJECTIONS[entity];
-    if (!proj) return { error: `Détail non disponible pour l'entité ${entity}.` };
+    const fields = DETAIL_FIELDS[entity];
+    if (!fields) return { error: `Détail non disponible pour l'entité ${entity}.` };
     const LIMIT = 200;
     return {
       hasData: matched.length > 0,
@@ -976,8 +951,10 @@ export async function computeAggregate(
       bucket,
       totalRecords: matched.length,
       truncated: matched.length > LIMIT,
-      columns: proj.columns,
-      records: matched.slice(0, LIMIT).map((r) => proj.row(r)),
+      // TOUTES les colonnes du catalogue (default = affichée d'emblée) :
+      // le client choisit celles qu'il affiche, sans re-requête.
+      columns: fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind, default: f.default })),
+      records: matched.slice(0, LIMIT).map((r) => fields.map((f) => f.value(r))),
     };
   }
 
