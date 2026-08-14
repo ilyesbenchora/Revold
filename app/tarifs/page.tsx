@@ -5,13 +5,14 @@ import { SiteNavbar } from "@/components/site-navbar";
 
 export const metadata: Metadata = {
   title: "Tarifs — Revold",
-  description: "Des tarifs simples et transparents, basés sur l'usage. Starter à 79,90€/mois, Business à 149,90€/mois, Scale à 499€/mois. Essai 14 jours, sans carte bancaire.",
+  description: "Des tarifs simples et transparents, basés sur l'usage. Starter à 79,90€/mois, Business à 149,90€/mois, Scale à partir de 490,90€/mois. Essai 14 jours, sans carte bancaire.",
 };
 
 const PRICING = [
   {
     name: "Starter",
     price: "79,90",
+    priceFrom: false,
     credits: "300 analyses & actions IA multi-sources / mois",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
@@ -28,6 +29,7 @@ const PRICING = [
   {
     name: "Business",
     price: "149,90",
+    priceFrom: false,
     credits: "5 000 analyses & actions IA / mois",
     desc: "Pour les équipes qui veulent piloter et agir",
     features: [
@@ -46,7 +48,8 @@ const PRICING = [
   },
   {
     name: "Scale",
-    price: "499",
+    price: "490,90",
+    priceFrom: true,
     credits: "Volume élevé — analyses & actions illimitées",
     desc: "Pour les revenue teams multi-pôles",
     features: [
@@ -110,9 +113,12 @@ export default function TarifsPage() {
               )}
               <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
               <p className="mt-1 text-sm text-slate-500">{plan.desc}</p>
-              <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-5xl font-black text-slate-900">{plan.price}</span>
-                <span className="text-lg text-slate-500">&euro;/mois</span>
+              <div className="mt-6">
+                {plan.priceFrom && <p className="text-xs font-medium text-slate-500">À partir de</p>}
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl font-black text-slate-900">{plan.price}</span>
+                  <span className="text-lg text-slate-500">&euro;/mois</span>
+                </div>
               </div>
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-fuchsia-50 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-700">
                 ⚡ {plan.credits}

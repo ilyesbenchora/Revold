@@ -83,8 +83,9 @@ export const PLANS: Record<PlanKey, Plan> = {
   scale: {
     key: "scale",
     name: "Scale",
-    monthlyPrice: 699,
-    yearlyPrice: 6990,
+    // Prix « à partir de » : le plan Scale s'ajuste au volume (ventes).
+    monthlyPrice: 490.9,
+    yearlyPrice: 4909,
     description: "Pour les revenue teams ambitieuses",
     features: [
       "weekly_pulse",

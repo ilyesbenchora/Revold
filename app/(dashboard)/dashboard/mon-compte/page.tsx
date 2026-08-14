@@ -9,6 +9,7 @@ const PRICING = [
     id: "starter",
     name: "Starter",
     price: "79,90",
+    priceFrom: false,
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
       "3 intégrations incluses (multi-source)",
@@ -26,6 +27,7 @@ const PRICING = [
     id: "growth",
     name: "Business",
     price: "149,90",
+    priceFrom: false,
     desc: "Pour piloter et agir",
     features: [
       "Tout Starter inclus",
@@ -44,7 +46,8 @@ const PRICING = [
   {
     id: "scale",
     name: "Scale",
-    price: "499",
+    price: "490,90",
+    priceFrom: true,
     desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Business inclus",
@@ -187,9 +190,12 @@ export default async function MonComptePage() {
                 )}
                 <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{p.desc}</p>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-slate-900">{p.price}€</span>
-                  <span className="text-sm text-slate-500"> / mois</span>
+                <div className="mt-4">
+                  {p.priceFrom && <p className="text-[11px] font-medium text-slate-500">À partir de</p>}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-bold text-slate-900">{p.price}€</span>
+                    <span className="text-sm text-slate-500"> / mois</span>
+                  </div>
                 </div>
                 {isCurrent ? (
                   <button disabled className="mt-5 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
