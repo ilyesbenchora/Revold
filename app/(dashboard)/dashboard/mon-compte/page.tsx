@@ -142,7 +142,7 @@ export default async function MonComptePage() {
 
       {/* Langue & format des dates : appliqué dynamiquement aux dates/nombres */}
       <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">🌍 Langue &amp; format des dates</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Langue &amp; format des dates</h2>
         <LocaleSettings />
       </div>
 
