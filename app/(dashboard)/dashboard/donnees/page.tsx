@@ -20,8 +20,6 @@ import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { computeObjectSummaries } from "@/lib/audit/object-summaries";
 import { computeUnmatchedReport, computeWonDealsReadiness, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
-import { DedupRules } from "@/components/dedup-rules";
-import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import Link from "next/link";
 
 /** Badges des causes de non-rapprochement (diagnostic entreprises). */
@@ -117,21 +115,6 @@ export default async function DonneesPage() {
   // ── Anticipation : deals GAGNÉS (les prochains facturés) — leurs fiches
   //    portent-elles les identifiants de rapprochement cochés en paramètres ? ──
   const wonReadiness = await computeWonDealsReadiness(supabase, orgId);
-
-  // ── Règles de déduplication (déplacées depuis Paramètres → Modèle de
-  //    données) : état sauvegardé fusionné dans les défauts. ──
-  let savedDedup: Array<{ rule_id: string; enabled: boolean }> = [];
-  try {
-    const { data } = await supabase
-      .from("entity_resolution_config")
-      .select("rule_id, enabled")
-      .eq("organization_id", orgId);
-    savedDedup = (data ?? []) as typeof savedDedup;
-  } catch {}
-  const mergedDedupRules: DedupRule[] = DEFAULT_DEDUP_RULES.map((rule) => {
-    const saved = savedDedup.find((s) => s.rule_id === `dedup_${rule.id}`);
-    return saved ? { ...rule, enabled: saved.enabled } : rule;
-  });
 
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_donnees");
@@ -451,23 +434,6 @@ export default async function DonneesPage() {
         </RemovableBlock>
       )}
 
-      {/* ── Règles de déduplication (déplacées depuis Paramètres → Modèle de
-             données : c'est une décision de rapprochement, elle vit ici). ── */}
-      {!custom.hiddenBlocks.has("dedup_rules") && (
-        <RemovableBlock pageKey="audit_donnees" blockKey="dedup_rules" label="Règles de déduplication">
-          <div className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Règles de déduplication</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Ce qui se passe quand deux enregistrements sont détectés comme doublons entre tes outils.
-                Les fusions sont désactivées par défaut — rien ne fusionne sans ton accord explicite.
-              </p>
-            </div>
-            <DedupRules rules={mergedDedupRules} />
-          </div>
-        </RemovableBlock>
-      )}
-
       {/* ── Audit onboarding : ce que Revold a détecté outil par outil (ex-onglet dédié) ── */}
       {toolAudits.length > 0 && !custom.hiddenBlocks.has("audit_outils") && (
         <RemovableBlock pageKey="audit_donnees" blockKey="audit_outils" label="Audit par outil">
@@ -524,10 +490,9 @@ export default async function DonneesPage() {
           match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
           won_readiness: { view: "table", description: "Deals gagnés : fiches prêtes pour le rapprochement (identifiants cochés)" },
           unmatched_companies: { view: "table", description: "Entreprises non rapprochées CRM × facturation : cause + action corrective" },
-          dedup_rules: { view: "table", description: "Règles de déduplication (fusion auto, mise à jour sans doublon)" },
           audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },
           plan_action: { view: "table", description: "Plan d'action IA issu de l'audit d'onboarding" },
-        }[key])).filter((h) => !["synthese_objets", "completude_bars", "objets_cards"].includes(h.key))}
+        }[key])).filter((h) => !["synthese_objets", "completude_bars", "objets_cards", "dedup_rules"].includes(h.key))}
       />
 
       </PageSourcesGate>

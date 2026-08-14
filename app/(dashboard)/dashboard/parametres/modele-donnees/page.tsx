@@ -11,6 +11,8 @@ import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { checkHubSpotProperty, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
+import { DedupRules } from "@/components/dedup-rules";
+import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import { SyncFrequencyForm } from "@/components/sync-frequency-form";
 import Link from "next/link";
 
@@ -103,8 +105,8 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
   },
 ];
 
-// (Les règles de déduplication vivent désormais sur la page Rapprochement de
-// données — c'est une décision de rapprochement, pas un réglage de modèle.)
+// (Règles de déduplication : type + défauts partagés dans
+// lib/settings/dedup-defaults — état sauvegardé fusionné plus bas.)
 
 export default async function ParametresModeleDonneesPage() {
   const orgId = await getOrgId();
@@ -180,6 +182,12 @@ export default async function ParametresModeleDonneesPage() {
         value: (saved.config as Record<string, string>)[cf.label] ?? cf.value,
       })),
     };
+  });
+
+  // Dedup rules: état sauvegardé (dedup_<id>) fusionné dans les défauts.
+  const mergedDedupRules: DedupRule[] = DEFAULT_DEDUP_RULES.map((rule) => {
+    const saved = savedRuleConfigs.find((s) => s.rule_id === `dedup_${rule.id}`);
+    return saved ? { ...rule, enabled: saved.enabled } : rule;
   });
 
   // Field authority: merge saved priority orders
@@ -435,6 +443,18 @@ export default async function ParametresModeleDonneesPage() {
           Utilisez les flèches ▲▼ pour réordonner.
         </p>
         <FieldAuthorityEditor rows={mergedAuthority} connectedTools={connectedToolLabels} />
+      </div>
+
+      {/* ── Déduplication ── */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          Règles de déduplication
+        </h2>
+        <p className="text-sm text-slate-500">
+          Ce qui se passe quand deux enregistrements sont détectés comme doublons entre tes outils.
+          Les fusions sont désactivées par défaut — rien ne fusionne sans ton accord explicite.
+        </p>
+        <DedupRules rules={mergedDedupRules} />
       </div>
 
       {/* ── Fréquences de sync ── */}
