@@ -132,15 +132,33 @@ async function buildHubSpotSyntheticReport(
   // ne mesure QUE les champs que l'utilisateur y a mappés — pour comparer
   // l'enrichissement des MÊMES identifiants d'un outil à l'autre.
   let overrides: Record<string, string> = {};
+  // Objet CRM choisi par l'utilisateur pour chaque champ (sélecteur du
+  // formulaire de mapping) — prime sur le défaut catalogue.
+  const objectOverrides: Record<string, "companies" | "contacts" | "deals"> = {};
   try {
-    const { data } = await supabase
+    type MapRow = { canonical_field: string; provider_field: string; object_type?: string | null };
+    const first = await supabase
       .from("identifier_field_mapping")
-      .select("canonical_field, provider_field")
+      .select("canonical_field, provider_field, object_type")
       .eq("organization_id", orgId)
       .eq("provider", "hubspot");
-    overrides = Object.fromEntries(
-      ((data ?? []) as Array<{ canonical_field: string; provider_field: string }>).map((m) => [m.canonical_field, m.provider_field]),
-    );
+    let raw: unknown = first.data;
+    // Migration object_type pas encore appliquée : re-lecture sans la colonne.
+    if (first.error && /object_type/.test(first.error.message)) {
+      const fallback = await supabase
+        .from("identifier_field_mapping")
+        .select("canonical_field, provider_field")
+        .eq("organization_id", orgId)
+        .eq("provider", "hubspot");
+      raw = fallback.data;
+    }
+    const mapRows = (raw ?? []) as MapRow[];
+    overrides = Object.fromEntries(mapRows.map((m) => [m.canonical_field, m.provider_field]));
+    for (const m of mapRows) {
+      if (m.object_type === "companies" || m.object_type === "contacts" || m.object_type === "deals") {
+        objectOverrides[m.canonical_field] = m.object_type;
+      }
+    }
   } catch {}
 
   // DYNAMIQUE : la couverture se construit depuis les LIGNES DU MAPPING
@@ -156,8 +174,7 @@ async function buildHubSpotSyntheticReport(
   const identifier_coverage: IdentifierCoverage = {};
   await Promise.all(
     mappedFields.map(async (field) => {
-      const objectType =
-        HUBSPOT_IDENTIFIER_OBJECT[field] ?? (/^custom_id(_\d+)?$/.test(field) ? "companies" : "companies");
+      const objectType = objectOverrides[field] ?? HUBSPOT_IDENTIFIER_OBJECT[field] ?? "companies";
       const total =
         objectType === "companies"
           ? (entityCounts.company ?? 0)

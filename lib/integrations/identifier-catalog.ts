@@ -6,11 +6,14 @@
  * based on which tools the user has actually connected.
  */
 
+export type CrmObjectType = "contacts" | "companies" | "deals";
+
 export type IdentifierDef = {
   canonicalField:
     | "siren" | "siret" | "vat_number" | "custom_id" | "external_id" | "email" | "domain" | "company_name"
-    // Dates de contrat (propriétés custom, jamais natives) — multi-objet : la
-    // date peut vivre sur la Company ET/OU le Deal selon le CRM du client.
+    // Dates de contrat (propriétés custom, jamais natives). L'objet porteur
+    // (Company/Deal) se choisit via objectChoices — plus de lignes dédiées
+    // par objet (deal_contract_* conservés en compat des mappings existants).
     | "contract_start" | "contract_end" | "deal_contract_start" | "deal_contract_end";
   label: string;
   /** Default field name in the provider (user can override) */
@@ -19,26 +22,31 @@ export type IdentifierDef = {
   hint: string;
   /** Is this field always present in the provider (native) or needs custom config? */
   native: boolean;
+  /**
+   * CRM uniquement : objets sur lesquels ce champ peut vivre — l'utilisateur
+   * choisit l'objet dans le mapping, la vérification/collecte suit. Absent =
+   * objet unique (pas de sélecteur).
+   */
+  objectChoices?: CrmObjectType[];
+  defaultObject?: CrmObjectType;
 };
 
 /** Per-provider identifier capabilities */
 export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
   // ── CRM ──
+  // Liste volontairement COURTE (lisibilité) : uniquement les champs à mapper.
+  // L'objet porteur (Contact / Entreprise / Deal) se choisit par champ — la
+  // vérification et la collecte suivent, sans démultiplier les lignes.
   hubspot: [
-    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "name", hint: "Champ natif HubSpot (company)", native: true },
-    { canonicalField: "domain", label: "Domaine web", defaultProviderField: "domain", hint: "Champ natif HubSpot (company)", native: true },
-    { canonicalField: "email", label: "Email", defaultProviderField: "email", hint: "Email natif du contact HubSpot", native: true },
-    { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Propriété custom HubSpot (à créer si inexistant)", native: false },
-    { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false },
-    { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false },
-    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et un outil relié — ajoutez-en un par outil si chaque paire a son propre code (optionnel)", native: false },
-    // ── Dates de contrat (radar de facturation Trésorerie) : propriétés custom,
-    //    le NOM diffère chez chaque client — saisir le nom affiché ou le nom
-    //    interne (API), Revold vérifie la propriété dans HubSpot. ──
-    { canonicalField: "contract_start", label: "Date de début de contrat (Company)", defaultProviderField: "", hint: "Votre propriété custom de type date sur la Company — nom affiché ou nom interne API (optionnel)", native: false },
-    { canonicalField: "contract_end", label: "Date de fin de contrat (Company)", defaultProviderField: "", hint: "Votre propriété custom de type date sur la Company — alimente le radar de facturation Trésorerie (optionnel)", native: false },
-    { canonicalField: "deal_contract_start", label: "Date de début de contrat (Deal)", defaultProviderField: "", hint: "Si la date vit sur vos deals : propriété custom de type date sur le Deal (optionnel)", native: false },
-    { canonicalField: "deal_contract_end", label: "Date de fin de contrat (Deal)", defaultProviderField: "", hint: "Si la date vit sur vos deals : propriété custom de type date sur le Deal — alimente le radar de facturation (optionnel)", native: false },
+    { canonicalField: "email", label: "Email du contact principal", defaultProviderField: "email", hint: "Le plus souvent sur le Contact — parfois porté par l'Entreprise (choisis l'objet)", native: false, objectChoices: ["contacts", "companies"], defaultObject: "contacts" },
+    { canonicalField: "siren", label: "SIREN", defaultProviderField: "siren", hint: "Propriété custom HubSpot (à créer si inexistant)", native: false, objectChoices: ["companies", "contacts", "deals"], defaultObject: "companies" },
+    { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false, objectChoices: ["companies", "contacts", "deals"], defaultObject: "companies" },
+    { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false, objectChoices: ["companies", "contacts", "deals"], defaultObject: "companies" },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et un outil relié — ajoutez-en un par outil si chaque paire a son propre code (optionnel)", native: false, objectChoices: ["companies", "contacts", "deals"], defaultObject: "companies" },
+    // Dates de contrat (radar de facturation) : le NOM de la propriété diffère
+    // chez chaque client — nom affiché ou nom interne API, vérifié dans HubSpot.
+    { canonicalField: "contract_start", label: "Date de début de contrat", defaultProviderField: "", hint: "Propriété custom de type date — choisis l'objet qui la porte (Entreprise ou Deal) (optionnel)", native: false, objectChoices: ["companies", "deals"], defaultObject: "companies" },
+    { canonicalField: "contract_end", label: "Date de fin de contrat", defaultProviderField: "", hint: "Propriété custom de type date — alimente le radar de facturation (optionnel)", native: false, objectChoices: ["companies", "deals"], defaultObject: "companies" },
     { canonicalField: "external_id", label: "ID Company", defaultProviderField: "hs_object_id", hint: "ID natif HubSpot (automatique)", native: true },
   ],
   salesforce: [

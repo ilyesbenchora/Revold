@@ -122,7 +122,7 @@ export default async function ParametresModeleDonneesPage() {
   // Configuration & resolution rules restent en Supabase (état app)
   let connectedProviders: string[] = [];
   let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
-  let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string }> = [];
+  let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string; object_type?: string | null }> = [];
   let savedAuthority: Array<{ entity: string; field: string; priority: string[] }> = [];
   const savedFrequencies: Record<string, string> = {};
 
@@ -136,7 +136,7 @@ export default async function ParametresModeleDonneesPage() {
     const [integ, ruleConfigs, mappings, authority, freqs] = await Promise.all([
       supabase.from("integrations").select("provider").eq("organization_id", orgId).eq("is_active", true),
       supabase.from("entity_resolution_config").select("rule_id, enabled, config").eq("organization_id", orgId),
-      supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field").eq("organization_id", orgId),
+      supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field, object_type").eq("organization_id", orgId),
       supabase.from("field_authority_config").select("entity, field, priority").eq("organization_id", orgId),
       supabase.from("sync_config").select("category, frequency").eq("organization_id", orgId),
     ]);
@@ -144,6 +144,15 @@ export default async function ParametresModeleDonneesPage() {
     connectedProviders = (integ.data ?? []).map((i) => i.provider);
     savedRuleConfigs = (ruleConfigs.data ?? []) as typeof savedRuleConfigs;
     savedMappings = (mappings.data ?? []) as typeof savedMappings;
+    // Migration object_type pas encore appliquée : re-lecture sans la colonne
+    // pour ne pas perdre les mappings sauvegardés.
+    if (mappings.error && /object_type/.test(mappings.error.message)) {
+      const fallback = await supabase
+        .from("identifier_field_mapping")
+        .select("provider, canonical_field, provider_field")
+        .eq("organization_id", orgId);
+      savedMappings = (fallback.data ?? []) as typeof savedMappings;
+    }
     savedAuthority = (authority.data ?? []) as typeof savedAuthority;
     for (const f of (freqs.data ?? []) as Array<{ category: string; frequency: string }>) {
       savedFrequencies[f.category] = f.frequency;
@@ -225,12 +234,11 @@ export default async function ParametresModeleDonneesPage() {
         // Identifiant optionnel non mappé (ex : ID de rapprochement) : pas de
         // vérification — sinon badge « absente du CRM » trompeur sur un champ vide.
         if (!propName.trim()) return;
-        const check = await checkHubSpotProperty(
-          hsToken,
-          CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies",
-          propName,
-          id.label,
-        );
+        // L'objet CHOISI par l'utilisateur (sélecteur du formulaire) prime sur
+        // le défaut catalogue : la vérification se fait sur le bon objet.
+        const objectType =
+          mapped?.object_type ?? id.defaultObject ?? CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies";
+        const check = await checkHubSpotProperty(hsToken, objectType, propName, id.label);
         hubspotPropertyStatus[id.canonicalField] = check;
       }),
   );
@@ -242,7 +250,7 @@ export default async function ParametresModeleDonneesPage() {
       .map(async (m) => {
         hubspotPropertyStatus[m.canonical_field] = await checkHubSpotProperty(
           hsToken,
-          "companies",
+          m.object_type ?? "companies",
           m.provider_field.trim(),
           "ID de rapprochement",
         );

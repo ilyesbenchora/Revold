@@ -10,6 +10,9 @@ type Identifier = {
   defaultProviderField: string;
   hint: string;
   native: boolean;
+  /** Objets CRM possibles pour ce champ — sélecteur affiché si > 1 choix. */
+  objectChoices?: string[];
+  defaultObject?: string;
 };
 
 type ProviderRow = {
@@ -20,7 +23,10 @@ type ProviderRow = {
   identifiers: Identifier[];
 };
 
-type SavedMapping = { provider: string; canonical_field: string; provider_field: string };
+type SavedMapping = { provider: string; canonical_field: string; provider_field: string; object_type?: string | null };
+
+/** Libellés du sélecteur d'objet CRM. */
+const OBJECT_LABELS: Record<string, string> = { contacts: "Contact", companies: "Entreprise", deals: "Deal" };
 
 /** État de vérification d'une propriété custom HubSpot du mapping. */
 export type HubSpotPropertyState = {
@@ -72,6 +78,11 @@ export function IdentifierMappingForm({
   hubspotPropertyStatus: HubSpotPropertyStatus;
 }) {
   const router = useRouter();
+  // Mappings legacy « dates de contrat par objet » (deal_contract_*) : repris
+  // dans contract_* avec l'objet Deal — et supprimés au prochain enregistrement.
+  const legacyDealContract = savedMappings.filter(
+    (m) => m.provider === "hubspot" && /^deal_contract_(start|end)$/.test(m.canonical_field) && m.provider_field?.trim(),
+  );
   // Build initial state from saved mappings or defaults
   const [values, setValues] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -89,8 +100,41 @@ export function IdentifierMappingForm({
         map[`hubspot__${m.canonical_field}`] = m.provider_field;
       }
     }
+    // Legacy deal_contract_* → contract_* (objet Deal) si contract_* est vide.
+    for (const m of legacyDealContract) {
+      const target = m.canonical_field.replace("deal_", "");
+      if (!map[`hubspot__${target}`]?.trim()) map[`hubspot__${target}`] = m.provider_field;
+    }
     return map;
   });
+  // Objet CRM porteur de chaque champ (sélecteur) — clé = canonicalField.
+  const [objects, setObjects] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    const hubspotRow = rows.find((r) => r.provider === "hubspot");
+    for (const id of hubspotRow?.identifiers ?? []) {
+      if (!id.objectChoices || id.objectChoices.length < 2) continue;
+      const saved = savedMappings.find((m) => m.provider === "hubspot" && m.canonical_field === id.canonicalField);
+      map[id.canonicalField] = saved?.object_type ?? id.defaultObject ?? id.objectChoices[0];
+    }
+    // IDs custom supplémentaires : même choix d'objet que leur mapping sauvegardé.
+    for (const m of savedMappings) {
+      if (m.provider === "hubspot" && /^custom_id_\d+$/.test(m.canonical_field)) {
+        map[m.canonical_field] = m.object_type ?? "companies";
+      }
+    }
+    // Legacy deal_contract_* → l'objet Deal.
+    for (const m of legacyDealContract) {
+      map[m.canonical_field.replace("deal_", "")] = "deals";
+    }
+    return map;
+  });
+
+  function updateObject(canonicalField: string, objectType: string) {
+    setObjects((prev) => ({ ...prev, [canonicalField]: objectType }));
+    // L'objet change → la vérification précédente ne vaut plus.
+    setHsStatus((prev) => ({ ...prev, [canonicalField]: UNVERIFIED }));
+    setSaved(false);
+  }
   // Liste ordonnée des IDs de rapprochement du CRM (au moins custom_id).
   const [hubspotCustomIdKeys, setHubspotCustomIdKeys] = useState<string[]>(() => {
     const saved = savedMappings
@@ -181,7 +225,9 @@ export function IdentifierMappingForm({
       .filter((id) => !id.native && id.canonicalField !== "external_id")
       .map((id) => ({
         canonicalField: id.canonicalField,
-        objectType: CANONICAL_TO_OBJECT[id.canonicalField] ?? "companies",
+        // L'objet CHOISI par l'utilisateur prime — la vérification se fait
+        // sur le bon objet (Contact / Entreprise / Deal).
+        objectType: objects[id.canonicalField] ?? CANONICAL_TO_OBJECT[id.canonicalField] ?? "companies",
         name: (values[`hubspot__${id.canonicalField}`] ?? "").trim(),
         label: (labels[id.canonicalField] ?? "").trim(),
       }))
@@ -296,14 +342,25 @@ export function IdentifierMappingForm({
         if (id.native || id.canonicalField === "external_id") continue;
         const correctedName = row.provider === "hubspot" ? verified?.corrected[id.canonicalField] : undefined;
         const val = (correctedName ?? values[`${row.provider}__${id.canonicalField}`] ?? "").trim();
-        mappings.push({ provider: row.provider, canonical_field: id.canonicalField, provider_field: val });
+        mappings.push({
+          provider: row.provider,
+          canonical_field: id.canonicalField,
+          provider_field: val,
+          // Objet CRM choisi (sélecteur) — null pour les champs à objet unique.
+          object_type: row.provider === "hubspot" ? (objects[id.canonicalField] ?? null) : null,
+        });
       }
     }
     // IDs de rapprochement retirés : envoyés vides → le serveur supprime le mapping.
     for (const key of removedCustomIdKeys) {
       if (!hubspotCustomIdKeys.includes(key)) {
-        mappings.push({ provider: "hubspot", canonical_field: key, provider_field: "" });
+        mappings.push({ provider: "hubspot", canonical_field: key, provider_field: "", object_type: null });
       }
+    }
+    // Migration des anciens mappings « par objet » (deal_contract_*) : repris
+    // dans contract_* + objet Deal — l'ancienne ligne est supprimée.
+    for (const m of legacyDealContract) {
+      mappings.push({ provider: "hubspot", canonical_field: m.canonical_field, provider_field: "", object_type: null });
     }
     try {
       const res = await fetch("/api/settings/field-mapping", {
@@ -334,6 +391,12 @@ export function IdentifierMappingForm({
         const renderIdentifier = (id: Identifier) => {
           const isHsCustom = isHubSpot && !id.native;
           const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
+          // Sélecteur d'objet CRM (Contact / Entreprise / Deal) : la propriété
+          // est vérifiée et collectée sur l'objet choisi — une seule ligne par
+          // champ au lieu d'une par objet.
+          const objectChoices = isHubSpot ? (id.objectChoices ?? []) : [];
+          const selectedObject =
+            objects[id.canonicalField] ?? id.defaultObject ?? objectChoices[0] ?? "companies";
           // ID de rapprochement du CRM : supprimable dès qu'il y en a plusieurs.
           const removable = isHubSpot && isCustomIdKey(id.canonicalField) && hubspotCustomIdKeys.length > 1;
           return (
@@ -368,6 +431,22 @@ export function IdentifierMappingForm({
                 // et nom interne (celui utilisé par l'API) sont deux choses
                 // distinctes — deux champs pour éviter toute confusion.
                 <div className="mt-1 space-y-2">
+                  {objectChoices.length > 1 && (
+                    <div>
+                      <p className="text-[10px] font-medium text-slate-400">Objet HubSpot porteur de la propriété</p>
+                      <select
+                        value={selectedObject}
+                        onChange={(e) => updateObject(id.canonicalField, e.target.value)}
+                        className={`${inputClass} mt-0.5`}
+                      >
+                        {objectChoices.map((obj) => (
+                          <option key={obj} value={obj}>
+                            {OBJECT_LABELS[obj] ?? obj}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[10px] font-medium text-slate-400">Nom de la propriété (libellé affiché dans HubSpot)</p>
                     <input
@@ -407,8 +486,9 @@ export function IdentifierMappingForm({
               )}
               {status?.exists === false && (
                 <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
-                  Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé. Créez-la
-                  (HubSpot → Paramètres → Propriétés → Entreprises), puis saisissez son libellé ou son
+                  Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé sur l&apos;objet{" "}
+                  {OBJECT_LABELS[selectedObject] ?? selectedObject}. Vérifiez l&apos;objet sélectionné, ou créez la propriété
+                  (HubSpot → Paramètres → Propriétés), puis saisissez son libellé ou son
                   nom interne ici et enregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
                 </p>
               )}

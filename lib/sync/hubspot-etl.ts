@@ -370,21 +370,40 @@ async function loadContractProperties(
 ): Promise<{ company: ContractProps; deal: ContractProps }> {
   const empty = { company: { start: null, end: null }, deal: { start: null, end: null } };
   try {
-    const { data } = await supabase
+    type Row = { canonical_field: string; provider_field: string; object_type?: string | null };
+    const fields = ["contract_start", "contract_end", "deal_contract_start", "deal_contract_end"];
+    const first = await supabase
       .from("identifier_field_mapping")
-      .select("canonical_field, provider_field")
+      .select("canonical_field, provider_field, object_type")
       .eq("organization_id", orgId)
       .eq("provider", "hubspot")
-      .in("canonical_field", ["contract_start", "contract_end", "deal_contract_start", "deal_contract_end"]);
-    const rows = (data ?? []) as Array<{ canonical_field: string; provider_field: string }>;
-    const get = (f: string): string | null => {
-      const v = rows.find((r) => r.canonical_field === f)?.provider_field?.trim();
-      return v && /^[a-z0-9_]+$/i.test(v) ? v : null;
+      .in("canonical_field", fields);
+    let raw: unknown = first.data;
+    // Migration object_type pas encore appliquée : re-lecture sans la colonne.
+    if (first.error && /object_type/.test(first.error.message)) {
+      const fallback = await supabase
+        .from("identifier_field_mapping")
+        .select("canonical_field, provider_field")
+        .eq("organization_id", orgId)
+        .eq("provider", "hubspot")
+        .in("canonical_field", fields);
+      raw = fallback.data;
+    }
+    const out: { company: ContractProps; deal: ContractProps } = {
+      company: { start: null, end: null },
+      deal: { start: null, end: null },
     };
-    return {
-      company: { start: get("contract_start"), end: get("contract_end") },
-      deal: { start: get("deal_contract_start"), end: get("deal_contract_end") },
-    };
+    for (const r of (raw ?? []) as Row[]) {
+      const prop = r.provider_field?.trim();
+      if (!prop || !/^[a-z0-9_]+$/i.test(prop)) continue;
+      // L'objet CHOISI (sélecteur) décide du porteur ; les anciens mappings
+      // deal_contract_* restent lus comme des dates de deal.
+      const isDeal = r.object_type === "deals" || r.canonical_field.startsWith("deal_");
+      const bucket = isDeal ? out.deal : out.company;
+      if (r.canonical_field.endsWith("contract_start")) bucket.start = prop;
+      else bucket.end = prop;
+    }
+    return out;
   } catch {
     return empty;
   }
