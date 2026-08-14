@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const BOOL_KEYS = [
   "healthRing", "brief", "veille", "quickAnswer", "createActions", "navigation", "queue", "memory",
-  "briefAlerts", "briefObjectives", "briefSyncs", "briefMeetings",
+  "briefAlerts", "briefObjectives", "briefObjectivesReached", "briefSyncs", "briefMeetings", "briefRadar",
 ] as const;
 
 /** Donnée personnalisée du brief : KPI câblé (label + query déterministe). */

@@ -48,7 +48,7 @@ export async function GET(request: Request) {
   // Sections choisies dans Paramètres → Tour de contrôle (défaut : toutes).
   const sectionsParam = url.searchParams.get("sections");
   const sections = new Set(
-    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "radar", "objectives", "syncs", "meetings"],
+    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "meetings"],
   );
   const now = new Date();
   const in48h = new Date(now.getTime() + 48 * 3600 * 1000).toISOString().slice(0, 10);
@@ -91,11 +91,20 @@ export async function GET(request: Request) {
   // ── Objectifs qui décrochent ──
   type ObjRow = { title: string; target: number | null; current_value: number | null; direction: string | null; date_to: string | null };
   const objectives = (objectivesRes.data ?? []) as ObjRow[];
+  const objectivePct = (o: ObjRow): number | null => {
+    if (o.target == null || o.current_value == null || o.target === 0) return null;
+    return (o.direction === "below" ? (o.current_value > 0 ? o.target / o.current_value : 1) : o.current_value / o.target) * 100;
+  };
   const offTrack = objectives.filter((o) => {
-    if (o.target == null || o.current_value == null || o.target === 0) return false;
-    const pct = (o.direction === "below" ? (o.current_value > 0 ? o.target / o.current_value : 1) : o.current_value / o.target) * 100;
+    const pct = objectivePct(o);
     const deadlineSoon = !!o.date_to && o.date_to <= in30d;
-    return pct < 60 && deadlineSoon;
+    return pct != null && pct < 60 && deadlineSoon;
+  });
+
+  // ── Objectifs ATTEINTS : cible franchie (≥ 100 %) sur un objectif actif ──
+  const reached = objectives.filter((o) => {
+    const pct = objectivePct(o);
+    return pct != null && pct >= 100;
   });
 
   // ── Syncs en échec : dernier run par outil ──
@@ -199,6 +208,9 @@ export async function GET(request: Request) {
     if (sections.has("objectives") && offTrack.length > 0) {
       parts.push(`${offTrack.length} objectif${offTrack.length > 1 ? "s" : ""} en retard à moins de 30 jours de l'échéance : ${offTrack.slice(0, 2).map((o) => o.title).join(", ")}.`);
     }
+    if (sections.has("objectives_reached") && reached.length > 0) {
+      parts.push(`Bonne nouvelle : ${reached.length} objectif${reached.length > 1 ? "s" : ""} atteint${reached.length > 1 ? "s" : ""} — ${reached.slice(0, 3).map((o) => o.title).join(", ")}.`);
+    }
     if (sections.has("meetings") && meetings.length > 0) {
       parts.push(
         `À l'agenda : ${meetings.map((m) => `séance ${CAT_LABEL[m.category] ?? m.category} le ${m.next_meeting_at}${m.next_meeting_time ? ` à ${m.next_meeting_time}` : ""}`).join(", ")}.`,
@@ -218,6 +230,7 @@ export async function GET(request: Request) {
       tenseAlerts: tense.length,
       criticalAlerts: tenseCritical.length,
       offTrackObjectives: offTrack.length,
+      reachedObjectives: reached.length,
       failedSyncs: failedSyncs.length,
       upcomingMeetings: meetings.length,
       customData: customParts.length,

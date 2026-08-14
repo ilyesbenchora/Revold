@@ -359,6 +359,7 @@ export function TowerSettingsForm() {
                 ["briefAlerts", "Alertes en tension", "Alertes actives dont le seuil est atteint"],
                 ["briefRadar", "Radar de facturation", "Factures attendues non émises (rythme réel + fins de contrat)"],
                 ["briefObjectives", "Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
+                ["briefObjectivesReached", "Objectifs atteints", "Objectifs actifs dont la cible est franchie (≥ 100 %)"],
                 ["briefSyncs", "Syncs en échec", "Dernier run de chaque outil connecté"],
                 ["briefMeetings", "RDV de coaching", "Séances prévues dans les 48 h"],
               ] as const).map(([key, label, hint]) => (

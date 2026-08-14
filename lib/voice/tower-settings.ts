@@ -39,6 +39,8 @@ export type TowerSettings = {
   briefRadar: boolean;
   /** Contenu du brief — objectifs en retard. */
   briefObjectives: boolean;
+  /** Contenu du brief — objectifs atteints (cible franchie). */
+  briefObjectivesReached: boolean;
   /** Contenu du brief — synchronisations en échec. */
   briefSyncs: boolean;
   /** Contenu du brief — RDV de coaching à venir. */
@@ -65,6 +67,7 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefAlerts: true,
   briefRadar: true,
   briefObjectives: true,
+  briefObjectivesReached: true,
   briefSyncs: true,
   briefMeetings: true,
   briefCustom: [],
@@ -153,6 +156,7 @@ export function briefSectionsParam(s: TowerSettings): string {
   if (s.briefAlerts) on.push("alerts");
   if (s.briefRadar) on.push("radar");
   if (s.briefObjectives) on.push("objectives");
+  if (s.briefObjectivesReached) on.push("objectives_reached");
   if (s.briefSyncs) on.push("syncs");
   if (s.briefMeetings) on.push("meetings");
   return on.join(",");
