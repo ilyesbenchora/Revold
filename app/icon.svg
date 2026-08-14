@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Même marque que le logo de l'app (RevoldLogo) : avatar rond en dégradé
+       fuchsia → purple → indigo avec le flocon fin blanc. -->
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d946ef"/>
@@ -6,17 +8,21 @@
       <stop offset="100%" stop-color="#4f46e5"/>
     </linearGradient>
   </defs>
-  <rect width="48" height="48" rx="12" fill="url(#bg)"/>
+  <circle cx="24" cy="24" r="24" fill="url(#bg)"/>
+  <!-- Liseré lumineux discret, comme le ring du logo -->
+  <circle cx="24" cy="24" r="23.2" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
 
-  <!-- R blanc bold centré -->
-  <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
-        font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-size="30" font-weight="900" fill="white" letter-spacing="-1">R</text>
-
-  <!-- Pastille blanche avec flèche ↗ fuchsia -->
-  <circle cx="38" cy="10" r="7" fill="white"/>
-  <g stroke="#c026d3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <line x1="35" y1="13" x2="41" y2="7"/>
-    <polyline points="36.5,7 41,7 41,11.5"/>
+  <!-- Flocon (géométrie du logo, trait épaissi pour rester lisible en 16px) -->
+  <g transform="translate(10.5 10.5) scale(1.125)"
+     fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="2.5" x2="12" y2="21.5"/>
+    <line x1="3.8" y1="7.25" x2="20.2" y2="16.75"/>
+    <line x1="20.2" y1="7.25" x2="3.8" y2="16.75"/>
+    <path d="M12 5.6 l-2 -1.9 M12 5.6 l2 -1.9"/>
+    <path d="M12 18.4 l-2 1.9 M12 18.4 l2 1.9"/>
+    <path d="M17.4 8.9 l0.6 -2.7 M17.4 8.9 l2.7 0.5"/>
+    <path d="M6.6 15.1 l-0.6 2.7 M6.6 15.1 l-2.7 -0.5"/>
+    <path d="M6.6 8.9 l-2.7 -0.5 M6.6 8.9 l0.6 -2.7"/>
+    <path d="M17.4 15.1 l2.7 0.5 M17.4 15.1 l0.6 2.7"/>
   </g>
 </svg>
