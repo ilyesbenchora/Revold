@@ -10,13 +10,15 @@ export const maxDuration = 300;
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/supabase/cached";
+import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { buildToolHubs, getAuditableTools } from "@/lib/audit/tool-hubs";
+import { computeObjectSummaries } from "@/lib/audit/object-summaries";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { BrandLogo } from "@/components/brand-logo";
 import { HubspotTransactionsBlocks } from "@/components/hubspot-transactions-blocks";
 import { BillingRadarBlocks } from "@/components/billing/billing-radar-blocks";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 
 export default async function DonneesOutilPage({
   params,
@@ -43,6 +45,41 @@ export default async function DonneesOutilPage({
     }
   }
 
+  // ── HubSpot : tuiles cockpit (déplacées depuis la vue d'ensemble de
+  //    Rapprochement données — ce sont des volumes de CET outil). ──
+  let crmTiles: DefaultTile[] = [];
+  if (toolKey === "hubspot") {
+    const [snapshot, summaries] = await Promise.all([getHubspotSnapshot(), computeObjectSummaries(supabase, orgId)]);
+    const contactsTotal = snapshot.totalContacts;
+    const contactsCompany = Math.max(0, contactsTotal - snapshot.orphansCount);
+    const companiesTotal = snapshot.totalCompanies;
+    const companiesDomain = Math.max(0, companiesTotal - snapshot.companiesNoDomain);
+    const dealsTotal = snapshot.totalDeals;
+    const dealsAmount = Math.max(0, dealsTotal - snapshot.dealsNoAmount);
+    const pct = (filled: number, t: number) => (t > 0 ? Math.round((filled / t) * 100) : 0);
+    const toneForPct = (p: number): DefaultTile["tone"] => (p >= 80 ? "pos" : p >= 50 ? "accent" : "neg");
+    const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
+    const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
+    if (contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0) {
+      crmTiles = [
+        { key: "contacts", label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: toneForPct(pct(contactsCompany, contactsTotal)), sub: `${pct(contactsCompany, contactsTotal)} % liés à une entreprise` },
+        { key: "entreprises", label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: toneForPct(pct(companiesDomain, companiesTotal)), sub: `${pct(companiesDomain, companiesTotal)} % avec domaine` },
+        { key: "transactions", label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: toneForPct(pct(dealsAmount, dealsTotal)), sub: `${pct(dealsAmount, dealsTotal)} % avec montant` },
+        {
+          key: "completude",
+          label: "Complétude moyenne",
+          value: avgFill != null ? `${avgFill} %` : "—",
+          tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
+          sub: `${allMetrics.length} propriétés clés confondues`,
+          verdict: avgFill == null ? undefined
+            : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
+            : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
+            : { label: "Base incomplète (< 50 %)", tone: "neg" },
+        },
+      ];
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* ── Identité de la page : « CRM ↔ Outil » pour les outils tiers ── */}
@@ -62,6 +99,12 @@ export default async function DonneesOutilPage({
           Gérer les intégrations →
         </Link>
       </div>
+
+      {/* ── HubSpot : tuiles cockpit en haut de page (Contacts, Entreprises,
+             Transactions, Complétude) — configurables comme partout. ── */}
+      {crmTiles.length > 0 && (
+        <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey="outil_hubspot" defaults={crmTiles} />
+      )}
 
       {/* ── Radar de facturation + closing → 1re facture : rapprochement
              CRM × outil de facturation, scopé aux factures de CET outil. ── */}

@@ -13,12 +13,11 @@ import { ToolAuditCard } from "@/components/tool-audit-card";
 import { RecommendationCard } from "@/components/recommendation-card";
 import { loadToolAudits, buildOnboardingRecommendations } from "@/lib/audit/onboarding-audit";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
-import { computeObjectSummaries } from "@/lib/audit/object-summaries";
 import { computeUnmatchedReport, computeWonDealsReadiness, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
 import Link from "next/link";
 
@@ -49,17 +48,6 @@ export default async function DonneesPage() {
   const supabase = await createSupabaseServerClient();
   const snapshot = await getHubspotSnapshot();
   const hubspotToken = await getHubSpotToken(supabase, orgId);
-
-  // ── Tout depuis HubSpot (snapshot) ──
-  // Pour les "with X" on dérive depuis les "no X" du snapshot (total - noX)
-  const contactsTotal = snapshot.totalContacts;
-  const contactsCompany = Math.max(0, contactsTotal - snapshot.orphansCount);
-  const companiesTotal = snapshot.totalCompanies;
-  const companiesDomain = Math.max(0, companiesTotal - snapshot.companiesNoDomain);
-  const dealsTotal = snapshot.totalDeals;
-  const dealsAmount = Math.max(0, dealsTotal - snapshot.dealsNoAmount);
-
-  const pct = (filled: number, t: number) => (t > 0 ? Math.round((filled / t) * 100) : 0);
 
   // ── Rapprochement inter-outils : stats RÉELLES mesurées sur source_links.
   //    (Les volumes bruts par outil vivent désormais dans les onglets dédiés
@@ -102,11 +90,6 @@ export default async function DonneesPage() {
   const toolAudits = auditTools.length > 0 ? await loadToolAudits(supabase, orgId, auditTools, hubspotToken) : [];
   const onboardingRecos = buildOnboardingRecommendations(toolAudits);
 
-  // Synthèse par objet (volumes + complétude) — les CARTES vivent désormais
-  // dans la sous-page HubSpot ; ici on n'en garde que la matière pour la
-  // tuile « Complétude moyenne ».
-  const summaries = await computeObjectSummaries(supabase, orgId);
-
   // ── Entreprises non rapprochées CRM × facturation : cause + action corrective.
   //    Périmètre volontairement limité aux entreprises DÉJÀ vues côté
   //    facturation (les seules réellement facturées). ──
@@ -119,32 +102,9 @@ export default async function DonneesPage() {
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_donnees");
 
-  // Tuiles par défaut (mêmes valeurs qu'avant — désormais masquables/remplaçables).
-  const allMetrics = summaries.flatMap((s) => s.metrics.map((m) => m.pct));
-  const avgFill = allMetrics.length > 0 ? Math.round(allMetrics.reduce((n, p) => n + p, 0) / allMetrics.length) : null;
-  // Code couleur des tuiles : vert ≥ 80 %, indigo ≥ 50 %, rouge en dessous.
-  const toneForPct = (p: number): DefaultTile["tone"] => (p >= 80 ? "pos" : p >= 50 ? "accent" : "neg");
-  const contactsPct = pct(contactsCompany, contactsTotal);
-  const companiesPct = pct(companiesDomain, companiesTotal);
-  const dealsPct = pct(dealsAmount, dealsTotal);
-  const defaultTiles: DefaultTile[] = (contactsTotal > 0 || companiesTotal > 0 || dealsTotal > 0)
-    ? [
-        { key: "contacts", label: "Contacts", value: contactsTotal.toLocaleString("fr-FR"), tone: toneForPct(contactsPct), sub: `${contactsPct} % liés à une entreprise` },
-        { key: "entreprises", label: "Entreprises", value: companiesTotal.toLocaleString("fr-FR"), tone: toneForPct(companiesPct), sub: `${companiesPct} % avec domaine` },
-        { key: "transactions", label: "Transactions", value: dealsTotal.toLocaleString("fr-FR"), tone: toneForPct(dealsPct), sub: `${dealsPct} % avec montant` },
-        {
-          key: "completude",
-          label: "Complétude moyenne",
-          value: avgFill != null ? `${avgFill} %` : "—",
-          tone: avgFill == null ? "neutral" : avgFill >= 80 ? "pos" : avgFill >= 50 ? "accent" : "neg",
-          sub: `${allMetrics.length} propriétés clés confondues`,
-          verdict: avgFill == null ? undefined
-            : avgFill >= 80 ? { label: "Base saine (> 80 %)", tone: "pos" }
-            : avgFill >= 50 ? { label: "À enrichir", tone: "warn" }
-            : { label: "Base incomplète (< 50 %)", tone: "neg" },
-        },
-      ]
-    : [];
+  // (Les 4 tuiles CRM — Contacts, Entreprises, Transactions, Complétude —
+  // vivent désormais en haut de la sous-page HubSpot : ce sont des volumes
+  // d'UN outil, pas une lecture du croisement.)
 
   return (
     <div className="space-y-6">
@@ -172,12 +132,13 @@ export default async function DonneesPage() {
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]}>
 
-      {/* Lecture cockpit en un coup d'œil : tuiles KPI configurables */}
+      {/* Tuiles KPI configurables (les 4 tuiles CRM par défaut sont sur la
+          sous-page HubSpot — ici ne restent que les KPIs ajoutés). */}
       <ConfigurableKpiTiles
         supabase={supabase}
         orgId={orgId}
         pageKey="audit_donnees"
-        defaults={defaultTiles}
+        defaults={[]}
         customization={custom}
       />
 
