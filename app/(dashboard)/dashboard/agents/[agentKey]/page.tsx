@@ -9,6 +9,7 @@ import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
 import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { SavedReportsCarousel } from "@/components/agents/saved-reports-carousel";
+import { AgentPageShell } from "@/components/agents/agent-page-shell";
 import { getAgent, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -113,8 +114,9 @@ export default async function AgentPage({
     ? (sp.tab as (typeof TABS)[number])
     : undefined;
 
-  return (
-    <div className="mx-auto max-w-4xl px-6 py-6">
+  // Shell client : dès qu'un rapport de routine existe, la page passe en
+  // pleine largeur et le chat se replie pour laisser la place au rapport.
+  const headerBlock = (
       <div className={`relative mb-4 overflow-hidden rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-5 py-4`}>
         {/* Visage de l'agent en filigrane, discret et propre à cet agent */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -148,24 +150,30 @@ export default async function AgentPage({
           )}
         </div>
       </div>
+  );
 
-      {coachingCategory ? (
-        <CoachingWorkspace
-          category={coachingCategory}
-          coachLabel={coachLabel}
-          initialAgenda={agenda ?? {}}
-          initialTab={initialTab}
-          availableSources={sources}
-          agentKey={agent.key}
-          agentLabel={agent.label}
-          sources={sources}
-          suggestions={agent.suggestions}
-          suggestionSets={agent.suggestionSets ?? null}
-          reportBrief={reportBrief}
-          persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
-        />
-      ) : (
-        <>
+  return (
+    <AgentPageShell
+      agentKey={agent.key}
+      chatLabel={persona.name}
+      header={headerBlock}
+      chat={
+        coachingCategory ? (
+          <CoachingWorkspace
+            category={coachingCategory}
+            coachLabel={coachLabel}
+            initialAgenda={agenda ?? {}}
+            initialTab={initialTab}
+            availableSources={sources}
+            agentKey={agent.key}
+            agentLabel={agent.label}
+            sources={sources}
+            suggestions={agent.suggestions}
+            suggestionSets={agent.suggestionSets ?? null}
+            reportBrief={reportBrief}
+            persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
+          />
+        ) : (
           <PaiementAgentChat
             agentKey={agent.key}
             agentLabel={agent.label}
@@ -175,9 +183,9 @@ export default async function AgentPage({
             initialTab={initialTab}
             persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
           />
-          <SavedReportsCarousel agentKey={agent.key} />
-        </>
-      )}
-    </div>
+        )
+      }
+      reports={<SavedReportsCarousel agentKey={agent.key} />}
+    />
   );
 }

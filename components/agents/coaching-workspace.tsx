@@ -4,7 +4,6 @@ import { useState } from "react";
 import { CoachAgenda, type CoachAgendaInitial, type AgendaSource } from "./coach-agenda";
 import { CoachingActionPlan } from "./coaching-action-plan";
 import { PaiementAgentChat } from "./paiement-agent-chat";
-import { SavedReportsCarousel } from "./saved-reports-carousel";
 import type { Attachment } from "@/lib/attachments";
 
 type SourceOption = { key: string; label: string; icon: string; category: string };
@@ -230,8 +229,9 @@ export function CoachingWorkspace({
         initialTab={initialTab}
       />
 
-      {/* Rapports enregistrés depuis le coaching, en carrousel */}
-      <SavedReportsCarousel agentKey={agentKey} />
+      {/* Les rapports enregistrés sont rendus par la PAGE (AgentPageShell) :
+          ils restent visibles quand le chat est replié au profit des rapports
+          de routine en pleine largeur. */}
 
       {/* Historique des rendez-vous de coaching (conversations passées) */}
       <div className="mt-6 card p-5">

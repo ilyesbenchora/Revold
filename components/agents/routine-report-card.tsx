@@ -84,12 +84,12 @@ function ReportBlocks({ spec }: { spec: ReportSpec }) {
           ))}
         </div>
       )}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {blocks.map((b, i) => {
           // Une table large (5 colonnes et +) a besoin de la pleine largeur.
           const wide = b.type === "table" && (b.columns?.length ?? 0) >= 5;
           return (
-            <div key={i} className={wide ? "lg:col-span-2" : ""}>
+            <div key={i} className={wide ? "lg:col-span-2 2xl:col-span-3" : ""}>
               <BlockCard block={b} />
             </div>
           );
