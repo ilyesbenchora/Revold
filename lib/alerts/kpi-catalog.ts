@@ -7,7 +7,8 @@ export const teams = [
   { id: "marketing", label: "Marketing", icon: "📣", description: "Leads, conversion, acquisition" },
   { id: "cs", label: "Service client", icon: "🤝", description: "Rétention, churn, satisfaction" },
   { id: "revops", label: "Finance", icon: "📊", description: "Pilotage revenue, données & process" },
-  { id: "ops", label: "Opération", icon: "⚙️", description: "Data quality, doublons, intégrité" },
+  // (« Opération » retirée du formulaire — ses KPIs data quality restent servis
+  // aux tuiles de la page Audit données via kpisByTeam.ops.)
 ];
 
 export type KpiDef = {
