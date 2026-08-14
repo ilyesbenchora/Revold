@@ -6,14 +6,13 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
-import { ResolutionRules, type Rule, type RuleShare, type ToolMatchRate } from "@/components/resolution-rules";
+import { ResolutionRules, type Rule } from "@/components/resolution-rules";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { checkHubSpotProperty, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
 import { DedupRules } from "@/components/dedup-rules";
 import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
-import { SyncFrequencyForm } from "@/components/sync-frequency-form";
 import Link from "next/link";
 
 // ── Default field authority ──
@@ -124,7 +123,6 @@ export default async function ParametresModeleDonneesPage() {
   let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string; object_type?: string | null }> = [];
   let savedAuthority: Array<{ entity: string; field: string; priority: string[] }> = [];
-  const savedFrequencies: Record<string, string> = {};
 
   // Stats réelles de rapprochement (paginées) : répartition par méthode,
   // % multi-source et taux CRM × outil.
@@ -133,12 +131,11 @@ export default async function ParametresModeleDonneesPage() {
   const matchStats = linkStats.methodStats;
 
   try {
-    const [integ, ruleConfigs, mappings, authority, freqs] = await Promise.all([
+    const [integ, ruleConfigs, mappings, authority] = await Promise.all([
       supabase.from("integrations").select("provider").eq("organization_id", orgId).eq("is_active", true),
       supabase.from("entity_resolution_config").select("rule_id, enabled, config").eq("organization_id", orgId),
       supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field, object_type").eq("organization_id", orgId),
       supabase.from("field_authority_config").select("entity, field, priority").eq("organization_id", orgId),
-      supabase.from("sync_config").select("category, frequency").eq("organization_id", orgId),
     ]);
 
     connectedProviders = (integ.data ?? []).map((i) => i.provider);
@@ -154,9 +151,6 @@ export default async function ParametresModeleDonneesPage() {
       savedMappings = (fallback.data ?? []) as typeof savedMappings;
     }
     savedAuthority = (authority.data ?? []) as typeof savedAuthority;
-    for (const f of (freqs.data ?? []) as Array<{ category: string; frequency: string }>) {
-      savedFrequencies[f.category] = f.frequency;
-    }
   } catch {}
 
   // ── Merge saved state into defaults ──
@@ -269,49 +263,8 @@ export default async function ParametresModeleDonneesPage() {
   const matchByLink = matchStats["existing_link"] ?? 0;
   const matchCreated = matchStats["created"] ?? 0;
 
-  // Part réelle des rapprochements par règle de résolution (source_links.match_method).
-  const ruleShares: Record<string, RuleShare | undefined> = {};
-  const RULE_TO_METHOD: Record<string, string> = {
-    custom_id_match: "custom_id",
-    siren_match: "siren",
-    vat_match: "vat_number",
-    siret_match: "siret",
-    exact_email: "exact_email",
-    external_id_match: "existing_link",
-    domain_match: "domain",
-    name_match: "name",
-  };
-  if (totalMatched > 0) {
-    for (const [ruleId, method] of Object.entries(RULE_TO_METHOD)) {
-      const count = matchStats[method] ?? 0;
-      if (count > 0) ruleShares[ruleId] = { count, pct: Math.round((count / totalMatched) * 100) };
-    }
-  }
-
-  // Taux réels CRM × outil — TOUS les outils actifs du mapping (un outil coché
-  // sans donnée rapprochée apparaît quand même, à 0, avec l'invite de sync).
-  const toolRates: ToolMatchRate[] = identifierRows
-    .filter((r) => r.provider !== "hubspot" && !disabledProviders.includes(r.provider))
-    .map((r) => {
-      const rate = linkStats.providerRates.find((p) => p.provider === r.provider);
-      return {
-        provider: r.provider,
-        label: r.label,
-        icon: r.icon,
-        domain: r.domain,
-        total: rate?.total ?? 0,
-        matched: rate?.matched ?? 0,
-        pct: rate?.pct ?? 0,
-      };
-    });
-
-  // Taux global = tous les enregistrements des outils actifs, confondus.
-  const ratedTools = toolRates.filter((t) => t.total > 0);
-  const globalTotal = ratedTools.reduce((s, t) => s + t.total, 0);
-  const globalMatched = ratedTools.reduce((s, t) => s + t.matched, 0);
-  const globalRate = globalTotal > 0
-    ? { total: globalTotal, matched: globalMatched, pct: Math.round((globalMatched / globalTotal) * 100) }
-    : null;
+  // (Taux réels CRM × outil et parts par règle : affichés sur Audit données →
+  // Rapprochement de données — plus de doublon sur cette page.)
 
   return (
     <section className="space-y-8">
@@ -430,15 +383,8 @@ export default async function ParametresModeleDonneesPage() {
         </h2>
         <p className="text-sm text-slate-500">
           Activez les règles de rapprochement selon vos outils. La première qui matche gagne.
-          Les pourcentages affichés sont mesurés sur vos données réelles (liens source).
         </p>
-        <ResolutionRules
-          rules={mergedRules}
-          ruleShares={ruleShares}
-          totalMatched={totalMatched}
-          toolRates={toolRates}
-          globalRate={globalRate}
-        />
+        <ResolutionRules rules={mergedRules} />
       </div>
 
       {/* ── Matrice d'autorité ── */}
@@ -463,14 +409,6 @@ export default async function ParametresModeleDonneesPage() {
           Les fusions sont désactivées par défaut — rien ne fusionne sans ton accord explicite.
         </p>
         <DedupRules rules={mergedDedupRules} />
-      </div>
-
-      {/* ── Fréquences de sync ── */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Fréquences de synchronisation
-        </h2>
-        <SyncFrequencyForm saved={savedFrequencies} />
       </div>
     </section>
   );
