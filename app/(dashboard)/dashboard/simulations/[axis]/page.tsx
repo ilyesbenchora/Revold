@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
+import { AgentPageShell } from "@/components/agents/agent-page-shell";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { SavedReportsCarousel } from "@/components/agents/saved-reports-carousel";
 import { getAgent } from "@/lib/ai/agents/registry";
@@ -32,8 +33,11 @@ export default async function PrevisionAxisPage({ params }: { params: Promise<{ 
 
   const persona = getAgentPersona(agent.key);
 
-  return (
-    <div className="mx-auto max-w-4xl px-6 py-6">
+  // En-tête (retour + persona) passé au shell — même comportement que les
+  // pages agents/coachs : pleine largeur + chat repliable dès qu'un rapport
+  // de routine existe.
+  const headerBlock = (
+    <>
       <Link href="/dashboard/simulations" className="mb-3 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
         Prévisions
@@ -58,17 +62,25 @@ export default async function PrevisionAxisPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
+    </>
+  );
 
-      <PaiementAgentChat
-        agentKey={agent.key}
-        agentLabel={agent.label}
-        sources={sources}
-        suggestions={agent.suggestions}
-        suggestionSets={agent.suggestionSets ?? null}
-        persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
-      />
-
-      <SavedReportsCarousel agentKey={agent.key} title="Prévisions enregistrées" />
-    </div>
+  return (
+    <AgentPageShell
+      agentKey={agent.key}
+      chatLabel={persona.name}
+      header={headerBlock}
+      chat={
+        <PaiementAgentChat
+          agentKey={agent.key}
+          agentLabel={agent.label}
+          sources={sources}
+          suggestions={agent.suggestions}
+          suggestionSets={agent.suggestionSets ?? null}
+          persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
+        />
+      }
+      reports={<SavedReportsCarousel agentKey={agent.key} title="Prévisions enregistrées" />}
+    />
   );
 }
