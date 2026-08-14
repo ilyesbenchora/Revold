@@ -11,7 +11,7 @@ const PRICING = [
     price: "79",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
-      "Toutes les intégrations en 1 clic (multi-source)",
+      "3 intégrations incluses (multi-source)",
       "Agents experts IA + Coaching IA",
       "Prévisions avancées (bas / base / haut)",
       "Rapports & graphiques (jusqu'à 20)",
@@ -29,6 +29,8 @@ const PRICING = [
     desc: "Pour piloter et agir",
     features: [
       "Tout Starter inclus",
+      "6 intégrations incluses",
+      "Routines programmées des agents IA",
       "Actions exécutées dans le CRM",
       "Plus de rapports (jusqu'à 200) + plan IA objectifs",
       "Gestion multi-langue",
@@ -45,6 +47,7 @@ const PRICING = [
     desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
+      "Intégrations illimitées",
       "Rapports illimités",
       "Actions avancées & playbooks",
       "Analyses & actions illimitées",

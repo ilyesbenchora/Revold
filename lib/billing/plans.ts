@@ -24,6 +24,7 @@ export type FeatureKey =
   | "deal_risk_detection"
   | "anomaly_detection"
   | "quarterly_reports"
+  | "routines"
   | "what_if_simulations"
   | "deal_coaching_advanced"
   | "advisor_revops"
@@ -51,8 +52,9 @@ export const PLANS: Record<PlanKey, Plan> = {
     monthlyPrice: 79,
     yearlyPrice: 790,
     description: "Pour les équipes qui démarrent leur journey RevOps",
+    // Pas de routines programmées sur Starter (feature "routines" absente).
     features: ["weekly_pulse", "metrics_essential"],
-    maxConnectors: 1,
+    maxConnectors: 3,
     featured: false,
   },
   growth: {
@@ -69,8 +71,9 @@ export const PLANS: Record<PlanKey, Plan> = {
       "ai_recommendations",
       "deal_risk_detection",
       "anomaly_detection",
+      "routines",
     ],
-    maxConnectors: 3,
+    maxConnectors: 6,
     featured: true,
   },
   scale: {
@@ -88,6 +91,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "deal_risk_detection",
       "anomaly_detection",
       "quarterly_reports",
+      "routines",
       "what_if_simulations",
       "deal_coaching_advanced",
       "advisor_revops",

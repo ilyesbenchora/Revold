@@ -15,7 +15,7 @@ const PRICING = [
     credits: "300 analyses & actions IA multi-sources / mois",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
-      "Toutes les intégrations en 1 clic (CRM, facturation, pub, support…)",
+      "3 intégrations incluses, en 1 clic (CRM, facturation, pub, support…)",
       "Agents experts IA + Coaching IA personnalisé",
       "Prévisions avancées (scénarios bas / base / haut)",
       "Rapports & graphiques (jusqu'à 20 rapports)",
@@ -32,6 +32,8 @@ const PRICING = [
     desc: "Pour les équipes qui veulent piloter et agir",
     features: [
       "Tout Starter inclus",
+      "6 intégrations incluses",
+      "Routines programmées des agents IA",
       "Actions exécutées dans le CRM (relances, closing, emails…)",
       "Plus de rapports (jusqu'à 200) + plan IA sur objectifs",
       "Suggestions proactives · alertes & objectifs illimités",
@@ -48,6 +50,7 @@ const PRICING = [
     desc: "Pour les revenue teams multi-pôles",
     features: [
       "Tout Growth inclus",
+      "Intégrations illimitées",
       "Rapports illimités",
       "Actions avancées & playbooks",
       "4 utilisateurs · rôles & permissions",
@@ -62,7 +65,7 @@ const FAQS = [
   { q: "Y a-t-il un engagement ?", a: "Non. Tous les plans sont mensuels et sans engagement. Vous pouvez annuler à tout moment depuis vos paramètres." },
   { q: "Faut-il une carte bancaire pour l'essai gratuit ?", a: "Non. L'essai de 14 jours est gratuit et sans carte bancaire. Vous ne serez jamais facturé sans votre accord." },
   { q: "Puis-je changer de plan en cours de route ?", a: "Oui. Vous pouvez upgrader ou downgrader votre plan à tout moment. Le changement prend effet immédiatement." },
-  { q: "Quelles intégrations sont supportées ?", a: "Revold est multi-source : connecte ton CRM (HubSpot, Salesforce, Pipedrive…), ta facturation (Stripe…), ta publicité (Google, Meta, LinkedIn), ton support (Intercom, Zendesk…), Slack et plus — en 1 clic. Toutes les intégrations sont accessibles dès le plan Starter. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
+  { q: "Quelles intégrations sont supportées ?", a: "Revold est multi-source : connecte ton CRM (HubSpot, Salesforce, Pipedrive…), ta facturation (Stripe…), ta publicité (Google, Meta, LinkedIn), ton support (Intercom, Zendesk…), Slack et plus — en 1 clic. Le plan Starter inclut 3 intégrations, Growth 6, et Scale des intégrations illimitées. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
   { q: "Mes données sont-elles en sécurité ?", a: "Oui. Vos données sont hébergées sur Supabase (PostgreSQL sur AWS), chiffrées en transit (TLS) et au repos (AES-256). Chaque organisation est isolée par Row Level Security." },
   { q: "Qu'est-ce qui est inclus dans le support prioritaire ?", a: "Réponse sous 4h en jours ouvrés, accès à un channel Slack dédié, et session de onboarding personnalisée." },
 ];
