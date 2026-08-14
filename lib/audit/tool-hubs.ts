@@ -488,24 +488,34 @@ export async function buildToolHubs(
 export async function getAuditableTools(
   supabase: SupabaseClient,
   orgId: string,
-): Promise<Array<{ key: string; label: string; domain: string; icon: string }>> {
+): Promise<Array<{ key: string; label: string; toolLabel: string; category: string; domain: string; icon: string }>> {
   const [connected, hsToken] = await Promise.all([
     getConnectedTools(supabase, orgId),
     getHubSpotToken(supabase, orgId),
   ]);
-  const list = connected
-    .filter((t) => {
-      const def = CONNECTABLE_TOOLS[t.key];
-      return def && def.category !== "communication";
-    })
-    .map((t) => {
-      const def = CONNECTABLE_TOOLS[t.key];
-      return { key: t.key, label: t.label, domain: def.domain, icon: def.icon };
-    });
+  const eligible = connected.filter((t) => {
+    const def = CONNECTABLE_TOOLS[t.key];
+    return def && def.category !== "communication";
+  });
+  // CRM connecté de l'org — les sous-pages des outils tiers sont nommées
+  // « CRM ↔ Outil » (c'est un RAPPROCHEMENT, pas une vue mono-outil).
+  const crm = eligible.find((t) => t.category === "crm");
+  const crmLabel = crm?.label ?? (hsToken ? "HubSpot" : "CRM");
+  const list = eligible.map((t) => {
+    const def = CONNECTABLE_TOOLS[t.key];
+    return {
+      key: t.key,
+      label: t.category === "crm" ? t.label : `${crmLabel} ↔ ${t.label}`,
+      toolLabel: t.label,
+      category: t.category as string,
+      domain: def.domain,
+      icon: def.icon,
+    };
+  });
   // HubSpot peut être actif (token OAuth / legacy) sans ligne integrations —
   // il garde sa sous-page dès qu'un token existe.
   if (hsToken && !list.some((t) => t.key === "hubspot")) {
-    list.unshift({ key: "hubspot", label: "HubSpot", domain: "hubspot.com", icon: "🟧" });
+    list.unshift({ key: "hubspot", label: "HubSpot", toolLabel: "HubSpot", category: "crm", domain: "hubspot.com", icon: "🟧" });
   }
   return list;
 }

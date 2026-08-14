@@ -11,10 +11,12 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { buildToolHubs, getAuditableTools } from "@/lib/audit/tool-hubs";
 import { BlockDataTable, type BlockTableRow } from "@/components/data-tables/block-data-table";
 import { BrandLogo } from "@/components/brand-logo";
 import { HubspotTransactionsBlocks } from "@/components/hubspot-transactions-blocks";
+import { BillingRadarBlocks } from "@/components/billing/billing-radar-blocks";
 
 export default async function DonneesOutilPage({
   params,
@@ -43,14 +45,16 @@ export default async function DonneesOutilPage({
 
   return (
     <div className="space-y-6">
-      {/* ── Identité de l'outil ── */}
+      {/* ── Identité de la page : « CRM ↔ Outil » pour les outils tiers ── */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <BrandLogo domain={tool.domain} alt={tool.label} fallback={tool.icon} size={36} />
+          <BrandLogo domain={tool.domain} alt={tool.toolLabel} fallback={tool.icon} size={36} />
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Hub {tool.label}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{tool.label}</h2>
             <p className="text-xs text-slate-500">
-              Entités synchronisées et qualité du rapprochement pour cet outil.
+              {tool.category === "crm"
+                ? "Entités synchronisées et qualité du rapprochement pour cet outil."
+                : "Rapprochement des données entre ton CRM et cet outil : entités synchronisées, factures attendues, closing → facture."}
             </p>
           </div>
         </div>
@@ -59,10 +63,23 @@ export default async function DonneesOutilPage({
         </Link>
       </div>
 
+      {/* ── Radar de facturation + closing → 1re facture : rapprochement
+             CRM × outil de facturation, scopé aux factures de CET outil. ── */}
+      {tool.category === "billing" && (
+        <BillingRadarBlocks
+          supabase={supabase}
+          orgId={orgId}
+          hubspotToken={await getHubSpotToken(supabase, orgId)}
+          provider={toolKey}
+          toolLabel={tool.toolLabel}
+          crmLabel={tools.find((t) => t.category === "crm")?.toolLabel ?? "le CRM"}
+        />
+      )}
+
       {/* ── Entités synchronisées ── */}
       {rows.length > 0 ? (
         <BlockDataTable
-          title={`Hub ${tool.label}`}
+          title={`Hub ${tool.toolLabel}`}
           subtitle={hub?.category ?? ""}
           team="revops"
           unit="count"
@@ -72,7 +89,7 @@ export default async function DonneesOutilPage({
         />
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-sm font-medium text-slate-700">Hub {tool.label} : aucune donnée synchronisée.</p>
+          <p className="text-sm font-medium text-slate-700">Hub {tool.toolLabel} : aucune donnée synchronisée.</p>
           <p className="mt-1.5 text-xs text-slate-500">
             Lance une synchronisation depuis{" "}
             <Link href="/dashboard/integration" className="font-medium text-fuchsia-600 hover:underline">

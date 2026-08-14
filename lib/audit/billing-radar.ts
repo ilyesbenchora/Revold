@@ -70,10 +70,12 @@ export async function computeBillingRadar(
   supabase: SupabaseClient,
   orgId: string,
   maxPerList = 10,
+  /** Limite aux factures de ces outils (ex : ["pennylane"]) — pages CRM ↔ outil. */
+  providers: string[] | null = null,
 ): Promise<BillingRadar> {
   try {
     // ── 1. Factures CLIENTS (les fournisseurs — direction "out" — sont exclus) ──
-    const { data: invRows } = await supabase
+    let invQuery = supabase
       .from("invoices")
       .select("company_id, issued_at, amount_total, direction")
       .eq("organization_id", orgId)
@@ -81,6 +83,8 @@ export async function computeBillingRadar(
       .not("company_id", "is", null)
       .order("issued_at", { ascending: true })
       .limit(5000);
+    if (providers && providers.length > 0) invQuery = invQuery.in("primary_source", providers);
+    const { data: invRows } = await invQuery;
     const invoices = ((invRows ?? []) as Array<{ company_id: string; issued_at: string; amount_total: number | null; direction: string | null }>)
       .filter((i) => i.direction !== "out");
     if (invoices.length === 0) return EMPTY;
@@ -299,6 +303,8 @@ export async function computeWonToInvoiceDetail(
   orgId: string,
   hubspotToken: string | null = null,
   maxUnbilled = 10,
+  /** Limite aux factures de ces outils (ex : ["pennylane"]) — pages CRM ↔ outil. */
+  providers: string[] | null = null,
 ): Promise<WonToInvoiceDetail> {
   try {
     const { data: wonRows } = await supabase
@@ -323,13 +329,15 @@ export async function computeWonToInvoiceDetail(
     type Inv = { issued: number; paid: number | null };
     const invoicesByCompany = new Map<string, Inv[]>();
     for (let i = 0; i < companyIds.length; i += 200) {
-      const { data } = await supabase
+      let q = supabase
         .from("invoices")
         .select("company_id, issued_at, paid_at, direction")
         .eq("organization_id", orgId)
         .in("company_id", companyIds.slice(i, i + 200))
         .not("issued_at", "is", null)
         .limit(5000);
+      if (providers && providers.length > 0) q = q.in("primary_source", providers);
+      const { data } = await q;
       for (const inv of (data ?? []) as Array<{ company_id: string; issued_at: string; paid_at: string | null; direction: string | null }>) {
         if (inv.direction === "out") continue;
         const t = Date.parse(inv.issued_at);
