@@ -9,7 +9,8 @@ describe("billing/plans", () => {
 
     it("yearly price ≈ 10× monthly (≈17% discount)", () => {
       for (const plan of Object.values(PLANS)) {
-        expect(plan.yearlyPrice).toBe(plan.monthlyPrice * 10);
+        // toBeCloseTo : les prix décimaux (79,90 → ×10) accumulent une erreur flottante.
+        expect(plan.yearlyPrice).toBeCloseTo(plan.monthlyPrice * 10, 6);
       }
     });
 

@@ -8,7 +8,7 @@ const PRICING = [
   {
     id: "starter",
     name: "Starter",
-    price: "79",
+    price: "79,90",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
       "3 intégrations incluses (multi-source)",
@@ -17,15 +17,15 @@ const PRICING = [
       "Rapports & graphiques (jusqu'à 20)",
       "Alertes + calendrier + objectifs",
       "300 analyses & actions multi-sources / mois",
-      "4 utilisateurs",
+      "5 utilisateurs",
     ],
     cta: "Choisir Starter",
     featured: false,
   },
   {
     id: "growth",
-    name: "Growth",
-    price: "249",
+    name: "Business",
+    price: "149,90",
     desc: "Pour piloter et agir",
     features: [
       "Tout Starter inclus",
@@ -36,9 +36,9 @@ const PRICING = [
       "Plus de rapports (jusqu'à 200) + plan IA objectifs",
       "Gestion multi-langue",
       "5 000 analyses & actions IA / mois",
-      "4 utilisateurs",
+      "5 utilisateurs",
     ],
-    cta: "Choisir Growth",
+    cta: "Choisir Business",
     featured: true,
   },
   {
@@ -47,12 +47,12 @@ const PRICING = [
     price: "499",
     desc: "Pour les revenue teams multi-pôles",
     features: [
-      "Tout Growth inclus",
+      "Tout Business inclus",
       "Intégrations illimitées",
       "Rapports illimités",
       "Actions avancées & playbooks",
       "Analyses & actions illimitées",
-      "4 utilisateurs · rôles & permissions",
+      "Utilisateurs illimités · rôles & permissions",
     ],
     cta: "Choisir Scale",
     featured: false,
@@ -62,7 +62,7 @@ const PRICING = [
 const planLabels: Record<string, string> = {
   trial: "Essai gratuit",
   starter: "Starter",
-  growth: "Growth",
+  growth: "Business",
   scale: "Scale",
   enterprise: "Enterprise",
 };

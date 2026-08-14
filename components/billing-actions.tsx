@@ -79,7 +79,7 @@ export function BillingActions({ hasSubscription }: { hasSubscription: boolean }
             disabled={busy !== null}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50"
           >
-            {busy === "growth-monthly" ? "Redirection…" : "Essayer Growth — 14j gratuits"}
+            {busy === "growth-monthly" ? "Redirection…" : "Essayer Business — 14j gratuits"}
           </button>
           <button
             type="button"

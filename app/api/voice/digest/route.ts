@@ -36,10 +36,10 @@ export async function GET(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  // Tour de contrôle vocale : réservée aux plans Growth et Scale.
+  // Tour de contrôle vocale : réservée aux plans Business et Scale.
   const plan = await getOrgPlan(supabase, orgId);
   if (featureLocked(plan, "voice_control_tower")) {
-    return NextResponse.json({ error: "La tour de contrôle vocale est disponible à partir du plan Growth." }, { status: 403 });
+    return NextResponse.json({ error: "La tour de contrôle vocale est disponible à partir du plan Business." }, { status: 403 });
   }
 
   const url = new URL(request.url);

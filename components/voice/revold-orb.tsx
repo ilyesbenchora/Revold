@@ -626,7 +626,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
 /**
  * Variante VERROUILLÉE de la tour de contrôle (plan Starter) : même
- * emplacement, orbe éteinte, invitation à passer au plan Growth.
+ * emplacement, orbe éteinte, invitation à passer au plan Business.
  */
 export function RevoldControlTowerLocked() {
   return (
@@ -646,7 +646,7 @@ export function RevoldControlTowerLocked() {
         href="/dashboard/parametres/billing"
         className="relative z-10 mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
       >
-        Disponible dès le plan Growth →
+        Disponible dès le plan Business →
       </a>
     </div>
   );

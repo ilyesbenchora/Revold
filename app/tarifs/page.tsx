@@ -5,13 +5,13 @@ import { SiteNavbar } from "@/components/site-navbar";
 
 export const metadata: Metadata = {
   title: "Tarifs — Revold",
-  description: "Des tarifs simples et transparents, basés sur l'usage. Starter à 79€/mois, Growth à 249€/mois, Scale à 499€/mois. Essai 14 jours, sans carte bancaire.",
+  description: "Des tarifs simples et transparents, basés sur l'usage. Starter à 79,90€/mois, Business à 149,90€/mois, Scale à 499€/mois. Essai 14 jours, sans carte bancaire.",
 };
 
 const PRICING = [
   {
     name: "Starter",
-    price: "79",
+    price: "79,90",
     credits: "300 analyses & actions IA multi-sources / mois",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
@@ -20,14 +20,14 @@ const PRICING = [
       "Prévisions avancées (scénarios bas / base / haut)",
       "Rapports & graphiques (jusqu'à 20 rapports)",
       "Alertes + calendrier + objectifs avec complétion",
-      "4 utilisateurs · support email",
+      "5 utilisateurs · support email",
     ],
     featured: false,
     cta: "Essayer 14 jours gratuits",
   },
   {
-    name: "Growth",
-    price: "249",
+    name: "Business",
+    price: "149,90",
     credits: "5 000 analyses & actions IA / mois",
     desc: "Pour les équipes qui veulent piloter et agir",
     features: [
@@ -39,7 +39,7 @@ const PRICING = [
       "Plus de rapports (jusqu'à 200) + plan IA sur objectifs",
       "Suggestions proactives · alertes & objectifs illimités",
       "Gestion multi-langue",
-      "4 utilisateurs · support prioritaire",
+      "5 utilisateurs · support prioritaire",
     ],
     featured: true,
     cta: "Essayer 14 jours gratuits",
@@ -50,11 +50,11 @@ const PRICING = [
     credits: "Volume élevé — analyses & actions illimitées",
     desc: "Pour les revenue teams multi-pôles",
     features: [
-      "Tout Growth inclus",
+      "Tout Business inclus",
       "Intégrations illimitées",
       "Rapports illimités",
       "Actions avancées & playbooks",
-      "4 utilisateurs · rôles & permissions",
+      "Utilisateurs illimités · rôles & permissions",
       "Advisor RevOps dédié · SLA",
     ],
     featured: false,
@@ -66,7 +66,7 @@ const FAQS = [
   { q: "Y a-t-il un engagement ?", a: "Non. Tous les plans sont mensuels et sans engagement. Vous pouvez annuler à tout moment depuis vos paramètres." },
   { q: "Faut-il une carte bancaire pour l'essai gratuit ?", a: "Non. L'essai de 14 jours est gratuit et sans carte bancaire. Vous ne serez jamais facturé sans votre accord." },
   { q: "Puis-je changer de plan en cours de route ?", a: "Oui. Vous pouvez upgrader ou downgrader votre plan à tout moment. Le changement prend effet immédiatement." },
-  { q: "Quelles intégrations sont supportées ?", a: "Revold est multi-source : connecte ton CRM (HubSpot, Salesforce, Pipedrive…), ta facturation (Stripe…), ta publicité (Google, Meta, LinkedIn), ton support (Intercom, Zendesk…), Slack et plus — en 1 clic. Le plan Starter inclut 3 intégrations, Growth 6, et Scale des intégrations illimitées. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
+  { q: "Quelles intégrations sont supportées ?", a: "Revold est multi-source : connecte ton CRM (HubSpot, Salesforce, Pipedrive…), ta facturation (Stripe…), ta publicité (Google, Meta, LinkedIn), ton support (Intercom, Zendesk…), Slack et plus — en 1 clic. Le plan Starter inclut 3 intégrations, Business 6, et Scale des intégrations illimitées. Les connecteurs MCP (plan Scale) permettent de brancher n'importe quel outil compatible." },
   { q: "Mes données sont-elles en sécurité ?", a: "Oui. Vos données sont hébergées sur Supabase (PostgreSQL sur AWS), chiffrées en transit (TLS) et au repos (AES-256). Chaque organisation est isolée par Row Level Security." },
   { q: "Qu'est-ce qui est inclus dans le support prioritaire ?", a: "Réponse sous 4h en jours ouvrés, accès à un channel Slack dédié, et session de onboarding personnalisée." },
 ];

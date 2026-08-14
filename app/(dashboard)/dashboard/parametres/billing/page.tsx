@@ -22,6 +22,14 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
+/** Prix au format français : 79,90 (décimales seulement si nécessaires). */
+function fmtEur(v: number): string {
+  return v.toLocaleString("fr-FR", {
+    minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default async function BillingPage({
   searchParams,
 }: {
@@ -87,8 +95,8 @@ export default async function BillingPage({
               <p className="text-xs text-slate-500">Tarif</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">
                 {sub.billing_period === "yearly"
-                  ? `${planObj.yearlyPrice} € / an`
-                  : `${planObj.monthlyPrice} € / mois`}
+                  ? `${fmtEur(planObj.yearlyPrice)} € / an`
+                  : `${fmtEur(planObj.monthlyPrice)} € / mois`}
               </p>
             </div>
             <div>
@@ -138,7 +146,7 @@ export default async function BillingPage({
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{p.name}</p>
                 <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {p.monthlyPrice} <span className="text-sm font-normal text-slate-500">€/mois</span>
+                  {fmtEur(p.monthlyPrice)} <span className="text-sm font-normal text-slate-500">€/mois</span>
                 </p>
                 <p className="mt-2 text-xs text-slate-500">{p.description}</p>
                 <p className="mt-3 text-[11px] text-slate-500">

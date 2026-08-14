@@ -50,8 +50,8 @@ export const PLANS: Record<PlanKey, Plan> = {
   starter: {
     key: "starter",
     name: "Starter",
-    monthlyPrice: 79,
-    yearlyPrice: 790,
+    monthlyPrice: 79.9,
+    yearlyPrice: 799,
     description: "Pour les équipes qui démarrent leur journey RevOps",
     // Pas de routines programmées sur Starter (feature "routines" absente).
     features: ["weekly_pulse", "metrics_essential"],
@@ -60,9 +60,11 @@ export const PLANS: Record<PlanKey, Plan> = {
   },
   growth: {
     key: "growth",
-    name: "Growth",
-    monthlyPrice: 249,
-    yearlyPrice: 2490,
+    // Clé technique "growth" conservée (org_subscriptions + env Stripe) —
+    // seul le nom commercial change.
+    name: "Business",
+    monthlyPrice: 149.9,
+    yearlyPrice: 1499,
     description: "Pour les équipes qui veulent scaler intelligemment",
     features: [
       "weekly_pulse",
