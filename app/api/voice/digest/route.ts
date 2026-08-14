@@ -5,6 +5,7 @@ import { isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { computeAggregate } from "@/lib/ai/agents/tool-library";
+import { computeBillingRadar } from "@/lib/audit/billing-radar";
 
 /** Format lisible à voix haute d'un total de KPI personnalisé. */
 function fmtCustomValue(v: number, unit: string | null): string {
@@ -105,6 +106,16 @@ export async function GET(request: Request) {
   }
   const failedSyncs = [...lastBySource.values()].filter((s) => s.status === "failed");
 
+  // ── Radar de facturation : factures attendues non émises (rythme observé /
+  //    fin de contrat CRM) — une exception de trésorerie, lue avec les alertes. ──
+  let radarOverdue = 0;
+  let radarAmount = 0;
+  try {
+    const radar = await computeBillingRadar(supabase, orgId, 1000);
+    radarOverdue = radar.overdue.length;
+    radarAmount = radar.overdueAmount;
+  } catch {}
+
   // ── RDV de coaching à venir (≤ 48 h) ──
   type AgendaRow = { category: string; next_meeting_at: string | null; next_meeting_time?: string | null };
   const CAT_LABEL: Record<string, string> = { commercial: "ventes", marketing: "marketing", data: "data", "data-model": "finance" };
@@ -164,13 +175,22 @@ export async function GET(request: Request) {
 
   // ── Statut de santé (teinte l'anneau de l'orbe) ──
   const status: "ok" | "warn" | "critical" =
-    tenseCritical.length > 0 || failedSyncs.length > 0 ? "critical" : tense.length > 0 || offTrack.length > 0 ? "warn" : "ok";
+    tenseCritical.length > 0 || failedSyncs.length > 0
+      ? "critical"
+      : tense.length > 0 || offTrack.length > 0 || radarOverdue > 0
+        ? "warn"
+        : "ok";
 
   // ── Texte du brief, prêt à lire à voix haute ──
   const parts: string[] = [];
   if (sections.has("alerts") && tense.length > 0) {
     const names = tense.slice(0, 3).map((a) => a.title).join(", ");
     parts.push(`${tense.length} alerte${tense.length > 1 ? "s" : ""} en tension${tenseCritical.length > 0 ? ` dont ${tenseCritical.length} critique${tenseCritical.length > 1 ? "s" : ""}` : ""} : ${names}.`);
+  }
+  if (sections.has("alerts") && radarOverdue > 0) {
+    parts.push(
+      `${radarOverdue} facture${radarOverdue > 1 ? "s" : ""} attendue${radarOverdue > 1 ? "s" : ""} non émise${radarOverdue > 1 ? "s" : ""}${radarAmount > 0 ? ` — environ ${fmtCustomValue(radarAmount, "currency")} à facturer` : ""} : détail sur la page Trésorerie.`,
+    );
   }
   if (sections.has("syncs") && failedSyncs.length > 0) {
     parts.push(`Synchronisation en échec : ${failedSyncs.map((s) => s.source).join(", ")} — à relancer depuis les intégrations.`);
@@ -201,6 +221,7 @@ export async function GET(request: Request) {
       failedSyncs: failedSyncs.length,
       upcomingMeetings: meetings.length,
       customData: customParts.length,
+      overdueExpectedInvoices: radarOverdue,
     },
   });
 }

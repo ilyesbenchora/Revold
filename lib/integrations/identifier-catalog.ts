@@ -7,7 +7,11 @@
  */
 
 export type IdentifierDef = {
-  canonicalField: "siren" | "siret" | "vat_number" | "custom_id" | "external_id" | "email" | "domain" | "company_name";
+  canonicalField:
+    | "siren" | "siret" | "vat_number" | "custom_id" | "external_id" | "email" | "domain" | "company_name"
+    // Dates de contrat (propriétés custom, jamais natives) — multi-objet : la
+    // date peut vivre sur la Company ET/OU le Deal selon le CRM du client.
+    | "contract_start" | "contract_end" | "deal_contract_start" | "deal_contract_end";
   label: string;
   /** Default field name in the provider (user can override) */
   defaultProviderField: string;
@@ -28,6 +32,13 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "siret", label: "SIRET", defaultProviderField: "siret", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "vat_number", label: "N° TVA", defaultProviderField: "vat_number", hint: "Propriété custom HubSpot", native: false },
     { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "", hint: "Votre code client interne, partagé entre le CRM et un outil relié — ajoutez-en un par outil si chaque paire a son propre code (optionnel)", native: false },
+    // ── Dates de contrat (radar de facturation Trésorerie) : propriétés custom,
+    //    le NOM diffère chez chaque client — saisir le nom affiché ou le nom
+    //    interne (API), Revold vérifie la propriété dans HubSpot. ──
+    { canonicalField: "contract_start", label: "Date de début de contrat (Company)", defaultProviderField: "", hint: "Votre propriété custom de type date sur la Company — nom affiché ou nom interne API (optionnel)", native: false },
+    { canonicalField: "contract_end", label: "Date de fin de contrat (Company)", defaultProviderField: "", hint: "Votre propriété custom de type date sur la Company — alimente le radar de facturation Trésorerie (optionnel)", native: false },
+    { canonicalField: "deal_contract_start", label: "Date de début de contrat (Deal)", defaultProviderField: "", hint: "Si la date vit sur vos deals : propriété custom de type date sur le Deal (optionnel)", native: false },
+    { canonicalField: "deal_contract_end", label: "Date de fin de contrat (Deal)", defaultProviderField: "", hint: "Si la date vit sur vos deals : propriété custom de type date sur le Deal — alimente le radar de facturation (optionnel)", native: false },
     { canonicalField: "external_id", label: "ID Company", defaultProviderField: "hs_object_id", hint: "ID natif HubSpot (automatique)", native: true },
   ],
   salesforce: [

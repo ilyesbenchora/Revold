@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -20,6 +21,7 @@ import { computeCrossMargin } from "@/lib/audit/cross-margin";
 import { computeTreasuryForecast, type TreasuryForecast } from "@/lib/audit/treasury-forecast";
 import type { OrgFiscalParams } from "@/lib/audit/fiscal-schedule";
 import { computeDealsSeries } from "@/lib/audit/deals-series";
+import { computeBillingRadar } from "@/lib/audit/billing-radar";
 import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { HBarChart } from "@/components/charts/hbar-chart";
@@ -109,6 +111,10 @@ export default async function PaiementFacturationOverviewPage({
 
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_paiement_facturation");
+
+  // ── Radar de facturation : factures attendues (rythme observé / fin de
+  //    contrat CRM mappée) non émises — l'amont du taux de recouvrement. ──
+  const radar = await computeBillingRadar(supabase, orgId);
 
   // ── Séries pour les graphes de la vue croisée (style cockpit Lomed) :
   //    CA signé par mois, marge mensuelle et projection 12 mois. ──
@@ -229,6 +235,90 @@ export default async function PaiementFacturationOverviewPage({
             return undefined;
           })}
         />
+      )}
+
+      {/* ── RADAR DE FACTURATION : factures attendues non émises — l'échéance
+             est passée et personne n'a facturé (rythme observé / fin de
+             contrat CRM mappée). L'amont du taux de recouvrement. ── */}
+      {radar.hasData && selectedKeys.length > 0 && !custom.hiddenBlocks.has("billing_radar") && (
+        <RemovableBlock pageKey="audit_paiement_facturation" blockKey="billing_radar" label="Radar de facturation">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Radar de facturation
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Factures ATTENDUES mais non émises — détectées par le rythme de facturation réel de chaque
+                  client ({radar.regularCount}/{radar.analyzed} clients au rythme établi) et par la date de fin
+                  de contrat mappée depuis le CRM.
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className={`text-2xl font-bold tabular-nums ${radar.overdue.length > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                  {radar.overdue.length}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  en retard{radar.overdueAmount > 0 ? ` · ${eur(radar.overdueAmount)} en attente` : ""}
+                </p>
+              </div>
+            </div>
+
+            {radar.overdue.length === 0 && radar.upcoming.length === 0 && (
+              <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                ✓ Aucune facture attendue en retard, aucune échéance sous 30 jours.
+              </p>
+            )}
+
+            {radar.overdue.length > 0 && (
+              <ul className="mt-3 divide-y divide-slate-100">
+                {radar.overdue.map((it) => (
+                  <li key={`o-${it.companyId}`} className="py-2.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-xs font-semibold text-slate-900">{it.companyName}</span>
+                      <span className="text-[11px] font-bold tabular-nums text-rose-600">
+                        {it.daysLate} j de retard{it.usualAmount ? ` · ~${eur(it.usualAmount)}` : ""}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Facture attendue le {new Date(it.expectedDate).toLocaleDateString("fr-FR")} — base : {it.basisLabel}.
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-slate-700">
+                      <span aria-hidden>💡</span> À facturer maintenant{it.usualAmount ? ` (~${eur(it.usualAmount)} de trésorerie en attente)` : ""} — vérifie dans Pennylane/Stripe puis relance le owner.
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {radar.upcoming.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">À facturer sous 30 jours</p>
+                <ul className="mt-1.5 space-y-1">
+                  {radar.upcoming.map((it) => (
+                    <li key={`u-${it.companyId}`} className="flex flex-wrap items-baseline justify-between gap-2 text-[11px]">
+                      <span className="font-medium text-slate-700">{it.companyName}</span>
+                      <span className="tabular-nums text-slate-500">
+                        dans {it.daysUntil} j ({new Date(it.expectedDate).toLocaleDateString("fr-FR")})
+                        {it.usualAmount ? ` · ~${eur(it.usualAmount)}` : ""} · {it.basisLabel}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Couverture opt-in de la date de contrat — jamais exigée. */}
+            <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400">
+              Date de fin de contrat renseignée sur {radar.contractCoverage.filled}/{radar.contractCoverage.total} clients
+              facturés — mappe tes propriétés « date de début / fin de contrat » (Company et/ou Deal) dans{" "}
+              <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-fuchsia-600 hover:underline">
+                Paramètres → Modèle de données
+              </Link>{" "}
+              pour affiner le radar. Alerte disponible : ajoute la tuile « Factures attendues en retard » puis sa cloche.
+            </p>
+          </div>
+        </RemovableBlock>
       )}
 
       {/* ── 2+ outils sans croisement possible : on l'explique au lieu d'afficher du faux ── */}

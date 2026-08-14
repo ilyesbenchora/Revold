@@ -201,6 +201,9 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "receivables_status", label: "Créances (impayés) par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
     { id: "real_cash_month", label: "Évolution du cash réel encaissé", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
     { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    // ── Radar de facturation : factures attendues (rythme observé dans la
+    //    facturation / fin de contrat CRM) non émises — l'amont du recouvrement ──
+    { id: "billing_radar_overdue", label: "Factures attendues en retard", entity: "invoices", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "billing_radar_overdue", tileOnly: true },
     // ── Relais inter-services (ex-tuiles Alignement) : délais médians mesurés
     //    par le moteur de réconciliation (jointures réelles CRM × facturation) ──
     { id: "deal_won_to_first_invoice", label: "Deal gagné → 1re facture (délai médian)", entity: "deals", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "deal_won_to_first_invoice", tileOnly: true, requiresCategories: ["crm", "billing"] },

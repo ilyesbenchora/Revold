@@ -104,7 +104,11 @@ async function buildHubSpotSyntheticReport(
   token: string,
   entityCounts: Record<string, number>,
 ): Promise<ConnectorAuditReport | null> {
-  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter((d) => d.canonicalField !== "external_id");
+  // Hors périmètre : external_id (technique) et dates de contrat (radar de
+  // facturation, pas des clés de rapprochement).
+  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter(
+    (d) => d.canonicalField !== "external_id" && !d.canonicalField.includes("contract"),
+  );
   if (defs.length === 0) return null;
 
   // Overrides du mapping des identifiants (Paramètres → Modèle de données).

@@ -82,4 +82,9 @@ export const CANONICAL_TO_HUBSPOT_OBJECT: Record<string, string> = {
   vat_number: "companies",
   custom_id: "companies",
   email: "contacts",
+  // Dates de contrat — multi-objet : vérifiées sur l'objet qui les porte.
+  contract_start: "companies",
+  contract_end: "companies",
+  deal_contract_start: "deals",
+  deal_contract_end: "deals",
 };

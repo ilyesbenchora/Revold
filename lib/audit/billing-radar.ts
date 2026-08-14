@@ -1,0 +1,240 @@
+/**
+ * Radar de facturation — détecte les factures ATTENDUES mais non émises,
+ * pour attaquer le vrai problème de trésorerie : « l'échéance est passée et
+ * personne n'a facturé ».
+ *
+ * Deux ancres, par ordre de priorité :
+ *  1. « contract » : la date de fin de contrat mappée depuis le CRM
+ *     (companies.contract_end, sinon celle du dernier deal GAGNÉ) — opt-in,
+ *     utilisée uniquement là où elle est renseignée ;
+ *  2. « rhythm » : le rythme de facturation RÉEL observé dans l'outil de
+ *     facturation (écart médian entre les factures successives du client).
+ *     Zéro donnée déclarative : l'historique du client fait foi.
+ *
+ * Un client sans rythme établi (0-2 factures, intervalles anarchiques) et sans
+ * date de contrat n'est JAMAIS mis en retard — pas de faux positifs.
+ */
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type RadarBasis = "contract" | "rhythm";
+
+export type RadarItem = {
+  companyId: string;
+  companyName: string;
+  status: "overdue" | "upcoming";
+  /** Date de facture attendue (ISO date). */
+  expectedDate: string;
+  daysLate?: number;
+  daysUntil?: number;
+  /** Montant habituel (médiane des dernières factures) — l'enjeu de tréso. */
+  usualAmount: number | null;
+  basis: RadarBasis;
+  /** Base de calcul lisible (« fin de contrat CRM » / « facturé tous les ~92 j, 5 factures »). */
+  basisLabel: string;
+};
+
+export type BillingRadar = {
+  hasData: boolean;
+  overdue: RadarItem[];
+  upcoming: RadarItem[];
+  /** € en attente = somme des montants habituels des retards. */
+  overdueAmount: number;
+  /** Clients facturés analysés. */
+  analyzed: number;
+  /** Clients au rythme de facturation établi. */
+  regularCount: number;
+  /** Couverture de la date de fin de contrat mappée (opt-in, jamais exigée). */
+  contractCoverage: { filled: number; total: number };
+};
+
+const EMPTY: BillingRadar = {
+  hasData: false,
+  overdue: [],
+  upcoming: [],
+  overdueAmount: 0,
+  analyzed: 0,
+  regularCount: 0,
+  contractCoverage: { filled: 0, total: 0 },
+};
+
+const DAY = 86_400_000;
+
+function median(nums: number[]): number {
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+export async function computeBillingRadar(
+  supabase: SupabaseClient,
+  orgId: string,
+  maxPerList = 10,
+): Promise<BillingRadar> {
+  try {
+    // ── 1. Factures CLIENTS (les fournisseurs — direction "out" — sont exclus) ──
+    const { data: invRows } = await supabase
+      .from("invoices")
+      .select("company_id, issued_at, amount_total, direction")
+      .eq("organization_id", orgId)
+      .not("issued_at", "is", null)
+      .not("company_id", "is", null)
+      .order("issued_at", { ascending: true })
+      .limit(5000);
+    const invoices = ((invRows ?? []) as Array<{ company_id: string; issued_at: string; amount_total: number | null; direction: string | null }>)
+      .filter((i) => i.direction !== "out");
+    if (invoices.length === 0) return EMPTY;
+
+    const byCompany = new Map<string, Array<{ at: number; amount: number | null }>>();
+    for (const inv of invoices) {
+      const t = Date.parse(inv.issued_at);
+      if (Number.isNaN(t)) continue;
+      (byCompany.get(inv.company_id) ?? byCompany.set(inv.company_id, []).get(inv.company_id)!)
+        .push({ at: t, amount: inv.amount_total != null ? Number(inv.amount_total) : null });
+    }
+    const ids = [...byCompany.keys()];
+
+    // ── 2. Fiches entreprises + date de fin de contrat mappée (résilient :
+    //    migration contract_dates facultative) ──
+    type CompanyRow = { id: string; name: string | null; contract_end?: string | null };
+    const companies = new Map<string, CompanyRow>();
+    let contractColumns = true;
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const first = await supabase
+        .from("companies")
+        .select("id, name, contract_end")
+        .eq("organization_id", orgId)
+        .in("id", chunk);
+      if (first.error && /contract_end/.test(first.error.message)) {
+        contractColumns = false;
+        const fb = await supabase.from("companies").select("id, name").eq("organization_id", orgId).in("id", chunk);
+        for (const c of ((fb.data ?? []) as unknown) as CompanyRow[]) companies.set(c.id, c);
+      } else {
+        for (const c of ((first.data ?? []) as unknown) as CompanyRow[]) companies.set(c.id, c);
+      }
+    }
+
+    // Repli deal : fin de contrat portée par le dernier deal GAGNÉ de l'entreprise.
+    const dealContractEnd = new Map<string, string>();
+    if (contractColumns) {
+      try {
+        const { data } = await supabase
+          .from("deals")
+          .select("company_id, contract_end, close_date")
+          .eq("organization_id", orgId)
+          .eq("is_closed_won", true)
+          .not("contract_end", "is", null)
+          .in("company_id", ids.slice(0, 1000))
+          .limit(2000);
+        const best = new Map<string, { end: string; close: string }>();
+        for (const d of (data ?? []) as Array<{ company_id: string; contract_end: string; close_date: string | null }>) {
+          const cur = best.get(d.company_id);
+          if (!cur || (d.close_date ?? "") > cur.close) best.set(d.company_id, { end: d.contract_end, close: d.close_date ?? "" });
+        }
+        for (const [cid, v] of best) dealContractEnd.set(cid, v.end);
+      } catch {}
+    }
+
+    const now = Date.now();
+    const overdue: RadarItem[] = [];
+    const upcoming: RadarItem[] = [];
+    let regularCount = 0;
+    let contractFilled = 0;
+
+    for (const [companyId, list] of byCompany) {
+      const company = companies.get(companyId);
+      const name = company?.name?.trim() || "(sans nom)";
+      list.sort((a, b) => a.at - b.at);
+      const last = list[list.length - 1];
+      const usualAmount = (() => {
+        const amounts = list.slice(-6).map((x) => x.amount).filter((a): a is number => a != null && a > 0);
+        return amounts.length > 0 ? Math.round(median(amounts)) : null;
+      })();
+
+      // Fin de contrat : company d'abord, sinon dernier deal gagné.
+      const contractEndRaw = company?.contract_end ?? dealContractEnd.get(companyId) ?? null;
+      const contractEnd = contractEndRaw ? Date.parse(contractEndRaw) : NaN;
+      if (contractEndRaw && !Number.isNaN(contractEnd)) contractFilled++;
+
+      // Rythme observé : écart médian entre factures successives.
+      const intervals: number[] = [];
+      for (let i = 1; i < list.length; i++) intervals.push((list[i].at - list[i - 1].at) / DAY);
+      const m = intervals.length >= 2 ? median(intervals) : null;
+      const regular = m != null && m >= 20 && m <= 400;
+      if (regular) regularCount++;
+
+      // ── Ancre « contract » prioritaire : échéance dans une fenêtre utile ──
+      if (!Number.isNaN(contractEnd) && contractEnd >= now - 180 * DAY && contractEnd <= now + 30 * DAY) {
+        // Renouvellement facturé ? une facture émise à partir de J-30 avant l'échéance.
+        const billed = list.some((x) => x.at >= contractEnd - 30 * DAY);
+        if (!billed) {
+          const tolerance = 15 * DAY;
+          if (now > contractEnd + tolerance) {
+            overdue.push({
+              companyId, companyName: name, status: "overdue",
+              expectedDate: new Date(contractEnd).toISOString().slice(0, 10),
+              daysLate: Math.round((now - contractEnd) / DAY),
+              usualAmount, basis: "contract",
+              basisLabel: "fin de contrat (CRM)",
+            });
+          } else if (contractEnd >= now - tolerance) {
+            upcoming.push({
+              companyId, companyName: name, status: "upcoming",
+              expectedDate: new Date(contractEnd).toISOString().slice(0, 10),
+              daysUntil: Math.max(0, Math.round((contractEnd - now) / DAY)),
+              usualAmount, basis: "contract",
+              basisLabel: "fin de contrat (CRM)",
+            });
+          }
+        }
+        continue; // l'ancre contrat a parlé pour ce client
+      }
+
+      // ── Ancre « rhythm » : prochaine facture attendue = dernière + rythme ──
+      if (!regular || m == null) continue; // pas de rythme établi → jamais de faux retard
+      const expected = last.at + m * DAY;
+      const tolerance = Math.max(15, m * 0.3) * DAY;
+      const basisLabel = `facturé tous les ~${Math.round(m)} j (${list.length} factures)`;
+      if (now > expected + tolerance) {
+        overdue.push({
+          companyId, companyName: name, status: "overdue",
+          expectedDate: new Date(expected).toISOString().slice(0, 10),
+          daysLate: Math.round((now - expected) / DAY),
+          usualAmount, basis: "rhythm", basisLabel,
+        });
+      } else if (expected <= now + 30 * DAY) {
+        upcoming.push({
+          companyId, companyName: name, status: "upcoming",
+          expectedDate: new Date(expected).toISOString().slice(0, 10),
+          daysUntil: Math.max(0, Math.round((expected - now) / DAY)),
+          usualAmount, basis: "rhythm", basisLabel,
+        });
+      }
+    }
+
+    overdue.sort((a, b) => (b.usualAmount ?? 0) - (a.usualAmount ?? 0));
+    upcoming.sort((a, b) => a.expectedDate.localeCompare(b.expectedDate));
+
+    return {
+      hasData: true,
+      overdue: overdue.slice(0, maxPerList),
+      upcoming: upcoming.slice(0, maxPerList),
+      overdueAmount: overdue.reduce((s, r) => s + (r.usualAmount ?? 0), 0),
+      analyzed: byCompany.size,
+      regularCount,
+      contractCoverage: { filled: contractFilled, total: byCompany.size },
+    };
+  } catch {
+    return EMPTY;
+  }
+}
+
+/** Nombre de factures attendues en retard — pour l'alerte (forecast_type). */
+export async function countOverdueExpectedInvoices(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<number | null> {
+  const radar = await computeBillingRadar(supabase, orgId, 1000);
+  return radar.hasData ? radar.overdue.length : null;
+}

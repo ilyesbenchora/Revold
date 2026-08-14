@@ -578,17 +578,18 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     if (previewRows) { setPreviewRows(null); return; }
     if (!draft || previewLoading) return;
     setPreviewLoading(true);
-    // ── Recette réconciliée : valeur unique (délai médian) via l'API tracking. ──
+    // ── KPI forecastType (recette réconciliée, radar…) : valeur unique via
+    //    l'API tracking (resolveKpiValue côté serveur). ──
     if (draft.forecastType) {
       try {
         const res = await fetch("/api/tracking/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recon_recipe: draft.forecastType }),
+          body: JSON.stringify({ forecast_type: draft.forecastType }),
         });
         const d = await res.json().catch(() => ({}));
         const v = res.ok ? d?.resolution?.current_value : null;
-        setPreviewRows(typeof v === "number" ? [{ name: "Délai médian (jours)", value: v }] : []);
+        setPreviewRows(typeof v === "number" ? [{ name: "Valeur actuelle", value: v }] : []);
       } catch {
         setPreviewRows([]);
       } finally {

@@ -356,6 +356,74 @@ async function loadCustomIdProperties(supabase: SupabaseClient, orgId: string): 
   }
 }
 
+type ContractProps = { start: string | null; end: string | null };
+
+/**
+ * Propriétés de DATES DE CONTRAT mappées (Paramètres → Modèle de données) —
+ * multi-objet : le nom de la propriété custom diffère chez chaque client, et
+ * la date peut vivre sur la Company ET/OU le Deal. Alimente le radar de
+ * facturation Trésorerie. Vide si rien n'est mappé.
+ */
+async function loadContractProperties(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<{ company: ContractProps; deal: ContractProps }> {
+  const empty = { company: { start: null, end: null }, deal: { start: null, end: null } };
+  try {
+    const { data } = await supabase
+      .from("identifier_field_mapping")
+      .select("canonical_field, provider_field")
+      .eq("organization_id", orgId)
+      .eq("provider", "hubspot")
+      .in("canonical_field", ["contract_start", "contract_end", "deal_contract_start", "deal_contract_end"]);
+    const rows = (data ?? []) as Array<{ canonical_field: string; provider_field: string }>;
+    const get = (f: string): string | null => {
+      const v = rows.find((r) => r.canonical_field === f)?.provider_field?.trim();
+      return v && /^[a-z0-9_]+$/i.test(v) ? v : null;
+    };
+    return {
+      company: { start: get("contract_start"), end: get("contract_end") },
+      deal: { start: get("deal_contract_start"), end: get("deal_contract_end") },
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * Écrit les dates de contrat mappées — à part, résilient : uniquement les
+ * records où la propriété est renseignée (jamais d'écrasement par du vide),
+ * et une migration non appliquée ne casse pas la sync.
+ */
+async function upsertContractDates(
+  supabase: SupabaseClient,
+  orgId: string,
+  table: "companies" | "deals",
+  records: Array<Record<string, unknown>>,
+  contract: ContractProps,
+): Promise<void> {
+  if (!contract.start && !contract.end) return;
+  const rows = dedupeByKey(records, (r) => r.id as string)
+    .map((r) => {
+      const props = (r.properties as Record<string, string | null>) ?? {};
+      const start = contract.start ? pDate(props, contract.start) : null;
+      const end = contract.end ? pDate(props, contract.end) : null;
+      return {
+        organization_id: orgId,
+        hubspot_id: r.id as string,
+        ...(start ? { contract_start: start.split("T")[0] } : {}),
+        ...(end ? { contract_end: end.split("T")[0] } : {}),
+      };
+    })
+    .filter((r) => "contract_start" in r || "contract_end" in r);
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(rows.slice(i, i + 500), { onConflict: "organization_id,hubspot_id" });
+    if (error) return; // colonnes absentes (migration non appliquée) → on n'insiste pas
+  }
+}
+
 async function upsertCompanies(
   supabase: SupabaseClient,
   orgId: string,
@@ -861,19 +929,32 @@ export async function syncCrmObject(
 
   try {
     const watermark = mode === "full" ? null : await getWatermark(supabase, orgId, type);
-    // IDs de rapprochement mappés (companies) : les propriétés doivent être
-    // demandées à l'API HubSpot pour apparaître dans les payloads.
+    // IDs de rapprochement mappés (companies) + dates de contrat mappées
+    // (companies/deals) : les propriétés doivent être demandées à l'API
+    // HubSpot pour apparaître dans les payloads.
     const customIdProps = type === "companies" ? await loadCustomIdProperties(supabase, orgId) : [];
-    const { records, latest } = await syncViaSearch(token, type, watermark, customIdProps);
+    const contractProps = type === "companies" || type === "deals"
+      ? await loadContractProperties(supabase, orgId)
+      : null;
+    const contractForType: ContractProps = type === "companies"
+      ? contractProps?.company ?? { start: null, end: null }
+      : type === "deals"
+        ? contractProps?.deal ?? { start: null, end: null }
+        : { start: null, end: null };
+    const contractExtra = [contractForType.start, contractForType.end].filter((p): p is string => !!p);
+    const { records, latest } = await syncViaSearch(token, type, watermark, [...customIdProps, ...contractExtra]);
 
     let upserted = 0;
     if (type === "contacts") upserted = await upsertContacts(supabase, orgId, records);
-    else if (type === "companies") upserted = await upsertCompanies(supabase, orgId, records, customIdProps);
-    else if (type === "deals") {
+    else if (type === "companies") {
+      upserted = await upsertCompanies(supabase, orgId, records, customIdProps);
+      await upsertContractDates(supabase, orgId, "companies", records, contractForType);
+    } else if (type === "deals") {
       // On rafraîchit d'abord la table de correspondance des étapes (pipeline_stages)
       // pour lier deals.stage_id sur des noms d'étapes RÉELS, jamais devinés.
       const stageMap = await syncPipelineStages(token, supabase, orgId);
       upserted = await upsertDeals(supabase, orgId, records, stageMap);
+      await upsertContractDates(supabase, orgId, "deals", records, contractForType);
     } else if (type === "tickets") upserted = await upsertTickets(supabase, orgId, records);
 
     // Cleanup orphans : uniquement en full sync, où `records` contient tout HubSpot

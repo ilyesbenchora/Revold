@@ -163,6 +163,17 @@ export async function resolveKpiValue(
     }
   }
 
+  // ── Radar de facturation : factures attendues (rythme observé / fin de
+  //    contrat CRM) non émises — alertable et utilisable en tuile. ──
+  if (forecastType === "billing_radar_overdue") {
+    const { countOverdueExpectedInvoices } = await import("@/lib/audit/billing-radar");
+    try {
+      return await countOverdueExpectedInvoices(supabase, orgId);
+    } catch {
+      return null;
+    }
+  }
+
   const { getHubSpotToken } = await import("@/lib/integrations/get-hubspot-token");
   const token = await getHubSpotToken(supabase, orgId);
 
