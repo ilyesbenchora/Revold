@@ -19,7 +19,7 @@ import {
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
-import { getPageCustomization, formatTileValue } from "@/lib/kpi/page-tiles";
+import { getPageCustomization, formatTileValue, resolveAddedTiles } from "@/lib/kpi/page-tiles";
 import { allTileSuggestions } from "@/lib/kpi/tile-catalog";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { valueFromAggSpec } from "@/lib/alerts/agg-value";
@@ -145,10 +145,37 @@ export default async function DashboardOverviewPage() {
   const DEFAULT_HOME_KPIS = ["integrations", "coaching", "previsions", "rapports", "revenue"];
   const homeCust = await getPageCustomization(supabase, orgId, "home_hero");
 
-  // ── Suggestions PERSONNALISÉES (catalogue complet des KPIs par pôle) :
-  // celles sélectionnées sont résolues ici (forecast_type ou agg_spec), les
-  // autres sont proposées dans la liste exhaustive « ＋ Plus de KPIs ». ──
-  const allSuggestions = allTileSuggestions();
+  // ── KPIs « maison » : écrits par l'utilisateur puis CÂBLÉS par l'agent
+  // (lignes page_tiles kind kpi sur home_hero) — résolus comme les tuiles. ──
+  const customHomeTiles = await resolveAddedTiles(supabase, orgId, homeCust.added);
+  for (const t of customHomeTiles) {
+    HOME_KPIS.push({
+      id: `tile:${t.rowId}`,
+      label: t.label,
+      value: t.value,
+      hint: t.meta,
+      href: "/dashboard/reporting",
+      color: "text-indigo-600",
+    });
+  }
+
+  // ── Suggestions du catalogue : KPIs ATTRAYANTS uniquement (données réelles
+  // câblées — pas de « contacts dormants » & co sur la home), et JAMAIS d'un
+  // pôle dont aucune source n'est connectée (ex : Service client sans outil
+  // support). ──
+  const HOME_SUGGESTION_IDS = new Set([
+    // Ventes
+    "closing_rate", "revenue_won", "deals_won_count", "avg_deal_size", "pipeline_value", "weighted_pipeline", "sales_cycle_days",
+    // Marketing
+    "conversion_rate", "mql_to_sql_rate", "deals_count",
+    // Facturation & trésorerie
+    "mrr_active", "arr_active", "ca_encaisse", "ca_facture", "impayes", "flux_net", "subs_actives",
+    // Support
+    "tickets_total",
+  ]);
+  const allSuggestions = allTileSuggestions().filter(
+    (s) => HOME_SUGGESTION_IDS.has(s.id) && connectedCats.has(s.sourceCategory),
+  );
   const TEAM_HREF: Record<string, string> = {
     sales: "/dashboard/performances",
     marketing: "/dashboard/performances/marketing",

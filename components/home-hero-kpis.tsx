@@ -62,10 +62,96 @@ export function HomeHeroKpis({
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── KPI « maison » : l'utilisateur ÉCRIT son KPI, l'agent le CÂBLE sur la
+  // donnée réelle (même moteur que le funnel des tables), puis il rejoint les 5. ──
+  const [kpiText, setKpiText] = useState("");
+  const [wiring, setWiring] = useState(false);
+  const [wireError, setWireError] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<{
+    title: string;
+    entity: string;
+    group_by: string;
+    measure: string;
+    field: string | null;
+    unit_mode: string | null;
+    pipeline: string | null;
+    target: string | null;
+    rowCount?: number;
+    agent?: string;
+  } | null>(null);
+
+  async function wireCustomKpi() {
+    const text = kpiText.trim();
+    if (!text || wiring) return;
+    setWiring(true);
+    setWireError(null);
+    setProposal(null);
+    try {
+      const res = await fetch("/api/page-tables/agent-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page_key: "home_hero", custom_kpi: text, sources: [] }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setWireError(d.error ?? "Câblage impossible.");
+        return;
+      }
+      setProposal(d.proposal);
+    } catch {
+      setWireError("Câblage impossible.");
+    } finally {
+      setWiring(false);
+    }
+  }
+
+  async function addWiredKpi() {
+    if (!proposal || full) return;
+    setWireError(null);
+    try {
+      const res = await fetch("/api/page-tiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_key: "home_hero",
+          kind: "kpi",
+          title: proposal.title || kpiText.trim(),
+          unit_mode: proposal.unit_mode ?? undefined,
+          agg_spec: {
+            entity: proposal.entity,
+            groupBy: proposal.group_by,
+            measure: proposal.measure,
+            field: proposal.field ?? undefined,
+            pipeline: proposal.pipeline ?? undefined,
+            target: proposal.target ?? undefined,
+          },
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.tile?.id) {
+        setWireError(d.error ?? "Enregistrement impossible.");
+        return;
+      }
+      setProposal(null);
+      setKpiText("");
+      persist([...selected, `tile:${d.tile.id}`]);
+    } catch {
+      setWireError("Enregistrement impossible.");
+    }
+  }
+
   // Tuile affichée : valeur résolue côté serveur, ou placeholder « … » le temps
   // du refresh pour une suggestion tout juste ajoutée.
   const shown = selected
-    .map((id) => byId.get(id) ?? (sugById.has(id) ? { id, label: sugById.get(id)!.label, value: "…", href: "#", color: "text-indigo-600" } : null))
+    .map(
+      (id) =>
+        byId.get(id) ??
+        (sugById.has(id)
+          ? { id, label: sugById.get(id)!.label, value: "…", href: "#", color: "text-indigo-600" }
+          : id.startsWith("tile:")
+            ? { id, label: "KPI personnalisé", value: "…", href: "#", color: "text-indigo-600" }
+            : null),
+    )
     .filter((k): k is HomeKpi => Boolean(k));
   const availableQuick = kpis.filter((k) => !selected.includes(k.id) && !k.id.startsWith("sug:"));
   const availableSuggestions = suggestions.filter((s) => !selected.includes(s.id));
@@ -182,19 +268,18 @@ export function HomeHeroKpis({
             )}
           </div>
 
-          {/* Liste EXHAUSTIVE : suggestions personnalisées par pôle */}
+          {/* Liste EXHAUSTIVE : UNE ligne par catégorie (pôles avec sources connectées uniquement) */}
           {showAll && (
-            <div className="space-y-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50/30 p-3">
+            <div className="space-y-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50/30 p-3">
               <p className="text-[11px] text-slate-500">
-                Suggestions personnalisées par pôle — la valeur se calcule dès l&apos;ajout (mêmes KPIs que les tuiles
-                des pages et les alertes).
+                KPIs câblés sur ta donnée réelle — seuls les pôles dont les sources sont connectées sont proposés.
               </p>
               {groups.map((g) => (
-                <div key={g}>
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <div key={g} className="flex items-center gap-2">
+                  <span className="w-40 shrink-0 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                     {GROUP_LABELS[g] ?? g}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
+                  </span>
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto whitespace-nowrap pb-1">
                     {availableSuggestions
                       .filter((s) => s.group === g)
                       .map((s) => (
@@ -204,7 +289,7 @@ export function HomeHeroKpis({
                           disabled={full}
                           title={full ? `Maximum ${MAX_KPIS} KPIs` : s.description ?? s.label}
                           onClick={() => add(s.id)}
-                          className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-fuchsia-300 hover:text-fuchsia-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-fuchsia-300 hover:text-fuchsia-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           ＋ {s.label}
                         </button>
@@ -212,6 +297,55 @@ export function HomeHeroKpis({
                   </div>
                 </div>
               ))}
+
+              {/* ── Ton KPI « maison » : écris-le, l'agent le câble, il rejoint les 5 ── */}
+              <div className="border-t border-fuchsia-100 pt-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-600">✨ Ton KPI :</span>
+                  <input
+                    value={kpiText}
+                    onChange={(e) => setKpiText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") wireCustomKpi();
+                    }}
+                    placeholder="Ex : CA signé ce trimestre, factures impayées de plus de 30 jours…"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100"
+                  />
+                  <button
+                    type="button"
+                    disabled={wiring || !kpiText.trim()}
+                    onClick={wireCustomKpi}
+                    className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {wiring ? "Câblage par l'agent…" : "Câbler ✨"}
+                  </button>
+                </div>
+                {proposal && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <span className="min-w-0 flex-1 text-[11px] text-emerald-800">
+                      ✓ Câblé par {proposal.agent ?? "l'agent"} : <strong>{proposal.title || kpiText}</strong>
+                      {typeof proposal.rowCount === "number" && <> · {proposal.rowCount.toLocaleString("fr-FR")} enregistrements analysés</>}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={full}
+                      onClick={addWiredKpi}
+                      title={full ? `Maximum ${MAX_KPIS} KPIs — retire-en un d'abord` : undefined}
+                      className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Ajouter aux {MAX_KPIS}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProposal(null)}
+                      className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+                {wireError && <p className="mt-1.5 text-[11px] text-rose-600">{wireError}</p>}
+              </div>
             </div>
           )}
         </div>
