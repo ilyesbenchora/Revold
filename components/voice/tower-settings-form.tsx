@@ -51,15 +51,44 @@ type FeatureCardProps = {
 };
 
 /**
- * Boule de la tour de contrôle en miniature (orbe dorée + anneau de santé
- * vert) — même identité visuelle que l'orbe de la home, en icône statique.
+ * Boule de la tour de contrôle en miniature — fidèle au rendu canvas de la
+ * home : disque sombre, halo doré diffus, sphère de PARTICULES dorées
+ * (rgba(250,210,120)) et anneau de santé vert à l'intérieur du bord.
  */
 function MiniOrb() {
   return (
-    <span aria-hidden className="relative mt-1 inline-flex h-5 w-5 shrink-0">
-      <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,#fde68a,#f5be5a_45%,#b45309_82%,#7c2d12)] shadow-[0_0_10px_rgba(245,190,90,0.55)]" />
-      {/* Anneau de santé autour de l'orbe (vert = tout va bien) */}
-      <span className="absolute -inset-1 rounded-full border border-emerald-400/80" />
+    <span aria-hidden className="mt-0.5 inline-flex h-6 w-6 shrink-0">
+      <svg viewBox="0 0 24 24" className="h-full w-full">
+        <defs>
+          <radialGradient id="miniOrbGlow" cx="50%" cy="45%" r="60%">
+            <stop offset="0%" stopColor="rgba(253,224,150,0.55)" />
+            <stop offset="55%" stopColor="rgba(245,190,90,0.18)" />
+            <stop offset="100%" stopColor="rgba(245,190,90,0)" />
+          </radialGradient>
+        </defs>
+        {/* Fond sombre de la carte tour de contrôle */}
+        <circle cx="12" cy="12" r="11" fill="#0f172a" />
+        {/* Halo / cœur lumineux doré */}
+        <circle cx="12" cy="12" r="11" fill="url(#miniOrbGlow)" />
+        {/* Particules dorées de la sphère */}
+        <g fill="#fad278">
+          <circle cx="12" cy="6.2" r="0.65" opacity="0.9" />
+          <circle cx="16.4" cy="7.8" r="0.75" opacity="0.85" />
+          <circle cx="17.8" cy="12" r="0.65" opacity="0.7" />
+          <circle cx="16.2" cy="16.1" r="0.75" opacity="0.9" />
+          <circle cx="12" cy="17.8" r="0.65" opacity="0.8" />
+          <circle cx="7.8" cy="16.2" r="0.75" opacity="0.85" />
+          <circle cx="6.2" cy="12" r="0.65" opacity="0.7" />
+          <circle cx="7.6" cy="8" r="0.75" opacity="0.9" />
+          <circle cx="10.3" cy="10.1" r="0.85" opacity="1" />
+          <circle cx="13.9" cy="9.5" r="0.75" opacity="0.95" />
+          <circle cx="14.5" cy="13.7" r="0.85" opacity="0.9" />
+          <circle cx="9.7" cy="14.3" r="0.75" opacity="0.95" />
+          <circle cx="12.2" cy="12" r="0.95" opacity="1" />
+        </g>
+        {/* Anneau de santé (vert = tout va bien), à l'intérieur du bord comme sur la home */}
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#34d399" strokeWidth="1" opacity="0.8" />
+      </svg>
     </span>
   );
 }
