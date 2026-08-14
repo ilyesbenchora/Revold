@@ -19,7 +19,7 @@ import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { computeObjectSummaries } from "@/lib/audit/object-summaries";
-import { computeUnmatchedReport, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
+import { computeUnmatchedReport, computeWonDealsReadiness, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
 import { DedupRules, DEFAULT_DEDUP_RULES, type DedupRule } from "@/components/dedup-rules";
 import Link from "next/link";
 
@@ -108,8 +108,14 @@ export default async function DonneesPage() {
   // tuile « Complétude moyenne ».
   const summaries = await computeObjectSummaries(supabase, orgId);
 
-  // ── Entreprises non rapprochées CRM × facturation : cause + action corrective ──
+  // ── Entreprises non rapprochées CRM × facturation : cause + action corrective.
+  //    Périmètre volontairement limité aux entreprises DÉJÀ vues côté
+  //    facturation (les seules réellement facturées). ──
   const unmatched = await computeUnmatchedReport(supabase, orgId);
+
+  // ── Anticipation : deals GAGNÉS (les prochains facturés) — leurs fiches
+  //    portent-elles les identifiants de rapprochement cochés en paramètres ? ──
+  const wonReadiness = await computeWonDealsReadiness(supabase, orgId);
 
   // ── Règles de déduplication (déplacées depuis Paramètres → Modèle de
   //    données) : état sauvegardé fusionné dans les défauts. ──
@@ -294,6 +300,84 @@ export default async function DonneesPage() {
         </RemovableBlock>
       )}
 
+      {/* ── DEALS GAGNÉS : anticiper le rapprochement AVANT la facture — seules
+             les entreprises gagnées seront facturées ; on vérifie qu'elles
+             portent les identifiants cochés dans les paramètres. ── */}
+      {wonReadiness.hasData && !custom.hiddenBlocks.has("won_readiness") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="won_readiness" label="Deals gagnés — prêts pour le rapprochement">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Deals gagnés : prêts pour le rapprochement ?
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Seules les entreprises avec un deal gagné seront facturées. On vérifie EN AMONT que leur
+                  fiche CRM porte les identifiants de rapprochement cochés dans{" "}
+                  <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-fuchsia-600 hover:underline">
+                    tes paramètres
+                  </Link>{" "}
+                  — pour que la facture, une fois émise, se rapproche toute seule.
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className={`text-2xl font-bold tabular-nums ${wonReadiness.items.length === 0 ? "text-emerald-600" : "text-slate-900"}`}>
+                  {wonReadiness.readyCount}/{wonReadiness.totalCompanies}
+                </p>
+                <p className="text-[10px] text-slate-400">fiches prêtes</p>
+              </div>
+            </div>
+
+            {/* Identifiants réellement contrôlés = règles cochées en paramètres */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-medium text-slate-400">Identifiants contrôlés :</span>
+              {wonReadiness.activeIdentifiers.map((l) => (
+                <span key={l} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                  {l}
+                </span>
+              ))}
+            </div>
+
+            {wonReadiness.items.length === 0 ? (
+              <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                ✓ Toutes les entreprises gagnées portent au moins un identifiant fort — leurs factures se
+                rapprocheront automatiquement.
+              </p>
+            ) : (
+              <>
+                <ul className="mt-3 divide-y divide-slate-100">
+                  {wonReadiness.items.map((it, i) => (
+                    <li key={`${it.companyName}-${i}`} className="py-2.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-900">{it.companyName}</span>
+                        <span className="text-[11px] tabular-nums text-slate-500">
+                          {it.dealsCount} deal{it.dealsCount > 1 ? "s" : ""} gagné{it.dealsCount > 1 ? "s" : ""}
+                          {it.totalAmount > 0 && <> · {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(it.totalAmount)}</>}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400">Manquants :</span>
+                        {it.missing.map((m) => (
+                          <span key={m} className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">{m}</span>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[11px] font-medium text-slate-700">
+                        <span aria-hidden>💡</span> Renseigne {it.missing.slice(0, 2).join(" et ")} sur la fiche CRM
+                        avant la facturation — le rapprochement sera automatique.
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  Facturation électronique obligatoire en septembre : le SIREN devient l&apos;identifiant pivot —
+                  enrichir ces fiches maintenant, c&apos;est un rapprochement sans friction au moment de la facture.
+                </p>
+              </>
+            )}
+          </div>
+        </RemovableBlock>
+      )}
+
       {/* ── ENTREPRISES NON RAPPROCHÉES : le diagnostic par CAUSE + l'action
              corrective concrète (nom différent, email différent, SIREN absent). ── */}
       {unmatched.hasData && !custom.hiddenBlocks.has("unmatched_companies") && (
@@ -437,6 +521,7 @@ export default async function DonneesPage() {
         hiddenBlocks={hiddenBlockList(custom, (key) => ({
           crm_match_rate: { view: "chart-bar", description: "Taux de rapprochement réel CRM × outil + santé du croisement" },
           match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
+          won_readiness: { view: "table", description: "Deals gagnés : fiches prêtes pour le rapprochement (identifiants cochés)" },
           unmatched_companies: { view: "table", description: "Entreprises non rapprochées CRM × facturation : cause + action corrective" },
           dedup_rules: { view: "table", description: "Règles de déduplication (fusion auto, mise à jour sans doublon)" },
           audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },

@@ -49,6 +49,182 @@ const EMPTY: UnmatchedReport = {
   items: [],
 };
 
+// ── Deals gagnés : préparation au rapprochement (anticipation AVANT facture) ──
+
+/** Identifiants contrôlés = règles de résolution COCHÉES par l'utilisateur. */
+const RULE_IDENTIFIERS: Array<{ ruleId: string; label: string; strong: boolean }> = [
+  { ruleId: "custom_id_match", label: "ID de rapprochement", strong: true },
+  { ruleId: "siren_match", label: "SIREN", strong: true },
+  { ruleId: "vat_match", label: "N° TVA", strong: true },
+  { ruleId: "siret_match", label: "SIRET", strong: true },
+  { ruleId: "exact_email", label: "Email contact", strong: false },
+  { ruleId: "domain_match", label: "Domaine", strong: false },
+  { ruleId: "name_match", label: "Nom d'entreprise", strong: false },
+];
+/** Défauts iso Paramètres → Modèle de données (règles cochées d'origine). */
+const DEFAULT_ENABLED = new Set(["custom_id_match", "siren_match", "vat_match", "siret_match", "exact_email"]);
+
+export type WonReadinessItem = {
+  companyName: string;
+  dealsCount: number;
+  totalAmount: number;
+  lastCloseDate: string | null;
+  /** Identifiants actifs manquants sur la fiche (labels). */
+  missing: string[];
+};
+
+export type WonReadinessReport = {
+  hasData: boolean;
+  /** Identifiants réellement contrôlés (= règles cochées dans les paramètres). */
+  activeIdentifiers: string[];
+  totalCompanies: number;
+  readyCount: number;
+  /** Entreprises à enrichir, triées par montant gagné décroissant. */
+  items: WonReadinessItem[];
+};
+
+const EMPTY_READINESS: WonReadinessReport = { hasData: false, activeIdentifiers: [], totalCompanies: 0, readyCount: 0, items: [] };
+
+/**
+ * Pour chaque entreprise avec au moins un deal GAGNÉ (les seules qui seront
+ * facturées), vérifie EN AMONT que les identifiants de rapprochement cochés
+ * dans les paramètres (SIREN, SIRET, N° TVA, ID custom, email, domaine, nom)
+ * sont renseignés — pour que la future facture se rapproche automatiquement.
+ * « Prête » = au moins un identifiant FORT renseigné (custom ID, SIREN, TVA,
+ * SIRET) ; si aucune règle forte n'est cochée, tous les identifiants actifs.
+ */
+export async function computeWonDealsReadiness(
+  supabase: SupabaseClient,
+  orgId: string,
+  maxItems = 15,
+): Promise<WonReadinessReport> {
+  try {
+    // ── Règles cochées (mêmes exclusions que le moteur : dedup_/mapping_) ──
+    let enabled = new Set(DEFAULT_ENABLED);
+    try {
+      const { data } = await supabase
+        .from("entity_resolution_config")
+        .select("rule_id, enabled")
+        .eq("organization_id", orgId);
+      const rows = ((data ?? []) as Array<{ rule_id: string; enabled: boolean }>).filter(
+        (r) => !r.rule_id.startsWith("dedup_") && !r.rule_id.startsWith("mapping_"),
+      );
+      if (rows.length > 0) {
+        enabled = new Set(DEFAULT_ENABLED);
+        for (const r of rows) {
+          if (r.enabled) enabled.add(r.rule_id);
+          else enabled.delete(r.rule_id);
+        }
+      }
+    } catch {}
+    const active = RULE_IDENTIFIERS.filter((r) => enabled.has(r.ruleId));
+    if (active.length === 0) return EMPTY_READINESS;
+
+    // ── Deals gagnés → agrégat par entreprise ──
+    const { data: won } = await supabase
+      .from("deals")
+      .select("company_id, amount, close_date")
+      .eq("organization_id", orgId)
+      .eq("is_closed_won", true)
+      .not("company_id", "is", null)
+      .limit(2000);
+    const byCompany = new Map<string, { count: number; amount: number; last: string | null }>();
+    for (const d of (won ?? []) as Array<{ company_id: string; amount: number | null; close_date: string | null }>) {
+      const cur = byCompany.get(d.company_id) ?? { count: 0, amount: 0, last: null };
+      cur.count++;
+      cur.amount += Number(d.amount) || 0;
+      if (d.close_date && (!cur.last || d.close_date > cur.last)) cur.last = d.close_date;
+      byCompany.set(d.company_id, cur);
+    }
+    const ids = [...byCompany.keys()];
+    if (ids.length === 0) return EMPTY_READINESS;
+
+    // ── Fiches entreprises (custom_id résilient : migration facultative) ──
+    type Row = { id: string; name: string | null; domain: string | null; siren: string | null; siret: string | null; vat_number: string | null; custom_id?: string | null };
+    const companies: Row[] = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const first = await supabase
+        .from("companies")
+        .select("id, name, domain, siren, siret, vat_number, custom_id")
+        .eq("organization_id", orgId)
+        .in("id", chunk);
+      if (first.error && /custom_id/.test(first.error.message)) {
+        const fb = await supabase
+          .from("companies")
+          .select("id, name, domain, siren, siret, vat_number")
+          .eq("organization_id", orgId)
+          .in("id", chunk);
+        companies.push(...(((fb.data ?? []) as unknown) as Row[]));
+      } else {
+        companies.push(...(((first.data ?? []) as unknown) as Row[]));
+      }
+    }
+
+    // ── Email contact : entreprises ayant AU MOINS un contact avec email ──
+    const withEmail = new Set<string>();
+    if (enabled.has("exact_email")) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("contacts")
+          .select("company_id")
+          .eq("organization_id", orgId)
+          .in("company_id", ids.slice(i, i + 200))
+          .not("email", "is", null)
+          .limit(1000);
+        for (const r of (data ?? []) as Array<{ company_id: string | null }>) {
+          if (r.company_id) withEmail.add(r.company_id);
+        }
+      }
+    }
+
+    const hasStrongActive = active.some((a) => a.strong);
+    const items: WonReadinessItem[] = [];
+    let readyCount = 0;
+    for (const c of companies) {
+      const agg = byCompany.get(c.id);
+      if (!agg) continue;
+      const filledOf = (ruleId: string): boolean => {
+        switch (ruleId) {
+          case "custom_id_match": return Boolean(c.custom_id?.trim());
+          case "siren_match": return Boolean(c.siren?.trim());
+          case "vat_match": return Boolean(c.vat_number?.trim());
+          case "siret_match": return Boolean(c.siret?.trim());
+          case "exact_email": return withEmail.has(c.id);
+          case "domain_match": return Boolean(c.domain?.trim());
+          case "name_match": return Boolean(c.name?.trim());
+          default: return false;
+        }
+      };
+      const missing = active.filter((a) => !filledOf(a.ruleId));
+      const strongFilled = active.some((a) => a.strong && filledOf(a.ruleId));
+      const ready = hasStrongActive ? strongFilled : missing.length === 0;
+      if (ready) {
+        readyCount++;
+      } else {
+        items.push({
+          companyName: c.name?.trim() || "(sans nom)",
+          dealsCount: agg.count,
+          totalAmount: Math.round(agg.amount),
+          lastCloseDate: agg.last,
+          missing: missing.map((m) => m.label),
+        });
+      }
+    }
+    items.sort((a, b) => b.totalAmount - a.totalAmount);
+
+    return {
+      hasData: true,
+      activeIdentifiers: active.map((a) => a.label),
+      totalCompanies: byCompany.size,
+      readyCount,
+      items: items.slice(0, maxItems),
+    };
+  } catch {
+    return EMPTY_READINESS;
+  }
+}
+
 /** Normalisation de nom d'entreprise : casse, accents, ponctuation, formes juridiques. */
 function normName(raw: string | null | undefined): string {
   if (!raw) return "";
