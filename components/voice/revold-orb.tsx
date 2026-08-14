@@ -676,10 +676,6 @@ export function RevoldControlTower() {
       <div className="relative z-10 -my-1">
         <RevoldOrb />
       </div>
-      <p className="relative z-10 text-center text-xs leading-relaxed text-slate-400">
-        Réponse directe, brief santé, création d&apos;alertes, navigation et
-        agents briefés — à la voix.
-      </p>
     </div>
   );
 }
