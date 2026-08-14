@@ -7,6 +7,7 @@ import { TableAlertButton } from "./table-alert-button";
 import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel, serializeCustomPeriod } from "@/lib/reports/periods";
 import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
+import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { BrandLogo } from "@/components/brand-logo";
@@ -86,6 +87,28 @@ export function DataTableCard({
   // date et casserait complètement le rapport : le sélecteur n'apparaît pas.
   const isTimeDim = table.group_by.startsWith("month_");
   const [granularity, setGranularity] = useState(table.granularity ?? "month");
+
+  // ── Drill-down : clic sur un chiffre (barre, segment, point, ligne, total)
+  // → modal listant les enregistrements sous-jacents (deals, factures…). ──
+  const [drill, setDrill] = useState<DrilldownTarget | null>(null);
+  const drillable = table.entity !== "fiscal";
+  function openDrill(bucket: { raw: string; label: string } | null) {
+    if (!drillable) return;
+    setDrill({
+      query: {
+        entity: table.entity,
+        groupBy: table.group_by,
+        measure: table.measure,
+        field: table.field ?? undefined,
+        pipeline: table.pipeline ?? undefined,
+        granularity: isTimeDim ? granularity || null : null,
+      },
+      sources: table.sources ?? [],
+      period: period ? { from: period.from, to: period.to, all: period.preset === "all" } : { all: true },
+      bucket,
+      title: table.title,
+    });
+  }
 
   // Nom lisible du pipeline ciblé (table.pipeline stocke l'id externe HubSpot).
   const [pipelineName, setPipelineName] = useState<string | null>(null);
@@ -248,7 +271,8 @@ export function DataTableCard({
   const block: ReportBlock = { type: table.view as ReportBlock["type"], title: table.title, data: rows };
 
   return (
-    <div className="card p-4">
+    // Ancre stable pour la navigation vocale (« ouvre le rapport … » → #table-<id>).
+    <div id={`table-${table.id}`} className="card scroll-mt-24 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {renaming ? (
@@ -362,15 +386,28 @@ export function DataTableCard({
             </label>
           )}
         </div>
-        <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-400 transition hover:text-slate-600">
-          <input
-            type="checkbox"
-            checked={showTotal}
-            onChange={toggleShowTotal}
-            className="h-3.5 w-3.5 rounded border-slate-300 accent-indigo-500"
-          />
-          Total dans la visualisation
-        </label>
+        <span className="inline-flex items-center gap-2">
+          {/* Drill-down du TOTAL : liste tous les enregistrements du rapport. */}
+          {drillable && rows.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openDrill(null)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600"
+              title="Voir les enregistrements derrière ce rapport"
+            >
+              🔍 Détail
+            </button>
+          )}
+          <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-400 transition hover:text-slate-600">
+            <input
+              type="checkbox"
+              checked={showTotal}
+              onChange={toggleShowTotal}
+              className="h-3.5 w-3.5 rounded border-slate-300 accent-indigo-500"
+            />
+            Total dans la visualisation
+          </label>
+        </span>
       </div>
 
       <div className="mt-3">
@@ -398,7 +435,12 @@ export function DataTableCard({
                 )}
               </span>
             )}
-            <ReportChart block={block} unit={table.unit_mode} showTotal={showTotal} />
+            <ReportChart
+              block={block}
+              unit={table.unit_mode}
+              showTotal={showTotal}
+              onBucketClick={drillable ? (bucket) => openDrill(bucket) : undefined}
+            />
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-100">
@@ -411,7 +453,12 @@ export function DataTableCard({
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i} className="border-t border-slate-50">
+                  <tr
+                    key={i}
+                    onClick={() => r.name && openDrill({ raw: r.name, label: formatBucketLabel(r.name, locale) })}
+                    title={drillable ? "Voir le détail des enregistrements" : undefined}
+                    className={`border-t border-slate-50 ${drillable ? "cursor-pointer transition hover:bg-indigo-50/40" : ""}`}
+                  >
                     <td className="px-3 py-2 text-slate-700">{r.name ? formatBucketLabel(r.name, locale) : "—"}</td>
                     <td className="px-3 py-2 text-right font-medium text-slate-900">{formatValue(r.value, table.unit_mode)}</td>
                   </tr>
@@ -429,6 +476,9 @@ export function DataTableCard({
           </div>
         )}
       </div>
+
+      {/* Modal de détail (drill-down) */}
+      <DrilldownModal target={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }

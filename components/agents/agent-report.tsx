@@ -55,21 +55,32 @@ export function ReportChart({
   block,
   unit,
   showTotal = false,
+  onBucketClick,
 }: {
   block: ReportBlock;
   unit?: ChartUnit;
   /** Affiche le total DANS la visualisation : badge (barres/courbe) ou centre de l'anneau. */
   showTotal?: boolean;
+  /** Drill-down : clic sur une barre / un segment / un point → détail des enregistrements du bucket. */
+  onBucketClick?: (bucket: { raw: string; label: string }) => void;
 }) {
   // Buckets temporels → libellés localisés (« 2026-01 » → « Janvier 2026 »),
   // dans la langue choisie (Mon compte → Langue & formats). Les clés non
-  // temporelles (étape, statut…) passent telles quelles.
+  // temporelles (étape, statut…) passent telles quelles. rawName = clé BRUTE
+  // du moteur, conservée pour le drill-down.
   const locale = useLocale();
   // Espacement des ticks pour les fréquences jour (tous les 5 jours) et
   // semaine (toutes les semaines, 7 jours entre libellés) — calculé sur les
   // clés BRUTES avant traduction.
   const tickInterval = bucketTickInterval((block.data ?? []).map((d) => d.name));
-  const data = (block.data ?? []).map((d) => ({ ...d, name: formatBucketLabel(d.name, locale) }));
+  const data = (block.data ?? []).map((d) => ({ ...d, rawName: d.name, name: formatBucketLabel(d.name, locale) }));
+  // Déclenche le drill-down depuis un élément recharts (payload ou datum direct).
+  const fireBucket = (d: unknown) => {
+    if (!onBucketClick) return;
+    const o = d as { rawName?: string; name?: string; payload?: { rawName?: string; name?: string } } | null;
+    const p = o?.payload?.rawName ? o.payload : o;
+    if (p?.rawName) onBucketClick({ raw: p.rawName, label: p.name ?? p.rawName });
+  };
   if (data.length === 0) return null;
 
   const total = data.reduce((s, d) => s + (Number(d.value) || 0), 0);
@@ -108,7 +119,12 @@ export function ReportChart({
         {data.length > 1 && (
           <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
             {top.map((d, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
+              <div
+                key={i}
+                onClick={() => fireBucket(d)}
+                className={`flex items-center gap-2 text-xs ${onBucketClick ? "cursor-pointer rounded-md px-1 -mx-1 transition hover:bg-indigo-50/60" : ""}`}
+                title={onBucketClick ? "Voir le détail" : undefined}
+              >
                 <span className="min-w-0 flex-1 truncate text-slate-600">{d.name}</span>
                 <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-slate-100">
                   <div
@@ -163,9 +179,10 @@ export function ReportChart({
                 cornerRadius={4}
                 stroke="#fff"
                 strokeWidth={2}
+                onClick={fireBucket}
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} cursor={onBucketClick ? "pointer" : undefined} />
                 ))}
               </Pie>
               {/* Total au centre de l'anneau — l'espace vide lui est destiné. */}
@@ -183,7 +200,12 @@ export function ReportChart({
         </div>
         <ul className="min-w-0 flex-1 space-y-1">
           {legendRows.map((d, i) => (
-            <li key={i} className="flex items-center gap-2 text-xs">
+            <li
+              key={i}
+              onClick={() => fireBucket(d)}
+              title={onBucketClick ? "Voir le détail" : undefined}
+              className={`flex items-center gap-2 text-xs ${onBucketClick ? "-mx-1 cursor-pointer rounded-md px-1 transition hover:bg-indigo-50/60" : ""}`}
+            >
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
               <span className="min-w-0 flex-1 truncate text-slate-600">{d.name}</span>
               <span className="shrink-0 font-semibold tabular-nums text-slate-900">{fullValue(Number(d.value) || 0, unit)}</span>
@@ -231,10 +253,15 @@ export function ReportChart({
 
   if (block.type === "line" || block.type === "area") {
     return (
-      <div className="relative">
+      <div className="relative" style={onBucketClick ? { cursor: "pointer" } : undefined}>
         {totalBadge}
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={data} margin={{ top: 18, right: 8 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 18, right: 8 }}
+            // Drill-down : clic sur un point de la courbe → détail du bucket actif.
+            onClick={(st) => fireBucket((st as { activePayload?: { payload?: unknown }[] } | null)?.activePayload?.[0]?.payload)}
+          >
           <defs>
             <linearGradient id="agentArea" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -296,9 +323,13 @@ export function ReportChart({
             </linearGradient>
           </defs>
           {axis}
-          <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48} label={barLabel}>
+          <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48} label={barLabel} onClick={fireBucket}>
             {data.map((d, i) => (
-              <Cell key={i} fill={(Number(d.value) || 0) === maxValue ? "url(#agentBarMax)" : "url(#agentBar)"} />
+              <Cell
+                key={i}
+                fill={(Number(d.value) || 0) === maxValue ? "url(#agentBarMax)" : "url(#agentBar)"}
+                cursor={onBucketClick ? "pointer" : undefined}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -307,7 +338,14 @@ export function ReportChart({
   );
 }
 
-export function AgentReport({ spec }: { spec: ReportSpec }) {
+export function AgentReport({
+  spec,
+  onBlockBucketClick,
+}: {
+  spec: ReportSpec;
+  /** Drill-down : clic sur un bucket d'un bloc PORTEUR de query déterministe. */
+  onBlockBucketClick?: (block: ReportBlock, bucket: { raw: string; label: string }) => void;
+}) {
   // Regroupe les blocs KPI consécutifs sur une même rangée.
   const groups: ReportBlock[][] = [];
   for (const b of spec.blocks) {
@@ -381,7 +419,12 @@ export function AgentReport({ spec }: { spec: ReportSpec }) {
           return (
             <div key={gi}>
               {b.title && <div className="mb-1 text-xs font-medium text-slate-600">{b.title}</div>}
-              <ReportChart block={b} />
+              <ReportChart
+                block={b}
+                onBucketClick={
+                  onBlockBucketClick && b.query ? (bucket) => onBlockBucketClick(b, bucket) : undefined
+                }
+              />
             </div>
           );
         })}

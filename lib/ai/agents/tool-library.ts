@@ -704,6 +704,125 @@ export type AggregateSpec = {
    * day | week | month (défaut) | quarter | semester | year.
    */
   granularity?: string | null;
+  /**
+   * Mode DÉTAIL (drill-down) : au lieu de l'agrégat, renvoie les
+   * ENREGISTREMENTS sous-jacents (contacts, deals, factures…) — mêmes filtres
+   * (sources, période, pipeline) et même résolution de bucket que l'agrégat.
+   */
+  detail?: boolean;
+  /** Bucket ciblé (clé BRUTE du moteur : « 2026-01 », « Closed won »…) — absent = tous. */
+  detailBucket?: string | null;
+};
+
+// ── Drill-down : colonnes riches et projection d'affichage par entité ───────
+// Sélection élargie pour le détail (nom, client, montants, dates) ; en cas de
+// colonne absente (schéma partiel), repli automatique sur les colonnes de
+// l'agrégat. kind pilote le formatage côté client (currency/date/text).
+const DETAIL_COLUMNS: Record<string, string> = {
+  deals:
+    "name, amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability), companies(name)",
+  invoices:
+    "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, companies(name)",
+  subscriptions: "mrr, status, primary_source, started_at, canceled_at, companies(name)",
+  transactions: "label, amount, date, category, primary_source",
+  companies: "name, segment, industry, country_code",
+  contacts: "full_name, email, lifecycle_stage, hs_created_at, is_mql, is_sql",
+};
+
+export type DetailColumn = { id: string; label: string; kind?: "text" | "currency" | "date" | "count" };
+
+const DETAIL_PROJECTIONS: Record<
+  string,
+  { columns: DetailColumn[]; row: (r: Record<string, unknown>) => unknown[] }
+> = {
+  deals: {
+    columns: [
+      { id: "name", label: "Deal" },
+      { id: "company", label: "Entreprise" },
+      { id: "stage", label: "Étape" },
+      { id: "amount", label: "Montant", kind: "currency" },
+      { id: "created", label: "Créé le", kind: "date" },
+      { id: "closed", label: "Closing", kind: "date" },
+    ],
+    row: (r) => [
+      r.name ?? "—",
+      relField(r.companies, "name") ?? "—",
+      relName(r.pipeline_stages),
+      Number(r.amount) || 0,
+      r.created_date ?? null,
+      r.close_date ?? null,
+    ],
+  },
+  invoices: {
+    columns: [
+      { id: "number", label: "Facture" },
+      { id: "company", label: "Client" },
+      { id: "status", label: "Statut" },
+      { id: "amount_total", label: "Montant", kind: "currency" },
+      { id: "amount_due", label: "Restant dû", kind: "currency" },
+      { id: "issued", label: "Émise le", kind: "date" },
+      { id: "source", label: "Source" },
+    ],
+    row: (r) => [
+      r.number ?? "—",
+      relField(r.companies, "name") ?? "—",
+      r.status ?? "—",
+      Number(r.amount_total) || 0,
+      Number(r.amount_due) || 0,
+      r.issued_at ?? null,
+      r.primary_source ?? "—",
+    ],
+  },
+  subscriptions: {
+    columns: [
+      { id: "company", label: "Client" },
+      { id: "status", label: "Statut" },
+      { id: "mrr", label: "MRR", kind: "currency" },
+      { id: "started", label: "Début", kind: "date" },
+      { id: "canceled", label: "Annulé le", kind: "date" },
+      { id: "source", label: "Source" },
+    ],
+    row: (r) => [
+      relField(r.companies, "name") ?? "—",
+      r.status ?? "—",
+      Number(r.mrr) || 0,
+      r.started_at ?? null,
+      r.canceled_at ?? null,
+      r.primary_source ?? "—",
+    ],
+  },
+  transactions: {
+    columns: [
+      { id: "label", label: "Libellé" },
+      { id: "date", label: "Date", kind: "date" },
+      { id: "amount", label: "Montant", kind: "currency" },
+      { id: "category", label: "Catégorie" },
+      { id: "source", label: "Source" },
+    ],
+    row: (r) => [r.label ?? "—", r.date ?? null, Number(r.amount) || 0, r.category ?? "—", r.primary_source ?? "—"],
+  },
+  companies: {
+    columns: [
+      { id: "name", label: "Entreprise" },
+      { id: "segment", label: "Segment" },
+      { id: "industry", label: "Industrie" },
+      { id: "country", label: "Pays" },
+    ],
+    row: (r) => [r.name ?? "—", r.segment ?? "—", r.industry ?? "—", r.country_code ?? "—"],
+  },
+  contacts: {
+    columns: [
+      { id: "name", label: "Contact" },
+      { id: "email", label: "Email" },
+      { id: "lifecycle", label: "Lifecycle" },
+      { id: "created", label: "Créé le", kind: "date" },
+    ],
+    row: (r) => [r.full_name ?? "—", r.email ?? "—", r.lifecycle_stage ?? "—", r.hs_created_at ?? null],
+  },
+  tickets: {
+    columns: [{ id: "status", label: "Statut" }],
+    row: (r) => [r.status ?? "—"],
+  },
 };
 
 /**
@@ -744,13 +863,23 @@ export async function computeAggregate(
   const to = input.date_to && dateRe.test(input.date_to) ? input.date_to : null;
   const dateCol = dateColumnFor(entity, groupBy);
 
-  let q = supabase.from(spec.table ?? entity).select(spec.columns).eq("organization_id", orgId).limit(10000);
+  // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
+  // colonnes de l'agrégat si le schéma ne les porte pas toutes.
+  const wantDetail = input.detail === true;
   const src = billingSourceFilter(sources);
-  if (src && spec.hasSource) q = q.in("primary_source", src);
-  // Période exacte : filtre déterministe sur la vraie colonne de date.
-  if (dateCol && from) q = q.gte(dateCol, from);
-  if (dateCol && to) q = q.lte(dateCol, to);
-  const { data, error } = await q;
+  const buildQuery = (cols: string) => {
+    let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId).limit(10000);
+    if (src && spec.hasSource) qb = qb.in("primary_source", src);
+    // Période exacte : filtre déterministe sur la vraie colonne de date.
+    if (dateCol && from) qb = qb.gte(dateCol, from);
+    if (dateCol && to) qb = qb.lte(dateCol, to);
+    return qb;
+  };
+  const detailCols = wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns;
+  let { data, error } = await buildQuery(detailCols);
+  if (error && wantDetail && detailCols !== spec.columns) {
+    ({ data, error } = await buildQuery(spec.columns));
+  }
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
@@ -829,6 +958,29 @@ export async function computeAggregate(
     const col = dateColumnFor(entity, groupBy);
     if (col) resolveDim = (r) => timeBucketOf(r[col], granularity);
   }
+
+  // ── Mode DÉTAIL : les enregistrements du bucket demandé (drill-down), avec
+  // exactement le même scoping (sources, période, pipeline) et la même
+  // résolution de dimension que l'agrégat. ──
+  if (wantDetail) {
+    const bucket =
+      typeof input.detailBucket === "string" && input.detailBucket !== "" ? input.detailBucket : null;
+    const matched = bucket == null ? scoped : scoped.filter((r) => resolveDim(r) === bucket);
+    const proj = DETAIL_PROJECTIONS[entity];
+    if (!proj) return { error: `Détail non disponible pour l'entité ${entity}.` };
+    const LIMIT = 200;
+    return {
+      hasData: matched.length > 0,
+      entity,
+      groupBy,
+      bucket,
+      totalRecords: matched.length,
+      truncated: matched.length > LIMIT,
+      columns: proj.columns,
+      records: matched.slice(0, LIMIT).map((r) => proj.row(r)),
+    };
+  }
+
   const acc: Record<string, { sum: number; count: number; weighted: number }> = {};
   for (const r of scoped) {
     const key = resolveDim(r);

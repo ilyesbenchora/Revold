@@ -22,9 +22,12 @@ const ALL_TYPES = ["bar", "line", "area", "donut", "bloc", "table", "kpi"];
 export function ChartPicker({
   proposal,
   onTypeChange,
+  onBucketClick,
 }: {
   proposal: ChartProposal;
   onTypeChange?: (t: string) => void;
+  /** Drill-down : clic sur une barre / un segment → détail des enregistrements. */
+  onBucketClick?: (bucket: { raw: string; label: string }) => void;
 }) {
   // On propose systématiquement TOUS les formats (Courbe et Indicateur inclus),
   // en gardant en premier ceux suggérés par l'agent.
@@ -101,7 +104,7 @@ export function ChartPicker({
             </div>
           </div>
         ) : (
-          <ReportChart block={{ type: type as ReportBlock["type"], data: proposal.data }} />
+          <ReportChart block={{ type: type as ReportBlock["type"], data: proposal.data }} onBucketClick={onBucketClick} />
         )}
       </div>
     </div>

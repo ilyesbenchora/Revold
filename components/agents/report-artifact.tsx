@@ -9,6 +9,7 @@ import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
 import { addSavedReport, reportKey, isReportSaved, markReportSaved } from "./saved-reports";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { type ToolOption } from "./alert-cross-tools";
+import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
 import type { ReportSpec, ChartProposal, ProposedAction } from "@/lib/ai/agents/agent-runtime";
 
 /**
@@ -49,6 +50,10 @@ export function ReportArtifact({
   const [error, setError] = useState<string | null>(null);
   // Alerte de suivi créée depuis le rapport (tracking interactif).
   const [showAlert, setShowAlert] = useState(false);
+  // Drill-down : clic sur un chiffre → détail des enregistrements du bucket
+  // (uniquement quand le bloc/graphique porte sa requête déterministe).
+  const [drill, setDrill] = useState<DrilldownTarget | null>(null);
+  const drillPeriod = period ? { from: period.from, to: period.to, all: period.preset === "all" } : { all: true };
   const [tools, setTools] = useState<ToolOption[]>([]);
   const [toolsLoaded, setToolsLoaded] = useState(false);
 
@@ -215,8 +220,29 @@ export function ReportArtifact({
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-600">⚠ {error}</div>}
 
-      {curReport && <AgentReport spec={curReport} />}
-      {curChart && <ChartPicker proposal={curChart} onTypeChange={setChartType} />}
+      {curReport && (
+        <AgentReport
+          spec={curReport}
+          onBlockBucketClick={(b, bucket) =>
+            b.query &&
+            setDrill({ query: b.query, sources, period: drillPeriod, bucket, title: curReport.title })
+          }
+        />
+      )}
+      {curChart && (
+        <ChartPicker
+          proposal={curChart}
+          onTypeChange={setChartType}
+          onBucketClick={
+            curChart.query
+              ? (bucket) => setDrill({ query: curChart.query!, sources, period: drillPeriod, bucket, title: curChart.title })
+              : undefined
+          }
+        />
+      )}
+
+      {/* Modal de détail (drill-down) */}
+      <DrilldownModal target={drill} onClose={() => setDrill(null)} />
 
       {/* ── Vérification du câblage — même exigence que les tables de données :
              l'utilisateur voit sur quelle donnée réelle l'agent s'est branché

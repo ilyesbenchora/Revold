@@ -30,7 +30,7 @@ const MATCH_METHOD_LABELS: Record<string, string> = {
   domain: "Domaine",
   name: "Nom d'entreprise",
   existing_link: "Lien existant",
-  created: "Créé sans correspondance",
+  created: "Nouvelle fiche (aucune correspondance)",
 };
 
 export default async function DonneesPage() {
@@ -255,7 +255,11 @@ export default async function DonneesPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold text-slate-800">Méthodes de rapprochement</p>
             <p className="mb-3 text-[10px] text-slate-400">
-              Comment les enregistrements des outils ont été reliés entre eux — mesuré sur les liens réels
+              Comment les enregistrements des outils ont été reliés entre eux — mesuré sur les liens réels.
+              «&nbsp;Nouvelle fiche (aucune correspondance)&nbsp;» = aucune de tes règles (SIREN, SIRET, TVA, email,
+              domaine, nom) n&apos;a trouvé d&apos;équivalent dans les autres outils : Revold a donc créé une fiche —
+              soit l&apos;entité n&apos;existe réellement que dans cet outil, soit l&apos;identifiant de rapprochement
+              manque d&apos;un côté (à compléter dans l&apos;outil source).
             </p>
             <HBarChart unit="count" colorize items={methodItems} />
           </div>
