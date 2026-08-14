@@ -238,3 +238,146 @@ export async function countOverdueExpectedInvoices(
   const radar = await computeBillingRadar(supabase, orgId, 1000);
   return radar.hasData ? radar.overdue.length : null;
 }
+
+// ── Du closing à la 1re facture : le délai gagné → facturation, en détail ──
+
+export type UnbilledWonDeal = {
+  dealName: string;
+  companyName: string;
+  amount: number | null;
+  closeDate: string;
+  /** Jours écoulés depuis le closing sans aucune facture. */
+  daysSince: number;
+};
+
+export type WonToInvoiceDetail = {
+  hasData: boolean;
+  /** Délai médian closing → 1re facture (jours), sur les deals mesurés. */
+  medianDelay: number | null;
+  /** Deals gagnés dont la 1re facture a été trouvée (mesurés). */
+  sample: number;
+  /** Évolution du délai médian par mois de closing (12 derniers mois mesurés). */
+  monthly: Array<{ label: string; value: number }>;
+  /** Deals gagnés SANS facture après tolérance — la fuite en cours. */
+  unbilled: UnbilledWonDeal[];
+  unbilledAmount: number;
+  unbilledCount: number;
+};
+
+const EMPTY_WTI: WonToInvoiceDetail = {
+  hasData: false, medianDelay: null, sample: 0, monthly: [], unbilled: [], unbilledAmount: 0, unbilledCount: 0,
+};
+
+const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+/**
+ * Pour chaque deal GAGNÉ (close_date synchronisée automatiquement au passage
+ * en « gagné ») : première facture client émise à partir du closing → délai
+ * réel closing → facturation. Les gagnés sans facture après 15 jours sont
+ * listés comme fuite en cours. Jointure company_id, 100 % déterministe.
+ */
+export async function computeWonToInvoiceDetail(
+  supabase: SupabaseClient,
+  orgId: string,
+  maxUnbilled = 10,
+): Promise<WonToInvoiceDetail> {
+  try {
+    const { data: wonRows } = await supabase
+      .from("deals")
+      .select("name, amount, close_date, company_id")
+      .eq("organization_id", orgId)
+      .eq("is_closed_won", true)
+      .not("close_date", "is", null)
+      .not("company_id", "is", null)
+      .order("close_date", { ascending: false })
+      .limit(600);
+    const won = (wonRows ?? []) as Array<{ name: string | null; amount: number | null; close_date: string; company_id: string }>;
+    if (won.length === 0) return EMPTY_WTI;
+
+    const companyIds = [...new Set(won.map((d) => d.company_id))];
+
+    // Factures CLIENTS des entreprises concernées (fournisseurs exclus).
+    const invoicesByCompany = new Map<string, number[]>();
+    for (let i = 0; i < companyIds.length; i += 200) {
+      const { data } = await supabase
+        .from("invoices")
+        .select("company_id, issued_at, direction")
+        .eq("organization_id", orgId)
+        .in("company_id", companyIds.slice(i, i + 200))
+        .not("issued_at", "is", null)
+        .limit(5000);
+      for (const inv of (data ?? []) as Array<{ company_id: string; issued_at: string; direction: string | null }>) {
+        if (inv.direction === "out") continue;
+        const t = Date.parse(inv.issued_at);
+        if (Number.isNaN(t)) continue;
+        (invoicesByCompany.get(inv.company_id) ?? invoicesByCompany.set(inv.company_id, []).get(inv.company_id)!).push(t);
+      }
+    }
+    for (const list of invoicesByCompany.values()) list.sort((a, b) => a - b);
+
+    const now = Date.now();
+    const delays: number[] = [];
+    const byMonth = new Map<string, number[]>();
+    const companyNames = new Map<string, string>();
+    // Noms d'entreprises pour la liste des non facturés.
+    for (let i = 0; i < companyIds.length; i += 200) {
+      const { data } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .in("id", companyIds.slice(i, i + 200));
+      for (const c of (data ?? []) as Array<{ id: string; name: string | null }>) {
+        if (c.name) companyNames.set(c.id, c.name);
+      }
+    }
+
+    const unbilled: UnbilledWonDeal[] = [];
+    let unbilledAmount = 0;
+    let unbilledCount = 0;
+
+    for (const d of won) {
+      const closeAt = Date.parse(d.close_date);
+      if (Number.isNaN(closeAt)) continue;
+      const invs = invoicesByCompany.get(d.company_id) ?? [];
+      // 1re facture à partir du closing (petite tolérance amont : acompte à J-7).
+      const first = invs.find((t) => t >= closeAt - 7 * DAY);
+      if (first != null && first >= closeAt - 7 * DAY) {
+        const delay = Math.max(0, Math.round((first - closeAt) / DAY));
+        delays.push(delay);
+        const dt = new Date(closeAt);
+        const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+        (byMonth.get(key) ?? byMonth.set(key, []).get(key)!).push(delay);
+      } else if (now - closeAt > 15 * DAY) {
+        unbilledCount++;
+        unbilledAmount += Number(d.amount) || 0;
+        if (unbilled.length < maxUnbilled) {
+          unbilled.push({
+            dealName: d.name?.trim() || "(deal sans nom)",
+            companyName: companyNames.get(d.company_id) ?? "(entreprise inconnue)",
+            amount: d.amount != null ? Math.round(Number(d.amount)) : null,
+            closeDate: d.close_date,
+            daysSince: Math.round((now - closeAt) / DAY),
+          });
+        }
+      }
+    }
+
+    const monthly = [...byMonth.keys()].sort().slice(-12).map((key) => {
+      const [yy, mm] = key.split("-");
+      return { label: `${MONTHS_FR[Number(mm) - 1]} ${yy.slice(2)}`, value: Math.round(median(byMonth.get(key)!)) };
+    });
+    unbilled.sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+
+    return {
+      hasData: delays.length > 0 || unbilledCount > 0,
+      medianDelay: delays.length > 0 ? Math.round(median(delays)) : null,
+      sample: delays.length,
+      monthly,
+      unbilled,
+      unbilledAmount: Math.round(unbilledAmount),
+      unbilledCount,
+    };
+  } catch {
+    return EMPTY_WTI;
+  }
+}

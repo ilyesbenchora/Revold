@@ -21,7 +21,7 @@ import { computeCrossMargin } from "@/lib/audit/cross-margin";
 import { computeTreasuryForecast, type TreasuryForecast } from "@/lib/audit/treasury-forecast";
 import type { OrgFiscalParams } from "@/lib/audit/fiscal-schedule";
 import { computeDealsSeries } from "@/lib/audit/deals-series";
-import { computeBillingRadar } from "@/lib/audit/billing-radar";
+import { computeBillingRadar, computeWonToInvoiceDetail } from "@/lib/audit/billing-radar";
 import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { HBarChart } from "@/components/charts/hbar-chart";
@@ -115,6 +115,10 @@ export default async function PaiementFacturationOverviewPage({
   // ── Radar de facturation : factures attendues (rythme observé / fin de
   //    contrat CRM mappée) non émises — l'amont du taux de recouvrement. ──
   const radar = await computeBillingRadar(supabase, orgId);
+
+  // ── Du closing à la 1re facture : délai réel gagné → facturation (la
+  //    close_date remonte automatiquement au passage en « gagné »). ──
+  const wonToInvoice = await computeWonToInvoiceDetail(supabase, orgId);
 
   // ── Séries pour les graphes de la vue croisée (style cockpit Lomed) :
   //    CA signé par mois, marge mensuelle et projection 12 mois. ──
@@ -316,6 +320,82 @@ export default async function PaiementFacturationOverviewPage({
                 Paramètres → Modèle de données
               </Link>{" "}
               pour affiner le radar. Alerte disponible : ajoute la tuile « Factures attendues en retard » puis sa cloche.
+            </p>
+          </div>
+        </RemovableBlock>
+      )}
+
+      {/* ── DU CLOSING À LA 1RE FACTURE : le délai réel gagné → facturation,
+             mesuré deal par deal (close_date automatique au passage en gagné
+             × factures Pennylane/Stripe), avec la fuite en cours. ── */}
+      {wonToInvoice.hasData && selectedKeys.length > 0 && !custom.hiddenBlocks.has("won_to_invoice") && (
+        <RemovableBlock pageKey="audit_paiement_facturation" blockKey="won_to_invoice" label="Du closing à la 1re facture">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Du closing à la 1re facture
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Délai réel entre le passage d&apos;un deal en « gagné » (date de closing synchronisée
+                  automatiquement) et sa première facture — mesuré deal par deal sur tes vraies factures.
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-2xl font-bold tabular-nums text-slate-900">
+                  {wonToInvoice.medianDelay != null ? `${wonToInvoice.medianDelay} j` : "—"}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  délai médian · {wonToInvoice.sample} deal{wonToInvoice.sample > 1 ? "s" : ""} mesuré{wonToInvoice.sample > 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+
+            {/* Évolution du délai médian par mois de closing */}
+            {wonToInvoice.monthly.length > 1 && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Évolution du délai de facturation</p>
+                <p className="mb-2 text-[10px] text-slate-400">
+                  Délai médian closing → 1re facture, par mois de closing (jours)
+                </p>
+                <TresoLineChart points={wonToInvoice.monthly} unit="count" />
+              </div>
+            )}
+
+            {/* Gagnés toujours pas facturés — la fuite en cours */}
+            {wonToInvoice.unbilledCount > 0 ? (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600">
+                  Gagnés sans facture ({wonToInvoice.unbilledCount}
+                  {wonToInvoice.unbilledAmount > 0 ? ` · ${eur(wonToInvoice.unbilledAmount)} non facturés` : ""})
+                </p>
+                <ul className="mt-1.5 divide-y divide-slate-100">
+                  {wonToInvoice.unbilled.map((d, i) => (
+                    <li key={`${d.dealName}-${i}`} className="py-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-900">
+                          {d.companyName} <span className="font-normal text-slate-500">— {d.dealName}</span>
+                        </span>
+                        <span className="text-[11px] font-bold tabular-nums text-rose-600">
+                          {d.daysSince} j sans facture{d.amount ? ` · ${eur(d.amount)}` : ""}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        Gagné le {new Date(d.closeDate).toLocaleDateString("fr-FR")} — aucune facture émise depuis.
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                ✓ Tous les deals gagnés (au-delà de 15 jours) ont une facture.
+              </p>
+            )}
+
+            <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400">
+              Le délai médian est aussi disponible en tuile alertable : « Deal gagné → 1re facture (délai médian) »
+              via ＋ Ajouter un bloc.
             </p>
           </div>
         </RemovableBlock>
