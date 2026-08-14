@@ -80,10 +80,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "La tour de contrôle vocale est disponible à partir du plan Growth." }, { status: 403 });
   }
 
-  let body: { transcript?: string; history?: Array<{ q?: string; outcome?: string }> };
+  let body: { transcript?: string; history?: Array<{ q?: string; outcome?: string }>; disabled?: string[] };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const transcript = (body.transcript || "").trim().slice(0, 600);
   if (!transcript) return NextResponse.json({ error: "Transcription vide" }, { status: 400 });
+  // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités coupées
+  // par l'utilisateur — les outils correspondants ne sont pas proposés au
+  // routeur. dispatch et clarify restent toujours actifs.
+  const disabled = new Set(
+    (Array.isArray(body.disabled) ? body.disabled : [])
+      .filter((t): t is string => typeof t === "string" && t !== "dispatch" && t !== "clarify"),
+  );
   // Mémoire de contexte : les derniers échanges permettent les enchaînements
   // (« et par rapport au mois dernier ? ») sans répéter le sujet.
   const history = (body.history ?? [])
@@ -121,7 +128,7 @@ export async function POST(request: Request) {
         `Roster des agents :\n${roster}\n` +
         (history ? `Échanges précédents (contexte pour les enchaînements) :\n${history}\n` : "") +
         "Le champ say est toujours une phrase orale TRÈS courte, style tour de contrôle. Réponds uniquement via des outils.",
-      tools: [
+      tools: ([
         {
           name: "dispatch",
           description: "Briefe un agent/coach : redirection vers son chat avec la demande exécutée.",
@@ -200,7 +207,7 @@ export async function POST(request: Request) {
           description: "Demande incompréhensible ou hors sujet : demander à reformuler.",
           input_schema: { type: "object", properties: { say: { type: "string" } }, required: ["say"] },
         },
-      ],
+      ] as Anthropic.Tool[]).filter((t) => !disabled.has(t.name)),
       tool_choice: { type: "any" },
       messages: [{ role: "user", content: `Demande dictée : « ${transcript} »` }],
     });

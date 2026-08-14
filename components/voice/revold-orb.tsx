@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTowerSettings, readTowerSettings, writeTowerSettings, disabledDispatchTools, normalizePhrase } from "@/lib/voice/tower-settings";
 
 type OrbStatus = "idle" | "listening" | "thinking" | "redirecting" | "error";
 type Health = "ok" | "warn" | "critical";
@@ -27,7 +28,6 @@ type Health = "ok" | "warn" | "critical";
 const QUEUE_KEY = "revold:tower-queue";
 const QUEUE_EVENT = "revold:tower-queue";
 const HISTORY_KEY = "revold:tower-history";
-const VEILLE_KEY = "revold:tower-veille";
 
 export type QueuedDispatch = { agentKey: string; agentLabel: string; personaName: string; request: string };
 
@@ -160,7 +160,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const [caption, setCaption] = useState<string>("");
   const [supported, setSupported] = useState(true);
   const [health, setHealth] = useState<Health | null>(null);
-  const [veille, setVeille] = useState(false);
+  // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
+  // activables/désactivables + phrase de brief, synchronisées en direct.
+  const settings = useTowerSettings();
+  const veille = settings.veille;
   const [pending, setPending] = useState<PendingCreate | null>(null);
   const [followup, setFollowup] = useState<Followup | null>(null);
   const [creating, setCreating] = useState(false);
@@ -173,20 +176,22 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
   useEffect(() => {
     setSupported(!!createRecognition());
-    try { setVeille(localStorage.getItem(VEILLE_KEY) === "1"); } catch {}
-    // Statut de santé au chargement → teinte de l'anneau (silencieux si indisponible).
-    void fetch("/api/voice/digest")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.status === "ok" || d?.status === "warn" || d?.status === "critical") setHealth(d.status); })
-      .catch(() => {});
   }, []);
 
+  // Statut de santé au chargement → teinte de l'anneau (désactivable dans les réglages).
+  useEffect(() => {
+    if (!settings.healthRing) { setHealth(null); return; }
+    let alive = true;
+    void fetch("/api/voice/digest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && (d?.status === "ok" || d?.status === "warn" || d?.status === "critical")) setHealth(d.status); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [settings.healthRing]);
+
   const toggleVeille = useCallback(() => {
-    setVeille((v) => {
-      const next = !v;
-      try { localStorage.setItem(VEILLE_KEY, next ? "1" : "0"); } catch {}
-      return next;
-    });
+    const cur = readTowerSettings();
+    writeTowerSettings({ ...cur, veille: !cur.veille });
   }, []);
 
   /* ── Animation canvas ── */
@@ -292,7 +297,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const res = await fetch(`/api/voice/digest${veille ? "?mode=veille" : ""}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
-      if (d.status === "ok" || d.status === "warn" || d.status === "critical") setHealth(d.status);
+      if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
       setStatus("idle");
       setCaption(d.text ?? "");
       speak(d.text ?? "");
@@ -300,7 +305,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Brief indisponible — réessaie.");
     }
-  }, [veille]);
+  }, [veille, settings.healthRing]);
 
   /* ── Exécution des actions renvoyées par le routeur vocal ── */
   const runActions = useCallback((transcript: string, actions: DispatchAction[]) => {
@@ -311,16 +316,22 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     const brief = actions.find((a) => a.type === "brief");
     const clarify = actions.find((a) => a.type === "clarify");
 
-    // Mémoire de contexte : trace compacte de ce qui a été fait.
-    const outcome = [
-      answer ? `réponse : ${answer.label} = ${answer.formatted ?? "n/a"}` : null,
-      create ? `préparé ${create.type === "create_alert" ? "alerte" : "objectif"} « ${create.summary} »` : null,
-      ...agents.map((a) => `briefé ${a.personaName} : ${(a.request ?? "").slice(0, 80)}`),
-      nav ? `ouvert ${nav.href}` : null,
-      brief ? "brief lu" : null,
-      clarify && actions.length === 1 ? "incompris" : null,
-    ].filter(Boolean).join(" ; ");
-    pushHistory(transcript, outcome || "aucune action");
+    // Mémoire de contexte : trace compacte de ce qui a été fait (désactivable).
+    if (readTowerSettings().memory) {
+      const outcome = [
+        answer ? `réponse : ${answer.label} = ${answer.formatted ?? "n/a"}` : null,
+        create ? `préparé ${create.type === "create_alert" ? "alerte" : "objectif"} « ${create.summary} »` : null,
+        ...agents.map((a) => `briefé ${a.personaName} : ${(a.request ?? "").slice(0, 80)}`),
+        nav ? `ouvert ${nav.href}` : null,
+        brief ? "brief lu" : null,
+        clarify && actions.length === 1 ? "incompris" : null,
+      ].filter(Boolean).join(" ; ");
+      pushHistory(transcript, outcome || "aucune action");
+    }
+
+    // File multi-agents désactivée : on ne garde que la première demande.
+    const queueOn = readTowerSettings().queue;
+    if (!queueOn && agents.length > 1) agents.splice(1);
 
     // 1) Réponse directe : parlée + affichée, avec option « creuser ».
     if (answer) {
@@ -389,11 +400,23 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     setCaption(`« ${transcript} »`);
     setPending(null);
     setFollowup(null);
+    const cur = readTowerSettings();
+    // Phrase de brief personnalisée (« quoi de neuf » par défaut) : détectée
+    // localement, le brief part sans passer par le routeur.
+    const phrase = normalizePhrase(cur.briefPhrase || "quoi de neuf");
+    if (cur.brief && phrase && normalizePhrase(transcript).includes(phrase)) {
+      void runBrief();
+      return;
+    }
     try {
       const res = await fetch("/api/voice/dispatch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, history: readHistory() }),
+        body: JSON.stringify({
+          transcript,
+          history: cur.memory ? readHistory() : [],
+          disabled: disabledDispatchTools(cur),
+        }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Routage impossible");
@@ -404,7 +427,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Une erreur est survenue — réessaie.");
     }
-  }, [runActions]);
+  }, [runActions, runBrief]);
 
   /* ── Validation / annulation d'une création dictée ── */
   const confirmPending = useCallback(async () => {
@@ -567,28 +590,30 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         </button>
       )}
 
-      {/* Brief du jour + mode veille */}
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void runBrief()}
-          disabled={busy || status === "listening"}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
-        >
-          ☀️ Brief du jour
-        </button>
-        <button
-          type="button"
-          onClick={toggleVeille}
-          title="Mode veille : le brief ne remonte que les exceptions (alertes en tension, syncs en échec)."
-          className={`flex items-center gap-1.5 text-[11px] font-medium transition ${veille ? "text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
-        >
-          <span className={`relative inline-block h-3.5 w-6 rounded-full transition ${veille ? "bg-amber-300/70" : "bg-slate-700"}`}>
-            <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-slate-950 transition-all ${veille ? "left-3" : "left-0.5"}`} />
-          </span>
-          Veille
-        </button>
-      </div>
+      {/* Brief du jour + mode veille (désactivables dans Paramètres → Tour de contrôle) */}
+      {settings.brief && (
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void runBrief()}
+            disabled={busy || status === "listening"}
+            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
+          >
+            ☀️ Brief du jour
+          </button>
+          <button
+            type="button"
+            onClick={toggleVeille}
+            title="Mode veille : le brief ne remonte que les exceptions (alertes en tension, syncs en échec)."
+            className={`flex items-center gap-1.5 text-[11px] font-medium transition ${veille ? "text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
+          >
+            <span className={`relative inline-block h-3.5 w-6 rounded-full transition ${veille ? "bg-amber-300/70" : "bg-slate-700"}`}>
+              <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-slate-950 transition-all ${veille ? "left-3" : "left-0.5"}`} />
+            </span>
+            Veille
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -630,6 +655,18 @@ export function RevoldControlTower() {
       <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-200/70">
         Revold · Tour de contrôle
       </p>
+      {/* Réglages : fonctionnement détaillé + activation par fonctionnalité */}
+      <a
+        href="/dashboard/parametres/tour-de-controle"
+        title="Personnaliser la tour de contrôle"
+        aria-label="Personnaliser la tour de contrôle"
+        className="absolute right-3 top-3 z-10 text-slate-600 transition hover:text-amber-200"
+      >
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </a>
       <div className="relative z-10 -my-1">
         <RevoldOrb />
       </div>

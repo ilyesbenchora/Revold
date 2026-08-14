@@ -10,6 +10,7 @@ const tabs = [
   { href: "/dashboard/parametres/integrations", label: "Intégrations" },
   { href: "/dashboard/parametres/modele-donnees", label: "Modèle de données" },
   { href: "/dashboard/parametres/notifications", label: "Notifications" },
+  { href: "/dashboard/parametres/tour-de-controle", label: "Tour de contrôle" },
   { href: "/dashboard/parametres/securite-api", label: "Sécurité & API" },
 ];
 

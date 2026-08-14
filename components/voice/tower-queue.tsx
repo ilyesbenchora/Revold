@@ -10,9 +10,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readTowerQueue, writeTowerQueue, type QueuedDispatch } from "@/components/voice/revold-orb";
+import { useTowerSettings } from "@/lib/voice/tower-settings";
 
 export function TowerQueue() {
   const router = useRouter();
+  const settings = useTowerSettings();
   const [queue, setQueue] = useState<QueuedDispatch[]>([]);
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function TowerQueue() {
 
   const clear = useCallback(() => writeTowerQueue([]), []);
 
-  if (queue.length === 0) return null;
+  if (!settings.queue || queue.length === 0) return null;
   const next = queue[0];
 
   return (
