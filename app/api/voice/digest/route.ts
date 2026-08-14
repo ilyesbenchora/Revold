@@ -3,6 +3,16 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { computeAggregate } from "@/lib/ai/agents/tool-library";
+
+/** Format lisible à voix haute d'un total de KPI personnalisé. */
+function fmtCustomValue(v: number, unit: string | null): string {
+  if (unit === "currency")
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  if (unit === "percent") return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(v)} %`;
+  return new Intl.NumberFormat("fr-FR").format(v);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +112,56 @@ export async function GET(request: Request) {
     (a) => a.next_meeting_at && a.next_meeting_at >= now.toISOString().slice(0, 10) && a.next_meeting_at <= in48h,
   );
 
+  // ── Données personnalisées du brief (KPIs câblés dans Paramètres → Tour de
+  //    contrôle) : recalculées EN DIRECT via le même moteur déterministe que
+  //    les tables de données. Best-effort : un KPI en erreur est simplement omis.
+  type CustomItem = {
+    label?: string;
+    enabled?: boolean;
+    unit?: string | null;
+    query?: { entity?: string; groupBy?: string; measure?: string; field?: string | null };
+  };
+  let customParts: string[] = [];
+  try {
+    const { data: settingsRow } = await supabase
+      .from("voice_tower_settings")
+      .select("settings")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const rawItems = (settingsRow?.settings as { briefCustom?: unknown } | null)?.briefCustom;
+    const enabled = (Array.isArray(rawItems) ? (rawItems as CustomItem[]) : [])
+      .filter((i) => i?.enabled !== false && i?.label && i?.query?.entity && i?.query?.groupBy && i?.query?.measure)
+      .slice(0, 8);
+    if (enabled.length > 0) {
+      const hubspotToken = await getHubSpotToken(supabase, orgId);
+      const computed = await Promise.all(
+        enabled.map(async (i) => {
+          try {
+            const result = await computeAggregate(supabase, orgId, [], hubspotToken, {
+              entity: i.query!.entity!,
+              groupBy: i.query!.groupBy!,
+              measure: i.query!.measure!,
+              field: i.query!.field ?? null,
+              pipeline: null,
+              granularity: null,
+              date_from: null,
+              date_to: null,
+            });
+            if (result.error) return null;
+            const rows = ((result.rows as { value?: number }[] | undefined) ?? []);
+            const total = rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
+            return `${i.label} : ${fmtCustomValue(total, i.unit ?? null)}`;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      customParts = computed.filter((p): p is string => p !== null);
+    }
+  } catch {
+    /* réglages absents (migration) ou moteur indisponible → brief sans custom */
+  }
+
   // ── Statut de santé (teinte l'anneau de l'orbe) ──
   const status: "ok" | "warn" | "critical" =
     tenseCritical.length > 0 || failedSyncs.length > 0 ? "critical" : tense.length > 0 || offTrack.length > 0 ? "warn" : "ok";
@@ -124,6 +184,8 @@ export async function GET(request: Request) {
         `À l'agenda : ${meetings.map((m) => `séance ${CAT_LABEL[m.category] ?? m.category} le ${m.next_meeting_at}${m.next_meeting_time ? ` à ${m.next_meeting_time}` : ""}`).join(", ")}.`,
       );
     }
+    // Données personnalisées : lues à la fin du brief, valeurs en direct.
+    if (customParts.length > 0) parts.push(`Tes données personnalisées : ${customParts.join(" ; ")}.`);
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
@@ -138,6 +200,7 @@ export async function GET(request: Request) {
       offTrackObjectives: offTrack.length,
       failedSyncs: failedSyncs.length,
       upcomingMeetings: meetings.length,
+      customData: customParts.length,
     },
   });
 }

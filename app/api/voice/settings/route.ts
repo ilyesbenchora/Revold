@@ -16,12 +16,47 @@ const BOOL_KEYS = [
   "briefAlerts", "briefObjectives", "briefSyncs", "briefMeetings",
 ] as const;
 
-function sanitize(raw: unknown): Record<string, boolean | string> | null {
+/** Donnée personnalisée du brief : KPI câblé (label + query déterministe). */
+function sanitizeCustomItems(raw: unknown): unknown[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+    .filter((i) => {
+      const q = i.query as Record<string, unknown> | undefined;
+      return (
+        typeof i.id === "string" &&
+        typeof i.label === "string" &&
+        !!q &&
+        typeof q.entity === "string" &&
+        typeof q.groupBy === "string" &&
+        typeof q.measure === "string"
+      );
+    })
+    .slice(0, 12)
+    .map((i) => {
+      const q = i.query as Record<string, unknown>;
+      return {
+        id: (i.id as string).slice(0, 64),
+        label: (i.label as string).slice(0, 120),
+        enabled: i.enabled !== false,
+        unit: typeof i.unit === "string" ? i.unit.slice(0, 16) : null,
+        query: {
+          entity: (q.entity as string).slice(0, 40),
+          groupBy: (q.groupBy as string).slice(0, 40),
+          measure: (q.measure as string).slice(0, 20),
+          field: typeof q.field === "string" ? q.field.slice(0, 40) : null,
+        },
+      };
+    });
+}
+
+function sanitize(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== "object") return null;
-  const out: Record<string, boolean | string> = {};
+  const out: Record<string, unknown> = {};
   const r = raw as Record<string, unknown>;
   for (const k of BOOL_KEYS) if (typeof r[k] === "boolean") out[k] = r[k] as boolean;
   if (typeof r.briefPhrase === "string") out.briefPhrase = r.briefPhrase.slice(0, 60);
+  if (Array.isArray(r.briefCustom)) out.briefCustom = sanitizeCustomItems(r.briefCustom);
   return Object.keys(out).length > 0 ? out : null;
 }
 

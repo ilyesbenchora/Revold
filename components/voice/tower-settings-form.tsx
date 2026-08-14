@@ -7,14 +7,16 @@
  * (localStorage partagé, événement `revold:tower-settings`).
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   useTowerSettings,
   readTowerSettings,
   writeTowerSettings,
   DEFAULT_TOWER_SETTINGS,
   type TowerSettings,
+  type BriefCustomItem,
 } from "@/lib/voice/tower-settings";
+import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
@@ -121,6 +123,140 @@ function FeatureCard({ icon, title, on, onToggle, description, how, examples, ch
   );
 }
 
+/**
+ * Ajout d'une donnée personnalisée au brief : mini funnel de CÂBLAGE — l'agent
+ * propose la source de données, le total est recalculé sur les vraies données
+ * avant validation. Même exigence de fiabilité que les tables de données.
+ */
+function AddCustomBriefData({ onAdd }: { onAdd: (item: BriefCustomItem) => void }) {
+  const [open, setOpen] = useState(false);
+  const [kpi, setKpi] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<{
+    entity: string; group_by: string; measure: string; field: string | null; unit_mode: string; title: string | null;
+  } | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [rowCount, setRowCount] = useState(0);
+
+  function reset() {
+    setOpen(false); setKpi(""); setProposal(null); setTotal(null); setRowCount(0); setError(null);
+  }
+
+  async function verify() {
+    if (loading || !kpi.trim()) return;
+    setLoading(true); setError(null); setProposal(null);
+    try {
+      const res = await fetch("/api/page-tables/agent-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page_key: "audit_donnees", custom_kpi: kpi.trim(), sources: [] }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.proposal) throw new Error(d.error || "Câblage impossible — reformule le KPI.");
+      const p = d.proposal as { entity: string; group_by: string; measure: string; field: string | null; unit_mode: string; title: string | null };
+      const rec = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: { entity: p.entity, groupBy: p.group_by, measure: p.measure, field: p.field },
+          sources: [],
+          all: true,
+        }),
+      });
+      const rd = await rec.json().catch(() => ({}));
+      if (!rec.ok || !Array.isArray(rd.data)) throw new Error(rd.error || "Recalcul impossible.");
+      const rows = rd.data as { value?: number }[];
+      setProposal(p);
+      setRowCount(rows.length);
+      setTotal(rows.reduce((s, r) => s + (Number(r.value) || 0), 0));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function confirm() {
+    if (!proposal) return;
+    onAdd({
+      id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `bc_${Date.now()}`,
+      label: proposal.title || kpi.trim(),
+      enabled: true,
+      unit: proposal.unit_mode ?? null,
+      query: { entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field },
+    });
+    reset();
+  }
+
+  const fmt = (v: number) =>
+    proposal?.unit_mode === "currency"
+      ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v)
+      : proposal?.unit_mode === "percent"
+        ? `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(v)} %`
+        : new Intl.NumberFormat("fr-FR").format(v);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 w-full rounded-md border border-dashed border-accent/40 bg-white px-2.5 py-2 text-[11px] font-semibold text-accent transition hover:bg-indigo-50/40"
+      >
+        ＋ Ajouter une donnée personnalisée (câblage vérifié)
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2 rounded-md border border-dashed border-accent/40 bg-white p-2.5">
+      <p className="text-[11px] font-semibold text-accent">Ajouter une donnée personnalisée au brief</p>
+      <p className="mt-0.5 text-[10px] text-slate-500">
+        Décris le KPI — le câblage est vérifié sur tes données réelles avant validation.
+      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <input
+          value={kpi}
+          onChange={(e) => setKpi(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") verify(); }}
+          placeholder="Ex : nombre de deals ouverts, MRR total…"
+          className="min-w-0 flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={verify}
+          disabled={loading || !kpi.trim()}
+          className="rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+        >
+          {loading ? "Câblage…" : "Vérifier"}
+        </button>
+        <button type="button" onClick={reset} className="text-[11px] text-slate-400 hover:text-slate-600">Annuler</button>
+      </div>
+      {error && <p className="mt-1.5 rounded bg-rose-50 px-2 py-1.5 text-[10px] text-rose-600">{error}</p>}
+      {proposal && total !== null && (
+        <div className="mt-2 rounded-md border border-accent/30 bg-indigo-50/40 p-2">
+          <p className="text-[11px] text-slate-700">
+            <span className="font-semibold">{proposal.title || kpi}</span> — {entityLabel(proposal.entity)} par{" "}
+            {dimLabel(proposal.entity, proposal.group_by).toLowerCase()} ·{" "}
+            <span className={rowCount > 0 ? "font-semibold text-emerald-600" : "font-semibold text-rose-500"}>
+              {rowCount} ligne{rowCount > 1 ? "s" : ""} · total {fmt(total)}
+            </span>
+          </p>
+          <div className="mt-1.5 flex justify-end">
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={rowCount === 0}
+              className="rounded-md bg-accent px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+            >
+              ✓ Valider — l&apos;ajouter au brief
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TowerSettingsForm() {
   const settings = useTowerSettings();
 
@@ -130,6 +266,20 @@ export function TowerSettingsForm() {
   const flip = useCallback((key: keyof TowerSettings) => {
     const cur = readTowerSettings();
     writeTowerSettings({ ...cur, [key]: !cur[key] });
+  }, []);
+
+  // ── Données personnalisées du brief (KPIs câblés) ──
+  const toggleCustom = useCallback((id: string) => {
+    const cur = readTowerSettings();
+    writeTowerSettings({ ...cur, briefCustom: cur.briefCustom.map((i) => (i.id === id ? { ...i, enabled: !i.enabled } : i)) });
+  }, []);
+  const removeCustom = useCallback((id: string) => {
+    const cur = readTowerSettings();
+    writeTowerSettings({ ...cur, briefCustom: cur.briefCustom.filter((i) => i.id !== id) });
+  }, []);
+  const addCustom = useCallback((item: BriefCustomItem) => {
+    const cur = readTowerSettings();
+    writeTowerSettings({ ...cur, briefCustom: [...cur.briefCustom, item].slice(0, 12) });
   }, []);
 
   return (
@@ -186,10 +336,10 @@ export function TowerSettingsForm() {
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {([
-                ["briefAlerts", "🚨 Alertes en tension", "Alertes actives dont le seuil est atteint"],
-                ["briefObjectives", "🎯 Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
-                ["briefSyncs", "🔄 Syncs en échec", "Dernier run de chaque outil connecté"],
-                ["briefMeetings", "📅 RDV de coaching", "Séances prévues dans les 48 h"],
+                ["briefAlerts", "Alertes en tension", "Alertes actives dont le seuil est atteint"],
+                ["briefObjectives", "Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
+                ["briefSyncs", "Syncs en échec", "Dernier run de chaque outil connecté"],
+                ["briefMeetings", "RDV de coaching", "Séances prévues dans les 48 h"],
               ] as const).map(([key, label, hint]) => (
                 <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-2 transition hover:border-accent/40">
                   <input
@@ -204,7 +354,36 @@ export function TowerSettingsForm() {
                   </span>
                 </label>
               ))}
+              {/* Données personnalisées : même typologie de bloc que les sections natives. */}
+              {settings.briefCustom.map((item) => (
+                <label
+                  key={item.id}
+                  className="group relative flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-2 transition hover:border-accent/40"
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.enabled}
+                    onChange={() => toggleCustom(item.id)}
+                    className="mt-0.5 accent-[var(--accent)]"
+                  />
+                  <span className="min-w-0 pr-4">
+                    <span className="block truncate text-xs font-medium text-slate-800">{item.label}</span>
+                    <span className="block text-[10px] text-slate-500">
+                      KPI personnalisé · {entityLabel(item.query.entity)} par {dimLabel(item.query.entity, item.query.groupBy).toLowerCase()} — recalculé à chaque brief
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); removeCustom(item.id); }}
+                    title="Retirer cette donnée du brief"
+                    className="absolute right-1.5 top-1.5 hidden rounded-full px-1 text-[10px] text-slate-400 transition hover:text-rose-600 group-hover:block"
+                  >
+                    ✕
+                  </button>
+                </label>
+              ))}
             </div>
+            <AddCustomBriefData onAdd={addCustom} />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 p-3">
             <div>

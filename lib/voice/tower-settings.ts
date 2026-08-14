@@ -11,6 +11,19 @@
 
 import { useEffect, useState } from "react";
 
+/**
+ * Donnée personnalisée du brief : un KPI câblé via le funnel de vérification
+ * (proposition d'agent + recalcul réel). Le digest recalcule son total en
+ * direct à chaque brief — même moteur déterministe que les tables de données.
+ */
+export type BriefCustomItem = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  unit: string | null;
+  query: { entity: string; groupBy: string; measure: string; field?: string | null };
+};
+
 export type TowerSettings = {
   /** Anneau de santé de l'orbe (vert / ambre / rouge). */
   healthRing: boolean;
@@ -28,6 +41,8 @@ export type TowerSettings = {
   briefSyncs: boolean;
   /** Contenu du brief — RDV de coaching à venir. */
   briefMeetings: boolean;
+  /** Contenu du brief — données personnalisées (KPIs câblés, recalculés en direct). */
+  briefCustom: BriefCustomItem[];
   /** Réponse directe aux questions KPI simples. */
   quickAnswer: boolean;
   /** Création d'alertes et d'objectifs à la voix (toujours validée par boutons). */
@@ -49,6 +64,7 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefObjectives: true,
   briefSyncs: true,
   briefMeetings: true,
+  briefCustom: [],
   quickAnswer: true,
   createActions: true,
   navigation: true,
@@ -70,7 +86,13 @@ export function readTowerSettings(): TowerSettings {
     const parsed = JSON.parse(raw) as Partial<TowerSettings>;
     return {
       ...DEFAULT_TOWER_SETTINGS,
-      ...Object.fromEntries(Object.entries(parsed).filter(([k, v]) => k in DEFAULT_TOWER_SETTINGS && (typeof v === "boolean" || typeof v === "string"))),
+      ...Object.fromEntries(
+        Object.entries(parsed).filter(
+          ([k, v]) =>
+            k in DEFAULT_TOWER_SETTINGS &&
+            (typeof v === "boolean" || typeof v === "string" || (k === "briefCustom" && Array.isArray(v))),
+        ),
+      ),
     } as TowerSettings;
   } catch {
     return DEFAULT_TOWER_SETTINGS;
