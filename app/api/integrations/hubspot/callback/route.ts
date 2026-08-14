@@ -15,6 +15,7 @@ import {
   fetchHubSpotLists,
 } from "@/lib/integrations/hubspot";
 import { verifyOAuthState } from "@/lib/integrations/oauth-state";
+import { checkConnectorLimit, connectorLimitMessage } from "@/lib/billing/connector-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -61,6 +62,18 @@ export async function GET(req: NextRequest) {
     });
   }
   const { orgId } = verified;
+
+  // ── Limite d'intégrations du plan — avant l'échange de code. HubSpot déjà
+  //    connecté (reconnexion / refresh des scopes) : toujours permis.
+  {
+    const sb = await createSupabaseServerClient();
+    const limitCheck = await checkConnectorLimit(sb, orgId, "hubspot");
+    if (!limitCheck.allowed) {
+      return redirectTo("/dashboard/parametres/integrations", {
+        hs_error: connectorLimitMessage(limitCheck),
+      });
+    }
+  }
 
   // Échange le code contre les tokens
   let tokens;

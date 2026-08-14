@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { verifyOAuthState } from "@/lib/integrations/oauth-state";
 import { getOAuthProvider, exchangeCode } from "@/lib/integrations/oauth-providers";
+import { checkConnectorLimit, connectorLimitMessage } from "@/lib/billing/connector-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const SETTINGS = "/dashboard/parametres/integrations";
@@ -37,6 +38,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   if (!verified) return redirectTo(SETTINGS, { oauth_error: "State OAuth invalide (signature)" });
   const { orgId } = verified;
 
+  // ── Limite d'intégrations du plan — avant l'échange de code (pas de token
+  //    consommé pour une connexion refusée). Reconnexion : toujours permise.
+  const supabase = await createSupabaseServerClient();
+  const limitCheck = await checkConnectorLimit(supabase, orgId, provider);
+  if (!limitCheck.allowed) {
+    return redirectTo(SETTINGS, { oauth_error: connectorLimitMessage(limitCheck) });
+  }
+
   let tokens;
   try {
     tokens = await exchangeCode(p, code);
@@ -46,7 +55,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   }
 
   const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null;
-  const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("integrations").upsert(
     {
       organization_id: orgId,

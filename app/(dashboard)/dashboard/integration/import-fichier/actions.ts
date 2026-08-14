@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseCsv, googleSheetCsvUrl } from "@/lib/integrations/csv";
+import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 
 const BASE = "/dashboard/integration/import-fichier";
 
@@ -15,6 +16,14 @@ const BASE = "/dashboard/integration/import-fichier";
 export async function importSpreadsheetAction(formData: FormData) {
   const orgId = await getOrgId();
   if (!orgId) redirect(`${BASE}?error=no_org`);
+
+  // ── Limite d'intégrations du plan : l'import active l'intégration
+  //    « spreadsheet » (catégorie files) — même règle que les autres outils.
+  {
+    const sb = await createSupabaseServerClient();
+    const limitCheck = await checkConnectorLimit(sb, orgId, "spreadsheet");
+    if (!limitCheck.allowed) redirect(`${BASE}?error=plan_limit`);
+  }
 
   const mode = String(formData.get("mode") ?? "");
   const name = (formData.get("name") as string | null)?.trim() || "Import tableur";

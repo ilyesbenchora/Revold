@@ -17,6 +17,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   bad_mode: "Mode d'import inconnu.",
   empty_data: "Aucune donnée détectée (pas d'en-têtes ou de lignes exploitables).",
   save_failed: "Échec de l'enregistrement. La table imported_datasets est-elle créée ?",
+  plan_limit: "Limite d'intégrations de votre plan atteinte. Déconnectez un outil ou passez au plan supérieur depuis Paramètres → Abonnement.",
 };
 
 export default async function ImportSpreadsheetPage({

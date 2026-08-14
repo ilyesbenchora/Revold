@@ -6,6 +6,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/connect-catalog";
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/integrations/category-meta";
+import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 import Link from "next/link";
 
 export default async function BibliothequeOutilsPage({
@@ -31,6 +32,9 @@ export default async function BibliothequeOutilsPage({
     connectedKeys.add("hubspot");
   }
 
+  // Usage de la limite d'intégrations du plan (Starter 3 · Growth 6 · Scale ∞).
+  const limitCheck = await checkConnectorLimit(supabase, orgId);
+
   const toolsByCategory: Record<ConnectableTool["category"], ConnectableTool[]> = {
     crm: [], billing: [], phone: [], files: [], support: [], communication: [], conv_intel: [], ads: [],
   };
@@ -45,6 +49,29 @@ export default async function BibliothequeOutilsPage({
           dans <Link href="/dashboard/integration/mes-outils" className="font-medium text-accent hover:underline">Mes outils connectés</Link>.
         </p>
       </header>
+
+      {/* Usage de la limite du plan — les canaux de notification (Slack, Teams,
+          Gmail…) ne comptent pas dans la limite. */}
+      {limitCheck.limit !== null && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            limitCheck.current >= limitCheck.limit
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          <span className="font-semibold">{limitCheck.current}/{limitCheck.limit}</span> intégrations utilisées sur votre plan
+          {limitCheck.current >= limitCheck.limit && (
+            <>
+              {" "}— limite atteinte. Déconnectez un outil ou{" "}
+              <Link href="/dashboard/parametres/billing" className="font-medium underline hover:text-amber-900">
+                passez au plan supérieur
+              </Link>{" "}
+              pour en connecter davantage. Les canaux de notification (Slack, Teams, Gmail…) restent connectables.
+            </>
+          )}
+        </div>
+      )}
 
       {oauthEnvMissing && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

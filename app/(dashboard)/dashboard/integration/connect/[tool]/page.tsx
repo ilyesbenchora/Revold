@@ -66,7 +66,9 @@ export default async function ConnectToolPage({
   const errorKey = typeof sp.error === "string" ? sp.error : null;
   const errorReason = typeof sp.reason === "string" ? sp.reason : null;
   const errorMessage = errorKey
-    ? ERROR_MESSAGES[errorKey] ?? (errorKey.startsWith("missing_") ? `Champ requis manquant : ${errorKey.replace("missing_", "")}` : "Une erreur est survenue.")
+    ? errorKey === "plan_limit"
+      ? `Limite d'intégrations de votre plan atteinte (${typeof sp.current === "string" ? sp.current : "?"}/${typeof sp.limit === "string" ? sp.limit : "?"}). Déconnectez un outil ou passez au plan supérieur depuis Paramètres → Abonnement.`
+      : ERROR_MESSAGES[errorKey] ?? (errorKey.startsWith("missing_") ? `Champ requis manquant : ${errorKey.replace("missing_", "")}` : "Une erreur est survenue.")
     : null;
 
   // Bind the tool key to the server action

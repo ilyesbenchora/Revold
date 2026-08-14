@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { pingTool } from "@/lib/integrations/ping";
+import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 
 export async function connectToolAction(toolKey: string, formData: FormData) {
   const tool = getConnectableTool(toolKey);
@@ -18,6 +19,14 @@ export async function connectToolAction(toolKey: string, formData: FormData) {
   const orgId = await getOrgId();
   if (!orgId) {
     redirect(`/dashboard/integration/connect/${toolKey}?error=no_org`);
+  }
+
+  // ── Limite d'intégrations du plan (Starter 3 · Growth 6 · Scale illimité) ──
+  // Vérifiée AVANT le ping : pas d'appel externe pour une connexion refusée.
+  const supabaseForLimit = await createSupabaseServerClient();
+  const limitCheck = await checkConnectorLimit(supabaseForLimit, orgId, toolKey);
+  if (!limitCheck.allowed) {
+    redirect(`/dashboard/integration/connect/${toolKey}?error=plan_limit&limit=${limitCheck.limit}&current=${limitCheck.current}`);
   }
 
   // Collect all field values; the first password field becomes access_token,
