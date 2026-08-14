@@ -11,7 +11,6 @@ import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { checkHubSpotProperty, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
-import { DedupRules, type DedupRule } from "@/components/dedup-rules";
 import { SyncFrequencyForm } from "@/components/sync-frequency-form";
 import Link from "next/link";
 
@@ -104,15 +103,8 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
   },
 ];
 
-// ── Default dedup rules ──
-const DEFAULT_DEDUP_RULES: DedupRule[] = [
-  { id: "contact_email", entity: "Contact", criteria: "email corporate (hors génériques)", secondaryCriteria: "domaine + nom (entre CRM et billing)", action: "Merge auto", warning: "Ne PAS matcher l'email billing avec l'email du signataire", enabled: false },
-  { id: "company_siren", entity: "Company", criteria: "SIREN exact (France)", secondaryCriteria: "VAT + domaine + nom normalisé", action: "Merge auto", warning: "Un groupe avec 3 filiales = 3 SIRENs", enabled: false },
-  { id: "company_intl_vat", entity: "Company (int.)", criteria: "VAT number (hors France)", secondaryCriteria: "domaine + nom + pays", action: "Merge auto", warning: "Le VAT change en cas de restructuration dans certains pays UE", enabled: false },
-  { id: "deal_external_id", entity: "Deal", criteria: "external_id par source", secondaryCriteria: "company_id + amount + mois de close", action: "Upsert via source_links", warning: null, enabled: false },
-  { id: "invoice_source_id", entity: "Invoice", criteria: "source_id (stripe_id / pennylane_id)", secondaryCriteria: "number + montant + date", action: "Upsert via source_links", warning: "Un avoir peut avoir le même montant qu'une facture", enabled: false },
-  { id: "ticket_source_id", entity: "Ticket", criteria: "source_id (zendesk_id / intercom_id)", secondaryCriteria: "external_number + opened_at", action: "Upsert via source_links", warning: null, enabled: false },
-];
+// (Les règles de déduplication vivent désormais sur la page Rapprochement de
+// données — c'est une décision de rapprochement, pas un réglage de modèle.)
 
 export default async function ParametresModeleDonneesPage() {
   const orgId = await getOrgId();
@@ -188,13 +180,6 @@ export default async function ParametresModeleDonneesPage() {
         value: (saved.config as Record<string, string>)[cf.label] ?? cf.value,
       })),
     };
-  });
-
-  // Dedup rules: merge saved enabled state
-  const mergedDedupRules: DedupRule[] = DEFAULT_DEDUP_RULES.map((rule) => {
-    const saved = savedRuleConfigs.find((s) => s.rule_id === `dedup_${rule.id}`);
-    if (!saved) return rule;
-    return { ...rule, enabled: saved.enabled };
   });
 
   // Field authority: merge saved priority orders
@@ -450,17 +435,6 @@ export default async function ParametresModeleDonneesPage() {
           Utilisez les flèches ▲▼ pour réordonner.
         </p>
         <FieldAuthorityEditor rows={mergedAuthority} connectedTools={connectedToolLabels} />
-      </div>
-
-      {/* ── Déduplication ── */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Règles de déduplication
-        </h2>
-        <p className="text-sm text-slate-500">
-          Actions automatiques quand deux enregistrements sont détectés comme doublons.
-        </p>
-        <DedupRules rules={mergedDedupRules} />
       </div>
 
       {/* ── Fréquences de sync ── */}

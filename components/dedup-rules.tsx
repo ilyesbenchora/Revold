@@ -12,6 +12,25 @@ export type DedupRule = {
   enabled: boolean;
 };
 
+/**
+ * Règles par défaut — libellés d'action en langage clair :
+ * - « Fusion automatique » : les deux fiches détectées comme un même
+ *   enregistrement sont FUSIONNÉES (uniquement si critère primaire ET
+ *   secondaire concordent ; désactivé par défaut — rien ne fusionne sans
+ *   activation explicite).
+ * - « Mise à jour sans doublon » : l'enregistrement déjà relié par son
+ *   identifiant source est MIS À JOUR au lieu d'être recréé à chaque sync —
+ *   aucune fusion, aucun risque de perte.
+ */
+export const DEFAULT_DEDUP_RULES: DedupRule[] = [
+  { id: "contact_email", entity: "Contact", criteria: "email corporate (hors génériques)", secondaryCriteria: "domaine + nom (entre CRM et billing)", action: "Fusion automatique", warning: "Ne PAS matcher l'email billing avec l'email du signataire", enabled: false },
+  { id: "company_siren", entity: "Company", criteria: "SIREN exact (France)", secondaryCriteria: "VAT + domaine + nom normalisé", action: "Fusion automatique", warning: "Un groupe avec 3 filiales = 3 SIRENs", enabled: false },
+  { id: "company_intl_vat", entity: "Company (int.)", criteria: "VAT number (hors France)", secondaryCriteria: "domaine + nom + pays", action: "Fusion automatique", warning: "Le VAT change en cas de restructuration dans certains pays UE", enabled: false },
+  { id: "deal_external_id", entity: "Deal", criteria: "external_id par source", secondaryCriteria: "company_id + amount + mois de close", action: "Mise à jour sans doublon", warning: null, enabled: false },
+  { id: "invoice_source_id", entity: "Invoice", criteria: "source_id (stripe_id / pennylane_id)", secondaryCriteria: "number + montant + date", action: "Mise à jour sans doublon", warning: "Un avoir peut avoir le même montant qu'une facture", enabled: false },
+  { id: "ticket_source_id", entity: "Ticket", criteria: "source_id (zendesk_id / intercom_id)", secondaryCriteria: "external_number + opened_at", action: "Mise à jour sans doublon", warning: null, enabled: false },
+];
+
 export function DedupRules({ rules }: { rules: DedupRule[] }) {
   const [states, setStates] = useState<Record<string, boolean>>(
     Object.fromEntries(rules.map((r) => [r.id, r.enabled])),
@@ -84,6 +103,19 @@ export function DedupRules({ rules }: { rules: DedupRule[] }) {
             })}
           </tbody>
         </table>
+      </div>
+      {/* Légende des actions — en langage clair (« fusion » ≠ « mise à jour »). */}
+      <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+        <p>
+          <span className="font-semibold text-slate-700">Fusion automatique</span> : les deux fiches détectées comme
+          un même enregistrement sont fusionnées — uniquement quand le critère primaire ET le critère secondaire
+          concordent, et seulement si tu actives la règle (désactivée par défaut : rien ne fusionne sans ton accord).
+        </p>
+        <p className="mt-1.5">
+          <span className="font-semibold text-slate-700">Mise à jour sans doublon</span> : l&apos;enregistrement déjà
+          relié par son identifiant source (id Stripe, Pennylane…) est mis à jour à chaque sync au lieu d&apos;être
+          recréé. Aucune fusion, aucun risque — ça évite simplement les doublons techniques.
+        </p>
       </div>
       <div className="mt-3 flex items-center justify-end gap-3">
         {saved && <span className="text-xs font-medium text-emerald-600">✓ Enregistré</span>}

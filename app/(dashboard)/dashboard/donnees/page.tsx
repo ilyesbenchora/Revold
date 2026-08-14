@@ -19,7 +19,17 @@ import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { computeObjectSummaries } from "@/lib/audit/object-summaries";
+import { computeUnmatchedReport, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
+import { DedupRules, DEFAULT_DEDUP_RULES, type DedupRule } from "@/components/dedup-rules";
 import Link from "next/link";
+
+/** Badges des causes de non-rapprochement (diagnostic entreprises). */
+const CAUSE_BADGES: Record<UnmatchedCause, { label: string; cls: string }> = {
+  missing_identifiers: { label: "SIREN / SIRET absent", cls: "bg-rose-50 text-rose-700" },
+  name_mismatch: { label: "Nom différent", cls: "bg-amber-50 text-amber-700" },
+  email_mismatch: { label: "Email différent", cls: "bg-indigo-50 text-indigo-700" },
+  no_candidate: { label: "Aucune correspondance", cls: "bg-slate-100 text-slate-600" },
+};
 
 /** Libellés utilisateur des méthodes de rapprochement (match_method). */
 const MATCH_METHOD_LABELS: Record<string, string> = {
@@ -97,6 +107,24 @@ export default async function DonneesPage() {
   // dans la sous-page HubSpot ; ici on n'en garde que la matière pour la
   // tuile « Complétude moyenne ».
   const summaries = await computeObjectSummaries(supabase, orgId);
+
+  // ── Entreprises non rapprochées CRM × facturation : cause + action corrective ──
+  const unmatched = await computeUnmatchedReport(supabase, orgId);
+
+  // ── Règles de déduplication (déplacées depuis Paramètres → Modèle de
+  //    données) : état sauvegardé fusionné dans les défauts. ──
+  let savedDedup: Array<{ rule_id: string; enabled: boolean }> = [];
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("rule_id, enabled")
+      .eq("organization_id", orgId);
+    savedDedup = (data ?? []) as typeof savedDedup;
+  } catch {}
+  const mergedDedupRules: DedupRule[] = DEFAULT_DEDUP_RULES.map((rule) => {
+    const saved = savedDedup.find((s) => s.rule_id === `dedup_${rule.id}`);
+    return saved ? { ...rule, enabled: saved.enabled } : rule;
+  });
 
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "audit_donnees");
@@ -266,6 +294,95 @@ export default async function DonneesPage() {
         </RemovableBlock>
       )}
 
+      {/* ── ENTREPRISES NON RAPPROCHÉES : le diagnostic par CAUSE + l'action
+             corrective concrète (nom différent, email différent, SIREN absent). ── */}
+      {unmatched.hasData && !custom.hiddenBlocks.has("unmatched_companies") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="unmatched_companies" label="Entreprises non rapprochées">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Entreprises non rapprochées CRM × facturation
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Entreprises vues dans tes outils de facturation/paiement mais SANS lien avec une fiche CRM —
+                  avec la cause diagnostiquée et l&apos;action qui corrige.
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className={`text-2xl font-bold tabular-nums ${unmatched.items.length === 0 ? "text-emerald-600" : "text-slate-900"}`}>
+                  {unmatched.items.length === 0 ? "0" : Object.values(unmatched.counts).reduce((s, n) => s + n, 0)}
+                </p>
+                <p className="text-[10px] text-slate-400">non rapprochées</p>
+              </div>
+            </div>
+
+            {unmatched.items.length === 0 ? (
+              <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                ✓ Toutes les entreprises facturées sont reliées au CRM — rien à corriger.
+              </p>
+            ) : (
+              <>
+                {/* Répartition par cause */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {(Object.keys(CAUSE_BADGES) as UnmatchedCause[])
+                    .filter((c) => unmatched.counts[c] > 0)
+                    .map((c) => (
+                      <span key={c} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${CAUSE_BADGES[c].cls}`}>
+                        {CAUSE_BADGES[c].label} · {unmatched.counts[c]}
+                      </span>
+                    ))}
+                </div>
+
+                <ul className="mt-3 divide-y divide-slate-100">
+                  {unmatched.items.map((it, i) => (
+                    <li key={`${it.provider}-${it.label}-${i}`} className="py-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <BrandLogo domain={CONNECTABLE_TOOLS[it.provider]?.domain ?? ""} alt={it.providerLabel} fallback={CONNECTABLE_TOOLS[it.provider]?.icon ?? "🔗"} size={16} />
+                        <span className="text-xs font-semibold text-slate-900">{it.label}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${CAUSE_BADGES[it.cause].cls}`}>
+                          {CAUSE_BADGES[it.cause].label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">{it.detail}</p>
+                      <p className="mt-1 text-[11px] font-medium text-slate-700">
+                        <span aria-hidden>💡</span> {it.action}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  Facturation électronique obligatoire en septembre : le SIREN devient l&apos;identifiant pivot des
+                  factures — enrichir le CRM maintenant (SIREN, SIRET, N° TVA) fiabilise le rapprochement automatique.
+                  Règles dans{" "}
+                  <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-fuchsia-600 hover:underline">
+                    Paramètres → Modèle de données
+                  </Link>
+                  .
+                </p>
+              </>
+            )}
+          </div>
+        </RemovableBlock>
+      )}
+
+      {/* ── Règles de déduplication (déplacées depuis Paramètres → Modèle de
+             données : c'est une décision de rapprochement, elle vit ici). ── */}
+      {!custom.hiddenBlocks.has("dedup_rules") && (
+        <RemovableBlock pageKey="audit_donnees" blockKey="dedup_rules" label="Règles de déduplication">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Règles de déduplication</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Ce qui se passe quand deux enregistrements sont détectés comme doublons entre tes outils.
+                Les fusions sont désactivées par défaut — rien ne fusionne sans ton accord explicite.
+              </p>
+            </div>
+            <DedupRules rules={mergedDedupRules} />
+          </div>
+        </RemovableBlock>
+      )}
+
       {/* ── Audit onboarding : ce que Revold a détecté outil par outil (ex-onglet dédié) ── */}
       {toolAudits.length > 0 && !custom.hiddenBlocks.has("audit_outils") && (
         <RemovableBlock pageKey="audit_donnees" blockKey="audit_outils" label="Audit par outil">
@@ -320,6 +437,8 @@ export default async function DonneesPage() {
         hiddenBlocks={hiddenBlockList(custom, (key) => ({
           crm_match_rate: { view: "chart-bar", description: "Taux de rapprochement réel CRM × outil + santé du croisement" },
           match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
+          unmatched_companies: { view: "table", description: "Entreprises non rapprochées CRM × facturation : cause + action corrective" },
+          dedup_rules: { view: "table", description: "Règles de déduplication (fusion auto, mise à jour sans doublon)" },
           audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },
           plan_action: { view: "table", description: "Plan d'action IA issu de l'audit d'onboarding" },
         }[key])).filter((h) => !["synthese_objets", "completude_bars", "objets_cards"].includes(h.key))}
