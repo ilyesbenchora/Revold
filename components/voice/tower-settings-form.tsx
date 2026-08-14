@@ -114,10 +114,11 @@ export function TowerSettingsForm() {
           ouvrir une page ou un rapport, ou lire ton brief du jour. Chaque fonctionnalité se désactive
           ci-dessous si tu préfères une orbe plus simple&nbsp;; les réglages s&apos;appliquent immédiatement.
         </p>
+        {/* Note technique uniquement — la disponibilité par plan est portée par
+            la variante verrouillée de l'orbe (Starter), pas par ce mode d'emploi. */}
         <p className="mt-2 text-xs text-slate-500">
           La dictée utilise la reconnaissance vocale du navigateur (Chrome/Edge recommandés). Les réglages
-          sont rattachés à ton compte : ils te suivent d&apos;un appareil à l&apos;autre. La tour de contrôle est
-          disponible à partir du plan Growth.
+          sont rattachés à ton compte : ils te suivent d&apos;un appareil à l&apos;autre.
         </p>
       </div>
 
