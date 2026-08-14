@@ -289,6 +289,34 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   );
 }
 
+/**
+ * Variante VERROUILLÉE de la tour de contrôle (plan Starter) : même
+ * emplacement, orbe éteinte, invitation à passer au plan Growth.
+ */
+export function RevoldControlTowerLocked() {
+  return (
+    <div className="card relative flex h-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-5">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(148,163,184,0.08),transparent_60%)]" />
+      <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+        Revold · Tour de contrôle
+      </p>
+      <div className="relative z-10 my-3 flex h-16 w-16 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-2xl grayscale">
+        🔒
+      </div>
+      <p className="relative z-10 text-center text-xs leading-relaxed text-slate-400">
+        Commande tes agents à la voix, façon Jarvis : brief santé, navigation et
+        agents briefés à la dictée.
+      </p>
+      <a
+        href="/dashboard/parametres/billing"
+        className="relative z-10 mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
+      >
+        Disponible dès le plan Growth →
+      </a>
+    </div>
+  );
+}
+
 /** Carte « tour de contrôle » de la home — à droite du bloc équipe IA. */
 export function RevoldControlTower() {
   return (

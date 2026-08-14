@@ -34,6 +34,7 @@ const PRICING = [
       "Tout Starter inclus",
       "6 intégrations incluses",
       "Routines programmées des agents IA",
+      "Tour de contrôle vocale (commande tes agents à la voix)",
       "Actions exécutées dans le CRM (relances, closing, emails…)",
       "Plus de rapports (jusqu'à 200) + plan IA sur objectifs",
       "Suggestions proactives · alertes & objectifs illimités",

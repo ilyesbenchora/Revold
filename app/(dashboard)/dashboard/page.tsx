@@ -5,7 +5,8 @@ import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/sup
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { AgentsFamily } from "@/components/agents/agents-family";
-import { RevoldControlTower } from "@/components/voice/revold-orb";
+import { RevoldControlTower, RevoldControlTowerLocked } from "@/components/voice/revold-orb";
+import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
@@ -53,6 +54,8 @@ export default async function DashboardOverviewPage() {
 
   const connectedCats = connectedCategoriesSet(connectedTools);
   const { dismissedKeys } = dismissals;
+  // Tour de contrôle vocale : réservée aux plans Growth et Scale.
+  const controlTowerLocked = featureLocked(await getOrgPlan(supabase, orgId), "voice_control_tower");
   const integrationInsights = buildIntegrationInsights(detectedIntegrations);
 
   // ── Compteurs dashboard ──
@@ -229,12 +232,13 @@ export default async function DashboardOverviewPage() {
       )}
 
       {/* Photo de famille des agents IA + tour de contrôle vocale « Jarvis » :
-          l'orbe route une demande dictée vers le bon agent, chat pré-exécuté. */}
+          l'orbe route une demande dictée vers le bon agent, chat pré-exécuté.
+          Réservée aux plans Growth et Scale — verrouillée sur Starter. */}
       <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <AgentsFamily />
         </div>
-        <RevoldControlTower />
+        {controlTowerLocked ? <RevoldControlTowerLocked /> : <RevoldControlTower />}
       </div>
 
       {/* Hero — KPIs essentiels (6 tuiles dynamiques, layout adaptatif) */}

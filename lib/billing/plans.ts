@@ -25,6 +25,7 @@ export type FeatureKey =
   | "anomaly_detection"
   | "quarterly_reports"
   | "routines"
+  | "voice_control_tower"
   | "what_if_simulations"
   | "deal_coaching_advanced"
   | "advisor_revops"
@@ -72,6 +73,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "deal_risk_detection",
       "anomaly_detection",
       "routines",
+      "voice_control_tower",
     ],
     maxConnectors: 6,
     featured: true,
@@ -92,6 +94,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "anomaly_detection",
       "quarterly_reports",
       "routines",
+      "voice_control_tower",
       "what_if_simulations",
       "deal_coaching_advanced",
       "advisor_revops",

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLANS, type PlanKey } from "./plans";
+import { getOrgPlan } from "./org-plan";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 
 /**
@@ -37,27 +38,7 @@ export async function checkConnectorLimit(
   /** Outil qu'on s'apprête à connecter (omis = simple lecture de l'usage). */
   provider?: string,
 ): Promise<ConnectorLimitCheck> {
-  let plan: PlanKey | null = null;
-  try {
-    // Source billing d'abord (org_subscriptions), fallback organizations.plan.
-    const { data: sub } = await supabase
-      .from("org_subscriptions")
-      .select("plan")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    if (sub?.plan && sub.plan in PLANS) plan = sub.plan as PlanKey;
-    if (!plan) {
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("plan")
-        .eq("id", orgId)
-        .maybeSingle();
-      const p = String(org?.plan ?? "").toLowerCase();
-      if (p in PLANS) plan = p as PlanKey;
-    }
-  } catch {
-    // tables absentes / erreur réseau → on ne bloque jamais une connexion à tort
-  }
+  const plan: PlanKey | null = await getOrgPlan(supabase, orgId);
   const limit = plan ? PLANS[plan].maxConnectors : null;
 
   const { data } = await supabase
