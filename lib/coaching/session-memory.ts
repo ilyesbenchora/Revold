@@ -202,9 +202,9 @@ export function memoryDirective(memory: CoachingMemory): string {
     parts.push("Engagements récemment ACCOMPLIS : " + memory.recentlyDone.map((c) => c.title).join(" · "));
   }
   parts.push(
-    "Méthode : OUVRE la séance en faisant brièvement le point sur les engagements en cours (fait / pas fait / blocage ?) " +
-      "avant de proposer les pistes du jour. Relie tes recommandations à ce qui a déjà été décidé — tu es dans un suivi " +
-      "continu, pas une première rencontre. En fin de séance, propose 1 à 3 nouveaux engagements concrets.",
+    "Méthode : intègre ce point d'étape À L'INTÉRIEUR de ta contextualisation d'ouverture (engagements en cours : fait / " +
+      "pas fait / blocage ?), AVANT de livrer le plan d'action de la séance. Relie le plan à ce qui a déjà été décidé — " +
+      "tu es dans un suivi continu, pas une première rencontre. En fin de séance, propose 1 à 3 nouveaux engagements concrets.",
   );
   return parts.join("\n");
 }
