@@ -2,9 +2,11 @@
 
 /**
  * Réglages de la tour de contrôle vocale — personnalisation par fonctionnalité
- * (Paramètres → Tour de contrôle). Stockés côté navigateur (localStorage) et
- * partagés en direct entre le formulaire, l'orbe et la file multi-agents via
- * l'événement `revold:tower-settings`.
+ * (Paramètres → Tour de contrôle). Rattachés au COMPTE utilisateur (table
+ * voice_tower_settings via /api/voice/settings) : ils suivent l'utilisateur
+ * d'un appareil à l'autre. Le localStorage sert de cache instantané au
+ * chargement, et l'événement `revold:tower-settings` synchronise en direct le
+ * formulaire, l'orbe et la file multi-agents.
  */
 
 import { useEffect, useState } from "react";
@@ -63,12 +65,49 @@ export function readTowerSettings(): TowerSettings {
   }
 }
 
+/** Push serveur débouncé : la frappe dans le champ « phrase » ne spamme pas l'API. */
+let pushTimer: ReturnType<typeof setTimeout> | null = null;
+function pushToServer(next: TowerSettings) {
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    pushTimer = null;
+    void fetch("/api/voice/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: next }),
+    }).catch(() => {});
+  }, 600);
+}
+
 export function writeTowerSettings(next: TowerSettings) {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
     localStorage.setItem(LEGACY_VEILLE_KEY, next.veille ? "1" : "0");
     window.dispatchEvent(new Event(SETTINGS_EVENT));
   } catch {}
+  pushToServer(next);
+}
+
+/**
+ * Charge les réglages du COMPTE une seule fois par chargement de page, puis
+ * les propage au cache local + à tous les consommateurs (événement).
+ */
+let serverLoad: Promise<void> | null = null;
+function ensureServerSettings() {
+  if (serverLoad) return;
+  serverLoad = fetch("/api/voice/settings")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      const s = d?.settings;
+      if (!s || typeof s !== "object") return;
+      const merged = { ...readTowerSettings(), ...s } as TowerSettings;
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
+        localStorage.setItem(LEGACY_VEILLE_KEY, merged.veille ? "1" : "0");
+        window.dispatchEvent(new Event(SETTINGS_EVENT));
+      } catch {}
+    })
+    .catch(() => {});
 }
 
 /** Outils du routeur vocal à désactiver côté serveur selon les réglages. */
@@ -98,6 +137,8 @@ export function useTowerSettings(): TowerSettings {
   useEffect(() => {
     const sync = () => setSettings(readTowerSettings());
     sync();
+    // Réglages du compte (une seule requête par chargement de page).
+    ensureServerSettings();
     window.addEventListener(SETTINGS_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {

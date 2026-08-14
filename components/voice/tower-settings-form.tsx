@@ -101,8 +101,9 @@ export function TowerSettingsForm() {
           ci-dessous si tu préfères une orbe plus simple&nbsp;; les réglages s&apos;appliquent immédiatement.
         </p>
         <p className="mt-2 text-xs text-slate-500">
-          La dictée utilise la reconnaissance vocale du navigateur (Chrome/Edge recommandés) et les réglages
-          sont enregistrés sur ce navigateur. La tour de contrôle est disponible à partir du plan Growth.
+          La dictée utilise la reconnaissance vocale du navigateur (Chrome/Edge recommandés). Les réglages
+          sont rattachés à ton compte : ils te suivent d&apos;un appareil à l&apos;autre. La tour de contrôle est
+          disponible à partir du plan Growth.
         </p>
       </div>
 
