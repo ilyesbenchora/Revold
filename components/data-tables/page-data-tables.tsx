@@ -19,6 +19,7 @@ import {
 } from "@/lib/reports/data-table-presets";
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
 import { InfoHint } from "@/components/info-hint";
+import { WiredToolsRow } from "@/components/wired-tools-row";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import {
@@ -926,6 +927,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       <dt className="text-xs text-slate-500">Source de données</dt>
                       <dd className="font-semibold text-slate-900">{entityLabel(proposal.entity)}</dd>
                     </div>
+                    {/* Outil(s) connecté(s) qui alimentent cette entité. */}
+                    <WiredToolsRow entity={proposal.entity} sourceKeys={selected} />
                     {(proposal.pipeline || (proposal.entity === "deals" && proposal.group_by === "stage")) && (
                       <div className="flex items-center justify-between gap-3">
                         <dt className="flex items-center gap-1 text-xs text-slate-500">

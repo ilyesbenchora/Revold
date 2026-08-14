@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-presets";
 import { InfoHint } from "@/components/info-hint";
+import { WiredToolsRow } from "@/components/wired-tools-row";
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 
@@ -376,6 +377,8 @@ export function SurgicalAlertButton({
                         <dt className="text-xs text-slate-500">Source de données</dt>
                         <dd className="text-xs font-semibold text-slate-900">{entityLabel(aggSpec.entity)}</dd>
                       </div>
+                      {/* Outil(s) connecté(s) qui alimentent cette entité. */}
+                      <WiredToolsRow entity={aggSpec.entity} sourceKeys={aggSpec.sources ?? null} />
                       {aggSpec.entity === "deals" && (
                         <div className="flex items-center justify-between gap-3">
                           <dt className="flex shrink-0 items-center gap-1 text-xs text-slate-500">

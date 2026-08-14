@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ENTITY_DIMS, ENTITY_FIELDS, entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-presets";
 import { InfoHint } from "@/components/info-hint";
+import { WiredToolsRow } from "@/components/wired-tools-row";
 import type { ChartQuery } from "@/lib/ai/agents/agent-runtime";
 
 type Point = { name: string; value: number };
@@ -115,6 +116,8 @@ export function ChartWiringPanel({
               <dt className="text-xs text-slate-500">Source de données</dt>
               <dd className="text-xs font-semibold text-slate-900">{entityLabel(q.entity)}</dd>
             </div>
+            {/* Outil(s) connecté(s) qui alimentent cette entité. */}
+            <WiredToolsRow entity={q.entity} />
             {q.pipeline && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-1 text-xs text-slate-500">

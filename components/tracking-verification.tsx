@@ -2,6 +2,7 @@
 
 import { entityLabel, ENTITY_FIELDS } from "@/lib/reports/data-table-presets";
 import { InfoHint } from "@/components/info-hint";
+import { WiredToolsRow } from "@/components/wired-tools-row";
 
 /** Câblage proposé par l'agent pour une alerte / un objectif (rien n'est créé). */
 export type TrackingProposal = {
@@ -64,6 +65,13 @@ export function TrackingVerification({
             <dt className="text-xs text-slate-500">Méthode</dt>
             <dd className="text-right text-xs font-medium text-slate-600">{MODE_LABELS[proposal.mode]}</dd>
           </div>
+          {/* Outil(s) connecté(s) qui alimentent l'entité du câblage. */}
+          {aggEntity && (
+            <WiredToolsRow
+              entity={aggEntity}
+              sourceKeys={Array.isArray(proposal.agg_spec?.sources) ? (proposal.agg_spec.sources as string[]) : null}
+            />
+          )}
           {/* Mesure ÉDITABLE (mode agrégat) : si le KPI est ambigu (« paiements » =
               encaissements ? flux net ?), l'utilisateur corrige ici — la valeur
               actuelle se recalcule immédiatement, sans repasser par l'agent. */}
