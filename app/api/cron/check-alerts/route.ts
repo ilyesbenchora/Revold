@@ -21,6 +21,8 @@ const FORECAST_LABELS: Record<string, string> = {
   phone_enrichment: "Enrichissement téléphone",
   pipeline_value: "Pipeline en valeur",
   dormant_reactivation: "Réactivation contacts dormants",
+  billing_radar_overdue: "Factures attendues non émises",
+  won_unbilled_count: "Deals gagnés non facturés",
 };
 
 const FORECAST_UNITS: Record<string, string> = {
@@ -32,6 +34,8 @@ const FORECAST_UNITS: Record<string, string> = {
   phone_enrichment: "%",
   pipeline_value: "€",
   dormant_reactivation: "contacts",
+  billing_radar_overdue: "factures",
+  won_unbilled_count: "deals",
 };
 
 export async function GET(request: Request) {

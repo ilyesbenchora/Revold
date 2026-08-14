@@ -48,7 +48,7 @@ export async function GET(request: Request) {
   // Sections choisies dans Paramètres → Tour de contrôle (défaut : toutes).
   const sectionsParam = url.searchParams.get("sections");
   const sections = new Set(
-    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "objectives", "syncs", "meetings"],
+    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "radar", "objectives", "syncs", "meetings"],
   );
   const now = new Date();
   const in48h = new Date(now.getTime() + 48 * 3600 * 1000).toISOString().slice(0, 10);
@@ -187,7 +187,7 @@ export async function GET(request: Request) {
     const names = tense.slice(0, 3).map((a) => a.title).join(", ");
     parts.push(`${tense.length} alerte${tense.length > 1 ? "s" : ""} en tension${tenseCritical.length > 0 ? ` dont ${tenseCritical.length} critique${tenseCritical.length > 1 ? "s" : ""}` : ""} : ${names}.`);
   }
-  if (sections.has("alerts") && radarOverdue > 0) {
+  if (sections.has("radar") && radarOverdue > 0) {
     parts.push(
       `${radarOverdue} facture${radarOverdue > 1 ? "s" : ""} attendue${radarOverdue > 1 ? "s" : ""} non émise${radarOverdue > 1 ? "s" : ""}${radarAmount > 0 ? ` — environ ${fmtCustomValue(radarAmount, "currency")} à facturer` : ""} : détail sur la page Trésorerie.`,
     );

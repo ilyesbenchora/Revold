@@ -13,6 +13,8 @@ const FORECAST_ENTITY: Record<string, string> = {
   conversion_rate: "contacts", orphan_rate: "contacts", phone_enrichment: "contacts", dormant_reactivation: "contacts",
   mql_to_sql_rate: "contacts", contacts_by_source: "contacts", source_to_lifecycle: "contacts",
   source_to_deal_created: "contacts", source_to_deal_won: "contacts",
+  // Radar de facturation : la donnée pivot est la facture (rythme observé).
+  billing_radar_overdue: "invoices", won_unbilled_count: "deals",
 };
 
 /** Ensemble des entités canoniques qui ont RÉELLEMENT des données pour l'org. */

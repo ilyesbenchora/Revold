@@ -35,6 +35,8 @@ export type TowerSettings = {
   veille: boolean;
   /** Contenu du brief — alertes en tension. */
   briefAlerts: boolean;
+  /** Contenu du brief — radar de facturation (factures attendues non émises). */
+  briefRadar: boolean;
   /** Contenu du brief — objectifs en retard. */
   briefObjectives: boolean;
   /** Contenu du brief — synchronisations en échec. */
@@ -61,6 +63,7 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefPhrase: "quoi de neuf",
   veille: false,
   briefAlerts: true,
+  briefRadar: true,
   briefObjectives: true,
   briefSyncs: true,
   briefMeetings: true,
@@ -148,6 +151,7 @@ function ensureServerSettings() {
 export function briefSectionsParam(s: TowerSettings): string {
   const on: string[] = [];
   if (s.briefAlerts) on.push("alerts");
+  if (s.briefRadar) on.push("radar");
   if (s.briefObjectives) on.push("objectives");
   if (s.briefSyncs) on.push("syncs");
   if (s.briefMeetings) on.push("meetings");

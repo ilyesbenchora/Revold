@@ -327,7 +327,7 @@ export function TowerSettingsForm() {
         on={settings.brief}
         onToggle={() => flip("brief")}
         description="Un point de situation lu à voix haute, calculé en direct sur tes vraies données — sans IA générative, donc fiable et instantané."
-        how="Le brief compile 4 choses : les alertes actives dont le seuil est réellement atteint, les objectifs en retard (moins de 60 % de progression à moins de 30 jours de l'échéance), les synchronisations d'outils en échec, et tes rendez-vous de coaching dans les 48 h. Il se lance avec le bouton « ☀️ Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
+        how="Le brief compile 5 choses : les alertes actives dont le seuil est réellement atteint, le radar de facturation (factures attendues non émises), les objectifs en retard (moins de 60 % de progression à moins de 30 jours de l'échéance), les synchronisations d'outils en échec, et tes rendez-vous de coaching dans les 48 h. Il se lance avec le bouton « ☀️ Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
         examples={[settings.briefPhrase || "quoi de neuf", "fais-moi le point", "mon brief du matin"]}
       >
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
@@ -357,6 +357,7 @@ export function TowerSettingsForm() {
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {([
                 ["briefAlerts", "Alertes en tension", "Alertes actives dont le seuil est atteint"],
+                ["briefRadar", "Radar de facturation", "Factures attendues non émises (rythme réel + fins de contrat)"],
                 ["briefObjectives", "Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
                 ["briefSyncs", "Syncs en échec", "Dernier run de chaque outil connecté"],
                 ["briefMeetings", "RDV de coaching", "Séances prévues dans les 48 h"],

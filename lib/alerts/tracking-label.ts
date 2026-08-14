@@ -37,6 +37,8 @@ const FORECAST_LABELS: Record<string, string> = {
   source_to_lifecycle: "Source → lifecycle",
   source_to_deal_created: "Source → deal créé",
   source_to_deal_won: "Source → deal gagné",
+  billing_radar_overdue: "Radar de facturation (factures attendues)",
+  won_unbilled_count: "Deals gagnés non facturés",
 };
 
 const ENTITY_LABELS: Record<string, string> = {

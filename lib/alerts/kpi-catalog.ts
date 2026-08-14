@@ -66,6 +66,9 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "deals_won_count", label: "Renouvellements gagnés", description: "Nombre de deals gagnés — volume de rétention", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
   ],
   revops: [
+    // ── Radar de facturation (rapprochement CRM ↔ facturation) ──
+    { id: "billing_radar_overdue", label: "Factures attendues non émises", description: "Radar de facturation : factures en retard vs le rythme réel de chaque client et les fins de contrat CRM — trésorerie qui dort", defaultUnit: "count", defaultDirection: "above", category: "finance", dealRelated: false },
+    { id: "won_unbilled_count", label: "Deals gagnés non facturés", description: "Deals gagnés depuis plus de 15 jours sans première facture émise — la fuite entre closing et facturation", defaultUnit: "count", defaultDirection: "above", category: "finance", dealRelated: true },
     // ── Revenue metrics ──
     { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé — KPI de pilotage N°1 pour le board", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines — efficacité commerciale globale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
