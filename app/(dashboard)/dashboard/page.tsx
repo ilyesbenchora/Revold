@@ -19,6 +19,8 @@ import {
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
+import { getPageCustomization } from "@/lib/kpi/page-tiles";
+import { HomeHeroKpis, type HomeKpi } from "@/components/home-hero-kpis";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -88,6 +90,32 @@ export default async function DashboardOverviewPage() {
     (ctx.subscriptionsCount ?? 0);
 
   const activeIntegrations = connectedTools.length;
+
+  // ── Bloc héro personnalisable : catalogue de KPIs + sélection persistée
+  // (page_tiles, page_key « home_hero ») — 5 affichés maximum. ──
+  const HOME_KPIS: HomeKpi[] = [
+    {
+      id: "integrations",
+      label: "Intégrations actives",
+      value: String(activeIntegrations),
+      hint: activeIntegrations === 0 ? "Connecter mes outils" : "Gérer →",
+      href: "/dashboard/integration",
+      color: "text-accent",
+    },
+    { id: "coaching", label: "Coachings à faire", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/insights-ia", color: "text-fuchsia-600" },
+    { id: "previsions", label: "Prévisions", value: simulationsTotal.toLocaleString("fr-FR"), href: "/dashboard/simulations", color: "text-amber-600" },
+    { id: "rapports", label: "Rapports actionnables", value: reportsTotal.toLocaleString("fr-FR"), href: "/dashboard/rapports", color: "text-emerald-600" },
+    { id: "revenue", label: "Données Revenue analysées", value: revenueRecordsTotal.toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-teal-600" },
+    { id: "deals", label: "Deals analysés", value: (ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
+    { id: "invoices", label: "Factures analysées", value: (ctx.invoicesCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-sky-600" },
+    { id: "subscriptions", label: "Abonnements suivis", value: (ctx.subscriptionsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-violet-600" },
+    { id: "contacts", label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), href: "/dashboard/performances/marketing", color: "text-rose-600" },
+    { id: "companies", label: "Entreprises", value: snapshot.totalCompanies.toLocaleString("fr-FR"), href: "/dashboard/donnees", color: "text-cyan-600" },
+  ];
+  const DEFAULT_HOME_KPIS = ["integrations", "coaching", "previsions", "rapports", "revenue"];
+  const homeCust = await getPageCustomization(supabase, orgId, "home_hero");
+  const homeKpiIds = homeCust.tileOrder.filter((id) => HOME_KPIS.some((k) => k.id === id));
+  const selectedHomeKpis = (homeKpiIds.length > 0 ? homeKpiIds : DEFAULT_HOME_KPIS).slice(0, 5);
 
   // ── Cards des sections principales — actionables, sans badge score ──
   const sections = [
@@ -241,47 +269,13 @@ export default async function DashboardOverviewPage() {
         {controlTowerLocked ? <RevoldControlTowerLocked /> : <RevoldControlTower />}
       </div>
 
-      {/* Hero — KPIs essentiels (6 tuiles dynamiques, layout adaptatif) */}
+      {/* Hero — KPIs essentiels PERSONNALISABLES (retrait/ajout, 5 max) */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
-        <div className="p-6">
-          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-6">
-            {/* 1. Intégrations actives — sobre, sans logos pour éviter wrap */}
-            <Link href="/dashboard/integration" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Intégrations actives</p>
-              <p className="mt-1 text-2xl font-bold text-accent tabular-nums group-hover:text-indigo-700">{activeIntegrations}</p>
-              <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">
-                {activeIntegrations === 0 ? "Connecter mes outils" : "Gérer →"}
-              </p>
-            </Link>
-
-            {/* 2. Coachings à faire */}
-            <Link href="/dashboard/insights-ia" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Coachings à faire</p>
-              <p className="mt-1 text-2xl font-bold text-fuchsia-600 tabular-nums group-hover:text-fuchsia-700">{coachingTotal.toLocaleString("fr-FR")}</p>
-            </Link>
-
-            {/* 4. Prévisions */}
-            <Link href="/dashboard/simulations" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Prévisions</p>
-              <p className="mt-1 text-2xl font-bold text-amber-600 tabular-nums group-hover:text-amber-700">{simulationsTotal.toLocaleString("fr-FR")}</p>
-            </Link>
-
-            {/* 5. Rapports actionnables */}
-            <Link href="/dashboard/rapports" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Rapports actionnables</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums group-hover:text-emerald-700">{reportsTotal.toLocaleString("fr-FR")}</p>
-            </Link>
-
-            {/* 6. Données Revenue analysées */}
-            <Link href="/dashboard/performances" className="group block">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Données Revenue analysées</p>
-              <p className="mt-1 text-2xl font-bold text-teal-600 tabular-nums group-hover:text-teal-700">{revenueRecordsTotal.toLocaleString("fr-FR")}</p>
-            </Link>
-          </div>
-
-          {!hubspotConnected && (
-            <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-2.5">
+        <HomeHeroKpis kpis={HOME_KPIS} initialSelected={selectedHomeKpis} />
+        {!hubspotConnected && (
+          <div className="px-6 pb-6">
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-2.5">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 shrink-0">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
@@ -289,8 +283,8 @@ export default async function DashboardOverviewPage() {
                 HubSpot non connecté. <Link href="/dashboard/integration" className="font-medium underline hover:no-underline">Connectez HubSpot via OAuth</Link> pour démarrer.
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Cards d'accès aux sections principales — sans badge score, force de proposition */}

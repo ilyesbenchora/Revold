@@ -1,0 +1,133 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+export type HomeKpi = {
+  id: string;
+  label: string;
+  /** Valeur déjà formatée côté serveur. */
+  value: string;
+  /** Sous-texte optionnel (ex : « Gérer → »). */
+  hint?: string;
+  href: string;
+  /** Classe de couleur de la valeur (ex : text-fuchsia-600). */
+  color: string;
+};
+
+const MAX_KPIS = 5;
+
+/**
+ * Bloc héro de la home : KPIs essentiels PERSONNALISABLES — « Personnaliser »
+ * permet de retirer des tuiles et d'en ajouter depuis le catalogue, avec un
+ * plafond de 5 affichées (comme aujourd'hui). Sélection persistée par
+ * organisation (page_tiles, page_key « home_hero », kind tile_order).
+ */
+export function HomeHeroKpis({ kpis, initialSelected }: { kpis: HomeKpi[]; initialSelected: string[] }) {
+  const byId = new Map(kpis.map((k) => [k.id, k]));
+  const [selected, setSelected] = useState<string[]>(initialSelected.filter((id) => byId.has(id)).slice(0, MAX_KPIS));
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const shown = selected.map((id) => byId.get(id)).filter((k): k is HomeKpi => Boolean(k));
+  const available = kpis.filter((k) => !selected.includes(k.id));
+
+  function persist(next: string[]) {
+    setSelected(next);
+    setError(null);
+    void fetch("/api/page-tiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page_key: "home_hero", kind: "tile_order", order: next }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Enregistrement impossible.");
+      }
+    });
+  }
+
+  const remove = (id: string) => persist(selected.filter((s) => s !== id));
+  const add = (id: string) => selected.length < MAX_KPIS && persist([...selected, id]);
+
+  return (
+    <div className="p-6">
+      <div className="mb-2 flex items-center justify-end gap-2">
+        {editing && (
+          <span className="text-[11px] text-slate-400">
+            {selected.length}/{MAX_KPIS} KPIs affichés
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          className={`text-xs font-medium hover:underline ${editing ? "text-slate-500" : "text-accent"}`}
+        >
+          {editing ? "Terminer" : "Personnaliser"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-5">
+        {shown.map((k) =>
+          editing ? (
+            <div key={k.id} className="relative rounded-lg border border-dashed border-slate-200 p-2 -m-2">
+              <button
+                type="button"
+                title="Retirer ce KPI"
+                onClick={() => remove(k.id)}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 transition hover:bg-rose-100 hover:text-rose-600"
+              >
+                ✕
+              </button>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${k.color}`}>{k.value}</p>
+              {k.hint && <p className="mt-1 text-[11px] text-slate-500">{k.hint}</p>}
+            </div>
+          ) : (
+            <Link key={k.id} href={k.href} className="group block">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums transition group-hover:opacity-80 ${k.color}`}>{k.value}</p>
+              {k.hint && <p className="mt-1 text-[11px] text-slate-500 group-hover:text-slate-700">{k.hint}</p>}
+            </Link>
+          ),
+        )}
+        {shown.length === 0 && (
+          <p className="col-span-full text-center text-xs text-slate-400">
+            Aucun KPI affiché — clique sur «&nbsp;Personnaliser&nbsp;» pour en ajouter.
+          </p>
+        )}
+      </div>
+
+      {/* Catalogue : KPIs disponibles à ajouter (plafond 5) */}
+      {editing && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <span className="text-[11px] font-medium text-slate-500">Ajouter :</span>
+          {available.length === 0 ? (
+            <span className="text-[11px] text-slate-400">Tous les KPIs disponibles sont affichés.</span>
+          ) : (
+            available.map((k) => {
+              const full = selected.length >= MAX_KPIS;
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  disabled={full}
+                  title={full ? `Maximum ${MAX_KPIS} KPIs — retire-en un d'abord` : `Afficher « ${k.label} »`}
+                  onClick={() => add(k.id)}
+                  className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ＋ {k.label} · {k.value}
+                </button>
+              );
+            })
+          )}
+          {selected.length >= MAX_KPIS && available.length > 0 && (
+            <span className="ml-auto text-[11px] text-amber-600">Maximum {MAX_KPIS} — retire un KPI pour en ajouter un autre.</span>
+          )}
+        </div>
+      )}
+
+      {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+    </div>
+  );
+}
