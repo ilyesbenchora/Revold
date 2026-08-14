@@ -40,7 +40,7 @@ function Chip({ children }: { children: string }) {
 }
 
 type FeatureCardProps = {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   on: boolean;
   onToggle: () => void;
@@ -49,6 +49,20 @@ type FeatureCardProps = {
   examples?: string[];
   children?: React.ReactNode;
 };
+
+/**
+ * Boule de la tour de contrôle en miniature (orbe dorée + anneau de santé
+ * vert) — même identité visuelle que l'orbe de la home, en icône statique.
+ */
+function MiniOrb() {
+  return (
+    <span aria-hidden className="relative mt-1 inline-flex h-5 w-5 shrink-0">
+      <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,#fde68a,#f5be5a_45%,#b45309_82%,#7c2d12)] shadow-[0_0_10px_rgba(245,190,90,0.55)]" />
+      {/* Anneau de santé autour de l'orbe (vert = tout va bien) */}
+      <span className="absolute -inset-1 rounded-full border border-emerald-400/80" />
+    </span>
+  );
+}
 
 function FeatureCard({ icon, title, on, onToggle, description, how, examples, children }: FeatureCardProps) {
   return (
@@ -197,7 +211,7 @@ export function TowerSettingsForm() {
       />
 
       <FeatureCard
-        icon="🟢"
+        icon={<MiniOrb />}
         title="Anneau de santé"
         on={settings.healthRing}
         onToggle={() => flip("healthRing")}
