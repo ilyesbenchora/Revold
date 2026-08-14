@@ -35,7 +35,6 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
     { id: "weighted_pipeline", label: "Pipeline pondéré", description: "Somme des montants × probabilité de gain — forecast réaliste", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "pipeline_coverage", label: "Couverture pipeline", description: "% de deals avec une activité planifiée — discipline commerciale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "deal_activation", label: "Activation deals", description: "% de deals en cours avec au moins une activité — pipeline réellement travaillé", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "pipeline_stage_conversion", label: "Conversion étape→étape", description: "% de deals qui passent d'une étape à la suivante — détecte les goulots d'étranglement du pipeline", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     // ── Vélocité & risque ──
     { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Nombre de jours moyen entre création et closing — indicateur de vélocité", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
     { id: "stagnant_deals", label: "Deals stagnants", description: "Deals sans activité depuis 7 jours — risque de perte silencieuse", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
@@ -61,7 +60,7 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
     // ── Rétention & risque ──
     { id: "deals_at_risk", label: "Comptes à risque", description: "Deals flagués à risque — action proactive CSM requise", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
     { id: "stagnant_deals", label: "Deals sans suivi", description: "Deals sans activité depuis 7 jours — engagement client à risque", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    { id: "orphan_rate", label: "Contacts non rattachés", description: "% de contacts sans entreprise — visibilité compte incomplète", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
+    { id: "dormant_reactivation", label: "Clients dormants", description: "Contacts sans interaction depuis 6 mois — comptes à réengager avant qu'ils ne churment", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: false, contactRelated: true },
     // ── Expansion ──
     { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals — suivi de l'upsell/cross-sell", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "deals_won_count", label: "Renouvellements gagnés", description: "Nombre de deals gagnés — volume de rétention", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
@@ -70,22 +69,19 @@ export const kpisByTeam: Record<string, KpiDef[]> = {
     // ── Radar de facturation (rapprochement CRM ↔ facturation) ──
     { id: "billing_radar_overdue", label: "Factures attendues non émises", description: "Radar de facturation : factures en retard vs le rythme réel de chaque client et les fins de contrat CRM — trésorerie qui dort", defaultUnit: "count", defaultDirection: "above", category: "finance", dealRelated: false },
     { id: "won_unbilled_count", label: "Deals gagnés non facturés", description: "Deals gagnés depuis plus de 15 jours sans première facture émise — la fuite entre closing et facturation", defaultUnit: "count", defaultDirection: "above", category: "finance", dealRelated: true },
-    // ── Revenue metrics ──
+    // ── Délais cash (réconciliés CRM × facturation) ──
+    { id: "deal_won_to_first_invoice", label: "Délai closing → 1re facture", description: "Jours médians entre le deal gagné et la première facture émise — la latence qui retarde le cash", defaultUnit: "count", defaultDirection: "below", category: "finance", dealRelated: true },
+    { id: "invoice_to_payment", label: "Délai facture → paiement (DSO)", description: "Jours médians entre l'émission d'une facture et son encaissement — le DSO réel mesuré sur tes factures", defaultUnit: "count", defaultDirection: "below", category: "finance", dealRelated: false },
+    // ── Revenue & forecast ──
     { id: "revenue_won", label: "Revenue cumulé", description: "CA total signé — KPI de pilotage N°1 pour le board", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
-    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines — efficacité commerciale globale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "weighted_pipeline", label: "Forecast pondéré", description: "Pipeline × probabilité — prévision revenue la plus fiable", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "pipeline_value", label: "Pipeline total", description: "Valeur totale du pipeline ouvert — capacité de croissance", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "closing_rate", label: "Closing rate global", description: "Taux de closing tous pipelines — efficacité commerciale globale", defaultUnit: "percent", defaultDirection: "above", category: "sales", dealRelated: true },
+    { id: "avg_deal_size", label: "Panier moyen", description: "Montant moyen des deals gagnés — pilotage du mix revenue", defaultUnit: "currency", defaultDirection: "above", category: "sales", dealRelated: true },
     { id: "deals_won_count", label: "Deals gagnés", description: "Volume de deals signés — base pour réconciliation forecast vs facturation", defaultUnit: "count", defaultDirection: "above", category: "sales", dealRelated: true },
+    // ── Risque & vélocité cash ──
     { id: "deals_at_risk", label: "Comptes à risque", description: "Deals/comptes flagués à risque — proxy churn signal", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    // ── Efficacité process ──
-    { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Jours entre création et closing — vélocité du process", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
-    { id: "conversion_rate", label: "Conversion Lead→Opp", description: "Taux de conversion global — santé du funnel", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
-    { id: "mql_to_sql_rate", label: "MQL→SQL", description: "Taux de handoff marketing→sales — alignement des équipes", defaultUnit: "percent", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true },
-    // ── Data quality ──
-    { id: "data_completeness", label: "Complétude deals", description: "% de deals avec montant + date de closing + propriétaire — fiabilité du forecast", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: true },
-    { id: "orphan_rate", label: "Taux d'orphelins", description: "% contacts sans entreprise — intégrité de la donnée", defaultUnit: "percent", defaultDirection: "below", category: "data", dealRelated: false, contactRelated: true },
-    { id: "phone_enrichment", label: "Qualité données", description: "% contacts avec téléphone — capacité opérationnelle", defaultUnit: "percent", defaultDirection: "above", category: "data", dealRelated: false, contactRelated: true },
-    { id: "contacts_by_source", label: "Contacts par source", description: "Volume de contacts par source d'origine — base attribution multi-canal", defaultUnit: "count", defaultDirection: "above", category: "marketing", dealRelated: false, contactRelated: true, sourceRelated: true },
+    { id: "sales_cycle_days", label: "Cycle de vente moyen", description: "Jours entre création et closing — vélocité du cash entrant", defaultUnit: "count", defaultDirection: "below", category: "sales", dealRelated: true },
   ],
   ops: [
     // ── Qualité & intégrité des données ──

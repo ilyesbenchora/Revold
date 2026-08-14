@@ -76,7 +76,9 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
   ],
   audit_adoption: [
     ...fromKpiDefs(kpisByTeam.sales.filter((k) => ["pipeline_coverage", "deal_activation", "stagnant_deals", "sales_cycle_days"].includes(k.id))),
-    ...fromKpiDefs(kpisByTeam.revops.filter((k) => ["deals_won_count", "data_completeness"].includes(k.id))),
+    ...fromKpiDefs(kpisByTeam.revops.filter((k) => ["deals_won_count"].includes(k.id))),
+    // data_completeness vit dans le pôle data (ops) depuis le recentrage Finance.
+    ...fromKpiDefs(kpisByTeam.ops.filter((k) => ["data_completeness"].includes(k.id))),
   ],
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
 };
