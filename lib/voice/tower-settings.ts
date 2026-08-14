@@ -20,6 +20,14 @@ export type TowerSettings = {
   briefPhrase: string;
   /** Mode veille : le brief ne remonte que les exceptions. */
   veille: boolean;
+  /** Contenu du brief — alertes en tension. */
+  briefAlerts: boolean;
+  /** Contenu du brief — objectifs en retard. */
+  briefObjectives: boolean;
+  /** Contenu du brief — synchronisations en échec. */
+  briefSyncs: boolean;
+  /** Contenu du brief — RDV de coaching à venir. */
+  briefMeetings: boolean;
   /** Réponse directe aux questions KPI simples. */
   quickAnswer: boolean;
   /** Création d'alertes et d'objectifs à la voix (toujours validée par boutons). */
@@ -37,6 +45,10 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   brief: true,
   briefPhrase: "quoi de neuf",
   veille: false,
+  briefAlerts: true,
+  briefObjectives: true,
+  briefSyncs: true,
+  briefMeetings: true,
   quickAnswer: true,
   createActions: true,
   navigation: true,
@@ -108,6 +120,16 @@ function ensureServerSettings() {
       } catch {}
     })
     .catch(() => {});
+}
+
+/** Sections de données incluses dans le brief (`?sections=` du digest). */
+export function briefSectionsParam(s: TowerSettings): string {
+  const on: string[] = [];
+  if (s.briefAlerts) on.push("alerts");
+  if (s.briefObjectives) on.push("objectives");
+  if (s.briefSyncs) on.push("syncs");
+  if (s.briefMeetings) on.push("meetings");
+  return on.join(",");
 }
 
 /** Outils du routeur vocal à désactiver côté serveur selon les réglages. */

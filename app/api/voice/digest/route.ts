@@ -14,7 +14,10 @@ export const dynamic = "force-dynamic";
  *  - synchronisations en échec (dernier run par outil) ;
  *  - prochains RDV de coaching (≤ 48 h).
  * `?mode=veille` : exceptions uniquement (alertes critiques + syncs en échec).
- * Renvoie aussi le STATUT de santé qui teinte l'anneau de l'orbe.
+ * `?sections=alerts,objectives,syncs,meetings` : contenu personnalisé du brief
+ * (Paramètres → Tour de contrôle) — les sections absentes ne sont pas lues.
+ * Renvoie aussi le STATUT de santé qui teinte l'anneau de l'orbe (calculé sur
+ * TOUTES les données, indépendamment des sections choisies).
  */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -29,7 +32,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "La tour de contrôle vocale est disponible à partir du plan Growth." }, { status: 403 });
   }
 
-  const veille = new URL(request.url).searchParams.get("mode") === "veille";
+  const url = new URL(request.url);
+  const veille = url.searchParams.get("mode") === "veille";
+  // Sections choisies dans Paramètres → Tour de contrôle (défaut : toutes).
+  const sectionsParam = url.searchParams.get("sections");
+  const sections = new Set(
+    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "objectives", "syncs", "meetings"],
+  );
   const now = new Date();
   const in48h = new Date(now.getTime() + 48 * 3600 * 1000).toISOString().slice(0, 10);
   const in30d = new Date(now.getTime() + 30 * 86400 * 1000).toISOString().slice(0, 10);
@@ -99,23 +108,23 @@ export async function GET(request: Request) {
 
   // ── Texte du brief, prêt à lire à voix haute ──
   const parts: string[] = [];
-  if (tense.length > 0) {
+  if (sections.has("alerts") && tense.length > 0) {
     const names = tense.slice(0, 3).map((a) => a.title).join(", ");
     parts.push(`${tense.length} alerte${tense.length > 1 ? "s" : ""} en tension${tenseCritical.length > 0 ? ` dont ${tenseCritical.length} critique${tenseCritical.length > 1 ? "s" : ""}` : ""} : ${names}.`);
   }
-  if (failedSyncs.length > 0) {
+  if (sections.has("syncs") && failedSyncs.length > 0) {
     parts.push(`Synchronisation en échec : ${failedSyncs.map((s) => s.source).join(", ")} — à relancer depuis les intégrations.`);
   }
   if (!veille) {
-    if (offTrack.length > 0) {
+    if (sections.has("objectives") && offTrack.length > 0) {
       parts.push(`${offTrack.length} objectif${offTrack.length > 1 ? "s" : ""} en retard à moins de 30 jours de l'échéance : ${offTrack.slice(0, 2).map((o) => o.title).join(", ")}.`);
     }
-    if (meetings.length > 0) {
+    if (sections.has("meetings") && meetings.length > 0) {
       parts.push(
         `À l'agenda : ${meetings.map((m) => `séance ${CAT_LABEL[m.category] ?? m.category} le ${m.next_meeting_at}${m.next_meeting_time ? ` à ${m.next_meeting_time}` : ""}`).join(", ")}.`,
       );
     }
-    if (parts.length === 0) parts.push("Rien à signaler : alertes au vert, objectifs en ligne, synchronisations OK.");
+    if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
   }

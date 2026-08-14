@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTowerSettings, readTowerSettings, writeTowerSettings, disabledDispatchTools, normalizePhrase } from "@/lib/voice/tower-settings";
+import { useTowerSettings, readTowerSettings, writeTowerSettings, disabledDispatchTools, normalizePhrase, briefSectionsParam } from "@/lib/voice/tower-settings";
 
 type OrbStatus = "idle" | "listening" | "thinking" | "redirecting" | "error";
 type Health = "ok" | "warn" | "critical";
@@ -294,7 +294,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     setStatus("thinking");
     setCaption(veille ? "Brief (mode veille)…" : "Je prépare ton brief…");
     try {
-      const res = await fetch(`/api/voice/digest${veille ? "?mode=veille" : ""}`);
+      // Contenu du brief personnalisé (Paramètres → Tour de contrôle).
+      const params = new URLSearchParams();
+      if (veille) params.set("mode", "veille");
+      params.set("sections", briefSectionsParam(readTowerSettings()));
+      const res = await fetch(`/api/voice/digest?${params.toString()}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
       if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
@@ -548,7 +552,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         <span className={`pointer-events-none absolute inset-3 rounded-full border transition ${ringClass}`} />
       </button>
 
-      <p className="mt-1 min-h-8 max-w-[16rem] text-center text-[11px] leading-snug text-slate-400">
+      {/* Zone de texte contenue : les briefs longs défilent au lieu de déborder
+          sur le bouton veille et le pied de la carte. */}
+      <p className="mt-1 max-h-20 min-h-8 w-full max-w-[17rem] overflow-y-auto px-1 text-center text-[11px] leading-snug text-slate-400">
         {!supported
           ? "Dictée vocale non supportée par ce navigateur."
           : caption || (status === "idle" ? "Clique et dicte ta demande — je réponds, je briefe le bon agent ou je crée ton alerte." : "")}

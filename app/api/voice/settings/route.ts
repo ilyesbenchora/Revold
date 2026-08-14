@@ -11,7 +11,10 @@ export const dynamic = "force-dynamic";
  * le client garde alors son cache local.
  */
 
-const BOOL_KEYS = ["healthRing", "brief", "veille", "quickAnswer", "createActions", "navigation", "queue", "memory"] as const;
+const BOOL_KEYS = [
+  "healthRing", "brief", "veille", "quickAnswer", "createActions", "navigation", "queue", "memory",
+  "briefAlerts", "briefObjectives", "briefSyncs", "briefMeetings",
+] as const;
 
 function sanitize(raw: unknown): Record<string, boolean | string> | null {
   if (!raw || typeof raw !== "object") return null;

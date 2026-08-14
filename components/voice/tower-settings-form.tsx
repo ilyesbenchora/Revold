@@ -135,6 +135,33 @@ export function TowerSettingsForm() {
             Dès que ta dictée contient cette phrase (accents et majuscules ignorés), le brief part
             directement — sans passer par le routeur IA.
           </p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-700">Contenu du brief</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Choisis les données que le brief te lit. L&apos;anneau de santé, lui, surveille toujours tout.
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {([
+                ["briefAlerts", "🚨 Alertes en tension", "Alertes actives dont le seuil est atteint"],
+                ["briefObjectives", "🎯 Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
+                ["briefSyncs", "🔄 Syncs en échec", "Dernier run de chaque outil connecté"],
+                ["briefMeetings", "📅 RDV de coaching", "Séances prévues dans les 48 h"],
+              ] as const).map(([key, label, hint]) => (
+                <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-2 transition hover:border-accent/40">
+                  <input
+                    type="checkbox"
+                    checked={settings[key]}
+                    onChange={() => flip(key)}
+                    className="mt-0.5 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="block text-xs font-medium text-slate-800">{label}</span>
+                    <span className="block text-[10px] text-slate-500">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 p-3">
             <div>
               <p className="text-xs font-semibold text-slate-700">🌙 Mode veille</p>
