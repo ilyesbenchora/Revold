@@ -99,7 +99,12 @@ export function AgentProfileAvatar({
                 {chatHref && (
                   <Link
                     href={chatHref}
-                    onClick={closeProfile}
+                    // Ferme la fiche SANS preventDefault : sinon la navigation
+                    // du lien est annulée et « Discuter avec … » ne mène nulle part.
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpen(false);
+                    }}
                     className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
                   >
                     💬 Discuter avec {name} →
