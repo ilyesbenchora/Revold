@@ -279,17 +279,13 @@ export function DataTableCard({
               </button>
             </div>
           )}
+          {/* Ligne méta : entité · dimension · pipeline ciblé · total — le
+              pipeline vit ICI (plus de pastille séparée sous le titre). */}
           <p className="mt-0.5 text-[11px] text-slate-400">
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
+            {table.pipeline && <> · Pipeline {pipelineName ?? table.pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
-          {/* Pipeline ciblé : PASTILLE visible sur le rapport (graphique compris). */}
-          {table.pipeline && (
-            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
-              Pipeline {pipelineName ?? table.pipeline}
-            </span>
-          )}
           {(table.sources ?? []).length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {(table.sources ?? []).map((key) => {
