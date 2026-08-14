@@ -33,6 +33,12 @@ export type ToolAuditData = {
   lastSync: { at: string; status: string; error: string | null } | null;
   /** Nombre de pages Données alimentées par cet outil (tool_mappings). */
   mappedPages: number;
+  /**
+   * Champs canoniques MAPPÉS dans Paramètres → Modèle de données → Mapping des
+   * identifiants pour cet outil — la couverture affichée s'y limite (on suit
+   * l'enrichissement des identifiants CHOISIS, comparables entre outils).
+   */
+  mappedIdentifierFields: string[];
 };
 
 export const MATCH_LABELS: Record<string, string> = {
@@ -104,14 +110,9 @@ async function buildHubSpotSyntheticReport(
   token: string,
   entityCounts: Record<string, number>,
 ): Promise<ConnectorAuditReport | null> {
-  // Hors périmètre : external_id (technique) et dates de contrat (radar de
-  // facturation, pas des clés de rapprochement).
-  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter(
-    (d) => d.canonicalField !== "external_id" && !d.canonicalField.includes("contract"),
-  );
-  if (defs.length === 0) return null;
-
-  // Overrides du mapping des identifiants (Paramètres → Modèle de données).
+  // Mapping des identifiants (Paramètres → Modèle de données) : la couverture
+  // ne mesure QUE les champs que l'utilisateur y a mappés — pour comparer
+  // l'enrichissement des MÊMES identifiants d'un outil à l'autre.
   let overrides: Record<string, string> = {};
   try {
     const { data } = await supabase
@@ -123,6 +124,15 @@ async function buildHubSpotSyntheticReport(
       ((data ?? []) as Array<{ canonical_field: string; provider_field: string }>).map((m) => [m.canonical_field, m.provider_field]),
     );
   } catch {}
+
+  // Hors périmètre : external_id (technique), dates de contrat (radar de
+  // facturation) — et tout champ NON mappé dans les paramètres.
+  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter(
+    (d) =>
+      d.canonicalField !== "external_id" &&
+      !d.canonicalField.includes("contract") &&
+      d.canonicalField in overrides,
+  );
 
   const identifier_coverage: IdentifierCoverage = {};
   await Promise.all(
@@ -142,7 +152,9 @@ async function buildHubSpotSyntheticReport(
       };
     }),
   );
-  if (Object.keys(identifier_coverage).length === 0) return null;
+  // Coverage vide (rien de mappé) : on garde quand même le rapport — les
+  // méthodes de rapprochement restent utiles, et la carte affichera l'invite
+  // à mapper les identifiants.
 
   // Méthodes de rapprochement réellement enregistrées pour HubSpot (source_links).
   const contact_match: Record<string, number> = {};
@@ -200,6 +212,21 @@ export async function loadToolAudits(
   for (const row of (auditRows ?? []) as Array<{ provider: string; report: ConnectorAuditReport }>) {
     reportByProvider.set(row.provider, row.report);
   }
+
+  // Champs mappés par outil (Mapping des identifiants) — la couverture
+  // affichée par les cartes s'y limite. external_id et dates de contrat exclus.
+  const mappedByProvider = new Map<string, string[]>();
+  try {
+    const { data: mapRows } = await supabase
+      .from("identifier_field_mapping")
+      .select("provider, canonical_field")
+      .eq("organization_id", orgId);
+    for (const row of (mapRows ?? []) as Array<{ provider: string; canonical_field: string }>) {
+      if (row.canonical_field === "external_id" || row.canonical_field.includes("contract")) continue;
+      (mappedByProvider.get(row.provider) ?? mappedByProvider.set(row.provider, []).get(row.provider)!)
+        .push(row.canonical_field);
+    }
+  } catch {}
 
   const out: ToolAuditData[] = [];
   for (const tool of connected) {
@@ -296,6 +323,7 @@ export async function loadToolAudits(
           }
         : null,
       mappedPages: pagesPerTool.get(tool.key) ?? 0,
+      mappedIdentifierFields: [...new Set(mappedByProvider.get(tool.key) ?? [])],
     });
   }
   return out;

@@ -42,8 +42,12 @@ export function ToolAuditCard({ tool }: { tool: ToolAuditData }) {
   const entityEntries = Object.entries(tool.entityCounts);
   const matchEntries = r ? Object.entries(r.contact_match ?? {}) : [];
   const companyMatchEntries = r ? Object.entries(r.company_match ?? {}) : [];
+  // Couverture LIMITÉE aux identifiants mappés dans Paramètres → Modèle de
+  // données : on suit l'enrichissement des champs CHOISIS, comparables entre
+  // outils — pas tout le catalogue.
+  const mapped = new Set(tool.mappedIdentifierFields);
   const coverageEntries = r
-    ? Object.entries(r.identifier_coverage ?? {}).filter(([field]) => field !== "external_id")
+    ? Object.entries(r.identifier_coverage ?? {}).filter(([field]) => mapped.has(field))
     : [];
   const syncOk = tool.lastSync != null && tool.lastSync.status !== "failed" && tool.lastSync.status !== "pending";
 
@@ -126,11 +130,20 @@ export function ToolAuditCard({ tool }: { tool: ToolAuditData }) {
           </div>
         )}
 
-        {/* Couverture des identifiants */}
+        {/* Couverture des identifiants MAPPÉS (Paramètres → Modèle de données) */}
+        {coverageEntries.length === 0 && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+            Aucun identifiant mappé pour {tool.label} — mappe SIREN, N° TVA… dans{" "}
+            <Link href="/dashboard/parametres/modele-donnees" className="font-medium text-fuchsia-600 hover:underline">
+              Paramètres → Modèle de données → Mapping des identifiants
+            </Link>{" "}
+            pour suivre leur enrichissement ici, outil par outil.
+          </p>
+        )}
         {coverageEntries.length > 0 && (
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Identifiants détectés dans {tool.label}
+              Enrichissement des identifiants mappés · {tool.label}
             </p>
             <div className="mt-1.5 space-y-1">
               {coverageEntries.map(([field, cov]) => {
