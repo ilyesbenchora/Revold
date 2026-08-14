@@ -5,18 +5,64 @@
  *
  * Sphère de particules dorées animée sur canvas : rotation lente au repos,
  * pulsation réactive au NIVEAU RÉEL du micro pendant l'écoute (AnalyserNode),
- * logo Revold en filigrane très fondu au centre.
+ * logo Revold en filigrane très fondu au centre, anneau teinté par le STATUT
+ * DE SANTÉ du compte (vert / ambre / rouge, via /api/voice/digest).
  *
- * Rôle 100 % vocal : un clic → dictée (Web Speech API), la demande est routée
- * vers l'agent/coach pertinent (/api/voice/dispatch), confirmée à l'oral
- * (SpeechSynthesis), puis redirection vers sa page de chat avec la demande
- * EXÉCUTÉE automatiquement (?ask=…).
+ * Rôle 100 % vocal (/api/voice/dispatch, multi-actions) :
+ *  - briefer un agent/coach → redirection chat avec la demande exécutée (?ask=…) ;
+ *  - plusieurs demandes dans une phrase → file d'attente (sessionStorage) ;
+ *  - réponse DIRECTE aux questions KPI simples (+ bouton « creuser ») ;
+ *  - création d'alertes/objectifs dictée, validée par boutons avant POST ;
+ *  - navigation vocale (pages + rapports sauvegardés) ;
+ *  - brief du jour lu à voix haute, avec mode veille (exceptions uniquement) ;
+ *  - mémoire des 3 derniers échanges pour les enchaînements.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type OrbStatus = "idle" | "listening" | "thinking" | "redirecting" | "error";
+type Health = "ok" | "warn" | "critical";
+
+const QUEUE_KEY = "revold:tower-queue";
+const QUEUE_EVENT = "revold:tower-queue";
+const HISTORY_KEY = "revold:tower-history";
+const VEILLE_KEY = "revold:tower-veille";
+
+export type QueuedDispatch = { agentKey: string; agentLabel: string; personaName: string; request: string };
+
+export function readTowerQueue(): QueuedDispatch[] {
+  try {
+    const raw = sessionStorage.getItem(QUEUE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((q) => q && typeof q.agentKey === "string" && typeof q.request === "string") : [];
+  } catch {
+    return [];
+  }
+}
+export function writeTowerQueue(queue: QueuedDispatch[]) {
+  try {
+    if (queue.length === 0) sessionStorage.removeItem(QUEUE_KEY);
+    else sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    window.dispatchEvent(new Event(QUEUE_EVENT));
+  } catch {}
+}
+
+type HistoryEntry = { q: string; outcome: string };
+function readHistory(): HistoryEntry[] {
+  try {
+    const raw = sessionStorage.getItem(HISTORY_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.slice(-3) : [];
+  } catch {
+    return [];
+  }
+}
+function pushHistory(q: string, outcome: string) {
+  try {
+    sessionStorage.setItem(HISTORY_KEY, JSON.stringify([...readHistory(), { q, outcome }].slice(-3)));
+  } catch {}
+}
 
 /* ── Reconnaissance vocale (Web Speech API, fr-FR) ── */
 type SpeechRecognitionLike = {
@@ -51,7 +97,7 @@ function speak(text: string, onDone?: () => void) {
     window.speechSynthesis.speak(u);
     if (onDone) {
       // Filet : si la synthèse est indisponible/silencieuse, on continue quand même.
-      setTimeout(onDone, Math.min(6000, 1500 + text.length * 60));
+      setTimeout(onDone, Math.min(12000, 1500 + text.length * 60));
     }
   } catch {
     onDone?.();
@@ -71,12 +117,53 @@ const PARTICLES = Array.from({ length: N_PARTICLES }, (_, i) => {
   };
 });
 
+/* ── Actions renvoyées par /api/voice/dispatch (v2 multi-actions) ── */
+type DispatchAction = {
+  type: "agent" | "answer" | "create_alert" | "create_objective" | "navigate" | "brief" | "clarify";
+  say: string;
+  // agent
+  agentKey?: string;
+  agentLabel?: string;
+  personaName?: string;
+  request?: string;
+  // answer
+  label?: string;
+  formatted?: string | null;
+  followupAgentKey?: string;
+  followupName?: string;
+  followupAsk?: string;
+  // create_*
+  payload?: Record<string, unknown>;
+  summary?: string;
+  // navigate
+  href?: string;
+};
+
+type PendingCreate = { kind: "create_alert" | "create_objective"; payload: Record<string, unknown>; summary: string };
+type Followup = { agentKey: string; name: string; ask: string };
+
+const HEALTH_RING: Record<Health, string> = {
+  ok: "border-emerald-300/40",
+  warn: "border-amber-300/60",
+  critical: "border-rose-400/70 animate-pulse",
+};
+const HEALTH_HINT: Record<Health, string> = {
+  ok: "Tout est au vert.",
+  warn: "Points de vigilance — demande ton brief.",
+  critical: "Situation critique — demande ton brief.",
+};
+
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState<OrbStatus>("idle");
   const [caption, setCaption] = useState<string>("");
   const [supported, setSupported] = useState(true);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [veille, setVeille] = useState(false);
+  const [pending, setPending] = useState<PendingCreate | null>(null);
+  const [followup, setFollowup] = useState<Followup | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const statusRef = useRef<OrbStatus>("idle");
   statusRef.current = status;
@@ -86,6 +173,20 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
   useEffect(() => {
     setSupported(!!createRecognition());
+    try { setVeille(localStorage.getItem(VEILLE_KEY) === "1"); } catch {}
+    // Statut de santé au chargement → teinte de l'anneau (silencieux si indisponible).
+    void fetch("/api/voice/digest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.status === "ok" || d?.status === "warn" || d?.status === "critical") setHealth(d.status); })
+      .catch(() => {});
+  }, []);
+
+  const toggleVeille = useCallback(() => {
+    setVeille((v) => {
+      const next = !v;
+      try { localStorage.setItem(VEILLE_KEY, next ? "1" : "0"); } catch {}
+      return next;
+    });
   }, []);
 
   /* ── Animation canvas ── */
@@ -183,34 +284,168 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
   useEffect(() => () => { stopAudioLevel(); recRef.current?.stop(); }, [stopAudioLevel]);
 
-  /* ── Dictée → dispatch → redirection ── */
+  /* ── Brief du jour (déterministe, lu à voix haute) ── */
+  const runBrief = useCallback(async () => {
+    setStatus("thinking");
+    setCaption(veille ? "Brief (mode veille)…" : "Je prépare ton brief…");
+    try {
+      const res = await fetch(`/api/voice/digest${veille ? "?mode=veille" : ""}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
+      if (d.status === "ok" || d.status === "warn" || d.status === "critical") setHealth(d.status);
+      setStatus("idle");
+      setCaption(d.text ?? "");
+      speak(d.text ?? "");
+    } catch (e) {
+      setStatus("error");
+      setCaption(e instanceof Error ? e.message : "Brief indisponible — réessaie.");
+    }
+  }, [veille]);
+
+  /* ── Exécution des actions renvoyées par le routeur vocal ── */
+  const runActions = useCallback((transcript: string, actions: DispatchAction[]) => {
+    const agents = actions.filter((a) => a.type === "agent" && a.agentKey && a.request);
+    const answer = actions.find((a) => a.type === "answer");
+    const create = actions.find((a) => a.type === "create_alert" || a.type === "create_objective");
+    const nav = actions.find((a) => a.type === "navigate" && a.href);
+    const brief = actions.find((a) => a.type === "brief");
+    const clarify = actions.find((a) => a.type === "clarify");
+
+    // Mémoire de contexte : trace compacte de ce qui a été fait.
+    const outcome = [
+      answer ? `réponse : ${answer.label} = ${answer.formatted ?? "n/a"}` : null,
+      create ? `préparé ${create.type === "create_alert" ? "alerte" : "objectif"} « ${create.summary} »` : null,
+      ...agents.map((a) => `briefé ${a.personaName} : ${(a.request ?? "").slice(0, 80)}`),
+      nav ? `ouvert ${nav.href}` : null,
+      brief ? "brief lu" : null,
+      clarify && actions.length === 1 ? "incompris" : null,
+    ].filter(Boolean).join(" ; ");
+    pushHistory(transcript, outcome || "aucune action");
+
+    // 1) Réponse directe : parlée + affichée, avec option « creuser ».
+    if (answer) {
+      setFollowup(
+        answer.followupAgentKey && answer.followupAsk
+          ? { agentKey: answer.followupAgentKey, name: answer.followupName ?? "l'agent", ask: answer.followupAsk }
+          : null,
+      );
+    }
+
+    // 2) Création à valider : on parle, on affiche les boutons, on NE navigue pas.
+    if (create?.payload) {
+      setPending({ kind: create.type as PendingCreate["kind"], payload: create.payload, summary: create.summary ?? "" });
+      // Les agents supplémentaires attendent dans la file (chip en bas de page).
+      if (agents.length > 0) writeTowerQueue([...readTowerQueue(), ...agents.map((a) => ({ agentKey: a.agentKey!, agentLabel: a.agentLabel ?? "", personaName: a.personaName ?? "", request: a.request! }))]);
+      setStatus("idle");
+      setCaption(create.summary ?? "");
+      speak([answer?.say, create.say].filter(Boolean).join(" "));
+      return;
+    }
+
+    // 3) Brief demandé à la voix.
+    if (brief) {
+      speak(brief.say ?? "Voilà ton brief.", () => void runBrief());
+      if (agents.length > 0) writeTowerQueue([...readTowerQueue(), ...agents.map((a) => ({ agentKey: a.agentKey!, agentLabel: a.agentLabel ?? "", personaName: a.personaName ?? "", request: a.request! }))]);
+      return;
+    }
+
+    // 4) Redirection agent : le premier tout de suite, le reste en file.
+    if (agents.length > 0) {
+      const [first, ...rest] = agents;
+      if (rest.length > 0) writeTowerQueue([...readTowerQueue(), ...rest.map((a) => ({ agentKey: a.agentKey!, agentLabel: a.agentLabel ?? "", personaName: a.personaName ?? "", request: a.request! }))]);
+      const sayText = [answer?.say, first.say, rest.length > 0 ? `${rest.length === 1 ? "Une autre demande attend" : `${rest.length} autres demandes attendent`} en file.` : null]
+        .filter(Boolean)
+        .join(" ");
+      setStatus("redirecting");
+      setCaption(first.say ?? `Je t'ouvre ${first.personaName}…`);
+      speak(sayText, () => {
+        router.push(`/dashboard/agents/${first.agentKey}?ask=${encodeURIComponent(first.request!)}`);
+      });
+      return;
+    }
+
+    // 5) Navigation seule.
+    if (nav?.href) {
+      setStatus("redirecting");
+      setCaption(nav.say ?? "");
+      speak([answer?.say, nav.say].filter(Boolean).join(" "), () => router.push(nav.href!));
+      return;
+    }
+
+    // 6) Réponse directe seule / clarification.
+    setStatus("idle");
+    if (answer) {
+      setCaption(answer.say ?? "");
+      speak(answer.say ?? "");
+    } else if (clarify) {
+      setCaption(clarify.say ?? "");
+      speak(clarify.say ?? "");
+    }
+  }, [router, runBrief]);
+
+  /* ── Dictée → dispatch multi-actions ── */
   const dispatch = useCallback(async (transcript: string) => {
     setStatus("thinking");
     setCaption(`« ${transcript} »`);
+    setPending(null);
+    setFollowup(null);
     try {
       const res = await fetch("/api/voice/dispatch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript, history: readHistory() }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Routage impossible");
-      if (d.clarify) {
-        setStatus("idle");
-        setCaption(d.clarify);
-        speak(d.clarify);
-        return;
-      }
-      setStatus("redirecting");
-      setCaption(d.say ?? `Je t'ouvre ${d.personaName}…`);
-      speak(d.say ?? `Je t'ouvre ${d.personaName}.`, () => {
-        router.push(`/dashboard/agents/${d.agentKey}?ask=${encodeURIComponent(d.request)}`);
-      });
+      const actions: DispatchAction[] = Array.isArray(d.actions) ? d.actions : [];
+      if (actions.length === 0) throw new Error("Routage impossible");
+      runActions(transcript, actions);
     } catch (e) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Une erreur est survenue — réessaie.");
     }
-  }, [router]);
+  }, [runActions]);
+
+  /* ── Validation / annulation d'une création dictée ── */
+  const confirmPending = useCallback(async () => {
+    if (!pending || creating) return;
+    setCreating(true);
+    try {
+      const isAlert = pending.kind === "create_alert";
+      const body = isAlert
+        ? {
+            ...pending.payload,
+            description: "Alerte créée à la voix depuis la tour de contrôle.",
+            impact: "Suivi automatique du seuil dicté à la voix.",
+            severity: "warning",
+          }
+        : { ...pending.payload, description: "Objectif créé à la voix depuis la tour de contrôle." };
+      const res = await fetch(isAlert ? "/api/alerts" : "/api/objectives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Création impossible");
+      const doneSay = isAlert ? "C'est fait — alerte créée et suivie." : "C'est fait — objectif créé et suivi.";
+      setPending(null);
+      setCaption(doneSay);
+      speak(doneSay);
+      pushHistory(pending.summary, isAlert ? "alerte créée" : "objectif créé");
+      router.push(isAlert ? "/dashboard/mes-alertes" : "/dashboard/mes-alertes/objectifs");
+    } catch (e) {
+      setCaption(e instanceof Error ? e.message : "Création impossible — réessaie.");
+      speak("La création a échoué — réessaie.");
+    } finally {
+      setCreating(false);
+    }
+  }, [pending, creating, router]);
+
+  const cancelPending = useCallback(() => {
+    setPending(null);
+    setCaption("Annulé.");
+    speak("Annulé.");
+  }, []);
 
   const startListening = useCallback(() => {
     if (statusRef.current === "listening" || statusRef.current === "thinking" || statusRef.current === "redirecting") return;
@@ -249,6 +484,12 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
 
   const busy = status === "thinking" || status === "redirecting";
+  const ringClass =
+    status === "listening"
+      ? "border-amber-300/50"
+      : health
+        ? HEALTH_RING[health]
+        : "border-amber-200/0 group-hover:border-amber-200/30";
 
   return (
     <div className="flex flex-col items-center">
@@ -256,7 +497,15 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         type="button"
         onClick={() => (status === "listening" ? stopListening() : startListening())}
         disabled={busy || !supported}
-        title={!supported ? "Dictée vocale non supportée par ce navigateur" : status === "listening" ? "Terminer la dictée" : "Parler à Revold"}
+        title={
+          !supported
+            ? "Dictée vocale non supportée par ce navigateur"
+            : status === "listening"
+              ? "Terminer la dictée"
+              : health
+                ? `Parler à Revold — ${HEALTH_HINT[health]}`
+                : "Parler à Revold"
+        }
         className="group relative rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-amber-300"
         style={{ width: size, height: size }}
         aria-label="Parler à Revold"
@@ -272,19 +521,74 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             <path d="M4.2 7.5l2.4.3M4.2 16.5l2.4-.3M19.8 7.5l-2.4.3M19.8 16.5l-2.4-.3" />
           </svg>
         </span>
-        {/* Anneau discret au survol / écoute */}
-        <span
-          className={`pointer-events-none absolute inset-3 rounded-full border transition ${
-            status === "listening" ? "border-amber-300/50" : "border-amber-200/0 group-hover:border-amber-200/30"
-          }`}
-        />
+        {/* Anneau de santé : vert / ambre / rouge selon l'état du compte */}
+        <span className={`pointer-events-none absolute inset-3 rounded-full border transition ${ringClass}`} />
       </button>
 
-      <p className="mt-1 min-h-8 max-w-[16rem] text-center text-[11px] leading-snug text-slate-500">
+      <p className="mt-1 min-h-8 max-w-[16rem] text-center text-[11px] leading-snug text-slate-400">
         {!supported
           ? "Dictée vocale non supportée par ce navigateur."
-          : caption || (status === "idle" ? "Clique et dicte ta demande — je briefe le bon agent et je t'y emmène." : "")}
+          : caption || (status === "idle" ? "Clique et dicte ta demande — je réponds, je briefe le bon agent ou je crée ton alerte." : "")}
       </p>
+
+      {/* Validation d'une création dictée (alerte / objectif) */}
+      {pending && (
+        <div className="mt-2 w-full max-w-[16rem] rounded-lg border border-amber-300/30 bg-amber-400/10 p-2 text-center">
+          <p className="text-[11px] leading-snug text-amber-100">{pending.summary}</p>
+          <div className="mt-2 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => void confirmPending()}
+              disabled={creating}
+              className="rounded-md bg-amber-300 px-3 py-1 text-[11px] font-semibold text-slate-900 transition hover:bg-amber-200 disabled:opacity-50"
+            >
+              {creating ? "Création…" : "Valider"}
+            </button>
+            <button
+              type="button"
+              onClick={cancelPending}
+              disabled={creating}
+              className="rounded-md border border-slate-600 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:bg-slate-800"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Après une réponse directe : creuser avec l'agent pertinent */}
+      {!pending && followup && (
+        <button
+          type="button"
+          onClick={() => router.push(`/dashboard/agents/${followup.agentKey}?ask=${encodeURIComponent(followup.ask)}`)}
+          className="mt-2 rounded-md border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-200 transition hover:bg-amber-400/20"
+        >
+          Creuser avec {followup.name} →
+        </button>
+      )}
+
+      {/* Brief du jour + mode veille */}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void runBrief()}
+          disabled={busy || status === "listening"}
+          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
+        >
+          ☀️ Brief du jour
+        </button>
+        <button
+          type="button"
+          onClick={toggleVeille}
+          title="Mode veille : le brief ne remonte que les exceptions (alertes en tension, syncs en échec)."
+          className={`flex items-center gap-1.5 text-[11px] font-medium transition ${veille ? "text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
+        >
+          <span className={`relative inline-block h-3.5 w-6 rounded-full transition ${veille ? "bg-amber-300/70" : "bg-slate-700"}`}>
+            <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-slate-950 transition-all ${veille ? "left-3" : "left-0.5"}`} />
+          </span>
+          Veille
+        </button>
+      </div>
     </div>
   );
 }
@@ -330,8 +634,8 @@ export function RevoldControlTower() {
         <RevoldOrb />
       </div>
       <p className="relative z-10 text-center text-xs leading-relaxed text-slate-400">
-        Appelle un agent ou un coach à la voix : je le briefe avec ta demande
-        et je t&apos;emmène directement sur son chat, réponse en cours.
+        Réponse directe, brief santé, création d&apos;alertes, navigation et
+        agents briefés — à la voix.
       </p>
     </div>
   );
