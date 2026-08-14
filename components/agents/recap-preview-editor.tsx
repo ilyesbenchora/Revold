@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ReportChart } from "./agent-report";
-import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
+import { entityLabel, dimLabel, ENTITY_SOURCE_CATEGORY } from "@/lib/reports/data-table-presets";
+import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 /**
@@ -309,6 +310,19 @@ export function RecapPreviewEditor({
                   <dt className="text-slate-500">Regroupement</dt>
                   <dd className="font-medium text-slate-700">{dimLabel(proposal.entity, proposal.group_by)}</dd>
                 </div>
+                {(() => {
+                  // Outil(s) de câblage : les outils sources de l'agent qui alimentent l'entité.
+                  const cat = ENTITY_SOURCE_CATEGORY[proposal.entity];
+                  const wired = sourceKeys
+                    .map((k) => getConnectableTool(k))
+                    .filter((t): t is NonNullable<typeof t> => !!t && t.category === cat);
+                  return wired.length > 0 ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-500">Câblé sur</dt>
+                      <dd className="font-medium text-slate-700">{wired.map((t) => t.label).join(" · ")}</dd>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex justify-between gap-3">
                   <dt className="text-slate-500">Données trouvées</dt>
                   <dd className={`font-semibold ${proposalRows.length > 0 ? "text-emerald-600" : "text-rose-500"}`}>

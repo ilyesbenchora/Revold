@@ -7,7 +7,7 @@
  * (localStorage partagé, événement `revold:tower-settings`).
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useTowerSettings,
   readTowerSettings,
@@ -16,7 +16,7 @@ import {
   type TowerSettings,
   type BriefCustomItem,
 } from "@/lib/voice/tower-settings";
-import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
+import { entityLabel, dimLabel, ENTITY_SOURCE_CATEGORY } from "@/lib/reports/data-table-presets";
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
@@ -138,6 +138,18 @@ function AddCustomBriefData({ onAdd }: { onAdd: (item: BriefCustomItem) => void 
   } | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [rowCount, setRowCount] = useState(0);
+  // Outils connectés — pour afficher sur QUEL outil le KPI est câblé.
+  const [tools, setTools] = useState<{ key: string; label: string; category: string }[]>([]);
+  useEffect(() => {
+    if (!open || tools.length > 0) return;
+    let alive = true;
+    fetch("/api/integrations/connected")
+      .then((r) => (r.ok ? r.json() : { tools: [] }))
+      .then((d) => { if (alive && Array.isArray(d.tools)) setTools(d.tools); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function reset() {
     setOpen(false); setKpi(""); setProposal(null); setTotal(null); setRowCount(0); setError(null);
@@ -236,7 +248,15 @@ function AddCustomBriefData({ onAdd }: { onAdd: (item: BriefCustomItem) => void 
         <div className="mt-2 rounded-md border border-accent/30 bg-indigo-50/40 p-2">
           <p className="text-[11px] text-slate-700">
             <span className="font-semibold">{proposal.title || kpi}</span> — {entityLabel(proposal.entity)} par{" "}
-            {dimLabel(proposal.entity, proposal.group_by).toLowerCase()} ·{" "}
+            {dimLabel(proposal.entity, proposal.group_by).toLowerCase()}
+            {(() => {
+              // Outil(s) de câblage : les outils connectés qui alimentent l'entité.
+              const wired = tools.filter((t) => t.category === ENTITY_SOURCE_CATEGORY[proposal.entity]);
+              return wired.length > 0 ? (
+                <> · câblé sur <span className="font-semibold">{wired.map((t) => t.label).join(" · ")}</span></>
+              ) : null;
+            })()}{" "}
+            ·{" "}
             <span className={rowCount > 0 ? "font-semibold text-emerald-600" : "font-semibold text-rose-500"}>
               {rowCount} ligne{rowCount > 1 ? "s" : ""} · total {fmt(total)}
             </span>
