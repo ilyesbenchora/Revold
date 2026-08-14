@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ReportArtifact } from "./report-artifact";
 import { RoutineReportCard } from "./routine-report-card";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
-import { listSavedReports, removeSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
+import { listSavedReports, removeSavedReport, updateSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 
 function fmtDate(ts: number): string {
   return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
@@ -50,10 +50,22 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
 
   // Rapports issus d'une routine : affichés en PLEINE LARGEUR sous le chat
   // (visuel cockpit détaillé + analyse écrite). Les rapports enregistrés à la
-  // main gardent le carrousel compact.
-  const routineReports = reports.filter((r) => r.origin === "routine");
+  // main gardent le carrousel compact. Les rapports « retirés de l'affichage »
+  // restent visibles dans /dashboard/mes-rapports.
+  const routineReports = reports.filter((r) => r.origin === "routine" && !r.hidden);
   const manualReports = reports.filter((r) => r.origin !== "routine");
   const hasMany = manualReports.length > 1;
+
+  // Seul le rapport le PLUS RÉCENT est déplié par défaut — les anciens sont
+  // repliés (bandeau seul), dépliables à la demande.
+  const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
+  const isCollapsed = (id: string, index: number) => collapseOverrides[id] ?? index > 0;
+  const toggleCollapse = (id: string, index: number) =>
+    setCollapseOverrides((prev) => ({ ...prev, [id]: !isCollapsed(id, index) }));
+  function hideReport(id: string) {
+    updateSavedReport(id, { hidden: true });
+    refresh();
+  }
 
   return (
     <>
@@ -63,8 +75,15 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
           <span>🕘</span> Rapports de routine
           <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{routineReports.length}</span>
         </h2>
-        {routineReports.map((r) => (
-          <RoutineReportCard key={r.id} report={r} onDelete={del} />
+        {routineReports.map((r, i) => (
+          <RoutineReportCard
+            key={r.id}
+            report={r}
+            onDelete={del}
+            collapsed={isCollapsed(r.id, i)}
+            onToggleCollapse={() => toggleCollapse(r.id, i)}
+            onHide={hideReport}
+          />
         ))}
       </section>
     )}

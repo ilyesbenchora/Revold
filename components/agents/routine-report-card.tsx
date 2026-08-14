@@ -105,7 +105,21 @@ function ChartOnly({ chart }: { chart: ChartProposal }) {
   return <BlockCard block={{ type, data: chart.data }} />;
 }
 
-export function RoutineReportCard({ report: r, onDelete }: { report: SavedReport; onDelete: (id: string) => void }) {
+export function RoutineReportCard({
+  report: r,
+  onDelete,
+  collapsed = false,
+  onToggleCollapse,
+  onHide,
+}: {
+  report: SavedReport;
+  onDelete: (id: string) => void;
+  /** Rapport replié : seul le bandeau d'en-tête est affiché. */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  /** Retire le rapport de l'affichage de la page agent (gardé dans « Mes rapports »). */
+  onHide?: (id: string) => void;
+}) {
   return (
     <article className="card overflow-hidden">
       {/* En-tête — même bandeau que les tables de données */}
@@ -118,15 +132,36 @@ export function RoutineReportCard({ report: r, onDelete }: { report: SavedReport
             <span className="text-[11px] text-slate-400">Généré le {fmtDate(r.savedAt)} · {r.agentLabel}</span>
           </div>
           <h3 className="mt-1.5 text-base font-semibold text-slate-900 sm:text-lg">{stripPeriodFromTitle(r.title)}</h3>
-          {r.summary && <p className="mt-0.5 max-w-3xl text-sm text-slate-500">{r.summary}</p>}
+          {!collapsed && r.summary && <p className="mt-0.5 max-w-3xl text-sm text-slate-500">{r.summary}</p>}
         </div>
-        <button
-          onClick={() => onDelete(r.id)}
-          className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-        >
-          Supprimer
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-500 transition hover:border-fuchsia-200 hover:bg-fuchsia-50 hover:text-fuchsia-600"
+            >
+              {collapsed ? "▼ Afficher" : "▲ Réduire"}
+            </button>
+          )}
+          {onHide && (
+            <button
+              onClick={() => onHide(r.id)}
+              title="Retirer de cette page — le rapport reste dans « Mes rapports »"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-500 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+            >
+              Retirer de l&apos;affichage
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(r.id)}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+          >
+            Supprimer
+          </button>
+        </div>
       </div>
+      {collapsed ? null : (
+      <>
 
       <div className="p-4 sm:p-5">
         {/* Rapport visuel — deux colonnes pour limiter le scroll vertical */}
@@ -144,6 +179,8 @@ export function RoutineReportCard({ report: r, onDelete }: { report: SavedReport
           </div>
         )}
       </div>
+      </>
+      )}
     </article>
   );
 }

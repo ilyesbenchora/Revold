@@ -22,6 +22,8 @@ export type SavedReport = {
   routineLabel?: string;
   /** Analyse écrite détaillée de l'agent (rapports de routine, affichage pleine largeur). */
   analysis?: string;
+  /** Retiré de l'affichage de la page agent — reste visible dans « Mes rapports ». */
+  hidden?: boolean;
 };
 
 export const SAVED_REPORTS_KEY = "revold:saved-reports:v1";
@@ -96,6 +98,20 @@ export function markReportSaved(key: string): void {
   try {
     const cur = readSavedKeys();
     if (!cur.includes(key)) localStorage.setItem(SAVED_KEYS_KEY, JSON.stringify([key, ...cur].slice(0, 500)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Met à jour un rapport enregistré (ex : le masquer de la page agent). */
+export function updateSavedReport(id: string, patch: Partial<SavedReport>): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      SAVED_REPORTS_KEY,
+      JSON.stringify(listSavedReports().map((r) => (r.id === id ? { ...r, ...patch } : r))),
+    );
+    notifyReportsUpdated();
   } catch {
     /* ignore */
   }

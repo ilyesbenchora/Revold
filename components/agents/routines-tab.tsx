@@ -21,7 +21,8 @@ import {
   type Routine,
 } from "./routines";
 import { addSavedReport } from "./saved-reports";
-import { AgentReport, ReportChart } from "./agent-report";
+import { ReportChart } from "./agent-report";
+import { RecapPreviewEditor } from "./recap-preview-editor";
 import type { ReportSpec, ChartProposal, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
 const FREQUENCIES: RoutineFrequency[] = ["daily", "weekly", "monthly", "quarterly", "yearly"];
@@ -478,10 +479,16 @@ export function RoutinesTab({
         {recapPreview && (
           <div className="mt-3 space-y-3 border-t border-fuchsia-100 pt-3">
             <p className="text-[11px] font-semibold text-slate-600">
-              Aperçu du récap — vérifie les KPIs, ajuste via {agentLabel} si besoin, puis enregistre.
+              Aperçu du récap — retire un KPI (✕), réordonne les blocs (glisser-déposer), ajoute un KPI câblé,
+              ou ajuste via {agentLabel}. Puis enregistre.
             </p>
             {recapPreview.report ? (
-              <AgentReport spec={recapPreview.report} />
+              <RecapPreviewEditor
+                spec={recapPreview.report}
+                onChange={(spec) => setRecapPreview((p) => (p ? { ...p, report: spec } : p))}
+                agentKey={agentKey}
+                sourceKeys={sourceKeys}
+              />
             ) : recapPreview.chart ? (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <ReportChart block={{ type: (recapPreview.chart.defaultType || "bar") as ReportBlock["type"], data: recapPreview.chart.data }} />
