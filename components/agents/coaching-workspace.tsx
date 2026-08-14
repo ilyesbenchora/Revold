@@ -56,6 +56,7 @@ export function CoachingWorkspace({
   reportBrief = null,
   persona,
   initialTab,
+  initialAsk,
 }: {
   category: string;
   coachLabel: string;
@@ -70,6 +71,8 @@ export function CoachingWorkspace({
   reportBrief?: { objectives: string; pains: string } | null;
   /** Personnage de l'agent (avatar dans les bulles). */
   persona?: { name: string; emoji: string; image?: string | null } | null;
+  /** Tour de contrôle vocale (?ask=…) : demande exécutée automatiquement. */
+  initialAsk?: string | null;
   /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
   initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions" | "routines";
 }) {
@@ -227,6 +230,7 @@ export function CoachingWorkspace({
         openConversationSignal={openConv}
         persona={persona}
         initialTab={initialTab}
+        initialAsk={initialAsk}
       />
 
       {/* Les rapports enregistrés sont rendus par la PAGE (AgentPageShell) :

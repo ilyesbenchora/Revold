@@ -106,6 +106,7 @@ export function PaiementAgentChat({
   openConversationSignal,
   persona,
   initialTab,
+  initialAsk,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -131,6 +132,8 @@ export function PaiementAgentChat({
   persona?: { name: string; emoji: string; image?: string | null } | null;
   /** Onglet ouvert à l'arrivée (deep-link depuis les compteurs d'agent). */
   initialTab?: "chat" | "history" | "alerts" | "suggestions" | "actions" | "routines";
+  /** Tour de contrôle vocale (?ask=…) : demande envoyée AUTOMATIQUEMENT à l'arrivée. */
+  initialAsk?: string | null;
 }) {
   // Mode coaching : les sources reflètent EXACTEMENT l'agenda (même vide), et les
   // fichiers du coaching sont épinglés comme contexte permanent (non supprimables).
@@ -447,6 +450,21 @@ export function PaiementAgentChat({
   }
 
   const START_TEXT = "Démarrer ma séance de coaching du jour";
+
+  // Tour de contrôle vocale : la demande dictée arrive via ?ask=… et part
+  // AUTOMATIQUEMENT sur une conversation neuve (exécutée une seule fois).
+  const initialAskSent = useRef(false);
+  useEffect(() => {
+    const ask = (initialAsk ?? "").trim();
+    if (!ask || initialAskSent.current || loading) return;
+    initialAskSent.current = true;
+    setTab("chat");
+    const id = newId();
+    setCurrentId(id);
+    setMessages([]);
+    void runSend([], ask, id, selected, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAsk]);
 
   function send(text: string, viaVoice = false) {
     const content = text.trim();

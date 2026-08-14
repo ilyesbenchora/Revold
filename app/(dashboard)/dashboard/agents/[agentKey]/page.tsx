@@ -110,6 +110,10 @@ export default async function AgentPage({
 
   // Deep-link d'onglet depuis les compteurs d'agent (?tab=history|suggestions|alerts|actions).
   const TABS = ["chat", "history", "alerts", "suggestions", "actions", "routines"] as const;
+  // Tour de contrôle vocale (?ask=…) : la demande dictée est exécutée
+  // automatiquement à l'ouverture du chat.
+  const initialAsk = typeof sp.ask === "string" && sp.ask.trim() ? sp.ask.trim().slice(0, 600) : null;
+
   const initialTab = typeof sp.tab === "string" && (TABS as readonly string[]).includes(sp.tab)
     ? (sp.tab as (typeof TABS)[number])
     : undefined;
@@ -164,6 +168,7 @@ export default async function AgentPage({
             coachLabel={coachLabel}
             initialAgenda={agenda ?? {}}
             initialTab={initialTab}
+            initialAsk={initialAsk}
             availableSources={sources}
             agentKey={agent.key}
             agentLabel={agent.label}
@@ -181,6 +186,7 @@ export default async function AgentPage({
             suggestions={agent.suggestions}
             suggestionSets={agent.suggestionSets ?? null}
             initialTab={initialTab}
+            initialAsk={initialAsk}
             persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
           />
         )

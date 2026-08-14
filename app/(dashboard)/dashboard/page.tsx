@@ -5,6 +5,7 @@ import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/sup
 import Link from "next/link";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { AgentsFamily } from "@/components/agents/agents-family";
+import { RevoldControlTower } from "@/components/voice/revold-orb";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
@@ -227,8 +228,14 @@ export default async function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* Photo de famille des agents IA — présente l'équipe dès la home */}
-      <AgentsFamily />
+      {/* Photo de famille des agents IA + tour de contrôle vocale « Jarvis » :
+          l'orbe route une demande dictée vers le bon agent, chat pré-exécuté. */}
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <AgentsFamily />
+        </div>
+        <RevoldControlTower />
+      </div>
 
       {/* Hero — KPIs essentiels (6 tuiles dynamiques, layout adaptatif) */}
       <div className="card overflow-hidden">
