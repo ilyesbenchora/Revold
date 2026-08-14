@@ -20,7 +20,8 @@ import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { computeObjectSummaries } from "@/lib/audit/object-summaries";
 import { computeUnmatchedReport, computeWonDealsReadiness, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
-import { DedupRules, DEFAULT_DEDUP_RULES, type DedupRule } from "@/components/dedup-rules";
+import { DedupRules } from "@/components/dedup-rules";
+import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import Link from "next/link";
 
 /** Badges des causes de non-rapprochement (diagnostic entreprises). */
