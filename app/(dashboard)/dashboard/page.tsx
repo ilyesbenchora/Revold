@@ -19,8 +19,12 @@ import {
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
-import { getPageCustomization } from "@/lib/kpi/page-tiles";
-import { HomeHeroKpis, type HomeKpi } from "@/components/home-hero-kpis";
+import { getPageCustomization, formatTileValue } from "@/lib/kpi/page-tiles";
+import { allTileSuggestions } from "@/lib/kpi/tile-catalog";
+import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
+import { valueFromAggSpec } from "@/lib/alerts/agg-value";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { HomeHeroKpis, type HomeKpi, type HomeKpiSuggestion } from "@/components/home-hero-kpis";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -93,6 +97,30 @@ export default async function DashboardOverviewPage() {
 
   // ── Bloc héro personnalisable : catalogue de KPIs + sélection persistée
   // (page_tiles, page_key « home_hero ») — 5 affichés maximum. ──
+  // Volumes RÉELS comptés sur les tables canoniques (le contexte insights peut
+  // sous-compter → plus de suggestions à 0 quand la donnée existe).
+  const countRows = async (table: string): Promise<number | null> => {
+    try {
+      const { count, error } = await supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+      return error ? null : count ?? 0;
+    } catch {
+      return null;
+    }
+  };
+  const [dealsCount, invoicesCount, subsCount, contactsCount, companiesCount, ticketsCount, txCount] =
+    await Promise.all([
+      countRows("deals"),
+      countRows("invoices"),
+      countRows("subscriptions"),
+      countRows("contacts"),
+      countRows("companies"),
+      countRows("tickets"),
+      countRows("bank_transactions"),
+    ]);
+
   const HOME_KPIS: HomeKpi[] = [
     {
       id: "integrations",
@@ -106,16 +134,64 @@ export default async function DashboardOverviewPage() {
     { id: "previsions", label: "Prévisions", value: simulationsTotal.toLocaleString("fr-FR"), href: "/dashboard/simulations", color: "text-amber-600" },
     { id: "rapports", label: "Rapports actionnables", value: reportsTotal.toLocaleString("fr-FR"), href: "/dashboard/rapports", color: "text-emerald-600" },
     { id: "revenue", label: "Données Revenue analysées", value: revenueRecordsTotal.toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-teal-600" },
-    { id: "deals", label: "Deals analysés", value: (ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
-    { id: "invoices", label: "Factures analysées", value: (ctx.invoicesCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-sky-600" },
-    { id: "subscriptions", label: "Abonnements suivis", value: (ctx.subscriptionsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-violet-600" },
-    { id: "contacts", label: "Contacts", value: snapshot.totalContacts.toLocaleString("fr-FR"), href: "/dashboard/performances/marketing", color: "text-rose-600" },
-    { id: "companies", label: "Entreprises", value: snapshot.totalCompanies.toLocaleString("fr-FR"), href: "/dashboard/donnees", color: "text-cyan-600" },
+    { id: "deals", label: "Deals analysés", value: (dealsCount ?? ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
+    { id: "invoices", label: "Factures analysées", value: (invoicesCount ?? ctx.invoicesCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-sky-600" },
+    { id: "subscriptions", label: "Abonnements suivis", value: (subsCount ?? ctx.subscriptionsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-violet-600" },
+    { id: "contacts", label: "Contacts", value: (contactsCount ?? snapshot.totalContacts).toLocaleString("fr-FR"), href: "/dashboard/performances/marketing", color: "text-rose-600" },
+    { id: "companies", label: "Entreprises", value: (companiesCount ?? snapshot.totalCompanies).toLocaleString("fr-FR"), href: "/dashboard/donnees", color: "text-cyan-600" },
+    { id: "tickets", label: "Tickets support", value: (ticketsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/service-client", color: "text-orange-600" },
+    { id: "transactions", label: "Transactions bancaires", value: (txCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-lime-600" },
   ];
   const DEFAULT_HOME_KPIS = ["integrations", "coaching", "previsions", "rapports", "revenue"];
   const homeCust = await getPageCustomization(supabase, orgId, "home_hero");
-  const homeKpiIds = homeCust.tileOrder.filter((id) => HOME_KPIS.some((k) => k.id === id));
-  const selectedHomeKpis = (homeKpiIds.length > 0 ? homeKpiIds : DEFAULT_HOME_KPIS).slice(0, 5);
+
+  // ── Suggestions PERSONNALISÉES (catalogue complet des KPIs par pôle) :
+  // celles sélectionnées sont résolues ici (forecast_type ou agg_spec), les
+  // autres sont proposées dans la liste exhaustive « ＋ Plus de KPIs ». ──
+  const allSuggestions = allTileSuggestions();
+  const TEAM_HREF: Record<string, string> = {
+    sales: "/dashboard/performances",
+    marketing: "/dashboard/performances/marketing",
+    cs: "/dashboard/audit/service-client",
+    revops: "/dashboard/reporting",
+    ops: "/dashboard/donnees",
+    billing: "/dashboard/audit/paiement-facturation",
+    support: "/dashboard/audit/service-client",
+  };
+  const storedIds = homeCust.tileOrder.filter(
+    (id) => HOME_KPIS.some((k) => k.id === id) || (id.startsWith("sug:") && allSuggestions.some((s) => `sug:${s.id}` === id)),
+  );
+  const selectedHomeKpis = (storedIds.length > 0 ? storedIds : DEFAULT_HOME_KPIS).slice(0, 5);
+  // Résolution des suggestions sélectionnées (5 max → coût borné).
+  const pickedSuggestions = selectedHomeKpis
+    .filter((id) => id.startsWith("sug:"))
+    .map((id) => allSuggestions.find((s) => `sug:${s.id}` === id))
+    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  if (pickedSuggestions.length > 0) {
+    const token = pickedSuggestions.some((s) => s.aggSpec) ? await getHubSpotToken(supabase, orgId) : null;
+    await Promise.all(
+      pickedSuggestions.map(async (s) => {
+        let value: number | null = null;
+        try {
+          if (s.forecastType) value = await resolveKpiValue(supabase, orgId, s.forecastType);
+          else if (s.aggSpec) value = await valueFromAggSpec(supabase, orgId, token, s.aggSpec);
+        } catch {}
+        HOME_KPIS.push({
+          id: `sug:${s.id}`,
+          label: s.label,
+          value: formatTileValue(value, s.unit),
+          href: TEAM_HREF[s.team] ?? "/dashboard/reporting",
+          color: "text-indigo-600",
+        });
+      }),
+    );
+  }
+  const homeSuggestions: HomeKpiSuggestion[] = allSuggestions.map((s) => ({
+    id: `sug:${s.id}`,
+    label: s.label,
+    description: s.description,
+    group: s.team,
+  }));
 
   // ── Cards des sections principales — actionables, sans badge score ──
   const sections = [
@@ -272,7 +348,7 @@ export default async function DashboardOverviewPage() {
       {/* Hero — KPIs essentiels PERSONNALISABLES (retrait/ajout, 5 max) */}
       <div className="card overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-accent via-indigo-500 to-fuchsia-500" />
-        <HomeHeroKpis kpis={HOME_KPIS} initialSelected={selectedHomeKpis} />
+        <HomeHeroKpis kpis={HOME_KPIS} initialSelected={selectedHomeKpis} suggestions={homeSuggestions} />
         {!hubspotConnected && (
           <div className="px-6 pb-6">
             <div className="flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-2.5">

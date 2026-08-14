@@ -81,6 +81,33 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
 };
 
+/**
+ * Catalogue COMPLET des suggestions de KPI, toutes équipes confondues —
+ * alimente la liste exhaustive du bloc héro de la home (« ＋ Plus de KPIs »).
+ * Dédupliqué par id, chaque entrée porte son équipe d'origine.
+ */
+export function allTileSuggestions(): (TileSuggestion & { team: string })[] {
+  const groups: [string, TileSuggestion[]][] = [
+    ["sales", fromKpiDefs(kpisByTeam.sales)],
+    ["marketing", fromKpiDefs(kpisByTeam.marketing)],
+    ["cs", fromKpiDefs(kpisByTeam.cs)],
+    ["revops", fromKpiDefs(kpisByTeam.revops)],
+    ["ops", fromKpiDefs(kpisByTeam.ops)],
+    ["billing", BILLING_TILES],
+    ["support", SUPPORT_TILES],
+  ];
+  const seen = new Set<string>();
+  const out: (TileSuggestion & { team: string })[] = [];
+  for (const [team, list] of groups) {
+    for (const s of list) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      out.push({ ...s, team });
+    }
+  }
+  return out;
+}
+
 export function tileSuggestionsForPage(pageKey: string): TileSuggestion[] {
   // Dédupliqué par id : pipeline_coverage / deal_activation existent dans sales ET revops.
   const seen = new Set<string>();
