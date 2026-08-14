@@ -25,6 +25,7 @@ import { computeBillingRadar, computeWonToInvoiceDetail } from "@/lib/audit/bill
 import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { HBarChart } from "@/components/charts/hbar-chart";
+import { CreateInvoiceTaskButton } from "@/components/billing/create-invoice-task-button";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
@@ -117,8 +118,9 @@ export default async function PaiementFacturationOverviewPage({
   const radar = await computeBillingRadar(supabase, orgId);
 
   // ── Du closing à la 1re facture : délai réel gagné → facturation (la
-  //    close_date remonte automatiquement au passage en « gagné »). ──
-  const wonToInvoice = await computeWonToInvoiceDetail(supabase, orgId);
+  //    close_date remonte automatiquement au passage en « gagné »), chaîne
+  //    complète jusqu'à l'encaissement + ventilation par owner. ──
+  const wonToInvoice = await computeWonToInvoiceDetail(supabase, orgId, token);
 
   // ── Séries pour les graphes de la vue croisée (style cockpit Lomed) :
   //    CA signé par mois, marge mensuelle et projection 12 mois. ──
@@ -351,6 +353,49 @@ export default async function PaiementFacturationOverviewPage({
               </div>
             </div>
 
+            {/* Chaîne complète : gagné → facturé → encaissé (cash conversion réel) */}
+            {wonToInvoice.chain.toInvoice != null && (
+              <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-slate-900">{wonToInvoice.chain.toInvoice} j</p>
+                  <p className="text-[10px] text-slate-400">gagné → facturé</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-slate-900">
+                    {wonToInvoice.chain.toPaid != null ? `${wonToInvoice.chain.toPaid} j` : "—"}
+                  </p>
+                  <p className="text-[10px] text-slate-400">facturé → encaissé</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-indigo-600">
+                    {wonToInvoice.chain.total != null ? `${wonToInvoice.chain.total} j` : "—"}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    cycle cash total{wonToInvoice.chain.samplePaid > 0 ? ` (${wonToInvoice.chain.samplePaid} mesurés)` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Ventilation par owner : qui déclenche la facturation en retard ? */}
+            {wonToInvoice.byOwner.length > 1 && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Délai de facturation par owner</p>
+                <p className="mb-3 text-[10px] text-slate-400">
+                  Délai médian closing → 1re facture par commercial — matière à coaching pour les retardataires
+                </p>
+                <HBarChart
+                  unit="count"
+                  showPct={false}
+                  items={wonToInvoice.byOwner.slice(0, 8).map((o) => ({
+                    label: `${o.ownerName} (${o.sample} deal${o.sample > 1 ? "s" : ""}${o.unbilledCount > 0 ? ` · ${o.unbilledCount} non facturé${o.unbilledCount > 1 ? "s" : ""}` : ""})`,
+                    value: o.medianDelay,
+                    color: o.medianDelay > 30 ? "#f43f5e" : o.medianDelay > 10 ? "#f59e0b" : "#10b981",
+                  }))}
+                />
+              </div>
+            )}
+
             {/* Évolution du délai médian par mois de closing */}
             {wonToInvoice.monthly.length > 1 && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -383,6 +428,19 @@ export default async function PaiementFacturationOverviewPage({
                       <p className="mt-0.5 text-[11px] text-slate-500">
                         Gagné le {new Date(d.closeDate).toLocaleDateString("fr-FR")} — aucune facture émise depuis.
                       </p>
+                      {/* Action human-in-the-loop : tâche HubSpot assignée au owner. */}
+                      {d.dealHubspotId && (
+                        <div className="mt-1">
+                          <CreateInvoiceTaskButton
+                            dealHubspotId={d.dealHubspotId}
+                            dealName={d.dealName}
+                            companyName={d.companyName}
+                            ownerId={d.ownerId}
+                            amount={d.amount}
+                            daysSince={d.daysSince}
+                          />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -394,8 +452,8 @@ export default async function PaiementFacturationOverviewPage({
             )}
 
             <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400">
-              Le délai médian est aussi disponible en tuile alertable : « Deal gagné → 1re facture (délai médian) »
-              via ＋ Ajouter un bloc.
+              Tuiles alertables disponibles via ＋ Ajouter un bloc : « Deal gagné → 1re facture (délai médian) »
+              et « Deals gagnés sans facture » (cloche = notification dès qu&apos;un gagné n&apos;est pas facturé).
             </p>
           </div>
         </RemovableBlock>

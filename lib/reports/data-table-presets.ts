@@ -204,6 +204,7 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     // ── Radar de facturation : factures attendues (rythme observé dans la
     //    facturation / fin de contrat CRM) non émises — l'amont du recouvrement ──
     { id: "billing_radar_overdue", label: "Factures attendues en retard", entity: "invoices", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "billing_radar_overdue", tileOnly: true },
+    { id: "won_unbilled_count", label: "Deals gagnés sans facture", entity: "deals", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "won_unbilled_count", tileOnly: true, requiresCategories: ["crm", "billing"] },
     // ── Relais inter-services (ex-tuiles Alignement) : délais médians mesurés
     //    par le moteur de réconciliation (jointures réelles CRM × facturation) ──
     { id: "deal_won_to_first_invoice", label: "Deal gagné → 1re facture (délai médian)", entity: "deals", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "deal_won_to_first_invoice", tileOnly: true, requiresCategories: ["crm", "billing"] },

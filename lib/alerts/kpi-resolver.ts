@@ -174,6 +174,16 @@ export async function resolveKpiValue(
     }
   }
 
+  // ── Deals gagnés sans facture après 15 j — la fuite closing → facturation. ──
+  if (forecastType === "won_unbilled_count") {
+    const { countWonUnbilled } = await import("@/lib/audit/billing-radar");
+    try {
+      return await countWonUnbilled(supabase, orgId);
+    } catch {
+      return null;
+    }
+  }
+
   const { getHubSpotToken } = await import("@/lib/integrations/get-hubspot-token");
   const token = await getHubSpotToken(supabase, orgId);
 
