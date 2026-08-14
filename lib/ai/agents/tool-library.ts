@@ -720,13 +720,14 @@ export type AggregateSpec = {
 // l'agrégat. kind pilote le formatage côté client (currency/date/text).
 const DETAIL_COLUMNS: Record<string, string> = {
   deals:
-    "name, amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability), companies(name)",
+    "name, amount, created_date, close_date, days_in_stage, last_activity_at, is_at_risk, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability), companies(name)",
   invoices:
     "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, companies(name)",
-  subscriptions: "mrr, status, primary_source, started_at, canceled_at, companies(name)",
+  subscriptions: "mrr, status, primary_source, started_at, canceled_at, current_period_end, companies(name)",
   transactions: "label, amount, date, category, primary_source",
-  companies: "name, segment, industry, country_code",
-  contacts: "full_name, email, lifecycle_stage, hs_created_at, is_mql, is_sql",
+  companies: "name, domain, segment, industry, country_code, annual_revenue, employee_count, created_at",
+  contacts: "full_name, email, title, phone, lifecycle_stage, hs_created_at, is_mql, is_sql, companies(name)",
+  tickets: "subject, status, priority, channel, assignee_email, opened_at, resolved_at, primary_source",
 };
 
 export type DetailColumn = {
@@ -754,6 +755,9 @@ const DETAIL_FIELDS: Record<string, DetailField[]> = {
     { id: "closed", label: "Closing", kind: "date", default: true, value: (r) => r.close_date ?? null },
     { id: "pipeline", label: "Pipeline", value: (r) => relField(r.pipeline_stages, "pipeline_name") ?? "—" },
     { id: "probability", label: "Probabilité", kind: "percent", value: (r) => relNum(r.pipeline_stages, "probability") },
+    { id: "days_in_stage", label: "Jours dans l'étape", kind: "count", value: (r) => Number(r.days_in_stage) || 0 },
+    { id: "last_activity", label: "Dernière activité", kind: "date", value: (r) => r.last_activity_at ?? null },
+    { id: "at_risk", label: "À risque", value: (r) => (r.is_at_risk ? "Oui" : "—") },
   ],
   invoices: [
     { id: "number", label: "Facture", default: true, value: (r) => r.number ?? "—" },
@@ -775,6 +779,7 @@ const DETAIL_FIELDS: Record<string, DetailField[]> = {
     { id: "canceled", label: "Annulé le", kind: "date", default: true, value: (r) => r.canceled_at ?? null },
     { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
     { id: "arr", label: "ARR", kind: "currency", value: (r) => Math.round((Number(r.mrr) || 0) * 12) },
+    { id: "period_end", label: "Fin de période", kind: "date", value: (r) => r.current_period_end ?? null },
   ],
   transactions: [
     { id: "label", label: "Libellé", default: true, value: (r) => r.label ?? "—" },
@@ -788,16 +793,32 @@ const DETAIL_FIELDS: Record<string, DetailField[]> = {
     { id: "segment", label: "Segment", default: true, value: (r) => r.segment ?? "—" },
     { id: "industry", label: "Industrie", default: true, value: (r) => r.industry ?? "—" },
     { id: "country", label: "Pays", default: true, value: (r) => r.country_code ?? "—" },
+    { id: "domain", label: "Domaine", value: (r) => r.domain ?? "—" },
+    { id: "revenue", label: "CA annuel", kind: "currency", value: (r) => (r.annual_revenue == null ? null : Number(r.annual_revenue) || 0) },
+    { id: "employees", label: "Effectif", kind: "count", value: (r) => (r.employee_count == null ? null : Number(r.employee_count) || 0) },
+    { id: "created", label: "Créée le", kind: "date", value: (r) => r.created_at ?? null },
   ],
   contacts: [
     { id: "name", label: "Contact", default: true, value: (r) => r.full_name ?? "—" },
     { id: "email", label: "Email", default: true, value: (r) => r.email ?? "—" },
     { id: "lifecycle", label: "Lifecycle", default: true, value: (r) => r.lifecycle_stage ?? "—" },
     { id: "created", label: "Créé le", kind: "date", default: true, value: (r) => r.hs_created_at ?? null },
+    { id: "company", label: "Entreprise", value: (r) => relField(r.companies, "name") ?? "—" },
+    { id: "title", label: "Fonction", value: (r) => r.title ?? "—" },
+    { id: "phone", label: "Téléphone", value: (r) => r.phone ?? "—" },
     { id: "mql", label: "MQL", value: (r) => (r.is_mql ? "Oui" : "—") },
     { id: "sql", label: "SQL", value: (r) => (r.is_sql ? "Oui" : "—") },
   ],
-  tickets: [{ id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" }],
+  tickets: [
+    { id: "subject", label: "Sujet", default: true, value: (r) => r.subject ?? "—" },
+    { id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" },
+    { id: "priority", label: "Priorité", default: true, value: (r) => r.priority ?? "—" },
+    { id: "opened", label: "Ouvert le", kind: "date", default: true, value: (r) => r.opened_at ?? null },
+    { id: "channel", label: "Canal", value: (r) => r.channel ?? "—" },
+    { id: "assignee", label: "Assigné à", value: (r) => r.assignee_email ?? "—" },
+    { id: "resolved", label: "Résolu le", kind: "date", value: (r) => r.resolved_at ?? null },
+    { id: "source", label: "Source", value: (r) => r.primary_source ?? "—" },
+  ],
 };
 
 /**

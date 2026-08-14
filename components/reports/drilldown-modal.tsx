@@ -18,6 +18,9 @@ export type DrilldownTarget = {
 
 type DetailColumn = { id: string; label: string; kind?: "text" | "currency" | "date" | "count" | "percent"; default?: boolean };
 
+const NUMERIC_KINDS = new Set(["currency", "count", "percent"]);
+const PAGE_SIZES = [10, 20, 50] as const;
+
 /** Choix de colonnes mémorisé par entité (deals, invoices…). */
 function colsStorageKey(entity: string) {
   return `revold:drill-cols:${entity}`;
@@ -37,16 +40,29 @@ function writeStoredCols(entity: string, ids: string[]) {
   } catch {}
 }
 
+/** Taille de page préférée, mémorisée globalement. */
+function readPageSize(): number {
+  try {
+    const v = Number(localStorage.getItem("revold:drill-pagesize"));
+    return (PAGE_SIZES as readonly number[]).includes(v) ? v : 10;
+  } catch {
+    return 10;
+  }
+}
+
 /**
  * DÉTAIL D'UN CHIFFRE (drill-down) : au clic sur une barre, un segment de
  * donut, un point de courbe, une ligne de table ou un total, ce modal liste
  * les enregistrements sous-jacents (contacts, deals, factures, abonnements,
  * transactions…) — mêmes filtres déterministes que le rapport.
  *
- * Les colonnes sont personnalisables (« Colonnes ») : retirables et
- * complétables via les suggestions du catalogue de l'entité du rapport
- * (ex. deals → Pipeline, Probabilité). Choix mémorisé par entité.
- * Le serveur renvoie toutes les valeurs : l'affichage filtre sans re-requête.
+ * - Colonnes personnalisables (« Colonnes ») avec suggestions par entité du
+ *   rapport, choix mémorisé ; le serveur renvoie toutes les valeurs et
+ *   l'affichage filtre côté client, sans re-requête.
+ * - Tri par colonne (flèches dans l'en-tête, asc/desc).
+ * - Pagination 10 (défaut) / 20 / 50 lignes, préférence mémorisée.
+ * - Table en layout fixe + cellules tronquées : tout tient dans la fenêtre,
+ *   aucun défilement horizontal (le contenu complet est en tooltip).
  */
 export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | null; onClose: () => void }) {
   const locale = useLocale();
@@ -59,6 +75,10 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
   // Personnalisation des colonnes affichées (null = défauts du catalogue).
   const [selectedCols, setSelectedCols] = useState<string[] | null>(null);
   const [colsOpen, setColsOpen] = useState(false);
+  // Tri + pagination (client : les enregistrements sont déjà chargés).
+  const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" } | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
   const entity = target?.query.entity ?? "";
 
@@ -70,6 +90,9 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
     setError(null);
     setRecords([]);
     setColsOpen(false);
+    setSort(null);
+    setPage(0);
+    setPageSize(readPageSize());
     setSelectedCols(readStoredCols(target.query.entity));
     fetch("/api/reports/drilldown", {
       method: "POST",
@@ -122,6 +145,31 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
       .filter(({ col }) => activeIds.includes(col.id));
   }, [columns, selectedCols]);
 
+  // Tri sur la valeur BRUTE (nombres pour montants/%, ISO pour dates, texte sinon).
+  const sorted = useMemo(() => {
+    if (!sort) return records;
+    const colIdx = columns.findIndex((c) => c.id === sort.id);
+    if (colIdx < 0) return records;
+    const kind = columns[colIdx].kind;
+    const mul = sort.dir === "asc" ? 1 : -1;
+    return [...records].sort((a, b) => {
+      const va = a[colIdx];
+      const vb = b[colIdx];
+      const aEmpty = va == null || va === "" || va === "—";
+      const bEmpty = vb == null || vb === "" || vb === "—";
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1; // valeurs vides toujours en fin de liste
+      if (bEmpty) return -1;
+      if (kind && NUMERIC_KINDS.has(kind)) return ((Number(va) || 0) - (Number(vb) || 0)) * mul;
+      if (kind === "date") return String(va).localeCompare(String(vb)) * mul;
+      return String(va).localeCompare(String(vb), locale, { sensitivity: "base", numeric: true }) * mul;
+    });
+  }, [records, sort, columns, locale]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
   if (!target || typeof document === "undefined") return null;
 
   function toggleCol(id: string) {
@@ -130,6 +178,17 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
     if (next.length === 0) return; // toujours au moins une colonne
     setSelectedCols(next);
     writeStoredCols(entity, next);
+  }
+
+  function toggleSort(id: string) {
+    setPage(0);
+    setSort((s) => (s?.id === id ? (s.dir === "asc" ? { id, dir: "desc" } : null) : { id, dir: "asc" }));
+  }
+
+  function changePageSize(n: number) {
+    setPageSize(n);
+    setPage(0);
+    try { localStorage.setItem("revold:drill-pagesize", String(n)); } catch {}
   }
 
   function fmtCell(v: unknown, kind?: DetailColumn["kind"]): string {
@@ -152,6 +211,9 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
       : formatBucketLabel(target.bucket.raw, locale)
     : "Total";
 
+  const rangeStart = sorted.length === 0 ? 0 : safePage * pageSize + 1;
+  const rangeEnd = Math.min(sorted.length, (safePage + 1) * pageSize);
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -170,7 +232,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
             <p className="mt-0.5 text-[11px] text-slate-400">
               {loading
                 ? "Chargement…"
-                : `${new Intl.NumberFormat(locale).format(total)} enregistrement${total > 1 ? "s" : ""}${truncated ? " (200 premiers affichés)" : ""}`}
+                : `${new Intl.NumberFormat(locale).format(total)} enregistrement${total > 1 ? "s" : ""}${truncated ? " (200 premiers chargés)" : ""}`}
             </p>
           </div>
           <div className="relative flex shrink-0 items-center gap-2">
@@ -197,7 +259,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
               ✕
             </button>
             {colsOpen && (
-              <div className="absolute right-0 top-9 z-10 w-56 rounded-xl border border-card-border bg-card p-2 shadow-xl">
+              <div className="absolute right-0 top-9 z-10 max-h-72 w-60 overflow-y-auto rounded-xl border border-card-border bg-card p-2 shadow-xl">
                 <p className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Colonnes affichées
                 </p>
@@ -221,7 +283,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto" onClick={() => colsOpen && setColsOpen(false)}>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" onClick={() => colsOpen && setColsOpen(false)}>
           {loading ? (
             <div className="flex h-40 items-center justify-center text-xs text-slate-400">Chargement du détail…</div>
           ) : error ? (
@@ -229,40 +291,103 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
           ) : records.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-xs text-slate-400">Aucun enregistrement.</div>
           ) : (
-            <table className="w-full text-left text-xs">
+            // Layout fixe : les colonnes se partagent la largeur, les contenus
+            // longs sont tronqués (tooltip) — jamais de scroll horizontal.
+            <table className="w-full table-fixed text-left text-xs">
               <thead className="sticky top-0 bg-slate-50">
                 <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
-                  {visible.map(({ col }) => (
-                    <th
-                      key={col.id}
-                      className={`px-3 py-2 font-semibold ${col.kind === "currency" || col.kind === "count" || col.kind === "percent" ? "text-right" : ""}`}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
+                  {visible.map(({ col }) => {
+                    const numeric = col.kind ? NUMERIC_KINDS.has(col.kind) : false;
+                    const active = sort?.id === col.id;
+                    return (
+                      <th key={col.id} className="px-0 py-0 font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.id)}
+                          title={`Trier par ${col.label}`}
+                          className={`flex w-full items-center gap-1 px-3 py-2 uppercase transition hover:text-indigo-600 ${
+                            numeric ? "justify-end text-right" : "justify-start text-left"
+                          } ${active ? "text-indigo-600" : ""}`}
+                        >
+                          <span className="truncate">{col.label}</span>
+                          <span className="shrink-0 text-[9px] leading-none">
+                            {active ? (sort!.dir === "asc" ? "▲" : "▼") : <span className="opacity-30">▲▼</span>}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {records.map((row, ri) => (
+                {paged.map((row, ri) => (
                   <tr key={ri} className="border-b border-slate-50 transition last:border-0 hover:bg-indigo-50/40">
-                    {visible.map(({ col, idx }) => (
-                      <td
-                        key={col.id}
-                        className={`px-3 py-2 ${
-                          col.kind === "currency" || col.kind === "count" || col.kind === "percent"
-                            ? "text-right font-medium tabular-nums text-slate-900"
-                            : "text-slate-700"
-                        }`}
-                      >
-                        {fmtCell(row[idx], col.kind)}
-                      </td>
-                    ))}
+                    {visible.map(({ col, idx }) => {
+                      const text = fmtCell(row[idx], col.kind);
+                      return (
+                        <td
+                          key={col.id}
+                          title={text}
+                          className={`truncate px-3 py-2 ${
+                            col.kind && NUMERIC_KINDS.has(col.kind)
+                              ? "text-right font-medium tabular-nums text-slate-900"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {text}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* Pagination : 10 / 20 / 50 lignes par page */}
+        {!loading && !error && sorted.length > 0 && (
+          <div className="flex items-center justify-between gap-3 border-t border-card-border bg-slate-50/70 px-4 py-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <span>Lignes :</span>
+              {PAGE_SIZES.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => changePageSize(n)}
+                  className={`rounded-md px-1.5 py-0.5 font-medium transition ${
+                    pageSize === n ? "bg-indigo-100 text-indigo-700" : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <span>
+                {rangeStart}–{rangeEnd} sur {new Intl.NumberFormat(locale).format(sorted.length)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                aria-label="Page précédente"
+                className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={safePage >= pageCount - 1}
+                aria-label="Page suivante"
+                className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     // Monté DANS .dashboard-shell : le thème (mode sombre violet) s'applique au
