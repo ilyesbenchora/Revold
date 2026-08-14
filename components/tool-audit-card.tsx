@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { MATCH_LABELS, IDENTIFIER_LABELS, type ToolAuditData } from "@/lib/audit/onboarding-audit";
+import { MATCH_LABELS, identifierLabel, type ToolAuditData } from "@/lib/audit/onboarding-audit";
 
 const ENTITY_LABELS: Record<string, string> = {
   contact: "Contacts",
@@ -150,7 +150,7 @@ export function ToolAuditCard({ tool }: { tool: ToolAuditData }) {
                 const p = pctOf(cov.present, cov.total);
                 return (
                   <div key={field} className="flex items-center gap-2 text-xs">
-                    <span className="w-28 shrink-0 text-slate-600">{IDENTIFIER_LABELS[field] ?? field}</span>
+                    <span className="w-28 shrink-0 text-slate-600">{identifierLabel(field)}</span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className={`h-full rounded-full ${p >= 70 ? "bg-emerald-500" : p >= 30 ? "bg-amber-400" : "bg-rose-400"}`}

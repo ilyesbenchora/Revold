@@ -60,24 +60,42 @@ export const IDENTIFIER_LABELS: Record<string, string> = {
   domain: "Domaine",
   company_name: "Nom d'entreprise",
   external_id: "ID externe",
+  custom_id: "ID de rapprochement",
+  contract_start: "Début de contrat",
+  contract_end: "Fin de contrat",
+  deal_contract_start: "Début de contrat (deal)",
+  deal_contract_end: "Fin de contrat (deal)",
 };
+
+/** Libellé d'un champ mappé — dynamique pour les ID custom multiples (custom_id_2…). */
+export function identifierLabel(field: string): string {
+  if (IDENTIFIER_LABELS[field]) return IDENTIFIER_LABELS[field];
+  const m = field.match(/^custom_id_(\d+)$/);
+  if (m) return `ID de rapprochement ${m[1]}`;
+  return field;
+}
 
 const ENTITY_TYPES = ["contact", "company", "deal", "invoice", "supplier_invoice", "subscription", "payment", "ticket"];
 
 /** Objet HubSpot porteur de chaque identifiant canonique (couverture live). */
-const HUBSPOT_IDENTIFIER_OBJECT: Record<string, "companies" | "contacts"> = {
+const HUBSPOT_IDENTIFIER_OBJECT: Record<string, "companies" | "contacts" | "deals"> = {
   company_name: "companies",
   domain: "companies",
   siren: "companies",
   siret: "companies",
   vat_number: "companies",
   email: "contacts",
+  // Dates de contrat : données de rapprochement CRM ↔ facturation, multi-objet.
+  contract_start: "companies",
+  contract_end: "companies",
+  deal_contract_start: "deals",
+  deal_contract_end: "deals",
 };
 
 /** Compte HubSpot les enregistrements dont une propriété est renseignée. */
 async function hubspotHasPropertyCount(
   token: string,
-  objectType: "companies" | "contacts",
+  objectType: "companies" | "contacts" | "deals",
   property: string,
 ): Promise<number | null> {
   try {
@@ -125,30 +143,37 @@ async function buildHubSpotSyntheticReport(
     );
   } catch {}
 
-  // Hors périmètre : external_id (technique), dates de contrat (radar de
-  // facturation) — et tout champ NON mappé dans les paramètres.
-  const defs = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter(
-    (d) =>
-      d.canonicalField !== "external_id" &&
-      !d.canonicalField.includes("contract") &&
-      d.canonicalField in overrides,
+  // DYNAMIQUE : la couverture se construit depuis les LIGNES DU MAPPING
+  // elles-mêmes (pas depuis le catalogue) — dès qu'une propriété est validée
+  // dans les paramètres (SIREN, TVA, ID custom multiples custom_id_2…, dates
+  // de contrat Company/Deal), elle apparaît ici. Seul external_id (technique)
+  // reste hors périmètre.
+  const catalogByField = new Map(
+    (PROVIDER_IDENTIFIERS.hubspot ?? []).map((d) => [d.canonicalField as string, d]),
   );
+  const mappedFields = Object.keys(overrides).filter((f) => f !== "external_id");
 
   const identifier_coverage: IdentifierCoverage = {};
   await Promise.all(
-    defs.map(async (def) => {
-      const objectType = HUBSPOT_IDENTIFIER_OBJECT[def.canonicalField] ?? "companies";
-      const total = objectType === "companies" ? (entityCounts.company ?? 0) : (entityCounts.contact ?? 0);
+    mappedFields.map(async (field) => {
+      const objectType =
+        HUBSPOT_IDENTIFIER_OBJECT[field] ?? (/^custom_id(_\d+)?$/.test(field) ? "companies" : "companies");
+      const total =
+        objectType === "companies"
+          ? (entityCounts.company ?? 0)
+          : objectType === "deals"
+            ? (entityCounts.deal ?? 0)
+            : (entityCounts.contact ?? 0);
       if (total === 0) return;
-      const property = (overrides[def.canonicalField] ?? def.defaultProviderField).trim();
+      const property = (overrides[field] ?? "").trim();
       if (!property) return;
       const present = await hubspotHasPropertyCount(token, objectType, property);
-      identifier_coverage[def.canonicalField] = {
+      identifier_coverage[field] = {
         present: present ?? 0,
         total,
         path: property,
-        native: def.native,
-        overridden: def.canonicalField in overrides,
+        native: catalogByField.get(field)?.native ?? false,
+        overridden: true,
       };
     }),
   );
@@ -214,7 +239,9 @@ export async function loadToolAudits(
   }
 
   // Champs mappés par outil (Mapping des identifiants) — la couverture
-  // affichée par les cartes s'y limite. external_id et dates de contrat exclus.
+  // affichée par les cartes s'y limite, DYNAMIQUEMENT : dates de contrat et
+  // ID custom compris dès qu'ils sont validés dans les paramètres. Seul
+  // external_id (technique) est exclu.
   const mappedByProvider = new Map<string, string[]>();
   try {
     const { data: mapRows } = await supabase
@@ -222,7 +249,7 @@ export async function loadToolAudits(
       .select("provider, canonical_field")
       .eq("organization_id", orgId);
     for (const row of (mapRows ?? []) as Array<{ provider: string; canonical_field: string }>) {
-      if (row.canonical_field === "external_id" || row.canonical_field.includes("contract")) continue;
+      if (row.canonical_field === "external_id") continue;
       (mappedByProvider.get(row.provider) ?? mappedByProvider.set(row.provider, []).get(row.provider)!)
         .push(row.canonical_field);
     }
