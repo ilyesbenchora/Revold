@@ -24,6 +24,7 @@ import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/c
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { CashRecoveryBlock } from "@/components/roi/cash-recovery-block";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -647,6 +648,9 @@ export default async function PaiementFacturationOverviewPage({
           </p>
         </div>
       )}
+
+      {/* ROI : relances d'impayés suivies → cash récupéré attribué (en euros). */}
+      <CashRecoveryBlock />
 
       <PageDataTables pageKey="audit_paiement_facturation" />
 
