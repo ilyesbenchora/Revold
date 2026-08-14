@@ -100,6 +100,7 @@ export function isRoutineDue(r: Routine, now: Date = new Date()): boolean {
   if (occ <= r.createdAt) return false;
   if (!r.lastRunAt) return true;
   if (r.frequency === "daily") return r.lastRunAt < occ;
-  const gapDays = r.frequency === "weekly" ? 7 : 30;
+  const gapDays =
+    r.frequency === "weekly" ? 7 : r.frequency === "monthly" ? 30 : r.frequency === "quarterly" ? 91 : 365;
   return r.lastRunAt < occ - (gapDays - 1) * DAY_MS;
 }

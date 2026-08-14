@@ -739,6 +739,7 @@ export function PaiementAgentChat({
           routines={routines}
           runningIds={runningIds}
           onRunNow={runRoutine}
+          sourceKeys={sources.map((s) => s.key)}
         />
       )}
 
