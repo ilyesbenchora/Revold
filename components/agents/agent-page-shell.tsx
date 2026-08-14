@@ -45,7 +45,9 @@ export function AgentPageShell({
   const collapsed = hasRoutineReports && !chatOpen;
 
   return (
-    <div className={`mx-auto px-6 py-6 transition-all ${hasRoutineReports ? "max-w-[1600px]" : "max-w-4xl"}`}>
+    // Pleine largeur EN PERMANENCE (avec ou sans rapport) : le chat occupe le
+    // même espace que lorsque des rapports de routine existent.
+    <div className="mx-auto max-w-[1600px] px-6 py-6">
       {header}
 
       {collapsed ? (
