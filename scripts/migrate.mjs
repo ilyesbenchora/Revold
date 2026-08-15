@@ -22,9 +22,16 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
-const dbUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+// Chaîne de connexion : SUPABASE_DB_URL explicite, sinon les variables
+// injectées par l'intégration Supabase↔Vercel (NON_POOLING de préférence :
+// connexion directe, le DDL via pgbouncer en mode transaction est fragile).
+const dbUrl =
+  process.env.SUPABASE_DB_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL;
 if (!dbUrl) {
-  console.log("[migrate] SUPABASE_DB_URL absent — migrations sautées (no-op).");
+  console.log("[migrate] Aucune URL Postgres (SUPABASE_DB_URL / POSTGRES_URL_NON_POOLING) — migrations sautées (no-op).");
   process.exit(0);
 }
 
@@ -34,7 +41,15 @@ const files = readdirSync(dir)
   .sort();
 
 const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
-await client.connect();
+try {
+  await client.connect();
+} catch (e) {
+  // Base injoignable au moment du build (incident réseau, maintenance) : on ne
+  // brique pas TOUS les déploiements pour autant — seul un échec d'application
+  // de migration (plus bas) est bloquant.
+  console.warn(`[migrate] Connexion Postgres impossible (${e.message}) — migrations sautées ce build.`);
+  process.exit(0);
+}
 
 let exitCode = 0;
 try {
