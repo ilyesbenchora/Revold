@@ -24,6 +24,8 @@ export function EnrichmentBackfillRunner() {
   const [running, setRunning] = useState(false);
   const [totals, setTotals] = useState({ identities: 0, candidates: 0, facts: 0 });
   const [remaining, setRemaining] = useState<number | null>(null);
+  // Volume total du chantier, mesuré au premier lot → barre de progression.
+  const [initialTotal, setInitialTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const stopRef = useRef(false);
@@ -34,6 +36,8 @@ export function EnrichmentBackfillRunner() {
     setDone(false);
     setError(null);
     setTotals({ identities: 0, candidates: 0, facts: 0 });
+    setInitialTotal(null);
+    setRemaining(null);
     stopRef.current = false;
     try {
       // 200 lots max = garde-fou (≈ 12 000 lookups) — la boucle s'arrête
@@ -49,6 +53,8 @@ export function EnrichmentBackfillRunner() {
         }));
         const rem = (d.remainingIdentities ?? 0) + (d.remainingFacts ?? 0);
         setRemaining(rem);
+        // Premier lot : le total du chantier = restant + ce qui vient d'être traité.
+        setInitialTotal((prev) => prev ?? rem + (d.lookupsUsed ?? 0));
         // Rafraîchit les tuiles de couverture au fil de l'eau.
         router.refresh();
         if (rem <= 0 || (d.lookupsUsed ?? 0) === 0 || stopRef.current) break;
@@ -62,9 +68,42 @@ export function EnrichmentBackfillRunner() {
   }
 
   const processed = totals.identities + totals.candidates + totals.facts;
+  // Progression : mesurée dès le premier lot ; avant, barre indéterminée animée.
+  const pct =
+    initialTotal != null && initialTotal > 0 && remaining != null
+      ? Math.min(100, Math.max(2, Math.round(((initialTotal - remaining) / initialTotal) * 100)))
+      : null;
 
   return (
-    <div className="card flex flex-wrap items-center justify-between gap-4 border-fuchsia-200/70 bg-gradient-to-r from-fuchsia-50/50 via-white to-white p-4">
+    <div className="card border-fuchsia-200/70 bg-gradient-to-r from-fuchsia-50/50 via-white to-white p-4">
+      {/* ── Barre de progression (visible pendant et après un run) ── */}
+      {(running || done) && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+            <span>
+              {running
+                ? pct != null
+                  ? `Progression : ${pct} %`
+                  : "Démarrage — mesure du volume à traiter…"
+                : "Progression : 100 %"}
+            </span>
+            {running && remaining != null && <span>~{remaining} restantes</span>}
+          </div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+            {running && pct == null ? (
+              // Indéterminée : premier lot en cours, on ne connaît pas encore le volume.
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-fuchsia-400 to-pink-400" />
+            ) : (
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700"
+                style={{ width: `${done ? 100 : pct ?? 0}%` }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">🚀 Enrichir toute ma base maintenant</p>
         <p className="mt-0.5 text-xs text-slate-500">
@@ -72,7 +111,6 @@ export function EnrichmentBackfillRunner() {
             <>
               Enrichissement en cours — {totals.identities} identité{totals.identities > 1 ? "s" : ""} ·{" "}
               {totals.facts} effectifs/CA · {totals.candidates} à valider
-              {remaining != null && <> · <span className="font-semibold text-fuchsia-600">~{remaining} restantes</span></>}
             </>
           ) : done ? (
             <>
@@ -105,6 +143,7 @@ export function EnrichmentBackfillRunner() {
         >
           {running ? "Enrichissement…" : done ? "Relancer" : "🚀 Lancer l'enrichissement complet"}
         </button>
+      </div>
       </div>
     </div>
   );
