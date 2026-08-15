@@ -53,8 +53,8 @@ export default async function PerformancesRecommandationsPage() {
               ✨ {total} recommandation{total > 1 ? "s" : ""} CRO/RevOps détectée{total > 1 ? "s" : ""}
             </p>
             <p className="mt-1 text-xs text-fuchsia-800">
-              Groupées par équipe (Ventes / Marketing). Activez chaque reco pour la transformer en
-              séance de travail actionnable avec l'agent Performances.
+              Groupées par équipe (Ventes / Marketing). Activez chaque reco pour la confier à
+              l'agent Performances : plan d'action chiffré, suivi dans ses actions.
             </p>
           </div>
 

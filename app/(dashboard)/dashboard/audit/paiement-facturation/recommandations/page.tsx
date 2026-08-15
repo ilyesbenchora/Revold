@@ -40,7 +40,7 @@ export default async function PaiementFacturationRecommandationsPage() {
               </span>
             </p>
             <p className="mt-1 text-xs text-fuchsia-800">
-              Activez chaque reco pour la transformer en séance de travail avec l'agent Trésorerie.
+              Activez chaque reco pour la confier à l'agent Trésorerie : plan d'action chiffré, suivi dans ses actions.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

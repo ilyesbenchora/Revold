@@ -33,7 +33,7 @@ export default async function RecommandationsLayout({ children }: { children: Re
         </div>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Recommandations Audit</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Diagnostic data-driven de votre CRM + plans d&apos;action concrets pour activer des coachings IA persistés.
+          Diagnostic data-driven de votre CRM + plans d&apos;action concrets, confiés aux agents et suivis dans le temps.
         </p>
       </header>
 

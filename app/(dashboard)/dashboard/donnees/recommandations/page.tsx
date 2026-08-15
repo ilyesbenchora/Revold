@@ -25,8 +25,7 @@ export default async function DonneesRecommandationsPage() {
               ✨ {recommendations.length} recommandation{recommendations.length > 1 ? "s" : ""} CRO/RevOps détectée{recommendations.length > 1 ? "s" : ""}
             </p>
             <p className="mt-1 text-xs text-fuchsia-800">
-              Activez chaque recommandation pour la transformer en séance de travail avec l'agent
-              Rapprochement de données. Le plan d&apos;action numéroté s&apos;exécute étape par étape avec effort estimé S/M/L.
+              Activez chaque recommandation pour la confier à un agent de Mon équipe IA. Le plan d&apos;action numéroté s&apos;exécute étape par étape avec effort estimé S/M/L.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
