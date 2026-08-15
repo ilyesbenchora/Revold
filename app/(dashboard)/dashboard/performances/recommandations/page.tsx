@@ -54,7 +54,7 @@ export default async function PerformancesRecommandationsPage() {
             </p>
             <p className="mt-1 text-xs text-fuchsia-800">
               Groupées par équipe (Ventes / Marketing). Activez chaque reco pour la transformer en
-              coaching IA actionnable dans Coaching IA → Ventes ou Marketing.
+              séance de travail actionnable avec l'agent Performances.
             </p>
           </div>
 

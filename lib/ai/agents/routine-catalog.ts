@@ -32,7 +32,7 @@ export const RECAP_PERIODS: { id: RecapPeriodKind; label: string; phrase: string
 
 export type RecapTopic = { id: string; label: string; detail: string };
 
-// Thèmes MACRO par agent/coach — chaque thème décrit précisément à l'agent les
+// Thèmes MACRO par agent — chaque thème décrit précisément à l'agent les
 // KPIs agrégés attendus (jamais de listes détaillées : on parle de récap).
 const SALES_TOPICS: RecapTopic[] = [
   { id: "ventes", label: "Récap des ventes", detail: "CA signé, deals gagnés / perdus, comparaison à la période précédente" },
@@ -70,26 +70,18 @@ const SUPPORT_TOPICS: RecapTopic[] = [
   { id: "churn", label: "Risque de churn", detail: "comptes à risque (vision agrégée), churn constaté" },
 ];
 
-const ALIGN_TOPICS: RecapTopic[] = [
-  { id: "relais", label: "Relais entre services", detail: "conversion MQL → deal → facture, points de rupture" },
-  { id: "process", label: "Process & workflows", detail: "workflows actifs, automatisations en échec ou manquantes" },
-];
-
 const DEFAULT_TOPICS: RecapTopic[] = [
   { id: "chiffres", label: "Chiffres clés", detail: "les chiffres clés agrégés du périmètre et leur tendance" },
   { id: "attention", label: "Points d'attention", detail: "écarts, anomalies et risques détectés" },
 ];
 
 const AGENT_RECAP_TOPICS: Record<string, RecapTopic[]> = {
-  performance: SALES_TOPICS,
-  "coaching-ventes": SALES_TOPICS,
-  "coaching-marketing": MARKETING_TOPICS,
+  // L'agent Performances couvre ventes ET marketing (pages Performances).
+  performance: [...SALES_TOPICS, ...MARKETING_TOPICS, ...DATA_TOPICS],
+  // Qualité des données : reprise par Performances depuis le retrait de
+  // l'agent Rapprochement de données.
   "paiement-facturation": FINANCE_TOPICS,
-  "coaching-data-model": FINANCE_TOPICS,
-  proprietes: DATA_TOPICS,
-  "coaching-data": DATA_TOPICS,
   "service-client": SUPPORT_TOPICS,
-  automatisations: ALIGN_TOPICS,
 };
 
 export function recapTopicsFor(agentKey: string): RecapTopic[] {
@@ -143,9 +135,25 @@ Ce rapport est généré par une ROUTINE : il sera lu tel quel, sans conversatio
 2) Une ANALYSE ÉCRITE structurée dans ta réponse texte : les chiffres marquants et ce qu'ils signifient, la tendance vs la période précédente, les écarts et anomalies détectés, les causes probables, les risques, et 2-3 recommandations concrètes et priorisées.
 Chiffres réels uniquement — si une donnée manque pour la période, dis-le franchement.`;
 
-/** Routines suggérées par coach — habitudes de chat adaptées au métier. */
+/** Routines suggérées par agent — habitudes de chat adaptées au métier. */
 const SUGGESTIONS: Record<string, RoutineSuggestion[]> = {
-  "coaching-ventes": [
+  performance: [
+    // Qualité des données : reprises de l'agent Rapprochement de données retiré
+    // — une base incomplète fausse d'abord le pipeline et le forecast.
+    {
+      label: "État qualité des données de la semaine",
+      prompt:
+        "Fais l'état hebdomadaire de la qualité des données : complétude, doublons, entités réconciliées entre les outils — et les écarts à corriger en priorité.",
+      frequency: "weekly",
+      time: "09:00",
+    },
+    {
+      label: "Écarts cross-source du mois",
+      prompt:
+        "Fais le récap mensuel des écarts cross-source : CA signé (CRM) vs CA facturé, deals gagnés sans facture, chiffré en euros.",
+      frequency: "daily",
+      time: "09:00",
+    },
     {
       label: "Récap des ventes de la semaine",
       prompt:
@@ -167,8 +175,7 @@ const SUGGESTIONS: Record<string, RoutineSuggestion[]> = {
       frequency: "daily",
       time: "09:00",
     },
-  ],
-  "coaching-marketing": [
+    // Volet marketing (l'agent Performances couvre les deux pages).
     {
       label: "Récap acquisition de la semaine",
       prompt:
@@ -184,7 +191,7 @@ const SUGGESTIONS: Record<string, RoutineSuggestion[]> = {
       time: "09:00",
     },
   ],
-  "coaching-data-model": [
+  "paiement-facturation": [
     {
       label: "Point trésorerie du jour",
       prompt:
@@ -196,22 +203,6 @@ const SUGGESTIONS: Record<string, RoutineSuggestion[]> = {
       label: "Récap facturation du mois",
       prompt:
         "Fais le récap facturation du mois : CA facturé, répartition payé/impayé, MRR et churn revenue — et compare au mois précédent.",
-      frequency: "daily",
-      time: "09:00",
-    },
-  ],
-  "coaching-data": [
-    {
-      label: "État qualité des données de la semaine",
-      prompt:
-        "Fais l'état hebdomadaire de la qualité des données : complétude, doublons, entités réconciliées entre les outils — et les écarts à corriger en priorité.",
-      frequency: "weekly",
-      time: "09:00",
-    },
-    {
-      label: "Écarts cross-source du mois",
-      prompt:
-        "Fais le récap mensuel des écarts cross-source : CA signé (CRM) vs CA facturé, deals gagnés sans facture, chiffré en euros.",
       frequency: "daily",
       time: "09:00",
     },

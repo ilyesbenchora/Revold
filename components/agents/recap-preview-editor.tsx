@@ -19,14 +19,8 @@ import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 // Page « tables de données » de référence pour le funnel de câblage par agent.
 const AGENT_PAGE_KEY: Record<string, string> = {
   performance: "perf_ventes",
-  "coaching-ventes": "perf_ventes",
-  "coaching-marketing": "perf_marketing",
-  automatisations: "audit_automatisations",
   "service-client": "audit_service_client",
   "paiement-facturation": "audit_paiement_facturation",
-  "coaching-data-model": "audit_paiement_facturation",
-  proprietes: "audit_donnees",
-  "coaching-data": "audit_donnees",
 };
 
 type Proposal = {

@@ -1,14 +1,11 @@
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { AGENTS } from "@/lib/ai/agents/registry";
 
-/** Agents proposés au choix via WhatsApp (menu numéroté). */
-export const WA_MENU_AGENTS: string[] = [
-  "coaching-ventes",
-  "coaching-marketing",
-  "coaching-data",
-  "performance",
-  "paiement-facturation",
-  "service-client",
-];
+/**
+ * Agents proposés au choix via WhatsApp (menu numéroté) — dérivés du registre
+ * pour que le menu suive le roster réel, sans liste à maintenir en double.
+ */
+export const WA_MENU_AGENTS: string[] = Object.keys(AGENTS);
 
 /** Construit le message de menu (choix de l'agent). */
 export function buildAgentMenu(): string {

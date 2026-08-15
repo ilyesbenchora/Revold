@@ -427,7 +427,7 @@ export default async function DonneesPage() {
               <h2 className="text-lg font-semibold text-slate-900">Plan d&apos;action IA</h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 Les actions détectées par l&apos;audit — configuration Revold ET optimisations de process
-                internes dans vos outils. Activez une action pour la transformer en coaching IA suivi.
+                internes dans vos outils. Activez une action pour la transformer en séance de travail suivie.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

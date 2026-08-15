@@ -28,9 +28,9 @@ const TEAM_TO_CATEGORY: Record<string, string> = {
 const AGENT_BY_CATEGORY: Record<string, string> = {
   commercial: "performance",
   marketing: "performance",
-  data: "proprietes",
-  integration: "proprietes",
-  "cross-source": "proprietes",
+  data: "performance",
+  integration: "performance",
+  "cross-source": "performance",
   "data-model": "paiement-facturation",
 };
 

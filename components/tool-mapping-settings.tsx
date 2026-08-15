@@ -59,13 +59,19 @@ const SECTIONS: Section[] = [
       { key: "agent_performance", label: "Agent Performances", description: "Pipeline, deals, closing, forecast", mode: "multi" },
       { key: "agent_paiement-facturation", label: "Agent Trésorerie", description: "Factures, encaissements, cash", mode: "multi" },
       { key: "agent_service-client", label: "Agent Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
-      { key: "agent_proprietes", label: "Agent Rapprochement de données", description: "Complétude, rapprochement, enrichissement", mode: "multi" },
     ],
   },
 ];
 
 /** Groupes de sections : "pages" = pages Revold · "agents" = agents. */
 const AGENT_SECTION_IDS = new Set(["agents_equipe"]);
+
+/**
+ * Toutes les clés réglables ici — source unique pour la page Paramètres qui
+ * précharge les mappings. Sans ça, une page ajoutée aux SECTIONS s'affichait
+ * vide tant que sa clé n'était pas recopiée à la main côté serveur.
+ */
+export const MAPPING_PAGE_KEYS: string[] = SECTIONS.flatMap((s) => s.pages.map((p) => p.key));
 
 export function ToolMappingSettings({
   options,

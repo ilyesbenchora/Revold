@@ -13,10 +13,11 @@ const RECON_DOC = Object.values(RECON_RECIPES).map((r) => `${r.id} = ${r.desc}`)
 const TEAM_PERSONA: Record<string, string> = {
   sales: "performance",
   commercial: "performance",
-  marketing: "coaching-marketing",
-  // Agent Théo (automatisations) supprimé : RevOps/Ops relèvent de Chloé et Karim.
+  marketing: "performance",
+  // Agents Automatisations et Rapprochement de données supprimés : RevOps et
+  // Ops (qualité, complétude) relèvent désormais de l'agent Performances.
   revops: "performance",
-  ops: "proprietes",
+  ops: "performance",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",

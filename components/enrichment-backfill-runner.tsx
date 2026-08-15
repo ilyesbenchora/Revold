@@ -105,10 +105,11 @@ export function EnrichmentBackfillRunner() {
         if ((fresh?.remaining ?? 0) <= 0) break;
 
         if (d.interrupted) {
-          // Registre saturé : on patiente (aucune entreprise n'a été marquée
-          // à tort — le contrôle qualité passe avant la vitesse).
-          setNotice("Registre momentanément saturé — reprise dans 20 s.");
-          await new Promise((r) => setTimeout(r, 20_000));
+          // Le registre ne répond plus correctement : on patiente brièvement
+          // (aucune entreprise n'a été marquée à tort — le contrôle qualité
+          // passe avant la vitesse), puis on reprend là où on s'était arrêté.
+          setNotice("Le registre ne répond pas — nouvelle tentative dans 5 s.");
+          await new Promise((r) => setTimeout(r, 5_000));
           if (!mountedRef.current) break;
           setNotice(null);
         } else if ((d.lookupsUsed ?? 0) === 0) {

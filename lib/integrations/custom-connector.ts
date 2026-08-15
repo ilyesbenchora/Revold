@@ -179,7 +179,7 @@ export type EntityTarget = {
 export const ENTITY_TARGETS: Record<CustomEntity, EntityTarget> = {
   companies: {
     pages: [{ key: "audit_donnees", label: "Rapprochement données" }],
-    agents: [{ key: "agent_proprietes", label: "Agent Rapprochement de données" }],
+    agents: [{ key: "agent_performance", label: "Agent Performances" }],
     kpis: ["Taux de rapprochement multi-outils", "Entreprises reliées à ≥ 2 outils", "Doublons détectés"],
   },
   contacts: {
@@ -187,10 +187,7 @@ export const ENTITY_TARGETS: Record<CustomEntity, EntityTarget> = {
       { key: "audit_perf_marketing", label: "Performances — Marketing" },
       { key: "audit_donnees", label: "Rapprochement données" },
     ],
-    agents: [
-      { key: "agent_performance", label: "Agent Performances" },
-      { key: "agent_proprietes", label: "Agent Rapprochement de données" },
-    ],
+    agents: [{ key: "agent_performance", label: "Agent Performances" }],
     kpis: ["Contacts par entreprise", "Complétude email / téléphone", "Contacts non rattachés"],
   },
   deals: {
@@ -268,31 +265,65 @@ export type PageRequirement = {
   key: string;
   label: string;
   group: string;
+  /** Sous-page : clé de la page parente (même hiérarchie que « Outil source par page »). */
+  parentKey?: string;
   required: CustomEntity[];
   optional: CustomEntity[];
   agent?: { key: string; label: string };
   kpis: string[];
+  /**
+   * Limite connue : la page attend un type de donnée qui n'a pas d'objet
+   * canonique (dépenses publicitaires, appels). Le rattachement reste utile
+   * — l'outil devient une source déclarée — mais on le dit au lieu d'afficher
+   * un état « prêt » trompeur.
+   */
+  caveat?: string;
 };
 
 export const PAGE_REQUIREMENTS: PageRequirement[] = [
+  // ── Performances ────────────────────────────────────────────────────────
   {
-    key: "audit_paiement_facturation_facturation",
-    label: "Trésorerie — Facturation",
-    group: "Trésorerie",
-    required: ["invoices"],
-    optional: ["companies", "subscriptions"],
-    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
-    kpis: ["CA facturé", "Impayés", "Délai de paiement (DSO)", "Deals gagnés non facturés"],
+    key: "audit_perf_ventes",
+    label: "Ventes",
+    group: "Performances",
+    required: ["deals"],
+    optional: ["companies", "contacts"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["CA signé", "Taux de closing", "Cycle de vente", "Écart CA signé ↔ facturé"],
   },
   {
-    key: "audit_paiement_facturation_paiement",
-    label: "Trésorerie — Paiement",
-    group: "Trésorerie",
-    required: ["transactions"],
-    optional: ["invoices", "companies"],
-    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
-    kpis: ["Encaissements réels", "Décaissements", "Solde net par mois"],
+    key: "audit_perf_marketing",
+    label: "Marketing",
+    group: "Performances",
+    required: ["contacts"],
+    optional: ["companies", "deals"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["Volume de contacts", "Conversion contact → affaire", "Complétude des fiches"],
   },
+  {
+    key: "audit_perf_ads",
+    label: "Publicité",
+    group: "Performances",
+    parentKey: "audit_perf_marketing",
+    required: [],
+    optional: ["contacts", "deals"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["Contacts et affaires générés par campagne"],
+    caveat:
+      "Les dépenses publicitaires (CPC, ROAS) n'ont pas d'objet à déclarer : cet outil pourra alimenter le volume de contacts et d'affaires de la page, pas le coût des campagnes.",
+  },
+  {
+    key: "audit_appels",
+    label: "Appels",
+    group: "Performances",
+    required: [],
+    optional: ["contacts", "companies", "deals"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["Activité rattachée aux contacts et aux affaires"],
+    caveat:
+      "Le détail du phoning (durée, taux de décroché) n'a pas d'objet à déclarer : l'outil est rattaché à la page, mais ses KPIs d'appels resteront à construire en KPI sur mesure.",
+  },
+  // ── Trésorerie ──────────────────────────────────────────────────────────
   {
     key: "audit_paiement_facturation",
     label: "Trésorerie (vue d'ensemble)",
@@ -303,23 +334,46 @@ export const PAGE_REQUIREMENTS: PageRequirement[] = [
     kpis: ["MRR / ARR réconciliés", "CA encaissé", "Churn revenue", "Runway"],
   },
   {
-    key: "audit_perf_ventes",
-    label: "Performances — Ventes",
-    group: "Performances",
-    required: ["deals"],
-    optional: ["companies", "contacts"],
-    agent: { key: "agent_performance", label: "Agent Performances" },
-    kpis: ["CA signé", "Taux de closing", "Cycle de vente", "Écart CA signé ↔ facturé"],
+    key: "audit_paiement_facturation_facturation",
+    label: "Facturation",
+    group: "Trésorerie",
+    parentKey: "audit_paiement_facturation",
+    required: ["invoices"],
+    optional: ["companies", "subscriptions"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["CA facturé", "Impayés", "Délai de paiement (DSO)", "Deals gagnés non facturés"],
   },
   {
-    key: "audit_perf_marketing",
-    label: "Performances — Marketing",
-    group: "Performances",
-    required: ["contacts"],
-    optional: ["companies", "deals"],
-    agent: { key: "agent_performance", label: "Agent Performances" },
-    kpis: ["Volume de contacts", "Conversion contact → affaire", "Complétude des fiches"],
+    key: "audit_paiement_facturation_paiement",
+    label: "Paiement",
+    group: "Trésorerie",
+    parentKey: "audit_paiement_facturation",
+    required: ["transactions"],
+    optional: ["invoices", "companies"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["Encaissements réels", "Décaissements", "Solde net par mois"],
   },
+  {
+    key: "audit_paiement_facturation_comptabilite",
+    label: "Comptabilité",
+    group: "Trésorerie",
+    parentKey: "audit_paiement_facturation",
+    required: ["transactions"],
+    optional: ["invoices", "companies"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["P&L réel", "Répartition des charges", "Balance par classe"],
+  },
+  {
+    key: "audit_paiement_facturation_previsionnel",
+    label: "Prévisionnel",
+    group: "Trésorerie",
+    parentKey: "audit_paiement_facturation",
+    required: ["invoices"],
+    optional: ["subscriptions", "deals", "transactions"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["Projection de trésorerie", "Runway", "Échéances à venir"],
+  },
+  // ── Service Client ──────────────────────────────────────────────────────
   {
     key: "audit_service_client",
     label: "Service Client",
@@ -329,15 +383,17 @@ export const PAGE_REQUIREMENTS: PageRequirement[] = [
     agent: { key: "agent_service-client", label: "Agent Service Client" },
     kpis: ["Volume de tickets", "Comptes en tension", "MRR à risque (support × revenu)"],
   },
+  // ── Données ─────────────────────────────────────────────────────────────
   {
     key: "audit_donnees",
     label: "Rapprochement données",
     group: "Données",
     required: ["companies"],
     optional: ["contacts"],
-    agent: { key: "agent_proprietes", label: "Agent Rapprochement de données" },
+    agent: { key: "agent_performance", label: "Agent Performances" },
     kpis: ["Taux de rapprochement multi-outils", "Doublons détectés", "Complétude des identifiants"],
   },
+  // ── Pilotage ────────────────────────────────────────────────────────────
   {
     key: "dashboard",
     label: "Dashboard (vue de pilotage)",

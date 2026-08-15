@@ -23,7 +23,7 @@ import {
 import { listActionableDeals, proposeDealActionsTool } from "./sales-actions";
 import { redirectToAgentTool } from "./redirect";
 
-export type AgentSection = "donnees" | "coaching" | "simulations" | "dashboard";
+export type AgentSection = "donnees" | "simulations" | "dashboard";
 
 export type AgentDef = {
   key: string;
@@ -96,7 +96,6 @@ export function buildSystemPrompt(agent: AgentDef): string {
     `\n\nPÉRIMÈTRE & REDIRECTION (RÈGLE PRIORITAIRE, avant toute exécution) : AVANT de répondre, vérifie que la demande relève de TON périmètre ci-dessus. ` +
     `Si elle relève du périmètre d'un AUTRE agent, tu ne réponds PAS — même si tes outils génériques (aggregate_canonical…) te permettraient techniquement de le faire : ` +
     `pouvoir calculer n'est pas être compétent. Exemple : un prévisionniste à qui on demande « combien de MQL ? » (volume actuel = performance/marketing) REDIRIGE au lieu de compter. ` +
-    `Cette règle vaut AUSSI entre coachs (ventes ↔ marketing ↔ data ↔ finance) : un coach redirige vers le coach du bon domaine. ` +
     `Dans ce cas, appelle l'outil redirect_to_agent avec la clé de l'agent pertinent + une raison courte, puis conclus en UNE phrase (« C'est plutôt le domaine de … ») — sans donner le chiffre ni faire l'analyse toi-même. ` +
     `Ne traite toi-même que ce qui touche à ton rôle, ou une demande explicitement mixte dont TA partie domine. Autres agents Revold disponibles :\n${agentRosterText(agent.key)}`
   );
@@ -114,10 +113,14 @@ const AGENT_LIST: AgentDef[] = [
     tagline: "Pilotage commercial & marketing : closing, cycle, pipeline, vélocité.",
     expertise:
       "Tu es un ancien VP Revenue / CRO de scale-up B2B SaaS. Tu lis un pipeline comme une radiographie : tu repères en quelques chiffres si le problème est en haut de tunnel (pas assez de lead), au milieu (conversion), ou au closing (exécution commerciale). Tu relies systématiquement closing rate, couverture de pipeline, cycle de vente, vélocité et forecast pondéré pour trouver LE goulot qui coûte le plus cher, tu le chiffres en euros de CA à risque, et tu proposes le levier prioritaire. Tu croises avec la facturation quand c'est pertinent (un pipeline qui convertit mais ne facture pas = problème d'exécution aval).",
-    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, listActionableDeals, proposeDealActionsTool, report, listConnectedSources, propose],
+    // getDataQuality / getReconciliationStatus viennent de l'agent Rapprochement
+    // de données retiré : une base incomplète ou mal réconciliée fausse le
+    // pipeline, cet agent doit pouvoir le constater lui-même.
+    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, getDataQuality, getReconciliationStatus, listActionableDeals, proposeDealActionsTool, report, listConnectedSources, propose],
     suggestions: [
       "Quel est mon closing rate et où est mon principal goulot ?",
       "Analyse la santé de mon pipeline vs les benchmarks",
+      "Ma base est-elle assez fiable pour que mon forecast tienne ?",
       "Fais-moi un rapport de performance commerciale",
     ],
     suggestionSets: {
@@ -201,104 +204,11 @@ const AGENT_LIST: AgentDef[] = [
     },
     sourceCategories: ["support", "crm", "billing"],
   },
-  // (Agent « Équipes & Adoption » retiré : ses constats — discipline CRM,
-  // complétude, activités loguées — sont couverts par l'agent Rapprochement
-  // de données et la page Équipes & Adoption elle-même.)
-  {
-    key: "proprietes",
-    label: "Agent Rapprochement de données",
-    section: "donnees",
-    tagline: "Qualité, complétude, doublons, rapprochement des données.",
-    expertise:
-      "Tu es un expert data quality / RevOps data avec 20 ans d'expérience, garant de la fiabilité de la donnée revenue. Tu sais que complétude, doublons et contacts orphelins corrompent silencieusement chaque scoring et chaque prévision. Tu audites l'hygiène de la base ET le rapprochement cross-source (source_links) pour repérer les entités non réconciliées entre outils. Tu chiffres l'impact business de la mauvaise qualité (revenue mal attribué, doublons faussant le pipeline) et tu proposes un plan de nettoyage priorisé par impact.",
-    tools: [getDataQuality, getReconciliationStatus, getCanonicalCounts, report, listConnectedSources, propose],
-    suggestions: [
-      "Quel est le niveau de complétude et de doublons de ma base ?",
-      "Mes données sont-elles bien réconciliées entre mes outils ?",
-      "Fais un rapport de qualité de données priorisé par impact",
-    ],
-    sourceCategories: ["crm", "billing", "support"],
-  },
-
-  // ══════════════ Section COACHING ══════════════
-  {
-    key: "coaching-ventes",
-    label: "Coach des ventes",
-    section: "coaching",
-    tagline: "Coaching commercial : deals, pipeline, closing, workflows.",
-    expertise:
-      "Tu es un coach VP Sales qui a formé des dizaines d'équipes commerciales performantes. Tu ne donnes pas des conseils génériques : tu pars des chiffres réels, tu identifies la faiblesse dominante (prospection, qualification, closing, ou exécution), tu expliques la cause racine, puis tu délivres un plan de coaching en 3 actions priorisées et exécutables cette semaine. Tu parles le langage des reps : concret, orienté action, avec le « quoi faire lundi matin ».",
-    tools: [getKpiSnapshot, getPipelineByStage, getPipelineStageBreakdown, listActionableDeals, proposeDealActionsTool, listConnectedSources, propose],
-    suggestions: [
-      "Coache-moi pour améliorer mon closing rate",
-      "Quelles 3 actions pour accélérer mon cycle de vente ?",
-      "Diagnostique la faiblesse principale de mon équipe",
-    ],
-    sourceCategories: ["crm", "billing"],
-  },
-  {
-    key: "coaching-marketing",
-    label: "Coach marketing",
-    section: "coaching",
-    tagline: "Coaching acquisition : leads, conversion, sources.",
-    expertise:
-      "Tu es un coach VP Marketing / Demand Gen senior. Tu relies acquisition et revenue : un lead n'a de valeur que s'il convertit et facture. Tu diagnostiques où le tunnel fuit (volume, MQL→SQL, vélocité), tu remontes à la cause (ciblage, qualité de source, scoring, handoff), et tu proposes un plan d'optimisation priorisé par impact sur le pipeline généré. Tu chiffres l'enjeu en SQL et en € de pipeline.",
-    tools: [getKpiSnapshot, listConnectedSources, propose],
-    suggestions: [
-      "Comment améliorer ma conversion MQL→SQL ?",
-      "Où fuit mon tunnel d'acquisition et que ça coûte ?",
-      "Établis un plan d'optimisation marketing priorisé",
-    ],
-    sourceCategories: ["crm"],
-  },
-  {
-    key: "coaching-data",
-    label: "Coach Data & Intégration",
-    section: "coaching",
-    tagline: "Coaching qualité des données, intégration de la stack et insights cross-source.",
-    expertise:
-      "Tu es un coach data ops & intégration senior — le référent unique données + stack de Revold. Trois volets complémentaires : (1) QUALITÉ — tu transformes un audit de qualité en plan d'action opérationnel : par quoi commencer, qui fait quoi, quel gain attendu. Tu relies chaque défaut de données (doublons, incomplétude, non-réconciliation cross-source) à une conséquence business concrète, et tu séquences le chantier par ratio impact/effort — les 20 % de nettoyage qui débloquent 80 % de la valeur. (2) INTÉGRATION — tu regardes les sources connectées et le volume réconcilié pour dire ce qui est sous-exploité et ce qui manque : intégrations à fort ROI, quick wins d'adoption, ordre de connexion pour débloquer le plus de valeur rapidement. (3) CROSS-SOURCE — tu croises CRM, facturation et support pour révéler ce qu'aucun outil isolé ne montre : CA signé vs facturé, deals gagnés sans facture, clients à fort MRR avec tickets support. Tu vérifies d'abord ce qui est réconcilié, tu chiffres chaque écart en euros, et tu en fais des insights actionnables classés par enjeu financier.",
-    tools: [getDataQuality, getReconciliationStatus, getKpiSnapshot, listConnectedSources, getCanonicalCounts, getBillingOverview, compareCrmVsBilled, getSupportOverview, propose],
-    suggestions: [
-      "Établis un plan de nettoyage de ma base priorisé",
-      "Quelles sources connecter en priorité pour plus de valeur ?",
-      "Compare mon CA signé (CRM) vs mon CA facturé",
-    ],
-    suggestionSets: {
-      crm: [
-        "Par quoi commencer pour fiabiliser ma donnée ?",
-        "Quel est l'impact business réel de mes doublons ?",
-      ],
-      billing: [
-        "Quels clients pèsent le plus de MRR ?",
-        "Où est mon risque de churn revenue ?",
-      ],
-      support: [
-        "Quels clients ont le plus de tickets ouverts ?",
-      ],
-      cross: [
-        "Compare mon CA signé (CRM) vs mon CA facturé",
-        "Quels clients à fort MRR ont des tickets support ouverts ?",
-        "Quels écarts entre mes sources dois-je corriger en priorité ?",
-      ],
-    },
-    sourceCategories: ["crm", "billing", "support"],
-  },
-  {
-    key: "coaching-data-model",
-    label: "Coach finance",
-    section: "coaching",
-    tagline: "Coaching trésorerie et comptabilité : cash, échéances, marges.",
-    expertise:
-      "Tu es un coach finance senior (ex-DAF de PME, 20 ans d'expérience). Tu accompagnes le dirigeant sur les enjeux de trésorerie et de comptabilité de son entreprise : plan de trésorerie, encaissements/décaissements, impayés et délais de paiement (DSO), BFR, échéances fiscales et sociales, marges et rentabilité, lecture du compte de résultat et du bilan. Tu croises la facturation et le CRM pour ancrer tes conseils sur le cash réel — pas sur le pipeline théorique — et tu chiffres l'impact de chaque recommandation. Pédagogue : tu expliques chaque notion comptable simplement, sans jargon non défini, et tu termines toujours par des actions concrètes pour sécuriser le cash.",
-    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getRevenueTimeseries, listConnectedSources, propose],
-    suggestions: [
-      "Fais le point sur ma trésorerie ce mois-ci",
-      "Quels impayés et retards de paiement menacent mon cash ?",
-      "Explique-moi l'écart entre mon CA signé et mon CA facturé",
-    ],
-    sourceCategories: ["crm", "billing"],
-  },
+  // (Agents « Équipes & Adoption » et « Rapprochement de données » retirés :
+  // leurs outils d'audit qualité — complétude, doublons, réconciliation
+  // cross-source — sont repris par l'agent Performances, qui les relie
+  // directement au pipeline qu'ils faussent. La page Rapprochement de données
+  // reste le lieu du diagnostic détaillé.)
 
   // (L'agent Prévisions dédié a été retiré : les projections vivent chez
   //  l'agent Performance — closing/pipeline — et l'agent Trésorerie — cash.)
@@ -325,17 +235,10 @@ export function getAgent(key: string): AgentDef | null {
   return AGENTS[key] ?? null;
 }
 
-/** Mapping agent coach → catégorie de coaching (pour charger l'agenda/objectifs). */
-export const COACHING_CATEGORY: Record<string, string> = {
-  "coaching-ventes": "commercial",
-  "coaching-marketing": "marketing",
-  "coaching-data": "data",
-  "coaching-data-model": "data-model",
-};
 
-/** Directive de session de coaching injectée quand des objectifs/pains sont définis. */
+/** Directive de séance de travail injectée quand des objectifs/pains sont définis. */
 export function coachingDirective(objectives: string, pains: string): string {
-  return `\n\nSESSION DE COACHING (pas un simple chat — sois interactif et guidant).
+  return `\n\nSÉANCE DE TRAVAIL (pas un simple chat — sois interactif et guidant).
 Contexte de l'utilisateur (formulaire de séance) :
 - Objectifs : ${objectives || "(non renseignés)"}
 - Pains / points de vigilance : ${pains || "(non renseignés)"}

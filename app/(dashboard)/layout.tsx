@@ -9,6 +9,7 @@ import { DashboardHeader, type ConnectedBadge } from "@/components/dashboard-hea
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { ActiveChatBanner } from "@/components/active-chat-banner";
 import { TowerQueue } from "@/components/voice/tower-queue";
+import { EnrichmentBackgroundRunner } from "@/components/enrichment-background-runner";
 
 // Les badges du header reflètent l'état réel des connexions par org →
 // pas de cache.
@@ -128,6 +129,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       <ActiveChatBanner />
       {/* Demandes vocales en attente (tour de contrôle multi-agents) */}
       <TowerQueue />
+      {/* Enrichissement : avance quelle que soit la page consultée (sans UI) */}
+      <EnrichmentBackgroundRunner />
     </div>
   );
 }

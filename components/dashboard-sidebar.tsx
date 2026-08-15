@@ -304,8 +304,6 @@ const accountLink = {
 function isChildActive(pathname: string, href: string): boolean {
   // "Vue d’ensemble" entries must match exactly so they don't light up on sub-pages
   if (href === "/dashboard/audit") return pathname === "/dashboard/audit";
-  if (href === "/dashboard/insights-ia") return pathname === "/dashboard/insights-ia";
-  if (href === "/dashboard/simulations") return pathname === "/dashboard/simulations";
   return pathname.startsWith(href);
 }
 

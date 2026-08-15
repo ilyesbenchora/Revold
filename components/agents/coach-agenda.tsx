@@ -184,19 +184,19 @@ export function CoachAgenda({
 
   const links = nextMeeting
     ? calendarLinks(
-        `Coaching ${label} — Revold`,
+        `Séance ${label} — Revold`,
         nextMeeting,
-        `Séance de coaching (${cadenceLabel(cadence)}).\nObjectifs : ${objectives}\nPains : ${pains}`,
+        `Séance de travail (${cadenceLabel(cadence)}).\nObjectifs : ${objectives}\nPains : ${pains}`,
       )
     : null;
 
-  // ── Vue repliée : confirmation compacte du RDV + démarrage du coaching ──
+  // ── Vue repliée : confirmation compacte du RDV + démarrage de la séance ──
   if (collapsed) {
     return (
       <div className="card flex flex-wrap items-center gap-3 p-4">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">✓</span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Rendez-vous de coaching enregistré</p>
+          <p className="text-sm font-semibold text-slate-900">Rendez-vous de séance enregistré</p>
           <p className="text-xs text-slate-500">
             {nextMeeting ? fmtDate(nextMeeting) : "Date à définir"}
             {nextTime ? ` à ${nextTime}` : ""} · {cadenceLabel(cadence)}
@@ -224,7 +224,7 @@ export function CoachAgenda({
         </button>
         {sessionStatus === "active" ? (
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-700">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" /> Coaching en cours
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" /> Séance en cours
           </span>
         ) : sessionStatus === "ended" ? (
           <button
@@ -232,7 +232,7 @@ export function CoachAgenda({
             title="Démarrer une nouvelle séance"
             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
           >
-            ✓ Coaching terminé
+            ✓ Séance terminée
           </button>
         ) : (
           <button
@@ -241,7 +241,7 @@ export function CoachAgenda({
               overdue ? "bg-red-500" : "bg-gradient-to-r from-fuchsia-500 to-indigo-600"
             }`}
           >
-            Démarrer le coaching
+            Démarrer la séance
           </button>
         )}
       </div>
@@ -250,16 +250,16 @@ export function CoachAgenda({
 
   return (
     <div className="card p-5">
-      <h3 className="text-sm font-semibold text-slate-900">Objectifs &amp; rendez-vous de coaching</h3>
+      <h3 className="text-sm font-semibold text-slate-900">Objectifs &amp; rendez-vous de séance</h3>
       <p className="mt-0.5 text-xs text-slate-500">
-        Écris tes objectifs et tes pains : le coach s&apos;en sert pour orienter la séance et te proposer des actions
+        Écris tes objectifs et tes pains : l&apos;agent s&apos;en sert pour orienter la séance et te proposer des actions
         concrètes. Programme un rendez-vous de suivi et ajoute-le à ton agenda.
       </p>
 
-      {/* Coaching à venir */}
+      {/* Séance à venir */}
       {nextMeeting && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-fuchsia-200 bg-fuchsia-50/50 p-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Coaching à venir</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Séance à venir</span>
           <span className="text-sm font-medium text-slate-800">{fmtDate(nextMeeting)}</span>
           <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-500">{cadenceLabel(cadence)}</span>
           {links && (
@@ -330,7 +330,7 @@ export function CoachAgenda({
           <div>
             <label className={lbl}>Outils à croiser pendant la séance</label>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Pré-sélectionnés automatiquement au démarrage du coaching — plus besoin de les choisir à la main.
+              Pré-sélectionnés automatiquement au démarrage de la séance — plus besoin de les choisir à la main.
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {availableSources.map((s) => {
@@ -358,7 +358,7 @@ export function CoachAgenda({
         <div>
           <label className={lbl}>Fichiers de contexte (Excel / Google Sheets)</label>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            Joins un ou plusieurs fichiers : l&apos;agent les reprendra dans la séance pour un coaching mieux contextualisé.
+            Joins un ou plusieurs fichiers : l&apos;agent les reprendra dans la séance pour un échange mieux contextualisé.
           </p>
           <div className="mt-1.5 flex items-center gap-2">
             <AttachMenu onAdd={(a) => setAttachments((p) => [...p, a])} size="sm" />

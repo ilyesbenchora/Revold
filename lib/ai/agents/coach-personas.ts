@@ -22,24 +22,11 @@ export type CoachPersona = {
   tint: string;
 };
 
-/** Persona par clé d'agent (couvre coach + non-coach). */
+/** Persona par clé d'agent — un personnage par agent de Mon équipe IA. */
 export const AGENT_PERSONAS: Record<string, CoachPersona> = {
-  // Données
   performance: { name: "Chloé", emoji: "👩‍💻", role: "Analyste performance", pitch: "Je décortique tes deals, ton pipeline et ton win rate pour révéler où se cache la croissance — et les leviers concrets pour l'activer.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
   "paiement-facturation": { name: "Inès", emoji: "👩‍💼", role: "Experte trésorerie", pitch: "Je réconcilie factures, paiements et impayés pour piloter le cash réel — pas seulement le pipeline théorique.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
   "service-client": { name: "Hugo", emoji: "🙋‍♂️", role: "Référent relation client", pitch: "Je croise tickets et comptes pour anticiper le churn et protéger tes revenus récurrents avant qu'il ne soit trop tard.", gradient: "from-rose-50 via-white to-white", tint: "text-rose-200" },
-  proprietes: { name: "Karim", emoji: "🕵️", role: "Agent rapprochement de données", pitch: "Je traque les champs manquants et incohérents qui faussent tes analyses, et je veille au rapprochement fiable de tes données entre tes outils.", gradient: "from-violet-50 via-white to-white", tint: "text-violet-200" },
-  // Coaching
-  "coaching-ventes": { name: "Marc", emoji: "👨‍💼", role: "Coach des ventes", pitch: "Je traque les deals qui bloquent, muscle ton closing et fluidifie ton pipeline pour accélérer le chiffre.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
-  "coaching-marketing": { name: "Léa", emoji: "👩‍🎨", role: "Coach marketing", pitch: "J'optimise tes sources d'acquisition et ton taux de conversion pour des leads plus qualifiés, à moindre coût.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
-  "coaching-data": { name: "Sofia", emoji: "👩‍🔬", role: "Coach data & intégration", pitch: "Je fiabilise tes données, connecte ta stack et croise tes sources pour que tes décisions reposent sur du solide, pas sur du bruit.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
-  "coaching-data-model": { name: "Adam", emoji: "👨‍🏫", role: "Coach finance", pitch: "Je t'apprends à piloter ta trésorerie et ta comptabilité : encaissements, échéances, marges — pour décider sur le cash réel, pas sur l'intuition.", gradient: "from-violet-50 via-white to-white", tint: "text-violet-200" },
-  // Prévisions
-  "prev-ventes": { name: "Emma", emoji: "🧑‍🚀", role: "Prévisionniste ventes", pitch: "Je projette ton atterrissage commercial à partir de ton historique pour anticiper — au lieu de subir.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
-  "prev-revenue": { name: "Maya", emoji: "👩‍💼", role: "Prévisionniste revenue & ventes", pitch: "Je projette ton MRR/ARR, ton churn ET ton closing/pipeline en 3 scénarios pour sécuriser ta trajectoire de revenus et anticiper l'atterrissage commercial.", gradient: "from-teal-50 via-white to-white", tint: "text-teal-200" },
-  "prev-donnees": { name: "Noah", emoji: "👨‍🔬", role: "Prévisionniste données", pitch: "J'anticipe la dérive de qualité de tes données pour agir avant qu'elle n'impacte tes décisions.", gradient: "from-sky-50 via-white to-white", tint: "text-sky-200" },
-  // Dashboard
-  reporting: { name: "Alix", emoji: "🧑‍💻", role: "Analyste reporting", pitch: "Je transforme tes données cross-source en rapports clairs et visuels, prêts à décider en un coup d'œil.", gradient: "from-slate-50 via-white to-white", tint: "text-slate-200" },
 };
 
 const FALLBACK: CoachPersona = { name: "Revold", emoji: "🧑‍💻", role: "Agent IA", pitch: "Ton agent expert Revold : il analyse tes données et te propose des actions concrètes pour progresser.", gradient: "from-slate-50 via-white to-white", tint: "text-slate-200" };
@@ -54,10 +41,6 @@ export function getAgentPersona(agentKey: string | null | undefined): CoachPerso
 const FEMININE_AGENTS = new Set([
   "performance",            // Chloé
   "paiement-facturation",   // Inès
-  "coaching-marketing",     // Léa
-  "coaching-data",          // Sofia
-  "prev-ventes",            // Emma
-  "prev-revenue",           // Maya
 ]);
 
 /** Vrai si le personnage de l'agent porte un prénom féminin (accord il/elle). */

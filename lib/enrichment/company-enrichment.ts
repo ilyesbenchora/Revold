@@ -151,7 +151,11 @@ export async function fetchCompanyFacts(
       { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) },
     );
     if (!res.ok) {
-      if (opts?.throwOnError) throw new Error(`HTTP ${res.status}`);
+      if (opts?.throwOnError) {
+        throw res.status >= 400 && res.status < 500 && res.status !== 429
+          ? new PermanentRejection(`HTTP ${res.status}`)
+          : new Error(`HTTP ${res.status}`);
+      }
       return null;
     }
     const d = (await res.json()) as { results?: ApiResult[] };
@@ -172,19 +176,41 @@ export async function fetchCompanyFacts(
  *  - "error" : réseau, quota (429) ou panne — surtout NE PAS marquer vérifiée,
  *              sinon un incident transitoire creuse des trous invisibles
  *              pendant 30 jours dans la base.
+ *
+ * ATTENTION à la nuance qui a déjà bloqué tout un backfill : un refus DÉFINITIF
+ * du registre (400 — requête invalide, ex. nom de moins de 3 caractères) n'est
+ * PAS une panne. Le retenter est inutile, et comme rien n'est écrit la fiche
+ * revient en tête de file au passage suivant : trois fiches « 3P », « GA »,
+ * « C- » suffisaient à geler la file entière. Un 4xx (hors 429) vaut donc
+ * "none" : le registre a répondu, il n'y a rien à trouver.
  */
 export type LookupOutcome<T> = { status: "found"; data: T } | { status: "none" } | { status: "error" };
 
+/** Longueur minimale exigée par le registre pour un terme de recherche. */
+export const MIN_QUERY_LENGTH = 3;
+
+/** HTTP renvoyé par le registre quand la requête est refusée définitivement. */
+class PermanentRejection extends Error {}
+
 /** Idem searchCompanyInSirene, mais distingue « rien trouvé » de « appel échoué ». */
 export async function lookupCompanyByName(name: string): Promise<LookupOutcome<EnrichmentCandidate>> {
-  const candidate = await searchCompanyInSirene(name, { throwOnError: true }).catch(() => "error" as const);
+  // Trop court pour être cherché : le registre refuserait la requête (400).
+  // On le sait avant d'appeler — autant l'économiser et clore le cas.
+  if (name.trim().length < MIN_QUERY_LENGTH) return { status: "none" };
+  const candidate = await searchCompanyInSirene(name, { throwOnError: true }).catch((e) =>
+    e instanceof PermanentRejection ? ("rejected" as const) : ("error" as const),
+  );
+  if (candidate === "rejected") return { status: "none" };
   if (candidate === "error") return { status: "error" };
   return candidate ? { status: "found", data: candidate } : { status: "none" };
 }
 
 /** Idem fetchCompanyFacts, mais distingue « pas de donnée » de « appel échoué ». */
 export async function lookupCompanyFacts(siren: string): Promise<LookupOutcome<CompanyFacts>> {
-  const facts = await fetchCompanyFacts(siren, { throwOnError: true }).catch(() => "error" as const);
+  const facts = await fetchCompanyFacts(siren, { throwOnError: true }).catch((e) =>
+    e instanceof PermanentRejection ? ("rejected" as const) : ("error" as const),
+  );
+  if (facts === "rejected") return { status: "none" };
   if (facts === "error") return { status: "error" };
   return facts ? { status: "found", data: facts } : { status: "none" };
 }
@@ -199,15 +225,22 @@ export async function searchCompanyInSirene(
   opts?: { throwOnError?: boolean },
 ): Promise<EnrichmentCandidate | null> {
   const q = name.trim();
-  if (q.length < 2) return null;
+  if (q.length < MIN_QUERY_LENGTH) return null;
   try {
     const res = await fetch(
       `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&page=1&per_page=5`,
       { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) },
     );
-    // Quota (429), panne (5xx) ou refus : ce n'est PAS « aucun résultat ».
+    // Quota (429) et panne (5xx) : transitoire, on retentera plus tard.
+    // Refus définitif (4xx hors 429) : la requête est invalide, la retenter
+    // à l'identique ne donnera jamais rien — on clôt le cas au lieu de
+    // bloquer la file sur cette fiche.
     if (!res.ok) {
-      if (opts?.throwOnError) throw new Error(`HTTP ${res.status}`);
+      if (opts?.throwOnError) {
+        throw res.status >= 400 && res.status < 500 && res.status !== 429
+          ? new PermanentRejection(`HTTP ${res.status}`)
+          : new Error(`HTTP ${res.status}`);
+      }
       return null;
     }
     const d = (await res.json()) as { results?: ApiResult[] };

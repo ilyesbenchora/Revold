@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lookupCompanyByName, lookupCompanyFacts, vatFromSiren } from "@/lib/enrichment/company-enrichment";
+import {
+  lookupCompanyByName,
+  lookupCompanyFacts,
+  vatFromSiren,
+  MIN_QUERY_LENGTH,
+} from "@/lib/enrichment/company-enrichment";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 /**
@@ -20,6 +25,8 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 const THROTTLE_MS = 200; // ~5 req/s — l'API publique tolère 7/s
 const RECHECK_DAYS = 30;
 const REFRESH_DAYS = 90;
+/** Échecs d'affilée avant de conclure à une vraie panne du registre. */
+const MAX_CONSECUTIVE_ERRORS = 8;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type BackfillCounts = { identities: number; candidates: number; facts: number; duplicates: number };
@@ -122,21 +129,31 @@ export async function runEnrichmentBatch(
   let consecutiveErrors = 0;
   for (const c of (identityData ?? []) as IdentityRow[]) {
     if (budget <= 0) break;
-    if (!c.name || c.name.trim().length < 2) continue;
+    const checked = { sirene_checked_at: new Date().toISOString() };
+
+    // Nom trop court pour être cherché (le registre exige 3 caractères) : on
+    // MARQUE VÉRIFIÉE au lieu de simplement sauter. Sans cette écriture, la
+    // fiche reste en tête de file et revient à chaque passage — c'est ainsi
+    // que « 3P », « GA » et « C- » ont gelé un backfill entier.
+    if (!c.name || c.name.trim().length < MIN_QUERY_LENGTH) {
+      await sb.from("companies").update(checked).eq("id", c.id);
+      continue;
+    }
     budget--;
     const outcome = await lookupCompanyByName(c.name);
     await sleep(THROTTLE_MS);
-    const checked = { sirene_checked_at: new Date().toISOString() };
 
     // Appel échoué (quota/panne) : on N'ÉCRIT RIEN — l'entreprise reste à
-    // traiter au prochain passage.
+    // traiter au prochain passage. On n'abandonne le lot qu'après une série
+    // franche d'échecs (vraie panne), avec un backoff qui laisse le registre
+    // respirer — jamais sur un incident isolé.
     if (outcome.status === "error") {
       consecutiveErrors++;
-      if (consecutiveErrors >= 3) {
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         interrupted = true;
         break;
       }
-      await sleep(1500);
+      await sleep(1000 * consecutiveErrors);
       continue;
     }
     consecutiveErrors = 0;
@@ -255,11 +272,11 @@ export async function runEnrichmentBatch(
       // seulement après 3 échecs d'affilée.
       if (outcome.status === "error") {
         consecutiveErrors++;
-        if (consecutiveErrors >= 3) {
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           interrupted = true;
           break;
         }
-        await sleep(1500);
+        await sleep(1000 * consecutiveErrors);
         continue;
       }
       consecutiveErrors = 0;

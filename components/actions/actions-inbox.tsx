@@ -177,11 +177,6 @@ const AGENT_LABELS: Record<string, string> = {
   performance: "Performances",
   "paiement-facturation": "Trésorerie",
   "service-client": "Service client",
-  proprietes: "Data & intégrations",
-  "coaching-ventes": "Coach Ventes",
-  "coaching-marketing": "Coach Marketing",
-  "coaching-data": "Coach Data & intégrations",
-  "coaching-data-model": "Coach Finance",
 };
 
 function sourceLabel(source: string): string {

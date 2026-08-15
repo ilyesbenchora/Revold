@@ -233,10 +233,12 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
 /** Agent (persona) responsable de la création de KPIs personnalisés, par page. */
 export const PAGE_AGENT_KEY: Record<string, string> = {
   perf_ventes: "performance",
-  perf_marketing: "coaching-marketing",
+  perf_marketing: "performance",
   audit_service_client: "service-client",
   audit_paiement_facturation: "paiement-facturation",
-  audit_donnees: "proprietes",
+  // L'agent Rapprochement de données a été retiré : ses outils d'audit qualité
+  // sont passés à l'agent Performances, qui câble donc aussi cette page.
+  audit_donnees: "performance",
 };
 
 export function presetsForPage(pageKey: string): TablePreset[] {

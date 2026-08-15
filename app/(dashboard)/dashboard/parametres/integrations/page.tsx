@@ -8,7 +8,7 @@ import { SpreadsheetLogo } from "@/components/spreadsheet-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
 import { SyncParityBlock, type ParityRow } from "@/components/sync-parity-block";
-import { ToolMappingSettings } from "@/components/tool-mapping-settings";
+import { ToolMappingSettings, MAPPING_PAGE_KEYS } from "@/components/tool-mapping-settings";
 import { HubspotLicenseForm } from "@/components/integrations/hubspot-license-form";
 import {
   listConnectedTools,
@@ -16,23 +16,10 @@ import {
 } from "@/lib/integrations/tool-mappings";
 import Link from "next/link";
 
-const ALL_PAGE_KEYS = [
-  "audit_donnees",
-  "audit_perf_ventes",
-  "audit_perf_marketing",
-  "audit_paiement_facturation",
-  "audit_paiement_facturation_paiement",
-  "audit_paiement_facturation_facturation",
-  "audit_paiement_facturation_comptabilite",
-  "audit_paiement_facturation_previsionnel",
-  "audit_service_client",
-  "dashboard",
-  // Sources par agent (Mon équipe IA) — clés agent_<agentKey>.
-  "agent_performance",
-  "agent_paiement-facturation",
-  "agent_service-client",
-  "agent_proprietes",
-];
+// Pages ET agents réglables dans « Outil source par page » — dérivé du
+// composant qui les affiche, pour qu'aucune page ne puisse s'afficher vide
+// faute d'avoir été recopiée ici.
+const ALL_PAGE_KEYS = MAPPING_PAGE_KEYS;
 
 // Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel
 // après connect/disconnect, on ne veut surtout pas afficher un état mis en cache.
@@ -250,7 +237,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                     ))}
                   </div>
                   <p className="mt-2 text-[10px] italic text-slate-500">
-                    Revold détecte automatiquement vos custom objects pour les exploiter dans les rapports et le coaching IA.
+                    Revold détecte automatiquement vos custom objects pour les exploiter dans les rapports et les analyses des agents.
                   </p>
                 </div>
               )}
@@ -378,14 +365,14 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         />
       </div>
 
-      {/* Mapping outils sources par agent (Mon équipe IA + Coachs IA) */}
+      {/* Mapping outils sources par agent (Mon équipe IA) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Outils sources par agent
         </h2>
         <p className="text-xs text-slate-500">
           Même logique que le bloc ci-dessus, appliquée aux agents : pour chaque agent de
-          «&nbsp;Mon équipe IA&nbsp;» et chaque coach, choisissez les outils qu&apos;il utilisera
+          «&nbsp;Mon équipe IA&nbsp;», choisissez les outils qu&apos;il utilisera
           dans ses analyses, rapports et routines. <strong>Sans sélection</strong>, l&apos;agent
           utilise par défaut tous les outils connectés de son périmètre métier.
         </p>

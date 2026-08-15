@@ -99,7 +99,7 @@ export function CoachingActionPlan({
             <path d="M9 11l3 3L22 4" />
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
           </svg>
-          Plan d&apos;action du coaching
+          Plan d&apos;action de la séance
           {memory.openCommitments.length > 0 && (
             <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[11px] font-medium text-fuchsia-700">
               {memory.openCommitments.length} en cours
@@ -160,7 +160,7 @@ export function CoachingActionPlan({
         </div>
       ) : (
         <p className="mt-3 text-xs text-slate-400">
-          Aucun engagement en cours — le coach en proposera en fin de prochaine séance.
+          Aucun engagement en cours — l'agent en proposera en fin de prochaine séance.
         </p>
       )}
 

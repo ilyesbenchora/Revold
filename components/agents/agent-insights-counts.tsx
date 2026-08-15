@@ -47,7 +47,7 @@ function readCounts(agentKey: string): Counts {
 const ITEMS: { key: keyof Counts; label: string; tab: string; icon: React.ReactNode }[] = [
   {
     key: "discussions",
-    label: "coachings faits",
+    label: "séances faites",
     tab: "history",
     icon: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
   },

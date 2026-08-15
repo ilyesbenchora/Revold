@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
-import { getAgent, buildSystemPrompt, coachingDirective, COACHING_CATEGORY } from "@/lib/ai/agents/registry";
+import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
 import { getCoachingMemory, memoryDirective } from "@/lib/coaching/session-memory";
 import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
@@ -90,12 +90,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");
   }
 
-  // Mémoire de séance, style et plan de développement — désormais disponibles
-  // pour TOUS les agents, pas seulement les coachs : c'est la mécanique qui a
-  // de la valeur (accompagnement dans la durée), pas la famille d'agents.
-  // Clé : catégorie historique pour les coachs, clé d'agent pour les experts.
+  // Mémoire de séance, style et plan de développement — disponibles pour TOUS
+  // les agents : c'est la mécanique d'accompagnement dans la durée qui a de la
+  // valeur, pas une famille d'agents dédiée. Clé de stockage = clé de l'agent.
   {
-    const coachCategory = COACHING_CATEGORY[agentKey] ?? agentKey;
+    const coachCategory = agentKey;
     if (coachCategory) {
       const memory = await getCoachingMemory(supabase, orgId, coachCategory);
       system += memoryDirective(memory);

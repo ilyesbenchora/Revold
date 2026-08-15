@@ -40,7 +40,7 @@ export default async function ServiceClientRecommandationsPage() {
               </span>
             </p>
             <p className="mt-1 text-xs text-fuchsia-800">
-              Activez chaque reco pour la transformer en coaching IA dans Coaching IA → Cross-Source.
+              Activez chaque reco pour la transformer en séance de travail avec l'agent Service Client.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

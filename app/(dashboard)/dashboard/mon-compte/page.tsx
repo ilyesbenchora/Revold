@@ -14,7 +14,7 @@ const PRICING = [
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
       "3 intégrations incluses (multi-source)",
-      "Agents experts IA + Coaching IA",
+      "Agents experts IA",
       "Prévisions avancées (bas / base / haut)",
       "Rapports & graphiques (jusqu'à 20)",
       "Alertes + calendrier + objectifs",
