@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -22,12 +22,20 @@ const AGENT_PAGE: Record<string, { href: string; label: string }> = {
   // vivent en suggestions sur la page Trésorerie.
   "paiement-facturation": { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "service-client": { href: "/dashboard/audit/service-client", label: "Service Client" },
-  equipes: { href: "/dashboard/conduite-changement", label: "Équipes & Adoption" },
   proprietes: { href: "/dashboard/donnees", label: "Rapprochement données" },
-  "coaching-ventes": { href: "/dashboard/insights-ia/commercial", label: "Coaching Ventes" },
-  "coaching-marketing": { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
-  "coaching-data": { href: "/dashboard/insights-ia/data", label: "Coaching Data" },
-  "coaching-data-model": { href: "/dashboard/insights-ia/data-model", label: "Coaching Finance" },
+};
+
+/**
+ * Anciens agents coachs → agent expert du même domaine. La famille « coachs »
+ * est retirée du produit (doublon de domaines avec Mon équipe IA) ; sa
+ * mécanique de séance vit désormais sur ces agents. Les anciens liens et
+ * favoris continuent donc de fonctionner.
+ */
+const RETIRED_COACHES: Record<string, string> = {
+  "coaching-ventes": "performance",
+  "coaching-marketing": "performance",
+  "coaching-data": "proprietes",
+  "coaching-data-model": "paiement-facturation",
 };
 
 export default async function AgentPage({
@@ -39,6 +47,8 @@ export default async function AgentPage({
 }) {
   const { agentKey } = await params;
   const sp = await searchParams;
+  // Ancien lien vers un coach retiré → agent expert équivalent.
+  if (RETIRED_COACHES[agentKey]) redirect(`/dashboard/agents/${RETIRED_COACHES[agentKey]}`);
   const agent = getAgent(agentKey);
   if (!agent) notFound();
 

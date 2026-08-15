@@ -56,37 +56,33 @@ export function availableWorkspaces(role: string | null | undefined, pole: strin
 // tous les sous-liens, tableau = sous-liens autorisés, absent = groupe masqué.
 // Dashboard et Intégrations sont toujours visibles en entier.
 
-type NavRule = Partial<Record<"audit" | "coaching" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
+type NavRule = Partial<Record<"audit" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
-  all: { audit: "all", coaching: "all", dashboard: "all", integrations: "all", alertes: "all" },
+  all: { audit: "all", dashboard: "all", integrations: "all", alertes: "all" },
   // Accessibles dans TOUS les espaces : « Mon équipe IA » (/dashboard/audit,
   // le hub des agents experts de la section Données) et le coach data — la
   // qualité des données concerne chaque pôle.
   sales: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   marketing: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   cs: {
     audit: ["/dashboard/audit", "/dashboard/audit/service-client"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
   },
   finance: {
     audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation", "/dashboard/donnees"],
-    coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
@@ -131,13 +127,8 @@ const GUARDED_ROUTES: Array<{ group: string; href: string }> = [
   { group: "audit", href: "/dashboard/process" },
   { group: "audit", href: "/dashboard/conduite-changement" },
   { group: "audit", href: "/dashboard/donnees" },
-  // Coaching IA.
-  { group: "coaching", href: "/dashboard/insights-ia/commercial" },
-  { group: "coaching", href: "/dashboard/insights-ia/marketing" },
-  { group: "coaching", href: "/dashboard/insights-ia/data-model" },
-  { group: "coaching", href: "/dashboard/insights-ia/data" },
-  { group: "coaching", href: "/dashboard/insights-ia/calendrier" },
-  { group: "coaching", href: "/dashboard/insights-ia" },
+  // Section Coaching IA supprimée : ses anciennes routes redirigent vers
+  // Mon équipe IA, plus rien à filtrer ici.
 ];
 
 /**

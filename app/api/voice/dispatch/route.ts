@@ -35,7 +35,7 @@ const NAV_TARGETS: Record<string, { href: string; label: string }> = {
   "mes-alertes": { href: "/dashboard/mes-alertes", label: "Mes alertes" },
   objectifs: { href: "/dashboard/mes-alertes/objectifs", label: "les Objectifs" },
   rapports: { href: "/dashboard/rapports", label: "les Rapports" },
-  coaching: { href: "/dashboard/insights-ia", label: "Mes Coachs IA" },
+  seances: { href: "/dashboard/mes-alertes/seances", label: "les Séances" },
   "parametres-integrations": { href: "/dashboard/parametres/integrations", label: "Paramètres → Intégrations" },
   "modele-donnees": { href: "/dashboard/parametres/modele-donnees", label: "le Modèle de données" },
 };
@@ -101,7 +101,9 @@ export async function POST(request: Request) {
   const { key: anthropicKey, reason } = getAnthropicKey();
   if (!anthropicKey) return NextResponse.json({ error: reason ?? "ANTHROPIC_API_KEY manquante" }, { status: 500 });
 
-  const agents = Object.values(AGENTS);
+  // Un seul roster : les agents experts. La famille « coachs » est retirée du
+  // produit — leur mécanique de séance vit désormais sur ces mêmes agents.
+  const agents = Object.values(AGENTS).filter((a) => a.section !== "coaching");
   const roster = agents
     .map((a) => `- ${a.key} : ${a.label} (${getAgentPersona(a.key).name}) — ${a.tagline}`)
     .join("\n");
