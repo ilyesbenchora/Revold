@@ -4,8 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getToolKeys } from "@/lib/integrations/tool-mappings";
-import { type CoachAgendaInitial } from "@/components/agents/coach-agenda";
-import { CoachingWorkspace } from "@/components/agents/coaching-workspace";
+import { PaiementAgentChat } from "@/components/agents/paiement-agent-chat";
 import { AgentProfileAvatar } from "@/components/agents/agent-profile-avatar";
 import { SavedReportsCarousel } from "@/components/agents/saved-reports-carousel";
 import { AgentPageShell } from "@/components/agents/agent-page-shell";
@@ -21,6 +20,7 @@ const AGENT_PAGE: Record<string, { href: string; label: string }> = {
   // vivent en suggestions sur la page Trésorerie.
   "paiement-facturation": { href: "/dashboard/audit/paiement-facturation", label: "Trésorerie" },
   "service-client": { href: "/dashboard/audit/service-client", label: "Service Client" },
+  proprietes: { href: "/dashboard/donnees", label: "Rapprochement données" },
 };
 
 /**
@@ -32,7 +32,7 @@ const AGENT_PAGE: Record<string, { href: string; label: string }> = {
 const RETIRED_COACHES: Record<string, string> = {
   "coaching-ventes": "performance",
   "coaching-marketing": "performance",
-  "coaching-data": "performance",
+  "coaching-data": "proprietes",
   "coaching-data-model": "paiement-facturation",
 };
 
@@ -65,55 +65,6 @@ export default async function AgentPage({
     ? tools.filter((t) => agentToolKeys.includes(t.key))
     : tools.filter((t) => agent.sourceCategories.includes(t.category));
   const sources = picked.map((t) => ({ key: t.key, label: t.label, icon: t.icon, category: t.category }));
-
-  // Cadrage de séance (objectifs/pains/RDV) : stocké sous la clé de l'agent.
-  const sessionCategory = agentKey;
-  let agenda: CoachAgendaInitial | null = null;
-  if (orgId) {
-    const first = await supabase
-      .from("coaching_agendas")
-      .select("objectives, pains, cadence, next_meeting_at, next_meeting_time, sources, attachments")
-      .eq("organization_id", orgId)
-      .eq("category", sessionCategory)
-      .maybeSingle();
-    let data: CoachAgendaInitial | null = (first.data as CoachAgendaInitial | null) ?? null;
-    // Résilience : colonne next_meeting_time absente (migration non appliquée).
-    if (first.error && /next_meeting_time/.test(first.error.message)) {
-      const fb = await supabase
-        .from("coaching_agendas")
-        .select("objectives, pains, cadence, next_meeting_at, sources, attachments")
-        .eq("organization_id", orgId)
-        .eq("category", sessionCategory)
-        .maybeSingle();
-      data = (fb.data as CoachAgendaInitial | null) ?? null;
-    }
-    agenda = data ?? {};
-  }
-
-  // Séance issue d'un rapport (?rc=…) : on récupère la donnée du rapport pour
-  // contextualiser directement la séance — pas de RDV à créer.
-  const rcId = typeof sp.rc === "string" ? sp.rc : null;
-  let reportBrief: { objectives: string; pains: string } | null = null;
-  if (rcId && orgId) {
-    const { data } = await supabase
-      .from("report_coachings")
-      .select("title, body, recommendation, kpi_label")
-      .eq("organization_id", orgId)
-      .eq("id", rcId)
-      .maybeSingle();
-    if (data) {
-      const brief = data as { title?: string; body?: string; recommendation?: string; kpi_label?: string };
-      const objective = [brief.title, brief.body].filter(Boolean).join(" — ");
-      const pains = [brief.recommendation, brief.kpi_label ? `KPI : ${brief.kpi_label}` : ""].filter(Boolean).join(" · ");
-      reportBrief = { objectives: objective, pains };
-    }
-  }
-  // Séance lancée depuis une carte (?bt=titre&bp=reco) sans id de rapport.
-  if (!reportBrief) {
-    const bt = typeof sp.bt === "string" ? sp.bt : "";
-    const bp = typeof sp.bp === "string" ? sp.bp : "";
-    if (bt || bp) reportBrief = { objectives: bt, pains: bp };
-  }
 
   const persona = getAgentPersona(agent.key);
 
@@ -171,21 +122,17 @@ export default async function AgentPage({
       chatLabel={persona.name}
       header={headerBlock}
       chat={
-        // Tous les agents ont désormais l'espace de séance : cadrage (partagé
-        // avec Suivi → Séances, même enregistrement), engagements pris, chat.
-        <CoachingWorkspace
-          category={sessionCategory}
-          coachLabel={agent.label.replace(/^Agent\s+/i, "")}
-          initialAgenda={agenda ?? {}}
-          initialTab={initialTab}
-          initialAsk={initialAsk}
-          availableSources={sources}
+        // Page d'agent = CHAT, point. Le cadrage de séance (objectifs, RDV)
+        // vit dans Suivi → Séances : il n'a pas à s'intercaler devant la
+        // conversation quand on ouvre un agent.
+        <PaiementAgentChat
           agentKey={agent.key}
           agentLabel={agent.label}
           sources={sources}
           suggestions={agent.suggestions}
           suggestionSets={agent.suggestionSets ?? null}
-          reportBrief={reportBrief}
+          initialTab={initialTab}
+          initialAsk={initialAsk}
           persona={{ name: persona.name, emoji: persona.emoji, image: personaImagePath(agent.key) }}
         />
       }
