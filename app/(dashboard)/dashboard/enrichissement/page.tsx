@@ -80,13 +80,17 @@ export default async function EnrichissementPage() {
         ))}
       </div>
 
-      {/* ── Backfill à la demande : toute la base, par lots, progression visible ── */}
+      {/* ── 1. LE MOTEUR : toute la base (identités sûres + effectifs/CA),
+             par lots, progression visible. Le cron horaire fait la même chose
+             en tâche de fond. ── */}
       <EnrichmentBackfillRunner />
 
-      {/* ── 1. Identifiants (la clé) ── */}
+      {/* ── 2. Ce que le moteur n'applique pas seul : les correspondances
+             d'identité ambiguës, validées à la main. ── */}
       <CompanyEnrichmentBlock />
 
-      {/* ── 2. Effectifs & CA (les données évolutives) ── */}
+      {/* ── 3. Complément : effectifs & CA des entreprises SANS SIREN
+             (recherche par nom, SIREN jamais stocké). ── */}
       <CompanyFinancialsBlock />
 
       <p className="text-[11px] text-slate-400">

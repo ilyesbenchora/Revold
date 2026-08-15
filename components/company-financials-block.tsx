@@ -45,7 +45,9 @@ export function CompanyFinancialsBlock() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/enrichment/financials");
+      // Périmètre : uniquement les entreprises SANS SIREN — celles qui en ont
+      // un sont déjà traitées automatiquement par « Enrichir toute ma base ».
+      const res = await fetch("/api/enrichment/financials?scope=no_siren");
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Analyse impossible");
       const props = (d.proposals ?? []) as Proposal[];
@@ -106,11 +108,12 @@ export function CompanyFinancialsBlock() {
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900">📈 Effectifs & chiffre d&apos;affaires officiels</h3>
+          <h3 className="text-sm font-semibold text-slate-900">📈 Effectifs & CA — entreprises sans SIREN</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Tranche d&apos;effectif officielle (URSSAF/INSEE) et dernier CA déposé à l&apos;INPI — par SIREN quand il
-            existe, sinon <span className="font-medium text-slate-600">par le nom de l&apos;entreprise (le SIREN trouvé n&apos;est pas stocké)</span>.
-            Tu valides — Revold met à jour ses données ET les propriétés HubSpot (CA annuel, effectif).
+            Complément ciblé : les entreprises <span className="font-medium text-slate-600">sans SIREN</span> (celles
+            qui en ont un sont déjà traitées automatiquement ci-dessus). Recherche{" "}
+            <span className="font-medium text-slate-600">par le nom — le SIREN trouvé n&apos;est jamais stocké</span>,
+            seuls l&apos;effectif officiel (URSSAF/INSEE) et le CA déposé (INPI) sont écrits, chez Revold et dans HubSpot.
           </p>
         </div>
         <button
@@ -133,15 +136,15 @@ export function CompanyFinancialsBlock() {
 
         {proposals === null && !loading && (
           <p className="text-xs text-slate-400">
-            Lance l&apos;analyse : Revold consulte les données officielles des entreprises AVEC SIREN (par lot de 20,
-            jamais enrichies puis plus anciennes d&apos;abord). Rien n&apos;est écrit sans ta validation.
+            Lance l&apos;analyse : Revold cherche les données officielles des entreprises sans SIREN, par leur nom
+            (lot de 20, jamais enrichies puis plus anciennes d&apos;abord). Rien n&apos;est écrit sans ta validation.
           </p>
         )}
 
         {proposals !== null && proposals.length === 0 && (
           <p className="text-xs text-slate-500">
             {scanned === 0
-              ? "Aucune entreprise à analyser (nom manquant sur les fiches)."
+              ? "Toutes tes entreprises ont un SIREN — leurs effectifs et CA sont enrichis automatiquement par « Enrichir toute ma base ». 🎉"
               : "Aucune donnée officielle disponible sur ce lot (effectif non déclaré, comptes déposés en confidentialité, ou entreprise introuvable par son nom)."}
           </p>
         )}

@@ -33,20 +33,27 @@ type CompanyRow = {
   enriched_at: string | null;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  // Jamais enrichies d'abord, puis les plus anciennes (données évolutives) —
-  // AVEC ou SANS SIREN : sans SIREN, lookup par NOM (clé de lecture seulement).
-  const { data, error } = await supabase
+  // `scope=no_siren` : uniquement les entreprises SANS SIREN (lookup par nom).
+  // Les entreprises AVEC SIREN sont déjà traitées automatiquement par le moteur
+  // de backfill (bouton « Enrichir toute ma base » + cron) — ce périmètre évite
+  // de refaire le même travail en doublon.
+  const noSirenOnly = new URL(request.url).searchParams.get("scope") === "no_siren";
+
+  // Jamais enrichies d'abord, puis les plus anciennes (données évolutives).
+  let query = supabase
     .from("companies")
     .select("id, name, siren, hubspot_id, annual_revenue, employee_count, enriched_at")
     .eq("organization_id", orgId)
-    .not("name", "is", null)
+    .not("name", "is", null);
+  if (noSirenOnly) query = query.is("siren", null);
+  const { data, error } = await query
     .order("enriched_at", { ascending: true, nullsFirst: true })
     .limit(20);
   if (error) {

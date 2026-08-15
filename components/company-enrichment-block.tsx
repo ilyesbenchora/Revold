@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
- * Bloc « Enrichissement Sirene » de la page Rapprochement données : Revold ne
- * constate plus les SIREN manquants, il les REMPLIT — SIREN, SIRET (siège),
- * N° TVA calculé et raison sociale officielle, proposés depuis la base Sirene
- * (gratuite) puis VALIDÉS par l'utilisateur avant écriture (Revold + HubSpot).
+ * Bloc « Identités à valider » (page Suivi → Enrichissement).
+ *
+ * Le scan de la base est fait par le moteur d'enrichissement (bouton
+ * « Enrichir toute ma base » + cron horaire) : il applique SEUL les
+ * correspondances sûres et dépose ici les correspondances PLAUSIBLES.
+ * Ce bloc ne fait donc que la VALIDATION humaine — la file est persistée en
+ * base (elle survit au rafraîchissement de la page).
  */
 
 type Proposal = {
@@ -22,37 +26,36 @@ type Proposal = {
 };
 
 export function CompanyEnrichmentBlock() {
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [scanned, setScanned] = useState<number | null>(null);
-  const [proposals, setProposals] = useState<Proposal[] | null>(null);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ applied: number; pushedToHubspot: number } | null>(null);
 
-  async function analyze() {
-    if (loading) return;
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch("/api/enrichment/companies");
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || "Analyse impossible");
-      const props = (d.proposals ?? []) as Proposal[];
-      setScanned(typeof d.scanned === "number" ? d.scanned : props.length);
-      setProposals(props);
-      // Confiance haute pré-cochée ; les correspondances moyennes se cochent à la main.
-      setSelected(new Set(props.filter((p) => p.confidence === "high").map((p) => p.companyId)));
+      if (!res.ok) throw new Error(d.error || "Chargement impossible");
+      setProposals((d.proposals ?? []) as Proposal[]);
+      setSelected(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function apply() {
-    if (applying || !proposals) return;
+    if (applying) return;
     const items = proposals
       .filter((p) => selected.has(p.companyId))
       .map((p) => ({ companyId: p.companyId, siren: p.siren, siret: p.siret, legalName: p.legalName }));
@@ -68,8 +71,9 @@ export function CompanyEnrichmentBlock() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Application impossible");
       setResult({ applied: d.applied ?? 0, pushedToHubspot: d.pushedToHubspot ?? 0 });
-      setProposals((prev) => (prev ?? []).filter((p) => !selected.has(p.companyId)));
+      setProposals((prev) => prev.filter((p) => !selected.has(p.companyId)));
       setSelected(new Set());
+      router.refresh(); // tuiles de couverture
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -85,23 +89,31 @@ export function CompanyEnrichmentBlock() {
       return next;
     });
 
+  const allSelected = proposals.length > 0 && selected.size === proposals.length;
+
   return (
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900">✨ Enrichissement SIREN · SIRET · TVA (base Sirene)</h3>
+          <h3 className="text-sm font-semibold text-slate-900">
+            ✅ Identités à valider
+            {proposals.length > 0 && (
+              <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                {proposals.length}
+              </span>
+            )}
+          </h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            <span className="font-medium text-slate-600">Automatique chaque heure sur toute la base</span> : les
-            correspondances sûres sont appliquées seules (Revold + HubSpot), les incertaines t&apos;attendent ici
-            pour validation. L&apos;analyse manuelle complète en direct.
+            Correspondances Sirene <span className="font-medium text-slate-600">plausibles mais pas certaines</span> —
+            Revold ne les applique jamais seul. Les correspondances sûres, elles, sont déjà appliquées automatiquement.
           </p>
         </div>
         <button
-          onClick={analyze}
+          onClick={load}
           disabled={loading}
-          className="shrink-0 rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
         >
-          {loading ? "Recherche Sirene…" : proposals ? "Relancer l'analyse" : "Analyser mes entreprises"}
+          {loading ? "Chargement…" : "Rafraîchir la file"}
         </button>
       </div>
 
@@ -111,38 +123,38 @@ export function CompanyEnrichmentBlock() {
           <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
             ✓ {result.applied} entreprise{result.applied > 1 ? "s" : ""} enrichie{result.applied > 1 ? "s" : ""}
             {result.pushedToHubspot > 0 && <> — dont {result.pushedToHubspot} poussée{result.pushedToHubspot > 1 ? "s" : ""} dans HubSpot</>}.
-            Le rapprochement multi-outils en profite dès la prochaine synchronisation.
           </p>
         )}
 
-        {proposals === null && !loading && (
-          <p className="text-xs text-slate-400">
-            Lance l&apos;analyse : Revold cherche les entreprises SANS SIREN (par lot de 25) et propose leurs
-            identifiants officiels. Rien n&apos;est écrit sans ta validation.
-          </p>
-        )}
+        {loading && proposals.length === 0 && <p className="text-xs text-slate-400">Chargement de la file…</p>}
 
-        {proposals !== null && proposals.length === 0 && (
+        {!loading && proposals.length === 0 && (
           <p className="text-xs text-slate-500">
-            {scanned === 0
-              ? "Toutes tes entreprises ont déjà un SIREN — rien à enrichir. 🎉"
-              : "Aucune correspondance Sirene assez fiable sur ce lot — vérifie les noms d'entreprises dans le CRM."}
+            Aucune correspondance en attente. Lance «&nbsp;Enrichir toute ma base&nbsp;» ci-dessus : les identités
+            certaines seront appliquées directement, et les cas ambigus arriveront ici.
           </p>
         )}
 
-        {proposals !== null && proposals.length > 0 && (
+        {proposals.length > 0 && (
           <>
             <div className="overflow-x-auto rounded-lg border border-slate-100">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-500">
-                    <th className="w-8 px-2.5 py-2" />
+                    <th className="w-8 px-2.5 py-2">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.companyId)))}
+                        className="accent-[var(--accent)]"
+                        title="Tout sélectionner"
+                      />
+                    </th>
                     <th className="px-2.5 py-2 font-semibold">Entreprise (CRM)</th>
                     <th className="px-2.5 py-2 font-semibold">Raison sociale officielle</th>
                     <th className="px-2.5 py-2 font-semibold">SIREN</th>
                     <th className="px-2.5 py-2 font-semibold">SIRET (siège)</th>
                     <th className="px-2.5 py-2 font-semibold">N° TVA</th>
-                    <th className="px-2.5 py-2 font-semibold">Confiance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,13 +168,6 @@ export function CompanyEnrichmentBlock() {
                       <td className="px-2.5 py-2 tabular-nums text-slate-900">{p.siren}</td>
                       <td className="px-2.5 py-2 tabular-nums text-slate-700">{p.siret ?? "—"}</td>
                       <td className="px-2.5 py-2 tabular-nums text-slate-700">{p.vatNumber}</td>
-                      <td className="px-2.5 py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          p.confidence === "high" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                        }`}>
-                          {p.confidence === "high" ? "Haute" : "À vérifier"}
-                        </span>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -170,15 +175,15 @@ export function CompanyEnrichmentBlock() {
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] text-slate-400">
-                {selected.size} sélectionnée{selected.size > 1 ? "s" : ""} sur {proposals.length} proposition{proposals.length > 1 ? "s" : ""} —
-                les correspondances « À vérifier » se cochent manuellement.
+                {selected.size} sélectionnée{selected.size > 1 ? "s" : ""} sur {proposals.length} — vérifie que la raison
+                sociale correspond bien à l&apos;entreprise de ton CRM avant d&apos;appliquer.
               </p>
               <button
                 onClick={apply}
                 disabled={applying || selected.size === 0}
                 className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
               >
-                {applying ? "Application…" : `✓ Appliquer la sélection (Revold + HubSpot)`}
+                {applying ? "Application…" : "✓ Valider la sélection (Revold + HubSpot)"}
               </button>
             </div>
           </>

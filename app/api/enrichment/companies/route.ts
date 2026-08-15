@@ -2,24 +2,24 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { searchCompanyInSirene, vatFromSiren } from "@/lib/enrichment/company-enrichment";
+import { vatFromSiren } from "@/lib/enrichment/company-enrichment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Enrichissement SIREN / SIRET / N° TVA / raison sociale des entreprises via
- * la base Sirene (gratuite, sans clé).
+ * FILE DE VALIDATION des identités (SIREN / SIRET / TVA / raison sociale).
  *
- * GET  : propose des enrichissements pour les entreprises SANS SIREN (nom
- *        requis) — rien n'est écrit, l'utilisateur valide.
- * POST : applique les enrichissements VALIDÉS — écrit dans les colonnes
- *        canoniques (companies) ET, si l'entreprise vient de HubSpot et que
- *        les propriétés sont mappées, pousse les valeurs DANS HubSpot
- *        (exécution directe dans l'outil, pas seulement chez Revold).
+ * Le SCAN de la base appartient au moteur de backfill
+ * (lib/enrichment/backfill-engine : bouton « Enrichir toute ma base » + cron
+ * horaire) : il applique seul les correspondances SÛRES et dépose ici les
+ * correspondances PLAUSIBLES.
+ *
+ * GET  : liste les candidats en attente (candidate_*), zéro appel API.
+ * POST : applique les candidats VALIDÉS — colonnes canoniques (companies) ET,
+ *        si l'entreprise vient de HubSpot et que les propriétés sont mappées,
+ *        pousse les valeurs DANS HubSpot.
  */
-
-type CompanyRow = { id: string; name: string | null; domain: string | null; siren: string | null; hubspot_id: string | null };
 
 export async function GET() {
   const supabase = await createSupabaseServerClient();
@@ -38,76 +38,40 @@ export async function GET() {
     vatNumber: string;
     legalName: string;
     confidence: "high" | "medium";
-    /** Candidat préparé par le cron d'enrichissement automatique (file de validation). */
-    fromQueue?: boolean;
   };
-  const proposals: ProposalOut[] = [];
 
-  // ── 1. File de validation préparée par le cron (instantané, zéro appel API) :
-  //    les correspondances « plausibles » que l'enrichissement automatique n'a
-  //    pas voulu appliquer seul. Best-effort si la migration n'est pas passée.
-  const seen = new Set<string>();
-  try {
-    const { data: queued } = await supabase
-      .from("companies")
-      .select("id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name")
-      .eq("organization_id", orgId)
-      .is("siren", null)
-      .not("candidate_siren", "is", null)
-      .limit(50);
-    for (const c of queued ?? []) {
-      const siren = c.candidate_siren as string | null;
-      if (!siren || !/^\d{9}$/.test(siren)) continue;
-      seen.add(c.id as string);
-      proposals.push({
-        companyId: c.id as string,
-        name: (c.name as string | null) ?? siren,
-        domain: (c.domain as string | null) ?? null,
-        hubspotId: (c.hubspot_id as string | null) ?? null,
-        siren,
-        siret: (c.candidate_siret as string | null) ?? null,
-        vatNumber: vatFromSiren(siren),
-        legalName: (c.candidate_legal_name as string | null) ?? ((c.name as string | null) ?? siren),
-        confidence: "medium",
-        fromQueue: true,
-      });
-    }
-  } catch {
-    /* colonnes candidate_* absentes → uniquement le scan direct */
-  }
-
-  // ── 2. Scan direct d'un lot (complément immédiat de la file) ──
-  const { data } = await supabase
+  // FILE DE VALIDATION uniquement (instantané, zéro appel API) : les
+  // correspondances « plausibles » que l'enrichissement (backfill à la demande
+  // ou cron horaire) n'a délibérément PAS appliquées seul. Le scan de la base
+  // appartient au moteur de backfill — ce bloc ne fait que la validation.
+  const { data: queued, error } = await supabase
     .from("companies")
-    .select("id, name, domain, siren, hubspot_id")
+    .select("id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name")
     .eq("organization_id", orgId)
     .is("siren", null)
-    .not("name", "is", null)
-    .limit(25);
+    .not("candidate_siren", "is", null)
+    .limit(100);
+  // Colonnes candidate_* absentes (migration non appliquée) → file vide.
+  if (error) return NextResponse.json({ proposals: [], unavailable: true });
 
-  const companies = ((data ?? []) as CompanyRow[]).filter(
-    (c) => (c.name ?? "").trim().length >= 2 && !seen.has(c.id),
-  );
-
-  // Séquentiel : l'API publique limite à ~7 req/s — on reste très en dessous.
-  for (const c of companies) {
-    const found = await searchCompanyInSirene(c.name!);
-    if (found) {
-      proposals.push({
-        companyId: c.id,
-        name: c.name!,
-        domain: c.domain,
-        hubspotId: c.hubspot_id,
-        siren: found.siren,
-        siret: found.siret,
-        vatNumber: found.vatNumber,
-        legalName: found.legalName,
-        confidence: found.confidence,
-      });
-    }
+  const proposals: ProposalOut[] = [];
+  for (const c of queued ?? []) {
+    const siren = c.candidate_siren as string | null;
+    if (!siren || !/^\d{9}$/.test(siren)) continue;
+    proposals.push({
+      companyId: c.id as string,
+      name: (c.name as string | null) ?? siren,
+      domain: (c.domain as string | null) ?? null,
+      hubspotId: (c.hubspot_id as string | null) ?? null,
+      siren,
+      siret: (c.candidate_siret as string | null) ?? null,
+      vatNumber: vatFromSiren(siren),
+      legalName: (c.candidate_legal_name as string | null) ?? ((c.name as string | null) ?? siren),
+      confidence: "medium",
+    });
   }
 
-  return NextResponse.json({ scanned: companies.length + seen.size, proposals });
+  return NextResponse.json({ proposals });
 }
 
 export async function POST(request: Request) {
