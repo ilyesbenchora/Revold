@@ -52,22 +52,20 @@ export function availableWorkspaces(role: string | null | undefined, pole: strin
 }
 
 // ── Règles de navigation par espace ─────────────────────────────────────────
-// Pour les groupes filtrables (audit=Données, coaching=Coaching IA,
-// previsions=Prévisions) : "all" = tous les sous-liens, tableau = sous-liens
-// autorisés, absent = groupe masqué. Dashboard et Intégrations sont toujours
-// visibles en entier.
+// Pour les groupes filtrables (audit=Données, coaching=Coaching IA) : "all" =
+// tous les sous-liens, tableau = sous-liens autorisés, absent = groupe masqué.
+// Dashboard et Intégrations sont toujours visibles en entier.
 
-type NavRule = Partial<Record<"audit" | "coaching" | "previsions" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
+type NavRule = Partial<Record<"audit" | "coaching" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
-  all: { audit: "all", coaching: "all", previsions: "all", dashboard: "all", integrations: "all", alertes: "all" },
+  all: { audit: "all", coaching: "all", dashboard: "all", integrations: "all", alertes: "all" },
   // Accessibles dans TOUS les espaces : « Mon équipe IA » (/dashboard/audit,
   // le hub des agents experts de la section Données) et le coach data — la
   // qualité des données concerne chaque pôle.
   sales: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/commercial", "/dashboard/insights-ia/data"],
-    previsions: "all",
     dashboard: "all",
     integrations: "all",
     alertes: "all",
@@ -75,7 +73,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   marketing: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/marketing", "/dashboard/insights-ia/data"],
-    previsions: "all",
     dashboard: "all",
     integrations: "all",
     alertes: "all",
@@ -90,7 +87,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
   finance: {
     audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation", "/dashboard/donnees"],
     coaching: ["/dashboard/insights-ia", "/dashboard/insights-ia/data", "/dashboard/insights-ia/data-model"],
-    previsions: "all",
     dashboard: "all",
     integrations: "all",
     alertes: "all",
@@ -118,4 +114,40 @@ export function isChildVisible(ws: WorkspaceId, groupId: string, href: string): 
   if (r === "all") return true;
   if (Array.isArray(r)) return r.includes(href);
   return false;
+}
+
+// ── Contrôle d'accès SERVEUR par espace ─────────────────────────────────────
+// Le masquage de la sidebar ne suffit pas : un membre restreint à son pôle ne
+// doit pas pouvoir ouvrir une page hors périmètre en tapant l'URL. Chaque
+// route filtrable est rattachée à son groupe ; les routes inconnues restent
+// ouvertes (fail-open : on ne bloque jamais une page transverse par erreur).
+
+const GUARDED_ROUTES: Array<{ group: string; href: string }> = [
+  // Données — les préfixes les plus spécifiques d'abord.
+  { group: "audit", href: "/dashboard/audit/paiement-facturation" },
+  { group: "audit", href: "/dashboard/audit/service-client" },
+  { group: "audit", href: "/dashboard/performances" },
+  { group: "audit", href: "/dashboard/appels" },
+  { group: "audit", href: "/dashboard/process" },
+  { group: "audit", href: "/dashboard/conduite-changement" },
+  { group: "audit", href: "/dashboard/donnees" },
+  // Coaching IA.
+  { group: "coaching", href: "/dashboard/insights-ia/commercial" },
+  { group: "coaching", href: "/dashboard/insights-ia/marketing" },
+  { group: "coaching", href: "/dashboard/insights-ia/data-model" },
+  { group: "coaching", href: "/dashboard/insights-ia/data" },
+  { group: "coaching", href: "/dashboard/insights-ia/calendrier" },
+  { group: "coaching", href: "/dashboard/insights-ia" },
+];
+
+/**
+ * Une page est-elle accessible dans cet espace ? (« /dashboard/audit » exact =
+ * Mon équipe IA, accessible partout ; ses sous-pages suivent leurs règles.)
+ */
+export function isPathAllowed(ws: WorkspaceId, pathname: string): boolean {
+  if (ws === "all") return true;
+  if (pathname === "/dashboard/audit") return isChildVisible(ws, "audit", "/dashboard/audit");
+  const match = GUARDED_ROUTES.find((r) => pathname === r.href || pathname.startsWith(`${r.href}/`));
+  if (!match) return true;
+  return isChildVisible(ws, match.group, match.href);
 }

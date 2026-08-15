@@ -13,7 +13,6 @@ import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-persona
 const FAMILY_KEYS = [
   "performance",
   "coaching-ventes",
-  "prev-revenue",
   "paiement-facturation",
   "coaching-marketing",
   "reporting",

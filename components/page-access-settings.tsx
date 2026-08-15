@@ -76,14 +76,6 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "previsions",
-    title: "Prévisions",
-    pages: [
-      { href: "/dashboard/simulations", label: "Prévisions — Vue d'ensemble" },
-      { href: "/dashboard/simulations/mes-previsions", label: "Mes prévisions" },
-    ],
-  },
-  {
     id: "dashboard",
     title: "Dashboard",
     pages: [

@@ -50,14 +50,6 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "simulation",
-    title: "Prévisions",
-    hint: "Sélection multiple — les prévisions peuvent croiser plusieurs outils.",
-    pages: [
-      { key: "simulation_ia", label: "Prévisions", description: "Simulations : cycle de vente, revenue, data quality", mode: "multi" },
-    ],
-  },
-  {
     id: "coaching",
     title: "Coaching IA",
     hint: "Sélection multiple — l'IA peut combiner les insights de plusieurs outils.",

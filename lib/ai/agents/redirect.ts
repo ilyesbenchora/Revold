@@ -18,7 +18,7 @@ export const redirectToAgentTool: AgentTool = {
     input_schema: {
       type: "object",
       properties: {
-        agent_key: { type: "string", description: "Clé exacte de l'agent pertinent (ex : performance, paiement-facturation, service-client, prev-revenue…)." },
+        agent_key: { type: "string", description: "Clé exacte de l'agent pertinent (ex : performance, paiement-facturation, service-client…)." },
         reason: { type: "string", description: "Pourquoi cet agent est plus pertinent (une phrase)." },
       },
       required: ["agent_key"],

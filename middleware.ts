@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+  // Propage le pathname aux layouts serveur (contrôle d'accès par espace de
+  // travail dans app/(dashboard)/layout.tsx — les layouts ne le voient pas).
+  request.headers.set("x-pathname", request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

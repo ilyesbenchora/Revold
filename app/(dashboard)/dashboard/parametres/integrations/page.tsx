@@ -27,7 +27,6 @@ const ALL_PAGE_KEYS = [
   "audit_service_client",
   "audit_adoption",
   "dashboard",
-  "simulation_ia",
   "coaching_ia",
   // Sources par agent (Mon équipe IA + Coachs IA) — clés agent_<agentKey>.
   "agent_performance",

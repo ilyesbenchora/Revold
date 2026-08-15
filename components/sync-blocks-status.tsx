@@ -114,23 +114,6 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
       evidenceCount: snapshot.totalDeals + snapshot.totalContacts,
     },
 
-    // ── Simulations IA ──
-    {
-      id: "simulation_ia",
-      label: "Simulations IA",
-      href: "/dashboard/alertes",
-      description: "Simulations cycle de vente, revenue et data quality",
-      diagKeys: [
-        "totalDeals",
-        "wonDeals",
-        "lostDeals",
-        "totalContacts",
-        "totalPipelineAmount",
-        "stagnantDeals",
-      ],
-      evidenceCount: snapshot.totalDeals + snapshot.totalContacts,
-    },
-
     // ── Coaching IA ──
     {
       id: "coaching_ia",

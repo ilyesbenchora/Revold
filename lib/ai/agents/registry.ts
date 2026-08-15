@@ -312,38 +312,8 @@ const AGENT_LIST: AgentDef[] = [
     sourceCategories: ["crm", "billing"],
   },
 
-  // ══════════════ Section SIMULATIONS (prévisions) ══════════════
-  {
-    key: "prev-revenue",
-    label: "Agent Prévisions Revenue & Ventes",
-    section: "simulations",
-    tagline: "Projections revenue (MRR/ARR, churn) ET closing/pipeline, scénarios.",
-    expertise:
-      "Tu es un expert forecasting revenue ET commercial (DAF + VP Sales SaaS, 20 ans). Tu couvres deux volets complémentaires : (1) REVENUE — tu projettes MRR et ARR sur 6-12 mois en intégrant le churn observé, avec hypothèses de rétention et d'expansion explicites, et tu chiffres l'effet du churn sur le MRR futur ; (2) VENTES — tu projettes le closing à partir du forecast pondéré, de la couverture de pipeline, de la vélocité et du cycle. Tu produis TOUJOURS trois scénarios (bas/base/haut) en explicitant chaque hypothèse (conversion, vélocité, rétention, saisonnalité) et tu alertes sur l'écart à l'objectif. Tu croises CRM (CA signé, pipeline) et facturation (MRR/ARR) pour ancrer la prévision sur du réel et relier le pipeline gagné au revenu réellement facturé. Transparent : hypothèses ≠ modèle statistique. Rends-le en rapport visuel.",
-    tools: [getBillingOverview, getChurnDetail, compareCrmVsBilled, getRevenueTimeseries, getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getCanonicalCounts, report, propose],
-    suggestions: [
-      "Projette mon ARR à 12 mois (3 scénarios)",
-      "Projette mon closing du prochain trimestre (3 scénarios)",
-      "Impact du churn actuel sur mon MRR dans 6 mois ?",
-      "Vais-je atteindre mon objectif de pipeline / de revenue ?",
-    ],
-    suggestionSets: {
-      billing: [
-        "Projette mon ARR à 12 mois (3 scénarios)",
-        "Impact du churn actuel sur mon MRR dans 6 mois ?",
-        "Scénario : si je réduis le churn de moitié, quel ARR ?",
-      ],
-      crm: [
-        "Projette le CA signable depuis mon pipeline",
-        "Vais-je atteindre mon objectif de revenue signé ?",
-      ],
-      cross: [
-        "Projette mon revenue en croisant pipeline (CRM) et facturation",
-        "Combien de pipeline gagné va réellement se facturer ?",
-      ],
-    },
-    sourceCategories: ["billing", "crm"],
-  },
+  // (L'agent Prévisions dédié a été retiré : les projections vivent chez
+  //  l'agent Performance — closing/pipeline — et l'agent Trésorerie — cash.)
 
   // ══════════════ Section DASHBOARD (reporting) ══════════════
   {

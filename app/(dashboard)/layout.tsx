@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { poleToWorkspace, isPathAllowed } from "@/lib/workspaces";
 import { getAuthUser, getProfile, getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
@@ -53,6 +55,18 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     }
   } catch {
     /* défaut : accès global */
+  }
+
+  // ── Contrôle d'accès SERVEUR par espace de travail ──
+  // Un membre (non-admin) rattaché à un pôle ne peut pas ouvrir une page hors
+  // de son espace en tapant l'URL : redirection vers la vue d'ensemble. Le
+  // pathname vient du middleware (header x-pathname).
+  if (role !== "admin") {
+    const memberWs = poleToWorkspace(pole);
+    if (memberWs) {
+      const pathname = (await headers()).get("x-pathname") ?? "";
+      if (pathname && !isPathAllowed(memberWs, pathname)) redirect("/dashboard");
+    }
   }
 
   // Accès aux pages par équipe (Paramètres → Utilisateurs & équipes) : la

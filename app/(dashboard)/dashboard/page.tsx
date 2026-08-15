@@ -10,7 +10,6 @@ import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
   buildContext,
-  buildScenarios,
   fetchDismissals,
   fetchCrossSourceInsights,
   fetchDataModelInsights,
@@ -81,7 +80,6 @@ export default async function DashboardOverviewPage() {
     dataModelInsights.length;
 
   // Simulations IA : nb de scenarios après gating par outil connecté.
-  const simulationsTotal = buildScenarios(ctx, connectedCats).length;
 
   // Rapports actionnables : activés + suggestions disponibles.
   const reportsTotal = tabCounts.myCount + tabCounts.singleCount + tabCounts.multiCount;
@@ -131,7 +129,6 @@ export default async function DashboardOverviewPage() {
       color: "text-accent",
     },
     { id: "coaching", label: "Coachings à faire", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/insights-ia", color: "text-fuchsia-600" },
-    { id: "previsions", label: "Prévisions", value: simulationsTotal.toLocaleString("fr-FR"), href: "/dashboard/simulations", color: "text-amber-600" },
     { id: "rapports", label: "Rapports actionnables", value: reportsTotal.toLocaleString("fr-FR"), href: "/dashboard/rapports", color: "text-emerald-600" },
     { id: "revenue", label: "Données Revenue analysées", value: revenueRecordsTotal.toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-teal-600" },
     { id: "deals", label: "Deals analysés", value: (dealsCount ?? ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
@@ -142,7 +139,7 @@ export default async function DashboardOverviewPage() {
     { id: "tickets", label: "Tickets support", value: (ticketsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/service-client", color: "text-orange-600" },
     { id: "transactions", label: "Transactions bancaires", value: (txCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-lime-600" },
   ];
-  const DEFAULT_HOME_KPIS = ["integrations", "coaching", "previsions", "rapports", "revenue"];
+  const DEFAULT_HOME_KPIS = ["integrations", "coaching", "rapports", "revenue"];
   const homeCust = await getPageCustomization(supabase, orgId, "home_hero");
 
   // ── KPIs « maison » : écrits par l'utilisateur puis CÂBLÉS par l'agent
@@ -260,20 +257,6 @@ export default async function DashboardOverviewPage() {
           <polyline points="14 2 14 8 20 8" />
           <line x1="8" y1="13" x2="16" y2="13" />
           <line x1="8" y1="17" x2="16" y2="17" />
-        </svg>
-      ),
-    },
-    {
-      label: "Prévisions",
-      description: "Projetez votre closing, votre revenue et votre pipeline en scénarios bas / base / haut.",
-      href: "/dashboard/simulations",
-      cta: "Lancer une prévision",
-      gradient: "from-amber-500 to-orange-500",
-      ai: true,
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M23 6l-9.5 9.5-5-5L1 18" />
-          <polyline points="17 6 23 6 23 12" />
         </svg>
       ),
     },
