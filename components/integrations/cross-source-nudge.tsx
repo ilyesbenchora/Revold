@@ -30,17 +30,21 @@ export function CrossSourceNudge({
 
   if (dataToolsCount >= 2) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-        <span aria-hidden>✓</span>
-        <p className="min-w-0 flex-1">
-          <strong>Croisement de données actif</strong> — {dataToolsCount} sources connectées. Revold réconcilie tes
-          outils entre eux : CA signé vs CA facturé, deals gagnés sans facture, MRR à risque…
-        </p>
-        {missing.length > 0 && (
-          <span className="text-[11px] text-emerald-700">
-            Encore plus de valeur avec : {missing.map((c) => CATEGORY_META[c].label).join(", ")}
-          </span>
-        )}
+      // Colonne unique (pas de flex-wrap) : la ligne de suggestion se plaçait
+      // en pleine largeur, désalignée du texte principal.
+      <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <span aria-hidden className="mt-0.5 shrink-0">✓</span>
+        <div className="min-w-0 flex-1">
+          <p>
+            <strong>Croisement de données actif</strong> — {dataToolsCount} sources connectées. Revold réconcilie tes
+            outils entre eux : CA signé vs CA facturé, deals gagnés sans facture, MRR à risque…
+          </p>
+          {missing.length > 0 && (
+            <p className="mt-1 text-[11px] text-emerald-700">
+              Encore plus de valeur avec : {missing.map((c) => CATEGORY_META[c].label).join(", ")}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
