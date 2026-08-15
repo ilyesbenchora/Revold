@@ -35,6 +35,7 @@ export function SiteFooter() {
               <li><Link href="/contact" className="text-slate-300 transition hover:text-white">Contact</Link></li>
               <li><Link href="/demo" className="text-slate-300 transition hover:text-white">Demander une démo</Link></li>
               <li><Link href="/essai-gratuit" className="text-slate-300 transition hover:text-white">Essai gratuit 14 jours</Link></li>
+              <li><Link href="/statut" className="text-slate-300 transition hover:text-white">Statut de la plateforme</Link></li>
             </ul>
           </div>
           <div>
