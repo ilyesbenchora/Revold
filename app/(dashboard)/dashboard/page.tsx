@@ -152,7 +152,7 @@ export default async function DashboardOverviewPage() {
       label: t.label,
       value: t.value,
       hint: t.meta,
-      href: "/dashboard/reporting",
+      href: "/dashboard/mes-rapports",
       color: "text-indigo-600",
     });
   }
@@ -178,7 +178,7 @@ export default async function DashboardOverviewPage() {
     sales: "/dashboard/performances",
     marketing: "/dashboard/performances/marketing",
     cs: "/dashboard/audit/service-client",
-    revops: "/dashboard/reporting",
+    revops: "/dashboard/mes-rapports",
     ops: "/dashboard/donnees",
     billing: "/dashboard/audit/paiement-facturation",
     support: "/dashboard/audit/service-client",
@@ -205,7 +205,7 @@ export default async function DashboardOverviewPage() {
           id: `sug:${s.id}`,
           label: s.label,
           value: formatTileValue(value, s.unit),
-          href: TEAM_HREF[s.team] ?? "/dashboard/reporting",
+          href: TEAM_HREF[s.team] ?? "/dashboard/mes-rapports",
           color: "text-indigo-600",
         });
       }),

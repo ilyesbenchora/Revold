@@ -7,7 +7,7 @@ export const WA_MENU_AGENTS: string[] = [
   "coaching-data",
   "performance",
   "paiement-facturation",
-  "reporting",
+  "service-client",
 ];
 
 /** Construit le message de menu (choix de l'agent). */

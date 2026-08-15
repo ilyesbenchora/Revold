@@ -15,7 +15,6 @@ const FAMILY_KEYS = [
   "coaching-ventes",
   "paiement-facturation",
   "coaching-marketing",
-  "reporting",
   "proprietes",
   "service-client",
   "coaching-data",
@@ -32,7 +31,7 @@ export function AgentsFamily() {
           </div>
           <h2 className="text-lg font-semibold text-slate-900">Une équipe d&apos;experts IA à ton service</h2>
           <p className="mt-1 max-w-xl text-sm text-slate-500">
-            Chaque agent a sa spécialité — performance, coaching, prévisions, reporting. Ils analysent tes données et te
+            Chaque agent a sa spécialité — performance, coaching, trésorerie, données. Ils analysent tes données et te
             proposent des actions concrètes.
           </p>
         </div>

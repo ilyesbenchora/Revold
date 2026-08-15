@@ -79,7 +79,7 @@ const SECTIONS: Section[] = [
     id: "dashboard",
     title: "Dashboard",
     pages: [
-      { href: "/dashboard/reporting", label: "Vue d'ensemble" },
+      { href: "/dashboard/routines", label: "Routines" },
       { href: "/dashboard/mes-rapports", label: "Mes rapports" },
     ],
   },

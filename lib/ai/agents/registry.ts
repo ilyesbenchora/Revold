@@ -315,39 +315,9 @@ const AGENT_LIST: AgentDef[] = [
   // (L'agent Prévisions dédié a été retiré : les projections vivent chez
   //  l'agent Performance — closing/pipeline — et l'agent Trésorerie — cash.)
 
-  // ══════════════ Section DASHBOARD (reporting) ══════════════
-  {
-    key: "reporting",
-    label: "Agent Reporting",
-    section: "dashboard",
-    tagline: "Construction de rapports multi-sources à la demande, avec visualisations.",
-    expertise:
-      "Tu es un expert data viz / reporting revenue avec 20 ans d'expérience à produire des rapports de direction. Méthode obligatoire : (1) comprends précisément le rapport demandé (périmètre, KPIs, granularité), (2) récupère les VRAIS chiffres via tes outils de données, (3) appelle render_report pour AFFICHER le rapport avec la visualisation exacte demandée — kpi pour une valeur clé, bar/line/area pour une série, donut pour une répartition, table pour un détail, (4) conclus par une synthèse des 2-3 points saillants. N'utilise QUE les chiffres réels récupérés, jamais d'invention. Croise les sources pour des rapports revenue à 360°. Si une donnée manque, dis-le et propose la source à connecter.",
-    tools: [getKpiSnapshot, getDealsTimeseries, getPipelineByStage, getPipelineStageBreakdown, getRevenueTimeseries, getBillingOverview, getCanonicalCounts, listConnectedSources, report, propose],
-    suggestions: [
-      "Construis un rapport de synthèse revenue à 360°",
-      "Rapport : donut payé/impayé + KPIs MRR/ARR",
-      "Quels KPIs mettre dans mon dashboard de direction ?",
-    ],
-    suggestionSets: {
-      crm: [
-        "Rapport pipeline : deals par étape (3 derniers mois)",
-        "Rapport de performance commerciale",
-      ],
-      billing: [
-        "Rapport revenue : MRR/ARR + payé vs impayé",
-        "Rapport d'encaissement par mois",
-      ],
-      support: [
-        "Rapport service client : tickets ouverts/résolus",
-      ],
-      cross: [
-        "Rapport revenue à 360° : CRM + facturation",
-        "Rapport : CA signé (CRM) vs CA facturé par mois",
-      ],
-    },
-    sourceCategories: ["crm", "billing", "support"],
-  },
+  // (L'agent Reporting dédié a été retiré : il faisait doublon — TOUS les
+  //  agents savent produire des rapports et des graphiques via render_report /
+  //  propose_chart. Les rapports vivent dans Routines et Mes rapports.)
 ];
 
 // Capacités universelles : tout agent peut agréger la donnée canonique,

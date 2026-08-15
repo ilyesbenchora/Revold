@@ -28,7 +28,6 @@ const AGENT_PAGE: Record<string, { href: string; label: string }> = {
   "coaching-marketing": { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
   "coaching-data": { href: "/dashboard/insights-ia/data", label: "Coaching Data" },
   "coaching-data-model": { href: "/dashboard/insights-ia/data-model", label: "Coaching Finance" },
-  reporting: { href: "/dashboard/reporting", label: "Dashboard" },
 };
 
 export default async function AgentPage({
