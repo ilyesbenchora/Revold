@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { searchCompanyInSirene, fetchCompanyFacts, vatFromSiren } from "@/lib/enrichment/company-enrichment";
+import { lookupCompanyByName, lookupCompanyFacts, vatFromSiren } from "@/lib/enrichment/company-enrichment";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 
 /**
@@ -32,6 +32,8 @@ export type BackfillResult = BackfillCounts & {
   perOrg: Record<string, BackfillCounts>;
   /** Migration enrichment_scale absente → rien n'a été fait. */
   unavailable?: boolean;
+  /** Lot écourté : registre injoignable ou quota atteint — reprendre plus tard. */
+  interrupted?: boolean;
 };
 
 type IdentityRow = { id: string; organization_id: string; name: string | null; hubspot_id: string | null };
@@ -114,18 +116,26 @@ export async function runEnrichmentBatch(
     return { ...totals, lookupsUsed: 0, remainingIdentities: 0, remainingFacts: 0, perOrg, unavailable: true };
   }
 
+  let interrupted = false;
   for (const c of (identityData ?? []) as IdentityRow[]) {
     if (budget <= 0) break;
     if (!c.name || c.name.trim().length < 2) continue;
     budget--;
-    const found = await searchCompanyInSirene(c.name);
+    const outcome = await lookupCompanyByName(c.name);
     await sleep(THROTTLE_MS);
     const checked = { sirene_checked_at: new Date().toISOString() };
 
-    if (!found) {
+    // Appel échoué (quota/panne) : on N'ÉCRIT RIEN — l'entreprise reste à
+    // traiter au prochain passage — et on écourte le lot (backoff naturel).
+    if (outcome.status === "error") {
+      interrupted = true;
+      break;
+    }
+    if (outcome.status === "none") {
       await sb.from("companies").update(checked).eq("id", c.id);
       continue;
     }
+    const found = outcome.data;
     if (found.confidence !== "high") {
       await sb
         .from("companies")
@@ -172,7 +182,7 @@ export async function runEnrichmentBatch(
   }
 
   // ── 2. Effectifs & CA (déterministe par SIREN) ──
-  if (budget > 0) {
+  if (budget > 0 && !interrupted) {
     const factsQuery = scoped(
       sb
         .from("companies")
@@ -188,8 +198,14 @@ export async function runEnrichmentBatch(
       if (budget <= 0) break;
       if (!/^\d{9}$/.test(c.siren)) continue;
       budget--;
-      const facts = await fetchCompanyFacts(c.siren);
+      const outcome = await lookupCompanyFacts(c.siren);
       await sleep(THROTTLE_MS);
+      // Appel échoué → rien écrit (enriched_at intact), lot écourté.
+      if (outcome.status === "error") {
+        interrupted = true;
+        break;
+      }
+      const facts = outcome.status === "found" ? outcome.data : null;
       const update: Record<string, unknown> = { enriched_at: new Date().toISOString() };
       if (facts?.employeeRange) {
         update.official_employee_range = facts.employeeRange;
@@ -234,5 +250,5 @@ export async function runEnrichmentBatch(
   };
   const [remainingIdentities, remainingFacts] = await Promise.all([countRemaining("identities"), countRemaining("facts")]);
 
-  return { ...totals, lookupsUsed: opts.budget - budget, remainingIdentities, remainingFacts, perOrg };
+  return { ...totals, lookupsUsed: opts.budget - budget, remainingIdentities, remainingFacts, perOrg, interrupted };
 }

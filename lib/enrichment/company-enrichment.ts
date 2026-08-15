@@ -129,21 +129,53 @@ function factsFromResult(r: ApiResult): CompanyFacts {
  * ÉVOLUTIVES : à rafraîchir périodiquement. CA absent = comptes déposés en
  * confidentialité (fréquent en PME) — on ne devine jamais.
  */
-export async function fetchCompanyFacts(siren: string): Promise<CompanyFacts | null> {
+export async function fetchCompanyFacts(
+  siren: string,
+  opts?: { throwOnError?: boolean },
+): Promise<CompanyFacts | null> {
   if (!/^\d{9}$/.test(siren)) return null;
   try {
     const res = await fetch(
       `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&page=1&per_page=3`,
       { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (opts?.throwOnError) throw new Error(`HTTP ${res.status}`);
+      return null;
+    }
     const d = (await res.json()) as { results?: ApiResult[] };
     const match = (d.results ?? []).find((r) => r.siren === siren);
     if (!match) return null;
     return factsFromResult(match);
-  } catch {
+  } catch (e) {
+    if (opts?.throwOnError) throw e;
     return null;
   }
+}
+
+/**
+ * Résultat d'un appel au registre, avec la distinction ESSENTIELLE à l'échelle :
+ *  - "found" : correspondance trouvée ;
+ *  - "none"  : le registre a répondu, aucune correspondance (on peut marquer
+ *              l'entreprise comme vérifiée) ;
+ *  - "error" : réseau, quota (429) ou panne — surtout NE PAS marquer vérifiée,
+ *              sinon un incident transitoire creuse des trous invisibles
+ *              pendant 30 jours dans la base.
+ */
+export type LookupOutcome<T> = { status: "found"; data: T } | { status: "none" } | { status: "error" };
+
+/** Idem searchCompanyInSirene, mais distingue « rien trouvé » de « appel échoué ». */
+export async function lookupCompanyByName(name: string): Promise<LookupOutcome<EnrichmentCandidate>> {
+  const candidate = await searchCompanyInSirene(name, { throwOnError: true }).catch(() => "error" as const);
+  if (candidate === "error") return { status: "error" };
+  return candidate ? { status: "found", data: candidate } : { status: "none" };
+}
+
+/** Idem fetchCompanyFacts, mais distingue « pas de donnée » de « appel échoué ». */
+export async function lookupCompanyFacts(siren: string): Promise<LookupOutcome<CompanyFacts>> {
+  const facts = await fetchCompanyFacts(siren, { throwOnError: true }).catch(() => "error" as const);
+  if (facts === "error") return { status: "error" };
+  return facts ? { status: "found", data: facts } : { status: "none" };
 }
 
 /**
@@ -151,7 +183,10 @@ export async function fetchCompanyFacts(siren: string): Promise<CompanyFacts | n
  * domaine, utilisé seulement pour départager). Renvoie le meilleur candidat,
  * ou null si rien d'assez plausible.
  */
-export async function searchCompanyInSirene(name: string): Promise<EnrichmentCandidate | null> {
+export async function searchCompanyInSirene(
+  name: string,
+  opts?: { throwOnError?: boolean },
+): Promise<EnrichmentCandidate | null> {
   const q = name.trim();
   if (q.length < 2) return null;
   try {
@@ -159,7 +194,11 @@ export async function searchCompanyInSirene(name: string): Promise<EnrichmentCan
       `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&page=1&per_page=5`,
       { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) },
     );
-    if (!res.ok) return null;
+    // Quota (429), panne (5xx) ou refus : ce n'est PAS « aucun résultat ».
+    if (!res.ok) {
+      if (opts?.throwOnError) throw new Error(`HTTP ${res.status}`);
+      return null;
+    }
     const d = (await res.json()) as { results?: ApiResult[] };
     const results = (d.results ?? []).filter((r) => r.siren && /^\d{9}$/.test(r.siren));
     if (results.length === 0) return null;
@@ -187,7 +226,8 @@ export async function searchCompanyInSirene(name: string): Promise<EnrichmentCan
       confidence: exact ? "high" : "medium",
       facts: factsFromResult(best),
     };
-  } catch {
+  } catch (e) {
+    if (opts?.throwOnError) throw e;
     return null;
   }
 }

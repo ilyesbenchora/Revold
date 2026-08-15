@@ -35,5 +35,6 @@ export async function POST() {
     facts: result.facts,
     remainingIdentities: result.remainingIdentities,
     remainingFacts: result.remainingFacts,
+    interrupted: result.interrupted ?? false,
   });
 }
