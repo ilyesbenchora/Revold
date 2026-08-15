@@ -113,23 +113,6 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
       ],
       evidenceCount: snapshot.totalDeals + snapshot.totalContacts,
     },
-
-    // ── Coaching IA ──
-    {
-      id: "coaching_ia",
-      label: "Coaching IA",
-      href: "/dashboard/insights-ia",
-      description: "Insights IA Ventes / Marketing / Data / Intégrations",
-      diagKeys: [
-        "totalDeals",
-        "totalContacts",
-        "totalCompanies",
-        "leads",
-        "forms",
-        "marketing_campaigns",
-      ],
-      evidenceCount: snapshot.totalDeals + snapshot.totalContacts + snapshot.formsCount,
-    },
   ];
 }
 

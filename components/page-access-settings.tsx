@@ -65,17 +65,6 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "coaching",
-    title: "Coaching IA",
-    pages: [
-      { href: "/dashboard/insights-ia", label: "Mes Coachs IA" },
-      { href: "/dashboard/insights-ia/commercial", label: "Coaching Ventes" },
-      { href: "/dashboard/insights-ia/marketing", label: "Coaching Marketing" },
-      { href: "/dashboard/insights-ia/data", label: "Coaching Data & intégrations" },
-      { href: "/dashboard/insights-ia/data-model", label: "Coaching Finance" },
-    ],
-  },
-  {
     id: "dashboard",
     title: "Dashboard",
     pages: [
@@ -90,6 +79,8 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/mes-alertes", label: "Alertes" },
       { href: "/dashboard/mes-alertes/objectifs", label: "Objectifs" },
       { href: "/dashboard/mes-alertes/calendrier", label: "Calendrier" },
+      { href: "/dashboard/mes-alertes/seances", label: "Séances" },
+      { href: "/dashboard/mes-alertes/enrichissement", label: "Enrichissement" },
     ],
   },
 ];

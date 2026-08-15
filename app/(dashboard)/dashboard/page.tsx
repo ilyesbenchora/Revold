@@ -129,7 +129,10 @@ export default async function DashboardOverviewPage() {
       href: "/dashboard/integration",
       color: "text-accent",
     },
-    { id: "coaching", label: "Coachings à faire", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/insights-ia", color: "text-fuchsia-600" },
+    // id « coaching » conservé (les tuiles choisies par l'utilisateur sont
+    // stockées par id) alors que la famille de coachs a disparu : ce compteur
+    // mesure les analyses en attente, désormais traitées par Mon équipe IA.
+    { id: "coaching", label: "Analyses à traiter", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/audit", color: "text-fuchsia-600" },
     { id: "rapports", label: "Rapports actionnables", value: reportsTotal.toLocaleString("fr-FR"), href: "/dashboard/rapports", color: "text-emerald-600" },
     { id: "revenue", label: "Données Revenue analysées", value: revenueRecordsTotal.toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-teal-600" },
     { id: "deals", label: "Deals analysés", value: (dealsCount ?? ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
@@ -233,10 +236,10 @@ export default async function DashboardOverviewPage() {
       ),
     },
     {
-      label: "Coaching IA",
-      description: "Transformez vos données en plans d'action concrets pour vos équipes.",
-      href: "/dashboard/insights-ia",
-      cta: "Voir les coachings",
+      label: "Séances",
+      description: "Cadrez une séance de travail avec un agent : objectif, ce qui bloque, cadence et prochain rendez-vous.",
+      href: "/dashboard/mes-alertes/seances",
+      cta: "Cadrer une séance",
       gradient: "from-fuchsia-500 to-pink-500",
       ai: true,
       icon: (

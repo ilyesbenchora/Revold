@@ -28,17 +28,12 @@ const ALL_PAGE_KEYS = [
   "audit_service_client",
   "audit_adoption",
   "dashboard",
-  "coaching_ia",
-  // Sources par agent (Mon équipe IA + Coachs IA) — clés agent_<agentKey>.
+  // Sources par agent (Mon équipe IA) — clés agent_<agentKey>.
   "agent_performance",
   "agent_paiement-facturation",
   "agent_service-client",
   "agent_equipes",
   "agent_proprietes",
-  "agent_coaching-ventes",
-  "agent_coaching-marketing",
-  "agent_coaching-data",
-  "agent_coaching-data-model",
 ];
 
 // Toujours rendre fraîchement : l'état OAuth HubSpot change en temps réel

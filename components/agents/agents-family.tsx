@@ -9,16 +9,8 @@ import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-persona
  * d'équipe, avec le prénom + rôle au survol.
  */
 
-// Ordre choisi pour un beau mélange de rôles (Données / Coaching / Prévisions / Dashboard).
-const FAMILY_KEYS = [
-  "performance",
-  "coaching-ventes",
-  "paiement-facturation",
-  "coaching-marketing",
-  "proprietes",
-  "service-client",
-  "coaching-data",
-];
+// Les agents de Mon équipe IA — un seul roster depuis le retrait des coachs.
+const FAMILY_KEYS = ["performance", "paiement-facturation", "service-client", "proprietes"];
 
 export function AgentsFamily() {
   return (
@@ -30,8 +22,8 @@ export function AgentsFamily() {
           </div>
           <h2 className="text-lg font-semibold text-slate-900">Une équipe d&apos;experts IA à ton service</h2>
           <p className="mt-1 max-w-xl text-sm text-slate-500">
-            Chaque agent a sa spécialité — performance, coaching, trésorerie, données. Ils analysent tes données et te
-            proposent des actions concrètes.
+            Chaque agent a sa spécialité — performance, trésorerie, service client, données. Ils analysent tes données
+            et te proposent des actions concrètes.
           </p>
         </div>
 

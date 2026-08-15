@@ -21,6 +21,19 @@ const TEAM_TO_CATEGORY: Record<string, string> = {
   revops: "data-model",   // RevOps → data-model coaching (ops/data quality)
 };
 
+/**
+ * Catégorie → agent de Mon équipe IA qui reprend le sujet. La famille de coachs
+ * a été retirée : l'élément activé ouvre désormais l'agent expert du domaine.
+ */
+const AGENT_BY_CATEGORY: Record<string, string> = {
+  commercial: "performance",
+  marketing: "performance",
+  data: "proprietes",
+  integration: "proprietes",
+  "cross-source": "proprietes",
+  "data-model": "paiement-facturation",
+};
+
 export async function POST(req: Request) {
   const orgId = await getOrgId();
   if (!orgId) {
@@ -98,6 +111,6 @@ export async function POST(req: Request) {
     ok: true,
     id: inserted.id,
     category,
-    redirectTo: `/dashboard/insights-ia/${category}`,
+    redirectTo: `/dashboard/agents/${AGENT_BY_CATEGORY[category] ?? "performance"}`,
   });
 }

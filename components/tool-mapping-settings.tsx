@@ -49,17 +49,9 @@ const SECTIONS: Section[] = [
       { key: "dashboard", label: "Dashboard", description: "Vue d'ensemble & Mes rapports — KPIs en temps réel", mode: "multi" },
     ],
   },
-  {
-    id: "coaching",
-    title: "Coaching IA",
-    hint: "Sélection multiple — l'IA peut combiner les insights de plusieurs outils.",
-    pages: [
-      { key: "coaching_ia", label: "Coaching IA", description: "Insights Ventes / Marketing / Data / Intégrations", mode: "multi" },
-    ],
-  },
-  // Sources par AGENT (clés agent_<agentKey>) : chaque agent expert / coach
-  // n'analyse que les outils choisis ici. Sans sélection, l'agent retombe sur
-  // tous les outils connectés de son périmètre par défaut.
+  // Sources par AGENT (clés agent_<agentKey>) : chaque agent expert n'analyse
+  // que les outils choisis ici. Sans sélection, l'agent retombe sur tous les
+  // outils connectés de son périmètre par défaut.
   {
     id: "agents_equipe",
     title: "Agents — Mon équipe IA",
@@ -72,21 +64,10 @@ const SECTIONS: Section[] = [
       { key: "agent_proprietes", label: "Agent Rapprochement de données", description: "Complétude, rapprochement, enrichissement", mode: "multi" },
     ],
   },
-  {
-    id: "agents_coachs",
-    title: "Agents — Coachs IA",
-    hint: "Sélection multiple — chaque coach n'exploite que les outils choisis. Sans sélection, le coach utilise tous les outils connectés de son périmètre.",
-    pages: [
-      { key: "agent_coaching-ventes", label: "Coach des ventes", description: "Deals, pipeline, closing", mode: "multi" },
-      { key: "agent_coaching-marketing", label: "Coach marketing", description: "Leads, conversion, acquisition", mode: "multi" },
-      { key: "agent_coaching-data", label: "Coach data & intégration", description: "Qualité des données, insights multi-sources", mode: "multi" },
-      { key: "agent_coaching-data-model", label: "Coach finance", description: "Trésorerie, comptabilité, cash", mode: "multi" },
-    ],
-  },
 ];
 
-/** Groupes de sections : "pages" = pages Revold · "agents" = agents & coachs. */
-const AGENT_SECTION_IDS = new Set(["agents_equipe", "agents_coachs"]);
+/** Groupes de sections : "pages" = pages Revold · "agents" = agents. */
+const AGENT_SECTION_IDS = new Set(["agents_equipe"]);
 
 export function ToolMappingSettings({
   options,
