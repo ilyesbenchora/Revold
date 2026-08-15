@@ -75,6 +75,19 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
       "et de protéger les revenus récurrents que tu as mis tant d'énergie à gagner.",
     ],
   },
+  proprietes: {
+    elevenVoiceId: "NJGktYrreZwyjxhPOpIz", // Adrien — FR parisien, formel (auditeur)
+    segments: [
+      "Bonjour, je suis Karim, ton expert data chez Revold.",
+      "Mon travail, c'est de traquer ce qui fausse tes données en silence.",
+      "Les champs vides, les doublons, les valeurs incohérentes.",
+      "Tout ce qui rend une analyse bancale ou bloque une automatisation.",
+      "Je passe ton CRM au peigne fin, propriété par propriété,",
+      "et je te montre exactement où sont les trous et pourquoi ils comptent.",
+      "Ma mission, c'est un socle de données propre et fiable,",
+      "sur lequel tes décisions peuvent vraiment s'appuyer.",
+    ],
+  },
 };
 
 /** Texte complet dit par l'avatar, pour l'API de génération vidéo. */

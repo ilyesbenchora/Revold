@@ -19,7 +19,7 @@ const KPI_IDS = [...KPI_DEFS.keys()];
 const KPI_DOC = [...KPI_DEFS.values()].map((d) => `${d.id} = ${d.label}`).join(" ; ");
 
 /** Agent naturel pour « creuser » un KPI répondu en direct. */
-const KPI_FOLLOWUP_AGENT: Record<string, string> = { sales: "performance", marketing: "performance", data: "performance" };
+const KPI_FOLLOWUP_AGENT: Record<string, string> = { sales: "performance", marketing: "performance", data: "proprietes" };
 
 /** Pages navigables à la voix (cible → route + libellé). */
 const NAV_TARGETS: Record<string, { href: string; label: string }> = {

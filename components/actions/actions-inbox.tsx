@@ -177,6 +177,7 @@ const AGENT_LABELS: Record<string, string> = {
   performance: "Performances",
   "paiement-facturation": "Trésorerie",
   "service-client": "Service client",
+  proprietes: "Data",
 };
 
 function sourceLabel(source: string): string {

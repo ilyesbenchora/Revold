@@ -10,7 +10,7 @@ import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-persona
  */
 
 // Les agents de Mon équipe IA — un seul roster depuis le retrait des coachs.
-const FAMILY_KEYS = ["performance", "paiement-facturation", "service-client"];
+const FAMILY_KEYS = ["performance", "paiement-facturation", "service-client", "proprietes"];
 
 export function AgentsFamily() {
   return (

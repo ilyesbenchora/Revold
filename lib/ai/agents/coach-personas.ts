@@ -27,6 +27,7 @@ export const AGENT_PERSONAS: Record<string, CoachPersona> = {
   performance: { name: "Chloé", emoji: "👩‍💻", role: "Analyste performance", pitch: "Je décortique tes deals, ton pipeline et ton win rate pour révéler où se cache la croissance — et les leviers concrets pour l'activer.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
   "paiement-facturation": { name: "Inès", emoji: "👩‍💼", role: "Experte trésorerie", pitch: "Je réconcilie factures, paiements et impayés pour piloter le cash réel — pas seulement le pipeline théorique.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
   "service-client": { name: "Hugo", emoji: "🙋‍♂️", role: "Référent relation client", pitch: "Je croise tickets et comptes pour anticiper le churn et protéger tes revenus récurrents avant qu'il ne soit trop tard.", gradient: "from-rose-50 via-white to-white", tint: "text-rose-200" },
+  proprietes: { name: "Karim", emoji: "🕵️", role: "Expert data", pitch: "Je traque les champs manquants et incohérents qui faussent tes analyses, et je veille au rapprochement fiable de tes données entre tes outils.", gradient: "from-violet-50 via-white to-white", tint: "text-violet-200" },
 };
 
 const FALLBACK: CoachPersona = { name: "Revold", emoji: "🧑‍💻", role: "Agent IA", pitch: "Ton agent expert Revold : il analyse tes données et te propose des actions concrètes pour progresser.", gradient: "from-slate-50 via-white to-white", tint: "text-slate-200" };

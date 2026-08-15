@@ -18,7 +18,7 @@ import { CoachingAgendaSection } from "@/components/agents/coaching-agenda-secti
  */
 
 // Agents pouvant tenir une séance, dans l'ordre des priorités dirigeant.
-const SESSION_AGENTS = ["performance", "paiement-facturation", "service-client"];
+const SESSION_AGENTS = ["performance", "paiement-facturation", "service-client", "proprietes"];
 
 export default async function SeancesPage() {
   const orgId = await getOrgId();

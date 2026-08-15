@@ -238,7 +238,7 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   audit_paiement_facturation: "paiement-facturation",
   // L'agent Rapprochement de données a été retiré : ses outils d'audit qualité
   // sont passés à l'agent Performances, qui câble donc aussi cette page.
-  audit_donnees: "performance",
+  audit_donnees: "proprietes",
 };
 
 export function presetsForPage(pageKey: string): TablePreset[] {

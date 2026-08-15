@@ -16,8 +16,8 @@ const TEAM_PERSONA: Record<string, string> = {
   marketing: "performance",
   // Agents Automatisations et Rapprochement de données supprimés : RevOps et
   // Ops (qualité, complétude) relèvent désormais de l'agent Performances.
-  revops: "performance",
-  ops: "performance",
+  revops: "proprietes",
+  ops: "proprietes",
   finance: "paiement-facturation",
   csm: "service-client",
   "service-client": "service-client",

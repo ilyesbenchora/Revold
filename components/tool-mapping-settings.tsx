@@ -59,6 +59,7 @@ const SECTIONS: Section[] = [
       { key: "agent_performance", label: "Agent Performances", description: "Pipeline, deals, closing, forecast", mode: "multi" },
       { key: "agent_paiement-facturation", label: "Agent Trésorerie", description: "Factures, encaissements, cash", mode: "multi" },
       { key: "agent_service-client", label: "Agent Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
+      { key: "agent_proprietes", label: "Agent Data", description: "Complétude, rapprochement, enrichissement", mode: "multi" },
     ],
   },
 ];

@@ -21,6 +21,7 @@ const AGENT_PAGE_KEY: Record<string, string> = {
   performance: "perf_ventes",
   "service-client": "audit_service_client",
   "paiement-facturation": "audit_paiement_facturation",
+  proprietes: "audit_donnees",
 };
 
 type Proposal = {

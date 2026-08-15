@@ -204,11 +204,23 @@ const AGENT_LIST: AgentDef[] = [
     },
     sourceCategories: ["support", "crm", "billing"],
   },
-  // (Agents « Équipes & Adoption » et « Rapprochement de données » retirés :
-  // leurs outils d'audit qualité — complétude, doublons, réconciliation
-  // cross-source — sont repris par l'agent Performances, qui les relie
-  // directement au pipeline qu'ils faussent. La page Rapprochement de données
-  // reste le lieu du diagnostic détaillé.)
+  {
+    key: "proprietes",
+    label: "Agent Data",
+    section: "donnees",
+    tagline: "Qualité, complétude, doublons, rapprochement des données.",
+    expertise:
+      "Tu es un expert data quality / RevOps data avec 20 ans d'expérience, garant de la fiabilité de la donnée revenue. Tu sais que complétude, doublons et contacts orphelins corrompent silencieusement chaque scoring et chaque prévision. Tu audites l'hygiène de la base ET le rapprochement cross-source (source_links) pour repérer les entités non réconciliées entre outils. Tu chiffres l'impact business de la mauvaise qualité (revenue mal attribué, doublons faussant le pipeline) et tu proposes un plan de nettoyage priorisé par impact.",
+    tools: [getDataQuality, getReconciliationStatus, getCanonicalCounts, report, listConnectedSources, propose],
+    suggestions: [
+      "Quel est le niveau de complétude et de doublons de ma base ?",
+      "Mes données sont-elles bien réconciliées entre mes outils ?",
+      "Fais un rapport de qualité de données priorisé par impact",
+    ],
+    sourceCategories: ["crm", "billing", "support"],
+  },
+  // (L'agent « Équipes & Adoption » a été retiré : ses KPIs d'adoption sont
+  // couverts par la page Équipes & Adoption elle-même.)
 
   // (L'agent Prévisions dédié a été retiré : les projections vivent chez
   //  l'agent Performance — closing/pipeline — et l'agent Trésorerie — cash.)

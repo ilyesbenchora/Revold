@@ -179,7 +179,7 @@ export type EntityTarget = {
 export const ENTITY_TARGETS: Record<CustomEntity, EntityTarget> = {
   companies: {
     pages: [{ key: "audit_donnees", label: "Rapprochement données" }],
-    agents: [{ key: "agent_performance", label: "Agent Performances" }],
+    agents: [{ key: "agent_proprietes", label: "Agent Data" }],
     kpis: ["Taux de rapprochement multi-outils", "Entreprises reliées à ≥ 2 outils", "Doublons détectés"],
   },
   contacts: {
@@ -187,7 +187,10 @@ export const ENTITY_TARGETS: Record<CustomEntity, EntityTarget> = {
       { key: "audit_perf_marketing", label: "Performances — Marketing" },
       { key: "audit_donnees", label: "Rapprochement données" },
     ],
-    agents: [{ key: "agent_performance", label: "Agent Performances" }],
+    agents: [
+      { key: "agent_performance", label: "Agent Performances" },
+      { key: "agent_proprietes", label: "Agent Data" },
+    ],
     kpis: ["Contacts par entreprise", "Complétude email / téléphone", "Contacts non rattachés"],
   },
   deals: {
@@ -390,7 +393,7 @@ export const PAGE_REQUIREMENTS: PageRequirement[] = [
     group: "Données",
     required: ["companies"],
     optional: ["contacts"],
-    agent: { key: "agent_performance", label: "Agent Performances" },
+    agent: { key: "agent_proprietes", label: "Agent Data" },
     kpis: ["Taux de rapprochement multi-outils", "Doublons détectés", "Complétude des identifiants"],
   },
   // ── Pilotage ────────────────────────────────────────────────────────────
