@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { CompanyFinancialsBlock } from "@/components/company-financials-block";
+import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 
 /**
  * Suivi → Enrichissement : l'ACTION à forte valeur ajoutée, distinguée des
@@ -78,6 +79,9 @@ export default async function EnrichissementPage() {
           </article>
         ))}
       </div>
+
+      {/* ── Backfill à la demande : toute la base, par lots, progression visible ── */}
+      <EnrichmentBackfillRunner />
 
       {/* ── 1. Identifiants (la clé) ── */}
       <CompanyEnrichmentBlock />
