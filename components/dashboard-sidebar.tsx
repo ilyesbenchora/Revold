@@ -222,6 +222,15 @@ const alertesChildren: LeafLink[] = [
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
     ),
   },
+  // Enrichissement = ACTION à forte valeur (remplir/rafraîchir la donnée
+  // officielle des entreprises), distinguée des rapports de Rapprochement.
+  {
+    href: "/dashboard/enrichissement",
+    label: "Enrichissement",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3" /><path d="m18.4 5.6-2.1 2.1" /><path d="M21 12h-3" /><path d="M12 21a9 9 0 1 1 9-9" /><path d="m16 16 5 5" /></svg>
+    ),
+  },
 ];
 
 const integrationsChildren: LeafLink[] = [
