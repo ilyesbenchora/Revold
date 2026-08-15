@@ -321,23 +321,58 @@ export function PaiementAgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, input, loading, coachingMode]);
 
-  // Hydratation depuis localStorage (client only).
+  // Hydratation : SERVEUR d'abord (table agent_conversations, multi-appareils),
+  // localStorage en secours (hors-ligne / migration DB non appliquée). Si le
+  // serveur est joignable mais vide et qu'un historique local existe, il est
+  // importé automatiquement (migration unique du legacy localStorage).
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Conversation[];
-        if (Array.isArray(parsed)) {
-          // Tous les agents (coaching inclus) démarrent sur une conversation
-          // vierge avec les suggestions ; l'historique reste dans l'onglet dédié.
-          setConversations(parsed);
+    let alive = true;
+    (async () => {
+      let serverList: Conversation[] | null = null;
+      try {
+        const res = await fetch(`/api/agent-conversations?agent_key=${encodeURIComponent(agentKey)}`);
+        if (res.ok) {
+          const d = (await res.json()) as { conversations?: Conversation[]; unavailable?: boolean };
+          if (!d.unavailable && Array.isArray(d.conversations)) serverList = d.conversations;
+        }
+      } catch {
+        /* hors-ligne → fallback local */
+      }
+      if (!alive) return;
+      if (serverList && serverList.length > 0) {
+        setConversations(serverList);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(serverList));
+        } catch { /* ignore */ }
+      } else {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            const parsed = JSON.parse(raw) as Conversation[];
+            if (Array.isArray(parsed)) {
+              // Tous les agents (coaching inclus) démarrent sur une conversation
+              // vierge avec les suggestions ; l'historique reste dans l'onglet dédié.
+              setConversations(parsed);
+              // Serveur joignable mais vide → import du legacy local.
+              if (serverList !== null && parsed.length > 0) {
+                void fetch("/api/agent-conversations", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ agentKey, conversations: parsed }),
+                }).catch(() => { /* best-effort */ });
+              }
+            }
+          }
+        } catch {
+          /* localStorage indisponible / corrompu → on démarre à vide */
         }
       }
-    } catch {
-      /* localStorage indisponible / corrompu → on démarre à vide */
-    }
-    setHydrated(true);
-  }, [storageKey, statusKey]);
+      setHydrated(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [storageKey, statusKey, agentKey]);
 
   // Remonte la liste des conversations au parent (bloc historique des rendez-vous).
   useEffect(() => {
@@ -357,7 +392,10 @@ export function PaiementAgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openConversationSignal]);
 
-  // Persistance : réécrit localStorage à chaque changement (après hydratation).
+  // Persistance : localStorage immédiat (cache appareil) + synchro serveur
+  // débouncée (full sync par agent — la base reste la source de vérité
+  // multi-appareils, on ne spamme pas l'API à chaque frappe).
+  const convSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -365,7 +403,18 @@ export function PaiementAgentChat({
     } catch {
       /* quota / mode privé → on ignore */
     }
-  }, [conversations, hydrated, storageKey]);
+    if (convSyncTimer.current) clearTimeout(convSyncTimer.current);
+    convSyncTimer.current = setTimeout(() => {
+      void fetch("/api/agent-conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentKey, conversations }),
+      }).catch(() => { /* hors-ligne : le localStorage garde l'état, resync à la prochaine visite */ });
+    }, 1500);
+    return () => {
+      if (convSyncTimer.current) clearTimeout(convSyncTimer.current);
+    };
+  }, [conversations, hydrated, storageKey, agentKey]);
 
   // Conversation active en arrière-plan : dès qu'il y a des messages, on publie
   // un pointeur (href de retour + contexte) pour le bandeau flottant global.

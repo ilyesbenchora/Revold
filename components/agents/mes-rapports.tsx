@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ReportArtifact } from "./report-artifact";
-import { SAVED_REPORTS_KEY, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
+import { REPORTS_UPDATED_EVENT, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
 import { AgentAvatar } from "./agent-avatar";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
@@ -112,19 +112,14 @@ export function MesRapports() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SAVED_REPORTS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SavedReport[];
-        if (Array.isArray(parsed)) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setReports(parsed);
-        }
-      }
-    } catch {
-      /* localStorage indisponible */
-    }
+    // Source de vérité serveur (module saved-reports) : premier rendu depuis le
+    // cache local, puis mise à jour quand l'API a répondu (événement).
+    const refresh = () => setReports(listSavedReports());
+    refresh();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true);
+    window.addEventListener(REPORTS_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(REPORTS_UPDATED_EVENT, refresh);
   }, []);
 
   function del(id: string) {
@@ -134,8 +129,9 @@ export function MesRapports() {
 
   function clearAll() {
     if (!confirm("Supprimer TOUS les rapports enregistrés ? (repartir sur de bonnes bases)")) return;
+    // Suppression serveur rapport par rapport (partagés par l'organisation).
+    for (const r of listSavedReports()) removeSavedReport(r.id);
     try {
-      localStorage.removeItem(SAVED_REPORTS_KEY);
       localStorage.removeItem("revold:saved-report-keys:v1");
     } catch {
       /* ignore */

@@ -13,8 +13,8 @@ import {
 } from "@/lib/ai/agents/routine-catalog";
 import {
   addRoutine,
-  isRoutineDue,
   listAgentRoutines,
+  refreshRoutines,
   removeRoutine,
   updateRoutine,
   ROUTINES_UPDATED_EVENT,
@@ -38,10 +38,10 @@ function fmtLastRun(ts?: number | null): string {
 }
 
 /**
- * Exécution des routines de l'agent : vérifie à l'ouverture (puis chaque
- * minute) si une routine est échue, pose la question à l'agent avec la
- * directive « rapport visuel » (même qualité que les tables de données), et
- * enregistre le rapport dans « Rapports enregistrés » avec le badge Routine.
+ * Routines de l'agent côté client : liste (serveur = source de vérité) et
+ * exécution MANUELLE (« Exécuter maintenant »). L'exécution PROGRAMMÉE est
+ * faite côté serveur par le cron /api/cron/run-routines — les rapports
+ * arrivent dans « Rapports enregistrés » même si Revold est fermé.
  */
 export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKeys: string[]) {
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -61,7 +61,7 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
     };
   }, [agentKey]);
 
-  async function runRoutine(r: Routine, opts?: { scheduled?: boolean }) {
+  async function runRoutine(r: Routine) {
     if (runningRef.current.has(r.id)) return;
     runningRef.current.add(r.id);
     setRunningIds([...runningRef.current]);
@@ -115,23 +115,8 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
         // sous le rapport visuel dans « Rapports enregistrés ».
         analysis: typeof data.message === "string" ? data.message : undefined,
       });
-      // Notification in-app (cloche du header) — UNIQUEMENT pour les
-      // exécutions programmées ; « Exécuter maintenant » reste silencieux
-      // (l'utilisateur est déjà devant le résultat).
-      if (opts?.scheduled) {
-        void fetch("/api/notifications", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "routine_executed",
-            title: `Routine exécutée : ${r.label}`,
-            body: `${agentLabel} a généré le rapport « ${title} » (${FREQUENCY_LABELS[r.frequency]} à ${r.time}).`,
-            link: `/dashboard/agents/${agentKey}`,
-          }),
-        }).catch(() => {
-          /* best-effort : la notif ne bloque jamais la routine */
-        });
-      }
+      // Pas de notification pour « Exécuter maintenant » : l'utilisateur est
+      // devant le résultat. Les exécutions programmées (cron serveur) notifient.
     } catch (e) {
       updateRoutine(r.id, { lastError: e instanceof Error ? e.message : "Erreur inconnue" });
     } finally {
@@ -140,17 +125,11 @@ export function useAgentRoutines(agentKey: string, agentLabel: string, sourceKey
     }
   }
 
-  // Vérification des routines échues à l'arrivée, puis toutes les minutes.
+  // L'exécution PROGRAMMÉE tourne côté serveur (cron run-routines) : ici on
+  // rafraîchit périodiquement la liste pour voir arriver last_run_at / erreurs.
   useEffect(() => {
-    const tick = () => {
-      for (const r of listAgentRoutines(agentKey)) {
-        if (isRoutineDue(r)) void runRoutine(r, { scheduled: true });
-      }
-    };
-    tick();
-    const iv = setInterval(tick, 60_000);
+    const iv = setInterval(() => refreshRoutines(), 120_000);
     return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey]);
 
   return { routines, runningIds, runRoutine };
@@ -330,9 +309,11 @@ export function RoutinesTab({
   return (
     <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
       <p className="text-xs text-slate-400">
-        Les routines sont des questions récurrentes posées automatiquement à {agentLabel} : le rapport est généré à
-        l&apos;heure programmée (à l&apos;ouverture de la page si elle est passée) et enregistré dans «&nbsp;Rapports
-        enregistrés&nbsp;» avec le badge <span className="font-medium text-slate-600">🕘 Routine</span>.
+        Les routines sont des questions récurrentes posées automatiquement à {agentLabel} : le rapport est généré
+        <span className="font-medium text-slate-600"> côté serveur à l&apos;heure programmée — même si Revold est fermé</span> —
+        puis enregistré dans «&nbsp;Rapports enregistrés&nbsp;» avec le badge{" "}
+        <span className="font-medium text-slate-600">🕘 Routine</span>, visible par toute l&apos;équipe. Une notification
+        (cloche) te prévient à chaque exécution.
       </p>
 
       {/* ── Routines actives ── */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listAgentRoutines } from "./routines";
+import { listAgentRoutines, ROUTINES_UPDATED_EVENT } from "./routines";
 
 /**
  * Compteurs d'activité d'un agent, lus depuis l'historique local des
@@ -106,7 +106,12 @@ export function AgentInsightsCounts({
   const [counts, setCounts] = useState<Counts | null>(null);
 
   useEffect(() => {
-    setCounts(readCounts(agentKey));
+    const refresh = () => setCounts(readCounts(agentKey));
+    refresh();
+    // Les routines viennent désormais du serveur (chargées en asynchrone) :
+    // on rafraîchit le compteur quand la liste arrive ou change.
+    window.addEventListener(ROUTINES_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(ROUTINES_UPDATED_EVENT, refresh);
   }, [agentKey]);
 
   function open(e: React.SyntheticEvent, tab: string) {
