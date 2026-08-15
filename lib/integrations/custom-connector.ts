@@ -256,6 +256,126 @@ export function targetsForEntities(entities: CustomEntity[]): {
   };
 }
 
+// ── SENS INVERSE : la PAGE choisie détermine les objets à récupérer ────────
+/**
+ * C'est l'utilisateur qui sait ce qu'il veut alimenter (« GAIA doit servir ma
+ * facturation »), pas Revold qui devine ce que l'outil contient. On part donc
+ * des PAGES cochées — le même vocabulaire que « Outil source par page » — et
+ * on en déduit les objets à aller chercher : les `required` sans lesquels la
+ * page reste vide, les `optional` qui l'enrichissent.
+ */
+export type PageRequirement = {
+  key: string;
+  label: string;
+  group: string;
+  required: CustomEntity[];
+  optional: CustomEntity[];
+  agent?: { key: string; label: string };
+  kpis: string[];
+};
+
+export const PAGE_REQUIREMENTS: PageRequirement[] = [
+  {
+    key: "audit_paiement_facturation_facturation",
+    label: "Trésorerie — Facturation",
+    group: "Trésorerie",
+    required: ["invoices"],
+    optional: ["companies", "subscriptions"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["CA facturé", "Impayés", "Délai de paiement (DSO)", "Deals gagnés non facturés"],
+  },
+  {
+    key: "audit_paiement_facturation_paiement",
+    label: "Trésorerie — Paiement",
+    group: "Trésorerie",
+    required: ["transactions"],
+    optional: ["invoices", "companies"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["Encaissements réels", "Décaissements", "Solde net par mois"],
+  },
+  {
+    key: "audit_paiement_facturation",
+    label: "Trésorerie (vue d'ensemble)",
+    group: "Trésorerie",
+    required: ["invoices"],
+    optional: ["subscriptions", "transactions", "companies"],
+    agent: { key: "agent_paiement-facturation", label: "Agent Trésorerie" },
+    kpis: ["MRR / ARR réconciliés", "CA encaissé", "Churn revenue", "Runway"],
+  },
+  {
+    key: "audit_perf_ventes",
+    label: "Performances — Ventes",
+    group: "Performances",
+    required: ["deals"],
+    optional: ["companies", "contacts"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["CA signé", "Taux de closing", "Cycle de vente", "Écart CA signé ↔ facturé"],
+  },
+  {
+    key: "audit_perf_marketing",
+    label: "Performances — Marketing",
+    group: "Performances",
+    required: ["contacts"],
+    optional: ["companies", "deals"],
+    agent: { key: "agent_performance", label: "Agent Performances" },
+    kpis: ["Volume de contacts", "Conversion contact → affaire", "Complétude des fiches"],
+  },
+  {
+    key: "audit_service_client",
+    label: "Service Client",
+    group: "Service Client",
+    required: ["tickets"],
+    optional: ["companies"],
+    agent: { key: "agent_service-client", label: "Agent Service Client" },
+    kpis: ["Volume de tickets", "Comptes en tension", "MRR à risque (support × revenu)"],
+  },
+  {
+    key: "audit_donnees",
+    label: "Rapprochement données",
+    group: "Données",
+    required: ["companies"],
+    optional: ["contacts"],
+    agent: { key: "agent_proprietes", label: "Agent Rapprochement de données" },
+    kpis: ["Taux de rapprochement multi-outils", "Doublons détectés", "Complétude des identifiants"],
+  },
+  {
+    key: "dashboard",
+    label: "Dashboard (vue de pilotage)",
+    group: "Pilotage",
+    required: [],
+    optional: ["invoices", "deals", "subscriptions"],
+    kpis: ["KPIs cross-outils de la page d'accueil"],
+  },
+];
+
+/** Objets à récupérer pour un ensemble de pages cochées. */
+export function entitiesForPages(pageKeys: string[]): { required: CustomEntity[]; optional: CustomEntity[] } {
+  const required = new Set<CustomEntity>();
+  const optional = new Set<CustomEntity>();
+  for (const key of pageKeys) {
+    const p = PAGE_REQUIREMENTS.find((x) => x.key === key);
+    if (!p) continue;
+    for (const e of p.required) required.add(e);
+    for (const e of p.optional) optional.add(e);
+  }
+  // Un objet requis ne doit jamais apparaître comme simplement optionnel.
+  for (const e of required) optional.delete(e);
+  return { required: [...required], optional: [...optional] };
+}
+
+/** Pages/agents à rattacher pour les pages cochées (sens direct, sans déduction). */
+export function targetsForPages(pageKeys: string[]): { pages: { key: string; label: string }[]; agents: { key: string; label: string }[] } {
+  const pages: { key: string; label: string }[] = [];
+  const agents = new Map<string, string>();
+  for (const key of pageKeys) {
+    const p = PAGE_REQUIREMENTS.find((x) => x.key === key);
+    if (!p) continue;
+    pages.push({ key: p.key, label: p.label });
+    if (p.agent) agents.set(p.agent.key, p.agent.label);
+  }
+  return { pages, agents: [...agents].map(([key, label]) => ({ key, label })) };
+}
+
 /** Familles d'outil proposées (pilote les rattachements par défaut). */
 export const CUSTOM_CATEGORIES: { id: string; label: string }[] = [
   { id: "billing", label: "Facturation / ERP / compta" },

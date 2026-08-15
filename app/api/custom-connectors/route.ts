@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { customProvider, CUSTOM_ENTITIES, targetsForEntities, type CustomEntity } from "@/lib/integrations/custom-connector";
+import {
+  customProvider,
+  CUSTOM_ENTITIES,
+  targetsForEntities,
+  targetsForPages,
+  type CustomEntity,
+} from "@/lib/integrations/custom-connector";
 import { getToolKeys, setToolKeys } from "@/lib/integrations/tool-mappings";
 
 export const dynamic = "force-dynamic";
@@ -50,8 +56,10 @@ export async function POST(request: Request) {
     label?: string;
     description?: string;
     category?: string;
-    /** Rattacher automatiquement l'outil aux pages/agents des entités configurées. */
+    /** Rattacher automatiquement l'outil aux pages/agents. */
     attachTargets?: boolean;
+    /** Pages CHOISIES par l'utilisateur — prioritaires sur toute déduction. */
+    pages?: string[];
     baseUrl?: string;
     authType?: string;
     authParam?: string | null;
@@ -179,10 +187,18 @@ export async function POST(request: Request) {
   const attached: string[] = [];
   if (body.attachTargets !== false && connectorKey) {
     const provider = customProvider(connectorKey);
-    const entities = (body.endpoints ?? [])
-      .map((e) => e.entity)
-      .filter((e): e is CustomEntity => !!e && (CUSTOM_ENTITIES as readonly string[]).includes(e));
-    const targets = targetsForEntities(entities);
+    // Les PAGES choisies par l'utilisateur font foi. Sans choix explicite
+    // (édition d'un ancien connecteur), on retombe sur la déduction par les
+    // objets configurés.
+    const chosen = Array.isArray(body.pages) ? body.pages.filter((p) => typeof p === "string") : [];
+    const targets =
+      chosen.length > 0
+        ? targetsForPages(chosen)
+        : targetsForEntities(
+            (body.endpoints ?? [])
+              .map((e) => e.entity)
+              .filter((e): e is CustomEntity => !!e && (CUSTOM_ENTITIES as readonly string[]).includes(e)),
+          );
     for (const t of [...targets.pages, ...targets.agents]) {
       try {
         const current = await getToolKeys(supabase, orgId, t.key);

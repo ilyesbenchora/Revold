@@ -6,7 +6,8 @@ import {
   CUSTOM_ENTITIES,
   CUSTOM_CATEGORIES,
   ENTITY_FIELDS,
-  targetsForEntities,
+  PAGE_REQUIREMENTS,
+  entitiesForPages,
   type CustomEntity,
 } from "@/lib/integrations/custom-connector";
 import { InfoHint } from "@/components/info-hint";
@@ -91,7 +92,8 @@ export function CustomConnectorWizard({
   const [authType, setAuthType] = useState<string>(existing?.auth_type ?? "bearer");
   const [authParam, setAuthParam] = useState(existing?.auth_param ?? "X-API-Key");
   const [authValue, setAuthValue] = useState("");
-  const [endpoints, setEndpoints] = useState<EndpointDraft[]>([emptyEndpoint("companies")]);
+  const [pages, setPages] = useState<string[]>([]);
+  const [endpoints, setEndpoints] = useState<EndpointDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -158,6 +160,7 @@ export function CustomConnectorWizard({
           description,
           category,
           attachTargets: true,
+          pages,
           baseUrl,
           authType,
           authParam,
@@ -218,10 +221,29 @@ export function CustomConnectorWizard({
     }
   }
 
-  const availableEntities = CUSTOM_ENTITIES.filter((e) => !endpoints.some((x) => x.entity === e));
-  // Entités réellement configurées (chemin renseigné) → pages, agents, KPIs.
+  /** Coche/décoche une page : les objets REQUIS apparaissent automatiquement. */
+  function togglePage(key: string) {
+    const next = pages.includes(key) ? pages.filter((p) => p !== key) : [...pages, key];
+    setPages(next);
+    const { required } = entitiesForPages(next);
+    setEndpoints((prev) => {
+      const kept = prev.filter((e) => required.includes(e.entity) || e.path.trim());
+      const missing = required.filter((r) => !kept.some((e) => e.entity === r));
+      return [...kept, ...missing.map(emptyEndpoint)];
+    });
+  }
+
+  const { required: requiredEntities, optional: optionalEntities } = entitiesForPages(pages);
   const configuredEntities = endpoints.filter((e) => e.path.trim()).map((e) => e.entity);
-  const targets = targetsForEntities(configuredEntities);
+  // Objets proposés en complément : d'abord ceux utiles aux pages choisies.
+  const suggestedEntities = optionalEntities.filter((e) => !endpoints.some((x) => x.entity === e));
+  const otherEntities = CUSTOM_ENTITIES.filter(
+    (e) => !endpoints.some((x) => x.entity === e) && !suggestedEntities.includes(e),
+  );
+  // Pages cochées dont il manque un objet obligatoire → alerte explicite.
+  const incompletePages = PAGE_REQUIREMENTS.filter(
+    (p) => pages.includes(p.key) && p.required.some((r) => !configuredEntities.includes(r)),
+  );
 
   return (
     <div className="space-y-4">
@@ -362,17 +384,84 @@ export function CustomConnectorWizard({
         </div>
       </div>
 
-      {/* ── 2. Endpoints & correspondance ── */}
+      {/* ── 2. QUE doit alimenter cet outil ? (pilote tout le reste) ── */}
+      <div className="card p-5">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+          2. Que doit alimenter cet outil dans Revold ?
+          <InfoHint
+            wide
+            text={"Coche les pages que cet outil doit nourrir — le même choix que « Outil source par page » dans les Paramètres.\n\nRevold en déduit les données à aller chercher : tu n'auras à fournir que les adresses réellement nécessaires."}
+          />
+        </h3>
+        <p className="mt-0.5 text-xs text-slate-500">
+          C&apos;est ce choix qui détermine les données à récupérer — et il rattache l&apos;outil aux bonnes pages et
+          aux bons agents à l&apos;enregistrement.
+        </p>
+        <div className="mt-3 space-y-3">
+          {[...new Set(PAGE_REQUIREMENTS.map((p) => p.group))].map((group) => (
+            <div key={group}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{group}</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {PAGE_REQUIREMENTS.filter((p) => p.group === group).map((p) => {
+                  const on = pages.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => togglePage(p.key)}
+                      title={`Données nécessaires : ${p.required.map((r) => ENTITY_FIELDS[r].label).join(", ") || "aucune obligatoire"}`}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                        on
+                          ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
+                      }`}
+                    >
+                      {on ? "✓ " : ""}{p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        {pages.length > 0 && (
+          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            Données à récupérer :{" "}
+            <span className="font-semibold text-slate-800">
+              {requiredEntities.map((e) => ENTITY_FIELDS[e].label).join(", ") || "aucune obligatoire"}
+            </span>
+            {optionalEntities.length > 0 && (
+              <> · en complément (facultatif) : {optionalEntities.map((e) => ENTITY_FIELDS[e].label).join(", ")}</>
+            )}
+          </p>
+        )}
+      </div>
+
+      {pages.length === 0 && (
+        <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-4 py-6 text-center text-xs text-slate-500">
+          Choisis d&apos;abord ce que l&apos;outil doit alimenter ci-dessus : Revold affichera ensuite les seules
+          données dont il a besoin.
+        </p>
+      )}
+
+      {/* ── 3. Adresses & correspondance des données demandées ── */}
       {endpoints.map((ep, i) => {
         const def = ENTITY_FIELDS[ep.entity];
         return (
           <div key={ep.entity} className="card p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-slate-900">2. {def.label}</h3>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  {def.label}
+                  {requiredEntities.includes(ep.entity) ? (
+                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600">REQUIS</span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">FACULTATIF</span>
+                  )}
+                </h3>
                 <p className="mt-0.5 text-xs text-slate-500">{def.hint}</p>
               </div>
-              {endpoints.length > 1 && (
+              {!requiredEntities.includes(ep.entity) && (
                 <button
                   onClick={() => setEndpoints((prev) => prev.filter((_, idx) => idx !== i))}
                   className="text-[11px] text-slate-400 hover:text-rose-500"
@@ -526,57 +615,84 @@ export function CustomConnectorWizard({
         );
       })}
 
-      {availableEntities.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">
-            Ajouter une donnée à synchroniser <span className="text-slate-400">(les entreprises sont déjà ci-dessus)</span> :
-          </span>
-          {availableEntities.map((e) => (
-            <button
-              key={e}
-              onClick={() => setEndpoints((prev) => [...prev, emptyEndpoint(e)])}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-accent hover:text-accent"
-            >
-              ＋ {ENTITY_FIELDS[e].label}
-            </button>
-          ))}
+      {pages.length > 0 && (suggestedEntities.length > 0 || otherEntities.length > 0) && (
+        <div className="space-y-2">
+          {suggestedEntities.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">
+                Enrichir les pages choisies (facultatif) :
+              </span>
+              {suggestedEntities.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEndpoints((prev) => [...prev, emptyEndpoint(e)])}
+                  className="rounded-full border border-fuchsia-200 bg-fuchsia-50/60 px-2.5 py-1 text-[11px] font-medium text-fuchsia-700 hover:bg-fuchsia-100"
+                >
+                  ＋ {ENTITY_FIELDS[e].label}
+                </button>
+              ))}
+            </div>
+          )}
+          {otherEntities.length > 0 && (
+            <details>
+              <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600">
+                Synchroniser d&apos;autres données (hors pages choisies)
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {otherEntities.map((e) => (
+                  <button
+                    key={e}
+                    onClick={() => setEndpoints((prev) => [...prev, emptyEndpoint(e)])}
+                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-accent hover:text-accent"
+                  >
+                    ＋ {ENTITY_FIELDS[e].label}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
 
-      {/* ── Ce que la configuration débloque (visibilité avant la 1re sync) ── */}
-      {configuredEntities.length > 0 && (
-        <div className="card border-emerald-200/70 bg-emerald-50/30 p-4">
-          <p className="text-sm font-semibold text-slate-900">🎯 Ce que cette configuration va alimenter</p>
+      {/* ── Couverture page par page (visibilité AVANT la 1re synchro) ── */}
+      {pages.length > 0 && (
+        <div className={`card p-4 ${incompletePages.length > 0 ? "border-amber-200/70 bg-amber-50/30" : "border-emerald-200/70 bg-emerald-50/30"}`}>
+          <p className="text-sm font-semibold text-slate-900">🎯 État de couverture par page</p>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Déduit des données que tu synchronises. Revold rattachera automatiquement l&apos;outil à ces pages et
-            agents à l&apos;enregistrement — modifiable ensuite dans Paramètres → Intégrations.
+            Ce que chaque page pourra calculer avec cet outil. Les rattachements « Outil source par page » et les
+            agents correspondants sont appliqués à l&apos;enregistrement.
           </p>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pages alimentées</p>
-              <ul className="mt-1 space-y-0.5">
-                {targets.pages.map((p) => (
-                  <li key={p.key} className="text-xs text-slate-700">• {p.label}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Agents qui l&apos;exploitent</p>
-              <ul className="mt-1 space-y-0.5">
-                {targets.agents.map((a) => (
-                  <li key={a.key} className="text-xs text-slate-700">• {a.label}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">KPIs rendus calculables</p>
-              <ul className="mt-1 space-y-0.5">
-                {targets.kpis.slice(0, 6).map((k) => (
-                  <li key={k} className="text-xs text-slate-700">• {k}</li>
-                ))}
-              </ul>
-            </div>
+          <div className="mt-3 space-y-2">
+            {PAGE_REQUIREMENTS.filter((p) => pages.includes(p.key)).map((p) => {
+              const missing = p.required.filter((r) => !configuredEntities.includes(r));
+              const ready = missing.length === 0;
+              return (
+                <div key={p.key} className="rounded-lg border border-white bg-white/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-800">
+                      {ready ? "✅" : "⚠️"} {p.label}
+                      {p.agent && <span className="ml-2 font-normal text-slate-400">· {p.agent.label}</span>}
+                    </p>
+                    {!ready && (
+                      <p className="text-[11px] font-medium text-amber-700">
+                        Manque : {missing.map((m) => ENTITY_FIELDS[m].label).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {ready ? "KPIs disponibles : " : "KPIs en attente : "}
+                    {p.kpis.join(" · ")}
+                  </p>
+                </div>
+              );
+            })}
           </div>
+          {incompletePages.length > 0 && (
+            <p className="mt-2 text-[11px] text-amber-800">
+              Tant qu&apos;une donnée obligatoire manque, la page reste vide pour cet outil — Revold n&apos;affichera
+              jamais un chiffre partiel en le faisant passer pour complet.
+            </p>
+          )}
         </div>
       )}
 
