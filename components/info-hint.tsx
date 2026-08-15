@@ -5,7 +5,7 @@
  * infobulle précise à quoi correspond le réglage — utilisé dans les panneaux
  * de vérification du câblage (tables, alertes, objectifs).
  */
-export function InfoHint({ text }: { text: string }) {
+export function InfoHint({ text, wide }: { text: string; wide?: boolean }) {
   return (
     <span tabIndex={0} className="group relative inline-flex cursor-help align-middle outline-none">
       <svg
@@ -27,7 +27,7 @@ export function InfoHint({ text }: { text: string }) {
       </svg>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-60 -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+        className={`pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 ${wide ? "w-80" : "w-60"} -translate-x-1/2 whitespace-pre-line rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100`}
       >
         {text}
       </span>

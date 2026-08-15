@@ -71,9 +71,9 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
     label: "Clients / entreprises",
     hint: "Les comptes de l'outil, rapprochés des entreprises du CRM.",
     fields: [
-      { id: "custom_id", label: "ID de rapprochement", hint: "Le code client partagé avec le CRM — la clé de jointure", required: true },
+      { id: "custom_id", label: "ID de rapprochement", hint: "LE champ essentiel : le code client que tes équipes saisissent À LA FOIS dans cet outil et dans le CRM (ex. CLI-00427). C'est lui qui permet à Revold de savoir que la facture de cet outil concerne bien telle entreprise du CRM.", required: true },
       { id: "name", label: "Nom", hint: "Raison sociale ou nom commercial" },
-      { id: "external_id", label: "ID interne de l'outil", hint: "Identifiant technique (mémorisé par Revold)" },
+      { id: "external_id", label: "Identifiant interne", hint: "Le numéro ou code que l'outil attribue lui-même à la fiche (souvent « id »). Revold le mémorise pour reconnaître la même fiche aux prochaines synchronisations, sans créer de doublon." },
       { id: "domain", label: "Domaine web", hint: "acme.fr" },
       { id: "siren", label: "SIREN", hint: "9 chiffres, si l'outil le connaît" },
       { id: "vat_number", label: "N° TVA", hint: "FR + 11 caractères" },
@@ -108,7 +108,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
     label: "Factures",
     hint: "Croisées avec le CRM : CA signé vs facturé, impayés, délais.",
     fields: [
-      { id: "custom_id", label: "ID de rapprochement du client", hint: "Le code client porté par la facture — relie la facture à l'entreprise", required: true },
+      { id: "custom_id", label: "ID de rapprochement du client", hint: "Le code client inscrit sur la facture — le même que dans le CRM. C'est lui qui rattache la facture à la bonne entreprise (et permet de comparer CA signé et CA facturé).", required: true },
       { id: "external_id", label: "ID de la facture", hint: "Identifiant technique côté outil", required: true },
       { id: "number", label: "Numéro de facture", hint: "FA-2026-0142" },
       { id: "amount_total", label: "Montant total", hint: "TTC ou HT selon ton outil", kind: "number" },

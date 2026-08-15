@@ -3,6 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CUSTOM_ENTITIES, ENTITY_FIELDS, type CustomEntity } from "@/lib/integrations/custom-connector";
+import { InfoHint } from "@/components/info-hint";
+
+/** Message prêt à envoyer à l'éditeur / au développeur de l'outil. */
+const VENDOR_REQUEST = `Bonjour,
+
+Nous connectons notre logiciel à Revold (plateforme d'analyse de nos données commerciales et financières). Revold a besoin d'un accès en LECTURE SEULE à votre API. Pourriez-vous nous transmettre :
+
+1. L'adresse de base de l'API (exemple : https://api.votre-outil.fr)
+2. Une clé d'accès en lecture seule, et la façon de l'utiliser (jeton "Bearer", en-tête type X-API-Key, ou paramètre dans l'URL)
+3. Les adresses (endpoints) permettant de lister : les clients, les contacts, les factures, et le cas échéant les abonnements, les paiements et les tickets
+4. Confirmation que chaque enregistrement contient bien le CODE CLIENT que nous utilisons aussi dans notre CRM (c'est la clé qui permet de rapprocher les deux outils)
+5. Le fonctionnement de la pagination si les listes sont longues (numéro de page, décalage, curseur)
+
+Merci d'avance.`;
 
 /**
  * Assistant « Connecter un outil sur mesure » (ERP maison, logiciel métier).
@@ -59,6 +73,7 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
   const [authValue, setAuthValue] = useState("");
   const [endpoints, setEndpoints] = useState<EndpointDraft[]>([emptyEndpoint("companies")]);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState<number | null>(null);
@@ -184,12 +199,41 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
 
   return (
     <div className="space-y-4">
+      {/* ── Aide : où trouver ces informations ── */}
+      <div className="card border-indigo-200/70 bg-indigo-50/40 p-4">
+        <p className="text-sm font-semibold text-slate-900">🙋 Tu ne sais pas où trouver ces informations ?</p>
+        <p className="mt-1 text-xs text-slate-600">
+          C&apos;est normal : elles viennent de l&apos;éditeur ou du développeur de l&apos;outil (documentation
+          « API » / « développeurs », ou demande directe). Copie le message ci-dessous et envoie-le lui — il contient
+          exactement ce dont Revold a besoin, rien de plus.
+        </p>
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs font-medium text-accent hover:underline">
+            Voir le message à envoyer
+          </summary>
+          <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-[11px] leading-relaxed text-slate-600">
+            {VENDOR_REQUEST}
+          </pre>
+        </details>
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard?.writeText(VENDOR_REQUEST);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          }}
+          className="mt-2 rounded-lg border border-accent bg-white px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/5"
+        >
+          {copied ? "✓ Message copié" : "📋 Copier le message pour l'éditeur"}
+        </button>
+      </div>
+
       {/* ── 1. Connexion ── */}
       <div className="card p-5">
         <h3 className="text-sm font-semibold text-slate-900">1. Connexion à l&apos;outil</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          L&apos;URL de base de son API et la façon de s&apos;authentifier. Ces informations sont stockées chiffrées et
-          ne sont jamais renvoyées au navigateur.
+          L&apos;adresse de son API et la façon de s&apos;y authentifier. Ces informations sont stockées de façon
+          sécurisée et ne réapparaissent jamais dans le navigateur.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
@@ -197,13 +241,25 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="GAIA" className={`${field} mt-1 w-full`} />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500">URL de base de l&apos;API</label>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              Adresse de l&apos;API
+              <InfoHint
+                wide
+                text={"L'adresse Internet par laquelle on interroge le logiciel — différente de l'adresse où tes équipes se connectent.\n\nExemple : si tes équipes utilisent gaia.monentreprise.fr, l'API est souvent api.gaia.monentreprise.fr ou gaia.monentreprise.fr/api.\n\nOù la trouver : documentation « API » ou « développeurs » de l'outil, ou demande à son éditeur (message à copier en haut de page)."}
+              />
+            </label>
             <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.gaia.exemple.fr" className={`${field} mt-1 w-full`} />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500">Authentification</label>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              Authentification
+              <InfoHint
+                wide
+                text={"Comment l'outil vérifie que c'est bien toi qui demandes les données. L'éditeur te dira laquelle utiliser :\n\n• Jeton Bearer : le plus courant\n• Clé dans un en-tête : une clé envoyée sous un nom précis (ex. X-API-Key)\n• Clé dans l'URL : la clé s'ajoute à l'adresse (ex. ?api_key=…)\n• Aucune : rare, uniquement pour les API ouvertes.\n\nDans le doute, essaie « Jeton Bearer » : le test t'indiquera si c'est refusé."}
+              />
+            </label>
             <select value={authType} onChange={(e) => setAuthType(e.target.value)} className={`${field} mt-1 w-full`}>
-              <option value="bearer">Jeton Bearer (Authorization)</option>
+              <option value="bearer">Jeton Bearer (le plus courant)</option>
               <option value="header">Clé dans un en-tête</option>
               <option value="query">Clé dans l&apos;URL</option>
               <option value="none">Aucune</option>
@@ -211,15 +267,29 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
           </div>
           {(authType === "header" || authType === "query") && (
             <div>
-              <label className="text-xs font-medium text-slate-500">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                 {authType === "header" ? "Nom de l'en-tête" : "Nom du paramètre"}
+                <InfoHint
+                  wide
+                  text={
+                    authType === "header"
+                      ? "L'étiquette sous laquelle envoyer la clé. L'éditeur te donne un nom précis, souvent X-API-Key, Api-Key ou Token. Recopie-le à l'identique (majuscules comprises)."
+                      : "Le nom du paramètre à ajouter à l'adresse, souvent api_key, key ou token. Exemple : ?api_key=abc123 → écris ici api_key."
+                  }
+                />
               </label>
               <input value={authParam} onChange={(e) => setAuthParam(e.target.value)} placeholder="X-API-Key" className={`${field} mt-1 w-full`} />
             </div>
           )}
           {authType !== "none" && (
             <div className="md:col-span-2">
-              <label className="text-xs font-medium text-slate-500">Clé / jeton</label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                Clé / jeton
+                <InfoHint
+                  wide
+                  text={"La suite de caractères secrète fournie par l'éditeur (ex. sk_live_4f8a…). Demande une clé en LECTURE SEULE : Revold n'a jamais besoin de modifier les données de l'outil.\n\nElle est stockée de façon sécurisée et n'est plus jamais réaffichée. Pour la changer, il suffit d'en saisir une nouvelle."}
+                />
+              </label>
               <input
                 type="password"
                 value={authValue}
@@ -254,7 +324,13 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
 
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <div className="min-w-0 flex-1">
-                <label className="text-xs font-medium text-slate-500">Chemin de l&apos;endpoint</label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  Adresse de la liste ({def.label.toLowerCase()})
+                  <InfoHint
+                    wide
+                    text={"La fin de l'adresse qui renvoie la LISTE de ces enregistrements — l'éditeur te la donne (ex. /api/v1/clients, /clients, /v2/invoices).\n\nAstuce : tu peux aussi coller l'adresse complète (https://…) si tu l'as en entier.\n\nClique ensuite sur « Tester » : Revold appelle vraiment l'outil et t'affiche ce qu'il reçoit."}
+                  />
+                </label>
                 <input
                   value={ep.path}
                   onChange={(e) => patch(i, { path: e.target.value, tested: false })}
@@ -283,13 +359,20 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
 
                 {/* Correspondance champ canonique → champ de l'outil */}
                 <div className="mt-3 space-y-2">
-                  <p className="text-xs font-semibold text-slate-700">Correspondance des champs</p>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                    Correspondance des champs
+                    <InfoHint
+                      wide
+                      text={"À gauche : ce dont Revold a besoin. À droite : les champs réellement présents dans ton outil (détectés lors du test).\n\nRevold a déjà pré-rempli ce qu'il a reconnu — vérifie et corrige. Laisse « non fourni » si l'information n'existe pas dans l'outil : rien ne sera inventé."}
+                    />
+                  </p>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     {def.fields.map((f) => (
                       <div key={f.id} className="flex items-center gap-2">
-                        <label className="w-44 shrink-0 text-[11px] text-slate-600" title={f.hint}>
+                        <label className="flex w-44 shrink-0 items-center gap-1 text-[11px] text-slate-600">
                           {f.label}
-                          {f.required && <span className="text-rose-500"> *</span>}
+                          {f.required && <span className="text-rose-500">*</span>}
+                          {f.hint && <InfoHint text={f.hint} />}
                         </label>
                         <select
                           value={ep.fieldMap[f.id] ?? ""}
@@ -309,39 +392,57 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
                 {/* Pagination */}
                 <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">Pagination</label>
+                    <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                      Découpage des longues listes
+                      <InfoHint
+                        wide
+                        text={"Quand il y a beaucoup d'enregistrements, la plupart des outils ne les renvoient pas d'un coup mais par paquets. Cette option dit à Revold comment demander la suite.\n\nSi le test ci-dessus t'a renvoyé un nombre rond (50, 100, 200…), c'est probablement le cas : demande à l'éditeur laquelle des trois méthodes utiliser. Sinon, laisse « Aucune »."}
+                      />
+                    </label>
                     <select
                       value={ep.paginationType}
                       onChange={(e) => patch(i, { paginationType: e.target.value as EndpointDraft["paginationType"] })}
                       className={`${field} mt-1 py-1.5 text-xs`}
                     >
-                      <option value="none">Aucune (tout en une fois)</option>
-                      <option value="page">Par numéro de page</option>
-                      <option value="offset">Par décalage (offset)</option>
-                      <option value="cursor">Par curseur</option>
+                      <option value="none">Aucune — tout arrive d&apos;un coup</option>
+                      <option value="page">Par numéro de page (page 1, 2, 3…)</option>
+                      <option value="offset">Par décalage (0, 100, 200…)</option>
+                      <option value="cursor">Par curseur (jeton « page suivante »)</option>
                     </select>
                   </div>
                   {ep.paginationType !== "none" && (
                     <>
                       <div>
-                        <label className="text-[11px] font-medium text-slate-500">Paramètre</label>
+                        <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                          Nom du paramètre
+                          <InfoHint text="Le mot utilisé par l'outil dans l'adresse pour demander la suite — souvent « page », « offset » ou « cursor ». L'éditeur te le précise." />
+                        </label>
                         <input value={ep.paginationParam} onChange={(e) => patch(i, { paginationParam: e.target.value })} className={`${field} mt-1 w-28 py-1.5 text-xs font-mono`} />
                       </div>
                       {ep.paginationType !== "cursor" && (
                         <>
                           <div>
-                            <label className="text-[11px] font-medium text-slate-500">Taille (param)</label>
+                            <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                              Paramètre de taille
+                              <InfoHint text="Le mot qui fixe le nombre d'enregistrements par paquet — souvent « per_page », « limit » ou « size ». Laisse vide si l'outil n'en propose pas." />
+                            </label>
                             <input value={ep.sizeParam} onChange={(e) => patch(i, { sizeParam: e.target.value })} className={`${field} mt-1 w-28 py-1.5 text-xs font-mono`} />
                           </div>
                           <div>
-                            <label className="text-[11px] font-medium text-slate-500">Taille</label>
+                            <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                              Par paquet
+                              <InfoHint text="Combien d'enregistrements demander à chaque appel. 100 convient presque toujours ; baisse à 50 si l'outil est lent." />
+                            </label>
                             <input type="number" value={ep.size} onChange={(e) => patch(i, { size: Number(e.target.value) || 100 })} className={`${field} mt-1 w-20 py-1.5 text-xs`} />
                           </div>
                         </>
                       )}
                       {ep.paginationType === "cursor" && (
                         <div>
-                          <label className="text-[11px] font-medium text-slate-500">Chemin du curseur suivant</label>
+                          <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                            Emplacement du curseur suivant
+                            <InfoHint wide text={"Où trouver, dans la réponse de l'outil, le jeton qui donne accès au paquet suivant.\n\nExemple : si la réponse contient meta → next_cursor, écris meta.next_cursor. L'éditeur te l'indique."} />
+                          </label>
                           <input value={ep.cursorPath} onChange={(e) => patch(i, { cursorPath: e.target.value })} placeholder="meta.next_cursor" className={`${field} mt-1 w-48 py-1.5 text-xs font-mono`} />
                         </div>
                       )}
