@@ -87,11 +87,53 @@ function createRecognition(): SpeechRecognitionLike | null {
   return rec;
 }
 
+/**
+ * Sélection de la voix de l'orbe : une voix FÉMININE FRANÇAISE, rassurante et
+ * dynamique. Sans choix explicite, le navigateur lit le français avec sa voix
+ * par défaut (souvent anglophone) → accent absurde. On note chaque voix
+ * fr-* disponible : prénoms féminins connus, voix neurales (Edge « Natural »),
+ * fr-FR natif et Google français en tête ; prénoms masculins écartés.
+ */
+const FEMALE_FR = /denise|eloise|vivienne|julie|hortense|audrey|aur[ée]lie|am[ée]lie|marie|c[ée]line|virginie|charlotte|l[ée]a|elise|yelda|female|femme/i;
+const MALE_FR = /thomas|nicolas|paul|henri|claude|guillaume|mathieu|antoine|j[ée]r[ôo]me|remy|male(?!.*fe)/i;
+
+let cachedFrVoice: SpeechSynthesisVoice | null = null;
+let voicesListenerSet = false;
+
+function pickFrenchVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+  if (cachedFrVoice) return cachedFrVoice;
+  if (!voicesListenerSet) {
+    voicesListenerSet = true;
+    // La liste arrive souvent en asynchrone : on invalide le cache à sa mise à jour.
+    try {
+      window.speechSynthesis.addEventListener("voiceschanged", () => { cachedFrVoice = null; });
+    } catch { /* ignore */ }
+  }
+  const voices = window.speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith("fr"));
+  if (voices.length === 0) return null;
+  const score = (v: SpeechSynthesisVoice): number => {
+    let s = 0;
+    if (FEMALE_FR.test(v.name)) s += 8;
+    if (MALE_FR.test(v.name)) s -= 8;
+    if (/natural|neural|online/i.test(v.name)) s += 4; // voix neurales Edge — les plus naturelles
+    if (v.lang.toLowerCase().startsWith("fr-fr")) s += 3;
+    if (/google/i.test(v.name)) s += 2; // « Google français » (Chrome) : correcte, féminine
+    return s;
+  };
+  cachedFrVoice = [...voices].sort((a, b) => score(b) - score(a))[0] ?? null;
+  return cachedFrVoice;
+}
+
 function speak(text: string, onDone?: () => void) {
   try {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "fr-FR";
-    u.rate = 1.05;
+    // Ton rassurant et dynamique : débit légèrement soutenu, timbre un peu clair.
+    u.rate = 1.04;
+    u.pitch = 1.05;
+    const voice = pickFrenchVoice();
+    if (voice) u.voice = voice;
     if (onDone) u.onend = onDone;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
