@@ -6,7 +6,7 @@ import path from "path";
 // (React.act n'existe pas en production). Sur Vercel, le build pose
 // NODE_ENV=production avant `vitest run` (ci-build) — on force ici, avant que
 // les workers ne résolvent le module react.
-process.env.NODE_ENV = "test";
+Object.assign(process.env, { NODE_ENV: "test" });
 
 export default defineConfig({
   plugins: [react()],
