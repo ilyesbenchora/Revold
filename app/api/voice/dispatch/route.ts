@@ -19,7 +19,7 @@ const KPI_IDS = [...KPI_DEFS.keys()];
 const KPI_DOC = [...KPI_DEFS.values()].map((d) => `${d.id} = ${d.label}`).join(" ; ");
 
 /** Agent naturel pour « creuser » un KPI répondu en direct. */
-const KPI_FOLLOWUP_AGENT: Record<string, string> = { sales: "performance", marketing: "performance", data: "proprietes" };
+const KPI_FOLLOWUP_AGENT: Record<string, string> = { sales: "performance", marketing: "performance", data: "performance" };
 
 /** Pages navigables à la voix (cible → route + libellé). */
 const NAV_TARGETS: Record<string, { href: string; label: string }> = {
@@ -60,7 +60,7 @@ type Action = Record<string, unknown> & { type: string; say: string };
 
 /**
  * Tour de contrôle vocale Revold : route une demande dictée vers la bonne
- * ACTION — briefer un agent/coach (chat pré-exécuté), répondre directement à
+ * ACTION — briefer un agent (chat pré-exécuté), répondre directement à
  * une question KPI simple, créer une alerte ou un objectif (validés par
  * l'utilisateur), naviguer vers une page ou un rapport, lire le brief du jour.
  * Plusieurs demandes dans une phrase → plusieurs actions (file côté client).
@@ -100,9 +100,7 @@ export async function POST(request: Request) {
   const { key: anthropicKey, reason } = getAnthropicKey();
   if (!anthropicKey) return NextResponse.json({ error: reason ?? "ANTHROPIC_API_KEY manquante" }, { status: 500 });
 
-  // Un seul roster : les agents experts. La famille « coachs » est retirée du
-  // produit — leur mécanique de séance vit désormais sur ces mêmes agents.
-  const agents = Object.values(AGENTS).filter((a) => a.section !== "coaching");
+  const agents = Object.values(AGENTS);
   const roster = agents
     .map((a) => `- ${a.key} : ${a.label} (${getAgentPersona(a.key).name}) — ${a.tagline}`)
     .join("\n");
@@ -118,7 +116,7 @@ export async function POST(request: Request) {
         "Tu es la tour de contrôle vocale de Revold (Revenue Intelligence). L'utilisateur dicte une demande ; tu choisis la ou les ACTIONS. " +
         "RÈGLES DE CHOIX : " +
         "1) Question SIMPLE sur un KPI du catalogue (« combien / c'est quoi mon X ») → quick_answer (réponse immédiate, sans navigation). " +
-        "2) Demande d'analyse, de diagnostic, de rapport, de coaching → dispatch vers l'agent/coach pertinent, avec la demande reformulée en instruction claire et fidèle. " +
+        "2) Demande d'analyse, de diagnostic, de rapport, de séance de travail → dispatch vers l'agent pertinent, avec la demande reformulée en instruction claire et fidèle. " +
         "3) « préviens-moi si… / alerte quand… » → create_alert. « objectif de… » → create_objective. " +
         "4) « ouvre / montre / va sur… » une page ou un rapport → navigate. " +
         "5) « mon brief / résumé du jour / quoi de neuf » → daily_brief. " +
@@ -131,7 +129,7 @@ export async function POST(request: Request) {
       tools: ([
         {
           name: "dispatch",
-          description: "Briefe un agent/coach : redirection vers son chat avec la demande exécutée.",
+          description: "Briefe un agent : redirection vers son chat avec la demande exécutée.",
           input_schema: {
             type: "object",
             properties: {
