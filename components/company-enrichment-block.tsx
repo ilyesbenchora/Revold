@@ -23,7 +23,17 @@ type Proposal = {
   vatNumber: string;
   legalName: string;
   confidence: "high" | "medium";
+  /** Taille officielle de l'entreprise — affichée pour aider à trancher. */
+  employeeRange: string | null;
+  employeeYear: number | null;
+  revenue: number | null;
+  revenueYear: number | null;
 };
+
+const PAGE_SIZES = [15, 20, 50];
+
+const eur = (v: number) =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
 
 export function CompanyEnrichmentBlock() {
   const router = useRouter();
@@ -33,6 +43,8 @@ export function CompanyEnrichmentBlock() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ applied: number; pushedToHubspot: number } | null>(null);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
+  const [page, setPage] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +55,7 @@ export function CompanyEnrichmentBlock() {
       if (!res.ok) throw new Error(d.error || "Chargement impossible");
       setProposals((d.proposals ?? []) as Proposal[]);
       setSelected(new Set());
+      setPage(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -58,7 +71,16 @@ export function CompanyEnrichmentBlock() {
     if (applying) return;
     const items = proposals
       .filter((p) => selected.has(p.companyId))
-      .map((p) => ({ companyId: p.companyId, siren: p.siren, siret: p.siret, legalName: p.legalName }));
+      .map((p) => ({
+        companyId: p.companyId,
+        siren: p.siren,
+        siret: p.siret,
+        legalName: p.legalName,
+        employeeRange: p.employeeRange,
+        employeeYear: p.employeeYear,
+        revenue: p.revenue,
+        revenueYear: p.revenueYear,
+      }));
     if (items.length === 0) return;
     setApplying(true);
     setError(null);
@@ -89,7 +111,20 @@ export function CompanyEnrichmentBlock() {
       return next;
     });
 
-  const allSelected = proposals.length > 0 && selected.size === proposals.length;
+  // Pagination : la sélection est conservée d'une page à l'autre (ids).
+  const pageCount = Math.max(1, Math.ceil(proposals.length / pageSize));
+  const current = Math.min(page, pageCount - 1);
+  const visible = proposals.slice(current * pageSize, current * pageSize + pageSize);
+  const pageAllSelected = visible.length > 0 && visible.every((p) => selected.has(p.companyId));
+  const togglePage = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const p of visible) {
+        if (pageAllSelected) next.delete(p.companyId);
+        else next.add(p.companyId);
+      }
+      return next;
+    });
 
   return (
     <div className="card overflow-hidden">
@@ -105,7 +140,8 @@ export function CompanyEnrichmentBlock() {
           </h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
             Correspondances Sirene <span className="font-medium text-slate-600">plausibles mais pas certaines</span> —
-            Revold ne les applique jamais seul. Les correspondances sûres, elles, sont déjà appliquées automatiquement.
+            Revold ne les applique jamais seul. L&apos;effectif et le CA officiels sont affichés pour t&apos;aider à
+            trancher, et sont appliqués en même temps que l&apos;identité.
           </p>
         </div>
         <button
@@ -144,27 +180,37 @@ export function CompanyEnrichmentBlock() {
                     <th className="w-8 px-2.5 py-2">
                       <input
                         type="checkbox"
-                        checked={allSelected}
-                        onChange={() => setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.companyId)))}
+                        checked={pageAllSelected}
+                        onChange={togglePage}
                         className="accent-[var(--accent)]"
-                        title="Tout sélectionner"
+                        title="Sélectionner toute la page"
                       />
                     </th>
                     <th className="px-2.5 py-2 font-semibold">Entreprise (CRM)</th>
                     <th className="px-2.5 py-2 font-semibold">Raison sociale officielle</th>
+                    <th className="px-2.5 py-2 font-semibold">Effectif</th>
+                    <th className="px-2.5 py-2 font-semibold">CA officiel</th>
                     <th className="px-2.5 py-2 font-semibold">SIREN</th>
                     <th className="px-2.5 py-2 font-semibold">SIRET (siège)</th>
                     <th className="px-2.5 py-2 font-semibold">N° TVA</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {proposals.map((p) => (
+                  {visible.map((p) => (
                     <tr key={p.companyId} className="border-b border-slate-100 transition last:border-0 hover:bg-indigo-50/40">
                       <td className="px-2.5 py-2">
                         <input type="checkbox" checked={selected.has(p.companyId)} onChange={() => toggle(p.companyId)} className="accent-[var(--accent)]" />
                       </td>
                       <td className="px-2.5 py-2 font-medium text-slate-800">{p.name}</td>
                       <td className="px-2.5 py-2 text-slate-700">{p.legalName}</td>
+                      <td className="px-2.5 py-2 text-slate-700">
+                        {p.employeeRange ?? <span className="text-slate-300">—</span>}
+                        {p.employeeYear && <span className="ml-1 text-[10px] text-slate-400">({p.employeeYear})</span>}
+                      </td>
+                      <td className="px-2.5 py-2 tabular-nums text-slate-700">
+                        {p.revenue != null ? eur(p.revenue) : <span className="text-slate-300">confidentiel</span>}
+                        {p.revenueYear && <span className="ml-1 text-[10px] text-slate-400">({p.revenueYear})</span>}
+                      </td>
                       <td className="px-2.5 py-2 tabular-nums text-slate-900">{p.siren}</td>
                       <td className="px-2.5 py-2 tabular-nums text-slate-700">{p.siret ?? "—"}</td>
                       <td className="px-2.5 py-2 tabular-nums text-slate-700">{p.vatNumber}</td>
@@ -173,10 +219,49 @@ export function CompanyEnrichmentBlock() {
                 </tbody>
               </table>
             </div>
+            {/* ── Pagination ── */}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+              <div className="flex items-center gap-2">
+                <span>Lignes par page</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-accent"
+                >
+                  {PAGE_SIZES.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span className="text-slate-400">
+                  {current * pageSize + 1}–{Math.min((current + 1) * pageSize, proposals.length)} sur {proposals.length}
+                </span>
+              </div>
+              {pageCount > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={current === 0}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    ← Précédent
+                  </button>
+                  <span className="tabular-nums text-slate-500">Page {current + 1} / {pageCount}</span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    disabled={current >= pageCount - 1}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Suivant →
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] text-slate-400">
-                {selected.size} sélectionnée{selected.size > 1 ? "s" : ""} sur {proposals.length} — vérifie que la raison
-                sociale correspond bien à l&apos;entreprise de ton CRM avant d&apos;appliquer.
+                {selected.size} sélectionnée{selected.size > 1 ? "s" : ""} sur {proposals.length} (la sélection est
+                conservée d&apos;une page à l&apos;autre) — vérifie que la raison sociale et la taille correspondent
+                bien à l&apos;entreprise de ton CRM avant d&apos;appliquer.
               </p>
               <button
                 onClick={apply}

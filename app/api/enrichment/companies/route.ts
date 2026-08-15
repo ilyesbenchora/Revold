@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { vatFromSiren } from "@/lib/enrichment/company-enrichment";
+import { vatFromSiren, employeeMidpointFromRange } from "@/lib/enrichment/company-enrichment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -38,36 +38,55 @@ export async function GET() {
     vatNumber: string;
     legalName: string;
     confidence: "high" | "medium";
+    /** Taille réelle de l'entreprise — aide à trancher, appliquée à la validation. */
+    employeeRange: string | null;
+    employeeYear: number | null;
+    revenue: number | null;
+    revenueYear: number | null;
   };
 
   // FILE DE VALIDATION uniquement (instantané, zéro appel API) : les
   // correspondances « plausibles » que l'enrichissement (backfill à la demande
   // ou cron horaire) n'a délibérément PAS appliquées seul. Le scan de la base
   // appartient au moteur de backfill — ce bloc ne fait que la validation.
-  const { data: queued, error } = await supabase
-    .from("companies")
-    .select("id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name")
-    .eq("organization_id", orgId)
-    .is("siren", null)
-    .not("candidate_siren", "is", null)
-    .limit(100);
+  const COLS_FULL =
+    "id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name, candidate_employee_range, candidate_employee_year, candidate_revenue, candidate_revenue_year";
+  const COLS_BASE = "id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name";
+  const fetchQueue = (cols: string) =>
+    supabase
+      .from("companies")
+      .select(cols)
+      .eq("organization_id", orgId)
+      .is("siren", null)
+      .not("candidate_siren", "is", null)
+      .order("candidate_revenue", { ascending: false, nullsFirst: false })
+      .limit(500);
+
+  // Colonnes de faits d'une migration récente → repli sur les colonnes de base.
+  let { data: queued, error } = await fetchQueue(COLS_FULL);
+  if (error) ({ data: queued, error } = await fetchQueue(COLS_BASE));
   // Colonnes candidate_* absentes (migration non appliquée) → file vide.
   if (error) return NextResponse.json({ proposals: [], unavailable: true });
 
   const proposals: ProposalOut[] = [];
-  for (const c of queued ?? []) {
-    const siren = c.candidate_siren as string | null;
+  for (const row of (queued ?? []) as unknown as Record<string, unknown>[]) {
+    const siren = row.candidate_siren as string | null;
     if (!siren || !/^\d{9}$/.test(siren)) continue;
+    const num = (v: unknown): number | null => (v == null ? null : Number(v) || null);
     proposals.push({
-      companyId: c.id as string,
-      name: (c.name as string | null) ?? siren,
-      domain: (c.domain as string | null) ?? null,
-      hubspotId: (c.hubspot_id as string | null) ?? null,
+      companyId: row.id as string,
+      name: (row.name as string | null) ?? siren,
+      domain: (row.domain as string | null) ?? null,
+      hubspotId: (row.hubspot_id as string | null) ?? null,
       siren,
-      siret: (c.candidate_siret as string | null) ?? null,
+      siret: (row.candidate_siret as string | null) ?? null,
       vatNumber: vatFromSiren(siren),
-      legalName: (c.candidate_legal_name as string | null) ?? ((c.name as string | null) ?? siren),
+      legalName: (row.candidate_legal_name as string | null) ?? ((row.name as string | null) ?? siren),
       confidence: "medium",
+      employeeRange: (row.candidate_employee_range as string | null) ?? null,
+      employeeYear: num(row.candidate_employee_year),
+      revenue: num(row.candidate_revenue),
+      revenueYear: num(row.candidate_revenue_year),
     });
   }
 
@@ -81,14 +100,24 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { items?: Array<{ companyId?: string; siren?: string; siret?: string | null; legalName?: string | null }> };
+  type Item = {
+    companyId: string;
+    siren: string;
+    siret: string | null;
+    legalName: string | null;
+    employeeRange?: string | null;
+    employeeYear?: number | null;
+    revenue?: number | null;
+    revenueYear?: number | null;
+  };
+  let body: { items?: Array<Partial<Item>> };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Corps invalide" }, { status: 400 });
   }
   const items = (body.items ?? []).filter(
-    (i): i is { companyId: string; siren: string; siret: string | null; legalName: string | null } =>
+    (i): i is Item =>
       typeof i.companyId === "string" && typeof i.siren === "string" && /^\d{9}$/.test(i.siren),
   );
   if (items.length === 0) return NextResponse.json({ error: "Aucun enrichissement à appliquer" }, { status: 400 });
@@ -113,11 +142,32 @@ export async function POST(request: Request) {
     // 1. Colonnes canoniques Revold — la base du rapprochement.
     const update: Record<string, unknown> = { siren: item.siren, vat_number: vat };
     if (item.siret && /^\d{14}$/.test(item.siret)) update.siret = item.siret;
-    const { error } = await supabase
+    let { error } = await supabase
       .from("companies")
       .update(update)
       .eq("id", item.companyId)
       .eq("organization_id", orgId);
+
+    // Effectifs & CA validés en même temps que l'identité (déjà connus du
+    // registre) — colonnes d'une migration récente : repli silencieux.
+    if (!error && (item.employeeRange || typeof item.revenue === "number")) {
+      const facts: Record<string, unknown> = { enriched_at: new Date().toISOString() };
+      if (item.employeeRange) {
+        facts.official_employee_range = item.employeeRange;
+        facts.official_employee_year = item.employeeYear ?? null;
+      }
+      if (typeof item.revenue === "number") {
+        facts.official_revenue = item.revenue;
+        facts.official_revenue_year = item.revenueYear ?? null;
+      }
+      const { error: factsError } = await supabase
+        .from("companies")
+        .update(facts)
+        .eq("id", item.companyId)
+        .eq("organization_id", orgId);
+      // Une colonne de faits absente ne doit jamais annuler l'identité validée.
+      if (factsError) error = null;
+    }
     // Raison sociale (entreprise à facturer) : colonne dédiée, à part — si la
     // migration legal_name n'est pas appliquée, l'enrichissement reste acquis.
     if (!error && item.legalName) {
@@ -133,11 +183,23 @@ export async function POST(request: Request) {
 
     // Candidat validé → on vide la file (best-effort : colonnes d'une
     // migration récente, jamais bloquant).
-    await supabase
+    const clearFull = {
+      candidate_siren: null, candidate_siret: null, candidate_legal_name: null,
+      candidate_employee_range: null, candidate_employee_year: null,
+      candidate_revenue: null, candidate_revenue_year: null,
+    };
+    const { error: clearError } = await supabase
       .from("companies")
-      .update({ candidate_siren: null, candidate_siret: null, candidate_legal_name: null })
+      .update(clearFull)
       .eq("id", item.companyId)
       .eq("organization_id", orgId);
+    if (clearError) {
+      await supabase
+        .from("companies")
+        .update({ candidate_siren: null, candidate_siret: null, candidate_legal_name: null })
+        .eq("id", item.companyId)
+        .eq("organization_id", orgId);
+    }
 
     // 2. Écriture DANS HubSpot (best-effort) : la donnée corrigée vit aussi
     //    dans l'outil du client, pas seulement chez Revold.
@@ -155,6 +217,10 @@ export async function POST(request: Request) {
           [propFor("vat_number", "vat_number")]: vat,
         };
         if (item.siret && /^\d{14}$/.test(item.siret)) properties[propFor("siret", "siret")] = item.siret;
+        // Taille de l'entreprise poussée dans les propriétés natives HubSpot.
+        if (typeof item.revenue === "number") properties.annualrevenue = String(Math.round(item.revenue));
+        const mid = employeeMidpointFromRange(item.employeeRange);
+        if (mid != null) properties.numberofemployees = String(mid);
         try {
           const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
             method: "PATCH",

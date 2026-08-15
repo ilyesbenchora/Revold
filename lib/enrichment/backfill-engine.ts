@@ -136,11 +136,24 @@ export async function runEnrichmentBatch(
       continue;
     }
     const found = outcome.data;
+    // Effectifs/CA du candidat : déjà présents dans la réponse du registre —
+    // persistés pour être AFFICHÉS dans le tableau de validation.
+    const candidateFacts = {
+      candidate_employee_range: found.facts.employeeRange,
+      candidate_employee_year: found.facts.employeeYear,
+      candidate_revenue: found.facts.revenue,
+      candidate_revenue_year: found.facts.revenueYear,
+    };
     if (found.confidence !== "high") {
-      await sb
-        .from("companies")
-        .update({ ...checked, candidate_siren: found.siren, candidate_siret: found.siret, candidate_legal_name: found.legalName })
-        .eq("id", c.id);
+      const base = {
+        ...checked,
+        candidate_siren: found.siren,
+        candidate_siret: found.siret,
+        candidate_legal_name: found.legalName,
+      };
+      // Colonnes candidate_* de faits : migration récente → repli silencieux.
+      const { error: candErr } = await sb.from("companies").update({ ...base, ...candidateFacts }).eq("id", c.id);
+      if (candErr) await sb.from("companies").update(base).eq("id", c.id);
       bump(c.organization_id, "candidates");
       totals.candidates++;
       continue;

@@ -76,6 +76,17 @@ const EFFECTIF_TRANCHES: Record<string, { label: string; mid: number }> = {
   "53": { label: "10 000 salariés et plus", mid: 10000 },
 };
 
+/**
+ * Valeur représentative depuis le LIBELLÉ d'une tranche (chemin inverse) :
+ * utilisée quand la tranche a été persistée en clair (candidats en attente)
+ * et qu'il faut repousser un effectif chiffré dans HubSpot à la validation.
+ */
+export function employeeMidpointFromRange(label: string | null | undefined): number | null {
+  if (!label) return null;
+  for (const t of Object.values(EFFECTIF_TRANCHES)) if (t.label === label) return t.mid;
+  return null;
+}
+
 export type CompanyFacts = {
   /** Tranche officielle d'effectif (libellé lisible), avec son année. */
   employeeRange: string | null;
