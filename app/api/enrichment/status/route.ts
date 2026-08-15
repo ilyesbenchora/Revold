@@ -51,6 +51,26 @@ export async function GET() {
       count((q) => q.not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`)),
     ]);
 
+  // Dernière avancée réelle (preuve que le robot travaille) : le plus récent
+  // des marqueurs écrits par le moteur, quelle que soit sa source (cron ou page).
+  const lastOf = async (col: "sirene_checked_at" | "enriched_at"): Promise<string | null> => {
+    try {
+      const { data } = await supabase
+        .from("companies")
+        .select(col)
+        .eq("organization_id", orgId)
+        .not(col, "is", null)
+        .order(col, { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return ((data as Record<string, unknown> | null)?.[col] as string | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const [lastChecked, lastEnriched] = await Promise.all([lastOf("sirene_checked_at"), lastOf("enriched_at")]);
+  const lastActivityAt = [lastChecked, lastEnriched].filter(Boolean).sort().pop() ?? null;
+
   const remaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0);
   // Dénominateur du chantier : ce qui reste + ce qui est déjà acquis
   // (identifiants trouvés + candidats en attente de validation).
@@ -69,5 +89,8 @@ export async function GET() {
     remaining,
     processed,
     pct,
+    lastActivityAt,
+    /** Il reste du travail → le robot (cron 10 min) le traite : « en cours ». */
+    inProgress: remaining > 0,
   });
 }
