@@ -32,7 +32,6 @@ const ALL_PAGE_KEYS = [
   "agent_performance",
   "agent_paiement-facturation",
   "agent_service-client",
-  "agent_equipes",
   "agent_proprietes",
 ];
 
