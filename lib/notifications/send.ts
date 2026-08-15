@@ -331,7 +331,11 @@ async function sendTwilioMessage(
 ): Promise<{ ok: boolean; error?: string }> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = mode === "whatsapp" ? process.env.TWILIO_WHATSAPP_FROM : process.env.TWILIO_FROM_NUMBER;
+  const rawFrom = mode === "whatsapp" ? process.env.TWILIO_WHATSAPP_FROM : process.env.TWILIO_FROM_NUMBER;
+  // Twilio attend `whatsapp:+1415…` pour WhatsApp : on tolère le numéro saisi
+  // avec ou sans le préfixe (erreur de configuration la plus fréquente).
+  const from =
+    mode === "whatsapp" && rawFrom && !rawFrom.startsWith("whatsapp:") ? `whatsapp:${rawFrom.trim()}` : rawFrom?.trim();
   if (!sid || !token || !from) {
     return {
       ok: false,
