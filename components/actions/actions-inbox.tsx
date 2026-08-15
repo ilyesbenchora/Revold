@@ -49,6 +49,12 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     rows.push(["Attribution", "Automatique : propriétaire du deal, sinon de l'entreprise, sinon du contact associé"]);
     const assoc = [s("dealHubspotId") && "le deal concerné", s("companyHubspotId") && "l'entreprise", "le contact rattaché"].filter(Boolean).join(", ");
     rows.push(["Associée à", assoc]);
+    // Relance d'impayé : le cycle a des conditions d'arrêt explicites.
+    if (a.source === "detector:overdue_invoice") {
+      rows.push(["Condition d'arrêt", "Paiement reçu → plus aucune relance (le détecteur ne cible que les restes dus)"]);
+      rows.push(["Cadence", "7 jours minimum entre deux relances, 3 relances maximum"]);
+      rows.push(["Après 3 relances", "Escalade : tâche de recouvrement humaine, plus aucune relance automatique"]);
+    }
     return { rows, effect: "Crée UNE tâche dans HubSpot — aucune donnée existante n'est modifiée. Supprimable à tout moment dans HubSpot." };
   }
   if (a.type === "hubspot_sequence_enroll") {
@@ -57,6 +63,8 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
       ["Expéditeur", "Le propriétaire du deal — l'email part de SA boîte connectée, avec sa signature"],
       ["Séquence", s("sequenceName") ?? s("sequenceId") ?? "séquence configurée"],
       ["Suite", "Les étapes de la séquence s'enchaînent automatiquement (relances incluses)"],
+      ["Condition d'arrêt", "Réponse du contact → HubSpot le désinscrit automatiquement de la séquence"],
+      ["Aussi", "Deal gagné ou perdu → le deal sort du détecteur, plus aucune relance proposée"],
     ];
     return {
       rows,
@@ -67,6 +75,9 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     const rows: Array<[string, string]> = [];
     if (s("stripeInvoiceId")) rows.push(["Facture Stripe", s("stripeInvoiceId")!]);
     rows.push(["Ce qui part", "Le rappel OFFICIEL Stripe (email au client, modèle Stripe)"]);
+    rows.push(["Condition d'arrêt", "Paiement reçu → plus aucune relance (le détecteur ne cible que les restes dus)"]);
+    rows.push(["Cadence", "7 jours minimum entre deux relances, 3 relances maximum"]);
+    rows.push(["Après 3 relances", "Escalade : tâche de recouvrement humaine, plus aucun email automatique"]);
     return { rows, effect: "Le client reçoit l'email de rappel Stripe. La relance est suivie dans « Cash récupéré » — aucune donnée modifiée." };
   }
   if (a.type === "hubspot_merge") {
@@ -128,7 +139,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
  */
 export const ACTION_CATALOG: Array<{ key: string; label: string; description: string }> = [
   { key: "silent_deal", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → relance par VRAI email (séquence au nom de l'owner, si licence Sales Pro + séquence choisie dans Paramètres → Intégrations), sinon tâche pour le propriétaire." },
-  { key: "overdue_invoice", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Alimente « Cash récupéré »." },
+  { key: "overdue_invoice", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Cycle borné : 7 jours entre deux relances, 3 maximum, arrêt immédiat dès réception du paiement, puis escalade en tâche de recouvrement humaine. Alimente « Cash récupéré »." },
   { key: "duplicate_merge", label: "Doublons à fusionner", description: "Contacts (même email) et entreprises (même domaine) en doublon, selon les règles de déduplication activées → fusion HubSpot validée fiche par fiche." },
   { key: "crm_enrich", label: "SIREN / TVA à reporter dans le CRM", description: "L'identifiant est connu via la facturation mais absent de la fiche HubSpot → écrit en un clic. Chaque report rend les rapprochements suivants automatiques." },
   { key: "link_company", label: "Fiches facturation à relier au CRM", description: "Entreprise vue côté facturation sans lien CRM alors qu'une fiche correspond (nom/domaine) → rattachement : le CA devient attribuable compte par compte." },

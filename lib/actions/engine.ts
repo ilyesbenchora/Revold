@@ -134,7 +134,19 @@ export async function detectSilentDeals(
   return out;
 }
 
-/** Détecteur : factures en retard → rappel Stripe ou tâche de relance HubSpot. */
+/** Cadence du cycle de recouvrement : 7 j entre relances, 3 max puis escalade. */
+const RELANCE_INTERVAL_DAYS = 7;
+const RELANCE_MAX = 3;
+
+/**
+ * Détecteur : factures en retard → rappel Stripe ou tâche de relance HubSpot.
+ * CYCLE DE RECOUVREMENT avec conditions d'arrêt explicites :
+ *  - le paiement reçu STOPPE tout (le détecteur ne cible que les restes dus) ;
+ *  - 7 jours minimum entre deux relances d'une même facture ;
+ *  - 3 relances maximum, puis ESCALADE : une tâche de recouvrement humaine
+ *    (plus aucun email automatique) ;
+ *  - une relance refusée ou en attente bloque la suivante (pas d'empilement).
+ */
 export async function detectOverdueInvoiceActions(
   supabase: SupabaseClient,
   orgId: string,
@@ -176,33 +188,89 @@ export async function detectOverdueInvoiceActions(
     ((compsRes.data ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null }>).map((c) => [c.id, c]),
   );
 
+  // ── Historique de relances par facture (cadence + plafond + escalade) ──
+  const { data: priorData } = await supabase
+    .from("action_items")
+    .select("dedupe_key, status, decided_at")
+    .eq("organization_id", orgId)
+    .eq("source", "detector:overdue_invoice")
+    .limit(2000);
+  type Cycle = { hasPending: boolean; relances: number; lastDecidedAt: string | null; escalated: boolean };
+  const cycles = new Map<string, Cycle>();
+  for (const p of (priorData ?? []) as Array<{ dedupe_key: string; status: string; decided_at: string | null }>) {
+    // Clés : overdue_invoice:<id>[:rN] · overdue_invoice_escalation:<id>
+    const esc = p.dedupe_key.startsWith("overdue_invoice_escalation:");
+    const invId = esc
+      ? p.dedupe_key.slice("overdue_invoice_escalation:".length)
+      : p.dedupe_key.slice("overdue_invoice:".length).split(":")[0];
+    const c = cycles.get(invId) ?? { hasPending: false, relances: 0, lastDecidedAt: null, escalated: false };
+    if (esc) c.escalated = true;
+    else {
+      if (p.status === "pending") c.hasPending = true;
+      if (p.status === "executed") c.relances++;
+      if (p.decided_at && (!c.lastDecidedAt || p.decided_at > c.lastDecidedAt)) c.lastDecidedAt = p.decided_at;
+    }
+    cycles.set(invId, c);
+  }
+
   const eur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const stopNote = "S'arrête dès réception du paiement";
   const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
   for (const inv of invoices) {
     const due = Number(inv.amount_due) || 0;
     const company = inv.company_id ? companyById.get(inv.company_id) : undefined;
     const label = `${inv.number ?? "facture"}${company?.name ? ` · ${company.name}` : ""}`;
     const stripeId = stripeIdByInvoice.get(inv.id);
+    const cycle = cycles.get(inv.id) ?? { hasPending: false, relances: 0, lastDecidedAt: null, escalated: false };
+
+    // Une relance en attente (ou refusée récemment) bloque la suivante.
+    if (cycle.hasPending) continue;
+    if (cycle.lastDecidedAt && Date.now() - new Date(cycle.lastDecidedAt).getTime() < RELANCE_INTERVAL_DAYS * DAY_MS) continue;
+
+    // ── Plafond atteint : ESCALADE humaine (une seule fois) ──
+    if (cycle.relances >= RELANCE_MAX) {
+      if (!cycle.escalated && company?.hubspot_id) {
+        out.push({
+          dedupe_key: `overdue_invoice_escalation:${inv.id}`,
+          type: "hubspot_task",
+          title: `Escalade recouvrement ${label} — ${eur(due)} malgré ${RELANCE_MAX} relances`,
+          description: `${RELANCE_MAX} relances envoyées sans paiement : plus aucun email automatique pour cette facture. Valider crée une tâche de recouvrement pour un traitement humain (appel, échéancier, mise en demeure).`,
+          source: "detector:overdue_invoice",
+          payload: {
+            subject: `Recouvrement : facture ${inv.number ?? ""} — ${eur(due)} impayés après ${RELANCE_MAX} relances`,
+            body: `Détecté par Revold : facture ${inv.number ?? ""} échue le ${inv.due_at ?? "?"}, reste dû ${eur(due)} malgré ${RELANCE_MAX} relances. Passer en recouvrement humain : appel, échéancier ou mise en demeure.`,
+            companyHubspotId: company.hubspot_id,
+            invoiceId: inv.id,
+          },
+        });
+      }
+      continue;
+    }
+
+    // ── Relance n° suivant (clé du 1er cycle inchangée — compat historique) ──
+    const n = cycle.relances + 1;
+    const key = n === 1 ? `overdue_invoice:${inv.id}` : `overdue_invoice:${inv.id}:r${n}`;
+    const cycleNote = `Relance ${n}/${RELANCE_MAX} · ${stopNote} ; après ${RELANCE_MAX} relances, escalade en tâche de recouvrement humaine.`;
     if (inv.primary_source === "stripe" && stripeId) {
       out.push({
-        dedupe_key: `overdue_invoice:${inv.id}`,
+        dedupe_key: key,
         type: "stripe_send_invoice",
-        title: `Relancer ${label} — ${eur(due)} en retard`,
-        description: `Valider envoie le RAPPEL STRIPE officiel au client (invoice ${stripeId}). La relance est suivie dans « Cash récupéré ».`,
+        title: `Relancer ${label} — ${eur(due)} en retard${n > 1 ? ` (relance ${n})` : ""}`,
+        description: `Valider envoie le RAPPEL STRIPE officiel au client (invoice ${stripeId}). ${cycleNote} Suivie dans « Cash récupéré ».`,
         source: "detector:overdue_invoice",
         // companyHubspotId = référence CLIENT pour l'automatisation par entité.
         payload: { stripeInvoiceId: stripeId, invoiceId: inv.id, companyHubspotId: company?.hubspot_id ?? null },
       });
     } else if (company?.hubspot_id) {
       out.push({
-        dedupe_key: `overdue_invoice:${inv.id}`,
+        dedupe_key: key,
         type: "hubspot_task",
-        title: `Relancer ${label} — ${eur(due)} en retard`,
-        description: `Valider crée une tâche HubSpot de relance sur l'entreprise. La relance est suivie dans « Cash récupéré ».`,
+        title: `Relancer ${label} — ${eur(due)} en retard${n > 1 ? ` (relance ${n})` : ""}`,
+        description: `Valider crée une tâche HubSpot de relance sur l'entreprise. ${cycleNote} Suivie dans « Cash récupéré ».`,
         source: "detector:overdue_invoice",
         payload: {
-          subject: `Relancer la facture ${inv.number ?? ""} (${eur(due)} en retard)`,
-          body: `Détecté par Revold : facture ${inv.number ?? ""} échue le ${inv.due_at ?? "?"} — reste dû ${eur(due)}. Relancer le client.`,
+          subject: `Relancer la facture ${inv.number ?? ""} (${eur(due)} en retard — relance ${n}/${RELANCE_MAX})`,
+          body: `Détecté par Revold : facture ${inv.number ?? ""} échue le ${inv.due_at ?? "?"} — reste dû ${eur(due)}. Relancer le client (relance ${n}/${RELANCE_MAX}).`,
           companyHubspotId: company.hubspot_id,
           invoiceId: inv.id,
         },
