@@ -38,15 +38,24 @@ export type ActionPayload = {
   dealCloseDate?: string;
   /** Création de contact facturation. */
   contactEmail?: string;
+  /** Relance par séquence HubSpot (envoi réel au nom de l'owner). */
+  sequenceId?: string;
+  sequenceName?: string;
 };
 
 const DAY_MS = 86_400_000;
 const SILENT_DAYS = 21;
 
-/** Détecteur : deals ouverts silencieux depuis ≥ 21 jours (top montants). */
+/**
+ * Détecteur : deals ouverts silencieux depuis ≥ 21 jours (top montants).
+ * Avec une séquence configurée (licence Sales Pro/Enterprise, Paramètres →
+ * Intégrations), la relance proposée est un VRAI email : inscription du
+ * contact dans la séquence au nom du propriétaire du deal. Sinon : tâche.
+ */
 export async function detectSilentDeals(
   supabase: SupabaseClient,
   orgId: string,
+  sequence?: { id: string; name: string } | null,
 ): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
   const { data } = await supabase
     .from("deals")
@@ -65,18 +74,30 @@ export async function detectSilentDeals(
     if (!lastTouch || new Date(lastTouch).getTime() > cutoff) continue;
     const days = Math.floor((Date.now() - new Date(lastTouch).getTime()) / DAY_MS);
     const dealName = d.name?.trim() || "Deal sans nom";
-    out.push({
-      dedupe_key: `silent_deal:${d.id}`,
-      type: "hubspot_task",
-      title: `Relancer « ${dealName} » — silencieux depuis ${days} j`,
-      description: `Deal ouvert${d.amount ? ` de ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(d.amount)}` : ""} sans contact depuis ${days} jours. Valider crée une tâche HubSpot pour le propriétaire du deal.`,
-      source: "detector:silent_deal",
-      payload: {
-        subject: `Relancer le deal « ${dealName} » (silencieux depuis ${days} j)`,
-        body: `Détecté par Revold : aucun contact depuis ${days} jours sur ce deal ouvert${d.amount ? ` (${Math.round(d.amount)} €)` : ""}. Reprendre contact ou mettre à jour l'étape.`,
-        dealHubspotId: d.hubspot_id,
-      },
-    });
+    const amountTxt = d.amount ? ` de ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(d.amount)}` : "";
+    if (sequence) {
+      out.push({
+        dedupe_key: `silent_deal:${d.id}`,
+        type: "hubspot_sequence_enroll",
+        title: `Relancer « ${dealName} » par email — silencieux depuis ${days} j`,
+        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours. Valider inscrit le contact du deal dans la séquence « ${sequence.name} » au nom du propriétaire : l'email de relance part réellement de sa boîte.`,
+        source: "detector:silent_deal",
+        payload: { dealHubspotId: d.hubspot_id, sequenceId: sequence.id, sequenceName: sequence.name },
+      });
+    } else {
+      out.push({
+        dedupe_key: `silent_deal:${d.id}`,
+        type: "hubspot_task",
+        title: `Relancer « ${dealName} » — silencieux depuis ${days} j`,
+        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours. Valider crée une tâche HubSpot pour le propriétaire du deal.`,
+        source: "detector:silent_deal",
+        payload: {
+          subject: `Relancer le deal « ${dealName} » (silencieux depuis ${days} j)`,
+          body: `Détecté par Revold : aucun contact depuis ${days} jours sur ce deal ouvert${d.amount ? ` (${Math.round(d.amount)} €)` : ""}. Reprendre contact ou mettre à jour l'étape.`,
+          dealHubspotId: d.hubspot_id,
+        },
+      });
+    }
     if (out.length >= 10) break;
   }
   return out;
@@ -705,6 +726,82 @@ export async function executeHubspotMerge(
       return { ok: false, detail: `Scope HubSpot manquant (crm.objects.${type === "contacts" ? "contacts" : "companies"}.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot.` };
     }
     return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/**
+ * Inscrit le contact du deal dans une séquence HubSpot AU NOM du propriétaire
+ * du deal : l'email de relance part réellement de sa boîte connectée (Sales
+ * Pro/Enterprise requis). Si le deal n'a pas de contact associé, repli
+ * automatique sur une tâche de relance — jamais d'action perdue.
+ */
+export async function executeHubspotSequenceEnroll(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  if (!payload.dealHubspotId || !payload.sequenceId) return { ok: false, detail: "Payload de séquence incomplet." };
+
+  // 1. Owner + contact du deal.
+  const deal = await fetchOwnerAndContacts(hubspotToken, "deals", payload.dealHubspotId);
+  const contactId = deal.contactIds[0] ?? null;
+  if (!contactId) {
+    const fb = await executeHubspotTask(hubspotToken, {
+      subject: "Relancer le deal (aucun contact associé — relance par séquence impossible)",
+      body: "Détecté par Revold : le deal n'a aucun contact associé, l'inscription en séquence est impossible. Associer un contact au deal puis relancer.",
+      dealHubspotId: payload.dealHubspotId,
+    });
+    return { ok: fb.ok, detail: `Aucun contact associé au deal — repli sur une tâche. ${fb.detail}` };
+  }
+  if (!deal.ownerId) return { ok: false, detail: "Le deal n'a pas de propriétaire — impossible d'envoyer en son nom. Attribue le deal puis revalide." };
+
+  // 2. Owner → utilisateur HubSpot (userId + email d'envoi).
+  let userId: number | null = null;
+  let senderEmail: string | null = null;
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/owners/${encodeURIComponent(deal.ownerId)}`, {
+      headers: { Authorization: `Bearer ${hubspotToken}` },
+    });
+    if (res.ok) {
+      const d = (await res.json()) as { userId?: number; email?: string };
+      userId = typeof d.userId === "number" ? d.userId : null;
+      senderEmail = d.email ?? null;
+    }
+  } catch {}
+  if (!userId || !senderEmail) return { ok: false, detail: "Propriétaire du deal sans utilisateur HubSpot actif (userId/email introuvable)." };
+
+  // 3. Inscription dans la séquence (2 formats d'API tentés — v4).
+  const attempt = async (url: string, body: unknown) =>
+    fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  try {
+    let res = await attempt(
+      `https://api.hubapi.com/automation/v4/sequences/${encodeURIComponent(payload.sequenceId)}/enrollments?userId=${userId}`,
+      { contactId, senderEmail },
+    );
+    if (res.status === 404 || res.status === 405) {
+      res = await attempt(`https://api.hubapi.com/automation/v4/sequences/enrollments?userId=${userId}`, {
+        sequenceId: payload.sequenceId,
+        contactId,
+        senderEmail,
+      });
+    }
+    if (res.ok) {
+      return {
+        ok: true,
+        detail: `Contact inscrit dans la séquence « ${payload.sequenceName ?? payload.sequenceId} » au nom de ${senderEmail} — l'email de relance part de sa boîte connectée.`,
+      };
+    }
+    const err = await res.text();
+    if (res.status === 403) {
+      return { ok: false, detail: "HubSpot a refusé l'inscription (403) : scope automation.sequences.enrollments.write manquant sur l'app OAuth, ou siège Sales Pro/boîte email non connectée pour cet owner." };
+    }
+    if (res.status === 409) return { ok: false, detail: "Le contact est déjà inscrit dans une séquence active." };
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 200)}` };
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
   }

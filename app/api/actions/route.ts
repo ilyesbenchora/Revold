@@ -13,6 +13,7 @@ import {
   detectMissingBillingContacts,
   executeHubspotTask,
   executeHubspotMerge,
+  executeHubspotSequenceEnroll,
   executeHubspotCompanyUpdate,
   executeLinkCompany,
   executeHubspotCreateDeal,
@@ -52,10 +53,24 @@ export async function GET(request: Request) {
   try {
     const { getHubSpotToken: getToken } = await import("@/lib/integrations/get-hubspot-token");
     const hubspotToken = await getToken(supabase, orgId);
+    // Licence HubSpot + séquence choisie (Paramètres → Intégrations) : avec
+    // Sales Pro/Enterprise, la relance des deals silencieux devient un VRAI
+    // email (inscription en séquence au nom de l'owner) au lieu d'une tâche.
+    const { data: hsRow } = await supabase
+      .from("integrations")
+      .select("metadata")
+      .eq("organization_id", orgId)
+      .eq("provider", "hubspot")
+      .maybeSingle();
+    const hsMeta = (hsRow?.metadata ?? {}) as { hubspot_license?: string; sequence_id?: string; sequence_name?: string };
+    const sequence =
+      (hsMeta.hubspot_license === "sales_pro" || hsMeta.hubspot_license === "sales_enterprise") && hsMeta.sequence_id
+        ? { id: hsMeta.sequence_id, name: hsMeta.sequence_name ?? "séquence de relance" }
+        : null;
     const run = <T,>(key: string, fn: () => Promise<T[]>): Promise<T[]> =>
       skip.has(key) ? Promise.resolve([]) : fn().catch(() => []);
     const detected = await Promise.all([
-      run("silent_deal", () => detectSilentDeals(supabase, orgId)),
+      run("silent_deal", () => detectSilentDeals(supabase, orgId, sequence)),
       run("overdue_invoice", () => detectOverdueInvoiceActions(supabase, orgId)),
       run("duplicate_merge", () => detectMergeCandidates(supabase, orgId)),
       run("crm_enrich", () => detectCrmIdentifierEnrich(supabase, orgId, hubspotToken)),
@@ -144,6 +159,11 @@ export async function POST(request: Request) {
     const token = await getHubSpotToken(supabase, orgId);
     outcome = token
       ? await executeHubspotTask(token, payload)
+      : { ok: false, detail: "HubSpot non connecté." };
+  } else if (item.type === "hubspot_sequence_enroll") {
+    const token = await getHubSpotToken(supabase, orgId);
+    outcome = token
+      ? await executeHubspotSequenceEnroll(token, payload)
       : { ok: false, detail: "HubSpot non connecté." };
   } else if (item.type === "hubspot_merge") {
     const token = await getHubSpotToken(supabase, orgId);

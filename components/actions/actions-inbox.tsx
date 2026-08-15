@@ -42,6 +42,18 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     rows.push(["Associée à", assoc]);
     return { rows, effect: "Crée UNE tâche dans HubSpot — aucune donnée existante n'est modifiée. Supprimable à tout moment dans HubSpot." };
   }
+  if (a.type === "hubspot_sequence_enroll") {
+    const rows: Array<[string, string]> = [
+      ["Destinataire", "Le contact associé au deal (résolu à l'exécution)"],
+      ["Expéditeur", "Le propriétaire du deal — l'email part de SA boîte connectée, avec sa signature"],
+      ["Séquence", s("sequenceName") ?? s("sequenceId") ?? "séquence configurée"],
+      ["Suite", "Les étapes de la séquence s'enchaînent automatiquement (relances incluses)"],
+    ];
+    return {
+      rows,
+      effect: "Un email RÉEL part vers le client (pas une tâche). Désinscription possible à tout moment dans HubSpot. Si le deal n'a aucun contact associé, une tâche de relance est créée à la place.",
+    };
+  }
   if (a.type === "stripe_send_invoice") {
     const rows: Array<[string, string]> = [];
     if (s("stripeInvoiceId")) rows.push(["Facture Stripe", s("stripeInvoiceId")!]);
@@ -92,6 +104,7 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
 
 const TYPE_META: Record<string, { label: string; domain: string; icon: string; tool: string; toolLabel: string }> = {
   hubspot_task: { label: "Tâche HubSpot", domain: "hubspot.com", icon: "🟧", tool: "hubspot", toolLabel: "HubSpot" },
+  hubspot_sequence_enroll: { label: "Relance par email (séquence)", domain: "hubspot.com", icon: "✉️", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_merge: { label: "Fusion de doublons", domain: "hubspot.com", icon: "🔀", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_company_update: { label: "Enrichissement CRM", domain: "hubspot.com", icon: "🪪", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
@@ -105,7 +118,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
  * familles masquées ne sont ni détectées ni affichées (préférence locale).
  */
 export const ACTION_CATALOG: Array<{ key: string; label: string; description: string }> = [
-  { key: "silent_deal", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → tâche de relance pour le propriétaire." },
+  { key: "silent_deal", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → relance par VRAI email (séquence au nom de l'owner, si licence Sales Pro + séquence choisie dans Paramètres → Intégrations), sinon tâche pour le propriétaire." },
   { key: "overdue_invoice", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Alimente « Cash récupéré »." },
   { key: "duplicate_merge", label: "Doublons à fusionner", description: "Contacts (même email) et entreprises (même domaine) en doublon, selon les règles de déduplication activées → fusion HubSpot validée fiche par fiche." },
   { key: "crm_enrich", label: "SIREN / TVA à reporter dans le CRM", description: "L'identifiant est connu via la facturation mais absent de la fiche HubSpot → écrit en un clic. Chaque report rend les rapprochements suivants automatiques." },

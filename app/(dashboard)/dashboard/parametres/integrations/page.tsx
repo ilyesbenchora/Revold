@@ -9,6 +9,7 @@ import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button"
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
 import { SyncParityBlock, type ParityRow } from "@/components/sync-parity-block";
 import { ToolMappingSettings } from "@/components/tool-mapping-settings";
+import { HubspotLicenseForm } from "@/components/integrations/hubspot-license-form";
 import {
   listConnectedTools,
   getToolKeysBatch,
@@ -192,6 +193,10 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                 </div>
               </div>
 
+              {/* Licence HubSpot : pilote les actions proposées (relance par
+                  séquence email au nom de l'owner vs simple tâche). */}
+              <HubspotLicenseForm />
+
               {/* Données HubSpot live accessibles via OAuth */}
               <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -218,7 +223,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                   <div><p className="text-slate-500">Custom obj</p><p className="font-bold text-slate-900">{snapshot.customObjectsCount}</p></div>
                 </div>
                 <p className="mt-3 text-[10px] italic text-slate-500">
-                  Counts récupérés en live via les scopes OAuth accordés. Si un objet est à 0 alors que vous en avez dans HubSpot, le scope correspondant n'est probablement pas activé dans l'app HubSpot.
+                  Counts récupérés en live via les scopes OAuth accordés. Si un objet est à 0 alors que vous en avez dans HubSpot, le scope correspondant n&apos;est probablement pas activé dans l&apos;app HubSpot.
                 </p>
               </div>
 
