@@ -48,7 +48,9 @@ export async function GET(request: Request) {
   // Sections choisies dans Paramètres → Tour de contrôle (défaut : toutes).
   const sectionsParam = url.searchParams.get("sections");
   const sections = new Set(
-    sectionsParam != null ? sectionsParam.split(",").filter(Boolean) : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "meetings"],
+    sectionsParam != null
+      ? sectionsParam.split(",").filter(Boolean)
+      : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "meetings", "enrichment", "actions_done"],
   );
   const now = new Date();
   const in48h = new Date(now.getTime() + 48 * 3600 * 1000).toISOString().slice(0, 10);
@@ -124,6 +126,60 @@ export async function GET(request: Request) {
     radarOverdue = radar.overdue.length;
     radarAmount = radar.overdueAmount;
   } catch {}
+
+  // ── Enrichissement de données : reste-t-il des fiches à traiter ? ──
+  //    « Terminé » = plus aucune entreprise en attente d'identité ni de faits.
+  let enrichmentRemaining: number | null = null;
+  let enrichmentDone = 0;
+  if (sections.has("enrichment")) {
+    try {
+      const recheckBefore = new Date(now.getTime() - 30 * 86400 * 1000).toISOString();
+      const refreshBefore = new Date(now.getTime() - 90 * 86400 * 1000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const countCompanies = async (apply: (q: any) => any): Promise<number> => {
+        const { count } = await apply(
+          supabase.from("companies").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+        );
+        return count ?? 0;
+      };
+      const [identities, facts, enriched] = await Promise.all([
+        // Identités restant à chercher (mêmes critères que la page Enrichissement).
+        countCompanies((q) =>
+          q
+            .is("siren", null)
+            .not("name", "is", null)
+            .is("candidate_siren", null)
+            .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore}`),
+        ),
+        // Effectifs / CA restant à (re)charger.
+        countCompanies((q) => q.not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`)),
+        countCompanies((q) => q.not("siren", "is", null)),
+      ]);
+      enrichmentRemaining = identities + facts;
+      enrichmentDone = enriched;
+    } catch {
+      enrichmentRemaining = null;
+    }
+  }
+
+  // ── Actions exécutées dans les outils sur les dernières 24 h ──
+  let actionsDone = 0;
+  let actionsAuto = 0;
+  if (sections.has("actions_done")) {
+    try {
+      const since = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
+      const { data: doneRows } = await supabase
+        .from("action_items")
+        .select("decided_by")
+        .eq("organization_id", orgId)
+        .eq("status", "executed")
+        .gte("decided_at", since)
+        .limit(500);
+      const rows = (doneRows ?? []) as Array<{ decided_by: string | null }>;
+      actionsDone = rows.length;
+      actionsAuto = rows.filter((r) => !r.decided_by).length;
+    } catch {}
+  }
 
   // ── RDV de coaching à venir (≤ 48 h) ──
   type AgendaRow = { category: string; next_meeting_at: string | null; next_meeting_time?: string | null };
@@ -216,6 +272,18 @@ export async function GET(request: Request) {
         `À l'agenda : ${meetings.map((m) => `séance ${CAT_LABEL[m.category] ?? m.category} le ${m.next_meeting_at}${m.next_meeting_time ? ` à ${m.next_meeting_time}` : ""}`).join(", ")}.`,
       );
     }
+    // Enrichissement : on ne parle que des deux états qui appellent une
+    // décision — c'est fini, ou il reste du travail en cours.
+    if (sections.has("enrichment") && enrichmentRemaining != null) {
+      if (enrichmentRemaining === 0 && enrichmentDone > 0) {
+        parts.push(`Enrichissement de données terminé : ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} — plus rien en attente.`);
+      } else if (enrichmentRemaining > 0) {
+        parts.push(`Enrichissement en cours : ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} encore à traiter.`);
+      }
+    }
+    if (sections.has("actions_done") && actionsDone > 0) {
+      parts.push(`${actionsDone} action${actionsDone > 1 ? "s" : ""} exécutée${actionsDone > 1 ? "s" : ""} dans tes outils depuis hier${actionsAuto > 0 ? `, dont ${actionsAuto} en automatique` : ""}.`);
+    }
     // Données personnalisées : lues à la fin du brief, valeurs en direct.
     if (customParts.length > 0) parts.push(`Tes données personnalisées : ${customParts.join(" ; ")}.`);
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
@@ -235,6 +303,8 @@ export async function GET(request: Request) {
       upcomingMeetings: meetings.length,
       customData: customParts.length,
       overdueExpectedInvoices: radarOverdue,
+      enrichmentRemaining,
+      actionsExecuted: actionsDone,
     },
   });
 }

@@ -362,6 +362,8 @@ export function TowerSettingsForm() {
                 ["briefObjectivesReached", "Objectifs atteints", "Objectifs actifs dont la cible est franchie (≥ 100 %)"],
                 ["briefSyncs", "Syncs en échec", "Dernier run de chaque outil connecté"],
                 ["briefMeetings", "RDV de coaching", "Séances prévues dans les 48 h"],
+                ["briefEnrichment", "Enrichissement terminé", "Le robot a fini d'enrichir la base (SIREN, effectifs, CA)"],
+                ["briefActionsDone", "Actions faites", "Actions exécutées dans tes outils sur les dernières 24 h"],
               ] as const).map(([key, label, hint]) => (
                 <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-2 transition hover:border-accent/40">
                   <input

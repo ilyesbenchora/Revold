@@ -998,6 +998,34 @@ export async function executeHubspotCreateDeal(
   }
 }
 
+/**
+ * Repousse la date de closing d'un deal — action d'agent planifiée « plus
+ * tard » (proposition update_closedate mise en file dans Suivi → Actions).
+ */
+export async function executeHubspotDealUpdate(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  if (!payload.dealHubspotId) return { ok: false, detail: "Deal cible manquant." };
+  if (!payload.dealCloseDate || !/^\d{4}-\d{2}-\d{2}$/.test(payload.dealCloseDate)) {
+    return { ok: false, detail: "Date de closing invalide (format attendu AAAA-MM-JJ)." };
+  }
+  const ms = new Date(`${payload.dealCloseDate}T00:00:00Z`).getTime();
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/deals/${payload.dealHubspotId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: { closedate: String(ms) } }),
+    });
+    if (res.ok) return { ok: true, detail: `Date de closing repoussée au ${payload.dealCloseDate}.` };
+    const err = await res.text();
+    if (res.status === 403) return { ok: false, detail: "Scope HubSpot manquant (crm.objects.deals.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
 /** Crée un contact HubSpot (email facturation) rattaché à l'entreprise. */
 export async function executeHubspotCreateContact(
   hubspotToken: string,

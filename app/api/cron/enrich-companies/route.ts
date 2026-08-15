@@ -3,6 +3,45 @@ import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import { runEnrichmentBatch } from "@/lib/enrichment/backfill-engine";
 import { createInAppNotification } from "@/lib/notifications/in-app";
+import { notifyEvent } from "@/lib/notifications/notify-event";
+
+/**
+ * Fiches restant à enrichir pour une org (mêmes critères que la page Suivi →
+ * Enrichissement) : identités à chercher + effectifs/CA à (re)charger.
+ * 0 = le chantier est terminé.
+ */
+async function remainingForOrg(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  orgId: string,
+): Promise<number | null> {
+  const recheckBefore = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const refreshBefore = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const count = async (apply: (q: any) => any): Promise<number> => {
+      const { count: n } = await apply(
+        sb.from("companies").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+      );
+      return n ?? 0;
+    };
+    const [identities, facts] = await Promise.all([
+      count((q: unknown) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (q as any)
+          .is("siren", null)
+          .not("name", "is", null)
+          .is("candidate_siren", null)
+          .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore}`),
+      ),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      count((q: unknown) => (q as any).not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`)),
+    ]);
+    return identities + facts;
+  } catch {
+    return null;
+  }
+}
 
 export const maxDuration = 300;
 
@@ -40,6 +79,22 @@ async function handler(request: Request) {
       body: `${parts.join(" · ")} — les correspondances incertaines t'attendent dans Suivi → Enrichissement.`,
       link: "/dashboard/enrichissement",
     });
+
+    // Chantier terminé pour cette org → événement « Enrichissement de données
+    // terminé », poussé sur les canaux choisis (Paramètres → Notifications).
+    // Le run a forcément avancé (on est dans la branche « il s'est passé
+    // quelque chose »), donc pas de notification répétée à vide.
+    const remaining = await remainingForOrg(sb, orgId);
+    if (remaining === 0) {
+      await notifyEvent(sb, {
+        orgId,
+        eventKey: "enrichment_done",
+        sourceType: "enrichment_done",
+        subject: "Enrichissement de données terminé",
+        bodyText: `${parts.join(" · ")}. Plus aucune fiche en attente : la base est à jour (SIREN, effectifs, CA).`,
+        link: "/dashboard/enrichissement",
+      });
+    }
   }
 
   return NextResponse.json({

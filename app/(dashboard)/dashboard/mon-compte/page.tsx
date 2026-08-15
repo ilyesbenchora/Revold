@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/cached";
 import { LocaleSettings } from "@/components/locale-settings";
+import { AccountPhoneForm } from "@/components/account-phone-form";
 
 const PRICING = [
   {
@@ -120,11 +121,7 @@ export default async function MonComptePage() {
               <input type="email" defaultValue={user.email ?? ""} disabled
                 className="mt-1 w-full rounded-lg border border-card-border bg-slate-50 px-3 py-2 text-sm text-slate-600" />
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Téléphone</label>
-              <input type="tel" defaultValue={phone} placeholder="+33 6 00 00 00 00"
-                className="mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none" />
-            </div>
+            <AccountPhoneForm initialPhone={phone} />
             <div>
               <label className="text-xs font-medium text-slate-500">Nom de l&apos;entreprise</label>
               <input type="text" defaultValue={org?.name ?? ""} placeholder="Mon entreprise"

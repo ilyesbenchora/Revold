@@ -18,6 +18,7 @@ import {
   executeLinkCompany,
   executeHubspotCreateDeal,
   executeHubspotCreateContact,
+  executeHubspotDealUpdate,
   executeStripeSendInvoice,
   AUTOMATABLE_KEYS,
   actionEntityRef,
@@ -47,11 +48,12 @@ async function executeByType(
   type: string,
   payload: ActionPayload,
 ): Promise<{ ok: boolean; detail: string }> {
-  const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_create_deal", "hubspot_create_contact"];
+  const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_create_deal", "hubspot_create_contact", "hubspot_deal_update"];
   if (needsHubspot.includes(type)) {
     const token = await getHubSpotToken(supabase, orgId);
     if (!token) return { ok: false, detail: "HubSpot non connecté." };
     if (type === "hubspot_task") return executeHubspotTask(token, payload);
+    if (type === "hubspot_deal_update") return executeHubspotDealUpdate(token, payload);
     if (type === "hubspot_sequence_enroll") return executeHubspotSequenceEnroll(token, payload);
     if (type === "hubspot_merge") return executeHubspotMerge(token, payload);
     if (type === "hubspot_company_update") return executeHubspotCompanyUpdate(token, payload);
@@ -230,7 +232,21 @@ export async function GET(request: Request) {
           .eq("id", item.id)
           .eq("organization_id", orgId)
           .eq("status", "pending");
-        if (outcome.ok) await trackInvoiceReminder(supabase, orgId, item.type, payload, null);
+        if (outcome.ok) {
+          await trackInvoiceReminder(supabase, orgId, item.type, payload, null);
+          // Exécutée SANS validation (famille automatisée) : d'autant plus
+          // important de la notifier selon les préférences.
+          const { notifyEvent } = await import("@/lib/notifications/notify-event");
+          await notifyEvent(supabase, {
+            orgId,
+            eventKey: "action_executed",
+            sourceType: "action_executed",
+            sourceId: item.id,
+            subject: `Action automatique exécutée : ${payload.subject ?? item.type}`,
+            bodyText: outcome.detail,
+            link: "/dashboard/mes-alertes/actions",
+          });
+        }
       }
     } catch {
       /* l'automatisation n'empêche jamais l'affichage de la boîte */
@@ -345,7 +361,21 @@ export async function POST(request: Request) {
     .eq("id", item.id)
     .eq("organization_id", orgId);
 
-  if (outcome.ok) await trackInvoiceReminder(supabase, orgId, item.type, payload, user.id);
+  if (outcome.ok) {
+    await trackInvoiceReminder(supabase, orgId, item.type, payload, user.id);
+    // « Action exécutée » : notifiée selon Paramètres → Notifications.
+    const { notifyEvent } = await import("@/lib/notifications/notify-event");
+    await notifyEvent(supabase, {
+      orgId,
+      eventKey: "action_executed",
+      sourceType: "action_executed",
+      sourceId: item.id,
+      userId: user.id,
+      subject: `Action exécutée : ${payload.subject ?? item.type}`,
+      bodyText: outcome.detail,
+      link: "/dashboard/mes-alertes/actions",
+    });
+  }
 
   return NextResponse.json({ ok: outcome.ok, status: outcome.ok ? "executed" : "failed", detail: outcome.detail });
 }

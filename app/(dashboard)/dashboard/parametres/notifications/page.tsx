@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { NotificationChannelsForm } from "@/components/notification-channels-form";
+import { NotificationPreferencesForm } from "@/components/notification-preferences-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 
@@ -17,7 +19,22 @@ export default async function ParametresNotificationsPage() {
     .select("*")
     .eq("organization_id", orgId);
 
-  // Stats récentes : combien de notifs envoyées sur les 7 derniers jours
+  // Mobile de l'org (Mon compte) : conditionne les canaux SMS et WhatsApp.
+  // Résilient tant que la colonne phone n'est pas migrée.
+  let hasPhone = false;
+  try {
+    const { data: withPhone } = await supabase
+      .from("profiles")
+      .select("phone")
+      .eq("organization_id", orgId)
+      .not("phone", "is", null)
+      .limit(1);
+    hasPhone = (withPhone ?? []).some((p) => /^\+?\d[\d\s.-]{7,}$/.test(String(p.phone ?? "")));
+  } catch {}
+
+  // Stats récentes : combien de notifs envoyées sur les 7 derniers jours.
+  // Page force-dynamic : la fenêtre est volontairement calculée à la requête.
+  // eslint-disable-next-line react-hooks/purity
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data: recentLogs } = await supabase
     .from("notification_log")
@@ -74,18 +91,23 @@ export default async function ParametresNotificationsPage() {
         </article>
       </div>
 
-      {/* In-app (toujours actif) */}
+      {/* Contenu des notifications — miroir « push » du brief vocal */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Cloche in-app
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-            ✓ Toujours actif
-          </span>
+          Contenu des notifications
         </h2>
         <p className="text-xs text-slate-500">
-          Les notifications apparaissent dans la cloche du header et la page Alertes.
-          Activé par défaut pour toute alerte créée.
+          Choisis ce qui déclenche une notification, et sur quels canaux. Même logique que le{" "}
+          <Link href="/dashboard/parametres/tour-de-controle" className="font-medium text-accent hover:underline">
+            contenu du brief
+          </Link>{" "}
+          de la tour de contrôle : le brief te LIT ces informations quand tu le demandes, les notifications te
+          les ENVOIENT quand elles se produisent. La cloche in-app reste le canal par défaut.
         </p>
+        <NotificationPreferencesForm
+          configuredChannels={(channels ?? []).filter((c) => c.enabled).map((c) => String(c.type))}
+          hasPhone={hasPhone}
+        />
       </div>
 
       {/* Canaux configurables */}
@@ -94,30 +116,33 @@ export default async function ParametresNotificationsPage() {
           Canaux additionnels
         </h2>
         <p className="text-xs text-slate-500">
-          Configurez les canaux supplémentaires pour recevoir vos alertes et digests.
+          Configurez les canaux supplémentaires pour recevoir vos alertes et digests. Le mobile (SMS et
+          WhatsApp) n&apos;a rien à configurer ici : il utilise le numéro de{" "}
+          <Link href="/dashboard/mon-compte" className="font-medium text-accent hover:underline">
+            Mon compte
+          </Link>
+          .
         </p>
         <NotificationChannelsForm initialChannels={channels ?? []} />
       </div>
 
-      {/* Digest schedule (placeholder pour les futures préférences globales) */}
+      {/* Digest quotidien — canaux hérités des préférences ci-dessus */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Digests automatiques
+          Digest quotidien
         </h2>
         <div className="card p-5">
           <p className="text-sm text-slate-700">
-            Le <strong>digest quotidien</strong> est envoyé tous les matins à 8h via le canal email
-            configuré. Il regroupe :
+            Envoyé chaque matin à 7h via le canal email configuré : alertes atteintes dans les
+            dernières 24h, coachings critiques, et KPIs principaux avec leur variation.
           </p>
-          <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
-            <li>• Alertes dont l&apos;objectif a été atteint dans les dernières 24h</li>
-            <li>• Top 3 coachings critiques générés par l&apos;IA Revold</li>
-            <li>• KPIs principaux (closing rate, pipeline, conversion) avec variation 24h</li>
-          </ul>
           <p className="mt-3 text-xs text-slate-500">
-            Activez l&apos;email ci-dessus pour recevoir le digest. Pour désactiver le digest sans
-            désactiver les alertes ponctuelles, contactez-nous (préférence digest individuelle à
-            venir).
+            Activez l&apos;email ci-dessus pour le recevoir. Pour le point de situation à la demande
+            (vocal, calculé en direct), voyez la{" "}
+            <Link href="/dashboard/parametres/tour-de-controle" className="font-medium text-accent hover:underline">
+              tour de contrôle
+            </Link>
+            .
           </p>
         </div>
       </div>

@@ -22,17 +22,18 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
   const [newCloseDate, setNewCloseDate] = useState(action.newCloseDate ?? "");
   const [emailSubject, setEmailSubject] = useState(action.emailSubject ?? "");
   const [emailBody, setEmailBody] = useState(action.emailBody ?? "");
-  const [state, setState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [state, setState] = useState<"idle" | "running" | "queuing" | "done" | "queued" | "error">("idle");
   const [result, setResult] = useState<{ done: number; total: number; hint?: string; results?: { name: string; ok: boolean; error?: string }[] } | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const notifyActivated = useNotifyActivatedAlert();
 
   const fmtEur = (n: number | null) => (n != null ? `${n.toLocaleString("fr-FR")} €` : "—");
   const totalAmount = action.deals.reduce((s, d) => s + (d.amount ?? 0), 0);
 
-  async function execute() {
-    setState("running");
-    setResult(null);
-    const payload: DealActionProposal = {
+  /** Paramètres ajustés dans la carte, appliqués sur la proposition de l'agent. */
+  function buildPayload(): DealActionProposal {
+    return {
       ...action,
       taskBody: taskBody || null,
       dueInDays: Number(dueInDays) || 2,
@@ -40,6 +41,36 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
       emailSubject: emailSubject || null,
       emailBody: emailBody || null,
     };
+  }
+
+  /**
+   * « Plus tard » : l'action part dans la file Suivi → Actions au lieu de
+   * s'exécuter maintenant. Elle y attend la même validation que les actions
+   * des détecteurs — et reste visible ici, dans l'onglet Actions du chat.
+   */
+  async function queueForLater() {
+    setState("queuing");
+    setQueueError(null);
+    try {
+      const res = await fetch("/api/actions/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentKey, action: buildPayload() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Mise en file impossible");
+      setQueuedCount(Number(data.queued) || action.deals.length);
+      setState("queued");
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : "Erreur inconnue");
+      setState("idle");
+    }
+  }
+
+  async function execute() {
+    setState("running");
+    setResult(null);
+    const payload: DealActionProposal = buildPayload();
     try {
       const res = await fetch(`/api/agents/${agentKey}/execute-deal-action`, {
         method: "POST",
@@ -57,6 +88,10 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
   }
 
   const done = state === "done";
+  const queued = state === "queued";
+  // Une fois planifiée ou exécutée, les champs se figent : la carte devient
+  // une trace de ce qui a été décidé.
+  const locked = done || queued;
   const field = "w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100";
   const lbl = "text-[10px] font-semibold uppercase tracking-wide text-slate-400";
 
@@ -93,13 +128,13 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
         </div>
 
         {/* Paramètres selon le type d'action */}
-        {!done && action.kind === "update_closedate" && (
+        {!locked && action.kind ==="update_closedate" && (
           <div>
             <label className={lbl}>Nouvelle date de closing</label>
             <input type="date" value={newCloseDate} onChange={(e) => setNewCloseDate(e.target.value)} className={`${field} mt-0.5`} />
           </div>
         )}
-        {!done && action.kind === "create_tasks" && (
+        {!locked && action.kind ==="create_tasks" && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
             <div>
               <label className={lbl}>Contenu de la tâche</label>
@@ -111,7 +146,7 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
             </div>
           </div>
         )}
-        {!done && action.kind === "draft_emails" && (
+        {!locked && action.kind ==="draft_emails" && (
           <div className="space-y-2">
             <div>
               <label className={lbl}>Objet</label>
@@ -141,6 +176,10 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
           </div>
         )}
 
+        {queueError && (
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{queueError}</p>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           {done ? (
             <span className="text-sm font-medium text-emerald-600">
@@ -149,14 +188,31 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
                 voir dans HubSpot
               </a>
             </span>
+          ) : queued ? (
+            <span className="text-sm font-medium text-indigo-600">
+              🗓 Planifiée — {queuedCount} action{queuedCount > 1 ? "s" : ""} en attente de validation dans{" "}
+              <Link href="/dashboard/mes-alertes/actions" className="underline hover:text-indigo-700">
+                Suivi → Actions
+              </Link>
+            </span>
           ) : (
             <>
+              {/* Deux temps assumés : agir tout de suite, ou déposer l'action
+                  dans la file pour la traiter plus tard — même validation. */}
               <button
                 onClick={execute}
-                disabled={state === "running" || (action.kind === "update_closedate" && !newCloseDate)}
+                disabled={state === "running" || state === "queuing" || (action.kind === "update_closedate" && !newCloseDate)}
                 className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 py-2 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-60"
               >
-                {state === "running" ? "Exécution…" : meta.cta}
+                {state === "running" ? "Exécution…" : `⚡ Maintenant — ${meta.cta.toLowerCase()}`}
+              </button>
+              <button
+                onClick={queueForLater}
+                disabled={state === "running" || state === "queuing" || (action.kind === "update_closedate" && !newCloseDate)}
+                title="Dépose l'action dans Suivi → Actions : tu la valides quand tu veux, deal par deal."
+                className="rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-60"
+              >
+                {state === "queuing" ? "Planification…" : "🗓 Plus tard"}
               </button>
               <Link href="/dashboard/parametres/integrations" className="text-[11px] text-slate-400 hover:text-slate-600 hover:underline">
                 Gérer les accès HubSpot

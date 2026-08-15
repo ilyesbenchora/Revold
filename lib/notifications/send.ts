@@ -24,12 +24,31 @@ const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "Revold <noreply@revold.io>
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-export type NotificationChannelType = "in_app" | "email" | "slack" | "teams" | "webhook" | "hubspot";
+export type NotificationChannelType =
+  | "in_app"
+  | "email"
+  | "slack"
+  | "teams"
+  | "webhook"
+  | "hubspot"
+  | "sms"
+  | "whatsapp";
 
 export type SendNotificationParams = {
   orgId: string;
   /** Type d'événement déclencheur */
-  sourceType: "alert_resolved" | "daily_digest" | "weekly_digest" | "coaching_critical" | "manual";
+  sourceType:
+    | "alert_resolved"
+    | "daily_digest"
+    | "weekly_digest"
+    | "coaching_critical"
+    | "manual"
+    | "billing_radar"
+    | "objective_late"
+    | "objective_reached"
+    | "sync_failed"
+    | "enrichment_done"
+    | "action_executed";
   /** ID de l'alerte ou coaching à l'origine */
   sourceId?: string;
   /** Canaux à utiliser pour cette notif */
@@ -276,6 +295,87 @@ async function sendHubSpotNotification(
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// MOBILE — SMS et WhatsApp via Twilio. Le destinataire est le numéro saisi
+// dans Mon compte (profiles.phone) : aucun autre réglage à faire côté canal.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Numéros mobiles de l'org (Mon compte) — destinataires SMS / WhatsApp. */
+async function loadOrgPhones(supabase: SupabaseClient, orgId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("phone")
+      .eq("organization_id", orgId)
+      .not("phone", "is", null);
+    const phones = ((data ?? []) as Array<{ phone: string | null }>)
+      .map((p) => (p.phone ?? "").replace(/[^\d+]/g, ""))
+      .filter((p) => /^\+\d{8,15}$/.test(p));
+    return [...new Set(phones)].slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Envoi Twilio (SMS ou WhatsApp — même API, le préfixe `whatsapp:` change le
+ * canal). Sans identifiants Twilio, l'envoi échoue proprement et le message
+ * d'erreur dit quoi configurer.
+ */
+async function sendTwilioMessage(
+  mode: "sms" | "whatsapp",
+  recipients: string[],
+  subject: string,
+  bodyText: string,
+  link?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = mode === "whatsapp" ? process.env.TWILIO_WHATSAPP_FROM : process.env.TWILIO_FROM_NUMBER;
+  if (!sid || !token || !from) {
+    return {
+      ok: false,
+      error: `Envoi ${mode} indisponible : renseigne TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et ${
+        mode === "whatsapp" ? "TWILIO_WHATSAPP_FROM" : "TWILIO_FROM_NUMBER"
+      }.`,
+    };
+  }
+  if (recipients.length === 0) {
+    return { ok: false, error: "Aucun numéro de mobile — ajoute-le dans Mon compte." };
+  }
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+  const fullLink = link ? (link.startsWith("http") ? link : `${appUrl}${link}`) : appUrl;
+  // Un SMS long est facturé par segment : on borne le corps, le lien fait le reste.
+  const body = `Revold — ${subject}\n\n${bodyText.slice(0, 380)}\n\n${fullLink}`;
+  const prefix = mode === "whatsapp" ? "whatsapp:" : "";
+  const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+
+  const results = await Promise.all(
+    recipients.map(async (to) => {
+      try {
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ To: `${prefix}${to}`, From: from, Body: body }),
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          return { ok: false, error: `Twilio ${res.status}: ${txt.slice(0, 160)}` };
+        }
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }),
+  );
+  const okCount = results.filter((r) => r.ok).length;
+  if (okCount > 0) return { ok: true };
+  return { ok: false, error: results.find((r) => !r.ok)?.error ?? "Envoi impossible" };
+}
+
 async function sendCustomWebhook(
   url: string,
   payload: object,
@@ -413,6 +513,25 @@ export async function sendNotification(
         subject,
       });
       results.push({ channel: "hubspot", ...result });
+      continue;
+    }
+
+    // Mobile : le destinataire vient de Mon compte (profiles.phone), pas d'une
+    // config de canal — cocher le canal sur l'événement suffit.
+    if (channel === "sms" || channel === "whatsapp") {
+      const phones = await loadOrgPhones(supabase, orgId);
+      const result = await sendTwilioMessage(channel, phones, subject, bodyText, link);
+      await logNotification(supabase, {
+        orgId,
+        channelType: channel,
+        sourceType,
+        sourceId,
+        status: result.ok ? "sent" : "failed",
+        error: result.error,
+        recipient: phones.join(", "),
+        subject,
+      });
+      results.push({ channel, ...result });
       continue;
     }
 

@@ -112,6 +112,15 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     rows.push(["Associé à", "L'entreprise du compte"]);
     return { rows, effect: "Crée UN deal dans HubSpot — aucune donnée existante n'est modifiée. Le forecast pondéré l'intègre dès la prochaine synchronisation." };
   }
+  if (a.type === "hubspot_deal_update") {
+    const rows: Array<[string, string]> = [];
+    if (s("dealCloseDate")) rows.push(["Nouvelle date de closing", s("dealCloseDate")!]);
+    if (s("dealHubspotId")) rows.push(["Deal ciblé", `HubSpot #${s("dealHubspotId")}`]);
+    return {
+      rows,
+      effect: "Modifie UNIQUEMENT la date de closing du deal dans HubSpot — montant, étape et propriétaire sont inchangés. Le forecast pondéré se recale à la prochaine synchronisation.",
+    };
+  }
   if (a.type === "hubspot_create_contact") {
     const rows: Array<[string, string]> = [];
     if (s("contactEmail")) rows.push(["Email", s("contactEmail")!]);
@@ -131,6 +140,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_company_update: { label: "Enrichissement CRM", domain: "hubspot.com", icon: "🪪", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_contact: { label: "Création de contact", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
+  hubspot_deal_update: { label: "Date de closing", domain: "hubspot.com", icon: "📅", tool: "hubspot", toolLabel: "HubSpot" },
   link_company: { label: "Rattachement de fiches", domain: "revold.io", icon: "🔗", tool: "revold", toolLabel: "Revold" },
   stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
 };
@@ -162,6 +172,19 @@ function readHidden(): string[] {
   }
 }
 
+/** Noms lisibles des agents qui planifient des actions (« Plus tard »). */
+const AGENT_LABELS: Record<string, string> = {
+  performance: "Performances",
+  "paiement-facturation": "Trésorerie",
+  "service-client": "Service client",
+  equipes: "Équipes & Adoption",
+  proprietes: "Data & intégrations",
+  "coaching-ventes": "Coach Ventes",
+  "coaching-marketing": "Coach Marketing",
+  "coaching-data": "Coach Data & intégrations",
+  "coaching-data-model": "Coach Finance",
+};
+
 function sourceLabel(source: string): string {
   if (source === "detector:silent_deal") return "Détecteur · deals silencieux";
   if (source === "detector:overdue_invoice") return "Détecteur · impayés";
@@ -171,7 +194,8 @@ function sourceLabel(source: string): string {
   if (source === "detector:renewal_deal") return "Détecteur · renouvellements";
   if (source === "detector:revenue_leakage") return "Détecteur · revenue leakage";
   if (source === "detector:billing_contact") return "Détecteur · contacts facturation";
-  if (source.startsWith("agent:")) return `Agent · ${source.slice(6)}`;
+  // Action planifiée depuis un chat d'agent (« Plus tard »).
+  if (source.startsWith("agent:")) return `Agent · ${AGENT_LABELS[source.slice(6)] ?? source.slice(6)}`;
   return source;
 }
 

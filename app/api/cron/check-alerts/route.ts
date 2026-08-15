@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
 import { composeNotification } from "@/lib/notifications/compose";
+import { loadEventPref } from "@/lib/notifications/notify-event";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -157,10 +158,14 @@ async function handler(request: Request) {
         direction,
       });
 
-      // Canaux configurés pour cette alerte (default = ["in_app"])
+      // Canaux : ceux choisis à la création de l'alerte, sinon la préférence
+      // de l'événement « Alerte en tension » (Paramètres → Notifications).
+      const pref = await loadEventPref(supabase, alert.organization_id, "alert_resolved");
+      if (!pref.enabled) continue;
       const channels = (Array.isArray(alert.notification_channels) && alert.notification_channels.length > 0
         ? alert.notification_channels
-        : ["in_app"]) as NotificationChannelType[];
+        : pref.channels) as NotificationChannelType[];
+      if (channels.length === 0) continue;
 
       const result = await sendNotification(supabase, {
         orgId: alert.organization_id,

@@ -45,6 +45,10 @@ export type TowerSettings = {
   briefSyncs: boolean;
   /** Contenu du brief — RDV de coaching à venir. */
   briefMeetings: boolean;
+  /** Contenu du brief — enrichissement de données terminé. */
+  briefEnrichment: boolean;
+  /** Contenu du brief — actions exécutées dans les outils (24 h). */
+  briefActionsDone: boolean;
   /** Contenu du brief — données personnalisées (KPIs câblés, recalculés en direct). */
   briefCustom: BriefCustomItem[];
   /** Réponse directe aux questions KPI simples. */
@@ -70,6 +74,8 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefObjectivesReached: true,
   briefSyncs: true,
   briefMeetings: true,
+  briefEnrichment: true,
+  briefActionsDone: true,
   briefCustom: [],
   quickAnswer: true,
   createActions: true,
@@ -159,6 +165,8 @@ export function briefSectionsParam(s: TowerSettings): string {
   if (s.briefObjectivesReached) on.push("objectives_reached");
   if (s.briefSyncs) on.push("syncs");
   if (s.briefMeetings) on.push("meetings");
+  if (s.briefEnrichment) on.push("enrichment");
+  if (s.briefActionsDone) on.push("actions_done");
   return on.join(",");
 }
 
