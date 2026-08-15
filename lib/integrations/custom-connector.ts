@@ -159,6 +159,111 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
 };
 
+// ── Ce que chaque entité DÉBLOQUE dans la plateforme ───────────────────────
+/**
+ * Le « data model » d'un outil hors catalogue : quelles pages il peut
+ * alimenter, quels agents peuvent l'exploiter et quels KPIs deviennent
+ * calculables — déduits des ENTITÉS réellement synchronisées, pas d'une
+ * promesse. Sert à (1) montrer la couverture avant même la première sync,
+ * (2) proposer automatiquement les rattachements « Outil source par page ».
+ */
+export type EntityTarget = {
+  /** Clés de page (tool_mappings) que l'entité alimente. */
+  pages: { key: string; label: string }[];
+  /** Clés d'agent (tool_mappings agent_<key>) qui peuvent l'exploiter. */
+  agents: { key: string; label: string }[];
+  /** Exemples de KPIs rendus calculables — vocabulaire du produit. */
+  kpis: string[];
+};
+
+export const ENTITY_TARGETS: Record<CustomEntity, EntityTarget> = {
+  companies: {
+    pages: [{ key: "audit_donnees", label: "Rapprochement données" }],
+    agents: [{ key: "agent_proprietes", label: "Agent Rapprochement de données" }],
+    kpis: ["Taux de rapprochement multi-outils", "Entreprises reliées à ≥ 2 outils", "Doublons détectés"],
+  },
+  contacts: {
+    pages: [
+      { key: "audit_perf_marketing", label: "Performances — Marketing" },
+      { key: "audit_donnees", label: "Rapprochement données" },
+    ],
+    agents: [
+      { key: "agent_performance", label: "Agent Performances" },
+      { key: "agent_proprietes", label: "Agent Rapprochement de données" },
+    ],
+    kpis: ["Contacts par entreprise", "Complétude email / téléphone", "Contacts non rattachés"],
+  },
+  deals: {
+    pages: [
+      { key: "audit_perf_ventes", label: "Performances — Ventes" },
+      { key: "dashboard", label: "Dashboard" },
+    ],
+    agents: [{ key: "agent_performance", label: "Agent Performances" }],
+    kpis: ["CA signé", "Taux de closing", "Cycle de vente", "Écart CA signé ↔ facturé"],
+  },
+  invoices: {
+    pages: [
+      { key: "audit_paiement_facturation", label: "Trésorerie" },
+      { key: "audit_paiement_facturation_facturation", label: "Trésorerie — Facturation" },
+      { key: "dashboard", label: "Dashboard" },
+    ],
+    agents: [{ key: "agent_paiement-facturation", label: "Agent Trésorerie" }],
+    kpis: ["CA facturé", "Impayés", "Délai de paiement (DSO)", "Deals gagnés non facturés"],
+  },
+  subscriptions: {
+    pages: [
+      { key: "audit_paiement_facturation", label: "Trésorerie" },
+      { key: "dashboard", label: "Dashboard" },
+    ],
+    agents: [{ key: "agent_paiement-facturation", label: "Agent Trésorerie" }],
+    kpis: ["MRR / ARR réconciliés", "Churn revenue", "MRR à risque"],
+  },
+  transactions: {
+    pages: [
+      { key: "audit_paiement_facturation_paiement", label: "Trésorerie — Paiement" },
+      { key: "audit_paiement_facturation", label: "Trésorerie" },
+    ],
+    agents: [{ key: "agent_paiement-facturation", label: "Agent Trésorerie" }],
+    kpis: ["Encaissements réels", "Décaissements", "Solde net par mois"],
+  },
+  tickets: {
+    pages: [{ key: "audit_service_client", label: "Service Client" }],
+    agents: [{ key: "agent_service-client", label: "Agent Service Client" }],
+    kpis: ["Volume de tickets", "Comptes en tension", "MRR à risque (support × revenu)"],
+  },
+};
+
+/** Pages et agents à rattacher pour un ensemble d'entités (dédupliqués). */
+export function targetsForEntities(entities: CustomEntity[]): {
+  pages: { key: string; label: string }[];
+  agents: { key: string; label: string }[];
+  kpis: string[];
+} {
+  const pages = new Map<string, string>();
+  const agents = new Map<string, string>();
+  const kpis = new Set<string>();
+  for (const e of entities) {
+    const t = ENTITY_TARGETS[e];
+    if (!t) continue;
+    for (const p of t.pages) pages.set(p.key, p.label);
+    for (const a of t.agents) agents.set(a.key, a.label);
+    for (const k of t.kpis) kpis.add(k);
+  }
+  return {
+    pages: [...pages].map(([key, label]) => ({ key, label })),
+    agents: [...agents].map(([key, label]) => ({ key, label })),
+    kpis: [...kpis],
+  };
+}
+
+/** Familles d'outil proposées (pilote les rattachements par défaut). */
+export const CUSTOM_CATEGORIES: { id: string; label: string }[] = [
+  { id: "billing", label: "Facturation / ERP / compta" },
+  { id: "crm", label: "CRM / gestion commerciale" },
+  { id: "support", label: "Support / service client" },
+  { id: "files", label: "Métier / production" },
+];
+
 // ── Appel HTTP générique ───────────────────────────────────────────────────
 
 function buildUrl(connector: Pick<CustomConnector, "base_url" | "auth_type" | "auth_param" | "auth_value">, path: string, params: Record<string, string>): string {

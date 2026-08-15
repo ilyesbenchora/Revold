@@ -41,6 +41,24 @@ export async function listConnectedTools(
   for (const row of data ?? []) {
     const provider = row.provider as string;
     if (seen.has(provider)) continue;
+
+    // Connecteur SUR MESURE (provider custom_<slug>) : absent du catalogue par
+    // nature — son libellé et sa famille viennent de sa configuration. Sans ce
+    // cas, un ERP maison serait invisible dans « Outil source par page » et ne
+    // pourrait alimenter aucune page ni aucun agent.
+    if (provider.startsWith("custom_")) {
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      seen.add(provider);
+      out.push({
+        key: provider,
+        label: (typeof meta.label === "string" && meta.label) || provider.replace(/^custom_/, ""),
+        icon: "🧩",
+        domain: "",
+        category: (typeof meta.category === "string" ? meta.category : "billing") as ConnectableTool["category"],
+      });
+      continue;
+    }
+
     const tool = CONNECTABLE_TOOLS[provider];
     if (!tool) continue;
     if (tool.oauth && (!row.refresh_token || !row.portal_id)) continue;

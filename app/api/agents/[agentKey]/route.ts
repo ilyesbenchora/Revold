@@ -65,6 +65,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     buildSystemPrompt(agent) +
     `\n\nSources sélectionnées pour cette conversation : ${sources.length ? sources.join(", ") : "aucune sélection explicite (utilise la source configurée par défaut)"}.`;
 
+  // Outils SUR MESURE de l'org (ERP maison, logiciel métier) : sans leur
+  // description, « custom_gaia » n'est qu'un nom vide pour l'agent. Avec elle,
+  // il interprète correctement la nature des enregistrements.
+  try {
+    const { data: customTools } = await supabase
+      .from("custom_connectors")
+      .select("key, label, description")
+      .eq("organization_id", orgId)
+      .eq("is_active", true);
+    const described = (customTools ?? []).filter((t) => t.description);
+    if (described.length > 0) {
+      system +=
+        `\n\nOUTILS SUR MESURE de cette organisation (données déjà intégrées au modèle canonique, source = custom_<clé>) :\n` +
+        described.map((t) => `- custom_${t.key} (${t.label}) : ${t.description}`).join("\n") +
+        `\nTiens compte de ce contexte métier quand tu analyses des données issues de ces sources.`;
+    }
+  } catch {
+    /* table absente → contexte simplement omis */
+  }
+
   // Session de coaching : injecte les objectifs/pains si fournis (agents coach).
   if (agent.section === "coaching" && body.coaching && (body.coaching.objectives || body.coaching.pains)) {
     system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");

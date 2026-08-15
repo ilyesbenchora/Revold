@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CUSTOM_ENTITIES, ENTITY_FIELDS, type CustomEntity } from "@/lib/integrations/custom-connector";
+import {
+  CUSTOM_ENTITIES,
+  CUSTOM_CATEGORIES,
+  ENTITY_FIELDS,
+  targetsForEntities,
+  type CustomEntity,
+} from "@/lib/integrations/custom-connector";
 import { InfoHint } from "@/components/info-hint";
 
 /** Message prêt à envoyer à l'éditeur / au développeur de l'outil. */
@@ -64,9 +70,23 @@ const emptyEndpoint = (entity: CustomEntity): EndpointDraft => ({
 
 const field = "rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent";
 
-export function CustomConnectorWizard({ existing }: { existing?: { id: string; label: string; base_url: string; auth_type: string; auth_param: string | null } | null }) {
+export function CustomConnectorWizard({
+  existing,
+}: {
+  existing?: {
+    id: string;
+    label: string;
+    base_url: string;
+    auth_type: string;
+    auth_param: string | null;
+    description?: string | null;
+    category?: string | null;
+  } | null;
+}) {
   const router = useRouter();
   const [label, setLabel] = useState(existing?.label ?? "");
+  const [description, setDescription] = useState(existing?.description ?? "");
+  const [category, setCategory] = useState(existing?.category ?? "billing");
   const [baseUrl, setBaseUrl] = useState(existing?.base_url ?? "");
   const [authType, setAuthType] = useState<string>(existing?.auth_type ?? "bearer");
   const [authParam, setAuthParam] = useState(existing?.auth_param ?? "X-API-Key");
@@ -135,6 +155,9 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
         body: JSON.stringify({
           id: existing?.id,
           label,
+          description,
+          category,
+          attachTargets: true,
           baseUrl,
           authType,
           authParam,
@@ -196,6 +219,9 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
   }
 
   const availableEntities = CUSTOM_ENTITIES.filter((e) => !endpoints.some((x) => x.entity === e));
+  // Entités réellement configurées (chemin renseigné) → pages, agents, KPIs.
+  const configuredEntities = endpoints.filter((e) => e.path.trim()).map((e) => e.entity);
+  const targets = targetsForEntities(configuredEntities);
 
   return (
     <div className="space-y-4">
@@ -239,6 +265,40 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
           <div>
             <label className="text-xs font-medium text-slate-500">Nom de l&apos;outil</label>
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="GAIA" className={`${field} mt-1 w-full`} />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              Famille d&apos;outil
+              <InfoHint
+                wide
+                text={"Détermine les pages et les agents auxquels l'outil est rattaché par défaut (tu pourras ajuster ensuite dans Paramètres → Intégrations → Outil source par page)."}
+              />
+            </label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${field} mt-1 w-full`}>
+              {CUSTOM_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              À quoi sert cet outil ? <span className="text-rose-500">*</span>
+              <InfoHint
+                wide
+                text={"En une ou deux phrases, dans tes mots. Ce texte est transmis aux agents IA : sans lui, « GAIA » n'est qu'un nom vide et l'agent analyse à l'aveugle.\n\nExemple : « GAIA est notre logiciel de gestion des interventions terrain. Chaque intervention réalisée chez un client génère une facture mensuelle regroupée. »"}
+              />
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Ex : GAIA est notre logiciel de gestion des interventions terrain — chaque intervention chez un client génère une facture."
+              className={`${field} mt-1 w-full resize-none`}
+            />
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Utilisé par les agents pour interpréter correctement tes données (vocabulaire métier, nature des
+              enregistrements).
+            </p>
           </div>
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
@@ -480,6 +540,43 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
               ＋ {ENTITY_FIELDS[e].label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── Ce que la configuration débloque (visibilité avant la 1re sync) ── */}
+      {configuredEntities.length > 0 && (
+        <div className="card border-emerald-200/70 bg-emerald-50/30 p-4">
+          <p className="text-sm font-semibold text-slate-900">🎯 Ce que cette configuration va alimenter</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Déduit des données que tu synchronises. Revold rattachera automatiquement l&apos;outil à ces pages et
+            agents à l&apos;enregistrement — modifiable ensuite dans Paramètres → Intégrations.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pages alimentées</p>
+              <ul className="mt-1 space-y-0.5">
+                {targets.pages.map((p) => (
+                  <li key={p.key} className="text-xs text-slate-700">• {p.label}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Agents qui l&apos;exploitent</p>
+              <ul className="mt-1 space-y-0.5">
+                {targets.agents.map((a) => (
+                  <li key={a.key} className="text-xs text-slate-700">• {a.label}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">KPIs rendus calculables</p>
+              <ul className="mt-1 space-y-0.5">
+                {targets.kpis.slice(0, 6).map((k) => (
+                  <li key={k} className="text-xs text-slate-700">• {k}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
