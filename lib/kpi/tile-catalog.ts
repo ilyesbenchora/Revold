@@ -59,7 +59,6 @@ export const PAGE_TILE_TEAM: Record<string, string> = {
   perf_marketing: "marketing",
   audit_paiement_facturation: "revops",
   audit_service_client: "cs",
-  audit_adoption: "revops",
   audit_donnees: "ops",
 };
 
@@ -73,12 +72,6 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
   audit_service_client: [
     ...fromKpiDefs(kpisByTeam.cs),
     ...SUPPORT_TILES,
-  ],
-  audit_adoption: [
-    ...fromKpiDefs(kpisByTeam.sales.filter((k) => ["pipeline_coverage", "deal_activation", "stagnant_deals", "sales_cycle_days"].includes(k.id))),
-    ...fromKpiDefs(kpisByTeam.revops.filter((k) => ["deals_won_count"].includes(k.id))),
-    // data_completeness vit dans le pôle data (ops) depuis le recentrage Finance.
-    ...fromKpiDefs(kpisByTeam.ops.filter((k) => ["data_completeness"].includes(k.id))),
   ],
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
 };

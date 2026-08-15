@@ -29,13 +29,14 @@ const NAV_TARGETS: Record<string, { href: string; label: string }> = {
   "performances-marketing": { href: "/dashboard/performances/marketing", label: "Performances Marketing" },
   tresorerie: { href: "/dashboard/audit/paiement-facturation", label: "la Trésorerie" },
   "service-client": { href: "/dashboard/audit/service-client", label: "le Service Client" },
-  equipes: { href: "/dashboard/conduite-changement", label: "Équipes" },
   "rapprochement-donnees": { href: "/dashboard/donnees", label: "Rapprochement données" },
-  alignement: { href: "/dashboard/process", label: "Alignement" },
+  appels: { href: "/dashboard/appels", label: "les Appels" },
   "mes-alertes": { href: "/dashboard/mes-alertes", label: "Mes alertes" },
+  actions: { href: "/dashboard/mes-alertes/actions", label: "les Actions" },
   objectifs: { href: "/dashboard/mes-alertes/objectifs", label: "les Objectifs" },
   rapports: { href: "/dashboard/rapports", label: "les Rapports" },
   seances: { href: "/dashboard/mes-alertes/seances", label: "les Séances" },
+  enrichissement: { href: "/dashboard/enrichissement", label: "l'Enrichissement" },
   "parametres-integrations": { href: "/dashboard/parametres/integrations", label: "Paramètres → Intégrations" },
   "modele-donnees": { href: "/dashboard/parametres/modele-donnees", label: "le Modèle de données" },
 };
@@ -46,9 +47,7 @@ const REPORT_PAGE_ROUTES: Record<string, string> = {
   perf_marketing: "/dashboard/performances/marketing",
   audit_service_client: "/dashboard/audit/service-client",
   audit_paiement_facturation: "/dashboard/audit/paiement-facturation",
-  audit_adoption: "/dashboard/conduite-changement",
   audit_donnees: "/dashboard/donnees",
-  audit_automatisations: "/dashboard/process",
 };
 
 function fmtKpi(v: number, unit: KpiDef["defaultUnit"]): string {

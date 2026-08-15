@@ -125,7 +125,6 @@ const GUARDED_ROUTES: Array<{ group: string; href: string }> = [
   { group: "audit", href: "/dashboard/performances" },
   { group: "audit", href: "/dashboard/appels" },
   { group: "audit", href: "/dashboard/process" },
-  { group: "audit", href: "/dashboard/conduite-changement" },
   { group: "audit", href: "/dashboard/donnees" },
   // Section Coaching IA supprimée : ses anciennes routes redirigent vers
   // Mon équipe IA, plus rien à filtrer ici.

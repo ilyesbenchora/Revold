@@ -89,14 +89,6 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
       evidenceCount:
         snapshot.totalInvoices + snapshot.totalSubscriptions + snapshot.totalQuotes,
     },
-    {
-      id: "audit_adoption",
-      label: "Données — Équipes & Adoption",
-      href: "/dashboard/conduite-changement",
-      description: "Owners, équipes, utilisateurs et discipline d'usage",
-      diagKeys: ["ownersCount", "users", "goals"],
-      evidenceCount: snapshot.ownersCount + snapshot.usersCount + snapshot.teamsCount,
-    },
 
     // ── Dashboard ──
     {

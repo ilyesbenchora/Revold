@@ -233,7 +233,6 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
   perf_marketing: "marketing",
   audit_service_client: "csm",
   audit_paiement_facturation: "finance",
-  audit_adoption: "revops",
   audit_donnees: "revops",
 };
 

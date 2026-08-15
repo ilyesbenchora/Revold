@@ -10,7 +10,7 @@ import { CloseDateManagementBlock } from "@/components/close-date-management-blo
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
-import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
+import { fetchOwners } from "@/lib/integrations/hubspot-owners";
 
 export default async function ForecastManagementPage() {
   const orgId = await getOrgId();

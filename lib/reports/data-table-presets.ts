@@ -146,7 +146,6 @@ export const PAGE_LABELS: Record<string, string> = {
   perf_marketing: "Marketing",
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
-  audit_adoption: "Équipes & Adoption",
   audit_donnees: "Rapprochement données",
 };
 
@@ -216,19 +215,6 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "subs_started_month", label: "Évolution des abonnements démarrés", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
     { id: "mrr_canceled_month", label: "Évolution du MRR annulé", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
-  // Équipes (agent Équipes) : discipline d'USAGE des outils — rythme de saisie,
-  // hygiène du pipeline, qualification et complétude des fiches. Pas de KPIs
-  // business génériques : ils vivent sur Performances.
-  audit_adoption: [
-    { id: "deals_created_month", label: "Rythme de création de deals (activité CRM de l'équipe)", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },
-    { id: "deals_closed_month", label: "Rythme de clôture des deals (discipline de closing)", entity: "deals", groupBy: "month_closed", measure: "count", unit: "count", view: "line" },
-    { id: "deals_stage", label: "Hygiène du pipeline : deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
-    { id: "contacts_mql", label: "Discipline de qualification : contacts MQL renseignés / non", entity: "contacts", groupBy: "mql", measure: "count", unit: "count", view: "donut" },
-    { id: "contacts_sql", label: "Discipline de qualification : contacts SQL renseignés / non", entity: "contacts", groupBy: "sql", measure: "count", unit: "count", view: "donut" },
-    { id: "companies_segment", label: "Segmentation des fiches entreprises (champ segment rempli)", entity: "companies", groupBy: "segment", measure: "count", unit: "count", view: "bar" },
-    { id: "companies_industry", label: "Complétude du champ industrie des entreprises", entity: "companies", groupBy: "industry", measure: "count", unit: "count", view: "bar" },
-    { id: "tickets_status", label: "Discipline de traitement des tickets (statuts à jour)", entity: "tickets", groupBy: "status", measure: "count", unit: "count", view: "bar" },
-  ],
   // Rapprochement données (agent qualité des données) : câblage et provenance
   // multi-outils — quels documents viennent de quel outil, volumes synchronisés
   // dans le temps, complétude des champs qui servent au rapprochement.
@@ -250,10 +236,6 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   perf_marketing: "coaching-marketing",
   audit_service_client: "service-client",
   audit_paiement_facturation: "paiement-facturation",
-  // L'agent « Équipes & Adoption » a été retiré : la page d'adoption s'appuie
-  // désormais sur l'agent Rapprochement de données (même terrain : discipline
-  // de saisie, complétude, qualité de la donnée).
-  audit_adoption: "proprietes",
   audit_donnees: "proprietes",
 };
 

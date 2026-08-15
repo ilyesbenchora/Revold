@@ -26,7 +26,6 @@ const ALL_PAGE_KEYS = [
   "audit_paiement_facturation_comptabilite",
   "audit_paiement_facturation_previsionnel",
   "audit_service_client",
-  "audit_adoption",
   "dashboard",
   // Sources par agent (Mon équipe IA) — clés agent_<agentKey>.
   "agent_performance",

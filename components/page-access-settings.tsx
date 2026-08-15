@@ -60,7 +60,6 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/audit/service-client/churn", label: "Churn", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/audit/service-client/renouvellement", label: "Renouvellement", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/audit/service-client/cross-sell-upsell", label: "Cross-sell / Upsell", indent: true, defaultFrom: "/dashboard/audit/service-client" },
-      { href: "/dashboard/conduite-changement", label: "Équipes & Adoption" },
       { href: "/dashboard/donnees", label: "Rapprochement données" },
     ],
   },

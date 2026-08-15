@@ -38,7 +38,6 @@ const SECTIONS: Section[] = [
       { key: "audit_paiement_facturation_comptabilite", label: "Comptabilité", description: "Écritures, P&L réel, balance", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_previsionnel", label: "Prévisionnel", description: "Projection trésorerie, runway, échéances", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
-      { key: "audit_adoption", label: "Équipes & Adoption", description: "Owners, équipes, discipline d'usage et de saisie de la donnée", mode: "multi" },
     ],
   },
   {

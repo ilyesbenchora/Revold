@@ -10,7 +10,7 @@ import { DealsAtRiskBlock } from "@/components/deals-at-risk-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { fetchDealRiskBuckets } from "@/lib/integrations/hubspot-deal-risk";
-import { fetchOwners } from "@/app/(dashboard)/dashboard/conduite-changement/context";
+import { fetchOwners } from "@/lib/integrations/hubspot-owners";
 
 export default async function DealsARisquePage() {
   const orgId = await getOrgId();
