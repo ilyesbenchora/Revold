@@ -1,11 +1,40 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { ParametresTabs } from "@/components/parametres-tabs";
-import { getAuthUser } from "@/lib/supabase/cached";
+import { DataPrivacyBlock } from "@/components/data-privacy-block";
+import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+// Sous-traitants effectifs (traitement de données) — la même liste que la page
+// publique /legal/rgpd, tenue à jour ici pour les clients connectés.
+const SUBPROCESSORS: Array<{ name: string; role: string; region: string }> = [
+  { name: "Supabase", role: "Base de données & authentification", region: "UE (Francfort)" },
+  { name: "Vercel", role: "Hébergement de l'application", region: "UE/US (edge)" },
+  { name: "Anthropic", role: "Agents IA (données de contexte à la demande, jamais entraînées)", region: "US — DPA signé" },
+  { name: "Resend", role: "Envoi des emails de notification", region: "US — DPA signé" },
+];
 
 export default async function ParametresSecuriteApiPage() {
   const user = await getAuthUser();
   if (!user) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
+
+  // Demande de suppression en attente (RGPD) — résilient si migration absente.
+  let pendingDeletionSince: string | null = null;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const orgId = await getOrgId();
+    if (orgId) {
+      const { data } = await supabase
+        .from("data_requests")
+        .select("created_at")
+        .eq("organization_id", orgId)
+        .eq("kind", "deletion")
+        .eq("status", "pending")
+        .maybeSingle();
+      pendingDeletionSince = (data?.created_at as string | undefined) ?? null;
+    }
+  } catch {}
 
   return (
     <section className="space-y-8">
@@ -17,6 +46,40 @@ export default async function ParametresSecuriteApiPage() {
       </header>
 
       <ParametresTabs />
+
+      {/* ── Données & conformité RGPD — câblé au réel ── */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          Données & conformité RGPD
+        </h2>
+        <p className="text-sm text-slate-500">
+          Export immédiat, suppression sur demande tracée, sous-traitants effectifs. Détail public :{" "}
+          <Link href="/legal/securite" className="font-medium text-accent hover:underline">Sécurité & Conformité</Link>
+          {" · "}
+          <Link href="/legal/rgpd" className="font-medium text-accent hover:underline">RGPD</Link>
+          {" · "}
+          <Link href="/legal/dpa" className="font-medium text-accent hover:underline">DPA</Link>.
+        </p>
+        <DataPrivacyBlock pendingDeletionSince={pendingDeletionSince} />
+        <div className="card overflow-hidden">
+          <div className="border-b border-card-border bg-slate-50/60 px-4 py-2.5">
+            <h3 className="text-xs font-semibold text-slate-800">Sous-traitants (traitement de données)</h3>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {SUBPROCESSORS.map((s) => (
+              <div key={s.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-xs">
+                <span className="font-semibold text-slate-800">{s.name}</span>
+                <span className="min-w-0 flex-1 px-3 text-slate-500">{s.role}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{s.region}</span>
+              </div>
+            ))}
+            <div className="px-4 py-2.5 text-[11px] text-slate-400">
+              S&apos;y ajoutent les outils que VOUS connectez (HubSpot, Stripe, Pennylane…) — Revold y accède en
+              lecture avec vos propres identifiants, révocables à tout moment depuis Intégrations.
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Authentification */}
       <div className="space-y-3">
