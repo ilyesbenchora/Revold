@@ -27,11 +27,12 @@ async function handler(request: Request) {
   if (result.unavailable) return NextResponse.json({ ok: true, skipped: "migration enrichment_scale absente" });
 
   for (const [orgId, n] of Object.entries(result.perOrg)) {
-    if (n.identities + n.candidates + n.facts === 0) continue;
+    if (n.identities + n.candidates + n.facts + n.duplicates === 0) continue;
     const parts: string[] = [];
-    if (n.identities) parts.push(`${n.identities} identité${n.identities > 1 ? "s" : ""} complétée${n.identities > 1 ? "s" : ""}`);
+    if (n.identities) parts.push(`${n.identities} identifiant${n.identities > 1 ? "s" : ""} complété${n.identities > 1 ? "s" : ""}`);
     if (n.facts) parts.push(`${n.facts} effectifs/CA mis à jour`);
     if (n.candidates) parts.push(`${n.candidates} à valider`);
+    if (n.duplicates) parts.push(`${n.duplicates} doublon${n.duplicates > 1 ? "s" : ""} détecté${n.duplicates > 1 ? "s" : ""}`);
     await createInAppNotification({
       orgId,
       type: "enrichment_auto",
@@ -47,6 +48,7 @@ async function handler(request: Request) {
     identities: result.identities,
     candidates: result.candidates,
     facts: result.facts,
+    duplicates: result.duplicates,
     remainingIdentities: result.remainingIdentities,
     remainingFacts: result.remainingFacts,
   });

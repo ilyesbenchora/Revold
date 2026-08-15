@@ -21,6 +21,7 @@ type Status = {
   withSiren: number | null;
   withEmployees: number | null;
   candidates: number | null;
+  duplicates: number | null;
   remaining: number;
   processed: number;
   pct: number;
@@ -33,6 +34,7 @@ type Batch = {
   identities: number;
   candidates: number;
   facts: number;
+  duplicates: number;
   interrupted?: boolean;
   error?: string;
 };
@@ -60,7 +62,7 @@ function etaFr(remaining: number): string | null {
 export function EnrichmentBackfillRunner() {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
-  const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0 });
+  const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
   const [notice, setNotice] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const loopRef = useRef(false);
@@ -95,6 +97,7 @@ export function EnrichmentBackfillRunner() {
           identities: s.identities + (d.identities ?? 0),
           candidates: s.candidates + (d.candidates ?? 0),
           facts: s.facts + (d.facts ?? 0),
+          duplicates: s.duplicates + (d.duplicates ?? 0),
         }));
         const fresh = await loadStatus();
         router.refresh();
@@ -139,7 +142,7 @@ export function EnrichmentBackfillRunner() {
   const pct = status?.pct ?? 0;
   const remaining = status?.remaining ?? 0;
   const inProgress = status?.inProgress ?? false;
-  const sessionTotal = session.identities + session.facts + session.candidates;
+  const sessionTotal = session.identities + session.facts + session.candidates + session.duplicates;
   const eta = etaFr(remaining);
 
   return (
@@ -147,7 +150,14 @@ export function EnrichmentBackfillRunner() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            {inProgress ? (
+            {status == null ? (
+              // Tant que l'état n'est pas chargé, on n'affiche NI « terminé »
+              // NI « en cours » — sinon flash trompeur à chaque rafraîchissement.
+              <>
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-300" />
+                Lecture de l&apos;avancement…
+              </>
+            ) : inProgress ? (
               <>
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-60" />
@@ -160,7 +170,9 @@ export function EnrichmentBackfillRunner() {
             )}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {inProgress ? (
+            {status == null ? (
+              <>Récupération de l&apos;état réel de ta base…</>
+            ) : inProgress ? (
               <>
                 Revold traite ta base en continu, application ouverte ou fermée
                 {eta && <> — fin estimée dans <span className="font-medium text-slate-700">{eta}</span></>}. Dernière
@@ -192,6 +204,12 @@ export function EnrichmentBackfillRunner() {
           (SIREN/TVA trouvés) · <span className="font-semibold text-slate-700">{fmt(status.withEmployees)}</span> avec
           effectif officiel · <span className="font-semibold text-amber-700">{fmt(status.candidates)}</span> en attente
           de validation ci-dessous
+          {(status.duplicates ?? 0) > 0 && (
+            <>
+              {" "}· <span className="font-semibold text-slate-700">{fmt(status.duplicates)}</span> fiches en doublon
+              (même entreprise déjà présente)
+            </>
+          )}
           {sessionTotal > 0 && (
             <>
               {" "}· <span className="text-fuchsia-600">+{sessionTotal} depuis l&apos;ouverture de cette page</span>

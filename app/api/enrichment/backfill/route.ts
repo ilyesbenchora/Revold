@@ -33,6 +33,7 @@ export async function POST() {
     identities: result.identities,
     candidates: result.candidates,
     facts: result.facts,
+    duplicates: result.duplicates,
     remainingIdentities: result.remainingIdentities,
     remainingFacts: result.remainingFacts,
     interrupted: result.interrupted ?? false,

@@ -22,7 +22,7 @@ const RECHECK_DAYS = 30;
 const REFRESH_DAYS = 90;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export type BackfillCounts = { identities: number; candidates: number; facts: number };
+export type BackfillCounts = { identities: number; candidates: number; facts: number; duplicates: number };
 export type BackfillResult = BackfillCounts & {
   lookupsUsed: number;
   /** Entreprises encore à traiter (pour la boucle de progression côté UI). */
@@ -90,9 +90,9 @@ export async function runEnrichmentBatch(
   let budget = Math.max(1, opts.budget);
   const perOrg: Record<string, BackfillCounts> = {};
   const bump = (orgId: string, k: keyof BackfillCounts) => {
-    (perOrg[orgId] ??= { identities: 0, candidates: 0, facts: 0 })[k]++;
+    (perOrg[orgId] ??= { identities: 0, candidates: 0, facts: 0, duplicates: 0 })[k]++;
   };
-  const totals: BackfillCounts = { identities: 0, candidates: 0, facts: 0 };
+  const totals: BackfillCounts = { identities: 0, candidates: 0, facts: 0, duplicates: 0 };
 
   const scoped = <T>(q: T): T => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,6 +117,9 @@ export async function runEnrichmentBatch(
   }
 
   let interrupted = false;
+  // Un 429 isolé ne doit pas tuer un lot de 400 : on tolère des échecs
+  // ponctuels (backoff court) et on n'abandonne qu'après 3 d'affilée.
+  let consecutiveErrors = 0;
   for (const c of (identityData ?? []) as IdentityRow[]) {
     if (budget <= 0) break;
     if (!c.name || c.name.trim().length < 2) continue;
@@ -126,11 +129,17 @@ export async function runEnrichmentBatch(
     const checked = { sirene_checked_at: new Date().toISOString() };
 
     // Appel échoué (quota/panne) : on N'ÉCRIT RIEN — l'entreprise reste à
-    // traiter au prochain passage — et on écourte le lot (backoff naturel).
+    // traiter au prochain passage.
     if (outcome.status === "error") {
-      interrupted = true;
-      break;
+      consecutiveErrors++;
+      if (consecutiveErrors >= 3) {
+        interrupted = true;
+        break;
+      }
+      await sleep(1500);
+      continue;
     }
+    consecutiveErrors = 0;
     if (outcome.status === "none") {
       await sb.from("companies").update(checked).eq("id", c.id);
       continue;
@@ -175,7 +184,36 @@ export async function runEnrichmentBatch(
       update.official_revenue_year = found.facts.revenueYear;
     }
     const { error } = await sb.from("companies").update(update).eq("id", c.id);
-    if (error) continue;
+    if (error) {
+      // 23505 = SIREN déjà porté par une autre fiche de l'org : ces deux
+      // fiches désignent la MÊME entreprise. On consigne le doublon (info
+      // utile) et on marque la ligne vérifiée — sinon elle serait retentée
+      // indéfiniment à chaque passage, bloquant tout l'avancement.
+      const isDuplicate = error.code === "23505";
+      const fallback: Record<string, unknown> = { ...checked };
+      if (isDuplicate) {
+        fallback.duplicate_of_siren = found.siren;
+        // Les faits n'ont pas de contrainte : la fiche doublon en profite.
+        fallback.enriched_at = new Date().toISOString();
+        if (found.facts.employeeRange) {
+          fallback.official_employee_range = found.facts.employeeRange;
+          fallback.official_employee_year = found.facts.employeeYear;
+        }
+        if (typeof found.facts.revenue === "number") {
+          fallback.official_revenue = found.facts.revenue;
+          fallback.official_revenue_year = found.facts.revenueYear;
+        }
+      }
+      const { error: fbError } = await sb.from("companies").update(fallback).eq("id", c.id);
+      // Colonne duplicate_of_siren absente (migration récente) → au minimum,
+      // on marque vérifiée pour ne jamais boucler sur la même ligne.
+      if (fbError) await sb.from("companies").update(checked).eq("id", c.id);
+      if (isDuplicate) {
+        bump(c.organization_id, "duplicates");
+        totals.duplicates++;
+      }
+      continue;
+    }
     await sb.from("companies").update({ legal_name: found.legalName }).eq("id", c.id);
     bump(c.organization_id, "identities");
     totals.identities++;
@@ -213,11 +251,18 @@ export async function runEnrichmentBatch(
       budget--;
       const outcome = await lookupCompanyFacts(c.siren);
       await sleep(THROTTLE_MS);
-      // Appel échoué → rien écrit (enriched_at intact), lot écourté.
+      // Appel échoué → rien écrit (enriched_at intact) ; on abandonne le lot
+      // seulement après 3 échecs d'affilée.
       if (outcome.status === "error") {
-        interrupted = true;
-        break;
+        consecutiveErrors++;
+        if (consecutiveErrors >= 3) {
+          interrupted = true;
+          break;
+        }
+        await sleep(1500);
+        continue;
       }
+      consecutiveErrors = 0;
       const facts = outcome.status === "found" ? outcome.data : null;
       const update: Record<string, unknown> = { enriched_at: new Date().toISOString() };
       if (facts?.employeeRange) {
@@ -229,7 +274,13 @@ export async function runEnrichmentBatch(
         update.official_revenue_year = facts.revenueYear;
       }
       const { error } = await sb.from("companies").update(update).eq("id", c.id);
-      if (error || !facts || (!facts.employeeRange && facts.revenue == null)) continue;
+      if (error) {
+        // Colonne absente / conflit : on pose au moins enriched_at, sinon la
+        // même fiche reviendrait à chaque passage et bloquerait la file.
+        await sb.from("companies").update({ enriched_at: new Date().toISOString() }).eq("id", c.id);
+        continue;
+      }
+      if (!facts || (!facts.employeeRange && facts.revenue == null)) continue;
       bump(c.organization_id, "facts");
       totals.facts++;
 
