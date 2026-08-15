@@ -63,6 +63,21 @@ export const AUTOMATABLE_KEYS = [
 ] as const;
 
 /**
+ * Entité de référence d'une action (pour l'automatisation PAR ENTITÉ) : le
+ * deal pour les relances commerciales, l'entreprise pour l'enrichissement /
+ * renouvellements / rattachements, le contact pour les créations. Permet
+ * d'automatiser une famille pour UN client précis, ou d'exclure un compte
+ * clé d'une famille globalement automatisée.
+ */
+export function actionEntityRef(payload: ActionPayload): { key: string; label: string } | null {
+  if (payload.dealHubspotId) return { key: `deal:${payload.dealHubspotId}`, label: "ce deal" };
+  if (payload.companyHubspotId) return { key: `company:${payload.companyHubspotId}`, label: "cette entreprise" };
+  if (payload.targetCompanyId) return { key: `company_canonical:${payload.targetCompanyId}`, label: "cette entreprise" };
+  if (payload.contactEmail) return { key: `contact:${payload.contactEmail.toLowerCase()}`, label: "ce contact" };
+  return null;
+}
+
+/**
  * Détecteur : deals ouverts silencieux depuis ≥ 21 jours (top montants).
  * Avec une séquence configurée (licence Sales Pro/Enterprise, Paramètres →
  * Intégrations), la relance proposée est un VRAI email : inscription du
@@ -175,7 +190,8 @@ export async function detectOverdueInvoiceActions(
         title: `Relancer ${label} — ${eur(due)} en retard`,
         description: `Valider envoie le RAPPEL STRIPE officiel au client (invoice ${stripeId}). La relance est suivie dans « Cash récupéré ».`,
         source: "detector:overdue_invoice",
-        payload: { stripeInvoiceId: stripeId, invoiceId: inv.id },
+        // companyHubspotId = référence CLIENT pour l'automatisation par entité.
+        payload: { stripeInvoiceId: stripeId, invoiceId: inv.id, companyHubspotId: company?.hubspot_id ?? null },
       });
     } else if (company?.hubspot_id) {
       out.push({

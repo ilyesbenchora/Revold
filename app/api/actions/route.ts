@@ -21,6 +21,7 @@ import {
   executeHubspotCreateContact,
   executeStripeSendInvoice,
   AUTOMATABLE_KEYS,
+  actionEntityRef,
   type ActionPayload,
 } from "@/lib/actions/engine";
 
@@ -86,23 +87,38 @@ async function trackInvoiceReminder(
   });
 }
 
-/** Familles automatisées par l'utilisateur (auto_action_* activées). */
-async function getAutomatedKeys(supabase: SupabaseClient, orgId: string): Promise<Set<string>> {
+/**
+ * Config d'automatisation par famille : mode global (enabled) + exceptions
+ * PAR ENTITÉ dans config — include = entités automatisées malgré un mode
+ * manuel, exclude = entités gardées en manuel malgré un mode auto (sécurité
+ * pour les comptes clés).
+ */
+type AutomationCfg = { enabled: boolean; include: Set<string>; exclude: Set<string> };
+async function getAutomationConfig(supabase: SupabaseClient, orgId: string): Promise<Map<string, AutomationCfg>> {
+  const map = new Map<string, AutomationCfg>();
   try {
     const { data } = await supabase
       .from("entity_resolution_config")
-      .select("rule_id, enabled")
+      .select("rule_id, enabled, config")
       .eq("organization_id", orgId)
       .like("rule_id", "auto_action_%");
-    return new Set(
-      ((data ?? []) as Array<{ rule_id: string; enabled: boolean }>)
-        .filter((r) => r.enabled)
-        .map((r) => r.rule_id.replace("auto_action_", ""))
-        .filter((k) => (AUTOMATABLE_KEYS as readonly string[]).includes(k)),
-    );
-  } catch {
-    return new Set();
-  }
+    for (const r of (data ?? []) as Array<{ rule_id: string; enabled: boolean; config: Record<string, unknown> | null }>) {
+      const key = r.rule_id.replace("auto_action_", "");
+      if (!(AUTOMATABLE_KEYS as readonly string[]).includes(key)) continue;
+      const cfg = r.config ?? {};
+      const arr = (v: unknown) => new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+      map.set(key, { enabled: r.enabled, include: arr(cfg.include), exclude: arr(cfg.exclude) });
+    }
+  } catch {}
+  return map;
+}
+
+/** L'action doit-elle s'exécuter seule ? Mode global ± exception d'entité. */
+function shouldAutoExecute(cfg: AutomationCfg | undefined, payload: ActionPayload): boolean {
+  if (!cfg) return false;
+  const ref = actionEntityRef(payload);
+  if (cfg.enabled) return !(ref && cfg.exclude.has(ref.key));
+  return Boolean(ref && cfg.include.has(ref.key));
 }
 
 export async function GET(request: Request) {
@@ -167,22 +183,30 @@ export async function GET(request: Request) {
     /* détecteurs jamais bloquants */
   }
 
-  // ── Automatisation opt-in : les familles que l'utilisateur a automatisées
-  //    s'exécutent immédiatement (decided_by null = exécution automatique,
-  //    badge « Auto » dans l'historique). Cap par passage pour rester réactif. ──
-  const automated = await getAutomatedKeys(supabase, orgId);
-  if (automated.size > 0 && !needsMigration) {
+  // ── Automatisation opt-in : familles automatisées (± exceptions par entité)
+  //    exécutées immédiatement (decided_by null = badge « Auto »). Cap par
+  //    passage pour rester réactif. ──
+  const autoCfg = await getAutomationConfig(supabase, orgId);
+  const activeFamilies = [...autoCfg.entries()]
+    .filter(([, c]) => c.enabled || c.include.size > 0)
+    .map(([k]) => k);
+  if (activeFamilies.length > 0 && !needsMigration) {
     try {
       const { data: autoPending } = await supabase
         .from("action_items")
         .select("id, type, source, payload")
         .eq("organization_id", orgId)
         .eq("status", "pending")
-        .in("source", [...automated].map((k) => `detector:${k}`))
+        .in("source", activeFamilies.map((k) => `detector:${k}`))
         .order("created_at", { ascending: true })
-        .limit(10);
+        .limit(30);
+      let executed = 0;
       for (const item of (autoPending ?? []) as Array<{ id: string; type: string; source: string; payload: ActionPayload | null }>) {
+        if (executed >= 10) break;
         const payload = (item.payload ?? {}) as ActionPayload;
+        const familyKey = item.source.replace("detector:", "");
+        if (!shouldAutoExecute(autoCfg.get(familyKey), payload)) continue; // exception : reste en manuel
+        executed++;
         const outcome = await executeByType(supabase, orgId, item.type, payload);
         await supabase
           .from("action_items")
@@ -212,16 +236,29 @@ export async function GET(request: Request) {
   // Les actions des détecteurs masqués (catalogue) ne sont pas renvoyées.
   const rows = (data ?? [])
     .filter((r) => !skip.has(String(r.source ?? "").replace("detector:", "")))
-    .map((r) => ({
-      ...r,
-      // Badge « Auto » : action décidée sans utilisateur (automatisation).
-      auto: r.status !== "pending" && !r.decided_by,
-    }));
+    .map((r) => {
+      const payload = (r.payload ?? {}) as ActionPayload;
+      const familyKey = String(r.source ?? "").replace("detector:", "");
+      const ref = actionEntityRef(payload);
+      const cfg = autoCfg.get(familyKey);
+      return {
+        ...r,
+        // Badge « Auto » : action décidée sans utilisateur (automatisation).
+        auto: r.status !== "pending" && !r.decided_by,
+        // Référence d'entité + état d'exception (liens d'automatisation ciblée).
+        entityRef: ref,
+        entityIncluded: Boolean(ref && cfg?.include.has(ref.key)),
+        entityExcluded: Boolean(ref && cfg?.exclude.has(ref.key)),
+      };
+    });
   return NextResponse.json({
     needsMigration,
     pending: rows.filter((r) => r.status === "pending"),
     history: rows.filter((r) => r.status !== "pending").slice(0, 100),
-    automated: [...automated],
+    automated: [...autoCfg.entries()].filter(([, c]) => c.enabled).map(([k]) => k),
+    overrides: Object.fromEntries(
+      [...autoCfg.entries()].map(([k, c]) => [k, { include: [...c.include], exclude: [...c.exclude] }]),
+    ),
   });
 }
 

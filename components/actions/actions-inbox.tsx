@@ -23,6 +23,10 @@ type ActionItem = {
   payload?: Record<string, unknown> | null;
   /** true = exécutée automatiquement (famille automatisée par l'utilisateur). */
   auto?: boolean;
+  /** Entité de référence (deal/entreprise/contact) pour l'automatisation ciblée. */
+  entityRef?: { key: string; label: string } | null;
+  entityIncluded?: boolean;
+  entityExcluded?: boolean;
 };
 
 /** Familles automatisables (miroir du serveur) — les fusions restent manuelles. */
@@ -176,8 +180,10 @@ export function ActionsInbox() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   // Fiche dépliée : détail concret de ce que la validation va écrire.
   const [detailId, setDetailId] = useState<string | null>(null);
-  // Familles automatisées par l'utilisateur (réglage serveur, par org).
+  // Familles automatisées par l'utilisateur (réglage serveur, par org) +
+  // exceptions par entité (include/exclude par famille).
   const [automated, setAutomated] = useState<string[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, { include: string[]; exclude: string[] }>>({});
   const [autoBusy, setAutoBusy] = useState<string | null>(null);
   // Pagination : 15 (défaut) / 20 / 50 lignes, préférence mémorisée.
   const [pageSize, setPageSize] = useState(15);
@@ -193,6 +199,7 @@ export function ActionsInbox() {
       setPending(Array.isArray(d.pending) ? d.pending : []);
       setHistory(Array.isArray(d.history) ? d.history : []);
       setAutomated(Array.isArray(d.automated) ? d.automated : []);
+      setOverrides(d.overrides && typeof d.overrides === "object" ? d.overrides : {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
       setPending([]);
@@ -237,6 +244,28 @@ export function ActionsInbox() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Réglage impossible");
       setAutomated((prev) => (enabled ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setAutoBusy(null);
+    }
+  }
+
+  /** Automatisation CIBLÉE : ce deal/cette entreprise/ce contact uniquement
+      (include quand la famille est manuelle, exclude quand elle est auto). */
+  async function toggleEntityAutomation(key: string, entityKey: string, list: "include" | "exclude", enabled: boolean) {
+    if (autoBusy) return;
+    setAutoBusy(`${key}:${entityKey}`);
+    setError(null);
+    try {
+      const res = await fetch("/api/actions/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, entityKey, list, enabled }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Réglage impossible");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
@@ -358,6 +387,18 @@ export function ActionsInbox() {
                         {isAuto && on && (
                           <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-600">Auto</span>
                         )}
+                        {(() => {
+                          const o = overrides[c.key];
+                          const n = (o?.include.length ?? 0) + (o?.exclude.length ?? 0);
+                          return n > 0 ? (
+                            <span
+                              title={`${o?.include.length ?? 0} entité(s) automatisée(s) spécifiquement · ${o?.exclude.length ?? 0} gardée(s) en manuel`}
+                              className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500"
+                            >
+                              {n} exception{n > 1 ? "s" : ""}
+                            </span>
+                          ) : null;
+                        })()}
                       </p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{c.description}</p>
                       {!AUTOMATABLE.has(c.key) && (
@@ -500,21 +541,71 @@ export function ActionsInbox() {
                         {detailId === a.id ? "Masquer le détail ▴" : "Voir le détail ▾"}
                       </button>
                     )}
-                    {/* Automatisation opt-in : décidée par l'utilisateur, pour les prochaines fois */}
+                    {/* Automatisation opt-in : globale, ciblée par entité, ou
+                        exclusion d'un compte clé — décidée par l'utilisateur. */}
                     {(() => {
                       const key = a.source.replace("detector:", "");
-                      if (!AUTOMATABLE.has(key) || automated.includes(key)) return null;
-                      return (
-                        <button
-                          type="button"
-                          disabled={autoBusy === key}
-                          onClick={() => void toggleAutomation(key, true)}
-                          title="Les prochaines actions de cette famille s'exécuteront automatiquement (désactivable dans le catalogue). Celles en attente s'exécutent immédiatement."
-                          className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
-                        >
-                          {autoBusy === key ? "Activation…" : "⚡ Automatiser ce type d'action"}
-                        </button>
-                      );
+                      if (!AUTOMATABLE.has(key)) return null;
+                      const familyAuto = automated.includes(key);
+                      const ref = a.entityRef;
+                      const busyEntity = ref ? autoBusy === `${key}:${ref.key}` : false;
+                      if (!familyAuto) {
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              disabled={autoBusy === key}
+                              onClick={() => void toggleAutomation(key, true)}
+                              title="Les prochaines actions de cette famille s'exécuteront automatiquement (désactivable dans le catalogue). Celles en attente s'exécutent immédiatement."
+                              className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
+                            >
+                              {autoBusy === key ? "Activation…" : "⚡ Automatiser ce type d'action"}
+                            </button>
+                            {ref && !a.entityIncluded && (
+                              <button
+                                type="button"
+                                disabled={busyEntity}
+                                onClick={() => void toggleEntityAutomation(key, ref.key, "include", true)}
+                                title={`Seules les actions de cette famille concernant ${ref.label} s'exécuteront automatiquement — le reste reste manuel.`}
+                                className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
+                              >
+                                {busyEntity ? "Activation…" : `⚡ Automatiser pour ${ref.label} uniquement`}
+                              </button>
+                            )}
+                          </>
+                        );
+                      }
+                      // Famille automatisée : cette fiche est encore en attente
+                      // soit parce que l'entité est exclue, soit fraîchement détectée.
+                      if (ref && a.entityExcluded) {
+                        return (
+                          <span className="flex items-center gap-2 text-[11px]">
+                            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-600">Manuel pour {ref.label}</span>
+                            <button
+                              type="button"
+                              disabled={busyEntity}
+                              onClick={() => void toggleEntityAutomation(key, ref.key, "exclude", false)}
+                              className="font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
+                            >
+                              Réactiver l&apos;auto
+                            </button>
+                          </span>
+                        );
+                      }
+                      if (ref) {
+                        return (
+                          <button
+                            type="button"
+                            disabled={busyEntity}
+                            onClick={() => void toggleEntityAutomation(key, ref.key, "exclude", true)}
+                            title={`Sécurité compte clé : les actions de cette famille concernant ${ref.label} resteront à valider manuellement, le reste de la famille demeure automatisé.`}
+                            className="text-[11px] font-medium text-amber-600 transition hover:underline disabled:opacity-50"
+                          >
+                            {busyEntity ? "…" : `🔒 Garder ${ref.label} en manuel`}
+                          </button>
+                        );
+                      }
+                      return null;
                     })()}
                   </div>
                 </div>
