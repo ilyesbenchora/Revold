@@ -63,9 +63,9 @@ export default async function EnrichissementPage() {
           Revold remplit et rafraîchit la donnée officielle de tes entreprises — identifiants (SIREN, SIRET, TVA),
           effectifs et chiffre d&apos;affaires — puis l&apos;écrit dans ton CRM.{" "}
           <span className="font-medium text-slate-700">
-            L&apos;enrichissement tourne automatiquement chaque heure sur toute la base
+            L&apos;enrichissement tourne automatiquement, en continu, sur toute la base
           </span>{" "}
-          : les correspondances sûres s&apos;appliquent seules, les incertaines t&apos;attendent ci-dessous.
+          : les correspondances certaines s&apos;appliquent seules, les incertaines t&apos;attendent ci-dessous.
         </p>
       </header>
 
@@ -80,9 +80,9 @@ export default async function EnrichissementPage() {
         ))}
       </div>
 
-      {/* ── 1. LE MOTEUR : toute la base (identités sûres + effectifs/CA),
-             par lots, progression visible. Le cron horaire fait la même chose
-             en tâche de fond. ── */}
+      {/* ── 1. ÉTAT du moteur (et accélération silencieuse tant que la page
+             est ouverte) : aucun bouton — l'enrichissement va aussi vite que
+             possible par défaut, le contrôle qualité ne dépend pas du rythme. ── */}
       <EnrichmentBackfillRunner />
 
       {/* ── 2. Ce que le moteur n'applique pas seul : les correspondances

@@ -7,12 +7,13 @@ import { createInAppNotification } from "@/lib/notifications/in-app";
 export const maxDuration = 300;
 
 /**
- * Enrichissement AUTOMATIQUE de la base (toutes les 10 min, toutes les orgs) —
- * moteur partagé lib/enrichment/backfill-engine (aussi déclenché à la demande
- * depuis Suivi → Enrichissement, « Enrichir toute ma base »). ≈ 400 lookups par
- * run soit ~2 400/h : une base de plusieurs milliers d'entreprises est traitée
- * en quelques heures SANS que personne n'ouvre l'application. Notification par
- * org quand il s'est passé quelque chose.
+ * Enrichissement AUTOMATIQUE de la base (toutes les 5 min, toutes les orgs) —
+ * moteur partagé lib/enrichment/backfill-engine, également enchaîné par la page
+ * Suivi → Enrichissement tant qu'elle est ouverte (même code, même contrôle
+ * qualité : seule la cadence change). ≈ 400 lookups par run soit ~4 800/h : une
+ * base de plusieurs milliers d'entreprises est traitée en une à deux heures
+ * SANS que personne n'ouvre l'application. Notification par org quand il s'est
+ * passé quelque chose.
  */
 async function handler(request: Request) {
   const authHeader = request.headers.get("authorization");

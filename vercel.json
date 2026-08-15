@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/enrich-companies",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
