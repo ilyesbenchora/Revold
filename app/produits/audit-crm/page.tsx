@@ -14,7 +14,7 @@ export default function AuditCRMPage() {
       badge="Audit complet du CRM"
       title="Votre CRM vous ment."
       titleAccent="Revold vous dit la vérité."
-      subtitle="Auditez l'enrichissement de chaque propriété, détectez les orphelins, les champs manquants et les incohérences. Le regard extérieur que votre CRM ne peut pas avoir sur lui-même."
+      subtitle="Complétude de chaque propriété, doublons, fiches orphelines, score de santé et plan d'action généré par l'IA : le regard extérieur que votre CRM ne peut pas avoir sur lui-même."
       heroIcon={icon}
       pains={[
         { value: "76%", label: "des organisations ont moins de 50% de données CRM fiables et complètes.", source: "Validity" },
@@ -22,29 +22,29 @@ export default function AuditCRMPage() {
         { value: "700 Md$", label: "coût annuel mondial des mauvaises données — soit environ 30% du CA moyen d'une entreprise.", source: "IBM / Gartner" },
       ]}
       features={[
-        { title: "Fill rate par propriété", desc: "Pour chaque champ de votre CRM, voyez le % de remplissage. Identifiez instantanément les propriétés sous-exploitées." },
+        { title: "Complétude par propriété", desc: "Pour chaque champ de votre CRM, le % de remplissage. Identifiez instantanément les propriétés sous-exploitées — dont les identifiants SIREN / SIRET / TVA." },
+        { title: "Détection de doublons", desc: "Entreprises et contacts en double repérés par email, domaine et identifiants légaux. Le rapprochement Sirene aide à trancher les cas ambigus." },
         { title: "Détection d'orphelins", desc: "Contacts sans entreprise, deals sans owner, entreprises sans contact. Les trous dans votre donnée deviennent visibles." },
-        { title: "Score d'intégration de données unifié", desc: "Un score déterministe qui mesure la santé de votre setup : property groups, sources, engagements, workflows." },
-        { title: "Audit des intégrations métier", desc: "7 signaux analysés : property groups, sources, engagements, portal apps, workflow webhooks, audit logs." },
-        { title: "Blueprint de résolution", desc: "L'IA génère un plan d'action personnalisé : quelles règles de résolution activer selon votre stack." },
-        { title: "Suivi dans le temps", desc: "L'audit tourne à chaque sync. Voyez la progression de votre data quality semaine après semaine." },
+        { title: "Score de santé", desc: "Un score déterministe, recalculé à chaque sync, qui mesure la santé de vos données : complétude, cohérence, rapprochements possibles." },
+        { title: "Plan d'action IA", desc: "L'IA transforme l'audit en plan concret et priorisé : quels champs remplir, quels doublons fusionner, quels rapprochements valider en premier." },
+        { title: "Suivi dans le temps", desc: "L'audit tourne à chaque synchronisation. Voyez la progression de votre qualité de données semaine après semaine." },
       ]}
       howItWorks={[
-        { step: "Connectez votre CRM", desc: "HubSpot, Salesforce, Pipedrive — l'audit démarre dès que la première sync est complète." },
-        { step: "L'audit analyse 7 dimensions", desc: "Property groups, sources de données, engagements, apps installées, webhooks, audit logs, fill rates." },
-        { step: "Un score et un plan d'action", desc: "Score d'intégration de données unifié + blueprint IA avec les actions prioritaires pour améliorer votre data quality." },
-        { step: "Suivi continu", desc: "À chaque sync, le score est recalculé. Vous voyez l'impact de vos actions en temps réel." },
+        { step: "Connectez votre CRM", desc: "HubSpot en un clic via OAuth, en lecture seule — l'audit démarre dès que la première sync est complète." },
+        { step: "L'audit analyse vos données", desc: "Complétude par propriété, doublons, orphelins, identifiants de rapprochement disponibles : tout est mesuré." },
+        { step: "Un score et un plan d'action", desc: "Score de santé déterministe + plan d'action IA avec les actions prioritaires pour améliorer votre qualité de données." },
+        { step: "Suivi continu", desc: "À chaque sync, le score est recalculé. Vous voyez l'impact de vos corrections dans le temps." },
       ]}
       stats={[
-        { value: "7", label: "dimensions d'audit" },
         { value: "100%", label: "des propriétés analysées" },
-        { value: "6h", label: "fréquence de recalcul" },
-        { value: "1", label: "blueprint IA personnalisé" },
+        { value: "1", label: "score de santé déterministe" },
+        { value: "1", label: "plan d'action IA priorisé" },
+        { value: "0", label: "écriture sans votre validation" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Audit des 7 dimensions : property groups, sources, engagements...", "Fill rate de chaque propriété HubSpot", "Score d'intégration de données unifié de votre portail", "Blueprint IA : quelles règles activer pour votre stack"] },
-        { crm: "Salesforce", items: ["Audit de vos objets et champs Salesforce", "Détection d'orphelins et de données incomplètes", "Score de santé de votre org Salesforce", "Plan d'action personnalisé par l'IA"] },
-        { crm: "Pipedrive", items: ["Audit de vos organizations, persons et deals", "Fill rate par champ personnalisé", "Détection de doublons et d'incohérences", "Recommandations de nettoyage priorisées"] },
+        { crm: "HubSpot", items: ["Complétude de chaque propriété de votre portail", "Doublons et fiches orphelines détectés automatiquement", "Score de santé recalculé à chaque sync", "Plan d'action IA : quoi corriger, dans quel ordre"] },
+        { crm: "HubSpot + facturation", items: ["Croisement CRM × Stripe / Pennylane pour repérer les incohérences", "Clients facturés absents du CRM (et inversement)", "Identifiants SIREN / TVA manquants remplis via Sirene, à valider", "Écriture des identifiants validés dans vos fiches HubSpot"] },
+        { crm: "Import Excel / Sheets", items: ["Audit de vos fichiers importés : lignes incomplètes, doublons", "Rapprochement avec les entités déjà connues", "Qualité mesurée avant d'alimenter vos KPIs", "Plan de nettoyage priorisé"] },
       ]}
     />
   );

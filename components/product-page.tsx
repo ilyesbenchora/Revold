@@ -20,6 +20,11 @@ type ProductPageProps = {
   crmSetups?: CrmSetup[];
 };
 
+/**
+ * Gabarit des pages Produit — thème SOMBRE cockpit (slate-950, halos
+ * fuchsia/indigo, cartes bg-white/[0.03], bordures white/10), aligné sur
+ * app/page.tsx et app/tarifs/page.tsx.
+ */
 export function ProductPage({
   badge,
   title,
@@ -37,22 +42,23 @@ export function ProductPage({
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 to-background">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-100/40 via-transparent to-transparent" />
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -left-40 top-10 h-80 w-80 rounded-full bg-fuchsia-600/15 blur-3xl" />
+        <div className="pointer-events-none absolute -right-40 top-32 h-80 w-80 rounded-full bg-indigo-600/15 blur-3xl" />
         <div className="relative mx-auto max-w-4xl px-6 pb-16 pt-16 text-center md:pb-24 md:pt-24">
-          <div className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-xs font-medium text-purple-700">
-            <span className="flex h-5 w-5 items-center justify-center text-purple-500">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
+            <span className="flex h-5 w-5 items-center justify-center text-fuchsia-300">
               {heroIcon}
             </span>
             {badge}
           </div>
-          <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
+          <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
             {title}{" "}
-            <span className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
               {titleAccent}
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">{subtitle}</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">{subtitle}</p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link
               href="/essai-gratuit"
@@ -61,8 +67,8 @@ export function ProductPage({
               {cta}
             </Link>
             <Link
-              href="/#pricing"
-              className="rounded-xl border border-slate-300 bg-white px-8 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              href="/tarifs"
+              className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
             >
               Voir les tarifs
             </Link>
@@ -71,13 +77,13 @@ export function ProductPage({
       </section>
 
       {/* Pain points */}
-      <section className="border-y border-card-border bg-white py-20 md:py-24">
+      <section className="border-y border-white/10 bg-white/[0.02] py-20 md:py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">
+            <h2 className="text-2xl font-bold text-white md:text-3xl">
               Le problème aujourd&apos;hui
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-500">
+            <p className="mx-auto mt-3 max-w-xl text-slate-400">
               Les chiffres parlent d&apos;eux-mêmes.
             </p>
           </div>
@@ -85,13 +91,13 @@ export function ProductPage({
             {pains.map((p) => (
               <div
                 key={p.value}
-                className="card p-6 transition hover:shadow-lg hover:shadow-accent/5"
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:bg-white/[0.06]"
               >
-                <p className="text-4xl font-black tracking-tight text-slate-900">
+                <p className="text-4xl font-black tracking-tight text-white">
                   {p.value}
                 </p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">{p.label}</p>
-                <p className="mt-3 text-xs font-medium text-accent">
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">{p.label}</p>
+                <p className="mt-3 text-xs font-medium text-fuchsia-300">
                   Source : {p.source}
                 </p>
               </div>
@@ -101,10 +107,11 @@ export function ProductPage({
       </section>
 
       {/* Features */}
-      <section className="bg-background py-20 md:py-24">
-        <div className="mx-auto max-w-7xl px-6">
+      <section className="relative py-20 md:py-24">
+        <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-indigo-600/10 blur-3xl" />
+        <div className="relative mx-auto max-w-7xl px-6">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">
+            <h2 className="text-2xl font-bold text-white md:text-3xl">
               Ce que Revold vous apporte
             </h2>
           </div>
@@ -112,15 +119,15 @@ export function ProductPage({
             {features.map((f) => (
               <div
                 key={f.title}
-                className="card p-6 transition hover:shadow-lg hover:shadow-accent/5"
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500/20 to-indigo-600/20 text-fuchsia-300 ring-1 ring-white/10">
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
-                <h3 className="mt-4 font-semibold text-slate-900">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-500">{f.desc}</p>
+                <h3 className="mt-4 font-semibold text-white">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -128,9 +135,9 @@ export function ProductPage({
       </section>
 
       {/* How it works */}
-      <section className="border-y border-card-border bg-white py-20 md:py-24">
+      <section className="border-y border-white/10 bg-white/[0.02] py-20 md:py-24">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-slate-900 md:text-3xl">
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">
             Comment ça marche
           </h2>
           <div className="mt-12 space-y-8">
@@ -140,8 +147,8 @@ export function ProductPage({
                   {i + 1}
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900">{s.step}</p>
-                  <p className="mt-1 text-sm text-slate-500">{s.desc}</p>
+                  <p className="font-semibold text-white">{s.step}</p>
+                  <p className="mt-1 text-sm text-slate-400">{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -149,35 +156,36 @@ export function ProductPage({
         </div>
       </section>
 
-      {/* Compatible with your CRM */}
+      {/* Compatible with your stack */}
       {crmSetups && (
-        <section className="bg-background py-20 md:py-24">
-          <div className="mx-auto max-w-7xl px-6">
+        <section className="relative py-20 md:py-24">
+          <div className="pointer-events-none absolute left-0 bottom-0 h-72 w-72 rounded-full bg-fuchsia-600/10 blur-3xl" />
+          <div className="relative mx-auto max-w-7xl px-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">
-                Vous utilisez déjà un CRM ?{" "}
-                <span className="text-accent">Voici ce qu&apos;on met en place pour vous.</span>
+              <h2 className="text-2xl font-bold text-white md:text-3xl">
+                Vous utilisez déjà ces outils ?{" "}
+                <span className="text-fuchsia-300">Voici ce qu&apos;on met en place pour vous.</span>
               </h2>
-              <p className="mx-auto mt-4 max-w-2xl text-slate-500">
+              <p className="mx-auto mt-4 max-w-2xl text-slate-400">
                 Revold se connecte à votre stack existant et ajoute une couche d&apos;intelligence par-dessus — sans rien remplacer.
               </p>
             </div>
             <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {crmSetups.map((setup) => (
-                <div key={setup.crm} className="card overflow-hidden transition hover:shadow-lg hover:shadow-accent/5">
-                  <div className="border-b border-card-border bg-slate-50 px-6 py-4">
-                    <p className="text-sm font-bold text-slate-900">
-                      Vous êtes sur <span className="text-accent">{setup.crm}</span>
+                <div key={setup.crm} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.05]">
+                  <div className="border-b border-white/10 bg-white/[0.04] px-6 py-4">
+                    <p className="text-sm font-bold text-white">
+                      Vous êtes sur <span className="text-fuchsia-300">{setup.crm}</span>
                     </p>
                   </div>
                   <div className="p-6">
-                    <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Ce qu&apos;on active pour vous
                     </p>
                     <ul className="space-y-3">
                       {setup.items.map((item) => (
-                        <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
-                          <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+                        <li key={item} className="flex items-start gap-2.5 text-sm text-slate-300">
+                          <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-fuchsia-500/15 text-fuchsia-300">
                             <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
@@ -195,13 +203,13 @@ export function ProductPage({
       )}
 
       {/* Key metrics */}
-      <section className="border-t border-card-border bg-white py-16">
+      <section className="border-t border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-5xl px-6">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="text-center">
-                <p className="text-3xl font-black text-slate-900 md:text-4xl">{s.value}</p>
-                <p className="mt-2 text-xs text-slate-500">{s.label}</p>
+                <p className="text-3xl font-black text-white md:text-4xl">{s.value}</p>
+                <p className="mt-2 text-xs text-slate-400">{s.label}</p>
               </div>
             ))}
           </div>
@@ -209,17 +217,18 @@ export function ProductPage({
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 py-20">
-        <div className="mx-auto max-w-3xl px-6 text-center">
+      <section className="relative overflow-hidden border-t border-white/10 py-20">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/20 via-purple-600/20 to-indigo-600/20 blur-3xl" />
+        <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-3xl font-bold text-white">
             {ctaTitle}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-purple-100">
-            Connectez votre CRM en moins de 5 minutes. Vos premiers insights sont prêts instantanément.
+          <p className="mx-auto mt-4 max-w-xl text-slate-400">
+            Connectez vos outils en moins de 5 minutes. Lecture seule, révocable à tout moment, essai 14 jours sans carte bancaire.
           </p>
           <Link
             href="/essai-gratuit"
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-purple-600 shadow-lg transition hover:bg-purple-50"
+            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
           >
             {cta}
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

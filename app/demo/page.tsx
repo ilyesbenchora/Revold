@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { RevoldLogo } from "@/components/revold-logo";
 import { SiteNavbar } from "@/components/site-navbar";
+import { SiteFooter } from "@/components/site-footer";
 import { useState, type FormEvent } from "react";
+
+const INPUT_CLASS =
+  "w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-500/20";
+const LABEL_CLASS = "mb-1.5 block text-sm font-medium text-slate-300";
 
 export default function DemoPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -23,35 +27,39 @@ export default function DemoPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <SiteNavbar />
 
-      <div className="flex flex-1 items-start justify-center">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-12 px-6 py-16 md:grid-cols-2 md:py-24">
+      <div className="relative flex flex-1 items-start justify-center overflow-hidden">
+        {/* Halos cockpit */}
+        <div className="pointer-events-none absolute -left-40 top-10 h-96 w-96 rounded-full bg-fuchsia-600/15 blur-3xl" />
+        <div className="pointer-events-none absolute -right-40 top-40 h-96 w-96 rounded-full bg-indigo-600/15 blur-3xl" />
+
+        <div className="relative mx-auto grid w-full max-w-6xl grid-cols-1 gap-12 px-6 py-16 md:grid-cols-2 md:py-24">
           {/* Left — pitch */}
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-xs font-medium text-purple-700">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-fuchsia-500" />
               </span>
               Démo personnalisée
             </div>
-            <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-4xl">
+            <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-white md:text-4xl">
               Voyez Revold en action{" "}
-              <span className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
                 sur vos données.
               </span>
             </h1>
-            <p className="mt-4 text-lg text-slate-600">
+            <p className="mt-4 text-lg text-slate-400">
               30 minutes pour comprendre comment Revold peut transformer votre approche revenue. Sans engagement.
             </p>
 
             <div className="mt-10 space-y-6">
               {[
-                { title: "Vos données, pas un dataset fictif", desc: "On connecte votre CRM pendant la démo et vous voyez vos vrais KPIs en temps réel." },
-                { title: "Personnalisé pour votre stack", desc: "HubSpot, Salesforce, Pipedrive, Stripe, Zendesk — on s'adapte à ce que vous utilisez." },
-                { title: "Recommandations actionnables", desc: "Vous repartez avec un diagnostic de votre data quality et des actions prioritaires." },
+                { title: "Vos données, pas un dataset fictif", desc: "On connecte votre CRM pendant la démo et vous voyez vos vrais KPIs, rapprochés par SIREN / SIRET / TVA, en temps réel." },
+                { title: "Personnalisé pour votre stack", desc: "HubSpot (OAuth en 1 clic), Stripe, Pennylane, Chargebee, GoCardless, Sage — et import Excel / Google Sheets pour le reste." },
+                { title: "Recommandations actionnables", desc: "Vous repartez avec un diagnostic de la qualité de vos données et des actions prioritaires, exécutables depuis Revold après votre validation." },
               ].map((item) => (
                 <div key={item.title} className="flex gap-4">
                   <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-indigo-600">
@@ -60,8 +68,8 @@ export default function DemoPage() {
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{item.title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
+                    <p className="font-semibold text-white">{item.title}</p>
+                    <p className="mt-1 text-sm text-slate-400">{item.desc}</p>
                   </div>
                 </div>
               ))}
@@ -73,9 +81,9 @@ export default function DemoPage() {
                 { val: "0", unit: "€", desc: "engagement" },
                 { val: "<5", unit: "min", desc: "pour connecter" },
               ].map((m) => (
-                <div key={m.desc} className="card p-4 text-center">
-                  <p className="text-2xl font-black text-slate-900">{m.val}<span className="ml-0.5 text-sm font-bold text-accent">{m.unit}</span></p>
-                  <p className="mt-1 text-[10px] text-slate-500">{m.desc}</p>
+                <div key={m.desc} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                  <p className="text-2xl font-black text-white">{m.val}<span className="ml-0.5 text-sm font-bold text-fuchsia-300">{m.unit}</span></p>
+                  <p className="mt-1 text-[10px] text-slate-400">{m.desc}</p>
                 </div>
               ))}
             </div>
@@ -84,46 +92,46 @@ export default function DemoPage() {
           {/* Right — form */}
           <div>
             {submitted ? (
-              <div className="card flex flex-col items-center p-10 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.03] p-10 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
                   <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
-                <h2 className="mt-6 text-2xl font-bold text-slate-900">Demande envoyée !</h2>
-                <p className="mt-2 text-sm text-slate-500">Nous vous recontactons sous 24h pour planifier votre démo.</p>
-                <Link href="/" className="mt-8 inline-block text-sm font-semibold text-accent hover:text-indigo-800">Retour à l&apos;accueil &rarr;</Link>
+                <h2 className="mt-6 text-2xl font-bold text-white">Demande envoyée !</h2>
+                <p className="mt-2 text-sm text-slate-400">Nous vous recontactons sous 24h pour planifier votre démo.</p>
+                <Link href="/" className="mt-8 inline-block text-sm font-semibold text-fuchsia-300 transition hover:text-fuchsia-200">Retour à l&apos;accueil &rarr;</Link>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="card space-y-5 p-8">
-                <h2 className="text-xl font-bold text-slate-900">Réservez votre démo</h2>
-                <p className="text-sm text-slate-500">Remplissez le formulaire, on revient vers vous sous 24h.</p>
+              <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-8">
+                <h2 className="text-xl font-bold text-white">Réservez votre démo</h2>
+                <p className="text-sm text-slate-400">Remplissez le formulaire, on revient vers vous sous 24h.</p>
 
                 <input type="hidden" name="subject" value="Demande de démo Revold" />
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="firstname" className="mb-1.5 block text-sm font-medium text-slate-700">Prénom</label>
-                    <input id="firstname" name="firstname" type="text" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                    <label htmlFor="firstname" className={LABEL_CLASS}>Prénom</label>
+                    <input id="firstname" name="firstname" type="text" required className={INPUT_CLASS} />
                   </div>
                   <div>
-                    <label htmlFor="lastname" className="mb-1.5 block text-sm font-medium text-slate-700">Nom</label>
-                    <input id="lastname" name="lastname" type="text" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                    <label htmlFor="lastname" className={LABEL_CLASS}>Nom</label>
+                    <input id="lastname" name="lastname" type="text" required className={INPUT_CLASS} />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">Email professionnel</label>
-                  <input id="email" name="email" type="email" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                  <label htmlFor="email" className={LABEL_CLASS}>Email professionnel</label>
+                  <input id="email" name="email" type="email" required className={INPUT_CLASS} />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-slate-700">Téléphone</label>
-                  <input id="phone" name="phone" type="tel" placeholder="+33 6 12 34 56 78" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                  <label htmlFor="phone" className={LABEL_CLASS}>Téléphone</label>
+                  <input id="phone" name="phone" type="tel" placeholder="+33 6 12 34 56 78" required className={INPUT_CLASS} />
                 </div>
                 <div>
-                  <label htmlFor="company" className="mb-1.5 block text-sm font-medium text-slate-700">Entreprise</label>
-                  <input id="company" name="company" type="text" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                  <label htmlFor="company" className={LABEL_CLASS}>Entreprise</label>
+                  <input id="company" name="company" type="text" required className={INPUT_CLASS} />
                 </div>
                 <div>
-                  <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-slate-700">Votre rôle</label>
-                  <select id="role" name="role" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20">
+                  <label htmlFor="role" className={LABEL_CLASS}>Votre rôle</label>
+                  <select id="role" name="role" required className={INPUT_CLASS}>
                     <option value="">Sélectionnez</option>
                     <option value="direction">Direction / CEO / COO</option>
                     <option value="sales">Sales / Directeur Commercial</option>
@@ -135,20 +143,19 @@ export default function DemoPage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="crm" className="mb-1.5 block text-sm font-medium text-slate-700">CRM actuel</label>
-                  <select id="crm" name="crm" required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20">
+                  <label htmlFor="crm" className={LABEL_CLASS}>CRM actuel</label>
+                  <select id="crm" name="crm" required className={INPUT_CLASS}>
                     <option value="">Sélectionnez</option>
-                    <option value="hubspot">HubSpot</option>
-                    <option value="salesforce">Salesforce</option>
-                    <option value="pipedrive">Pipedrive</option>
-                    <option value="zoho">Zoho CRM</option>
+                    <option value="hubspot">HubSpot (connexion en 1 clic)</option>
+                    <option value="salesforce">Salesforce (connecteur bientôt)</option>
+                    <option value="pipedrive">Pipedrive (connecteur bientôt)</option>
                     <option value="autre">Autre</option>
                     <option value="aucun">Pas de CRM</option>
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="message" className="mb-1.5 block text-sm font-medium text-slate-700">Votre message</label>
-                  <textarea id="message" name="message" rows={3} required className="w-full rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20" />
+                  <label htmlFor="message" className={LABEL_CLASS}>Votre message</label>
+                  <textarea id="message" name="message" rows={3} required className={INPUT_CLASS} />
                 </div>
                 <button
                   type="submit"
@@ -157,63 +164,14 @@ export default function DemoPage() {
                 >
                   {loading ? "Envoi en cours..." : "Réserver ma démo gratuite"}
                 </button>
-                <p className="text-center text-[10px] text-slate-400">En soumettant ce formulaire, vous acceptez notre <Link href="/legal/confidentialite" className="underline">politique de confidentialité</Link>.</p>
+                <p className="text-center text-[10px] text-slate-500">En soumettant ce formulaire, vous acceptez notre <Link href="/legal/confidentialite" className="underline">politique de confidentialité</Link>.</p>
               </form>
             )}
           </div>
         </div>
       </div>
 
-      <footer className="border-t border-card-border bg-white py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
-            <div className="col-span-2 md:col-span-1">
-              <RevoldLogo />
-              <p className="mt-4 text-sm text-slate-500">Plateforme de Revenue Intelligence pour le marché B2B français.</p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Produit</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/produits/synchronisation" className="text-sm text-slate-500 transition hover:text-slate-700">Synchronisation</Link></li>
-                <li><Link href="/produits/reporting-cross-source" className="text-sm text-slate-500 transition hover:text-slate-700">Reporting</Link></li>
-                <li><Link href="/produits/insights-ia" className="text-sm text-slate-500 transition hover:text-slate-700">Insights IA</Link></li>
-                <li><Link href="/produits/audit-crm" className="text-sm text-slate-500 transition hover:text-slate-700">Audit CRM</Link></li>
-                <li><Link href="/integrations" className="text-sm text-slate-500 transition hover:text-slate-700">Intégrations</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Solutions</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/solutions/optimiser-revenus" className="text-sm text-slate-500 transition hover:text-slate-700">Optimiser les revenus</Link></li>
-                <li><Link href="/solutions/fiabiliser-donnees" className="text-sm text-slate-500 transition hover:text-slate-700">Fiabiliser les données</Link></li>
-                <li><Link href="/solutions/accelerer-cycles-vente" className="text-sm text-slate-500 transition hover:text-slate-700">Accélérer les ventes</Link></li>
-                <li><Link href="/solutions/reduire-churn" className="text-sm text-slate-500 transition hover:text-slate-700">Réduire le churn</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Ressources</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/blog" className="text-sm text-slate-500 transition hover:text-slate-700">Blog</Link></li>
-                <li><Link href="/pourquoi-revold" className="text-sm text-slate-500 transition hover:text-slate-700">Pourquoi Revold</Link></li>
-                <li><Link href="/contact" className="text-sm text-slate-500 transition hover:text-slate-700">Contact</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Légal</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/legal/confidentialite" className="text-sm text-slate-500 transition hover:text-slate-700">Confidentialité</Link></li>
-                <li><Link href="/legal/cgu" className="text-sm text-slate-500 transition hover:text-slate-700">CGU</Link></li>
-                <li><Link href="/legal/securite" className="text-sm text-slate-500 transition hover:text-slate-700">Sécurité</Link></li>
-                <li><Link href="/legal/rgpd" className="text-sm text-slate-500 transition hover:text-slate-700">RGPD</Link></li>
-                <li><Link href="/legal/dpa" className="text-sm text-slate-500 transition hover:text-slate-700">DPA</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-card-border pt-8 md:flex-row">
-            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Revold. Tous droits réservés.</p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

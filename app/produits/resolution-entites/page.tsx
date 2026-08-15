@@ -12,9 +12,9 @@ export default function ResolutionEntitesPage() {
   return (
     <ProductPage
       badge="Résolution d'entités"
-      title="Un contact, une entreprise."
+      title="Une entreprise, une fiche."
       titleAccent="Partout."
-      subtitle="Réconciliez automatiquement vos contacts et entreprises entre CRM, facturation et support. 7 méthodes de matching — pas juste l'email."
+      subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même les identifiants manquants depuis la base Sirene officielle, à valider en un clic."
       heroIcon={icon}
       pains={[
         { value: "40%", label: "des leads B2B générés sont invalides, incomplets ou doublons dans le CRM.", source: "Cognism" },
@@ -22,29 +22,29 @@ export default function ResolutionEntitesPage() {
         { value: "30%", label: "du CA moyen d'une entreprise est impacté par la mauvaise qualité de données (700 Md$/an mondial).", source: "IBM / Gartner" },
       ]}
       features={[
-        { title: "7 méthodes de matching", desc: "Email, SIREN, SIRET, numéro de TVA, domaine, LinkedIn URL, external ID. Pas juste un match email." },
-        { title: "9 règles configurables", desc: "Définissez la priorité de résolution par stack : email + SIREN combo, domain fallback, etc." },
-        { title: "Résolution cross-source", desc: "Le même client chez HubSpot, Stripe et Zendesk est automatiquement réconcilié en une seule fiche." },
-        { title: "French-native (SIREN/SIRET)", desc: "Matching par identifiants légaux français. Aucun outil US ne gère ça nativement." },
-        { title: "Table source_links", desc: "Chaque entité sait d'où elle vient (provider, external_id, match_method). Traçabilité totale." },
-        { title: "Auto-writeback", desc: "Les résolutions sont propagées vers les sources connectées pour garder la cohérence." },
+        { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
+        { title: "Enrichissement automatique via Sirene", desc: "Le cœur du moteur : quand un identifiant manque, Revold interroge la base Sirene officielle et propose le SIREN / SIRET correspondant. Vous validez, la fiche est complète." },
+        { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },
+        { title: "Validation utilisateur", desc: "Aucun enrichissement n'est écrit sans votre accord. Chaque proposition est présentée avec sa source ; vous validez ou rejetez en un clic." },
+        { title: "Écriture dans HubSpot", desc: "Les identifiants validés sont aussi écrits dans vos fiches HubSpot : votre CRM devient plus propre, pas seulement Revold." },
+        { title: "Traçabilité totale", desc: "Chaque entité sait d'où elle vient : outil source, identifiant externe, méthode de rapprochement. Rien n'est une boîte noire." },
       ]}
       howItWorks={[
-        { step: "Les données arrivent de vos sources", desc: "Contacts, entreprises, deals sont synchronisés depuis chaque outil connecté." },
-        { step: "Le moteur de résolution analyse", desc: "7 méthodes de matching sont appliquées dans l'ordre de priorité que vous avez configuré." },
-        { step: "Les entités sont réconciliées", desc: "Un contact présent dans 3 outils devient une seule fiche avec toutes ses interactions." },
-        { step: "Writeback automatique", desc: "Les identifiants croisés sont propagés vers vos outils pour maintenir la cohérence." },
+        { step: "Les données arrivent de vos sources", desc: "Entreprises, contacts et deals sont synchronisés depuis HubSpot, Stripe, Pennylane, Chargebee, GoCardless et Sage." },
+        { step: "Le moteur rapproche par identifiants légaux", desc: "SIREN, SIRET, N° TVA, email, domaine et votre ID custom sont appliqués selon la priorité configurée." },
+        { step: "Sirene comble les manques", desc: "Pour les fiches sans identifiant, Revold interroge la base Sirene officielle et vous propose l'enrichissement, preuve à l'appui." },
+        { step: "Vous validez, tout se propage", desc: "La fiche unifiée est consolidée et les identifiants validés sont écrits dans HubSpot pour garder votre CRM cohérent." },
       ]}
       stats={[
-        { value: "7", label: "méthodes de matching" },
-        { value: "9", label: "règles configurables" },
-        { value: "13", label: "sources réconciliées" },
-        { value: "100%", label: "traçabilité" },
+        { value: "SIREN", label: "SIRET & N° TVA comme clés de rapprochement" },
+        { value: "1 clic", label: "pour valider un enrichissement Sirene" },
+        { value: "6", label: "sources rapprochées + Excel / Sheets" },
+        { value: "100%", label: "traçabilité des rapprochements" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Matching contacts HubSpot ↔ clients Stripe par email + domaine", "Réconciliation entreprises par SIREN/SIRET/TVA", "Enrichissement des fiches HubSpot avec données billing", "Writeback des identifiants croisés vers HubSpot"] },
-        { crm: "Salesforce", items: ["Résolution accounts Salesforce ↔ companies billing", "7 méthodes de matching appliquées sur vos données", "Traçabilité complète dans la table source_links", "Propagation automatique des résolutions"] },
-        { crm: "Multi-CRM", items: ["Un contact dans HubSpot, Pipedrive ET Stripe = une seule fiche", "Résolution cross-CRM si vous migrez ou utilisez plusieurs outils", "Identifiants français natifs (SIREN, SIRET, TVA)", "9 règles de priorité configurables"] },
+        { crm: "HubSpot", items: ["Rapprochement companies HubSpot ↔ clients Stripe / Pennylane par SIREN / TVA", "Identifiants manquants remplis depuis la base Sirene, à valider en un clic", "Écriture des SIREN / SIRET validés dans vos fiches HubSpot", "Traçabilité complète : source, méthode, date de rapprochement"] },
+        { crm: "Stripe + Pennylane", items: ["Le même client facturé et comptabilisé = une seule entreprise", "Rapprochement par N° TVA et SIREN entre facturation et compta", "Écarts CRM ↔ facturé enfin mesurables entreprise par entreprise", "Enrichissement Sirene pour les clients sans identifiant légal"] },
+        { crm: "Import Excel / Sheets", items: ["Vos fichiers rejoignent le même moteur de rapprochement", "Mapping de votre ID de rapprochement custom à l'onboarding", "Dédoublonnage contre les entités déjà connues", "Audit de qualité sur les lignes non rapprochées"] },
       ]}
     />
   );

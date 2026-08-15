@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { RevoldLogo } from "@/components/revold-logo";
 import { SiteNavbar } from "@/components/site-navbar";
+import { SiteFooter } from "@/components/site-footer";
 import { articles } from "../data";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -29,6 +29,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/* Surcharges sombres du style .prose-revold (défini clair dans globals.css) */
+const PROSE_DARK_CSS = `
+.prose-dark h2, .prose-dark h3 { color: #ffffff; }
+.prose-dark p, .prose-dark ul li { color: #94a3b8; }
+.prose-dark strong { color: #f1f5f9; }
+.prose-dark em { color: #94a3b8; }
+.prose-dark a { color: #f0abfc; }
+.prose-dark code { background: rgba(255, 255, 255, 0.08); color: #e2e8f0; }
+.prose-dark blockquote { color: #94a3b8; border-color: rgba(255, 255, 255, 0.15); }
+`;
+
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
   const article = articles.find((a) => a.slug === slug);
@@ -44,43 +55,51 @@ export default async function ArticlePage({ params }: Props) {
   const allRelated = [...related, ...extraRelated];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <style dangerouslySetInnerHTML={{ __html: PROSE_DARK_CSS }} />
       <SiteNavbar />
 
-      <article className="mx-auto w-full max-w-3xl px-6 py-16 md:py-24">
+      <article className="relative mx-auto w-full max-w-3xl px-6 py-16 md:py-24">
+        <div className="pointer-events-none absolute -left-52 top-0 h-80 w-80 rounded-full bg-fuchsia-600/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-52 top-40 h-80 w-80 rounded-full bg-indigo-600/10 blur-3xl" />
+
         {/* Meta */}
-        <Link href="/blog" className="text-xs font-medium text-accent hover:underline">&larr; Retour au blog</Link>
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">{article.category}</span>
-          <span className="text-xs text-slate-400">{article.readTime} de lecture</span>
+        <Link href="/blog" className="relative text-xs font-medium text-fuchsia-300 hover:underline">&larr; Retour au blog</Link>
+        <div className="relative mt-6 flex flex-wrap items-center gap-3">
+          <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-xs font-medium text-fuchsia-300">{article.category}</span>
+          <span className="text-xs text-slate-500">{article.readTime} de lecture</span>
         </div>
-        <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-4xl">{article.title}</h1>
-        <div className="mt-4 flex items-center gap-4">
+        <h1 className="relative mt-4 text-3xl font-bold leading-tight tracking-tight text-white md:text-4xl">{article.title}</h1>
+        <div className="relative mt-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-sm font-bold text-white">IB</div>
           <div>
-            <p className="text-sm font-medium text-slate-900">{article.author}</p>
-            <p className="text-xs text-slate-400">{article.authorRole} — {new Date(article.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</p>
+            <p className="text-sm font-medium text-white">{article.author}</p>
+            <p className="text-xs text-slate-500">{article.authorRole} — {new Date(article.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</p>
           </div>
         </div>
 
         {/* Content */}
         <div
-          className="prose-revold mt-12"
+          className="prose-revold prose-dark relative mt-12"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </article>
 
       {/* Related */}
       {allRelated.length > 0 && (
-        <section className="border-t border-card-border bg-white py-16">
+        <section className="border-t border-white/10 bg-white/[0.02] py-16">
           <div className="mx-auto max-w-7xl px-6">
-            <h2 className="text-xl font-bold text-slate-900">Autres articles</h2>
+            <h2 className="text-xl font-bold text-white">Autres articles</h2>
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
               {allRelated.map((a) => (
-                <Link key={a.slug} href={`/blog/${a.slug}`} className="card group p-6 transition hover:shadow-lg hover:shadow-accent/5">
-                  <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[10px] font-medium text-accent">{a.category}</span>
-                  <h3 className="mt-3 font-semibold text-slate-900 transition group-hover:text-accent">{a.title}</h3>
-                  <p className="mt-2 text-xs text-slate-400">{new Date(a.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} — {a.readTime}</p>
+                <Link
+                  key={a.slug}
+                  href={`/blog/${a.slug}`}
+                  className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]"
+                >
+                  <span className="rounded-full bg-fuchsia-500/15 px-2.5 py-0.5 text-[10px] font-medium text-fuchsia-300">{a.category}</span>
+                  <h3 className="mt-3 font-semibold text-white transition group-hover:text-fuchsia-300">{a.title}</h3>
+                  <p className="mt-2 text-xs text-slate-500">{new Date(a.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} — {a.readTime}</p>
                 </Link>
               ))}
             </div>
@@ -89,66 +108,21 @@ export default async function ArticlePage({ params }: Props) {
       )}
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 py-16">
-        <div className="mx-auto max-w-3xl px-6 text-center">
+      <section className="relative overflow-hidden border-t border-white/10 py-16">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/20 via-purple-600/20 to-indigo-600/20 blur-3xl" />
+        <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-2xl font-bold text-white">Prêt à passer à l&apos;action ?</h2>
-          <p className="mt-4 text-purple-100">Connectez votre CRM et voyez vos premiers insights en 5 minutes.</p>
-          <Link href="/essai-gratuit" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-purple-600 shadow-lg transition hover:bg-purple-50">
+          <p className="mt-4 text-slate-400">Connectez HubSpot en un clic et voyez vos premiers insights câblés sur vos vraies données.</p>
+          <Link
+            href="/essai-gratuit"
+            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
+          >
             Essayer Revold gratuitement
           </Link>
         </div>
       </section>
 
-      <footer className="border-t border-card-border bg-white py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
-            <div className="col-span-2 md:col-span-1">
-              <RevoldLogo />
-              <p className="mt-4 text-sm text-slate-500">Plateforme de Revenue Intelligence pour le marché B2B français.</p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Produit</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/produits/synchronisation" className="text-sm text-slate-500 transition hover:text-slate-700">Synchronisation</Link></li>
-                <li><Link href="/produits/reporting-cross-source" className="text-sm text-slate-500 transition hover:text-slate-700">Reporting</Link></li>
-                <li><Link href="/produits/insights-ia" className="text-sm text-slate-500 transition hover:text-slate-700">Insights IA</Link></li>
-                <li><Link href="/produits/audit-crm" className="text-sm text-slate-500 transition hover:text-slate-700">Audit CRM</Link></li>
-                <li><Link href="/integrations" className="text-sm text-slate-500 transition hover:text-slate-700">Intégrations</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Solutions</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/solutions/optimiser-revenus" className="text-sm text-slate-500 transition hover:text-slate-700">Optimiser les revenus</Link></li>
-                <li><Link href="/solutions/fiabiliser-donnees" className="text-sm text-slate-500 transition hover:text-slate-700">Fiabiliser les données</Link></li>
-                <li><Link href="/solutions/accelerer-cycles-vente" className="text-sm text-slate-500 transition hover:text-slate-700">Accélérer les ventes</Link></li>
-                <li><Link href="/solutions/reduire-churn" className="text-sm text-slate-500 transition hover:text-slate-700">Réduire le churn</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Ressources</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/blog" className="text-sm text-slate-500 transition hover:text-slate-700">Blog</Link></li>
-                <li><Link href="/pourquoi-revold" className="text-sm text-slate-500 transition hover:text-slate-700">Pourquoi Revold</Link></li>
-                <li><Link href="/contact" className="text-sm text-slate-500 transition hover:text-slate-700">Contact</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Légal</p>
-              <ul className="mt-4 space-y-2.5">
-                <li><Link href="/legal/confidentialite" className="text-sm text-slate-500 transition hover:text-slate-700">Confidentialité</Link></li>
-                <li><Link href="/legal/cgu" className="text-sm text-slate-500 transition hover:text-slate-700">CGU</Link></li>
-                <li><Link href="/legal/securite" className="text-sm text-slate-500 transition hover:text-slate-700">Sécurité</Link></li>
-                <li><Link href="/legal/rgpd" className="text-sm text-slate-500 transition hover:text-slate-700">RGPD</Link></li>
-                <li><Link href="/legal/dpa" className="text-sm text-slate-500 transition hover:text-slate-700">DPA</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-card-border pt-8 md:flex-row">
-            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Revold. Tous droits réservés.</p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

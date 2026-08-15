@@ -10,9 +10,9 @@ export default function ReportingCrossSourcePage() {
   return (
     <ProductPage
       badge="Reporting cross-source"
-      title="Un seul dashboard."
-      titleAccent="Toutes vos sources."
-      subtitle="Croisez vos données CRM, facturation et support dans des rapports unifiés impossibles à construire dans HubSpot ou Salesforce seuls. 80+ rapports pré-configurés."
+      title="Des KPIs câblés."
+      titleAccent="Jamais inventés."
+      subtitle="Croisez votre CRM, votre facturation et votre compta dans des KPIs et des tables vérifiés : chaque chiffre est câblé sur vos données réelles, recalculé en déterministe, avec la preuve de sa source."
       heroIcon={icon}
       pains={[
         { value: "68%", label: "des organisations citent les silos de données comme leur principal obstacle opérationnel en 2026.", source: "Agents for Hire" },
@@ -20,29 +20,29 @@ export default function ReportingCrossSourcePage() {
         { value: "44%", label: "des entreprises perdent +10% de leur CA annuel à cause de données CRM erronées ou incomplètes.", source: "RevOps 802" },
       ]}
       features={[
-        { title: "80+ rapports pré-configurés", desc: "Performance commerciale, marketing, paiement & facturation, service client. Prêts dès la connexion de vos outils." },
-        { title: "Croisement CRM × Billing × Support", desc: "Répondez à : 'Quel est mon vrai CAC payback ?' ou 'Mes clients avec des tickets ouverts vont-ils churner ?'" },
-        { title: "3 moteurs de scoring", desc: "Score de santé Sales, Marketing et CRM calculés quotidiennement sur 14 KPIs temps réel." },
-        { title: "Rapports par intégration unique", desc: "Drill-down par outil connecté : performance HubSpot, revenus Stripe, satisfaction Zendesk." },
-        { title: "Rapports multi-intégrations", desc: "Les rapports impossibles avec un seul outil : revenus réels vs pipeline, churn vs support, CAC vs LTV." },
-        { title: "Tendances historiques", desc: "Sélecteur de période avec comparaison semaine/mois/trimestre. Visualisez la progression, pas juste un snapshot." },
+        { title: "KPIs câblés et vérifiés", desc: "Chaque KPI affiche sa source, l'outil d'origine et la valeur calculée. Pas de chiffre sorti d'un chapeau : vous voyez le câblage avant de faire confiance." },
+        { title: "Funnel de câblage", desc: "Avant chaque KPI, l'étape « sources à croiser » : Revold vous montre quels outils connectés alimentent la mesure, et ce qu'il manque pour la fiabiliser." },
+        { title: "Recalcul déterministe", desc: "Les valeurs sont recalculées par le moteur — pas générées par l'IA. Le même calcul, sur les mêmes données, donne toujours le même chiffre." },
+        { title: "Croisement CRM × facturation × compta", desc: "Pipeline HubSpot croisé avec les factures Stripe et les écritures Pennylane : écart CA CRM ↔ CA facturé, churn réel, revenus encaissés." },
+        { title: "Tables cross-source", desc: "Des tables détaillées, ligne par ligne, avec les entités rapprochées par SIREN / SIRET / TVA — la donnée derrière chaque agrégat." },
+        { title: "Périodes & comparaisons", desc: "Semaine, mois, trimestre, année : sélecteur de période avec comparaison. Visualisez la progression, pas juste un snapshot." },
       ]}
       howItWorks={[
-        { step: "Connectez vos sources", desc: "CRM + facturation + support. Revold normalise tout dans un modèle de données unifié unifié." },
-        { step: "Les rapports se remplissent seuls", desc: "80+ rapports sont calculés automatiquement. Aucune formule à écrire, aucun export à faire." },
-        { step: "Croisez ce qui était impossible", desc: "Les insights cross-source apparaissent : corrélation churn/tickets, pipeline réel vs facturé, etc." },
-        { step: "Partagez et décidez", desc: "Dashboard temps réel pour votre équipe, votre direction, vos boards. Une seule source de vérité." },
+        { step: "Connectez vos sources", desc: "CRM + facturation + compta. Revold normalise tout dans un modèle de données unifié et rapproche les entités par SIREN / SIRET / TVA." },
+        { step: "Le funnel de câblage vérifie", desc: "Pour chaque KPI, Revold identifie les sources à croiser parmi vos outils connectés et contrôle la couverture des données." },
+        { step: "Les chiffres sont recalculés en déterministe", desc: "Le moteur calcule chaque valeur sur vos données réelles, avec traçabilité complète — jamais une estimation IA." },
+        { step: "Vous croisez ce qui était impossible", desc: "Pipeline réel vs facturé, revenus encaissés vs prévus, churn constaté : une seule source de vérité pour votre équipe et votre board." },
       ]}
       stats={[
-        { value: "80+", label: "rapports automatiques" },
-        { value: "14", label: "KPIs temps réel" },
-        { value: "3", label: "moteurs de scoring" },
-        { value: "0", label: "exports manuels" },
+        { value: "100%", label: "des chiffres câblés sur vos données réelles" },
+        { value: "3", label: "univers croisés : CRM × facturation × compta" },
+        { value: "0", label: "export manuel" },
+        { value: "0", label: "chiffre inventé par l'IA" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["80+ rapports pré-remplis avec vos données HubSpot", "Croisement pipeline HubSpot × factures Stripe", "Score de santé CRM basé sur vos property groups", "Attribution marketing → deal → facture"] },
-        { crm: "Salesforce", items: ["Rapports enrichis par vos données Salesforce", "Pipeline Salesforce croisé avec votre billing", "Métriques de vélocité par stage Salesforce", "Vue unifiée multi-source"] },
-        { crm: "Pipedrive + Stripe", items: ["Pipeline Pipedrive × paiements Stripe en un dashboard", "KPIs de conversion calculés automatiquement", "Rapports revenus réels vs pipeline prévu", "Tendances historiques cross-source"] },
+        { crm: "HubSpot", items: ["KPIs câblés sur vos pipelines, deals et contacts HubSpot", "Croisement pipeline HubSpot × factures Stripe / Pennylane", "Funnel de câblage : sources vérifiées avant chaque KPI", "Écart CA CRM ↔ CA réellement facturé, chiffré en euros"] },
+        { crm: "Stripe + Pennylane", items: ["MRR, factures et encaissements croisés avec le CRM", "Rapprochement automatique des entreprises par SIREN / N° TVA", "Tables détaillées ligne par ligne, avec la source de chaque montant", "Périodes comparables : mois, trimestre, année"] },
+        { crm: "Chargebee / GoCardless / Sage", items: ["Abonnements, prélèvements et écritures intégrés aux KPIs", "Croisement multi-outils dans le même modèle unifié", "Recalcul déterministe à chaque synchronisation", "Une seule source de vérité, quel que soit l'outil d'origine"] },
       ]}
     />
   );

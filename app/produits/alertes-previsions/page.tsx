@@ -7,43 +7,43 @@ const icon = (
   </svg>
 );
 
-export default function AlertesPrevisionPage() {
+export default function AlertesObjectifsActionsPage() {
   return (
     <ProductPage
-      badge="Alertes & Prévisions de ventes"
-      title="Sauvez vos deals."
-      titleAccent="Avant qu'il ne soit trop tard."
-      subtitle="Détection automatique des deals à risque, alertes en temps réel et prévisions de ventes basées sur vos données réelles — pas sur l'intuition de vos commerciaux."
+      badge="Alertes, objectifs & actions"
+      title="Détecter ne suffit pas."
+      titleAccent="Revold agit avec vous."
+      subtitle="Des alertes et objectifs au câblage vérifié — la preuve chiffrée avant création — et une boîte d'actions human-in-the-loop : deal silencieux → tâche HubSpot, impayé → rappel Stripe officiel. Chaque euro récupéré est attribué."
       heroIcon={icon}
       pains={[
         { value: "61%", label: "des deals perdus le sont par indécision du buyer, pas par la concurrence. Sans alerte, le signal est invisible.", source: "Challenger Inc." },
-        { value: "36–44%", label: "des deals slippent au-delà de leur close date prévue. Le forecast devient fiction.", source: "Ebsta" },
-        { value: "93%", label: "des forecasts B2B sont inexacts à plus de 5%. Seules 7% des orgas atteignent +90% de précision.", source: "Gartner / CSO Insights" },
+        { value: "36–44%", label: "des deals slippent au-delà de leur close date prévue — et meurent en silence.", source: "Ebsta" },
+        { value: "~10%", label: "des churns SaaS sont involontaires : un paiement échoue et personne ne relance à temps.", source: "Recover / ProfitWell" },
       ]}
       features={[
-        { title: "Détection de risque automatique", desc: "3 signaux automatiques : inactivité > 14 jours, régression de stage, slippage de date de closing." },
-        { title: "Flag is_at_risk avec raisons", desc: "Chaque deal à risque est flaggé avec des raisons explicites en clair. Pas une boîte noire." },
-        { title: "Alertes RevOps temps réel", desc: "Cloche dans le header avec dropdown. Alertes par catégorie et sévérité : critique, avertissement, info." },
-        { title: "Forecast probabiliste", desc: "Probabilités par stage × historique win rate. Prévision basée sur vos vraies données, pas des estimations." },
-        { title: "Deal coaching IA", desc: "Recommandations contextuelles par opportunité : quoi faire, quand, pourquoi. Basé sur les patterns qui gagnent." },
-        { title: "Page Deals à Risque", desc: "Vue dédiée avec filtres par owner, montant, ancienneté du risque. Votre war room revenue." },
+        { title: "Câblage vérifié avant création", desc: "Avant de créer une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve chiffrée d'abord, le suivi ensuite." },
+        { title: "Détection déterministe", desc: "Le seuil est détecté par le moteur sur vos données réelles ; l'agent IA rédige la notification. Jamais l'inverse." },
+        { title: "Boîte d'actions human-in-the-loop", desc: "Revold propose, vous validez, l'action s'exécute dans vos outils. Rien ne part sans votre accord explicite." },
+        { title: "Deal silencieux → tâche HubSpot", desc: "Un deal sans activité depuis 21 jours ? Une tâche est créée dans HubSpot pour le bon owner, avec le contexte du deal." },
+        { title: "Impayé → rappel Stripe officiel", desc: "Facture en retard ? Revold déclenche le rappel officiel Stripe après votre validation — pas un email bricolé." },
+        { title: "Cash récupéré, attribué en euros", desc: "Chaque relance qui aboutit est tracée : vous voyez, ligne par ligne, les euros réellement récupérés grâce aux actions exécutées." },
       ]}
       howItWorks={[
-        { step: "Le moteur de risque analyse chaque deal", desc: "À chaque sync, les 3 règles de détection sont appliquées sur l'ensemble de votre pipeline." },
-        { step: "Les deals à risque sont flaggés", desc: "is_at_risk = true, avec risk_reasons détaillées : 'Aucune activité depuis 18 jours', 'Stage régressé de Négociation à Qualification'." },
-        { step: "Vous recevez une alerte", desc: "Notification dans la cloche + insight IA avec recommandation d'action contextualisée." },
-        { step: "Le forecast s'ajuste", desc: "La prévision intègre le risque détecté. Votre vision du trimestre est réaliste, pas optimiste." },
+        { step: "Créez une alerte ou un objectif, preuve à l'appui", desc: "Revold affiche la source, l'outil et la valeur actuelle calculée avant la création. Vous savez exactement ce qui sera suivi." },
+        { step: "Le moteur surveille en déterministe", desc: "Les seuils sont contrôlés automatiquement sur vos données synchronisées ; l'agent rédige des notifications claires (email, Slack, Teams)." },
+        { step: "Une action vous est proposée", desc: "Deal silencieux, impayé, objectif en dérive : l'action adaptée arrive dans votre boîte d'actions, prête à être validée." },
+        { step: "Vous validez, l'impact est mesuré", desc: "L'action s'exécute dans HubSpot ou Stripe, et le résultat — dont le cash récupéré — est attribué en euros, ligne par ligne." },
       ]}
       stats={[
-        { value: "3", label: "règles de détection" },
-        { value: "-22%", label: "de cycle de vente" },
-        { value: "+17%", label: "de win rate" },
-        { value: "±7%", label: "de variance forecast (vs ±18%)" },
+        { value: "100%", label: "des alertes au câblage vérifié" },
+        { value: "0", label: "action exécutée sans votre validation" },
+        { value: "21 j", label: "de silence → tâche HubSpot proposée" },
+        { value: "€", label: "cash récupéré attribué, ligne par ligne" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Détection automatique des deals HubSpot à risque", "Alertes quand un deal stagne >14 jours ou régresse de stage", "Forecast probabiliste basé sur votre historique HubSpot", "Deal coaching IA contextuel par opportunité"] },
-        { crm: "Salesforce", items: ["Monitoring de vos opportunities Salesforce", "Détection de slippage et d'inactivité", "Prévisions basées sur vos win rates Salesforce", "Recommandations par deal"] },
-        { crm: "Tout CRM + Stripe", items: ["Croisement pipeline × paiements pour valider le forecast", "Alerte si un client à fort MRR ouvre des tickets support", "Revenue réel vs prévu mesuré automatiquement", "Prévisions financières fiables pour votre DAF"] },
+        { crm: "HubSpot", items: ["Détection des deals silencieux sur vos pipelines réels", "Tâche HubSpot créée pour le bon owner, après votre validation", "Alertes d'objectifs câblées sur vos KPIs HubSpot", "Notifications par email, Slack ou Teams"] },
+        { crm: "Stripe", items: ["Détection automatique des factures en retard et paiements échoués", "Rappel Stripe officiel déclenché en un clic de validation", "Cash récupéré attribué en euros, relance par relance", "Croisement impayés × CRM pour prioriser les comptes clés"] },
+        { crm: "GoCardless / Chargebee / Sage", items: ["Alertes sur prélèvements échoués et abonnements en tension", "Objectifs de trésorerie suivis sur vos encaissements réels", "Échéances fiscales intégrées à votre calendrier d'alertes", "Même exigence : preuve chiffrée avant chaque création"] },
       ]}
     />
   );

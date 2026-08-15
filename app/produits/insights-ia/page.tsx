@@ -10,40 +10,40 @@ const icon = (
 export default function InsightsIAPage() {
   return (
     <ProductPage
-      badge="Insights IA cross-source"
-      title="Des insights que votre CRM"
-      titleAccent="ne peut pas voir."
-      subtitle="L'IA croise vos données CRM, facturation et support pour générer des insights impossibles avec un seul outil. Pas du bruit — des recommandations actionnables."
+      badge="Mon équipe IA 24/7"
+      title="Une équipe d'agents IA,"
+      titleAccent="disponible 24/7."
+      subtitle="Des agents experts par domaine, des coachs par métier, des routines programmées et une tour de contrôle vocale — avec une règle absolue : chaque chiffre est câblé sur vos vraies données, jamais inventé."
       heroIcon={icon}
       pains={[
         { value: "61%", label: "des deals perdus le sont par indécision du buyer — des signaux faibles que personne ne détecte.", source: "Challenger Inc." },
-        { value: "55%", label: "des sales leaders n'ont pas confiance dans leur forecast. L'intuition ne suffit plus.", source: "Gartner" },
+        { value: "55%", label: "des sales leaders n'ont pas confiance dans leurs chiffres. L'intuition ne suffit plus.", source: "Gartner" },
         { value: "87%", label: "des RevOps leaders trouvent l'adhésion au process difficile — sans insights, pas de motivation.", source: "RevOps Co-op" },
       ]}
       features={[
-        { title: "6 insights cross-source", desc: "Corrélation churn/tickets, pipeline réel vs facturé, CAC payback, engagement vs conversion, et plus." },
-        { title: "Génération IA (Claude API)", desc: "Analyse de vos KPI snapshots quotidiens pour générer des insights en langage naturel, pas des tableaux." },
-        { title: "Deal coaching contextuel", desc: "Chaque deal reçoit des recommandations personnalisées basées sur son historique et ses signaux." },
-        { title: "Catégorisation par sévérité", desc: "Chaque insight est classé : critique, important, informatif. Vous savez où agir en premier." },
-        { title: "Scoring pondéré par org", desc: "Configurez les poids de votre scoring selon votre méthodologie. Pas un score générique imposé." },
-        { title: "Audit CRM intégré", desc: "L'IA audite la santé de vos données CRM et génère un blueprint de règles de résolution." },
+        { title: "Agents experts par domaine", desc: "Performance commerciale, trésorerie, service client, qualité des données : chaque agent maîtrise son périmètre et s'appuie sur vos données rapprochées." },
+        { title: "Coachs par métier", desc: "CEO, sales, marketing, CSM, finance : un coach dédié qui parle le langage de chaque équipe et connaît ses KPIs." },
+        { title: "Routines & récaps programmés", desc: "Choisissez la période (semaine → année) et les KPIs à couvrir : l'agent génère un récap complet (tuiles, courbes, synthèses), validé en aperçu, puis livré automatiquement — même app fermée." },
+        { title: "Tour de contrôle vocale", desc: "Une orbe sur votre accueil : demandez votre brief du jour à la voix — alertes en tension, objectifs, impayés, vos KPIs personnalisés — et naviguez en parlant." },
+        { title: "Anneau de santé", desc: "L'état de votre revenue d'un coup d'œil : alertes, objectifs et signaux agrégés dans un indicateur unique sur la tour de contrôle." },
+        { title: "Chiffres câblés, jamais inventés", desc: "L'agent rédige, mais les valeurs viennent du moteur déterministe : source, outil et calcul vérifiables pour chaque chiffre cité." },
       ]}
       howItWorks={[
-        { step: "Vos données sont synchronisées", desc: "Vos connecteurs alimentent le modèle de données unifié avec des données fraîches toutes les 6h." },
-        { step: "Le moteur KPI calcule", desc: "14 métriques sont calculées quotidiennement : pipeline, vélocité, conversion, win rate, MRR, churn..." },
-        { step: "L'IA analyse et croise", desc: "Claude analyse les snapshots KPI et croise les sources pour détecter tendances, anomalies et opportunités." },
-        { step: "Vous recevez des recommandations", desc: "Insights priorisés par sévérité, liés au deal ou à la métrique concernée, avec action recommandée." },
+        { step: "Vos données sont synchronisées et rapprochées", desc: "HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage : tout est normalisé et relié par SIREN / SIRET / TVA." },
+        { step: "Le moteur calcule en déterministe", desc: "KPIs, alertes et objectifs sont recalculés sur vos données réelles — c'est cette base chiffrée que les agents utilisent." },
+        { step: "Votre équipe IA analyse et rédige", desc: "Agents experts et coachs croisent les sources, détectent tendances et anomalies, et rédigent briefs, récaps et réponses à vos questions." },
+        { step: "Vous recevez briefs et récaps, où vous voulez", desc: "Brief vocal sur la tour de contrôle, routines livrées par email, Slack ou Teams — à votre rythme, sans ouvrir l'app." },
       ]}
       stats={[
-        { value: "+17%", label: "win rate avec revenue intelligence" },
-        { value: "6", label: "insights cross-source" },
-        { value: "14", label: "KPIs analysés quotidiennement" },
-        { value: "-22%", label: "de cycle de vente" },
+        { value: "24/7", label: "disponibilité de votre équipe IA" },
+        { value: "4", label: "domaines experts : performance, trésorerie, service client, qualité des données" },
+        { value: "100%", label: "des chiffres câblés en déterministe" },
+        { value: "1", label: "brief vocal du jour, à la demande" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Insights IA basés sur vos KPIs HubSpot + Stripe + Zendesk", "Deal coaching contextuel sur chaque opportunité HubSpot", "Audit qualité de vos données HubSpot avec blueprint IA", "Alertes quand un deal HubSpot montre des signaux de risque"] },
-        { crm: "Salesforce", items: ["Analyse de vos opportunities Salesforce par l'IA", "Croisement pipeline Salesforce × données billing", "Recommandations actionnables par deal", "Scoring pondéré adapté à votre process Salesforce"] },
-        { crm: "Tout CRM + billing", items: ["L'IA croise votre CRM avec vos factures et vos tickets", "Insights impossibles avec un seul outil", "Détection de corrélations churn/support/paiement", "Recommandations priorisées par sévérité"] },
+        { crm: "HubSpot", items: ["Coach commercial branché sur vos pipelines et deals HubSpot", "Brief du jour : deals silencieux, objectifs, activité récente", "Récaps de routine sur vos KPIs HubSpot × facturation", "Chaque chiffre cité est recalculé depuis vos données réelles"] },
+        { crm: "Stripe + Pennylane", items: ["Agent trésorerie : encaissements, impayés, échéances fiscales", "Croisement CA facturé × pipeline pour des briefs complets", "Alertes d'impayés relayées dans vos routines", "Récaps financiers programmés, livrés même app fermée"] },
+        { crm: "Toute votre stack", items: ["Agent qualité des données : complétude, doublons, rapprochements en attente", "Tour de contrôle vocale : posez vos questions à la voix", "Anneau de santé agrégeant alertes et objectifs", "Routines par équipe dans vos espaces de travail"] },
       ]}
     />
   );
