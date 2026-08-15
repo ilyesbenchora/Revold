@@ -55,7 +55,6 @@ const SILENT_DAYS = 21;
 export const AUTOMATABLE_KEYS = [
   "silent_deal",
   "overdue_invoice",
-  "crm_enrich",
   "link_company",
   "renewal_deal",
   "revenue_leakage",
@@ -417,79 +416,6 @@ export async function detectMergeCandidates(
       });
       if (out.length >= 10) break;
     }
-  }
-  return out;
-}
-
-/**
- * Détecteur : SIREN / N° TVA connu en canonique (via la facturation) mais
- * absent de la fiche HubSpot — l'action reporte l'identifiant dans le CRM.
- * Chaque report rend les rapprochements suivants automatiques.
- */
-export async function detectCrmIdentifierEnrich(
-  supabase: SupabaseClient,
-  orgId: string,
-  hubspotToken: string | null,
-): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
-  if (!hubspotToken) return [];
-  // Propriétés HubSpot cibles : mapping utilisateur, sinon défauts du catalogue.
-  const { data: mapping } = await supabase
-    .from("identifier_field_mapping")
-    .select("canonical_field, provider_field")
-    .eq("organization_id", orgId)
-    .eq("provider", "hubspot")
-    .in("canonical_field", ["siren", "vat_number"]);
-  const fieldFor = new Map<string, string>([["siren", "siren"], ["vat_number", "vat_number"]]);
-  for (const m of (mapping ?? []) as Array<{ canonical_field: string; provider_field: string | null }>) {
-    if (m.provider_field) fieldFor.set(m.canonical_field, m.provider_field);
-  }
-
-  const { data } = await supabase
-    .from("companies")
-    .select("id, name, siren, vat_number, hubspot_id")
-    .eq("organization_id", orgId)
-    .not("hubspot_id", "is", null)
-    .or("siren.not.is.null,vat_number.not.is.null")
-    .limit(100);
-  const companies = ((data ?? []) as Array<{ id: string; name: string | null; siren: string | null; vat_number: string | null; hubspot_id: string | null }>)
-    .filter((c) => c.hubspot_id);
-  if (companies.length === 0) return [];
-
-  // Lecture batch HubSpot : la propriété est-elle déjà renseignée côté CRM ?
-  let hsProps = new Map<string, Record<string, string | null>>();
-  try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/batch/read", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        properties: [...new Set(fieldFor.values())],
-        inputs: companies.map((c) => ({ id: c.hubspot_id })),
-      }),
-    });
-    if (!res.ok) return []; // propriété inexistante côté portail → rien à proposer
-    const d = (await res.json()) as { results?: Array<{ id: string; properties?: Record<string, string | null> }> };
-    hsProps = new Map((d.results ?? []).map((r) => [r.id, r.properties ?? {}]));
-  } catch {
-    return [];
-  }
-
-  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
-  for (const c of companies) {
-    const hs = hsProps.get(c.hubspot_id!) ?? {};
-    const toWrite: Record<string, string> = {};
-    const parts: string[] = [];
-    if (c.siren && !hs[fieldFor.get("siren")!]) { toWrite[fieldFor.get("siren")!] = c.siren; parts.push(`SIREN ${c.siren}`); }
-    if (c.vat_number && !hs[fieldFor.get("vat_number")!]) { toWrite[fieldFor.get("vat_number")!] = c.vat_number; parts.push(`N° TVA ${c.vat_number}`); }
-    if (Object.keys(toWrite).length === 0) continue;
-    out.push({
-      dedupe_key: `crm_enrich:${c.id}`,
-      type: "hubspot_company_update",
-      title: `Reporter ${parts.join(" + ")} sur « ${c.name ?? "entreprise"} » (CRM)`,
-      description: `L'identifiant est connu via la facturation mais absent de la fiche HubSpot. Valider l'écrit dans le CRM : les prochains rapprochements de cette entreprise deviennent automatiques (et la fiche est prête pour la facturation électronique).`,
-      source: "detector:crm_enrich",
-      payload: { companyHubspotId: c.hubspot_id!, hubspotProperties: toWrite },
-    });
-    if (out.length >= 10) break;
   }
   return out;
 }
@@ -955,7 +881,12 @@ export async function executeHubspotSequenceEnroll(
   }
 }
 
-/** Écrit des propriétés sur une entreprise HubSpot (enrichissement SIREN/TVA). */
+/**
+ * Écrit des propriétés sur une entreprise HubSpot.
+ * L'enrichissement CRM (SIREN/TVA) est désormais piloté par la console de la
+ * page Enrichissement — plus aucun détecteur ne produit ce type d'action.
+ * Conservé pour exécuter proprement les actions historiques encore en base.
+ */
 export async function executeHubspotCompanyUpdate(
   hubspotToken: string,
   payload: ActionPayload,

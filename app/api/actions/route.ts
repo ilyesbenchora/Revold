@@ -7,7 +7,6 @@ import {
   detectSilentDeals,
   detectOverdueInvoiceActions,
   detectMergeCandidates,
-  detectCrmIdentifierEnrich,
   detectUnlinkedCompanies,
   detectMissingRenewalDeals,
   detectRevenueLeakage,
@@ -143,10 +142,20 @@ export async function GET(request: Request) {
   const relanceCadence = normalizeCadence(autoCfg.get("overdue_invoice")?.cadence);
   const silentSettings = normalizeSilentSettings(autoCfg.get("silent_deal")?.cadence);
 
+  // L'enrichissement CRM (SIREN/TVA) est passé sur la console de la page
+  // Enrichissement : on purge les propositions résiduelles de cette famille.
+  try {
+    await supabase
+      .from("action_items")
+      .delete()
+      .eq("organization_id", orgId)
+      .eq("source", "detector:crm_enrich")
+      .eq("status", "pending");
+  } catch {}
+
   // ── Détection (best-effort) : upsert dédupliqué, jamais bloquant ──
   let needsMigration = false;
   try {
-    const hubspotToken = await getHubSpotToken(supabase, orgId);
     // Licence HubSpot + séquence choisie (Paramètres → Intégrations) : avec
     // Sales Pro/Enterprise, la relance des deals silencieux devient un VRAI
     // email (inscription en séquence au nom de l'owner) au lieu d'une tâche.
@@ -167,7 +176,6 @@ export async function GET(request: Request) {
       run("silent_deal", () => detectSilentDeals(supabase, orgId, sequence, silentSettings)),
       run("overdue_invoice", () => detectOverdueInvoiceActions(supabase, orgId, relanceCadence)),
       run("duplicate_merge", () => detectMergeCandidates(supabase, orgId)),
-      run("crm_enrich", () => detectCrmIdentifierEnrich(supabase, orgId, hubspotToken)),
       run("link_company", () => detectUnlinkedCompanies(supabase, orgId)),
       run("renewal_deal", () => detectMissingRenewalDeals(supabase, orgId)),
       run("revenue_leakage", () => detectRevenueLeakage(supabase, orgId)),

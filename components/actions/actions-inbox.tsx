@@ -30,7 +30,7 @@ type ActionItem = {
 };
 
 /** Familles automatisables (miroir du serveur) — les fusions restent manuelles. */
-const AUTOMATABLE = new Set(["silent_deal", "overdue_invoice", "crm_enrich", "link_company", "renewal_deal", "revenue_leakage", "billing_contact"]);
+const AUTOMATABLE = new Set(["silent_deal", "overdue_invoice", "link_company", "renewal_deal", "revenue_leakage", "billing_contact"]);
 
 /**
  * Détail concret d'une action : ce qui sera exactement écrit dans l'outil à
@@ -126,6 +126,8 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_task: { label: "Tâche HubSpot", domain: "hubspot.com", icon: "🟧", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_sequence_enroll: { label: "Relance par email (séquence)", domain: "hubspot.com", icon: "✉️", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_merge: { label: "Fusion de doublons", domain: "hubspot.com", icon: "🔀", tool: "hubspot", toolLabel: "HubSpot" },
+  // Enrichissement CRM : plus produit par un détecteur (console de la page
+  // Enrichissement) — conservé pour l'historique déjà en base.
   hubspot_company_update: { label: "Enrichissement CRM", domain: "hubspot.com", icon: "🪪", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_contact: { label: "Création de contact", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
@@ -141,7 +143,6 @@ export const ACTION_CATALOG: Array<{ key: string; label: string; description: st
   { key: "silent_deal", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → relance par VRAI email (séquence au nom de l'owner, si licence Sales Pro + séquence choisie dans Paramètres → Intégrations), sinon tâche pour le propriétaire." },
   { key: "overdue_invoice", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Cycle borné : 7 jours entre deux relances, 3 maximum, arrêt immédiat dès réception du paiement, puis escalade en tâche de recouvrement humaine. Alimente « Cash récupéré »." },
   { key: "duplicate_merge", label: "Doublons à fusionner", description: "Contacts (même email) et entreprises (même domaine) en doublon, selon les règles de déduplication activées → fusion HubSpot validée fiche par fiche." },
-  { key: "crm_enrich", label: "SIREN / TVA à reporter dans le CRM", description: "L'identifiant est connu via la facturation mais absent de la fiche HubSpot → écrit en un clic. Chaque report rend les rapprochements suivants automatiques." },
   { key: "link_company", label: "Fiches facturation à relier au CRM", description: "Entreprise vue côté facturation sans lien CRM alors qu'une fiche correspond (nom/domaine) → rattachement : le CA devient attribuable compte par compte." },
   { key: "renewal_deal", label: "Deals de renouvellement manquants", description: "Abonnement actif se terminant sous 60 jours sans deal ouvert → crée le deal de renouvellement (MRR × 12) : le forecast intègre le récurrent." },
   { key: "revenue_leakage", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
