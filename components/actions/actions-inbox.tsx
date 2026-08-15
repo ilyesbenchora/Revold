@@ -21,7 +21,12 @@ type ActionItem = {
   decided_at: string | null;
   result: { ok?: boolean; detail?: string } | null;
   payload?: Record<string, unknown> | null;
+  /** true = exécutée automatiquement (famille automatisée par l'utilisateur). */
+  auto?: boolean;
 };
+
+/** Familles automatisables (miroir du serveur) — les fusions restent manuelles. */
+const AUTOMATABLE = new Set(["silent_deal", "overdue_invoice", "crm_enrich", "link_company", "renewal_deal", "revenue_leakage", "billing_contact"]);
 
 /**
  * Détail concret d'une action : ce qui sera exactement écrit dans l'outil à
@@ -171,6 +176,9 @@ export function ActionsInbox() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   // Fiche dépliée : détail concret de ce que la validation va écrire.
   const [detailId, setDetailId] = useState<string | null>(null);
+  // Familles automatisées par l'utilisateur (réglage serveur, par org).
+  const [automated, setAutomated] = useState<string[]>([]);
+  const [autoBusy, setAutoBusy] = useState<string | null>(null);
   // Pagination : 15 (défaut) / 20 / 50 lignes, préférence mémorisée.
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(0);
@@ -184,6 +192,7 @@ export function ActionsInbox() {
       setNeedsMigration(Boolean(d.needsMigration));
       setPending(Array.isArray(d.pending) ? d.pending : []);
       setHistory(Array.isArray(d.history) ? d.history : []);
+      setAutomated(Array.isArray(d.automated) ? d.automated : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
       setPending([]);
@@ -211,6 +220,29 @@ export function ActionsInbox() {
     setPageSize(n);
     setPage(0);
     try { localStorage.setItem(PAGESIZE_KEY, String(n)); } catch {}
+  }
+
+  /** Automatisation opt-in d'une famille : réglage serveur + rechargement
+      (les actions en attente de la famille s'exécutent immédiatement). */
+  async function toggleAutomation(key: string, enabled: boolean) {
+    if (autoBusy) return;
+    setAutoBusy(key);
+    setError(null);
+    try {
+      const res = await fetch("/api/actions/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, enabled }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Réglage impossible");
+      setAutomated((prev) => (enabled ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setAutoBusy(null);
+    }
   }
 
   async function decide(id: string, decision: "approve" | "reject") {
@@ -301,7 +333,8 @@ export function ActionsInbox() {
                 <h3 className="text-sm font-semibold text-slate-900">Catalogue des actions</h3>
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   Choisis les familles d&apos;actions affichées dans la file — les familles masquées ne sont plus détectées.
-                  Chaque action reste validée par toi avant exécution.
+                  « Auto » exécute la famille sans validation à chaque détection : c&apos;est toi qui décides,
+                  et les fusions de doublons restent toujours manuelles.
                 </p>
               </div>
               <button
@@ -316,22 +349,52 @@ export function ActionsInbox() {
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
               {ACTION_CATALOG.map((c) => {
                 const on = !hidden.includes(c.key);
+                const isAuto = automated.includes(c.key);
                 return (
                   <div key={c.key} className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${on ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-70"}`}>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900">{c.label}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
+                        {c.label}
+                        {isAuto && on && (
+                          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-600">Auto</span>
+                        )}
+                      </p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{c.description}</p>
+                      {!AUTOMATABLE.has(c.key) && (
+                        <p className="mt-1 text-[10px] font-medium text-amber-600">Toujours validée manuellement (fusion irréversible).</p>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={on}
-                      aria-label={c.label}
-                      onClick={() => toggleCatalog(c.key)}
-                      className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition ${on ? "bg-indigo-500" : "bg-slate-300"}`}
-                    >
-                      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-all ${on ? "translate-x-[1.15rem]" : "translate-x-1"}`} />
-                    </button>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <label className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                        Affichée
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={on}
+                          aria-label={`Afficher : ${c.label}`}
+                          onClick={() => toggleCatalog(c.key)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${on ? "bg-indigo-500" : "bg-slate-300"}`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-all ${on ? "translate-x-[1.15rem]" : "translate-x-1"}`} />
+                        </button>
+                      </label>
+                      {AUTOMATABLE.has(c.key) && on && (
+                        <label className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                          Auto
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isAuto}
+                            aria-label={`Automatiser : ${c.label}`}
+                            disabled={autoBusy === c.key}
+                            onClick={() => void toggleAutomation(c.key, !isAuto)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition disabled:opacity-50 ${isAuto ? "bg-emerald-500" : "bg-slate-300"}`}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-all ${isAuto ? "translate-x-[1.15rem]" : "translate-x-1"}`} />
+                          </button>
+                        </label>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -427,15 +490,33 @@ export function ActionsInbox() {
                   </div>
                   <p className="mt-1.5 text-sm font-semibold text-slate-900">{a.title}</p>
                   {a.description && <p className="mt-0.5 text-xs text-slate-500">{a.description}</p>}
-                  {buildDetail(a) && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailId(detailId === a.id ? null : a.id)}
-                      className="mt-1.5 text-[11px] font-medium text-indigo-600 transition hover:underline"
-                    >
-                      {detailId === a.id ? "Masquer le détail ▴" : "Voir le détail ▾"}
-                    </button>
-                  )}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                    {buildDetail(a) && (
+                      <button
+                        type="button"
+                        onClick={() => setDetailId(detailId === a.id ? null : a.id)}
+                        className="text-[11px] font-medium text-indigo-600 transition hover:underline"
+                      >
+                        {detailId === a.id ? "Masquer le détail ▴" : "Voir le détail ▾"}
+                      </button>
+                    )}
+                    {/* Automatisation opt-in : décidée par l'utilisateur, pour les prochaines fois */}
+                    {(() => {
+                      const key = a.source.replace("detector:", "");
+                      if (!AUTOMATABLE.has(key) || automated.includes(key)) return null;
+                      return (
+                        <button
+                          type="button"
+                          disabled={autoBusy === key}
+                          onClick={() => void toggleAutomation(key, true)}
+                          title="Les prochaines actions de cette famille s'exécuteront automatiquement (désactivable dans le catalogue). Celles en attente s'exécutent immédiatement."
+                          className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
+                        >
+                          {autoBusy === key ? "Activation…" : "⚡ Automatiser ce type d'action"}
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -530,6 +611,11 @@ export function ActionsInbox() {
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {a.auto && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-600" title="Exécutée automatiquement (famille automatisée)">
+                      Auto
+                    </span>
+                  )}
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       a.status === "executed"

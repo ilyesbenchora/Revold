@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -19,6 +20,7 @@ import {
   executeHubspotCreateDeal,
   executeHubspotCreateContact,
   executeStripeSendInvoice,
+  AUTOMATABLE_KEYS,
   type ActionPayload,
 } from "@/lib/actions/engine";
 
@@ -26,14 +28,82 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Boîte d'actions (Suivi → Actions) — human-in-the-loop.
- * GET  : lance les détecteurs (nouvelles actions en attente, dédupliquées) et
- *        renvoie la file + l'historique.
+ * Boîte d'actions (Suivi → Actions) — human-in-the-loop, avec AUTOMATISATION
+ * opt-in par famille : l'utilisateur peut décider qu'une famille d'actions
+ * s'exécute désormais toute seule (lignes auto_action_<famille> dans
+ * entity_resolution_config). Les fusions de doublons ne sont JAMAIS
+ * automatisables (irréversibles).
+ * GET  : détecte, exécute les familles automatisées, renvoie file + historique.
  * POST : décision utilisateur — { id, decision: "approve" | "reject" }.
- *        approve = EXÉCUTION réelle dans l'outil (tâche HubSpot, rappel
- *        Stripe), résultat tracé ; une relance de facture approuvée alimente
- *        aussi « Cash récupéré » (invoice_reminders).
  */
+
+
+/** Exécution réelle d'une action dans l'outil — partagée POST / auto. */
+async function executeByType(
+  supabase: SupabaseClient,
+  orgId: string,
+  type: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_create_deal", "hubspot_create_contact"];
+  if (needsHubspot.includes(type)) {
+    const token = await getHubSpotToken(supabase, orgId);
+    if (!token) return { ok: false, detail: "HubSpot non connecté." };
+    if (type === "hubspot_task") return executeHubspotTask(token, payload);
+    if (type === "hubspot_sequence_enroll") return executeHubspotSequenceEnroll(token, payload);
+    if (type === "hubspot_merge") return executeHubspotMerge(token, payload);
+    if (type === "hubspot_company_update") return executeHubspotCompanyUpdate(token, payload);
+    if (type === "hubspot_create_deal") return executeHubspotCreateDeal(token, payload);
+    if (type === "hubspot_create_contact") return executeHubspotCreateContact(token, payload);
+  }
+  if (type === "link_company") return executeLinkCompany(supabase, orgId, payload);
+  if (type === "stripe_send_invoice") return executeStripeSendInvoice(supabase, orgId, payload);
+  return { ok: false, detail: `Type d'action inconnu : ${type}` };
+}
+
+/** Relance d'impayé exécutée → suivie dans « Cash récupéré » (ROI). */
+async function trackInvoiceReminder(
+  supabase: SupabaseClient,
+  orgId: string,
+  type: string,
+  payload: ActionPayload,
+  userId: string | null,
+) {
+  if (!payload.invoiceId) return;
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("id, amount_due")
+    .eq("organization_id", orgId)
+    .eq("id", payload.invoiceId)
+    .maybeSingle();
+  if (!inv) return;
+  await supabase.from("invoice_reminders").insert({
+    organization_id: orgId,
+    invoice_id: inv.id,
+    amount_due_at_reminder: Number(inv.amount_due) || 0,
+    channel: type === "stripe_send_invoice" ? "stripe" : "hubspot_task",
+    created_by: userId,
+  });
+}
+
+/** Familles automatisées par l'utilisateur (auto_action_* activées). */
+async function getAutomatedKeys(supabase: SupabaseClient, orgId: string): Promise<Set<string>> {
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("rule_id, enabled")
+      .eq("organization_id", orgId)
+      .like("rule_id", "auto_action_%");
+    return new Set(
+      ((data ?? []) as Array<{ rule_id: string; enabled: boolean }>)
+        .filter((r) => r.enabled)
+        .map((r) => r.rule_id.replace("auto_action_", ""))
+        .filter((k) => (AUTOMATABLE_KEYS as readonly string[]).includes(k)),
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -51,8 +121,7 @@ export async function GET(request: Request) {
   // ── Détection (best-effort) : upsert dédupliqué, jamais bloquant ──
   let needsMigration = false;
   try {
-    const { getHubSpotToken: getToken } = await import("@/lib/integrations/get-hubspot-token");
-    const hubspotToken = await getToken(supabase, orgId);
+    const hubspotToken = await getHubSpotToken(supabase, orgId);
     // Licence HubSpot + séquence choisie (Paramètres → Intégrations) : avec
     // Sales Pro/Enterprise, la relance des deals silencieux devient un VRAI
     // email (inscription en séquence au nom de l'owner) au lieu d'une tâche.
@@ -98,24 +167,61 @@ export async function GET(request: Request) {
     /* détecteurs jamais bloquants */
   }
 
+  // ── Automatisation opt-in : les familles que l'utilisateur a automatisées
+  //    s'exécutent immédiatement (decided_by null = exécution automatique,
+  //    badge « Auto » dans l'historique). Cap par passage pour rester réactif. ──
+  const automated = await getAutomatedKeys(supabase, orgId);
+  if (automated.size > 0 && !needsMigration) {
+    try {
+      const { data: autoPending } = await supabase
+        .from("action_items")
+        .select("id, type, source, payload")
+        .eq("organization_id", orgId)
+        .eq("status", "pending")
+        .in("source", [...automated].map((k) => `detector:${k}`))
+        .order("created_at", { ascending: true })
+        .limit(10);
+      for (const item of (autoPending ?? []) as Array<{ id: string; type: string; source: string; payload: ActionPayload | null }>) {
+        const payload = (item.payload ?? {}) as ActionPayload;
+        const outcome = await executeByType(supabase, orgId, item.type, payload);
+        await supabase
+          .from("action_items")
+          .update({ status: outcome.ok ? "executed" : "failed", result: outcome, decided_at: new Date().toISOString(), decided_by: null })
+          .eq("id", item.id)
+          .eq("organization_id", orgId)
+          .eq("status", "pending");
+        if (outcome.ok) await trackInvoiceReminder(supabase, orgId, item.type, payload, null);
+      }
+    } catch {
+      /* l'automatisation n'empêche jamais l'affichage de la boîte */
+    }
+  }
+
   const { data, error } = await supabase
     .from("action_items")
     // payload inclus : le panneau « Détail » de la fiche montre exactement ce
     // qui sera écrit dans l'outil avant validation.
-    .select("id, type, status, title, description, source, created_at, decided_at, result, payload")
+    .select("id, type, status, title, description, source, created_at, decided_at, decided_by, result, payload")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
     .limit(300);
   if (error) {
-    return NextResponse.json({ needsMigration: true, pending: [], history: [] });
+    return NextResponse.json({ needsMigration: true, pending: [], history: [], automated: [] });
   }
 
   // Les actions des détecteurs masqués (catalogue) ne sont pas renvoyées.
-  const rows = (data ?? []).filter((r) => !skip.has(String(r.source ?? "").replace("detector:", "")));
+  const rows = (data ?? [])
+    .filter((r) => !skip.has(String(r.source ?? "").replace("detector:", "")))
+    .map((r) => ({
+      ...r,
+      // Badge « Auto » : action décidée sans utilisateur (automatisation).
+      auto: r.status !== "pending" && !r.decided_by,
+    }));
   return NextResponse.json({
     needsMigration,
     pending: rows.filter((r) => r.status === "pending"),
     history: rows.filter((r) => r.status !== "pending").slice(0, 100),
+    automated: [...automated],
   });
 }
 
@@ -154,44 +260,7 @@ export async function POST(request: Request) {
 
   // ── Exécution réelle dans l'outil ──
   const payload = (item.payload ?? {}) as ActionPayload;
-  let outcome: { ok: boolean; detail: string };
-  if (item.type === "hubspot_task") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotTask(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "hubspot_sequence_enroll") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotSequenceEnroll(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "hubspot_merge") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotMerge(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "hubspot_company_update") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotCompanyUpdate(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "link_company") {
-    outcome = await executeLinkCompany(supabase, orgId, payload);
-  } else if (item.type === "hubspot_create_deal") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotCreateDeal(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "hubspot_create_contact") {
-    const token = await getHubSpotToken(supabase, orgId);
-    outcome = token
-      ? await executeHubspotCreateContact(token, payload)
-      : { ok: false, detail: "HubSpot non connecté." };
-  } else if (item.type === "stripe_send_invoice") {
-    outcome = await executeStripeSendInvoice(supabase, orgId, payload);
-  } else {
-    outcome = { ok: false, detail: `Type d'action inconnu : ${item.type}` };
-  }
+  const outcome = await executeByType(supabase, orgId, item.type, payload);
 
   await supabase
     .from("action_items")
@@ -199,24 +268,7 @@ export async function POST(request: Request) {
     .eq("id", item.id)
     .eq("organization_id", orgId);
 
-  // Relance de facture exécutée → suivie dans « Cash récupéré » (ROI).
-  if (outcome.ok && payload.invoiceId) {
-    const { data: inv } = await supabase
-      .from("invoices")
-      .select("id, amount_due")
-      .eq("organization_id", orgId)
-      .eq("id", payload.invoiceId)
-      .maybeSingle();
-    if (inv) {
-      await supabase.from("invoice_reminders").insert({
-        organization_id: orgId,
-        invoice_id: inv.id,
-        amount_due_at_reminder: Number(inv.amount_due) || 0,
-        channel: item.type === "stripe_send_invoice" ? "stripe" : "hubspot_task",
-        created_by: user.id,
-      });
-    }
-  }
+  if (outcome.ok) await trackInvoiceReminder(supabase, orgId, item.type, payload, user.id);
 
   return NextResponse.json({ ok: outcome.ok, status: outcome.ok ? "executed" : "failed", detail: outcome.detail });
 }

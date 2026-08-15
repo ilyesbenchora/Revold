@@ -47,6 +47,22 @@ const DAY_MS = 86_400_000;
 const SILENT_DAYS = 21;
 
 /**
+ * Familles d'actions AUTOMATISABLES par l'utilisateur (opt-in explicite,
+ * lignes auto_action_<clé> dans entity_resolution_config). duplicate_merge
+ * est volontairement exclue : une fusion HubSpot est irréversible, elle reste
+ * validée fiche par fiche.
+ */
+export const AUTOMATABLE_KEYS = [
+  "silent_deal",
+  "overdue_invoice",
+  "crm_enrich",
+  "link_company",
+  "renewal_deal",
+  "revenue_leakage",
+  "billing_contact",
+] as const;
+
+/**
  * Détecteur : deals ouverts silencieux depuis ≥ 21 jours (top montants).
  * Avec une séquence configurée (licence Sales Pro/Enterprise, Paramètres →
  * Intégrations), la relance proposée est un VRAI email : inscription du
