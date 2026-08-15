@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ReportArtifact } from "./report-artifact";
 import { REPORTS_UPDATED_EVENT, listSavedReports, removeSavedReport, type SavedReport } from "./saved-reports";
 import { AgentAvatar } from "./agent-avatar";
+import { AssignReportPage } from "./assign-report-page";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
 
@@ -20,11 +21,13 @@ function AgentReportsRow({
   label,
   items,
   onDelete,
+  onAssigned,
 }: {
   agentKey: string;
   label: string;
   items: SavedReport[];
   onDelete: (id: string) => void;
+  onAssigned?: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -91,14 +94,25 @@ function AgentReportsRow({
                     <span>{r.origin === "routine" ? "Généré le" : "Enregistré le"} {fmtDate(r.savedAt)}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => onDelete(r.id)}
-                  className="shrink-0 rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-red-50 hover:text-red-500"
-                >
-                  Supprimer
-                </button>
+                <div className="flex shrink-0 items-start gap-1">
+                  {/* Ranger le rapport sur la page adéquate (blocs câblés convertis) */}
+                  <AssignReportPage report={r} onDone={onAssigned} />
+                  <button
+                    onClick={() => onDelete(r.id)}
+                    className="rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
-              <ReportArtifact agentKey={r.agentKey} agentLabel={r.agentLabel} report={r.report} chart={r.chart} />
+              {/* savedReportId : toute correction du câblage est persistée. */}
+              <ReportArtifact
+                agentKey={r.agentKey}
+                agentLabel={r.agentLabel}
+                report={r.report}
+                chart={r.chart}
+                savedReportId={r.id}
+              />
             </div>
           ))}
         </div>
@@ -107,6 +121,12 @@ function AgentReportsRow({
   );
 }
 
+/**
+ * Rapports enregistrés « LIBRES » : ni issus d'une routine (onglet Routines),
+ * ni déjà rangés sur une page de la plateforme. Chacun est modifiable — la
+ * correction du câblage est persistée — et peut être enregistré sur la page
+ * adéquate.
+ */
 export function MesRapports() {
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -139,18 +159,27 @@ export function MesRapports() {
     setReports([]);
   }
 
-  const sorted = [...reports].sort((a, b) => b.savedAt - a.savedAt);
+  // Rapports libres : les routines ont leur propre onglet, les rapports rangés
+  // sur une page vivent désormais sur cette page.
+  const free = reports.filter((r) => r.origin !== "routine" && !r.pageKey);
+  const sorted = [...free].sort((a, b) => b.savedAt - a.savedAt);
   const byAgent = new Map<string, { label: string; items: SavedReport[] }>();
   for (const r of sorted) {
     if (!byAgent.has(r.agentKey)) byAgent.set(r.agentKey, { label: r.agentLabel, items: [] });
     byAgent.get(r.agentKey)!.items.push(r);
   }
+  const assignedCount = reports.filter((r) => r.pageKey).length;
 
-  if (hydrated && reports.length === 0) {
+  if (hydrated && free.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-        Aucun rapport enregistré pour l&apos;instant. Depuis un agent, clique sur « Enregistrer le rapport » sous un
-        rapport pour le retrouver ici.
+        Aucun rapport libre pour l&apos;instant. Depuis un agent, clique sur « Enregistrer le rapport » sous un rapport
+        pour le retrouver ici, puis range-le sur la page adéquate.
+        {assignedCount > 0 && (
+          <span className="mt-1 block text-xs text-slate-400">
+            {assignedCount} rapport{assignedCount > 1 ? "s" : ""} déjà rangé{assignedCount > 1 ? "s" : ""} sur une page.
+          </span>
+        )}
       </div>
     );
   }
@@ -158,7 +187,10 @@ export function MesRapports() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400">{reports.length} rapport{reports.length > 1 ? "s" : ""} enregistré{reports.length > 1 ? "s" : ""}</span>
+        <span className="text-xs text-slate-400">
+          {free.length} rapport{free.length > 1 ? "s" : ""} libre{free.length > 1 ? "s" : ""}
+          {assignedCount > 0 && ` · ${assignedCount} rangé${assignedCount > 1 ? "s" : ""} sur une page`}
+        </span>
         <button
           onClick={clearAll}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
@@ -167,7 +199,14 @@ export function MesRapports() {
         </button>
       </div>
       {[...byAgent.entries()].map(([agentKey, group]) => (
-        <AgentReportsRow key={agentKey} agentKey={agentKey} label={group.label} items={group.items} onDelete={del} />
+        <AgentReportsRow
+          key={agentKey}
+          agentKey={agentKey}
+          label={group.label}
+          items={group.items}
+          onDelete={del}
+          onAssigned={() => setReports(listSavedReports())}
+        />
       ))}
     </div>
   );

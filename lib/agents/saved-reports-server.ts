@@ -21,6 +21,8 @@ export type SavedReportRow = {
   analysis: string | null;
   hidden: boolean;
   saved_at: string;
+  /** Page de la plateforme à laquelle le rapport a été affecté (null = libre). */
+  page_key?: string | null;
 };
 
 export function savedReportToClient(r: SavedReportRow) {
@@ -39,6 +41,7 @@ export function savedReportToClient(r: SavedReportRow) {
     routineLabel: r.routine_label ?? undefined,
     analysis: r.analysis ?? undefined,
     hidden: r.hidden || undefined,
+    pageKey: r.page_key ?? null,
   };
 }
 
@@ -58,6 +61,7 @@ export type SavedReportInput = {
   routineId?: string;
   analysis?: string;
   hidden?: boolean;
+  pageKey?: string | null;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

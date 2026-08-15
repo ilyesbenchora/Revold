@@ -29,6 +29,11 @@ export type SavedReport = {
   analysis?: string;
   /** Retiré de l'affichage de la page agent — reste visible dans « Mes rapports ». */
   hidden?: boolean;
+  /**
+   * Page de la plateforme à laquelle le rapport a été affecté (Ventes,
+   * Trésorerie…). null/absent = rapport « libre », listé dans Mes rapports.
+   */
+  pageKey?: string | null;
 };
 
 export const SAVED_REPORTS_KEY = "revold:saved-reports:v1";
@@ -177,14 +182,26 @@ export function markReportSaved(key: string): void {
   }
 }
 
-/** Met à jour un rapport enregistré (ex : le masquer de la page agent). */
+/**
+ * Met à jour un rapport enregistré : masquage, titre, alerte liée, mais aussi
+ * le CONTENU (report/chart) quand l'utilisateur corrige le câblage depuis
+ * « Mes rapports », et le rattachement à une page (pageKey).
+ */
 export function updateSavedReport(id: string, patch: Partial<SavedReport>): void {
   if (typeof window === "undefined") return;
   setCache(listSavedReports().map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const body: Record<string, unknown> = {};
+  for (const k of ["hidden", "alertId", "title", "summary"] as const) {
+    if (patch[k] !== undefined) body[k] = patch[k];
+  }
+  if (patch.report !== undefined) body.report = patch.report;
+  if (patch.chart !== undefined) body.chart = patch.chart;
+  if (patch.pageKey !== undefined) body.pageKey = patch.pageKey;
+  if (Object.keys(body).length === 0) return;
   void fetch(`/api/saved-reports/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hidden: patch.hidden, alertId: patch.alertId, title: patch.title }),
+    body: JSON.stringify(body),
   }).catch(() => { /* best-effort */ });
 }
 

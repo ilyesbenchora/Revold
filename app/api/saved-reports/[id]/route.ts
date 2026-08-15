@@ -16,22 +16,42 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { hidden?: boolean; alertId?: string | null; title?: string };
+  let body: {
+    hidden?: boolean;
+    alertId?: string | null;
+    title?: string;
+    // Édition du rapport : câblage corrigé (report/chart re-vérifiés côté
+    // client par recompute déterministe) + rattachement à une page.
+    report?: unknown;
+    chart?: unknown;
+    summary?: string;
+    pageKey?: string | null;
+  };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
   const patch: Record<string, unknown> = {};
   if (typeof body.hidden === "boolean") patch.hidden = body.hidden;
   if ("alertId" in body) patch.alert_id = body.alertId && UUID_RE.test(body.alertId) ? body.alertId : null;
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim().slice(0, 300);
+  if ("report" in body && body.report !== undefined) patch.report = body.report ?? null;
+  if ("chart" in body && body.chart !== undefined) patch.chart = body.chart ?? null;
+  if (typeof body.summary === "string") patch.summary = body.summary.slice(0, 2000);
+  if ("pageKey" in body) patch.page_key = typeof body.pageKey === "string" && body.pageKey.trim() ? body.pageKey.trim().slice(0, 80) : null;
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "Aucun champ à mettre à jour" }, { status: 400 });
 
-  const { data, error } = await supabase
-    .from("saved_reports")
-    .update(patch)
-    .eq("id", id)
-    .eq("organization_id", orgId)
-    .select("*")
-    .maybeSingle();
+  const run = (p: Record<string, unknown>) =>
+    supabase.from("saved_reports").update(p).eq("id", id).eq("organization_id", orgId).select("*").maybeSingle();
+
+  let { data, error } = await run(patch);
+  // Migration page_key non appliquée : on n'échoue pas sur le reste du patch.
+  if (error && /page_key/.test(error.message) && "page_key" in patch) {
+    const rest = { ...patch };
+    delete rest.page_key;
+    if (Object.keys(rest).length === 0) {
+      return NextResponse.json({ error: "Colonne page_key absente — applique la migration saved_reports_page_key." }, { status: 400 });
+    }
+    ({ data, error } = await run(rest));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Rapport introuvable" }, { status: 404 });
   return NextResponse.json({ report: savedReportToClient(data as SavedReportRow) });

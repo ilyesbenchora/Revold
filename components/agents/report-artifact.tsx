@@ -6,7 +6,7 @@ import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { ChartWiringPanel } from "./chart-wiring-panel";
 import { ReportPeriodBar, type AppliedPeriod } from "./report-period-bar";
-import { addSavedReport, reportKey, isReportSaved, markReportSaved } from "./saved-reports";
+import { addSavedReport, updateSavedReport, reportKey, isReportSaved, markReportSaved } from "./saved-reports";
 import { AlertSuggestionCard } from "./alert-suggestion-card";
 import { type ToolOption } from "./alert-cross-tools";
 import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
@@ -28,6 +28,7 @@ export function ReportArtifact({
   chart,
   sources = [],
   showSave = false,
+  savedReportId,
 }: {
   agentKey: string;
   agentLabel: string;
@@ -35,6 +36,12 @@ export function ReportArtifact({
   chart?: ChartProposal | null;
   sources?: string[];
   showSave?: boolean;
+  /**
+   * Rapport DÉJÀ enregistré : toute correction du câblage (regroupement,
+   * mesure) est persistée sur la ligne saved_reports — le rapport rouvert
+   * plus tard affiche les vrais chiffres re-vérifiés, pas l'ancien câblage.
+   */
+  savedReportId?: string;
 }) {
   const [curReport, setCurReport] = useState<ReportSpec | null>(report ?? null);
   const [curChart, setCurChart] = useState<ChartProposal | null>(chart ?? null);
@@ -254,7 +261,12 @@ export function ReportArtifact({
           sources={sources}
           period={period ? { from: period.from, to: period.to, all: period.preset === "all" } : null}
           onApply={(nq, data) => {
-            setCurChart((prev) => (prev ? { ...prev, query: nq, data } : prev));
+            setCurChart((prev) => {
+              const next = prev ? { ...prev, query: nq, data } : prev;
+              // Rapport déjà enregistré : le câblage corrigé est persisté.
+              if (savedReportId && next) updateSavedReport(savedReportId, { chart: next });
+              return next;
+            });
             setSaved(false);
           }}
         />
@@ -280,7 +292,10 @@ export function ReportArtifact({
                       }
                       return { ...x, query: nq, data };
                     });
-                    return { ...prev, blocks };
+                    const next = { ...prev, blocks };
+                    // Rapport déjà enregistré : le câblage corrigé est persisté.
+                    if (savedReportId) updateSavedReport(savedReportId, { report: next });
+                    return next;
                   });
                   setSaved(false);
                 }}
