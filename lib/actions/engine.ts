@@ -147,34 +147,100 @@ export async function detectOverdueInvoiceActions(
 
 // ── Exécuteurs ──────────────────────────────────────────────────────────────
 
-/** Crée une tâche HubSpot associée au deal ou à l'entreprise. */
+/** GET HubSpot : un objet avec son owner + ses contacts associés. */
+export async function fetchOwnerAndContacts(
+  token: string,
+  objectType: "deals" | "companies",
+  id: string,
+): Promise<{ ownerId: string | null; contactIds: string[] }> {
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/${objectType}/${encodeURIComponent(id)}?properties=hubspot_owner_id&associations=contacts`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return { ownerId: null, contactIds: [] };
+    const d = (await res.json()) as {
+      properties?: { hubspot_owner_id?: string | null };
+      associations?: { contacts?: { results?: Array<{ id: string }> } };
+    };
+    return {
+      ownerId: d.properties?.hubspot_owner_id || null,
+      contactIds: (d.associations?.contacts?.results ?? []).map((c) => c.id).slice(0, 3),
+    };
+  } catch {
+    return { ownerId: null, contactIds: [] };
+  }
+}
+
+/** Owner d'un contact HubSpot (fallback d'attribution). */
+export async function fetchContactOwner(token: string, contactId: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}?properties=hubspot_owner_id`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return null;
+    const d = (await res.json()) as { properties?: { hubspot_owner_id?: string | null } };
+    return d.properties?.hubspot_owner_id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Crée une tâche HubSpot TOUJOURS attribuée : owner du deal, sinon owner de
+ * l'entreprise, sinon owner du premier contact associé — une tâche sans
+ * propriétaire n'apparaît dans la file de personne dans le CRM. La tâche est
+ * associée au deal concerné, à l'entreprise ET au contact rattaché.
+ */
 export async function executeHubspotTask(
   hubspotToken: string,
   payload: ActionPayload,
 ): Promise<{ ok: boolean; detail: string }> {
   const associations: Array<{ to: { id: string }; types: Array<{ associationCategory: string; associationTypeId: number }> }> = [];
-  // Types d'association HubSpot definis : tâche→deal 216 · tâche→entreprise 192.
+  // Types d'association HubSpot definis : tâche→deal 216 · tâche→entreprise 192 · tâche→contact 204.
   if (payload.dealHubspotId) associations.push({ to: { id: payload.dealHubspotId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 216 }] });
   if (payload.companyHubspotId) associations.push({ to: { id: payload.companyHubspotId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 192 }] });
+
+  // ── Attribution : owner du deal → de l'entreprise → du contact associé. ──
+  let ownerId: string | null = null;
+  let contactId: string | null = null;
+  if (payload.dealHubspotId) {
+    const deal = await fetchOwnerAndContacts(hubspotToken, "deals", payload.dealHubspotId);
+    ownerId = deal.ownerId;
+    contactId = deal.contactIds[0] ?? null;
+  }
+  if ((!ownerId || !contactId) && payload.companyHubspotId) {
+    const comp = await fetchOwnerAndContacts(hubspotToken, "companies", payload.companyHubspotId);
+    ownerId = ownerId ?? comp.ownerId;
+    contactId = contactId ?? (comp.contactIds[0] ?? null);
+  }
+  if (!ownerId && contactId) ownerId = await fetchContactOwner(hubspotToken, contactId);
+  if (contactId) associations.push({ to: { id: contactId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 204 }] });
+
   try {
+    const properties: Record<string, unknown> = {
+      hs_task_subject: payload.subject ?? "Action Revold",
+      hs_task_body: payload.body ?? "",
+      hs_timestamp: String(Date.now() + 2 * 86_400_000),
+      hs_task_status: "NOT_STARTED",
+      hs_task_priority: "HIGH",
+      hs_task_type: "TODO",
+    };
+    if (ownerId) properties.hubspot_owner_id = ownerId;
     const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
       method: "POST",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        properties: {
-          hs_task_subject: payload.subject ?? "Action Revold",
-          hs_task_body: payload.body ?? "",
-          hs_timestamp: String(Date.now() + 2 * 86_400_000),
-          hs_task_status: "NOT_STARTED",
-          hs_task_priority: "HIGH",
-          hs_task_type: "TODO",
-        },
-        associations,
-      }),
+      body: JSON.stringify({ properties, associations }),
     });
     if (res.ok) {
       const d = await res.json().catch(() => ({}));
-      return { ok: true, detail: `Tâche HubSpot créée (id ${d.id ?? "?"})` };
+      return {
+        ok: true,
+        detail: `Tâche HubSpot créée (id ${d.id ?? "?"})${
+          ownerId ? "" : " — non attribuée : ni le deal, ni l'entreprise, ni le contact n'ont de propriétaire dans HubSpot"
+        }`,
+      };
     }
     const err = await res.text();
     if (res.status === 403) {

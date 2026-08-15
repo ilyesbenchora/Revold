@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getAgent } from "@/lib/ai/agents/registry";
 import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
+import { fetchOwnerAndContacts, fetchContactOwner } from "@/lib/actions/engine";
 
 export const maxDuration = 60;
 const HS = "https://api.hubapi.com";
@@ -66,6 +67,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
 
   async function createTask(dealId: string, subject: string, bodyText: string, ownerId: string | null, dueMs: number) {
     const assoc = [{ to: { id: dealId }, types: taskToDeal[0].types }];
+    // Attribution garantie : owner du deal (proposition), sinon résolu en
+    // direct — deal → contact associé (le contact est aussi associé à la
+    // tâche). Une tâche sans propriétaire n'apparaît dans la file de personne.
+    let effectiveOwner = ownerId;
+    if (token) {
+      const deal = await fetchOwnerAndContacts(token, "deals", dealId);
+      effectiveOwner = effectiveOwner ?? deal.ownerId;
+      const contactId = deal.contactIds[0] ?? null;
+      if (!effectiveOwner && contactId) effectiveOwner = await fetchContactOwner(token, contactId);
+      if (contactId) assoc.push({ to: { id: contactId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 204 }] });
+    }
     const properties: Record<string, unknown> = {
       hs_task_subject: subject.slice(0, 250),
       hs_task_body: bodyText.slice(0, 5000),
@@ -73,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       hs_task_priority: "HIGH",
       hs_timestamp: String(dueMs),
     };
-    if (ownerId) properties.hubspot_owner_id = ownerId;
+    if (effectiveOwner) properties.hubspot_owner_id = effectiveOwner;
     return hs("/crm/v3/objects/tasks", "POST", { properties, associations: assoc });
   }
 
