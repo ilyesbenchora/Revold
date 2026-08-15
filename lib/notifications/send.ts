@@ -329,17 +329,33 @@ async function sendTwilioMessage(
   bodyText: string,
   link?: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  // L'URL Twilio porte TOUJOURS l'Account SID (AC…). L'authentification, elle,
+  // accepte deux formes : une clé API (SK… + secret, révocable — recommandé) ou
+  // le couple Account SID + Auth Token.
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const keySid = process.env.TWILIO_API_KEY_SID;
+  const keySecret = process.env.TWILIO_API_KEY_SECRET;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const authUser = keySid && keySecret ? keySid : accountSid;
+  const authPass = keySid && keySecret ? keySecret : authToken;
+
   const rawFrom = mode === "whatsapp" ? process.env.TWILIO_WHATSAPP_FROM : process.env.TWILIO_FROM_NUMBER;
   // Twilio attend `whatsapp:+1415…` pour WhatsApp : on tolère le numéro saisi
   // avec ou sans le préfixe (erreur de configuration la plus fréquente).
   const from =
     mode === "whatsapp" && rawFrom && !rawFrom.startsWith("whatsapp:") ? `whatsapp:${rawFrom.trim()}` : rawFrom?.trim();
-  if (!sid || !token || !from) {
+
+  if (!accountSid || !authUser || !authPass) {
     return {
       ok: false,
-      error: `Envoi ${mode} indisponible : renseigne TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et ${
+      error:
+        "Envoi impossible : renseigne TWILIO_ACCOUNT_SID puis, au choix, TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET (clé API) ou TWILIO_AUTH_TOKEN.",
+    };
+  }
+  if (!from) {
+    return {
+      ok: false,
+      error: `Aucun numéro émetteur ${mode} : renseigne ${
         mode === "whatsapp" ? "TWILIO_WHATSAPP_FROM" : "TWILIO_FROM_NUMBER"
       }.`,
     };
@@ -352,12 +368,12 @@ async function sendTwilioMessage(
   // Un SMS long est facturé par segment : on borne le corps, le lien fait le reste.
   const body = `Revold — ${subject}\n\n${bodyText.slice(0, 380)}\n\n${fullLink}`;
   const prefix = mode === "whatsapp" ? "whatsapp:" : "";
-  const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+  const auth = Buffer.from(`${authUser}:${authPass}`).toString("base64");
 
   const results = await Promise.all(
     recipients.map(async (to) => {
       try {
-        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
           method: "POST",
           headers: {
             Authorization: `Basic ${auth}`,
