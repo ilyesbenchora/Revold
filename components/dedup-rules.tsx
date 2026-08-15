@@ -83,9 +83,11 @@ export function DedupRules({ rules }: { rules: DedupRule[] }) {
       {/* Légende des actions — en langage clair (« fusion » ≠ « mise à jour »). */}
       <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
         <p>
-          <span className="font-semibold text-slate-700">Fusion automatique</span> : les deux fiches détectées comme
-          un même enregistrement sont fusionnées — uniquement quand le critère primaire ET le critère secondaire
-          concordent, et seulement si tu actives la règle (désactivée par défaut : rien ne fusionne sans ton accord).
+          <span className="font-semibold text-slate-700">Fusion automatique</span> : activer la règle lance la
+          détection des doublons — chaque fusion proposée arrive ensuite dans{" "}
+          <a href="/dashboard/mes-alertes/actions" className="font-medium text-accent hover:underline">Suivi → Actions</a>{" "}
+          où tu la valides fiche par fiche avant l&apos;écriture dans le CRM (une fusion est irréversible : rien ne
+          fusionne jamais sans ta validation explicite).
         </p>
         <p className="mt-1.5">
           <span className="font-semibold text-slate-700">Mise à jour sans doublon</span> : l&apos;enregistrement déjà

@@ -5,7 +5,9 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import {
   detectSilentDeals,
   detectOverdueInvoiceActions,
+  detectMergeCandidates,
   executeHubspotTask,
+  executeHubspotMerge,
   executeStripeSendInvoice,
   type ActionPayload,
 } from "@/lib/actions/engine";
@@ -33,11 +35,12 @@ export async function GET() {
   // ── Détection (best-effort) : upsert dédupliqué, jamais bloquant ──
   let needsMigration = false;
   try {
-    const [silent, overdue] = await Promise.all([
+    const [silent, overdue, merges] = await Promise.all([
       detectSilentDeals(supabase, orgId),
       detectOverdueInvoiceActions(supabase, orgId),
+      detectMergeCandidates(supabase, orgId),
     ]);
-    const candidates = [...overdue, ...silent].map((c) => ({
+    const candidates = [...overdue, ...silent, ...merges].map((c) => ({
       organization_id: orgId,
       type: c.type,
       title: c.title,
@@ -114,6 +117,11 @@ export async function POST(request: Request) {
     const token = await getHubSpotToken(supabase, orgId);
     outcome = token
       ? await executeHubspotTask(token, payload)
+      : { ok: false, detail: "HubSpot non connecté." };
+  } else if (item.type === "hubspot_merge") {
+    const token = await getHubSpotToken(supabase, orgId);
+    outcome = token
+      ? await executeHubspotMerge(token, payload)
       : { ok: false, detail: "HubSpot non connecté." };
   } else if (item.type === "stripe_send_invoice") {
     outcome = await executeStripeSendInvoice(supabase, orgId, payload);

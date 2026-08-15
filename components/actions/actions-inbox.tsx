@@ -22,14 +22,16 @@ type ActionItem = {
   result: { ok?: boolean; detail?: string } | null;
 };
 
-const TYPE_META: Record<string, { label: string; domain: string; icon: string }> = {
-  hubspot_task: { label: "Tâche HubSpot", domain: "hubspot.com", icon: "🟧" },
-  stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳" },
+const TYPE_META: Record<string, { label: string; domain: string; icon: string; tool: string; toolLabel: string }> = {
+  hubspot_task: { label: "Tâche HubSpot", domain: "hubspot.com", icon: "🟧", tool: "hubspot", toolLabel: "HubSpot" },
+  hubspot_merge: { label: "Fusion de doublons", domain: "hubspot.com", icon: "🔀", tool: "hubspot", toolLabel: "HubSpot" },
+  stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
 };
 
 function sourceLabel(source: string): string {
   if (source === "detector:silent_deal") return "Détecteur · deals silencieux";
   if (source === "detector:overdue_invoice") return "Détecteur · impayés";
+  if (source === "detector:duplicate_merge") return "Règles de déduplication";
   if (source.startsWith("agent:")) return `Agent · ${source.slice(6)}`;
   return source;
 }
@@ -43,6 +45,9 @@ export function ActionsInbox() {
   const [needsMigration, setNeedsMigration] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Filtres : type d'action + outil ("" = tous) — appliqués à la file ET à l'historique.
+  const [typeFilter, setTypeFilter] = useState("");
+  const [toolFilter, setToolFilter] = useState("");
 
   async function load() {
     try {
@@ -85,6 +90,15 @@ export function ActionsInbox() {
     }
   }
 
+  // Types & outils réellement présents (file + historique) → options des filtres.
+  const all = [...(pending ?? []), ...history];
+  const presentTypes = [...new Set(all.map((a) => a.type))];
+  const presentTools = [...new Set(all.map((a) => TYPE_META[a.type]?.tool).filter((t): t is string => !!t))];
+  const matches = (a: ActionItem) =>
+    (!typeFilter || a.type === typeFilter) && (!toolFilter || TYPE_META[a.type]?.tool === toolFilter);
+  const shownPending = (pending ?? []).filter(matches);
+  const shownHistory = history.filter(matches);
+
   return (
     <div className="space-y-6">
       {needsMigration && (
@@ -94,23 +108,77 @@ export function ActionsInbox() {
       )}
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
+      {/* ── Filtres : par action et par outil ── */}
+      {(presentTypes.length > 1 || presentTools.length > 1) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-slate-500">Action :</span>
+            <button
+              type="button"
+              onClick={() => setTypeFilter("")}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${!typeFilter ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              Toutes
+            </button>
+            {presentTypes.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${typeFilter === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                {TYPE_META[t]?.icon} {TYPE_META[t]?.label ?? t}
+              </button>
+            ))}
+          </div>
+          {presentTools.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-slate-500">Outil :</span>
+              <button
+                type="button"
+                onClick={() => setToolFilter("")}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${!toolFilter ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                Tous
+              </button>
+              {presentTools.map((t) => {
+                const meta = Object.values(TYPE_META).find((m) => m.tool === t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setToolFilter(toolFilter === t ? "" : t)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition ${toolFilter === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {meta && <BrandLogo domain={meta.domain} alt={meta.toolLabel} fallback={meta.icon} size={12} />}
+                    {meta?.toolLabel ?? t}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── File d'attente : à valider ── */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
           À valider
-          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{pending?.length ?? 0}</span>
+          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{shownPending.length}</span>
         </h2>
         {pending === null ? (
           <p className="text-xs text-slate-400">Analyse de tes données…</p>
-        ) : pending.length === 0 ? (
+        ) : shownPending.length === 0 ? (
           <div className="card p-8 text-center">
-            <p className="text-sm font-medium text-slate-700">Aucune action en attente.</p>
+            <p className="text-sm font-medium text-slate-700">
+              {pending.length === 0 ? "Aucune action en attente." : "Aucune action ne correspond aux filtres."}
+            </p>
             <p className="mt-1 text-xs text-slate-400">
-              Les détecteurs (deals silencieux, impayés) et les agents alimentent cette file — reviens après ta prochaine synchronisation.
+              Les détecteurs (deals silencieux, impayés, doublons à fusionner) et les agents alimentent cette file — reviens après ta prochaine synchronisation.
             </p>
           </div>
         ) : (
-          pending.map((a) => {
+          shownPending.map((a) => {
             const meta = TYPE_META[a.type];
             return (
               <div key={a.id} className="card flex flex-wrap items-start justify-between gap-3 p-4">
@@ -151,11 +219,11 @@ export function ActionsInbox() {
       </section>
 
       {/* ── Historique : exécutées / refusées / en échec ── */}
-      {history.length > 0 && (
+      {shownHistory.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-slate-900">Historique</h2>
           <div className="card divide-y divide-slate-100">
-            {history.map((a) => (
+            {shownHistory.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-slate-700">{a.title}</p>

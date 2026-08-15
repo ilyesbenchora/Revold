@@ -23,6 +23,10 @@ export type ActionPayload = {
   stripeInvoiceId?: string;
   /** Facture Revold liée (attribution ROI cash récupéré). */
   invoiceId?: string;
+  /** Fusion HubSpot : type d'objet + fiche principale (conservée) + doublon absorbé. */
+  mergeObjectType?: "contacts" | "companies";
+  primaryHubspotId?: string;
+  mergeHubspotId?: string;
 };
 
 const DAY_MS = 86_400_000;
@@ -145,6 +149,98 @@ export async function detectOverdueInvoiceActions(
   return out;
 }
 
+/**
+ * Détecteur : DOUBLONS à fusionner, piloté par les règles de déduplication
+ * activées (Paramètres → Modèle de données). Activer une règle « Fusion
+ * automatique » ne fusionne JAMAIS silencieusement : elle alimente cette file,
+ * et chaque fusion est validée ici avant l'appel HubSpot (irréversible).
+ *  - dedup_contact_email  → contacts partageant le même email ;
+ *  - dedup_company_siren / dedup_company_intl_vat → entreprises partageant le
+ *    même domaine (le SIREN/TVA étant unique en canonique, le doublon type est
+ *    la fiche sans identifiant à absorber dans la fiche identifiée).
+ */
+export async function detectMergeCandidates(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { data: rules } = await supabase
+    .from("entity_resolution_config")
+    .select("rule_id, enabled")
+    .eq("organization_id", orgId)
+    .in("rule_id", ["dedup_contact_email", "dedup_company_siren", "dedup_company_intl_vat"]);
+  const enabled = new Set(((rules ?? []) as Array<{ rule_id: string; enabled: boolean }>).filter((r) => r.enabled).map((r) => r.rule_id));
+  if (enabled.size === 0) return [];
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  const pairKey = (t: string, a: string, b: string) => `merge:${t}:${[a, b].sort().join(":")}`;
+
+  // ── Contacts en doublon (même email) ──
+  if (enabled.has("dedup_contact_email")) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("id, hubspot_id, email, full_name, created_at")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .not("email", "is", null)
+      .limit(3000);
+    const byEmail = new Map<string, Array<{ hubspot_id: string; full_name: string | null; created_at: string | null }>>();
+    for (const c of (data ?? []) as Array<{ hubspot_id: string | null; email: string | null; full_name: string | null; created_at: string | null }>) {
+      const email = (c.email ?? "").trim().toLowerCase();
+      if (!email || !c.hubspot_id) continue;
+      (byEmail.get(email) ?? byEmail.set(email, []).get(email)!).push({ hubspot_id: c.hubspot_id, full_name: c.full_name, created_at: c.created_at });
+    }
+    for (const [email, list] of byEmail) {
+      if (list.length < 2) continue;
+      // Fiche principale = la plus ancienne (historique d'activités conservé).
+      const sorted = [...list].sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+      const [primary, dup] = [sorted[0], sorted[1]];
+      out.push({
+        dedupe_key: pairKey("contacts", primary.hubspot_id, dup.hubspot_id),
+        type: "hubspot_merge",
+        title: `Fusionner les contacts en doublon « ${email} »`,
+        description: `${list.length} fiches contact partagent cet email (règle « email corporate » activée). Valider fusionne dans HubSpot — IRRÉVERSIBLE : la fiche la plus ancienne${primary.full_name ? ` (${primary.full_name})` : ""} est conservée, le doublon est absorbé.`,
+        source: "detector:duplicate_merge",
+        payload: { mergeObjectType: "contacts", primaryHubspotId: primary.hubspot_id, mergeHubspotId: dup.hubspot_id },
+      });
+      if (out.length >= 10) return out;
+    }
+  }
+
+  // ── Entreprises en doublon (même domaine) ──
+  if (enabled.has("dedup_company_siren") || enabled.has("dedup_company_intl_vat")) {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, hubspot_id, name, domain, siren, vat_number, created_at")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .not("domain", "is", null)
+      .limit(3000);
+    const byDomain = new Map<string, Array<{ hubspot_id: string; name: string | null; siren: string | null; vat_number: string | null; created_at: string | null }>>();
+    for (const c of (data ?? []) as Array<{ hubspot_id: string | null; name: string | null; domain: string | null; siren: string | null; vat_number: string | null; created_at: string | null }>) {
+      const domain = (c.domain ?? "").trim().toLowerCase();
+      if (!domain || !c.hubspot_id) continue;
+      (byDomain.get(domain) ?? byDomain.set(domain, []).get(domain)!).push({ hubspot_id: c.hubspot_id, name: c.name, siren: c.siren, vat_number: c.vat_number, created_at: c.created_at });
+    }
+    for (const [domain, list] of byDomain) {
+      if (list.length < 2) continue;
+      // Fiche principale = celle qui porte un identifiant fort (SIREN/TVA), sinon la plus ancienne.
+      const score = (c: { siren: string | null; vat_number: string | null }) => (c.siren ? 2 : 0) + (c.vat_number ? 1 : 0);
+      const sorted = [...list].sort((a, b) => score(b) - score(a) || (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+      const [primary, dup] = [sorted[0], sorted[1]];
+      out.push({
+        dedupe_key: pairKey("companies", primary.hubspot_id, dup.hubspot_id),
+        type: "hubspot_merge",
+        title: `Fusionner les entreprises en doublon « ${primary.name ?? domain} »`,
+        description: `${list.length} fiches entreprise partagent le domaine ${domain} (règles d'identification entreprise activées). Valider fusionne dans HubSpot — IRRÉVERSIBLE : la fiche ${primary.siren ? "porteuse du SIREN" : primary.vat_number ? "porteuse du N° TVA" : "la plus ancienne"} est conservée, le doublon est absorbé.`,
+        source: "detector:duplicate_merge",
+        payload: { mergeObjectType: "companies", primaryHubspotId: primary.hubspot_id, mergeHubspotId: dup.hubspot_id },
+      });
+      if (out.length >= 10) break;
+    }
+  }
+  return out;
+}
+
 // ── Exécuteurs ──────────────────────────────────────────────────────────────
 
 /** GET HubSpot : un objet avec son owner + ses contacts associés. */
@@ -245,6 +341,37 @@ export async function executeHubspotTask(
     const err = await res.text();
     if (res.status === 403) {
       return { ok: false, detail: "Scope HubSpot manquant (crm.objects.tasks.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
+    }
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/** Fusionne deux fiches HubSpot (contacts ou entreprises) — validée en amont. */
+export async function executeHubspotMerge(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  const type = payload.mergeObjectType;
+  if ((type !== "contacts" && type !== "companies") || !payload.primaryHubspotId || !payload.mergeHubspotId) {
+    return { ok: false, detail: "Payload de fusion incomplet." };
+  }
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${type}/merge`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ primaryObjectId: payload.primaryHubspotId, objectIdToMerge: payload.mergeHubspotId }),
+    });
+    if (res.ok) {
+      return {
+        ok: true,
+        detail: `Fusion HubSpot effectuée (fiche ${payload.primaryHubspotId} conservée). Le doublon disparaîtra de Revold à la prochaine synchronisation.`,
+      };
+    }
+    const err = await res.text();
+    if (res.status === 403) {
+      return { ok: false, detail: `Scope HubSpot manquant (crm.objects.${type === "contacts" ? "contacts" : "companies"}.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot.` };
     }
     return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
   } catch (e) {
