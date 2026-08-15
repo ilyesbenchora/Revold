@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { AUTOMATABLE_KEYS } from "@/lib/actions/engine";
+import { AUTOMATABLE_KEYS, normalizeCadence, normalizeSilentSettings } from "@/lib/actions/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +23,15 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { key?: string; enabled?: boolean; entityKey?: string; list?: "include" | "exclude" };
+  let body: { key?: string; enabled?: boolean; entityKey?: string; list?: "include" | "exclude"; cadence?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const key = typeof body.key === "string" ? body.key : "";
   if (!(AUTOMATABLE_KEYS as readonly string[]).includes(key)) {
     return NextResponse.json({ error: "Cette famille d'actions n'est pas automatisable." }, { status: 400 });
   }
-  if (typeof body.enabled !== "boolean") {
+  // Réglage de cadence / conditions de sortie seul (sans toucher au mode global).
+  const isCadenceOnly = body.cadence != null && typeof body.enabled !== "boolean";
+  if (!isCadenceOnly && typeof body.enabled !== "boolean") {
     return NextResponse.json({ error: "enabled (booléen) requis" }, { status: 400 });
   }
 
@@ -44,7 +46,11 @@ export async function POST(request: Request) {
   const readList = (k: string) => (Array.isArray(cfg[k]) ? (cfg[k] as unknown[]).filter((x): x is string => typeof x === "string") : []);
 
   let globalEnabled = row?.enabled ?? false;
-  if (typeof body.entityKey === "string" && body.entityKey && (body.list === "include" || body.list === "exclude")) {
+  if (body.cadence != null) {
+    // ── Cadence + conditions de sortie (validées/bornées côté serveur) ──
+    cfg.cadence = key === "silent_deal" ? normalizeSilentSettings(body.cadence) : normalizeCadence(body.cadence);
+    if (typeof body.enabled === "boolean") globalEnabled = body.enabled;
+  } else if (typeof body.entityKey === "string" && body.entityKey && (body.list === "include" || body.list === "exclude")) {
     // ── Exception par entité ──
     const entityKey = body.entityKey.slice(0, 200);
     const current = new Set(readList(body.list));

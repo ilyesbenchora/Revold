@@ -22,6 +22,8 @@ import {
   executeStripeSendInvoice,
   AUTOMATABLE_KEYS,
   actionEntityRef,
+  normalizeCadence,
+  normalizeSilentSettings,
   type ActionPayload,
 } from "@/lib/actions/engine";
 
@@ -93,7 +95,7 @@ async function trackInvoiceReminder(
  * manuel, exclude = entités gardées en manuel malgré un mode auto (sécurité
  * pour les comptes clés).
  */
-type AutomationCfg = { enabled: boolean; include: Set<string>; exclude: Set<string> };
+type AutomationCfg = { enabled: boolean; include: Set<string>; exclude: Set<string>; cadence?: unknown };
 async function getAutomationConfig(supabase: SupabaseClient, orgId: string): Promise<Map<string, AutomationCfg>> {
   const map = new Map<string, AutomationCfg>();
   try {
@@ -107,7 +109,7 @@ async function getAutomationConfig(supabase: SupabaseClient, orgId: string): Pro
       if (!(AUTOMATABLE_KEYS as readonly string[]).includes(key)) continue;
       const cfg = r.config ?? {};
       const arr = (v: unknown) => new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-      map.set(key, { enabled: r.enabled, include: arr(cfg.include), exclude: arr(cfg.exclude) });
+      map.set(key, { enabled: r.enabled, include: arr(cfg.include), exclude: arr(cfg.exclude), cadence: cfg.cadence });
     }
   } catch {}
   return map;
@@ -134,6 +136,13 @@ export async function GET(request: Request) {
     (new URL(request.url).searchParams.get("skip") ?? "").split(",").filter(Boolean),
   );
 
+  // Config d'automatisation (mode global, exceptions par entité, cadences) —
+  // lue AVANT la détection : la cadence de relance choisie par l'utilisateur
+  // borne les propositions, même quand la famille n'est pas automatisée.
+  const autoCfg = await getAutomationConfig(supabase, orgId);
+  const relanceCadence = normalizeCadence(autoCfg.get("overdue_invoice")?.cadence);
+  const silentSettings = normalizeSilentSettings(autoCfg.get("silent_deal")?.cadence);
+
   // ── Détection (best-effort) : upsert dédupliqué, jamais bloquant ──
   let needsMigration = false;
   try {
@@ -155,8 +164,8 @@ export async function GET(request: Request) {
     const run = <T,>(key: string, fn: () => Promise<T[]>): Promise<T[]> =>
       skip.has(key) ? Promise.resolve([]) : fn().catch(() => []);
     const detected = await Promise.all([
-      run("silent_deal", () => detectSilentDeals(supabase, orgId, sequence)),
-      run("overdue_invoice", () => detectOverdueInvoiceActions(supabase, orgId)),
+      run("silent_deal", () => detectSilentDeals(supabase, orgId, sequence, silentSettings)),
+      run("overdue_invoice", () => detectOverdueInvoiceActions(supabase, orgId, relanceCadence)),
       run("duplicate_merge", () => detectMergeCandidates(supabase, orgId)),
       run("crm_enrich", () => detectCrmIdentifierEnrich(supabase, orgId, hubspotToken)),
       run("link_company", () => detectUnlinkedCompanies(supabase, orgId)),
@@ -186,7 +195,6 @@ export async function GET(request: Request) {
   // ── Automatisation opt-in : familles automatisées (± exceptions par entité)
   //    exécutées immédiatement (decided_by null = badge « Auto »). Cap par
   //    passage pour rester réactif. ──
-  const autoCfg = await getAutomationConfig(supabase, orgId);
   const activeFamilies = [...autoCfg.entries()]
     .filter(([, c]) => c.enabled || c.include.size > 0)
     .map(([k]) => k);
@@ -259,6 +267,9 @@ export async function GET(request: Request) {
     overrides: Object.fromEntries(
       [...autoCfg.entries()].map(([k, c]) => [k, { include: [...c.include], exclude: [...c.exclude] }]),
     ),
+    // Cadences & conditions de sortie effectives (défauts inclus) — affichées
+    // et modifiables dans le catalogue des actions.
+    settings: { overdue_invoice: relanceCadence, silent_deal: silentSettings },
   });
 }
 

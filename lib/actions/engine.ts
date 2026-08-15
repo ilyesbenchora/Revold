@@ -87,6 +87,7 @@ export async function detectSilentDeals(
   supabase: SupabaseClient,
   orgId: string,
   sequence?: { id: string; name: string } | null,
+  settings: SilentDealSettings = SILENT_DEAL_DEFAULT,
 ): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
   const { data } = await supabase
     .from("deals")
@@ -97,7 +98,7 @@ export async function detectSilentDeals(
     .order("amount", { ascending: false, nullsFirst: false })
     .limit(100);
 
-  const cutoff = Date.now() - SILENT_DAYS * DAY_MS;
+  const cutoff = Date.now() - settings.silentDays * DAY_MS;
   const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
   for (const d of (data ?? []) as Array<{ id: string; hubspot_id: string | null; name: string | null; amount: number | null; last_contacted_at: string | null; hs_last_modified_at: string | null }>) {
     if (!d.hubspot_id) continue;
@@ -134,27 +135,71 @@ export async function detectSilentDeals(
   return out;
 }
 
-/** Cadence du cycle de recouvrement : 7 j entre relances, 3 max puis escalade. */
-const RELANCE_INTERVAL_DAYS = 7;
-const RELANCE_MAX = 3;
+/**
+ * Cadence du cycle de recouvrement — DÉFAUTS, personnalisables par l'utilisateur
+ * (catalogue des actions → « Relancer tous les N jours, M relances maximum »).
+ */
+export type RelanceCadence = {
+  /** Jours minimum entre deux relances d'une même facture. */
+  intervalDays: number;
+  /** Nombre maximum de relances avant sortie du cycle. */
+  maxRelances: number;
+  /** CONDITION DE SORTIE : un paiement partiel arrête les relances. */
+  stopOnPartialPayment: boolean;
+  /** SORTIE DU CYCLE : escalade en tâche de recouvrement humaine (sinon arrêt simple). */
+  escalateAfterMax: boolean;
+};
+export const RELANCE_CADENCE_DEFAULT: RelanceCadence = {
+  intervalDays: 7,
+  maxRelances: 3,
+  stopOnPartialPayment: false,
+  escalateAfterMax: true,
+};
+
+const clampInt = (v: unknown, min: number, max: number, def: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+};
+
+/** Cadence + conditions de sortie validées (bornes : 1–90 jours, 1–10 relances). */
+export function normalizeCadence(raw: unknown): RelanceCadence {
+  const c = (raw ?? {}) as Partial<RelanceCadence>;
+  return {
+    intervalDays: clampInt(c.intervalDays, 1, 90, RELANCE_CADENCE_DEFAULT.intervalDays),
+    maxRelances: clampInt(c.maxRelances, 1, 10, RELANCE_CADENCE_DEFAULT.maxRelances),
+    stopOnPartialPayment: typeof c.stopOnPartialPayment === "boolean" ? c.stopOnPartialPayment : RELANCE_CADENCE_DEFAULT.stopOnPartialPayment,
+    escalateAfterMax: typeof c.escalateAfterMax === "boolean" ? c.escalateAfterMax : RELANCE_CADENCE_DEFAULT.escalateAfterMax,
+  };
+}
+
+/** Seuil de silence d'un deal (condition d'entrée du détecteur), choisi par l'utilisateur. */
+export type SilentDealSettings = { silentDays: number };
+export const SILENT_DEAL_DEFAULT: SilentDealSettings = { silentDays: SILENT_DAYS };
+export function normalizeSilentSettings(raw: unknown): SilentDealSettings {
+  const c = (raw ?? {}) as Partial<SilentDealSettings>;
+  return { silentDays: clampInt(c.silentDays, 3, 180, SILENT_DAYS) };
+}
 
 /**
  * Détecteur : factures en retard → rappel Stripe ou tâche de relance HubSpot.
  * CYCLE DE RECOUVREMENT avec conditions d'arrêt explicites :
  *  - le paiement reçu STOPPE tout (le détecteur ne cible que les restes dus) ;
- *  - 7 jours minimum entre deux relances d'une même facture ;
- *  - 3 relances maximum, puis ESCALADE : une tâche de recouvrement humaine
- *    (plus aucun email automatique) ;
+ *  - `intervalDays` jours minimum entre deux relances d'une même facture ;
+ *  - `maxRelances` relances maximum, puis ESCALADE : une tâche de recouvrement
+ *    humaine (plus aucun email automatique) ;
  *  - une relance refusée ou en attente bloque la suivante (pas d'empilement).
+ * La cadence est choisie par l'utilisateur (catalogue des actions).
  */
 export async function detectOverdueInvoiceActions(
   supabase: SupabaseClient,
   orgId: string,
+  cadence: RelanceCadence = RELANCE_CADENCE_DEFAULT,
 ): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { intervalDays: RELANCE_INTERVAL_DAYS, maxRelances: RELANCE_MAX } = cadence;
   const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase
     .from("invoices")
-    .select("id, number, amount_due, due_at, primary_source, company_id")
+    .select("id, number, amount_due, amount_paid, due_at, primary_source, company_id")
     .eq("organization_id", orgId)
     .gt("amount_due", 0)
     .lt("due_at", today)
@@ -162,7 +207,7 @@ export async function detectOverdueInvoiceActions(
     .order("amount_due", { ascending: false })
     .limit(20);
 
-  const invoices = (data ?? []) as Array<{ id: string; number: string | null; amount_due: number | null; due_at: string | null; primary_source: string | null; company_id: string | null }>;
+  const invoices = (data ?? []) as Array<{ id: string; number: string | null; amount_due: number | null; amount_paid: number | null; due_at: string | null; primary_source: string | null; company_id: string | null }>;
   if (invoices.length === 0) return [];
 
   // Ids Stripe des factures (source_links) + entreprises HubSpot associées.
@@ -223,13 +268,16 @@ export async function detectOverdueInvoiceActions(
     const stripeId = stripeIdByInvoice.get(inv.id);
     const cycle = cycles.get(inv.id) ?? { hasPending: false, relances: 0, lastDecidedAt: null, escalated: false };
 
+    // ── CONDITION DE SORTIE choisie : un paiement partiel arrête le cycle ──
+    if (cadence.stopOnPartialPayment && (Number(inv.amount_paid) || 0) > 0) continue;
+
     // Une relance en attente (ou refusée récemment) bloque la suivante.
     if (cycle.hasPending) continue;
     if (cycle.lastDecidedAt && Date.now() - new Date(cycle.lastDecidedAt).getTime() < RELANCE_INTERVAL_DAYS * DAY_MS) continue;
 
-    // ── Plafond atteint : ESCALADE humaine (une seule fois) ──
+    // ── Plafond atteint : sortie du cycle (escalade humaine si demandée) ──
     if (cycle.relances >= RELANCE_MAX) {
-      if (!cycle.escalated && company?.hubspot_id) {
+      if (cadence.escalateAfterMax && !cycle.escalated && company?.hubspot_id) {
         out.push({
           dedupe_key: `overdue_invoice_escalation:${inv.id}`,
           type: "hubspot_task",
@@ -250,7 +298,7 @@ export async function detectOverdueInvoiceActions(
     // ── Relance n° suivant (clé du 1er cycle inchangée — compat historique) ──
     const n = cycle.relances + 1;
     const key = n === 1 ? `overdue_invoice:${inv.id}` : `overdue_invoice:${inv.id}:r${n}`;
-    const cycleNote = `Relance ${n}/${RELANCE_MAX} · ${stopNote} ; après ${RELANCE_MAX} relances, escalade en tâche de recouvrement humaine.`;
+    const cycleNote = `Relance ${n}/${RELANCE_MAX} · cadence : 1 relance tous les ${RELANCE_INTERVAL_DAYS} jours · ${stopNote}${cadence.stopOnPartialPayment ? " (même partiel)" : ""} ; après ${RELANCE_MAX} relances, ${cadence.escalateAfterMax ? "escalade en tâche de recouvrement humaine" : "arrêt du cycle"}.`;
     if (inv.primary_source === "stripe" && stripeId) {
       out.push({
         dedupe_key: key,

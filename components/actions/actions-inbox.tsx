@@ -196,6 +196,8 @@ export function ActionsInbox() {
   const [automated, setAutomated] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Record<string, { include: string[]; exclude: string[] }>>({});
   const [autoBusy, setAutoBusy] = useState<string | null>(null);
+  // Cadences & conditions de sortie effectives, par famille (serveur).
+  const [settings, setSettings] = useState<Record<string, Record<string, number | boolean>>>({});
   // Pagination : 15 (défaut) / 20 / 50 lignes, préférence mémorisée.
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(0);
@@ -214,6 +216,7 @@ export function ActionsInbox() {
       setHistory(Array.isArray(d.history) ? d.history : []);
       setAutomated(Array.isArray(d.automated) ? d.automated : []);
       setOverrides(d.overrides && typeof d.overrides === "object" ? d.overrides : {});
+      setSettings(d.settings && typeof d.settings === "object" ? d.settings : {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
       setPending([]);
@@ -280,6 +283,24 @@ export function ActionsInbox() {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setAutoBusy(null);
+    }
+  }
+
+  /** Cadence & conditions de sortie d'une famille (réglage serveur, borné). */
+  async function saveSettings(key: string, patch: Record<string, number | boolean>) {
+    const next = { ...(settings[key] ?? {}), ...patch };
+    setSettings((prev) => ({ ...prev, [key]: next })); // optimiste
+    try {
+      const res = await fetch("/api/actions/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, cadence: next }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Réglage impossible");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
     }
   }
 
@@ -435,6 +456,112 @@ export function ActionsInbox() {
                       {!AUTOMATABLE.has(c.key) && (
                         <p className="mt-1 text-[10px] font-medium text-amber-600">Toujours validée manuellement (fusion irréversible).</p>
                       )}
+
+                      {/* ── Cadence & conditions de sortie : explicites et choisies
+                             par l'utilisateur (relais agent pour être conseillé). ── */}
+                      {c.key === "overdue_invoice" && on && (() => {
+                        const s = settings.overdue_invoice ?? {};
+                        const interval = Number(s.intervalDays ?? 7);
+                        const max = Number(s.maxRelances ?? 3);
+                        return (
+                          <div className="mt-2 rounded-lg bg-slate-50 p-2.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Cadence & conditions de sortie</p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-slate-700">
+                              <label className="flex items-center gap-1.5">
+                                Relancer tous les
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={90}
+                                  value={interval}
+                                  onChange={(e) => void saveSettings("overdue_invoice", { intervalDays: Number(e.target.value) })}
+                                  className="w-14 rounded-md border border-slate-200 px-1.5 py-0.5 text-center text-[11px] outline-none focus:border-accent"
+                                />
+                                jours
+                              </label>
+                              <label className="flex items-center gap-1.5">
+                                Maximum
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={10}
+                                  value={max}
+                                  onChange={(e) => void saveSettings("overdue_invoice", { maxRelances: Number(e.target.value) })}
+                                  className="w-12 rounded-md border border-slate-200 px-1.5 py-0.5 text-center text-[11px] outline-none focus:border-accent"
+                                />
+                                relances
+                              </label>
+                            </div>
+                            <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+                              <p className="text-slate-500">Sortie du cycle :</p>
+                              <p className="flex items-center gap-1.5">
+                                <span className="text-emerald-600">✓</span> Paiement intégral reçu — arrêt garanti, non désactivable
+                              </p>
+                              <label className="flex cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(s.stopOnPartialPayment)}
+                                  onChange={(e) => void saveSettings("overdue_invoice", { stopOnPartialPayment: e.target.checked })}
+                                  className="accent-[var(--accent)]"
+                                />
+                                Un paiement <b>partiel</b> arrête aussi les relances
+                              </label>
+                              <label className="flex cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="checkbox"
+                                  checked={s.escalateAfterMax !== false}
+                                  onChange={(e) => void saveSettings("overdue_invoice", { escalateAfterMax: e.target.checked })}
+                                  className="accent-[var(--accent)]"
+                                />
+                                Après {max} relances : créer une tâche de recouvrement humaine (sinon arrêt simple)
+                              </label>
+                            </div>
+                            <a
+                              href={`/dashboard/agents/paiement-facturation?ask=${encodeURIComponent(
+                                `Analyse mes impayés et mon comportement de paiement réel (DSO, délai moyen d'encaissement après relance, part des factures payées après la 1re/2e/3e relance) et recommande-moi la meilleure cadence de relance : tous les combien de jours, combien de relances maximum, et à partir de quand escalader en recouvrement humain. Ma cadence actuelle est : 1 relance tous les ${interval} jours, ${max} maximum.`,
+                              )}`}
+                              className="mt-2 inline-block text-[11px] font-medium text-accent hover:underline"
+                            >
+                              Demander conseil à l&apos;agent Trésorerie →
+                            </a>
+                          </div>
+                        );
+                      })()}
+
+                      {c.key === "silent_deal" && on && (() => {
+                        const days = Number(settings.silent_deal?.silentDays ?? 21);
+                        return (
+                          <div className="mt-2 rounded-lg bg-slate-50 p-2.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Seuil & conditions de sortie</p>
+                            <label className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-700">
+                              Relancer un deal sans contact depuis
+                              <input
+                                type="number"
+                                min={3}
+                                max={180}
+                                value={days}
+                                onChange={(e) => void saveSettings("silent_deal", { silentDays: Number(e.target.value) })}
+                                className="w-14 rounded-md border border-slate-200 px-1.5 py-0.5 text-center text-[11px] outline-none focus:border-accent"
+                              />
+                              jours
+                            </label>
+                            <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+                              <p className="text-slate-500">Sortie du cycle :</p>
+                              <p className="flex items-center gap-1.5"><span className="text-emerald-600">✓</span> Le contact répond — HubSpot le désinscrit de la séquence</p>
+                              <p className="flex items-center gap-1.5"><span className="text-emerald-600">✓</span> Deal gagné ou perdu — sortie du détecteur</p>
+                              <p className="flex items-center gap-1.5"><span className="text-emerald-600">✓</span> Toute activité enregistrée sur le deal remet le compteur à zéro</p>
+                            </div>
+                            <a
+                              href={`/dashboard/agents/performance?ask=${encodeURIComponent(
+                                `Analyse mon cycle de vente et mes deals gagnés/perdus : au bout de combien de jours sans contact un deal ouvert décroche-t-il réellement ? Recommande-moi le seuil de silence à partir duquel déclencher une relance automatique (actuellement ${days} jours), en t'appuyant sur mes vraies données.`,
+                              )}`}
+                              className="mt-2 inline-block text-[11px] font-medium text-accent hover:underline"
+                            >
+                              Demander conseil à l&apos;agent Performances →
+                            </a>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <label className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
