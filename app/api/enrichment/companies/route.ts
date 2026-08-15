@@ -28,18 +28,7 @@ export async function GET() {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  const { data } = await supabase
-    .from("companies")
-    .select("id, name, domain, siren, hubspot_id")
-    .eq("organization_id", orgId)
-    .is("siren", null)
-    .not("name", "is", null)
-    .limit(25);
-
-  const companies = ((data ?? []) as CompanyRow[]).filter((c) => (c.name ?? "").trim().length >= 2);
-
-  // Séquentiel : l'API publique limite à ~7 req/s — on reste très en dessous.
-  const proposals: Array<{
+  type ProposalOut = {
     companyId: string;
     name: string;
     domain: string | null;
@@ -49,7 +38,58 @@ export async function GET() {
     vatNumber: string;
     legalName: string;
     confidence: "high" | "medium";
-  }> = [];
+    /** Candidat préparé par le cron d'enrichissement automatique (file de validation). */
+    fromQueue?: boolean;
+  };
+  const proposals: ProposalOut[] = [];
+
+  // ── 1. File de validation préparée par le cron (instantané, zéro appel API) :
+  //    les correspondances « plausibles » que l'enrichissement automatique n'a
+  //    pas voulu appliquer seul. Best-effort si la migration n'est pas passée.
+  const seen = new Set<string>();
+  try {
+    const { data: queued } = await supabase
+      .from("companies")
+      .select("id, name, domain, hubspot_id, candidate_siren, candidate_siret, candidate_legal_name")
+      .eq("organization_id", orgId)
+      .is("siren", null)
+      .not("candidate_siren", "is", null)
+      .limit(50);
+    for (const c of queued ?? []) {
+      const siren = c.candidate_siren as string | null;
+      if (!siren || !/^\d{9}$/.test(siren)) continue;
+      seen.add(c.id as string);
+      proposals.push({
+        companyId: c.id as string,
+        name: (c.name as string | null) ?? siren,
+        domain: (c.domain as string | null) ?? null,
+        hubspotId: (c.hubspot_id as string | null) ?? null,
+        siren,
+        siret: (c.candidate_siret as string | null) ?? null,
+        vatNumber: vatFromSiren(siren),
+        legalName: (c.candidate_legal_name as string | null) ?? ((c.name as string | null) ?? siren),
+        confidence: "medium",
+        fromQueue: true,
+      });
+    }
+  } catch {
+    /* colonnes candidate_* absentes → uniquement le scan direct */
+  }
+
+  // ── 2. Scan direct d'un lot (complément immédiat de la file) ──
+  const { data } = await supabase
+    .from("companies")
+    .select("id, name, domain, siren, hubspot_id")
+    .eq("organization_id", orgId)
+    .is("siren", null)
+    .not("name", "is", null)
+    .limit(25);
+
+  const companies = ((data ?? []) as CompanyRow[]).filter(
+    (c) => (c.name ?? "").trim().length >= 2 && !seen.has(c.id),
+  );
+
+  // Séquentiel : l'API publique limite à ~7 req/s — on reste très en dessous.
   for (const c of companies) {
     const found = await searchCompanyInSirene(c.name!);
     if (found) {
@@ -67,7 +107,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ scanned: companies.length, proposals });
+  return NextResponse.json({ scanned: companies.length + seen.size, proposals });
 }
 
 export async function POST(request: Request) {
@@ -126,6 +166,14 @@ export async function POST(request: Request) {
     }
     if (error) continue;
     applied++;
+
+    // Candidat validé → on vide la file (best-effort : colonnes d'une
+    // migration récente, jamais bloquant).
+    await supabase
+      .from("companies")
+      .update({ candidate_siren: null, candidate_siret: null, candidate_legal_name: null })
+      .eq("id", item.companyId)
+      .eq("organization_id", orgId);
 
     // 2. Écriture DANS HubSpot (best-effort) : la donnée corrigée vit aussi
     //    dans l'outil du client, pas seulement chez Revold.

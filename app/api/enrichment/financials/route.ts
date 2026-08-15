@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { fetchCompanyFacts } from "@/lib/enrichment/company-enrichment";
+import { fetchCompanyFacts, searchCompanyInSirene } from "@/lib/enrichment/company-enrichment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Enrichissement EFFECTIFS & CA officiels des entreprises, par SIREN (la clé
- * posée par le rapprochement) — source : API Recherche d'Entreprises de l'État
- * (tranches d'effectif URSSAF/INSEE + CA déposé à l'INPI). Données évolutives :
- * les entreprises jamais enrichies passent d'abord, puis les plus anciennes.
+ * Enrichissement EFFECTIFS & CA officiels des entreprises — source : API
+ * Recherche d'Entreprises de l'État (tranches d'effectif URSSAF/INSEE + CA
+ * déposé à l'INPI). Deux clés de lecture :
+ *  - SIREN quand il est présent (déterministe) ;
+ *  - NOM sinon : le SIREN trouvé sert UNIQUEMENT de clé de lecture — il n'est
+ *    PAS écrit (certains clients ne veulent pas de SIREN dans leur base, mais
+ *    veulent le CA et l'effectif).
+ * Données évolutives : jamais enrichies d'abord, puis les plus anciennes.
  *
  * GET  : propose les données officielles (rien n'est écrit, l'utilisateur valide).
  * POST : applique la sélection — colonnes official_* chez Revold ET, si le
@@ -36,24 +40,29 @@ export async function GET() {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  // Jamais enrichies d'abord, puis les plus anciennes (données évolutives).
+  // Jamais enrichies d'abord, puis les plus anciennes (données évolutives) —
+  // AVEC ou SANS SIREN : sans SIREN, lookup par NOM (clé de lecture seulement).
   const { data, error } = await supabase
     .from("companies")
     .select("id, name, siren, hubspot_id, annual_revenue, employee_count, enriched_at")
     .eq("organization_id", orgId)
-    .not("siren", "is", null)
+    .not("name", "is", null)
     .order("enriched_at", { ascending: true, nullsFirst: true })
     .limit(20);
   if (error) {
     return NextResponse.json({ error: "Migration companies_financials non appliquée — redéploie puis réessaie." }, { status: 500 });
   }
 
-  const companies = ((data ?? []) as CompanyRow[]).filter((c) => c.siren && /^\d{9}$/.test(c.siren));
+  const companies = ((data ?? []) as CompanyRow[]).filter(
+    (c) => (c.siren && /^\d{9}$/.test(c.siren)) || (c.name ?? "").trim().length >= 2,
+  );
   const proposals: Array<{
     companyId: string;
     name: string;
-    siren: string;
+    siren: string | null;
     hubspotId: string | null;
+    matchedVia: "siren" | "name";
+    confidence: "high" | "medium";
     employeeRange: string | null;
     employeeYear: number | null;
     employeeMidpoint: number | null;
@@ -66,13 +75,30 @@ export async function GET() {
 
   // Séquentiel : l'API publique limite à ~7 req/s — on reste très en dessous.
   for (const c of companies) {
-    const facts = await fetchCompanyFacts(c.siren!);
+    let facts = null;
+    let matchedVia: "siren" | "name" = "siren";
+    let confidence: "high" | "medium" = "high";
+    let siren: string | null = c.siren;
+    if (c.siren && /^\d{9}$/.test(c.siren)) {
+      facts = await fetchCompanyFacts(c.siren);
+    } else {
+      // Sans SIREN : le nom sert de clé — le SIREN trouvé n'est PAS écrit.
+      const found = await searchCompanyInSirene(c.name!);
+      if (found) {
+        facts = found.facts;
+        matchedVia = "name";
+        confidence = found.confidence;
+        siren = found.siren;
+      }
+    }
     if (!facts || (facts.employeeRange == null && facts.revenue == null)) continue;
     proposals.push({
       companyId: c.id,
-      name: c.name ?? c.siren!,
-      siren: c.siren!,
+      name: c.name ?? siren ?? "—",
+      siren,
       hubspotId: c.hubspot_id,
+      matchedVia,
+      confidence,
       employeeRange: facts.employeeRange,
       employeeYear: facts.employeeYear,
       employeeMidpoint: facts.employeeMidpoint,

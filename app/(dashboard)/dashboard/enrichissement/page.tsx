@@ -35,12 +35,13 @@ export default async function EnrichissementPage() {
   // Server component force-dynamic : l'horloge est stable par requête.
   // eslint-disable-next-line react-hooks/purity
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-  const [total, withSiren, withEmployees, withRevenue, fresh] = await Promise.all([
+  const [total, withSiren, withEmployees, withRevenue, fresh, toReview] = await Promise.all([
     count(supabase, orgId, (q) => q),
     count(supabase, orgId, (q) => q.not("siren", "is", null)),
     count(supabase, orgId, (q) => q.not("official_employee_range", "is", null)),
     count(supabase, orgId, (q) => q.not("official_revenue", "is", null)),
     count(supabase, orgId, (q) => q.gte("enriched_at", ninetyDaysAgo)),
+    count(supabase, orgId, (q) => q.is("siren", null).not("candidate_siren", "is", null)),
   ]);
   const sirenPct = total ? Math.round(((withSiren ?? 0) / total) * 100) : 0;
 
@@ -50,6 +51,7 @@ export default async function EnrichissementPage() {
     { label: "Effectif officiel connu", value: withEmployees, sub: "tranche URSSAF/INSEE datée" },
     { label: "CA officiel connu", value: withRevenue, sub: "dernier exercice déposé (INPI)" },
     { label: "Rafraîchies < 90 j", value: fresh, sub: "données évolutives — à entretenir" },
+    { label: "À valider", value: toReview, sub: "correspondances plausibles en attente" },
   ];
 
   return (
@@ -58,12 +60,16 @@ export default async function EnrichissementPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Enrichissement</h1>
         <p className="mt-1 text-sm text-slate-500">
           Revold remplit et rafraîchit la donnée officielle de tes entreprises — identifiants (SIREN, SIRET, TVA),
-          effectifs et chiffre d&apos;affaires — puis l&apos;écrit dans ton CRM. Tu valides, il exécute.
+          effectifs et chiffre d&apos;affaires — puis l&apos;écrit dans ton CRM.{" "}
+          <span className="font-medium text-slate-700">
+            L&apos;enrichissement tourne automatiquement chaque heure sur toute la base
+          </span>{" "}
+          : les correspondances sûres s&apos;appliquent seules, les incertaines t&apos;attendent ci-dessous.
         </p>
       </header>
 
       {/* ── Couverture ── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         {tiles.map((t) => (
           <article key={t.label} className="card p-4 text-center">
             <p className="text-[10px] font-medium uppercase text-slate-500">{t.label}</p>

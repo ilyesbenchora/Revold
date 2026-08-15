@@ -18,6 +18,8 @@ export type EnrichmentCandidate = {
   vatNumber: string;
   /** high = nom normalisé identique · medium = meilleur résultat plausible. */
   confidence: "high" | "medium";
+  /** Effectifs & CA officiels, extraits de la MÊME réponse API (zéro requête en plus). */
+  facts: CompanyFacts;
 };
 
 /** Clé TVA française : FR + ((12 + 3 × (SIREN mod 97)) mod 97) + SIREN. */
@@ -183,6 +185,7 @@ export async function searchCompanyInSirene(name: string): Promise<EnrichmentCan
       legalName: bestName,
       vatNumber: vatFromSiren(best.siren!),
       confidence: exact ? "high" : "medium",
+      facts: factsFromResult(best),
     };
   } catch {
     return null;

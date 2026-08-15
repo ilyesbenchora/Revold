@@ -91,8 +91,9 @@ export function CompanyEnrichmentBlock() {
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900">✨ Enrichissement SIREN · SIRET · TVA (base Sirene)</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Revold remplit les identifiants manquants depuis la base officielle Sirene (gratuite), tu valides —
-            puis il écrit chez Revold ET dans HubSpot (propriétés mappées).
+            <span className="font-medium text-slate-600">Automatique chaque heure sur toute la base</span> : les
+            correspondances sûres sont appliquées seules (Revold + HubSpot), les incertaines t&apos;attendent ici
+            pour validation. L&apos;analyse manuelle complète en direct.
           </p>
         </div>
         <button

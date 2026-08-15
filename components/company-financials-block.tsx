@@ -12,8 +12,11 @@ import { useState } from "react";
 type Proposal = {
   companyId: string;
   name: string;
-  siren: string;
+  siren: string | null;
   hubspotId: string | null;
+  /** siren = clé stockée (déterministe) · name = trouvée par le nom (SIREN non stocké). */
+  matchedVia: "siren" | "name";
+  confidence: "high" | "medium";
   employeeRange: string | null;
   employeeYear: number | null;
   employeeMidpoint: number | null;
@@ -48,8 +51,9 @@ export function CompanyFinancialsBlock() {
       const props = (d.proposals ?? []) as Proposal[];
       setScanned(typeof d.scanned === "number" ? d.scanned : props.length);
       setProposals(props);
-      // Match par SIREN = déterministe → tout est pré-coché.
-      setSelected(new Set(props.map((p) => p.companyId)));
+      // Pré-cochage : SIREN stocké ou nom exact (déterministe) ; les
+      // correspondances de nom « plausibles » se cochent à la main.
+      setSelected(new Set(props.filter((p) => p.confidence === "high").map((p) => p.companyId)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
@@ -104,9 +108,9 @@ export function CompanyFinancialsBlock() {
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900">📈 Effectifs & chiffre d&apos;affaires officiels</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Par SIREN : tranche d&apos;effectif officielle (URSSAF/INSEE) et dernier CA déposé à l&apos;INPI. Tu valides —
-            Revold met à jour ses données ET les propriétés HubSpot (CA annuel, effectif). Données évolutives :
-            relance l&apos;analyse régulièrement, les plus anciennes passent en premier.
+            Tranche d&apos;effectif officielle (URSSAF/INSEE) et dernier CA déposé à l&apos;INPI — par SIREN quand il
+            existe, sinon <span className="font-medium text-slate-600">par le nom de l&apos;entreprise (le SIREN trouvé n&apos;est pas stocké)</span>.
+            Tu valides — Revold met à jour ses données ET les propriétés HubSpot (CA annuel, effectif).
           </p>
         </div>
         <button
@@ -137,8 +141,8 @@ export function CompanyFinancialsBlock() {
         {proposals !== null && proposals.length === 0 && (
           <p className="text-xs text-slate-500">
             {scanned === 0
-              ? "Aucune entreprise avec SIREN — commence par l'enrichissement des identifiants ci-dessus."
-              : "Aucune donnée officielle disponible sur ce lot (effectif non déclaré, comptes déposés en confidentialité)."}
+              ? "Aucune entreprise à analyser (nom manquant sur les fiches)."
+              : "Aucune donnée officielle disponible sur ce lot (effectif non déclaré, comptes déposés en confidentialité, ou entreprise introuvable par son nom)."}
           </p>
         )}
 
@@ -164,7 +168,18 @@ export function CompanyFinancialsBlock() {
                       </td>
                       <td className="px-2.5 py-2 font-medium text-slate-800">
                         {p.name}
-                        <span className="ml-1.5 text-[10px] tabular-nums text-slate-400">{p.siren}</span>
+                        {p.matchedVia === "siren" ? (
+                          <span className="ml-1.5 text-[10px] tabular-nums text-slate-400">{p.siren}</span>
+                        ) : (
+                          <span
+                            className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                              p.confidence === "high" ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-700"
+                            }`}
+                            title="Trouvée par le nom — le SIREN n'est pas stocké dans ta base"
+                          >
+                            {p.confidence === "high" ? "via nom" : "via nom · à vérifier"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2.5 py-2 text-slate-900">
                         {p.employeeRange ?? "—"}
