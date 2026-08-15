@@ -70,6 +70,10 @@ const HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT = [
   // ── Automation / Sequences ──────────────────────────
   "automation",
   "automation.sequences.read",
+  // Inscription en séquence au nom de l'owner (relances par VRAI email —
+  // boîte Actions). Vérifié au catalogue HubSpot ; à cocher en Optional
+  // dans le dev portal.
+  "automation.sequences.enrollments.write",
 
   // ── Conversations ────────────────────────────────────
   "conversations.read",
@@ -79,6 +83,14 @@ const HUBSPOT_OAUTH_OPTIONAL_SCOPES_DEFAULT = [
   "crm.extensions_calling_transcripts.read",
   "crm.import",
   "crm.lists.read",
+
+  // ── CRM objects : ÉCRITURE (boîte Actions : tâches, contacts facturation,
+  //    enrichissement SIREN/TVA, deals de renouvellement, fusions, dates de
+  //    closing). Scopes standards du catalogue ; à cocher en Optional dans le
+  //    dev portal, puis reconnecter HubSpot depuis Paramètres → Intégrations.
+  "crm.objects.contacts.write",
+  "crm.objects.companies.write",
+  "crm.objects.deals.write",
 
   // ── CRM objects étendus ──────────────────────────────
   "crm.objects.appointments.read",
