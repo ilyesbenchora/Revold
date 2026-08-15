@@ -28,7 +28,6 @@ export const AGENT_PERSONAS: Record<string, CoachPersona> = {
   performance: { name: "Chloé", emoji: "👩‍💻", role: "Analyste performance", pitch: "Je décortique tes deals, ton pipeline et ton win rate pour révéler où se cache la croissance — et les leviers concrets pour l'activer.", gradient: "from-amber-50 via-white to-white", tint: "text-amber-200" },
   "paiement-facturation": { name: "Inès", emoji: "👩‍💼", role: "Experte trésorerie", pitch: "Je réconcilie factures, paiements et impayés pour piloter le cash réel — pas seulement le pipeline théorique.", gradient: "from-emerald-50 via-white to-white", tint: "text-emerald-200" },
   "service-client": { name: "Hugo", emoji: "🙋‍♂️", role: "Référent relation client", pitch: "Je croise tickets et comptes pour anticiper le churn et protéger tes revenus récurrents avant qu'il ne soit trop tard.", gradient: "from-rose-50 via-white to-white", tint: "text-rose-200" },
-  equipes: { name: "Sarah", emoji: "🧑‍🤝‍🧑", role: "Coach d'équipes", pitch: "J'analyse la performance commercial par commercial pour équilibrer la charge et faire monter chacun en compétence.", gradient: "from-sky-50 via-white to-white", tint: "text-sky-200" },
   proprietes: { name: "Karim", emoji: "🕵️", role: "Agent rapprochement de données", pitch: "Je traque les champs manquants et incohérents qui faussent tes analyses, et je veille au rapprochement fiable de tes données entre tes outils.", gradient: "from-violet-50 via-white to-white", tint: "text-violet-200" },
   // Coaching
   "coaching-ventes": { name: "Marc", emoji: "👨‍💼", role: "Coach des ventes", pitch: "Je traque les deals qui bloquent, muscle ton closing et fluidifie ton pipeline pour accélérer le chiffre.", gradient: "from-blue-50 via-white to-white", tint: "text-blue-200" },
@@ -55,7 +54,6 @@ export function getAgentPersona(agentKey: string | null | undefined): CoachPerso
 const FEMININE_AGENTS = new Set([
   "performance",            // Chloé
   "paiement-facturation",   // Inès
-  "equipes",                // Sarah
   "coaching-marketing",     // Léa
   "coaching-data",          // Sofia
   "prev-ventes",            // Emma

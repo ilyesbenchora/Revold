@@ -22,7 +22,6 @@ const AGENT_SOURCE_PAGES: Record<string, string[]> = {
   ],
   // La page Appels n'est reliée à aucun agent — elle n'active pas Service Client.
   "service-client": ["audit_service_client"],
-  equipes: ["audit_adoption"],
   proprietes: ["audit_donnees"],
 };
 
@@ -65,21 +64,6 @@ const modules = [
       </svg>
     ),
     color: "from-blue-500 to-indigo-500",
-  },
-  {
-    href: "/dashboard/agents/equipes",
-    title: "Agent Équipes & Adoption",
-    description: "Usage de la stack par équipe, connexions utilisateurs, activités loguées, discipline CRM.",
-    objective: "Mesurer l'adoption réelle des outils par les équipes pour maximiser le ROI de la stack.",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    color: "from-fuchsia-500 to-purple-500",
   },
   {
     href: "/dashboard/agents/proprietes",

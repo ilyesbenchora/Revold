@@ -75,20 +75,6 @@ export const PERSONA_SCRIPTS: Record<string, PersonaScript> = {
       "et de protéger les revenus récurrents que tu as mis tant d'énergie à gagner.",
     ],
   },
-  equipes: {
-    elevenVoiceId: "NEjemlRxgWmL5ZGJetsB", // Claire — FR conversationnelle, chaleureuse (coach)
-    segments: [
-      "Salut, je suis Sarah, ta coach d'équipes chez Revold.",
-      "Je regarde la performance commercial par commercial,",
-      "sans jamais réduire quelqu'un à un simple chiffre.",
-      "Je vois qui est surchargé, qui a besoin d'appui,",
-      "et où se cachent les vraies marges de progression.",
-      "Je t'aide à équilibrer la charge dans l'équipe",
-      "et à faire monter chacun en compétence, à son rythme.",
-      "Ma mission, c'est une équipe plus juste et plus performante,",
-      "où le talent de chacun trouve sa place.",
-    ],
-  },
   proprietes: {
     elevenVoiceId: "NJGktYrreZwyjxhPOpIz", // Adrien — FR parisien, formel (auditeur)
     segments: [

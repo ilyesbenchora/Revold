@@ -25,7 +25,6 @@ const AGENT_PAGE_KEY: Record<string, string> = {
   "service-client": "audit_service_client",
   "paiement-facturation": "audit_paiement_facturation",
   "coaching-data-model": "audit_paiement_facturation",
-  equipes: "audit_adoption",
   proprietes: "audit_donnees",
   "coaching-data": "audit_donnees",
 };

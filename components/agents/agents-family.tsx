@@ -18,7 +18,6 @@ const FAMILY_KEYS = [
   "proprietes",
   "service-client",
   "coaching-data",
-  "equipes",
 ];
 
 export function AgentsFamily() {

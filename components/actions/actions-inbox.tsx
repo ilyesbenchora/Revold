@@ -177,7 +177,6 @@ const AGENT_LABELS: Record<string, string> = {
   performance: "Performances",
   "paiement-facturation": "Trésorerie",
   "service-client": "Service client",
-  equipes: "Équipes & Adoption",
   proprietes: "Data & intégrations",
   "coaching-ventes": "Coach Ventes",
   "coaching-marketing": "Coach Marketing",

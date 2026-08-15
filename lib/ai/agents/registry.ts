@@ -201,21 +201,9 @@ const AGENT_LIST: AgentDef[] = [
     },
     sourceCategories: ["support", "crm", "billing"],
   },
-  {
-    key: "equipes",
-    label: "Agent Équipes & Adoption",
-    section: "donnees",
-    tagline: "Adoption de la stack, discipline CRM, activités loguées.",
-    expertise:
-      "Tu es un directeur de la transformation / enablement senior. Tu sais qu'un CRM mal alimenté rend tout reporting faux et tout forecast fragile. Tu mesures l'adoption réelle (activités loguées par deal, discipline de saisie, complétude) et tu la relies à la performance : une équipe qui ne logue pas est une équipe qu'on ne peut pas coacher. Tu chiffres le déficit d'adoption et tu proposes les rituels et garde-fous concrets pour l'ancrer.",
-    tools: [getKpiSnapshot, getCanonicalCounts, listConnectedSources, propose],
-    suggestions: [
-      "Mes équipes loguent-elles assez d'activités ?",
-      "Quel est le niveau d'adoption réel de la stack ?",
-      "Où la discipline CRM fait-elle défaut et que ça coûte ?",
-    ],
-    sourceCategories: ["crm"],
-  },
+  // (Agent « Équipes & Adoption » retiré : ses constats — discipline CRM,
+  // complétude, activités loguées — sont couverts par l'agent Rapprochement
+  // de données et la page Équipes & Adoption elle-même.)
   {
     key: "proprietes",
     label: "Agent Rapprochement de données",

@@ -250,7 +250,10 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   perf_marketing: "coaching-marketing",
   audit_service_client: "service-client",
   audit_paiement_facturation: "paiement-facturation",
-  audit_adoption: "equipes",
+  // L'agent « Équipes & Adoption » a été retiré : la page d'adoption s'appuie
+  // désormais sur l'agent Rapprochement de données (même terrain : discipline
+  // de saisie, complétude, qualité de la donnée).
+  audit_adoption: "proprietes",
   audit_donnees: "proprietes",
 };
 

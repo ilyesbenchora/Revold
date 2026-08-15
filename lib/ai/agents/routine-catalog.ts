@@ -70,12 +70,6 @@ const SUPPORT_TOPICS: RecapTopic[] = [
   { id: "churn", label: "Risque de churn", detail: "comptes à risque (vision agrégée), churn constaté" },
 ];
 
-const TEAMS_TOPICS: RecapTopic[] = [
-  { id: "activite", label: "Activité CRM", detail: "rythme de création et de clôture de deals par l'équipe" },
-  { id: "discipline", label: "Discipline de saisie", detail: "complétude des fiches, qualification MQL/SQL, statuts à jour" },
-  { id: "adoption", label: "Adoption des outils", detail: "usage réel de la stack par équipe" },
-];
-
 const ALIGN_TOPICS: RecapTopic[] = [
   { id: "relais", label: "Relais entre services", detail: "conversion MQL → deal → facture, points de rupture" },
   { id: "process", label: "Process & workflows", detail: "workflows actifs, automatisations en échec ou manquantes" },
@@ -95,7 +89,6 @@ const AGENT_RECAP_TOPICS: Record<string, RecapTopic[]> = {
   proprietes: DATA_TOPICS,
   "coaching-data": DATA_TOPICS,
   "service-client": SUPPORT_TOPICS,
-  equipes: TEAMS_TOPICS,
   automatisations: ALIGN_TOPICS,
 };
 
