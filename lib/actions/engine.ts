@@ -27,6 +27,17 @@ export type ActionPayload = {
   mergeObjectType?: "contacts" | "companies";
   primaryHubspotId?: string;
   mergeHubspotId?: string;
+  /** Enrichissement CRM : propriétés HubSpot à écrire sur l'entreprise. */
+  hubspotProperties?: Record<string, string>;
+  /** Rattachement canonique : fiche facturation orpheline → fiche CRM. */
+  sourceCompanyId?: string;
+  targetCompanyId?: string;
+  /** Création de deal de renouvellement. */
+  dealName?: string;
+  dealAmount?: number;
+  dealCloseDate?: string;
+  /** Création de contact facturation. */
+  contactEmail?: string;
 };
 
 const DAY_MS = 86_400_000;
@@ -241,6 +252,326 @@ export async function detectMergeCandidates(
   return out;
 }
 
+/**
+ * Détecteur : SIREN / N° TVA connu en canonique (via la facturation) mais
+ * absent de la fiche HubSpot — l'action reporte l'identifiant dans le CRM.
+ * Chaque report rend les rapprochements suivants automatiques.
+ */
+export async function detectCrmIdentifierEnrich(
+  supabase: SupabaseClient,
+  orgId: string,
+  hubspotToken: string | null,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  if (!hubspotToken) return [];
+  // Propriétés HubSpot cibles : mapping utilisateur, sinon défauts du catalogue.
+  const { data: mapping } = await supabase
+    .from("identifier_field_mapping")
+    .select("canonical_field, provider_field")
+    .eq("organization_id", orgId)
+    .eq("provider", "hubspot")
+    .in("canonical_field", ["siren", "vat_number"]);
+  const fieldFor = new Map<string, string>([["siren", "siren"], ["vat_number", "vat_number"]]);
+  for (const m of (mapping ?? []) as Array<{ canonical_field: string; provider_field: string | null }>) {
+    if (m.provider_field) fieldFor.set(m.canonical_field, m.provider_field);
+  }
+
+  const { data } = await supabase
+    .from("companies")
+    .select("id, name, siren, vat_number, hubspot_id")
+    .eq("organization_id", orgId)
+    .not("hubspot_id", "is", null)
+    .or("siren.not.is.null,vat_number.not.is.null")
+    .limit(100);
+  const companies = ((data ?? []) as Array<{ id: string; name: string | null; siren: string | null; vat_number: string | null; hubspot_id: string | null }>)
+    .filter((c) => c.hubspot_id);
+  if (companies.length === 0) return [];
+
+  // Lecture batch HubSpot : la propriété est-elle déjà renseignée côté CRM ?
+  let hsProps = new Map<string, Record<string, string | null>>();
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/batch/read", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        properties: [...new Set(fieldFor.values())],
+        inputs: companies.map((c) => ({ id: c.hubspot_id })),
+      }),
+    });
+    if (!res.ok) return []; // propriété inexistante côté portail → rien à proposer
+    const d = (await res.json()) as { results?: Array<{ id: string; properties?: Record<string, string | null> }> };
+    hsProps = new Map((d.results ?? []).map((r) => [r.id, r.properties ?? {}]));
+  } catch {
+    return [];
+  }
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const c of companies) {
+    const hs = hsProps.get(c.hubspot_id!) ?? {};
+    const toWrite: Record<string, string> = {};
+    const parts: string[] = [];
+    if (c.siren && !hs[fieldFor.get("siren")!]) { toWrite[fieldFor.get("siren")!] = c.siren; parts.push(`SIREN ${c.siren}`); }
+    if (c.vat_number && !hs[fieldFor.get("vat_number")!]) { toWrite[fieldFor.get("vat_number")!] = c.vat_number; parts.push(`N° TVA ${c.vat_number}`); }
+    if (Object.keys(toWrite).length === 0) continue;
+    out.push({
+      dedupe_key: `crm_enrich:${c.id}`,
+      type: "hubspot_company_update",
+      title: `Reporter ${parts.join(" + ")} sur « ${c.name ?? "entreprise"} » (CRM)`,
+      description: `L'identifiant est connu via la facturation mais absent de la fiche HubSpot. Valider l'écrit dans le CRM : les prochains rapprochements de cette entreprise deviennent automatiques (et la fiche est prête pour la facturation électronique).`,
+      source: "detector:crm_enrich",
+      payload: { companyHubspotId: c.hubspot_id!, hubspotProperties: toWrite },
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/** Normalisation légère d'un nom d'entreprise (formes juridiques retirées). */
+function normCompanyName(name: string | null): string {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/\b(sas|sasu|sarl|eurl|sa|sci|scop|snc|gmbh|ltd|inc|llc|bv)\b/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
+/**
+ * Détecteur : entreprise vue côté facturation SANS lien CRM alors qu'une fiche
+ * CRM correspond (même nom normalisé ou même domaine) — l'action relie les
+ * deux fiches canoniques : le CA devient attribuable compte par compte.
+ */
+export async function detectUnlinkedCompanies(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const [{ data: orphansData }, { data: crmData }] = await Promise.all([
+    supabase
+      .from("companies")
+      .select("id, name, domain, siren, vat_number")
+      .eq("organization_id", orgId)
+      .is("hubspot_id", null)
+      .limit(1000),
+    supabase
+      .from("companies")
+      .select("id, name, domain")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .limit(3000),
+  ]);
+  const orphans = (orphansData ?? []) as Array<{ id: string; name: string | null; domain: string | null; siren: string | null; vat_number: string | null }>;
+  const crm = (crmData ?? []) as Array<{ id: string; name: string | null; domain: string | null }>;
+  if (orphans.length === 0 || crm.length === 0) return [];
+
+  const crmByNorm = new Map<string, { id: string; name: string | null }>();
+  const crmByDomain = new Map<string, { id: string; name: string | null }>();
+  for (const c of crm) {
+    const n = normCompanyName(c.name);
+    if (n && !crmByNorm.has(n)) crmByNorm.set(n, c);
+    if (c.domain) crmByDomain.set(c.domain.toLowerCase(), c);
+  }
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const o of orphans) {
+    const norm = normCompanyName(o.name);
+    const match = (norm && crmByNorm.get(norm)) || (o.domain && crmByDomain.get(o.domain.toLowerCase())) || null;
+    if (!match || match.id === o.id) continue;
+    out.push({
+      dedupe_key: `link_company:${o.id}`,
+      type: "link_company",
+      title: `Relier « ${o.name ?? "entreprise"} » (facturation) à « ${match.name ?? "fiche CRM"} » (CRM)`,
+      description: `Les deux fiches désignent la même entreprise (${norm && normCompanyName(match.name) === norm ? "même nom" : "même domaine"}) mais ne sont pas reliées : factures et abonnements restent invisibles côté CRM. Valider fusionne les fiches Revold — le CA de ce compte devient attribuable et les identifiants (SIREN/TVA) sont reportés sur la fiche CRM.`,
+      source: "detector:link_company",
+      payload: { sourceCompanyId: o.id, targetCompanyId: match.id },
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/**
+ * Détecteur : abonnement actif dont la période se termine sous 60 jours SANS
+ * deal de renouvellement ouvert sur le compte — l'action crée le deal dans
+ * HubSpot (montant = MRR × 12, closing = fin de période). Le forecast intègre
+ * enfin le récurrent à renouveler.
+ */
+export async function detectMissingRenewalDeals(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const today = new Date();
+  const in60d = new Date(today.getTime() + 60 * DAY_MS).toISOString();
+  const { data: subsData } = await supabase
+    .from("subscriptions")
+    .select("id, mrr, current_period_end, company_id")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .not("company_id", "is", null)
+    .gt("mrr", 0)
+    .gte("current_period_end", today.toISOString())
+    .lte("current_period_end", in60d)
+    .limit(100);
+  const subs = (subsData ?? []) as Array<{ id: string; mrr: number | null; current_period_end: string | null; company_id: string | null }>;
+  if (subs.length === 0) return [];
+
+  const companyIds = [...new Set(subs.map((s) => s.company_id!))];
+  const [{ data: compData }, { data: openDeals }] = await Promise.all([
+    supabase.from("companies").select("id, name, hubspot_id").eq("organization_id", orgId).in("id", companyIds),
+    supabase
+      .from("deals")
+      .select("company_id")
+      .eq("organization_id", orgId)
+      .eq("is_closed_won", false)
+      .eq("is_closed_lost", false)
+      .in("company_id", companyIds),
+  ]);
+  const compById = new Map(((compData ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null }>).map((c) => [c.id, c]));
+  const hasOpenDeal = new Set(((openDeals ?? []) as Array<{ company_id: string | null }>).map((d) => d.company_id).filter(Boolean));
+
+  const eur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const s of subs) {
+    const comp = compById.get(s.company_id!);
+    if (!comp?.hubspot_id || hasOpenDeal.has(s.company_id!)) continue;
+    const arr = Math.round((Number(s.mrr) || 0) * 12);
+    const endDate = (s.current_period_end ?? "").slice(0, 10);
+    out.push({
+      dedupe_key: `renewal:${s.id}:${endDate}`,
+      type: "hubspot_create_deal",
+      title: `Créer le deal de renouvellement « ${comp.name ?? "compte"} » (${eur(arr)})`,
+      description: `Abonnement actif de ${eur(Math.round(Number(s.mrr) || 0))}/mois se terminant le ${endDate} — aucun deal ouvert sur ce compte. Valider crée le deal de renouvellement dans HubSpot (montant ${eur(arr)}, closing ${endDate}) : le forecast pondéré intègre enfin ce récurrent.`,
+      source: "detector:renewal_deal",
+      payload: {
+        companyHubspotId: comp.hubspot_id,
+        dealName: `Renouvellement — ${comp.name ?? "compte"}`,
+        dealAmount: arr,
+        dealCloseDate: endDate,
+      },
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/**
+ * Détecteur : REVENUE LEAKAGE — deal gagné depuis ≥ 30 j dont les factures
+ * liées couvrent moins de 90 % du montant signé. L'action crée une tâche
+ * chiffrée pour l'owner : ce qui a été vendu mais jamais (entièrement) facturé.
+ */
+export async function detectRevenueLeakage(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const cutoff = new Date(Date.now() - 30 * DAY_MS).toISOString().slice(0, 10);
+  const { data: dealsData } = await supabase
+    .from("deals")
+    .select("id, hubspot_id, name, amount, close_date")
+    .eq("organization_id", orgId)
+    .eq("is_closed_won", true)
+    .gt("amount", 0)
+    .lte("close_date", cutoff)
+    .order("amount", { ascending: false })
+    .limit(200);
+  const deals = ((dealsData ?? []) as Array<{ id: string; hubspot_id: string | null; name: string | null; amount: number | null; close_date: string | null }>)
+    .filter((d) => d.hubspot_id);
+  if (deals.length === 0) return [];
+
+  const { data: invData } = await supabase
+    .from("invoices")
+    .select("deal_id, amount_total")
+    .eq("organization_id", orgId)
+    .in("deal_id", deals.map((d) => d.id));
+  const billedByDeal = new Map<string, number>();
+  for (const i of (invData ?? []) as Array<{ deal_id: string | null; amount_total: number | null }>) {
+    if (!i.deal_id) continue;
+    billedByDeal.set(i.deal_id, (billedByDeal.get(i.deal_id) ?? 0) + (Number(i.amount_total) || 0));
+  }
+
+  const eur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const d of deals) {
+    const signed = Number(d.amount) || 0;
+    const billed = billedByDeal.get(d.id) ?? 0;
+    if (billed >= signed * 0.9) continue;
+    const gap = Math.round(signed - billed);
+    const dealName = d.name?.trim() || "Deal sans nom";
+    out.push({
+      dedupe_key: `leakage:${d.id}`,
+      type: "hubspot_task",
+      title: `Écart signé vs facturé sur « ${dealName} » — ${eur(gap)} non facturés`,
+      description: `Deal gagné le ${d.close_date ?? "?"} pour ${eur(signed)}, factures rattachées : ${eur(Math.round(billed))}. Valider crée une tâche chiffrée pour le propriétaire du deal — ce cash a été vendu mais jamais (entièrement) facturé.`,
+      source: "detector:revenue_leakage",
+      payload: {
+        subject: `Facturer l'écart sur « ${dealName} » : ${eur(gap)} signés non facturés`,
+        body: `Détecté par Revold : deal gagné le ${d.close_date ?? "?"} pour ${eur(signed)}, total facturé rattaché ${eur(Math.round(billed))} → écart ${eur(gap)}. Vérifier la facturation (facture manquante, montant partiel, ou facture non rattachée au deal).`,
+        dealHubspotId: d.hubspot_id,
+      },
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/**
+ * Détecteur : CONTACT FACTURATION manquant côté CRM — un contact relié à un
+ * outil de facturation (email connu) n'existe pas dans HubSpot. L'action crée
+ * le contact rattaché à l'entreprise : la règle « email exact » fonctionne
+ * ensuite pour tous les rapprochements.
+ */
+export async function detectMissingBillingContacts(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { data } = await supabase
+    .from("contacts")
+    .select("id, email, full_name, company_id")
+    .eq("organization_id", orgId)
+    .is("hubspot_id", null)
+    .not("email", "is", null)
+    .limit(500);
+  const candidates = (data ?? []) as Array<{ id: string; email: string | null; full_name: string | null; company_id: string | null }>;
+  if (candidates.length === 0) return [];
+
+  // Seuls les contacts VENUS d'un outil de facturation (source_links) comptent.
+  const { data: links } = await supabase
+    .from("source_links")
+    .select("internal_id, provider")
+    .eq("organization_id", orgId)
+    .eq("entity_type", "contact")
+    .in("internal_id", candidates.map((c) => c.id));
+  const providerByContact = new Map(
+    ((links ?? []) as Array<{ internal_id: string; provider: string }>)
+      .filter((l) => l.provider !== "hubspot")
+      .map((l) => [l.internal_id, l.provider]),
+  );
+  if (providerByContact.size === 0) return [];
+
+  const companyIds = [...new Set(candidates.map((c) => c.company_id).filter((x): x is string => !!x))];
+  const { data: comps } = companyIds.length > 0
+    ? await supabase.from("companies").select("id, name, hubspot_id").eq("organization_id", orgId).in("id", companyIds)
+    : { data: [] };
+  const compById = new Map(((comps ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null }>).map((c) => [c.id, c]));
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const c of candidates) {
+    const provider = providerByContact.get(c.id);
+    if (!provider || !c.email) continue;
+    const comp = c.company_id ? compById.get(c.company_id) : undefined;
+    out.push({
+      dedupe_key: `billing_contact:${c.id}`,
+      type: "hubspot_create_contact",
+      title: `Créer le contact facturation « ${c.email} » dans le CRM`,
+      description: `Ce contact existe côté ${provider} mais pas dans HubSpot${comp?.name ? ` (entreprise « ${comp.name} »)` : ""}. Valider le crée dans le CRM${comp?.hubspot_id ? ", rattaché à l'entreprise," : ""} — la règle « email exact » fonctionnera ensuite pour tous les rapprochements de ce compte.`,
+      source: "detector:billing_contact",
+      payload: {
+        contactEmail: c.email,
+        subject: c.full_name ?? undefined,
+        companyHubspotId: comp?.hubspot_id ?? null,
+      },
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
 // ── Exécuteurs ──────────────────────────────────────────────────────────────
 
 /** GET HubSpot : un objet avec son owner + ses contacts associés. */
@@ -373,6 +704,153 @@ export async function executeHubspotMerge(
     if (res.status === 403) {
       return { ok: false, detail: `Scope HubSpot manquant (crm.objects.${type === "contacts" ? "contacts" : "companies"}.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot.` };
     }
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/** Écrit des propriétés sur une entreprise HubSpot (enrichissement SIREN/TVA). */
+export async function executeHubspotCompanyUpdate(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  if (!payload.companyHubspotId || !payload.hubspotProperties || Object.keys(payload.hubspotProperties).length === 0) {
+    return { ok: false, detail: "Payload d'enrichissement incomplet." };
+  }
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${encodeURIComponent(payload.companyHubspotId)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: payload.hubspotProperties }),
+    });
+    if (res.ok) return { ok: true, detail: `Fiche CRM enrichie (${Object.keys(payload.hubspotProperties).join(", ")}).` };
+    const err = await res.text();
+    if (res.status === 403) return { ok: false, detail: "Scope HubSpot manquant (crm.objects.companies.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/**
+ * Relie une fiche facturation orpheline à sa fiche CRM (fusion canonique
+ * Revold) : factures/abonnements/contacts/deals et liens sources repointés,
+ * identifiants reportés sur la fiche CRM, fiche orpheline supprimée.
+ */
+export async function executeLinkCompany(
+  supabase: SupabaseClient,
+  orgId: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  const src = payload.sourceCompanyId;
+  const dst = payload.targetCompanyId;
+  if (!src || !dst || src === dst) return { ok: false, detail: "Payload de rattachement incomplet." };
+
+  const { data: pair } = await supabase
+    .from("companies")
+    .select("id, name, siren, siret, vat_number, domain, hubspot_id")
+    .eq("organization_id", orgId)
+    .in("id", [src, dst]);
+  const rows = (pair ?? []) as Array<{ id: string; name: string | null; siren: string | null; siret: string | null; vat_number: string | null; domain: string | null; hubspot_id: string | null }>;
+  const source = rows.find((r) => r.id === src);
+  const target = rows.find((r) => r.id === dst);
+  if (!source || !target) return { ok: false, detail: "Fiches introuvables (déjà reliées ?)." };
+
+  try {
+    // 1. Repointer les enregistrements dépendants vers la fiche CRM.
+    for (const table of ["invoices", "subscriptions", "contacts", "deals", "payments"]) {
+      await supabase.from(table).update({ company_id: dst }).eq("organization_id", orgId).eq("company_id", src);
+    }
+    // 2. Repointer les liens sources (le prochain sync retrouve la bonne fiche).
+    await supabase
+      .from("source_links")
+      .update({ internal_id: dst })
+      .eq("organization_id", orgId)
+      .eq("entity_type", "company")
+      .eq("internal_id", src);
+    // 3. Reporter les identifiants absents sur la fiche CRM.
+    const enrich: Record<string, string> = {};
+    if (source.siren && !target.siren) enrich.siren = source.siren;
+    if (source.siret && !target.siret) enrich.siret = source.siret;
+    if (source.vat_number && !target.vat_number) enrich.vat_number = source.vat_number;
+    if (source.domain && !target.domain) enrich.domain = source.domain;
+    if (Object.keys(enrich).length > 0) {
+      await supabase.from("companies").update(enrich).eq("organization_id", orgId).eq("id", dst);
+    }
+    // 4. Supprimer la fiche orpheline (tout est repointé).
+    await supabase.from("companies").delete().eq("organization_id", orgId).eq("id", src);
+    return {
+      ok: true,
+      detail: `« ${source.name ?? "fiche facturation"} » reliée à « ${target.name ?? "fiche CRM"} » — factures et abonnements attribués au compte${Object.keys(enrich).length > 0 ? `, identifiants reportés (${Object.keys(enrich).join(", ")})` : ""}.`,
+    };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur de rattachement" };
+  }
+}
+
+/** Crée un deal de renouvellement HubSpot associé à l'entreprise. */
+export async function executeHubspotCreateDeal(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  if (!payload.companyHubspotId || !payload.dealName) return { ok: false, detail: "Payload de deal incomplet." };
+  const closeMs = payload.dealCloseDate ? new Date(`${payload.dealCloseDate}T00:00:00Z`).getTime() : Date.now() + 30 * DAY_MS;
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        properties: {
+          dealname: payload.dealName.slice(0, 200),
+          amount: String(payload.dealAmount ?? 0),
+          closedate: String(closeMs),
+        },
+        // Association HUBSPOT_DEFINED deal→entreprise (typeId 5).
+        associations: [{ to: { id: payload.companyHubspotId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 5 }] }],
+      }),
+    });
+    if (res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return { ok: true, detail: `Deal de renouvellement créé dans HubSpot (id ${d.id ?? "?"}) — visible dans le pipeline par défaut.` };
+    }
+    const err = await res.text();
+    if (res.status === 403) return { ok: false, detail: "Scope HubSpot manquant (crm.objects.deals.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/** Crée un contact HubSpot (email facturation) rattaché à l'entreprise. */
+export async function executeHubspotCreateContact(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  if (!payload.contactEmail) return { ok: false, detail: "Email du contact manquant." };
+  const associations = payload.companyHubspotId
+    ? [{ to: { id: payload.companyHubspotId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 279 }] }]
+    : [];
+  const properties: Record<string, string> = { email: payload.contactEmail };
+  // payload.subject transporte le nom complet éventuel du contact facturation.
+  if (payload.subject) {
+    const parts = payload.subject.trim().split(/\s+/);
+    if (parts.length > 1) { properties.firstname = parts[0]; properties.lastname = parts.slice(1).join(" "); }
+    else properties.lastname = payload.subject.trim();
+  }
+  try {
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties, associations }),
+    });
+    if (res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return { ok: true, detail: `Contact facturation créé dans HubSpot (id ${d.id ?? "?"}).` };
+    }
+    const err = await res.text();
+    if (res.status === 409) return { ok: false, detail: "Un contact avec cet email existe déjà dans HubSpot — le rapprochement se fera à la prochaine sync." };
+    if (res.status === 403) return { ok: false, detail: "Scope HubSpot manquant (crm.objects.contacts.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
     return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };

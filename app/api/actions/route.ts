@@ -6,8 +6,17 @@ import {
   detectSilentDeals,
   detectOverdueInvoiceActions,
   detectMergeCandidates,
+  detectCrmIdentifierEnrich,
+  detectUnlinkedCompanies,
+  detectMissingRenewalDeals,
+  detectRevenueLeakage,
+  detectMissingBillingContacts,
   executeHubspotTask,
   executeHubspotMerge,
+  executeHubspotCompanyUpdate,
+  executeLinkCompany,
+  executeHubspotCreateDeal,
+  executeHubspotCreateContact,
   executeStripeSendInvoice,
   type ActionPayload,
 } from "@/lib/actions/engine";
@@ -25,22 +34,37 @@ export const maxDuration = 120;
  *        aussi « Cash récupéré » (invoice_reminders).
  */
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
+  // Catalogue des actions : détecteurs masqués par l'utilisateur (?skip=a,b)
+  // — non exécutés (perf) et leurs actions ne sont pas renvoyées.
+  const skip = new Set(
+    (new URL(request.url).searchParams.get("skip") ?? "").split(",").filter(Boolean),
+  );
+
   // ── Détection (best-effort) : upsert dédupliqué, jamais bloquant ──
   let needsMigration = false;
   try {
-    const [silent, overdue, merges] = await Promise.all([
-      detectSilentDeals(supabase, orgId),
-      detectOverdueInvoiceActions(supabase, orgId),
-      detectMergeCandidates(supabase, orgId),
+    const { getHubSpotToken: getToken } = await import("@/lib/integrations/get-hubspot-token");
+    const hubspotToken = await getToken(supabase, orgId);
+    const run = <T,>(key: string, fn: () => Promise<T[]>): Promise<T[]> =>
+      skip.has(key) ? Promise.resolve([]) : fn().catch(() => []);
+    const detected = await Promise.all([
+      run("silent_deal", () => detectSilentDeals(supabase, orgId)),
+      run("overdue_invoice", () => detectOverdueInvoiceActions(supabase, orgId)),
+      run("duplicate_merge", () => detectMergeCandidates(supabase, orgId)),
+      run("crm_enrich", () => detectCrmIdentifierEnrich(supabase, orgId, hubspotToken)),
+      run("link_company", () => detectUnlinkedCompanies(supabase, orgId)),
+      run("renewal_deal", () => detectMissingRenewalDeals(supabase, orgId)),
+      run("revenue_leakage", () => detectRevenueLeakage(supabase, orgId)),
+      run("billing_contact", () => detectMissingBillingContacts(supabase, orgId)),
     ]);
-    const candidates = [...overdue, ...silent, ...merges].map((c) => ({
+    const candidates = detected.flat().map((c) => ({
       organization_id: orgId,
       type: c.type,
       title: c.title,
@@ -64,16 +88,17 @@ export async function GET() {
     .select("id, type, status, title, description, source, created_at, decided_at, result")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(300);
   if (error) {
     return NextResponse.json({ needsMigration: true, pending: [], history: [] });
   }
 
-  const rows = data ?? [];
+  // Les actions des détecteurs masqués (catalogue) ne sont pas renvoyées.
+  const rows = (data ?? []).filter((r) => !skip.has(String(r.source ?? "").replace("detector:", "")));
   return NextResponse.json({
     needsMigration,
     pending: rows.filter((r) => r.status === "pending"),
-    history: rows.filter((r) => r.status !== "pending").slice(0, 30),
+    history: rows.filter((r) => r.status !== "pending").slice(0, 100),
   });
 }
 
@@ -122,6 +147,23 @@ export async function POST(request: Request) {
     const token = await getHubSpotToken(supabase, orgId);
     outcome = token
       ? await executeHubspotMerge(token, payload)
+      : { ok: false, detail: "HubSpot non connecté." };
+  } else if (item.type === "hubspot_company_update") {
+    const token = await getHubSpotToken(supabase, orgId);
+    outcome = token
+      ? await executeHubspotCompanyUpdate(token, payload)
+      : { ok: false, detail: "HubSpot non connecté." };
+  } else if (item.type === "link_company") {
+    outcome = await executeLinkCompany(supabase, orgId, payload);
+  } else if (item.type === "hubspot_create_deal") {
+    const token = await getHubSpotToken(supabase, orgId);
+    outcome = token
+      ? await executeHubspotCreateDeal(token, payload)
+      : { ok: false, detail: "HubSpot non connecté." };
+  } else if (item.type === "hubspot_create_contact") {
+    const token = await getHubSpotToken(supabase, orgId);
+    outcome = token
+      ? await executeHubspotCreateContact(token, payload)
       : { ok: false, detail: "HubSpot non connecté." };
   } else if (item.type === "stripe_send_invoice") {
     outcome = await executeStripeSendInvoice(supabase, orgId, payload);
