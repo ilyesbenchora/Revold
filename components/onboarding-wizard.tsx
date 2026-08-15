@@ -124,11 +124,16 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
             Vous verrez votre premier insight à la fin.
           </p>
           <ol className="mt-6 space-y-3 text-left text-sm text-slate-700">
-            <li className="flex gap-2"><span className="font-semibold text-accent">1.</span> Connecter HubSpot (1 clic)</li>
+            <li className="flex gap-2"><span className="font-semibold text-accent">1.</span> Connecter vos outils — <strong>2 minimum</strong> pour le croisement de données</li>
             <li className="flex gap-2"><span className="font-semibold text-slate-400">2.</span> Choisir vos équipes & objectifs</li>
             <li className="flex gap-2"><span className="font-semibold text-slate-400">3.</span> Premier sync de vos données</li>
             <li className="flex gap-2"><span className="font-semibold text-slate-400">4.</span> Voir votre 1er insight</li>
           </ol>
+          <p className="mx-auto mt-4 max-w-md rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-left text-xs text-slate-600">
+            <strong className="text-fuchsia-700">Pourquoi 2 outils ?</strong> Un outil seul répète ce que vous voyez
+            déjà chez lui. C&apos;est en croisant deux sources (CRM × facturation, CRM × support…) que Revold révèle
+            l&apos;invisible : deals gagnés jamais facturés, MRR à risque, délai réel signature → encaissement.
+          </p>
           <button
             type="button"
             disabled={busy !== null}
@@ -144,17 +149,32 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
       {step === 2 && (
         <div className="card p-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Étape 2</p>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Connectez HubSpot</h2>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Connectez vos outils</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Revold lit vos contacts, deals, factures et tickets pour générer vos insights.
-            Aucune donnée n&apos;est modifiée dans HubSpot.
+            Commencez par votre CRM : Revold lit vos contacts, deals, factures et tickets pour générer vos insights.
+            Aucune donnée n&apos;est modifiée dans vos outils.
           </p>
+          {/* Le croisement est LE différenciateur : on pousse la 2ᵉ source dès
+              l'onboarding, sans bloquer (l'utilisateur peut avancer). */}
+          <div className="mt-4 rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3.5 py-2.5">
+            <p className="text-xs font-semibold text-fuchsia-700">Puis ajoutez une 2ᵉ source — c&apos;est là que tout se joue</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Facturation (Stripe, Pennylane…), service client ou téléphonie : Revold réconcilie vos outils entre eux et
+              révèle ce qu&apos;aucun ne voit seul — CA signé vs CA facturé, deals gagnés sans facture, MRR à risque.
+            </p>
+          </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/dashboard/integration/connect/hubspot"
               className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent/90"
             >
               🔗 Connecter HubSpot via OAuth
+            </Link>
+            <Link
+              href="/dashboard/integration/bibliotheque"
+              className="rounded-lg border border-fuchsia-200 bg-white px-5 py-2.5 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-50"
+            >
+              ＋ Ajouter une 2ᵉ source
             </Link>
             <button
               type="button"

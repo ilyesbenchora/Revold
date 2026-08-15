@@ -6,6 +6,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/connect-catalog";
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/integrations/category-meta";
+import { CrossSourceNudge } from "@/components/integrations/cross-source-nudge";
 import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 import Link from "next/link";
 
@@ -40,6 +41,13 @@ export default async function BibliothequeOutilsPage({
   };
   for (const tool of Object.values(CONNECTABLE_TOOLS)) toolsByCategory[tool.category].push(tool);
 
+  // Sources de DONNÉES connectées (les canaux de notification — Slack, Teams,
+  // Gmail… — ne comptent pas) : pilote l'incitation au croisement.
+  const dataTools = [...connectedKeys]
+    .map((k) => CONNECTABLE_TOOLS[k])
+    .filter((t): t is ConnectableTool => Boolean(t) && t.category !== "communication");
+  const connectedCategories = [...new Set(dataTools.map((t) => t.category))];
+
   return (
     <section className="space-y-8">
       <header>
@@ -49,6 +57,9 @@ export default async function BibliothequeOutilsPage({
           dans <Link href="/dashboard/integration/mes-outils" className="font-medium text-accent hover:underline">Mes outils connectés</Link>.
         </p>
       </header>
+
+      {/* Croisement de données : Revold prend sa valeur à partir de 2 sources. */}
+      <CrossSourceNudge connectedCategories={connectedCategories} dataToolsCount={dataTools.length} />
 
       {/* Usage de la limite du plan — les canaux de notification (Slack, Teams,
           Gmail…) ne comptent pas dans la limite. */}
