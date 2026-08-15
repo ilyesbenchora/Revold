@@ -57,6 +57,29 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     briefSection: "objectives_reached",
     defaultChannels: ["in_app"],
   },
+  // ── Coaching : rappels déclenchés par les DONNÉES, pas par le calendrier ──
+  {
+    key: "coaching_meeting_due",
+    label: "Séance de coaching à venir",
+    description: "Ta prochaine séance de coaching a lieu demain (ou aujourd'hui).",
+    briefSection: "meetings",
+    defaultChannels: ["in_app", "email"],
+  },
+  {
+    key: "coaching_commitment_overdue",
+    label: "Engagement de coaching en retard",
+    description: "Une action décidée en séance a dépassé son échéance sans être faite.",
+    briefSection: "coaching",
+    defaultChannels: ["in_app"],
+  },
+  {
+    key: "development_step_stalled",
+    label: "Étape de développement qui stagne",
+    description:
+      "Une étape de ton plan de développement est en retard — signalée avec l'évolution du KPI témoin depuis l'ouverture du plan.",
+    briefSection: "coaching",
+    defaultChannels: ["in_app", "email"],
+  },
   {
     key: "sync_failed",
     label: "Synchronisation en échec",

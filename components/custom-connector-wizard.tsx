@@ -9,8 +9,15 @@ import {
   PAGE_REQUIREMENTS,
   entitiesForPages,
   type CustomEntity,
+  type PageRequirement,
 } from "@/lib/integrations/custom-connector";
 import { InfoHint } from "@/components/info-hint";
+
+/** Libellé de la page parente d'une sous-page (fil d'ariane du récap). */
+function parentLabel(p: PageRequirement): string | null {
+  if (!p.parentKey) return null;
+  return PAGE_REQUIREMENTS.find((x) => x.key === p.parentKey)?.label ?? null;
+}
 
 /** Message prêt à envoyer à l'éditeur / au développeur de l'outil. */
 const VENDOR_REQUEST = `Bonjour,
@@ -387,40 +394,54 @@ export function CustomConnectorWizard({
       {/* ── 2. QUE doit alimenter cet outil ? (pilote tout le reste) ── */}
       <div className="card p-5">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-          2. Outil source par page
+          2. À quoi doit servir cet outil ?
           <InfoHint
             wide
-            text={"Exactement le même réglage que Paramètres → Intégrations → « Outil source par page », pour les outils natifs comme pour celui-ci : un seul et même enregistrement, pas de doublon.\n\nOn te le propose ici pour t'éviter un aller-retour — et parce que ce choix détermine les données que Revold doit aller chercher."}
+            text={"Ce n'est pas un réglage en double : c'est le MÊME enregistrement que Paramètres → Intégrations → « Outil source par page », modifiable des deux côtés.\n\nOn te le demande ici parce qu'il pilote la suite : Revold en déduit les objets que tu dois déclarer plus bas, et te dit avant la première synchro ce que chaque page saura calculer."}
           />
         </h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          Comme pour un outil natif, tu indiques les pages (et sous-pages) qu&apos;il doit alimenter. C&apos;est le{" "}
-          <span className="font-medium text-slate-600">même réglage</span> que{" "}
+          Coche les pages et sous-pages que cet outil doit alimenter :{" "}
+          <span className="font-medium text-slate-600">Revold en déduit les données à récupérer</span> à
+          l&apos;étape suivante. Le choix est enregistré dans{" "}
           <a href="/dashboard/parametres/integrations" className="font-medium text-accent hover:underline">
             Paramètres → Intégrations → Outil source par page
-          </a>{" "}
-          — modifiable des deux côtés, enregistré au même endroit. Revold en déduit les données à récupérer.
+          </a>
+          , au même endroit que pour Stripe ou Pennylane — tu pourras l&apos;ajuster là-bas à tout moment.
         </p>
         <div className="mt-3 space-y-3">
           {[...new Set(PAGE_REQUIREMENTS.map((p) => p.group))].map((group) => (
             <div key={group}>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{group}</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {PAGE_REQUIREMENTS.filter((p) => p.group === group).map((p) => {
                   const on = pages.includes(p.key);
+                  const isChild = !!p.parentKey;
+                  const need = p.required.map((r) => ENTITY_FIELDS[r].label).join(", ");
                   return (
                     <button
                       key={p.key}
                       type="button"
                       onClick={() => togglePage(p.key)}
-                      title={`Données nécessaires : ${p.required.map((r) => ENTITY_FIELDS[r].label).join(", ") || "aucune obligatoire"}`}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      title={
+                        (isChild ? "Sous-page. " : "") +
+                        `Données nécessaires : ${need || "aucune obligatoire"}` +
+                        (p.caveat ? `\n\n${p.caveat}` : "")
+                      }
+                      className={`rounded-full border text-[11px] font-medium transition ${
+                        isChild ? "ml-1 px-2 py-0.5" : "px-2.5 py-1"
+                      } ${
                         on
                           ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
+                          : isChild
+                            ? "border-slate-200 border-dashed bg-white text-slate-500 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50/40"
                       }`}
                     >
-                      {on ? "✓ " : ""}{p.label}
+                      {on ? "✓ " : ""}
+                      {isChild && <span className="text-slate-400">↳ </span>}
+                      {p.label}
+                      {p.caveat && <span className="ml-1 text-slate-400" title={p.caveat}>·partiel</span>}
                     </button>
                   );
                 })}
@@ -675,7 +696,9 @@ export function CustomConnectorWizard({
                 <div key={p.key} className="rounded-lg border border-white bg-white/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-slate-800">
-                      {ready ? "✅" : "⚠️"} {p.label}
+                      {ready ? (p.caveat ? "🟡" : "✅") : "⚠️"}{" "}
+                      {parentLabel(p) && <span className="font-normal text-slate-400">{parentLabel(p)} → </span>}
+                      {p.label}
                       {p.agent && <span className="ml-2 font-normal text-slate-400">· {p.agent.label}</span>}
                     </p>
                     {!ready && (
@@ -688,6 +711,9 @@ export function CustomConnectorWizard({
                     {ready ? "KPIs disponibles : " : "KPIs en attente : "}
                     {p.kpis.join(" · ")}
                   </p>
+                  {ready && p.caveat && (
+                    <p className="mt-1 text-[11px] text-amber-700">Couverture partielle — {p.caveat}</p>
+                  )}
                 </div>
               );
             })}

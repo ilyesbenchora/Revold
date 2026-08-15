@@ -51,6 +51,13 @@ const DEBRIEF_TOOL: Anthropic.Tool = {
         description:
           "Résumé de la séance en 3-5 phrases : sujet travaillé, diagnostic posé (avec les chiffres cités), décision/orientation retenue.",
       },
+      topics: {
+        type: "array",
+        description:
+          "2 à 4 THÈMES travaillés pendant la séance, en 1 à 3 mots chacun, en minuscules (ex : « découverte client », " +
+          "« qualification », « forecast », « relance impayés »). Servent à repérer ce qui revient séance après séance.",
+        items: { type: "string" },
+      },
       commitments: {
         type: "array",
         description: "1 à 3 engagements concrets pris pendant la séance (0 si aucune action n'a été décidée).",
@@ -90,6 +97,7 @@ export async function summarizeAndStoreSession(
     .slice(0, 60_000);
 
   let summary = "";
+  let topics: string[] = [];
   let commitments: { title: string; detail: string | null; due_date: string | null }[] = [];
   try {
     const client = new Anthropic({ apiKey: anthropicKey });
@@ -107,9 +115,14 @@ export async function summarizeAndStoreSession(
     if (!toolUse) return null;
     const inp = toolUse.input as {
       summary?: string;
+      topics?: string[];
       commitments?: { title?: string; detail?: string; due_date?: string }[];
     };
     summary = (inp.summary ?? "").trim();
+    topics = (Array.isArray(inp.topics) ? inp.topics : [])
+      .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+      .slice(0, 4)
+      .map((t) => t.trim().toLowerCase().slice(0, 60));
     commitments = (inp.commitments ?? [])
       .filter((c) => typeof c.title === "string" && c.title.trim().length > 0)
       .slice(0, 3)
@@ -123,9 +136,17 @@ export async function summarizeAndStoreSession(
   }
   if (!summary) return null;
 
-  // Persistance best-effort (migration potentiellement non appliquée).
+  // Persistance best-effort (migration potentiellement non appliquée) : les
+  // thèmes alimentent l'onglet Insights (« ce qui revient séance après séance »).
   if (sessionRowId) {
-    await supabase.from("coaching_sessions").update({ summary }).eq("id", sessionRowId).eq("organization_id", orgId);
+    const { error: upErr } = await supabase
+      .from("coaching_sessions")
+      .update({ summary, topics })
+      .eq("id", sessionRowId)
+      .eq("organization_id", orgId);
+    if (upErr) {
+      await supabase.from("coaching_sessions").update({ summary }).eq("id", sessionRowId).eq("organization_id", orgId);
+    }
   }
   if (commitments.length > 0) {
     await supabase.from("coaching_commitments").insert(
