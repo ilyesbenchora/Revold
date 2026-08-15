@@ -40,7 +40,22 @@ const files = readdirSync(dir)
   .filter((f) => f.endsWith(".sql"))
   .sort();
 
-const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+// Supabase ajoute `sslmode=require` dans l'URL — pg fait alors une vérification
+// stricte du certificat (chaîne auto-signée Supabase → échec). On retire les
+// paramètres SSL de l'URL et on impose un TLS sans vérification de chaîne
+// (le trafic reste chiffré ; l'hôte vient d'une variable d'environnement de confiance).
+function stripSslParams(url) {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("sslmode");
+    u.searchParams.delete("ssl");
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+const client = new pg.Client({ connectionString: stripSslParams(dbUrl), ssl: { rejectUnauthorized: false } });
 try {
   await client.connect();
 } catch (e) {
