@@ -522,6 +522,48 @@ export function ActionsInbox() {
           À valider
           <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">{shownPending.length}</span>
         </h2>
+
+        {/* Suggestion contextuelle : une famille s'accumule (≥ 3 fiches) →
+            proposer UNE fois de l'automatiser, au lieu d'un bouton par fiche. */}
+        {(() => {
+          const counts = new Map<string, number>();
+          for (const a of shownPending) {
+            const key = a.source.replace("detector:", "");
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          const suggestions = [...counts.entries()]
+            .filter(([key, n]) => n >= 3 && AUTOMATABLE.has(key) && !automated.includes(key))
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2);
+          if (suggestions.length === 0) return null;
+          return suggestions.map(([key, n]) => {
+            const label = ACTION_CATALOG.find((c) => c.key === key)?.label ?? key;
+            return (
+              <div key={key} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5">
+                <p className="text-xs text-emerald-800">
+                  <span className="font-semibold">{n} actions « {label} »</span> en attente — tu les valides une par une.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={autoBusy === key}
+                    onClick={() => void toggleAutomation(key, true)}
+                    className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {autoBusy === key ? "Activation…" : "⚡ Automatiser cette famille"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogOpen(true)}
+                    className="text-[11px] font-medium text-emerald-700 transition hover:underline"
+                  >
+                    Gérer dans le catalogue
+                  </button>
+                </div>
+              </div>
+            );
+          });
+        })()}
         {pending === null ? (
           <p className="text-xs text-slate-400">Analyse de tes données…</p>
         ) : shownPending.length === 0 ? (
@@ -569,30 +611,20 @@ export function ActionsInbox() {
                       const familyAuto = automated.includes(key);
                       const ref = a.entityRef;
                       const busyEntity = ref ? autoBusy === `${key}:${ref.key}` : false;
+                      // Sur la fiche : UNIQUEMENT les liens ciblés sur l'entité
+                      // (le réglage de famille vit dans le catalogue + bannière).
                       if (!familyAuto) {
+                        if (!ref || a.entityIncluded) return null;
                         return (
-                          <>
-                            <button
-                              type="button"
-                              disabled={autoBusy === key}
-                              onClick={() => void toggleAutomation(key, true)}
-                              title="Les prochaines actions de cette famille s'exécuteront automatiquement (désactivable dans le catalogue). Celles en attente s'exécutent immédiatement."
-                              className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
-                            >
-                              {autoBusy === key ? "Activation…" : "⚡ Automatiser ce type d'action"}
-                            </button>
-                            {ref && !a.entityIncluded && (
-                              <button
-                                type="button"
-                                disabled={busyEntity}
-                                onClick={() => void toggleEntityAutomation(key, ref.key, "include", true)}
-                                title={`Seules les actions de cette famille concernant ${ref.label} s'exécuteront automatiquement — le reste reste manuel.`}
-                                className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
-                              >
-                                {busyEntity ? "Activation…" : `⚡ Automatiser pour ${ref.label} uniquement`}
-                              </button>
-                            )}
-                          </>
+                          <button
+                            type="button"
+                            disabled={busyEntity}
+                            onClick={() => void toggleEntityAutomation(key, ref.key, "include", true)}
+                            title={`Seules les actions de cette famille concernant ${ref.label} s'exécuteront automatiquement — le reste reste manuel.`}
+                            className="text-[11px] font-medium text-emerald-600 transition hover:underline disabled:opacity-50"
+                          >
+                            {busyEntity ? "Activation…" : `⚡ Automatiser pour ${ref.label} uniquement`}
+                          </button>
                         );
                       }
                       // Famille automatisée : cette fiche est encore en attente
