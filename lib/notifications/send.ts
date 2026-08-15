@@ -318,6 +318,30 @@ async function loadOrgPhones(supabase: SupabaseClient, orgId: string): Promise<s
 }
 
 /**
+ * Traduit les erreurs Twilio qui ont une CAUSE ACTIONNABLE : sans ça, le
+ * journal des notifications n'affiche qu'un code opaque et personne ne sait
+ * quoi corriger.
+ */
+function twilioErrorHint(code: number | undefined, message: string | undefined, status: number): string {
+  if (code === 21654) {
+    return "WhatsApp refuse le texte libre pour un message initié par l'entreprise : crée un modèle approuvé (Twilio → Content Template Builder) et renseigne son Content SID dans TWILIO_WHATSAPP_CONTENT_SID.";
+  }
+  if (code === 63007) {
+    return "Numéro émetteur WhatsApp inconnu : vérifie TWILIO_WHATSAPP_FROM, et que le destinataire a rejoint le sandbox (message « join <code> » au numéro du sandbox).";
+  }
+  if (code === 21608) {
+    return "Compte Twilio d'essai : le destinataire doit être un numéro vérifié (console Twilio → Verified Caller IDs).";
+  }
+  if (code === 21606 || code === 21659) {
+    return "Numéro émetteur invalide ou non détenu par ce compte : achète un numéro SMS puis renseigne TWILIO_FROM_NUMBER.";
+  }
+  if (status === 401 || status === 403) {
+    return "Identifiants Twilio refusés : vérifie TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET (ou TWILIO_AUTH_TOKEN) et l'Account SID.";
+  }
+  return `Twilio ${code ?? status} : ${(message ?? "erreur inconnue").slice(0, 180)}`;
+}
+
+/**
  * Envoi Twilio (SMS ou WhatsApp — même API, le préfixe `whatsapp:` change le
  * canal). Sans identifiants Twilio, l'envoi échoue proprement et le message
  * d'erreur dit quoi configurer.
@@ -370,20 +394,39 @@ async function sendTwilioMessage(
   const prefix = mode === "whatsapp" ? "whatsapp:" : "";
   const auth = Buffer.from(`${authUser}:${authPass}`).toString("base64");
 
+  /**
+   * WhatsApp refuse le texte libre pour un message INITIÉ par l'entreprise
+   * (erreur 21654) : il faut un modèle approuvé par Meta, identifié par son
+   * Content SID (HX…), dont les variables {{1}} {{2}} {{3}} sont remplies ici.
+   * Sans modèle configuré, on retombe sur le texte libre — qui ne passe que
+   * dans la fenêtre de 24 h suivant un message du destinataire.
+   */
+  const contentSid = mode === "whatsapp" ? process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim() : undefined;
+
   const results = await Promise.all(
     recipients.map(async (to) => {
       try {
+        const form = new URLSearchParams({ To: `${prefix}${to}`, From: from });
+        if (contentSid) {
+          form.set("ContentSid", contentSid);
+          form.set(
+            "ContentVariables",
+            JSON.stringify({ 1: subject.slice(0, 120), 2: bodyText.slice(0, 300), 3: fullLink }),
+          );
+        } else {
+          form.set("Body", body);
+        }
         const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
           method: "POST",
           headers: {
             Authorization: `Basic ${auth}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({ To: `${prefix}${to}`, From: from, Body: body }),
+          body: form,
         });
         if (!res.ok) {
-          const txt = await res.text();
-          return { ok: false, error: `Twilio ${res.status}: ${txt.slice(0, 160)}` };
+          const err = (await res.json().catch(() => ({}))) as { code?: number; message?: string };
+          return { ok: false, error: twilioErrorHint(err.code, err.message, res.status) };
         }
         return { ok: true as const };
       } catch (err) {
