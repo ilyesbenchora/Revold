@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CustomConnectorWizard } from "@/components/custom-connector-wizard";
+import { customProvider, PAGE_REQUIREMENTS } from "@/lib/integrations/custom-connector";
 
 /**
  * Intégrations → Outil sur mesure : brancher un logiciel ABSENT du catalogue
@@ -40,6 +41,27 @@ export default async function SurMesurePage() {
     /* migration non appliquée → assistant vierge */
   }
 
+  // Pages réellement rattachées, lues dans la MÊME table que le bloc
+  // « Outil source par page » (tool_mappings) : une seule source de vérité.
+  const pagesByConnector: Record<string, string[]> = {};
+  if (connectors.length > 0) {
+    try {
+      const { data: mappings } = await supabase
+        .from("tool_mappings")
+        .select("page_key, tool_keys")
+        .eq("organization_id", orgId)
+        .in("page_key", PAGE_REQUIREMENTS.map((p) => p.key));
+      for (const c of connectors) {
+        const provider = customProvider(c.key);
+        pagesByConnector[c.id] = (mappings ?? [])
+          .filter((m) => ((m.tool_keys as string[]) ?? []).includes(provider))
+          .map((m) => PAGE_REQUIREMENTS.find((p) => p.key === m.page_key)?.label ?? (m.page_key as string));
+      }
+    } catch {
+      /* mapping indisponible → simplement pas affiché */
+    }
+  }
+
   return (
     <section className="space-y-6">
       <header>
@@ -72,6 +94,20 @@ export default async function SurMesurePage() {
                     : "jamais synchronisé"}
                 </p>
                 {c.last_error && <p className="mt-0.5 text-[11px] text-rose-600">⚠ {c.last_error}</p>}
+                <p className="mt-1 text-[11px] text-slate-600">
+                  {pagesByConnector[c.id]?.length ? (
+                    <>
+                      Alimente : <span className="font-medium text-slate-800">{pagesByConnector[c.id].join(" · ")}</span>
+                    </>
+                  ) : (
+                    <>
+                      Aucune page ne l&apos;utilise encore —{" "}
+                      <Link href="/dashboard/parametres/integrations" className="font-medium text-accent hover:underline">
+                        sélectionne-le dans « Outil source par page »
+                      </Link>
+                    </>
+                  )}
+                </p>
               </div>
               <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
                 source : custom_{c.key}

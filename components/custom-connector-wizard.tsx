@@ -387,15 +387,19 @@ export function CustomConnectorWizard({
       {/* ── 2. QUE doit alimenter cet outil ? (pilote tout le reste) ── */}
       <div className="card p-5">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-          2. Que doit alimenter cet outil dans Revold ?
+          2. Outil source par page
           <InfoHint
             wide
-            text={"Coche les pages que cet outil doit nourrir — le même choix que « Outil source par page » dans les Paramètres.\n\nRevold en déduit les données à aller chercher : tu n'auras à fournir que les adresses réellement nécessaires."}
+            text={"Exactement le même réglage que Paramètres → Intégrations → « Outil source par page », pour les outils natifs comme pour celui-ci : un seul et même enregistrement, pas de doublon.\n\nOn te le propose ici pour t'éviter un aller-retour — et parce que ce choix détermine les données que Revold doit aller chercher."}
           />
         </h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          C&apos;est ce choix qui détermine les données à récupérer — et il rattache l&apos;outil aux bonnes pages et
-          aux bons agents à l&apos;enregistrement.
+          Comme pour un outil natif, tu indiques les pages (et sous-pages) qu&apos;il doit alimenter. C&apos;est le{" "}
+          <span className="font-medium text-slate-600">même réglage</span> que{" "}
+          <a href="/dashboard/parametres/integrations" className="font-medium text-accent hover:underline">
+            Paramètres → Intégrations → Outil source par page
+          </a>{" "}
+          — modifiable des deux côtés, enregistré au même endroit. Revold en déduit les données à récupérer.
         </p>
         <div className="mt-3 space-y-3">
           {[...new Set(PAGE_REQUIREMENTS.map((p) => p.group))].map((group) => (
@@ -659,8 +663,9 @@ export function CustomConnectorWizard({
         <div className={`card p-4 ${incompletePages.length > 0 ? "border-amber-200/70 bg-amber-50/30" : "border-emerald-200/70 bg-emerald-50/30"}`}>
           <p className="text-sm font-semibold text-slate-900">🎯 État de couverture par page</p>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Ce que chaque page pourra calculer avec cet outil. Les rattachements « Outil source par page » et les
-            agents correspondants sont appliqués à l&apos;enregistrement.
+            Ce que chaque page pourra calculer avec cet outil. À l&apos;enregistrement, l&apos;outil est ajouté aux
+            sources de ces pages (et de leurs agents) dans le réglage « Outil source par page » — sans jamais
+            remplacer les outils déjà sélectionnés.
           </p>
           <div className="mt-3 space-y-2">
             {PAGE_REQUIREMENTS.filter((p) => pages.includes(p.key)).map((p) => {

@@ -22,7 +22,10 @@ type Props = {
 export function BrandLogo({ domain, alt, fallback, size = 32, className = "" }: Props) {
   const [stage, setStage] = useState<0 | 1 | 2>(0);
 
-  if (stage === 2) {
+  // Sans domaine (outil sur mesure : ERP maison…), aucune icône publique
+  // n'existe — on affiche directement l'emoji au lieu de tenter deux requêtes
+  // vouées à échouer.
+  if (stage === 2 || !domain) {
     return (
       <span
         className={`inline-flex shrink-0 items-center justify-center rounded bg-slate-100 ${className}`}
