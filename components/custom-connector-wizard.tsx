@@ -167,9 +167,9 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
       setSaved(id);
       alert(
         `Synchronisation terminée :\n` +
-          `${c.companies ?? 0} clients · ${c.invoices ?? 0} factures · ${c.subscriptions ?? 0} abonnements · ` +
-          `${c.transactions ?? 0} transactions · ${c.tickets ?? 0} tickets\n` +
-          `${c.unmatched ?? 0} enregistrements sans ID de rapprochement exploitable.` +
+          `${c.companies ?? 0} entreprises · ${c.contacts ?? 0} contacts · ${c.deals ?? 0} affaires\n` +
+          `${c.invoices ?? 0} factures · ${c.subscriptions ?? 0} abonnements · ${c.transactions ?? 0} transactions · ${c.tickets ?? 0} tickets\n` +
+          `${c.unmatched ?? 0} enregistrements sans clé de rapprochement exploitable.` +
           (d.errors?.length ? `\n\nAvertissements : ${d.errors.join(" · ")}` : ""),
       );
       router.refresh();
@@ -367,7 +367,9 @@ export function CustomConnectorWizard({ existing }: { existing?: { id: string; l
 
       {availableEntities.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">Ajouter une donnée à synchroniser :</span>
+          <span className="text-xs text-slate-500">
+            Ajouter une donnée à synchroniser <span className="text-slate-400">(les entreprises sont déjà ci-dessus)</span> :
+          </span>
           {availableEntities.map((e) => (
             <button
               key={e}

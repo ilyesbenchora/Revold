@@ -47,7 +47,15 @@ export type CustomEndpoint = {
   is_active: boolean;
 };
 
-export const CUSTOM_ENTITIES = ["companies", "invoices", "subscriptions", "transactions", "tickets"] as const;
+export const CUSTOM_ENTITIES = [
+  "companies",
+  "contacts",
+  "deals",
+  "invoices",
+  "subscriptions",
+  "transactions",
+  "tickets",
+] as const;
 export type CustomEntity = (typeof CUSTOM_ENTITIES)[number];
 
 /** Provider technique d'un connecteur sur mesure (namespacé, jamais de collision). */
@@ -69,6 +77,31 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
       { id: "domain", label: "Domaine web", hint: "acme.fr" },
       { id: "siren", label: "SIREN", hint: "9 chiffres, si l'outil le connaît" },
       { id: "vat_number", label: "N° TVA", hint: "FR + 11 caractères" },
+    ],
+  },
+  contacts: {
+    label: "Contacts / personnes",
+    hint: "Les personnes de l'outil, rattachées aux entreprises du CRM. L'email est la clé d'identification.",
+    fields: [
+      { id: "email", label: "Email", hint: "Clé d'identification du contact — sans email, la ligne est ignorée", required: true },
+      { id: "external_id", label: "ID du contact", hint: "Identifiant technique côté outil" },
+      { id: "custom_id", label: "ID de rapprochement du client", hint: "Rattache le contact à son entreprise" },
+      { id: "full_name", label: "Nom complet", hint: "Prénom + nom" },
+      { id: "phone", label: "Téléphone", hint: "" },
+      { id: "title", label: "Fonction", hint: "Poste occupé" },
+    ],
+  },
+  deals: {
+    label: "Opportunités / affaires",
+    hint: "Les affaires gérées dans l'outil, croisées avec la facturation (CA signé vs facturé).",
+    fields: [
+      { id: "external_id", label: "ID de l'affaire", hint: "Identifiant technique côté outil", required: true },
+      { id: "custom_id", label: "ID de rapprochement du client", hint: "Relie l'affaire à l'entreprise", required: true },
+      { id: "name", label: "Nom de l'affaire", hint: "Intitulé de l'opportunité" },
+      { id: "amount", label: "Montant", hint: "Valeur de l'affaire", kind: "number" },
+      { id: "status", label: "Statut / étape", hint: "« gagné », « signé », « perdu »… interprété automatiquement" },
+      { id: "created_date", label: "Date de création", hint: "", kind: "date" },
+      { id: "close_date", label: "Date de closing", hint: "Sert au cycle de vente et au CA signé", kind: "date" },
     ],
   },
   invoices: {
@@ -271,7 +304,13 @@ export function flattenKeys(record: Record<string, unknown>, prefix = "", depth 
 const HINTS: Record<string, RegExp> = {
   custom_id: /(code|ref|reference|numero|num)?_?client|client_?(code|id|ref)|customer_?(code|ref|number)|account_?(code|ref)|code_?client/i,
   external_id: /^(id|uuid|_id|identifiant)$/i,
-  name: /(raison_?sociale|nom|name|societe|company|libelle_?client)/i,
+  name: /(raison_?sociale|nom|name|societe|company|libelle_?client|intitule|titre)/i,
+  email: /(e?-?mail|courriel)/i,
+  full_name: /(nom_?complet|full_?name|contact_?name|prenom_?nom|display_?name)/i,
+  phone: /(tel|phone|mobile|portable)/i,
+  title: /(fonction|poste|title|job|role)/i,
+  created_date: /(date_?(creation|ouverture)|created_?(at|date))/i,
+  close_date: /(date_?(closing|signature|cloture|fin)|close_?date|signed_?at)/i,
   domain: /(domain|site|website|url)/i,
   siren: /siren/i,
   vat_number: /(tva|vat)/i,

@@ -6,7 +6,7 @@ import {
   type CustomConnector,
   type CustomEndpoint,
 } from "@/lib/integrations/custom-connector";
-import { resolveCompany, upsertSourceLink } from "@/lib/integrations/entity-resolution";
+import { resolveCompany, resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
 
 /**
  * Synchronisation d'un CONNECTEUR SUR MESURE (ERP maison, logiciel métier).
@@ -22,6 +22,8 @@ import { resolveCompany, upsertSourceLink } from "@/lib/integrations/entity-reso
 
 export type CustomSyncCounts = {
   companies: number;
+  contacts: number;
+  deals: number;
   invoices: number;
   subscriptions: number;
   transactions: number;
@@ -86,7 +88,9 @@ export async function syncCustomConnector(
 ): Promise<{ counts: CustomSyncCounts; errors: string[] }> {
   const provider = customProvider(connector.key);
   const orgId = connector.organization_id;
-  const counts: CustomSyncCounts = { companies: 0, invoices: 0, subscriptions: 0, transactions: 0, tickets: 0, unmatched: 0 };
+  const counts: CustomSyncCounts = {
+    companies: 0, contacts: 0, deals: 0, invoices: 0, subscriptions: 0, transactions: 0, tickets: 0, unmatched: 0,
+  };
   const errors: string[] = [];
 
   const active = endpoints.filter((e) => e.is_active);
@@ -134,6 +138,73 @@ export async function syncCustomConnector(
       const cid = r.custom_id?.trim().toLowerCase();
       return cid ? index.get(cid) ?? null : null;
     };
+
+    // ── CONTACTS (identifiés par l'email, rattachés à leur entreprise) ──
+    if (ep.entity === "contacts") {
+      for (const r of rows) {
+        const email = r.email?.trim();
+        if (!email) {
+          counts.unmatched++;
+          continue;
+        }
+        const resolved = await resolveContact(sb, orgId, provider, r.external_id?.trim() || email, {
+          email,
+          fullName: r.full_name,
+          phone: r.phone,
+        });
+        if (!resolved) {
+          counts.unmatched++;
+          continue;
+        }
+        // Rattachement à l'entreprise + fonction : complétés à part pour ne
+        // jamais écraser ce qu'une autre source a déjà renseigné.
+        const patch: Record<string, unknown> = {};
+        const companyId = companyFor(r);
+        if (companyId) patch.company_id = companyId;
+        if (r.title) patch.title = r.title;
+        if (Object.keys(patch).length > 0) await sb.from("contacts").update(patch).eq("id", resolved.id);
+        counts.contacts++;
+      }
+      continue;
+    }
+
+    // ── OPPORTUNITÉS / AFFAIRES ──
+    if (ep.entity === "deals") {
+      const links = await loadLinkMap(sb, orgId, provider, "deal");
+      for (const r of rows) {
+        const externalId = r.external_id?.trim();
+        if (!externalId) continue;
+        const companyId = companyFor(r);
+        if (!companyId) counts.unmatched++;
+        // Statut libre de l'outil → gagné / perdu (le vocabulaire varie).
+        const status = (r.status ?? "").toLowerCase();
+        const won = /gagn|won|sign|conclu|accept/.test(status);
+        const lost = /perdu|lost|abandon|annul|refus|clos.*perdu/.test(status);
+        const payload = {
+          organization_id: orgId,
+          company_id: companyId,
+          name: r.name ?? externalId,
+          amount: num(r.amount),
+          created_date: date(r.created_date)?.slice(0, 10) ?? null,
+          close_date: date(r.close_date)?.slice(0, 10) ?? null,
+          is_closed_won: won,
+          is_closed_lost: lost,
+          updated_at: new Date().toISOString(),
+        };
+        const known = links.get(externalId);
+        if (known) {
+          const { error: e } = await sb.from("deals").update(payload).eq("id", known);
+          if (!e) counts.deals++;
+        } else {
+          const { data: created } = await sb.from("deals").insert(payload).select("id").single();
+          if (created?.id) {
+            await upsertSourceLink(sb, orgId, provider, externalId, "deal", created.id as string);
+            counts.deals++;
+          }
+        }
+      }
+      continue;
+    }
 
     // ── FACTURES ──
     if (ep.entity === "invoices") {
