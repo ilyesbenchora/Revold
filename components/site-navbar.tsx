@@ -4,13 +4,18 @@ import Link from "next/link";
 import { useState } from "react";
 import { RevoldLogo } from "@/components/revold-logo";
 
+/**
+ * Navbar du site public — thème SOMBRE cockpit (même fond nuit que la tour de
+ * contrôle de l'app) : slate-950, verre dépoli, accents fuchsia → indigo.
+ */
+
 const PRODUCT_LINKS = [
-  { label: "Synchronisation de données", href: "/produits/synchronisation", desc: "Connecteurs natifs, sync bidirectionnelle" },
-  { label: "Reporting cross-source", href: "/produits/reporting-cross-source", desc: "80+ rapports, croisement CRM × billing × support" },
-  { label: "Résolution d'entités", href: "/produits/resolution-entites", desc: "7 méthodes de rapprochement, SIREN/SIRET" },
-  { label: "Insights IA", href: "/produits/insights-ia", desc: "IA qui croise vos sources, deal coaching" },
-  { label: "Audit complet du CRM", href: "/produits/audit-crm", desc: "Taux de remplissage, orphelins, score de santé" },
-  { label: "Alertes & Prévisions", href: "/produits/alertes-previsions", desc: "Deals à risque, forecast probabiliste" },
+  { label: "Rapprochement de données", href: "/produits/resolution-entites", desc: "SIREN / SIRET / TVA, enrichissement Sirene automatique" },
+  { label: "Mon équipe IA 24/7", href: "/produits/insights-ia", desc: "Agents experts + coachs par métier, routines & récaps" },
+  { label: "Synchronisation de données", href: "/produits/synchronisation", desc: "HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage" },
+  { label: "Reporting cross-source", href: "/produits/reporting-cross-source", desc: "KPIs câblés et vérifiés, CRM × facturation × compta" },
+  { label: "Audit complet du CRM", href: "/produits/audit-crm", desc: "Complétude, doublons, orphelins, score de santé" },
+  { label: "Alertes, objectifs & actions", href: "/produits/alertes-previsions", desc: "Seuils câblés, cash récupéré, actions validées dans vos outils" },
 ];
 
 const SOLUTION_LINKS = [
@@ -55,29 +60,29 @@ export function SiteNavbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-card-border bg-white/80 backdrop-blur-xl">
+    <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-10">
-          <Link href="/" onClick={closeAll}><RevoldLogo /></Link>
+          <Link href="/" onClick={closeAll}><RevoldLogo tone="dark" /></Link>
 
           {/* ═══ DESKTOP MENU ═══ */}
           <div className="hidden items-center gap-7 lg:flex">
-            <Link href="/pourquoi-revold" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            <Link href="/pourquoi-revold" className="text-sm font-medium text-slate-300 transition hover:text-white">
               Pourquoi Revold
             </Link>
 
             {/* Produit dropdown */}
             <div className="relative" onMouseEnter={() => setProductMenuOpen(true)} onMouseLeave={() => setProductMenuOpen(false)}>
-              <button className="flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900" onClick={() => setProductMenuOpen(!productMenuOpen)}>
+              <button className="flex items-center gap-1 text-sm font-medium text-slate-300 transition hover:text-white" onClick={() => setProductMenuOpen(!productMenuOpen)}>
                 Produit <ChevronDown open={productMenuOpen} />
               </button>
               {productMenuOpen && (
                 <div className="absolute left-0 top-full pt-2">
-                  <div className="w-[420px] rounded-xl border border-card-border bg-white p-3 shadow-xl shadow-slate-200/50">
+                  <div className="w-[440px] rounded-xl border border-white/10 bg-slate-900 p-3 shadow-2xl shadow-black/50">
                     {PRODUCT_LINKS.map((p) => (
-                      <Link key={p.href} href={p.href} className="flex flex-col rounded-lg px-4 py-3 transition hover:bg-accent-soft" onClick={() => setProductMenuOpen(false)}>
-                        <span className="text-sm font-semibold text-slate-900">{p.label}</span>
-                        <span className="mt-0.5 text-xs text-slate-500">{p.desc}</span>
+                      <Link key={p.href} href={p.href} className="flex flex-col rounded-lg px-4 py-3 transition hover:bg-white/5" onClick={() => setProductMenuOpen(false)}>
+                        <span className="text-sm font-semibold text-slate-100">{p.label}</span>
+                        <span className="mt-0.5 text-xs text-slate-400">{p.desc}</span>
                       </Link>
                     ))}
                   </div>
@@ -87,24 +92,24 @@ export function SiteNavbar() {
 
             {/* Solutions dropdown */}
             <div className="relative" onMouseEnter={() => setSolutionMenuOpen(true)} onMouseLeave={() => setSolutionMenuOpen(false)}>
-              <button className="flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900" onClick={() => setSolutionMenuOpen(!solutionMenuOpen)}>
+              <button className="flex items-center gap-1 text-sm font-medium text-slate-300 transition hover:text-white" onClick={() => setSolutionMenuOpen(!solutionMenuOpen)}>
                 Solutions <ChevronDown open={solutionMenuOpen} />
               </button>
               {solutionMenuOpen && (
                 <div className="absolute left-0 top-full pt-2">
-                  <div className="flex w-[560px] rounded-xl border border-card-border bg-white shadow-xl shadow-slate-200/50">
-                    <div className="flex-1 border-r border-card-border p-3">
-                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Par cas d&apos;usage</p>
+                  <div className="flex w-[560px] rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/50">
+                    <div className="flex-1 border-r border-white/10 p-3">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Par cas d&apos;usage</p>
                       {SOLUTION_LINKS.map((s) => (
-                        <Link key={s.href} href={s.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-accent-soft hover:text-accent" onClick={() => setSolutionMenuOpen(false)}>
+                        <Link key={s.href} href={s.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={() => setSolutionMenuOpen(false)}>
                           {s.label}
                         </Link>
                       ))}
                     </div>
                     <div className="flex-1 p-3">
-                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Par équipe</p>
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Par équipe</p>
                       {TEAM_LINKS.map((t) => (
-                        <Link key={t.href} href={t.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-accent-soft hover:text-accent" onClick={() => setSolutionMenuOpen(false)}>
+                        <Link key={t.href} href={t.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={() => setSolutionMenuOpen(false)}>
                           {t.label}
                         </Link>
                       ))}
@@ -114,14 +119,14 @@ export function SiteNavbar() {
               )}
             </div>
 
-            <Link href="/tarifs" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">Tarifs</Link>
+            <Link href="/tarifs" className="text-sm font-medium text-slate-300 transition hover:text-white">Tarifs</Link>
           </div>
         </div>
 
         {/* Desktop right */}
         <div className="hidden items-center gap-3 lg:flex">
-          <Link href="/login" className="text-sm font-medium text-slate-600 transition hover:text-slate-900">Connexion</Link>
-          <Link href="/essai-gratuit" className="rounded-lg bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-500/25 transition hover:shadow-lg hover:shadow-purple-500/30">
+          <Link href="/login" className="text-sm font-medium text-slate-300 transition hover:text-white">Connexion</Link>
+          <Link href="/essai-gratuit" className="rounded-lg bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-500/25 transition hover:shadow-lg hover:shadow-purple-500/40">
             Essai gratuit
           </Link>
         </div>
@@ -131,7 +136,7 @@ export function SiteNavbar() {
           <Link href="/essai-gratuit" className="rounded-lg bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-purple-500/25">
             Essai gratuit
           </Link>
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100" aria-label="Menu">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10" aria-label="Menu">
             {mobileOpen ? (
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
             ) : (
@@ -143,22 +148,22 @@ export function SiteNavbar() {
 
       {/* ═══ MOBILE MENU ═══ */}
       {mobileOpen && (
-        <div className="border-t border-card-border bg-white lg:hidden">
+        <div className="border-t border-white/10 bg-slate-950 lg:hidden">
           <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
             <div className="space-y-1">
-              <Link href="/pourquoi-revold" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={closeAll}>
+              <Link href="/pourquoi-revold" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
                 Pourquoi Revold
               </Link>
 
               {/* Produit accordion */}
               <div>
-                <button onClick={() => setMobileProduct(!mobileProduct)} className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <button onClick={() => setMobileProduct(!mobileProduct)} className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5">
                   Produit <ChevronDown open={mobileProduct} />
                 </button>
                 {mobileProduct && (
-                  <div className="ml-4 space-y-1 border-l-2 border-accent-soft pl-3">
+                  <div className="ml-4 space-y-1 border-l-2 border-fuchsia-500/30 pl-3">
                     {PRODUCT_LINKS.map((p) => (
-                      <Link key={p.href} href={p.href} className="block rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-accent-soft hover:text-accent" onClick={closeAll}>
+                      <Link key={p.href} href={p.href} className="block rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={closeAll}>
                         {p.label}
                       </Link>
                     ))}
@@ -168,20 +173,20 @@ export function SiteNavbar() {
 
               {/* Solutions accordion */}
               <div>
-                <button onClick={() => setMobileSolution(!mobileSolution)} className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <button onClick={() => setMobileSolution(!mobileSolution)} className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5">
                   Solutions <ChevronDown open={mobileSolution} />
                 </button>
                 {mobileSolution && (
-                  <div className="ml-4 border-l-2 border-accent-soft pl-3">
-                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Par cas d&apos;usage</p>
+                  <div className="ml-4 border-l-2 border-fuchsia-500/30 pl-3">
+                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Par cas d&apos;usage</p>
                     {SOLUTION_LINKS.map((s) => (
-                      <Link key={s.href} href={s.href} className="block rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-accent-soft hover:text-accent" onClick={closeAll}>
+                      <Link key={s.href} href={s.href} className="block rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={closeAll}>
                         {s.label}
                       </Link>
                     ))}
-                    <p className="mt-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Par équipe</p>
+                    <p className="mt-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Par équipe</p>
                     {TEAM_LINKS.map((t) => (
-                      <Link key={t.href} href={t.href} className="block rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-accent-soft hover:text-accent" onClick={closeAll}>
+                      <Link key={t.href} href={t.href} className="block rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={closeAll}>
                         {t.label}
                       </Link>
                     ))}
@@ -189,19 +194,19 @@ export function SiteNavbar() {
                 )}
               </div>
 
-              <Link href="/tarifs" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={closeAll}>
+              <Link href="/tarifs" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
                 Tarifs
               </Link>
-              <Link href="/blog" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={closeAll}>
+              <Link href="/blog" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
                 Blog
               </Link>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2 border-t border-card-border pt-4">
+            <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4">
               <Link href="/essai-gratuit" className="block rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 py-3 text-center text-sm font-semibold text-white shadow-md" onClick={closeAll}>
                 Essai gratuit
               </Link>
-              <Link href="/login" className="block rounded-xl border border-card-border py-3 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={closeAll}>
+              <Link href="/login" className="block rounded-xl border border-white/15 py-3 text-center text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
                 Connexion
               </Link>
             </div>
