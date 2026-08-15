@@ -85,7 +85,9 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("action_items")
-    .select("id, type, status, title, description, source, created_at, decided_at, result")
+    // payload inclus : le panneau « Détail » de la fiche montre exactement ce
+    // qui sera écrit dans l'outil avant validation.
+    .select("id, type, status, title, description, source, created_at, decided_at, result, payload")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
     .limit(300);

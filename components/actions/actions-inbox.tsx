@@ -20,7 +20,75 @@ type ActionItem = {
   created_at: string;
   decided_at: string | null;
   result: { ok?: boolean; detail?: string } | null;
+  payload?: Record<string, unknown> | null;
 };
+
+/**
+ * Détail concret d'une action : ce qui sera exactement écrit dans l'outil à
+ * la validation (lignes clé → valeur) + effet et garanties, par type.
+ */
+function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: string } | null {
+  const p = a.payload ?? {};
+  const s = (k: string) => (typeof p[k] === "string" && (p[k] as string).trim() ? (p[k] as string) : null);
+  const eur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+  if (a.type === "hubspot_task") {
+    const rows: Array<[string, string]> = [];
+    if (s("subject")) rows.push(["Sujet de la tâche", s("subject")!]);
+    if (s("body")) rows.push(["Contenu", s("body")!]);
+    rows.push(["Échéance", "Sous 2 jours (priorité haute)"]);
+    rows.push(["Attribution", "Automatique : propriétaire du deal, sinon de l'entreprise, sinon du contact associé"]);
+    const assoc = [s("dealHubspotId") && "le deal concerné", s("companyHubspotId") && "l'entreprise", "le contact rattaché"].filter(Boolean).join(", ");
+    rows.push(["Associée à", assoc]);
+    return { rows, effect: "Crée UNE tâche dans HubSpot — aucune donnée existante n'est modifiée. Supprimable à tout moment dans HubSpot." };
+  }
+  if (a.type === "stripe_send_invoice") {
+    const rows: Array<[string, string]> = [];
+    if (s("stripeInvoiceId")) rows.push(["Facture Stripe", s("stripeInvoiceId")!]);
+    rows.push(["Ce qui part", "Le rappel OFFICIEL Stripe (email au client, modèle Stripe)"]);
+    return { rows, effect: "Le client reçoit l'email de rappel Stripe. La relance est suivie dans « Cash récupéré » — aucune donnée modifiée." };
+  }
+  if (a.type === "hubspot_merge") {
+    const rows: Array<[string, string]> = [
+      ["Objet", p.mergeObjectType === "companies" ? "Entreprises" : "Contacts"],
+      ["Fiche conservée", `HubSpot #${s("primaryHubspotId") ?? "?"} (ses valeurs gagnent en cas de conflit)`],
+      ["Fiche absorbée", `HubSpot #${s("mergeHubspotId") ?? "?"} (activités et associations transférées)`],
+    ];
+    return { rows, effect: "⚠ Fusion IRRÉVERSIBLE dans HubSpot : les deux fiches deviennent une seule. Le doublon disparaît de Revold à la prochaine synchronisation." };
+  }
+  if (a.type === "hubspot_company_update") {
+    const props = (p.hubspotProperties ?? {}) as Record<string, string>;
+    const rows: Array<[string, string]> = Object.entries(props).map(([k, v]) => [`Propriété « ${k} »`, `→ ${v}`]);
+    return { rows, effect: "Écrit uniquement ces propriétés (aujourd'hui vides) sur la fiche entreprise HubSpot — rien d'autre n'est touché, modifiable ensuite dans HubSpot." };
+  }
+  if (a.type === "link_company") {
+    return {
+      rows: [
+        ["Ce qui est repointé", "Factures, abonnements, contacts et deals de la fiche facturation → la fiche CRM"],
+        ["Identifiants", "SIREN / SIRET / N° TVA / domaine reportés sur la fiche CRM s'ils y manquent"],
+        ["Fiche facturation", "Supprimée de Revold une fois tout repointé (les liens sources suivent)"],
+      ],
+      effect: "Fusion interne à Revold (rien n'est écrit dans HubSpot ni dans l'outil de facturation). Le CA de ce compte devient attribuable dans tous les rapports croisés.",
+    };
+  }
+  if (a.type === "hubspot_create_deal") {
+    const rows: Array<[string, string]> = [];
+    if (s("dealName")) rows.push(["Nom du deal", s("dealName")!]);
+    if (typeof p.dealAmount === "number") rows.push(["Montant", eur(p.dealAmount as number)]);
+    if (s("dealCloseDate")) rows.push(["Date de closing", s("dealCloseDate")!]);
+    rows.push(["Pipeline", "Pipeline par défaut HubSpot (déplaçable ensuite)"]);
+    rows.push(["Associé à", "L'entreprise du compte"]);
+    return { rows, effect: "Crée UN deal dans HubSpot — aucune donnée existante n'est modifiée. Le forecast pondéré l'intègre dès la prochaine synchronisation." };
+  }
+  if (a.type === "hubspot_create_contact") {
+    const rows: Array<[string, string]> = [];
+    if (s("contactEmail")) rows.push(["Email", s("contactEmail")!]);
+    if (s("subject")) rows.push(["Nom", s("subject")!]);
+    if (s("companyHubspotId")) rows.push(["Rattaché à", "L'entreprise du compte (fiche CRM)"]);
+    return { rows, effect: "Crée UN contact dans HubSpot — si l'email existe déjà, rien n'est créé (message explicite). Débloque le rapprochement « email exact » pour ce compte." };
+  }
+  return null;
+}
 
 const TYPE_META: Record<string, { label: string; domain: string; icon: string; tool: string; toolLabel: string }> = {
   hubspot_task: { label: "Tâche HubSpot", domain: "hubspot.com", icon: "🟧", tool: "hubspot", toolLabel: "HubSpot" },
@@ -88,6 +156,8 @@ export function ActionsInbox() {
   // Catalogue : familles de détecteurs masquées (préférence locale).
   const [hidden, setHidden] = useState<string[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  // Fiche dépliée : détail concret de ce que la validation va écrire.
+  const [detailId, setDetailId] = useState<string | null>(null);
   // Pagination : 15 (défaut) / 20 / 50 lignes, préférence mémorisée.
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(0);
@@ -344,6 +414,15 @@ export function ActionsInbox() {
                   </div>
                   <p className="mt-1.5 text-sm font-semibold text-slate-900">{a.title}</p>
                   {a.description && <p className="mt-0.5 text-xs text-slate-500">{a.description}</p>}
+                  {buildDetail(a) && (
+                    <button
+                      type="button"
+                      onClick={() => setDetailId(detailId === a.id ? null : a.id)}
+                      className="mt-1.5 text-[11px] font-medium text-indigo-600 transition hover:underline"
+                    >
+                      {detailId === a.id ? "Masquer le détail ▴" : "Voir le détail ▾"}
+                    </button>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -361,6 +440,29 @@ export function ActionsInbox() {
                     {busyId === a.id ? "Exécution…" : "✓ Valider — exécuter"}
                   </button>
                 </div>
+                {/* ── Détail : ce que la validation va exactement écrire, et pourquoi ── */}
+                {detailId === a.id && (() => {
+                  const d = buildDetail(a);
+                  if (!d) return null;
+                  return (
+                    <div className="w-full basis-full rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Ce qui sera écrit à la validation
+                      </p>
+                      <dl className="mt-1.5 space-y-1">
+                        {d.rows.map(([k, v]) => (
+                          <div key={k} className="flex gap-2 text-[11px]">
+                            <dt className="w-36 shrink-0 font-medium text-slate-500">{k}</dt>
+                            <dd className="min-w-0 whitespace-pre-line text-slate-700">{v}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <p className="mt-2 border-t border-slate-200 pt-2 text-[11px] leading-relaxed text-slate-500">
+                        {d.effect}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })
