@@ -85,18 +85,55 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     /* table absente → contexte simplement omis */
   }
 
-  // Session de coaching : injecte les objectifs/pains si fournis (agents coach).
-  if (agent.section === "coaching" && body.coaching && (body.coaching.objectives || body.coaching.pains)) {
+  // Séance cadrée : objectifs/pains fournis par le formulaire en amont.
+  if (body.coaching && (body.coaching.objectives || body.coaching.pains)) {
     system += coachingDirective(body.coaching.objectives ?? "", body.coaching.pains ?? "");
   }
 
-  // Mémoire entre séances (agents coach) : dernier résumé + engagements en cours
-  // → le coach ouvre en faisant le point avant de proposer les pistes du jour.
-  if (agent.section === "coaching") {
-    const coachCategory = COACHING_CATEGORY[agentKey];
+  // Mémoire de séance, style et plan de développement — désormais disponibles
+  // pour TOUS les agents, pas seulement les coachs : c'est la mécanique qui a
+  // de la valeur (accompagnement dans la durée), pas la famille d'agents.
+  // Clé : catégorie historique pour les coachs, clé d'agent pour les experts.
+  {
+    const coachCategory = COACHING_CATEGORY[agentKey] ?? agentKey;
     if (coachCategory) {
       const memory = await getCoachingMemory(supabase, orgId, coachCategory);
       system += memoryDirective(memory);
+
+      // Style choisi par l'utilisateur (ton, challenge, format) — il prime sur
+      // le style par défaut du prompt de base.
+      try {
+        const { data: styleRow } = await supabase
+          .from("coaching_styles")
+          .select("tone, challenge, format, custom_instructions")
+          .eq("organization_id", orgId)
+          .eq("agent_key", agentKey)
+          .maybeSingle();
+        if (styleRow) {
+          const { normalizeStyle, styleDirective } = await import("@/lib/coaching/style");
+          system += `\n\n${styleDirective(
+            normalizeStyle({
+              tone: styleRow.tone,
+              challenge: styleRow.challenge,
+              format: styleRow.format,
+              customInstructions: styleRow.custom_instructions,
+            }),
+          )}`;
+        }
+      } catch {
+        /* table absente → style par défaut */
+      }
+
+      // Plan de développement en cours : le fil rouge de la séance, avec sa
+      // preuve business (objectif témoin) — le coach confronte le déclaratif
+      // aux vraies données au lieu de féliciter à l'aveugle.
+      try {
+        const { loadDevelopmentPlans, planDirective } = await import("@/lib/coaching/development");
+        const plans = await loadDevelopmentPlans(supabase, orgId, coachCategory);
+        system += `\n\n${planDirective(plans)}`;
+      } catch {
+        /* tables absentes → coaching classique */
+      }
     }
   }
 

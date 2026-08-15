@@ -18,13 +18,29 @@ const CAT_AGENT: Record<string, string> = {
 };
 
 /**
- * Section « Créer un rendez-vous & objectif de coaching » à placer en bas d'une
- * page catégorie, avec l'avatar de l'agent adéquat en filigrane de fond.
+ * Section « Créer un rendez-vous & objectif » — cadrage AVANT la séance
+ * (objectifs, points de douleur, cadence, prochain RDV), avec l'avatar de
+ * l'agent en filigrane.
+ *
+ * Deux usages :
+ *  - `category` : pages Coaching IA historiques (coachs dédiés) ;
+ *  - `agentKey` : n'importe quel agent de Mon équipe IA — la catégorie de
+ *    stockage vaut alors la clé de l'agent. Le cadrage et la mémoire de séance
+ *    ne sont donc plus réservés aux coachs.
  */
-export async function CoachingAgendaSection({ category }: { category: string }) {
-  const agentKey = CAT_AGENT[category];
+export async function CoachingAgendaSection({
+  category: categoryProp,
+  agentKey: agentKeyProp,
+}: {
+  category?: string;
+  agentKey?: string;
+}) {
+  const agentKey = agentKeyProp ?? (categoryProp ? CAT_AGENT[categoryProp] : undefined);
   const agent = agentKey ? getAgent(agentKey) : null;
   if (!agentKey || !agent) return null;
+  // Clé de stockage de l'agenda : catégorie historique pour les coachs,
+  // clé d'agent pour les experts (même table, pas de collision).
+  const category = categoryProp ?? agentKey;
 
   const orgId = await getOrgId();
   const supabase = await createSupabaseServerClient();
@@ -64,8 +80,8 @@ export async function CoachingAgendaSection({ category }: { category: string }) 
       <div className={`flex items-center gap-3 rounded-2xl border border-black/5 bg-gradient-to-br ${persona.gradient} px-4 py-3`}>
         <AgentAvatar name={persona.name} emoji={persona.emoji} image={personaImagePath(agentKey)} size={44} />
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Coaching personnalisé</p>
-          <h2 className="text-base font-semibold text-slate-900">Créer un rendez-vous & objectif avec {persona.name}</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">Séance de travail</p>
+          <h2 className="text-base font-semibold text-slate-900">Cadrer un rendez-vous & objectif avec {persona.name}</h2>
           <p className="text-xs text-slate-500">{persona.name}, ton {persona.role.toLowerCase()} — {persona.pitch}</p>
         </div>
       </div>
