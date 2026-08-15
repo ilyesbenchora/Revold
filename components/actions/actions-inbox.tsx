@@ -27,7 +27,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_merge: { label: "Fusion de doublons", domain: "hubspot.com", icon: "🔀", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_company_update: { label: "Enrichissement CRM", domain: "hubspot.com", icon: "🪪", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
-  hubspot_create_contact: { label: "Contact facturation", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
+  hubspot_create_contact: { label: "Création de contact", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
   link_company: { label: "Rattachement de fiches", domain: "revold.io", icon: "🔗", tool: "revold", toolLabel: "Revold" },
   stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
 };
@@ -36,15 +36,15 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
  * Catalogue des actions : chaque famille de détecteur est activable — les
  * familles masquées ne sont ni détectées ni affichées (préférence locale).
  */
-export const ACTION_CATALOG: Array<{ key: string; icon: string; label: string; description: string }> = [
-  { key: "silent_deal", icon: "😶", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → tâche de relance pour le propriétaire." },
-  { key: "overdue_invoice", icon: "⏰", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Alimente « Cash récupéré »." },
-  { key: "duplicate_merge", icon: "🔀", label: "Doublons à fusionner", description: "Contacts (même email) et entreprises (même domaine) en doublon, selon les règles de déduplication activées → fusion HubSpot validée fiche par fiche." },
-  { key: "crm_enrich", icon: "🪪", label: "SIREN / TVA à reporter dans le CRM", description: "L'identifiant est connu via la facturation mais absent de la fiche HubSpot → écrit en un clic. Chaque report rend les rapprochements suivants automatiques." },
-  { key: "link_company", icon: "🔗", label: "Fiches facturation à relier au CRM", description: "Entreprise vue côté facturation sans lien CRM alors qu'une fiche correspond (nom/domaine) → rattachement : le CA devient attribuable compte par compte." },
-  { key: "renewal_deal", icon: "🔁", label: "Deals de renouvellement manquants", description: "Abonnement actif se terminant sous 60 jours sans deal ouvert → crée le deal de renouvellement (MRR × 12) : le forecast intègre le récurrent." },
-  { key: "revenue_leakage", icon: "💸", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
-  { key: "billing_contact", icon: "👤", label: "Contacts facturation à créer", description: "Email de facturation présent côté Stripe/Pennylane mais absent du CRM → crée le contact rattaché à l'entreprise (débloque la règle « email exact »)." },
+export const ACTION_CATALOG: Array<{ key: string; label: string; description: string }> = [
+  { key: "silent_deal", label: "Deals silencieux à relancer", description: "Deal ouvert sans contact depuis 21 jours → tâche de relance pour le propriétaire." },
+  { key: "overdue_invoice", label: "Impayés à relancer", description: "Facture échue avec reste dû → rappel officiel Stripe ou tâche de relance CRM. Alimente « Cash récupéré »." },
+  { key: "duplicate_merge", label: "Doublons à fusionner", description: "Contacts (même email) et entreprises (même domaine) en doublon, selon les règles de déduplication activées → fusion HubSpot validée fiche par fiche." },
+  { key: "crm_enrich", label: "SIREN / TVA à reporter dans le CRM", description: "L'identifiant est connu via la facturation mais absent de la fiche HubSpot → écrit en un clic. Chaque report rend les rapprochements suivants automatiques." },
+  { key: "link_company", label: "Fiches facturation à relier au CRM", description: "Entreprise vue côté facturation sans lien CRM alors qu'une fiche correspond (nom/domaine) → rattachement : le CA devient attribuable compte par compte." },
+  { key: "renewal_deal", label: "Deals de renouvellement manquants", description: "Abonnement actif se terminant sous 60 jours sans deal ouvert → crée le deal de renouvellement (MRR × 12) : le forecast intègre le récurrent." },
+  { key: "revenue_leakage", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
+  { key: "billing_contact", label: "Création de contacts facturation", description: "Email de facturation présent côté Stripe/Pennylane mais absent du CRM → crée le contact rattaché à l'entreprise (débloque la règle « email exact »)." },
 ];
 
 const HIDDEN_KEY = "revold:actions-hidden";
@@ -184,7 +184,7 @@ export function ActionsInbox() {
           onClick={() => setCatalogOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
         >
-          📚 Catalogue des actions
+          Catalogue des actions
           {hidden.length > 0 && (
             <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
               {ACTION_CATALOG.length - hidden.length}/{ACTION_CATALOG.length}
@@ -235,12 +235,9 @@ export function ActionsInbox() {
                 const on = !hidden.includes(c.key);
                 return (
                   <div key={c.key} className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${on ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-70"}`}>
-                    <div className="flex items-start gap-2.5">
-                      <span className="mt-0.5 text-lg" aria-hidden>{c.icon}</span>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-900">{c.label}</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{c.description}</p>
-                      </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">{c.label}</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{c.description}</p>
                     </div>
                     <button
                       type="button"
@@ -279,7 +276,7 @@ export function ActionsInbox() {
                 onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
                 className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${typeFilter === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
-                {TYPE_META[t]?.icon} {TYPE_META[t]?.label ?? t}
+                {TYPE_META[t]?.label ?? t}
               </button>
             ))}
           </div>
