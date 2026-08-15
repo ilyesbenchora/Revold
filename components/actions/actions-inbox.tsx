@@ -188,6 +188,9 @@ export function ActionsInbox() {
   // Pagination : 15 (défaut) / 20 / 50 lignes, préférence mémorisée.
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(0);
+  // Historique : replié par défaut (la page reste légère) + suppression par ligne.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load(hiddenKeys?: string[]) {
     try {
@@ -227,6 +230,23 @@ export function ActionsInbox() {
     setPageSize(n);
     setPage(0);
     try { localStorage.setItem(PAGESIZE_KEY, String(n)); } catch {}
+  }
+
+  /** Supprime UNE ligne d'historique (les actions en attente ne sont pas supprimables). */
+  async function deleteHistoryItem(id: string) {
+    if (deletingId) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/actions?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Suppression impossible");
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   /** Automatisation opt-in d'une famille : réglage serveur + rechargement
@@ -680,15 +700,23 @@ export function ActionsInbox() {
         )}
       </section>
 
-      {/* ── Historique : exécutées / refusées / en échec ── */}
+      {/* ── Historique : dépliant (page légère), lignes supprimables ── */}
       {shownHistory.length > 0 && (
         <section className="space-y-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((o) => !o)}
+            aria-expanded={historyOpen}
+            className="flex w-full items-center gap-2 text-left text-base font-semibold text-slate-900 transition hover:text-indigo-700"
+          >
+            <span className={`text-xs text-slate-400 transition-transform ${historyOpen ? "rotate-90" : ""}`}>▶</span>
             Historique
-            {shownHistory.length > pageSize && (
-              <span className="text-[11px] font-normal text-slate-400">({pageSize} dernières sur {shownHistory.length})</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{shownHistory.length}</span>
+            {historyOpen && shownHistory.length > pageSize && (
+              <span className="text-[11px] font-normal text-slate-400">({pageSize} dernières affichées)</span>
             )}
-          </h2>
+          </button>
+          {historyOpen && (
           <div className="card divide-y divide-slate-100">
             {pagedHistory.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
@@ -719,10 +747,22 @@ export function ActionsInbox() {
                     {a.status === "executed" ? "Exécutée" : a.status === "rejected" ? "Refusée" : "Échec"}
                   </span>
                   {a.decided_at && <span className="text-[10px] text-slate-400">{fmtDate(a.decided_at)}</span>}
+                  {/* Suppression individuelle de la ligne d'historique */}
+                  <button
+                    type="button"
+                    onClick={() => void deleteHistoryItem(a.id)}
+                    disabled={deletingId === a.id}
+                    title="Supprimer cette ligne de l'historique"
+                    aria-label="Supprimer cette ligne de l'historique"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-50"
+                  >
+                    {deletingId === a.id ? "…" : "✕"}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+          )}
         </section>
       )}
     </div>

@@ -262,6 +262,27 @@ export async function GET(request: Request) {
   });
 }
 
+/** Supprime UNE entrée d'historique (jamais une action en attente). */
+export async function DELETE(request: Request) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
+
+  const { error } = await supabase
+    .from("action_items")
+    .delete()
+    .eq("organization_id", orgId)
+    .eq("id", id)
+    .neq("status", "pending");
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
