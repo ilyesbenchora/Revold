@@ -1,4 +1,5 @@
 export const maxDuration = 300;
+import { monitoredCron } from "@/lib/cron/monitor";
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -65,7 +66,7 @@ function isRelevant(p: { groupName: string; hubspotDefined: boolean; calculated:
   return groups.has(p.groupName) || !p.hubspotDefined;
 }
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Get all orgs with HubSpot connected
   const { data: integrations } = await supabase
     .from("integrations")
@@ -133,3 +134,6 @@ async function computeForOrg(orgId: string, token: string) {
     }
   }
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("compute-fill-rates", handler);

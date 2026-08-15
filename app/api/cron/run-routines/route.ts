@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgent, buildSystemPrompt } from "@/lib/ai/agents/registry";
@@ -26,7 +27,7 @@ const MAX_PER_RUN = 6;
  * enregistré dans saved_reports (badge Routine, visible par toute l'équipe),
  * notification in-app, last_run_at/last_error mis à jour.
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -144,3 +145,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ ok: true, executed: results.filter((r) => r.ok).length, results });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("run-routines", handler);

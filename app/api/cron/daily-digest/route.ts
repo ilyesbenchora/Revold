@@ -9,13 +9,14 @@
  *
  * Auth : CRON_SECRET en Authorization Bearer.
  */
+import { monitoredCron } from "@/lib/cron/monitor";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
 
 export const maxDuration = 300;
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -135,3 +136,6 @@ export async function GET(request: Request) {
     total_coachings: totalCoachings,
   });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("daily-digest", handler);

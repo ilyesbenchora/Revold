@@ -1,0 +1,27 @@
+# CI bloquante — chaque push sur main est vérifié : types + tests.
+# Le VRAI verrou de prod est le build Vercel (buildCommand = ci-build :
+# migrations → tests → next build avec type-check) : un commit rouge fait
+# échouer le build et la prod RESTE sur le déploiement précédent.
+# Ce workflow donne la visibilité (croix rouge sur le commit/PR) côté GitHub.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npm run test:run

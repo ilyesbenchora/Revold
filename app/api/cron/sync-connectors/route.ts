@@ -15,6 +15,7 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+import { monitoredCron } from "@/lib/cron/monitor";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { SYNC_REGISTRY, getConnector } from "@/lib/integrations/sync/registry";
@@ -47,7 +48,7 @@ const FREQUENCY_MS: Record<string, number> = {
 };
 const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000; // sans config : quotidien
 
-export async function GET(req: NextRequest) {
+async function handler(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -154,3 +155,6 @@ export async function GET(req: NextRequest) {
     perRun,
   });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("sync-connectors", handler);

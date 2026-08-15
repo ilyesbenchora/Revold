@@ -11,6 +11,7 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+import { monitoredCron } from "@/lib/cron/monitor";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { syncAllForOrg } from "@/lib/sync/hubspot-etl";
@@ -32,7 +33,7 @@ function isAuthorized(req: NextRequest): boolean {
   return auth === `Bearer ${secret}`;
 }
 
-export async function GET(req: NextRequest) {
+async function handler(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -87,3 +88,6 @@ export async function GET(req: NextRequest) {
     perOrg,
   });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("etl-full", handler);

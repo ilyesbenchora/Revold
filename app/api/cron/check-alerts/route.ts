@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification, type NotificationChannelType } from "@/lib/notifications/send";
@@ -38,7 +39,7 @@ const FORECAST_UNITS: Record<string, string> = {
   won_unbilled_count: "deals",
 };
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Verify cron secret in production
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -183,3 +184,6 @@ export async function GET(request: Request) {
     total: activeAlerts.length,
   });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("check-alerts", handler);

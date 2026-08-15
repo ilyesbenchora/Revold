@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "migrate": "node scripts/migrate.mjs",
+    "ci-build": "npm run migrate && npm run test:run && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",

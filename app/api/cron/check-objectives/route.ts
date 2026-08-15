@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification } from "@/lib/notifications/send";
@@ -20,7 +21,7 @@ const MIN_RECON_COVERAGE = 0.3;
  * Les objectifs à valeur manuelle (sans forecast_type) sont ignorés : rien à
  * recalculer côté données.
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -116,3 +117,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ checked, reached, total: objectives.length });
 }
+
+// Monitoring : chaque execution journalisee dans cron_runs (statut, duree, erreur).
+export const GET = monitoredCron("check-objectives", handler);
