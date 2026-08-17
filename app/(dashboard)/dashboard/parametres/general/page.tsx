@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { updateOrganisation } from "./actions";
 
 const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
@@ -34,11 +33,7 @@ export default async function ParametresGeneralPage({
 
       <ParametresTabs />
 
-      {/* Apparence : thème clair / sombre violet */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">🎨 Apparence</h2>
-        <ThemeToggle />
-      </div>
+      {/* L'apparence (thème clair / sombre) vit dans Mon compte → Apparence. */}
 
       {/* Organisation */}
       <div className="space-y-3">

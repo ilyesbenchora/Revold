@@ -42,7 +42,7 @@ export async function POST() {
   try {
     const session = await createPortalSession(
       sub.stripe_customer_id as string,
-      `${baseUrl}/dashboard/parametres/billing`,
+      `${baseUrl}/dashboard/mon-compte/facturation`,
     );
     return NextResponse.json({ url: session.url });
   } catch (err) {

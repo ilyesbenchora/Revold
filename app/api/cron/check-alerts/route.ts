@@ -158,13 +158,13 @@ async function handler(request: Request) {
         direction,
       });
 
-      // Canaux : ceux choisis à la création de l'alerte, sinon la préférence
-      // de l'événement « Alerte en tension » (Paramètres → Notifications).
-      const pref = await loadEventPref(supabase, alert.organization_id, "alert_resolved");
+      // Canaux : gérés CENTRALEMENT dans Mon compte → Notifications (les cartes
+      // de création n'ont plus de sélecteur). Une alerte technique (posée sur
+      // une tuile/bloc/table → source_key) suit sa propre préférence.
+      const eventKey = alert.source_key ? "technical_alert_resolved" : "alert_resolved";
+      const pref = await loadEventPref(supabase, alert.organization_id, eventKey);
       if (!pref.enabled) continue;
-      const channels = (Array.isArray(alert.notification_channels) && alert.notification_channels.length > 0
-        ? alert.notification_channels
-        : pref.channels) as NotificationChannelType[];
+      const channels = pref.channels as NotificationChannelType[];
       if (channels.length === 0) continue;
 
       const result = await sendNotification(supabase, {

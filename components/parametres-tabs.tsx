@@ -9,7 +9,6 @@ const tabs = [
   { href: "/dashboard/parametres/agents", label: "Agents" },
   { href: "/dashboard/parametres/enrichissement", label: "Enrichissement" },
   { href: "/dashboard/parametres/cohortes", label: "Cohortes" },
-  { href: "/dashboard/parametres/billing", label: "Facturation" },
   { href: "/dashboard/parametres/integrations", label: "Intégrations" },
   { href: "/dashboard/parametres/modele-donnees", label: "Modèle de données" },
   { href: "/dashboard/parametres/notifications", label: "Notifications" },

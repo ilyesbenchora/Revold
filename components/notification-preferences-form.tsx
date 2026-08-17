@@ -18,9 +18,12 @@ export function NotificationPreferencesForm({
   configuredChannels,
   /** Mobile renseigné dans Mon compte : conditionne SMS et WhatsApp. */
   hasPhone,
+  /** Restreint l'affichage à ces événements (Mon compte → Notifications). */
+  only,
 }: {
   configuredChannels: string[];
   hasPhone: boolean;
+  only?: string[];
 }) {
   const [prefs, setPrefs] = useState<Record<string, Pref> | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
@@ -93,7 +96,7 @@ export function NotificationPreferencesForm({
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
       <div className="grid gap-2 md:grid-cols-2">
-        {NOTIFICATION_EVENTS.map((evt) => {
+        {NOTIFICATION_EVENTS.filter((evt) => !only || only.includes(evt.key)).map((evt) => {
           const pref = prefs[evt.key] ?? { enabled: true, channels: ["in_app"] };
           return (
             <article

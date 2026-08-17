@@ -3,6 +3,7 @@ import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import { resolveKpiValue, isThresholdMet } from "@/lib/alerts/kpi-resolver";
 import { sendNotification } from "@/lib/notifications/send";
+import { loadEventPref } from "@/lib/notifications/notify-event";
 import { composeNotification } from "@/lib/notifications/compose";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { computeReconciledMetric } from "@/lib/reconciliation/engine";
@@ -102,11 +103,16 @@ async function handler(request: Request) {
         direction,
       });
 
+      // Canaux : préférence de l'événement « Objectif atteint », gérée dans
+      // Mon compte → Notifications.
+      const pref = await loadEventPref(supabase, obj.organization_id as string, "objective_reached");
+      if (!pref.enabled || pref.channels.length === 0) continue;
+
       await sendNotification(supabase, {
         orgId: obj.organization_id as string,
         sourceType: "manual",
         sourceId: obj.id as string,
-        channels: ["in_app"],
+        channels: pref.channels,
         userId: (obj.created_by as string | null) ?? undefined,
         subject: composed.subject,
         bodyText: composed.body,

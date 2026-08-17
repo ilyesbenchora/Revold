@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
       plan,
       period,
       orgId,
-      successUrl: `${baseUrl}/dashboard/parametres/billing?status=success`,
-      cancelUrl: `${baseUrl}/dashboard/parametres/billing?status=cancel`,
+      successUrl: `${baseUrl}/dashboard/mon-compte/facturation?status=success`,
+      cancelUrl: `${baseUrl}/dashboard/mon-compte/facturation?status=cancel`,
     });
 
     return NextResponse.json({ url: session.url, id: session.id });

@@ -11,22 +11,6 @@ type ToolOption = { key: string; label: string; icon: string; category?: string 
 
 type Pipeline = { id: string; label: string };
 type Owner = { id: string; name: string; email: string; team: string | null };
-type ConfiguredChannel = { type: "email" | "slack" | "teams" | "webhook"; enabled: boolean };
-
-// Pour les canaux qui correspondent à un produit (Slack, Teams, HubSpot), on
-// utilise le logo de marque via Google s2 favicons (BrandLogo). Pour les
-// canaux génériques (in_app, email, webhook) on garde une icône emoji.
-const CHANNEL_LABELS: Record<
-  string,
-  { label: string; description: string; icon: string; brandDomain?: string }
-> = {
-  in_app: { label: "Cloche in-app", description: "Notification dans le header + page Alertes", icon: "🔔" },
-  email: { label: "Email", description: "Email aux destinataires configurés", icon: "✉️" },
-  slack: { label: "Slack", description: "Message dans le canal Slack configuré", icon: "💬", brandDomain: "slack.com" },
-  teams: { label: "Microsoft Teams", description: "Card dans le canal Teams configuré", icon: "👥", brandDomain: "microsoft.com" },
-  hubspot: { label: "HubSpot CRM", description: "Notification interne HubSpot (cloche du propriétaire) — task assignée", icon: "🔶", brandDomain: "hubspot.com" },
-  webhook: { label: "Webhook custom", description: "POST JSON vers votre URL", icon: "🔌" },
-};
 
 export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolean } = {}) {
   const [open, setOpen] = useState(false);
@@ -79,9 +63,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const hsTeamFilter = "";
   const customProp = "";
   const customPropValue = "";
-  // Step 4 — Notifications
-  const [selectedChannels, setSelectedChannels] = useState<string[]>(["in_app"]);
-  const [configuredChannels, setConfiguredChannels] = useState<ConfiguredChannel[]>([]);
+  // (Les canaux de notification sont gérés dans Mon compte → Notifications —
+  // plus de sélecteur par alerte.)
   // Étape « Vérification » (KPI personnalisé) : câblage proposé + volumes par entité.
   const [proposal, setProposal] = useState<TrackingProposal | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -147,20 +130,16 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
         fetch("/api/alerts/options")
           .then((r) => (r.ok ? r.json() : { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] }))
           .catch(() => ({ pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] })),
-        fetch("/api/notifications/channels")
-          .then((r) => (r.ok ? r.json() : { channels: [] }))
-          .catch(() => ({ channels: [] })),
         fetch("/api/integrations/connected")
           .then((r) => (r.ok ? r.json() : { tools: [] }))
           .catch(() => ({ tools: [] })),
-      ]).then(([options, notifData, connData]) => {
+      ]).then(([options, connData]) => {
         setPipelines(options.pipelines ?? []);
         setOwners(options.owners ?? []);
         setHsTeams(options.teams ?? []);
         setLifecycleStages(options.lifecycleStages ?? []);
         setSources(options.sources ?? []);
         setCustomContactProps(options.customContactProps ?? []);
-        setConfiguredChannels(notifData.channels ?? []);
         setConnectedTools(connData.tools ?? []);
         setOptionsLoaded(true);
       });
@@ -172,7 +151,6 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setUnitMode("percent"); setPriority("moyen"); setContinuous(false);
     setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]); setAgentContext("");
     setLifecycleStage(""); setSelectedSources([]);
-    setSelectedChannels(["in_app"]);
     setCrossSources([]); setSourceKpis({});
     setTeamLocked(false);
     setState("idle"); setResult(null);
@@ -227,10 +205,6 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, step, kpiId]);
-
-  function toggleChannel(ch: string) {
-    setSelectedChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]);
-  }
 
   function selectTeam(t: string) { setTeam(t); setKpiId(""); setStep(2); }
   function selectKpi(k: KpiDef) { setKpiId(k.id); setAlertTitle(k.label); setDirection(k.defaultDirection); setUnitMode(k.defaultUnit); setProposal(null); setStep(3); }
@@ -342,7 +316,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           custom_property: customProp || null,
           custom_prop_value: customPropValue || null,
           user_context: agentContext.trim() || null,
-          notification_channels: selectedChannels.length > 0 ? selectedChannels : ["in_app"],
+          // Canaux gérés centralement (Mon compte → Notifications) : le cron
+          // lit la préférence de l'événement, plus de canaux par alerte.
           scope,
           cross_sources: crossSources.length ? crossSources : null,
           secondary_kpis: secondaryKpis.length ? secondaryKpis : null,
@@ -406,7 +381,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           s === step ? "bg-accent text-white" : s < step ? "bg-accent/20 text-accent cursor-pointer" : "bg-slate-100 text-slate-400"
                         }`}>{s}</button>
                       <span className={`text-xs font-medium ${s === step ? "text-slate-900" : "text-slate-400"}`}>
-                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : s === 3 ? "Évaluation" : "Notifications"}
+                        {s === 1 ? "Équipe" : s === 2 ? "KPI" : s === 3 ? "Évaluation" : "Vérification"}
                       </span>
                       {s < 4 && <span className="mx-1 text-slate-300">→</span>}
                     </div>
@@ -743,7 +718,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
                         <button type="submit" disabled={!threshold || (kpiId === "source_to_lifecycle" && !lifecycleStage)}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
-                          Suivant : Notifications →
+                          Suivant : Vérification →
                         </button>
                       </div>
                     </div>
@@ -753,101 +728,20 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                 {/* ── Step 4: Notifications ── */}
                 {step === 4 && kpi && (
                   <form onSubmit={handleSubmit}>
-                    <h2 className="text-lg font-semibold text-slate-900">Comment être notifié ?</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">Vérification &amp; création</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Choisissez les canaux qui recevront l&apos;alerte quand l&apos;objectif est atteint.
+                      Le câblage réel de l&apos;alerte est vérifié avant la création.
                     </p>
 
-                    <div className="mt-5 space-y-2">
-                      {(["in_app", "email", "slack", "teams", "hubspot", "webhook"] as const).map((ch) => {
-                        const isInApp = ch === "in_app";
-                        const isHubspot = ch === "hubspot";
-                        // HubSpot ne demande pas de config user-level : utilise le token OAuth de l'org.
-                        // Le canal est dispo dès qu'une intégration HubSpot est active (vérif côté serveur).
-                        const isConfigured = isInApp || isHubspot || configuredChannels.some((c) => c.type === ch && c.enabled);
-                        const meta = CHANNEL_LABELS[ch];
-                        const isSelected = selectedChannels.includes(ch);
-
-                        return (
-                          <button
-                            key={ch}
-                            type="button"
-                            onClick={() => isConfigured && toggleChannel(ch)}
-                            disabled={!isConfigured}
-                            className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
-                              isSelected
-                                ? "border-accent bg-accent/5"
-                                : isConfigured
-                                ? "border-slate-200 hover:border-slate-300"
-                                : "border-slate-200 bg-slate-50 cursor-not-allowed opacity-60"
-                            }`}
-                          >
-                            <span className="shrink-0">
-                              {meta.brandDomain ? (
-                                <BrandLogo
-                                  domain={meta.brandDomain}
-                                  alt={meta.label}
-                                  fallback={meta.icon}
-                                  size={22}
-                                />
-                              ) : (
-                                <span className="text-xl">{meta.icon}</span>
-                              )}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-semibold text-slate-900">{meta.label}</p>
-                                {isInApp && (
-                                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
-                                    Toujours actif
-                                  </span>
-                                )}
-                                {isHubspot && (
-                                  <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-bold text-orange-700">
-                                    OAuth org
-                                  </span>
-                                )}
-                                {!isConfigured && !isInApp && !isHubspot && (
-                                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
-                                    Non configuré
-                                  </span>
-                                )}
-                                {isSelected && !isInApp && (
-                                  <span className="rounded-full bg-accent text-white px-1.5 py-0.5 text-[9px] font-bold">
-                                    ✓ Sélectionné
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
-                              {!isConfigured && !isInApp && (
-                                <p className="mt-1 text-[10px] text-amber-700">
-                                  <a href="/dashboard/parametres/notifications" target="_blank" className="underline">
-                                    Configurer ce canal →
-                                  </a>
-                                </p>
-                              )}
-                            </div>
-                            <div
-                              className={`mt-1 h-5 w-5 shrink-0 rounded border-2 transition ${
-                                isSelected ? "border-accent bg-accent" : "border-slate-300"
-                              } ${!isConfigured ? "opacity-50" : ""}`}
-                            >
-                              {isSelected && (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="h-full w-full">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {selectedChannels.length === 0 && (
-                      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        ⚠ Au moins un canal doit être sélectionné. La cloche in-app est sélectionnée par défaut.
-                      </p>
-                    )}
+                    {/* Canaux gérés centralement — plus de choix par alerte. */}
+                    <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      🔔 Les canaux de notification (cloche, email, Slack…) se règlent une fois pour toutes vos
+                      alertes dans{" "}
+                      <a href="/dashboard/mon-compte/notifications" target="_blank" className="font-medium text-accent underline">
+                        Mon compte → Notifications
+                      </a>
+                      .
+                    </p>
 
                     {/* Étape « Vérification » : le câblage (catalogué ou proposé par
                         l'agent) est affiché SYSTÉMATIQUEMENT et validé avant la création. */}
@@ -870,7 +764,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={state === "loading" || verifying || selectedChannels.length === 0}
+                        <button type="submit" disabled={state === "loading" || verifying}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           {verifying
                             ? "Vérification…"

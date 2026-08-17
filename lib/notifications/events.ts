@@ -32,7 +32,14 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
   {
     key: "alert_resolved",
     label: "Alerte en tension",
-    description: "Le seuil d'une alerte active est atteint sur la donnée réelle.",
+    description: "Le seuil d'une alerte classique est atteint sur la donnée réelle.",
+    briefSection: "alerts",
+    defaultChannels: ["in_app", "email"],
+  },
+  {
+    key: "technical_alert_resolved",
+    label: "Alerte technique en tension",
+    description: "Le seuil d'une alerte chirurgicale (posée sur une tuile, un bloc ou une table) est atteint.",
     briefSection: "alerts",
     defaultChannels: ["in_app", "email"],
   },

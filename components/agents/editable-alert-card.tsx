@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertBody, ALERT_CHANNELS, useAvailableChannels } from "./alert-ui";
+import { AlertBody } from "./alert-ui";
 import { AlertDeadline } from "./alert-deadline";
 import { TrackingBadge } from "./tracking-badge";
 import { TrackingVerification } from "@/components/tracking-verification";
@@ -58,14 +58,9 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
   const [dateFrom, setDateFrom] = useState(alert.date_from ?? "");
   const [dateTo, setDateTo] = useState(alert.date_to ?? "");
   const [continuous, setContinuous] = useState(!alert.date_to);
-  const [channels, setChannels] = useState<string[]>(alert.notification_channels ?? []);
-  const { available } = useAvailableChannels();
   // Vérification du câblage à l'édition — même mécanique que la création.
+  // (Les canaux de notification sont gérés dans Mon compte → Notifications.)
   const { proposal, counts, verifying, requestPreview, resetProposal } = useWiringPreview();
-
-  function toggleChannel(k: string) {
-    setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
-  }
 
   async function save() {
     // Étape Vérification d'abord : le câblage (existant ré-évalué en déterministe,
@@ -96,7 +91,6 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
           unit_mode: kpiFormat,
           date_from: dateFrom || null,
           date_to: continuous ? null : dateTo || null,
-          notification_channels: channels,
           // Câblage validé à l'écran — appliqué tel quel.
           ...(proposal
             ? {
@@ -206,20 +200,14 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
             <label className={lbl}>Impact attendu</label>
             <textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} />
           </div>
-          <div>
-            <label className={lbl}>Canaux de notification</label>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {ALERT_CHANNELS.filter((c) => available.has(c.key)).map((c) => {
-                const on = channels.includes(c.key);
-                return (
-                  <button key={c.key} type="button" onClick={() => toggleChannel(c.key)}
-                    className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition ${on ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}>
-                    <span>{c.icon}</span>{c.label}{on && <span className="text-[10px]">✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {/* Canaux gérés centralement — plus de choix par alerte. */}
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            🔔 Les canaux de notification se règlent pour toutes vos alertes dans{" "}
+            <a href="/dashboard/mon-compte/notifications" target="_blank" className="font-medium text-accent underline">
+              Mon compte → Notifications
+            </a>
+            .
+          </p>
           {/* Vérification du câblage : affichée avant l'enregistrement, comme à la création. */}
           {proposal && (
             <TrackingVerification
@@ -247,7 +235,6 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
             description={alert.description ?? ""}
             impact={alert.impact}
             category={alert.category}
-            channels={alert.notification_channels ?? undefined}
           />
           {alert.threshold != null && (
             <p className="mt-2 text-[11px] text-slate-400">🎯 KPI attendu : {alert.threshold}{alert.unit_mode === "count" ? "" : alert.unit_mode === "currency" ? " €" : " %"}</p>

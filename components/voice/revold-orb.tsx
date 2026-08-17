@@ -685,7 +685,7 @@ export function RevoldControlTowerLocked() {
         agents briefés à la dictée.
       </p>
       <a
-        href="/dashboard/parametres/billing"
+        href="/dashboard/mon-compte/facturation"
         className="relative z-10 mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
       >
         Disponible dès le plan Business →

@@ -52,13 +52,6 @@ export type SurgicalAggSpec = {
   sources?: string[] | null;
 };
 
-const CHANNELS: { key: string; icon: string; label: string }[] = [
-  { key: "in_app", icon: "🔔", label: "App Revold" },
-  { key: "email", icon: "📧", label: "Email" },
-  { key: "slack", icon: "💬", label: "Slack" },
-  { key: "teams", icon: "👥", label: "Teams" },
-];
-
 function unitSym(u: SurgicalUnit): string {
   return u === "percent" ? "%" : u === "currency" ? "€" : "#";
 }
@@ -174,9 +167,9 @@ export function SurgicalAlertButton({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [description, setDescription] = useState("");
-  const [channels, setChannels] = useState<string[]>(["in_app"]);
   // Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe) —
-  // même sélecteur que le formulaire d'alerte classique.
+  // même sélecteur que le formulaire d'alerte classique. Les CANAUX, eux,
+  // sont gérés centralement dans Mon compte → Notifications.
   const [scope, setScope] = useState<"personal" | "team">("personal");
 
   function reset() {
@@ -185,11 +178,8 @@ export function SurgicalAlertButton({
     setVerify({ loading: false, rowCount: null, targetValue: null, error: null });
     setAlertTitle(`Alerte — ${title}`); setTarget(defaultTarget); setThreshold(""); setUnit(baseUnit);
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
-    setContinuous(true); setDateFrom(""); setDateTo(""); setDescription(""); setChannels(["in_app"]);
+    setContinuous(true); setDateFrom(""); setDateTo(""); setDescription("");
     setScope("personal");
-  }
-  function toggleChannel(k: string) {
-    setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
   }
 
   /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi). */
@@ -283,7 +273,7 @@ export function SurgicalAlertButton({
           date_from: continuous ? null : dateFrom || null,
           date_to: continuous ? null : dateTo || null,
           user_context: description.trim() || null,
-          notification_channels: channels.length ? channels : ["in_app"],
+          // Canaux gérés centralement (Mon compte → Notifications).
           scope,
           source_key: key,
           threshold_secondary: secondary.length ? secondary[0].value : null,
@@ -465,10 +455,6 @@ export function SurgicalAlertButton({
                       <dt className="text-xs text-slate-500">Portée</dt>
                       <dd className="text-xs font-semibold text-slate-900">{scope === "team" ? "👥 Équipe" : "👤 Personnel"}</dd>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-xs text-slate-500">Canaux</dt>
-                      <dd className="text-xs font-semibold text-slate-900">{(channels.length ? channels : ["in_app"]).join(" · ")}</dd>
-                    </div>
                     {description.trim() && (
                       <div className="flex items-start justify-between gap-3">
                         <dt className="shrink-0 text-xs text-slate-500">Contexte</dt>
@@ -591,20 +577,14 @@ export function SurgicalAlertButton({
                   </div>
                 </div>
 
-                <div>
-                  <label className={lbl}>Canaux de notification</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CHANNELS.map((c) => {
-                      const on = channels.includes(c.key);
-                      return (
-                        <button key={c.key} type="button" onClick={() => toggleChannel(c.key)}
-                          className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition ${on ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}>
-                          <span>{c.icon}</span>{c.label}{on && <span className="text-[10px]">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Canaux gérés centralement — plus de choix par alerte. */}
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                  🔔 Les canaux de notification se règlent une fois pour toutes vos alertes techniques dans{" "}
+                  <a href="/dashboard/mon-compte/notifications" target="_blank" className="font-medium text-fuchsia-600 underline">
+                    Mon compte → Notifications
+                  </a>
+                  .
+                </p>
 
                 {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
 

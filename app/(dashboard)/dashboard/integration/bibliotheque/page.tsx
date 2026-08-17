@@ -75,7 +75,7 @@ export default async function BibliothequeOutilsPage({
           {limitCheck.current >= limitCheck.limit && (
             <>
               {" "}— limite atteinte. Déconnectez un outil ou{" "}
-              <Link href="/dashboard/parametres/billing" className="font-medium underline hover:text-amber-900">
+              <Link href="/dashboard/mon-compte/facturation" className="font-medium underline hover:text-amber-900">
                 passez au plan supérieur
               </Link>{" "}
               pour en connecter davantage. Les canaux de notification (Slack, Teams, Gmail…) restent connectables.
