@@ -20,10 +20,10 @@ export default async function ObjectifsPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, recon_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status";
+  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, recon_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status, scope";
   let res = await supabase.from("objectives").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-  if (res.error && /(agg_spec|recon_spec)/.test(res.error.message)) {
-    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "");
+  if (res.error && /(agg_spec|recon_spec|scope)/.test(res.error.message)) {
+    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "").replace(", scope", "");
     res = await supabase.from("objectives").select(legacy).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   const { data, error } = res;

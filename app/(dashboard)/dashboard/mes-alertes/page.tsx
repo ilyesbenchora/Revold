@@ -14,10 +14,10 @@ export default async function MesAlertesPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const COLS: string = "id, title, description, impact, category, status, threshold, unit_mode, created_at, date_from, date_to, notification_channels, forecast_type, agg_spec, recon_spec";
+  const COLS: string = "id, title, description, impact, category, status, threshold, unit_mode, created_at, date_from, date_to, notification_channels, forecast_type, agg_spec, recon_spec, scope, cross_sources";
   let res = await supabase.from("alerts").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-  if (res.error && /(agg_spec|recon_spec)/.test(res.error.message)) {
-    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "");
+  if (res.error && /(agg_spec|recon_spec|scope|cross_sources)/.test(res.error.message)) {
+    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "").replace(", scope", "").replace(", cross_sources", "");
     res = await supabase.from("alerts").select(legacy).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   const alerts = (res.data ?? []) as unknown as AlertRow[];

@@ -75,6 +75,8 @@ export async function POST(request: Request) {
     recon_recipe,
     // Table/bloc de données d'origine (compteur + lien sur la table)
     source_key,
+    // Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe)
+    scope,
   } = body;
 
   if (!title || !description || !impact) {
@@ -160,6 +162,9 @@ export async function POST(request: Request) {
     agg_spec: resolvedAggSpec,
     recon_spec: reconSpec,
     source_key: typeof source_key === "string" && source_key.trim() ? source_key.trim().slice(0, 200) : null,
+    // Portée (badge Équipe / Personnel sur la carte) — colonne retirée par
+    // l'insert résilient si la migration n'est pas appliquée.
+    scope: scope === "team" ? "team" : "personal",
   });
 
   if (error) return NextResponse.json({ error }, { status: 500 });

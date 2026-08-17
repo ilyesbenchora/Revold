@@ -59,6 +59,8 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [unitMode, setUnitMode] = useState<"percent" | "currency" | "count">("percent");
   const [priority, setPriority] = useState<"faible" | "moyen" | "urgent">("moyen");
+  // Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe).
+  const [scope, setScope] = useState<"personal" | "team">("personal");
   const [continuous, setContinuous] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -341,6 +343,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
           custom_prop_value: customPropValue || null,
           user_context: agentContext.trim() || null,
           notification_channels: selectedChannels.length > 0 ? selectedChannels : ["in_app"],
+          scope,
           cross_sources: crossSources.length ? crossSources : null,
           secondary_kpis: secondaryKpis.length ? secondaryKpis : null,
           threshold_secondary: secondaryKpis.length ? secondaryKpis[0].value : null,
@@ -656,6 +659,22 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           )}
                         </div>
                       )}
+
+                      {/* Portée : personnelle ou d'équipe */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Portée</label>
+                        <div className="flex gap-2">
+                          {([
+                            { id: "personal", label: "👤 Personnel", hint: "Mon suivi" },
+                            { id: "team", label: "👥 Équipe", hint: "Partagée avec l'équipe de l'espace" },
+                          ] as const).map((s) => (
+                            <button key={s.id} type="button" title={s.hint} onClick={() => setScope(s.id)}
+                              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                                scope === s.id ? "bg-indigo-100 text-indigo-700" : "bg-white border border-slate-200 text-slate-500"
+                              }`}>{s.label}</button>
+                          ))}
+                        </div>
+                      </div>
 
                       {/* Priorité de l'alerte */}
                       <div>

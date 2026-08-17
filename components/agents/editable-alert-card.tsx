@@ -7,6 +7,9 @@ import { AlertDeadline } from "./alert-deadline";
 import { TrackingBadge } from "./tracking-badge";
 import { TrackingVerification } from "@/components/tracking-verification";
 import { useWiringPreview } from "@/components/use-wiring-preview";
+import { BrandLogo } from "@/components/brand-logo";
+import { getConnectableTool } from "@/lib/integrations/connect-catalog";
+import { toolDomain } from "@/lib/integrations/tool-domains";
 import type { AggSpec } from "@/lib/alerts/agg-value";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -33,6 +36,10 @@ export type EditableAlert = {
   forecast_type?: string | null;
   agg_spec?: AggSpec | null;
   recon_spec?: { recipe?: string } | null;
+  /** Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe). */
+  scope?: string | null;
+  /** Outils croisés par l'alerte — badges sur la carte. */
+  cross_sources?: string[] | null;
 };
 
 
@@ -123,12 +130,38 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
 
   return (
     <div className="card p-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fuchsia-600">
           <span>✨</span> {badge}
         </span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-          {TYPE_LABELS[alert.category ?? ""] ?? "Suivi"}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {/* Portée : équipe (partagée) ou personnelle */}
+          {alert.scope && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                alert.scope === "team" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {alert.scope === "team" ? "👥 Équipe" : "👤 Personnel"}
+            </span>
+          )}
+          {/* Outils liés à l'alerte */}
+          {(alert.cross_sources ?? (alert.agg_spec?.sources as string[] | undefined) ?? []).slice(0, 4).map((key) => {
+            const tool = getConnectableTool(key);
+            return (
+              <span
+                key={key}
+                title={`Alerte liée à ${tool?.label ?? key}`}
+                className="inline-flex items-center gap-1 rounded-full border border-fuchsia-200 bg-fuchsia-50/70 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-700"
+              >
+                <BrandLogo domain={toolDomain(key)} alt={tool?.label ?? key} fallback={tool?.icon ?? "🔗"} size={11} />
+                {tool?.label ?? key}
+              </span>
+            );
+          })}
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+            {TYPE_LABELS[alert.category ?? ""] ?? "Suivi"}
+          </span>
         </span>
       </div>
 

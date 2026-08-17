@@ -13,6 +13,8 @@ import type { AggSpec } from "@/lib/alerts/agg-value";
 
 export type Objective = {
   id: string;
+  /** Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe). */
+  scope?: string | null;
   title: string;
   description: string | null;
   impact: string | null;
@@ -219,7 +221,18 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
         </div>
       ) : (
         <>
-          <h3 className="text-sm font-semibold text-slate-900">{o.title}</h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">{o.title}</h3>
+            {o.scope && (
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  o.scope === "team" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {o.scope === "team" ? "👥 Équipe" : "👤 Personnel"}
+              </span>
+            )}
+          </div>
           {o.description && <p className="mt-0.5 text-sm text-slate-600">{o.description}</p>}
 
           {/* Barre de complétion */}

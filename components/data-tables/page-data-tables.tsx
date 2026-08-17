@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DataTableCard, type SavedTable } from "./data-table-card";
 import { DataPreview } from "./blocks-manager";
 import { usePageEditMode } from "./page-edit-mode";
+import { DictationButton } from "@/components/dictation-button";
 import {
   ENTITY_DIMS,
   ENTITY_FIELDS,
@@ -1179,8 +1180,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-slate-500">Description (optionnel)</label>
-                  <p className="mt-0.5 text-[11px] text-slate-400">Ajoute du contexte pour aider {agentName} à mieux interpréter ton KPI.</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-medium text-slate-500">Description (optionnel)</label>
+                    {/* Dictée vocale du descriptif de câblage */}
+                    <DictationButton onText={(t) => setDescription((d) => (d ? `${d} ${t}` : t))} title={`Dicter la description à ${agentName}`} />
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Ajoute du contexte pour aider {agentName} à mieux interpréter ton KPI — au clavier ou à la voix 🎙️.</p>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -1347,8 +1352,11 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       placeholder="Ex : montant moyen des deals gagnés par mois"
                       className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-fuchsia-400"
                     />
-                    <label className="mt-3 block text-[11px] font-medium text-slate-500">Description (optionnel)</label>
-                    <p className="mt-0.5 text-[11px] text-slate-400">Précise le contexte — {agentName} en tiendra compte pour construire la table.</p>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <label className="block text-[11px] font-medium text-slate-500">Description (optionnel)</label>
+                      <DictationButton onText={(t) => setDescription((d) => (d ? `${d} ${t}` : t))} title={`Dicter la description à ${agentName}`} />
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Précise le contexte — {agentName} en tiendra compte pour construire la table. Au clavier ou à la voix 🎙️.</p>
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -1396,10 +1404,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                 {/* Description pour l'agent — le KPI est câblé par l'agent sur la vraie donnée. */}
                 {draft.custom && (
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                      Description pour {agentName} (optionnel)
-                    </label>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        Description pour {agentName} (optionnel)
+                      </label>
+                      <DictationButton onText={(t) => setDescription((d) => (d ? `${d} ${t}` : t))} title={`Dicter la description à ${agentName}`} />
+                    </div>
                     <p className="mt-0.5 text-[11px] text-slate-400">
                       Précise la donnée voulue. Si vide, {agentName} câble automatiquement le KPI sur la donnée la plus fiable, réelle et enrichie.
                     </p>

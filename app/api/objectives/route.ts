@@ -79,6 +79,9 @@ export async function POST(request: Request) {
     date_from: typeof b.date_from === "string" && dateRe.test(b.date_from) ? b.date_from : null,
     date_to: typeof b.date_to === "string" && dateRe.test(b.date_to) ? b.date_to : null,
     priority: b.priority === "faible" || b.priority === "urgent" ? b.priority : "moyen",
+    // Portée (badge Équipe / Personnel) — retirée par l'insert résilient si
+    // la migration n'est pas appliquée.
+    scope: b.scope === "team" ? "team" : "personal",
     agg_spec: aggSpec,
     recon_spec: reconSpec,
     status: "active",

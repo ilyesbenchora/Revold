@@ -38,6 +38,8 @@ export function CreateObjectiveModal() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [priority, setPriority] = useState<"faible" | "moyen" | "urgent">("moyen");
+  // Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe).
+  const [scope, setScope] = useState<"personal" | "team">("personal");
   const [description, setDescription] = useState("");
   const [impact, setImpact] = useState("");
   // Étape « Vérification » : câblage proposé par l'agent + volumes par entité.
@@ -122,6 +124,7 @@ export function CreateObjectiveModal() {
           date_from: dateFrom || null,
           date_to: dateTo || null,
           priority,
+          scope,
           description, impact,
         }),
       });
@@ -204,6 +207,20 @@ export function CreateObjectiveModal() {
                 ] as const).map((p) => (
                   <button key={p.id} type="button" onClick={() => setPriority(p.id)}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition ${priority === p.id ? p.color : "bg-white border border-slate-200 text-slate-500"}`}>{p.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Portée : personnelle ou d'équipe */}
+            <div>
+              <label className={lbl}>Portée</label>
+              <div className="mt-1 flex gap-2">
+                {([
+                  { id: "personal", label: "👤 Personnel", hint: "Mon suivi" },
+                  { id: "team", label: "👥 Équipe", hint: "Partagé avec l'équipe de l'espace" },
+                ] as const).map((s) => (
+                  <button key={s.id} type="button" title={s.hint} onClick={() => setScope(s.id)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${scope === s.id ? "bg-indigo-100 text-indigo-700" : "bg-white border border-slate-200 text-slate-500"}`}>{s.label}</button>
                 ))}
               </div>
             </div>
