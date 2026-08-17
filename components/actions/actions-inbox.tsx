@@ -202,6 +202,9 @@ export function ActionsInbox() {
   const [history, setHistory] = useState<ActionItem[]>([]);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Fiche venant d'être exécutée avec succès : le CTA passe en vert « Action effectuée »
+  // le temps que l'utilisateur voie la confirmation, avant le départ en historique.
+  const [doneId, setDoneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Filtres : type d'action + outil ("" = tous) — appliqués à la file ET à l'historique.
   const [typeFilter, setTypeFilter] = useState("");
@@ -360,12 +363,18 @@ export function ActionsInbox() {
       if (!res.ok) throw new Error(d.error || "Décision impossible");
       if (decision === "approve" && d.status === "failed" && d.detail) {
         setError(`Exécution en échec : ${d.detail}`);
+      } else if (decision === "approve") {
+        // Confirmation visible sur le CTA (« ✓ Action effectuée ») avant que la fiche
+        // ne quitte la file pour l'historique.
+        setDoneId(id);
+        await new Promise((r) => setTimeout(r, 1600));
       }
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setBusyId(null);
+      setDoneId(null);
     }
   }
 
@@ -823,16 +832,20 @@ export function ActionsInbox() {
                   <button
                     onClick={() => decide(a.id, "reject")}
                     disabled={busyId === a.id}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    className={`rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 ${doneId === a.id ? "invisible" : ""}`}
                   >
                     Refuser
                   </button>
                   <button
                     onClick={() => decide(a.id, "approve")}
                     disabled={busyId === a.id || needsMigration}
-                    className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
+                    className={
+                      doneId === a.id
+                        ? "rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                        : "rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
+                    }
                   >
-                    {busyId === a.id ? "Exécution…" : "✓ Valider — exécuter"}
+                    {doneId === a.id ? "✓ Action effectuée" : busyId === a.id ? "Exécution…" : "✓ Valider — exécuter"}
                   </button>
                 </div>
                 {/* ── Détail : ce que la validation va exactement écrire, et pourquoi ── */}
