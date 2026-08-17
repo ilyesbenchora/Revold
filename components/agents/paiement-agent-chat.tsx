@@ -15,6 +15,7 @@ import type { AgentRedirect } from "@/lib/ai/agents/redirect";
 import { AttachMenu, AttachmentChips } from "./attach-menu";
 import { AgentAvatar } from "./agent-avatar";
 import { RoutinesTab, useAgentRoutines } from "./routines-tab";
+import { AgentQueuedActions } from "./agent-queued-actions";
 import { useVoice } from "./use-voice";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
@@ -812,7 +813,7 @@ export function PaiementAgentChat({
 
       {/* ── Onglet Actions (exécutables dans le CRM, human-in-the-loop) ── */}
       {tab === "actions" && (
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           {proposedActions.length === 0 ? (
             <div className="mx-auto max-w-md pt-8 text-center">
               <p className="text-sm text-slate-500">
@@ -839,6 +840,10 @@ export function PaiementAgentChat({
               ))}
             </div>
           )}
+
+          {/* Actions de CET agent dans la file : planifiées depuis le chat ou
+              décidées/exécutées en auto-pilot — avec leur statut. */}
+          <AgentQueuedActions agentKey={agentKey} />
         </div>
       )}
 

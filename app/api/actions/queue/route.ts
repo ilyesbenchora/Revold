@@ -15,6 +15,44 @@ export const dynamic = "force-dynamic";
  * Une ligne par deal ciblé : l'utilisateur peut ensuite valider ou refuser
  * deal par deal, et l'automatisation par entité s'applique de la même façon.
  */
+/**
+ * Actions de CET agent dans la file (B1) : planifiées depuis le chat, décidées
+ * ou exécutées en auto-pilot — affichées dans l'onglet Actions du chat, avec
+ * leur statut. Résilient si la table action_items n'est pas migrée.
+ */
+export async function GET(request: Request) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
+
+  const agentKey = new URL(request.url).searchParams.get("agent_key");
+  if (!agentKey) return NextResponse.json({ error: "agent_key requis" }, { status: 400 });
+
+  const { data, error } = await supabase
+    .from("action_items")
+    .select("id, title, description, type, status, created_at, decided_at, decided_by")
+    .eq("organization_id", orgId)
+    .eq("source", `agent:${agentKey}`)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) return NextResponse.json({ items: [], unavailable: true });
+  return NextResponse.json({
+    items: (data ?? []).map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      type: r.type,
+      status: r.status,
+      createdAt: r.created_at,
+      decidedAt: r.decided_at,
+      // decided_by null + statut exécuté = décision AUTO-PILOT (automatisation).
+      autoPilot: (r.status === "executed" || r.status === "failed") && r.decided_by == null,
+    })),
+  });
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();

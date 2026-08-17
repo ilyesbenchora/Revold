@@ -3,6 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useNotifyActivatedAlert } from "./activated-alerts";
+import { ActionExecutionFunnel, type FunnelResult } from "@/components/actions/action-execution-funnel";
+import {
+  ACTION_TONES,
+  emailTemplate,
+  taskTemplate,
+  readSavedTemplate,
+  saveTemplate,
+  type MessageTone,
+} from "@/lib/actions/message-templates";
 import type { DealActionProposal } from "@/lib/ai/agents/sales-actions";
 
 const KIND_META: Record<DealActionProposal["kind"], { icon: string; label: string; cta: string }> = {
@@ -17,11 +26,18 @@ const KIND_META: Record<DealActionProposal["kind"], { icon: string; label: strin
  */
 export function DealActionCard({ agentKey, action }: { agentKey: string; action: DealActionProposal }) {
   const meta = KIND_META[action.kind];
-  const [taskBody, setTaskBody] = useState(action.taskBody ?? "");
+  // Template mémorisé (« réutiliser pour les prochaines ») : pré-remplit le
+  // message quand l'agent n'en a pas proposé un.
+  const saved = typeof window !== "undefined" ? readSavedTemplate(action.kind) : null;
+  const [taskBody, setTaskBody] = useState(action.taskBody ?? (action.kind === "create_tasks" ? saved?.body ?? "" : ""));
   const [dueInDays, setDueInDays] = useState(String(action.dueInDays ?? 2));
   const [newCloseDate, setNewCloseDate] = useState(action.newCloseDate ?? "");
-  const [emailSubject, setEmailSubject] = useState(action.emailSubject ?? "");
-  const [emailBody, setEmailBody] = useState(action.emailBody ?? "");
+  const [emailSubject, setEmailSubject] = useState(action.emailSubject ?? (action.kind === "draft_emails" ? saved?.subject ?? "" : ""));
+  const [emailBody, setEmailBody] = useState(action.emailBody ?? (action.kind === "draft_emails" ? saved?.body ?? "" : ""));
+  // Ton du contenu + mémorisation pour les prochaines actions du même type.
+  const [tone, setTone] = useState<MessageTone | null>(saved?.tone ?? null);
+  const [reuseTemplate, setReuseTemplate] = useState(Boolean(saved));
+  const [showFunnel, setShowFunnel] = useState(false);
   const [state, setState] = useState<"idle" | "running" | "queuing" | "done" | "queued" | "error">("idle");
   const [result, setResult] = useState<{ done: number; total: number; hint?: string; results?: { name: string; ok: boolean; error?: string }[] } | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
@@ -61,29 +77,63 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
       if (!res.ok) throw new Error(data.error || "Mise en file impossible");
       setQueuedCount(Number(data.queued) || action.deals.length);
       setState("queued");
+      persistTemplateIfWanted();
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : "Erreur inconnue");
       setState("idle");
     }
   }
 
-  async function execute() {
+  /** Applique un ton : template pré-rempli (email ou tâche), éditable ensuite. */
+  function applyTone(t: MessageTone) {
+    setTone(t);
+    if (action.kind === "draft_emails") {
+      const tpl = emailTemplate(t);
+      setEmailSubject(tpl.subject);
+      setEmailBody(tpl.body);
+    } else if (action.kind === "create_tasks") {
+      setTaskBody(taskTemplate(t));
+    }
+  }
+
+  /** Mémorise le message courant pour les prochaines actions du même type. */
+  function persistTemplateIfWanted() {
+    if (!reuseTemplate || !tone) return;
+    if (action.kind === "draft_emails") saveTemplate(action.kind, { tone, subject: emailSubject, body: emailBody });
+    else if (action.kind === "create_tasks") saveTemplate(action.kind, { tone, body: taskBody });
+  }
+
+  /** L'appel RÉEL — exécuté à l'étape « Écriture HubSpot » du funnel. */
+  async function runExecution(): Promise<FunnelResult> {
+    const payload: DealActionProposal = buildPayload();
+    const res = await fetch(`/api/agents/${agentKey}/execute-deal-action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { done: 0, total: action.deals.length, error: data.error || "Échec" };
+    return { done: data.done, total: data.total, hint: data.hint, results: data.results };
+  }
+
+  /** Ouvre la fenêtre d'exécution en funnel (étapes clés auto-déroulantes). */
+  function execute() {
     setState("running");
     setResult(null);
-    const payload: DealActionProposal = buildPayload();
-    try {
-      const res = await fetch(`/api/agents/${agentKey}/execute-deal-action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
-      setResult({ done: data.done, total: data.total, hint: data.hint, results: data.results });
-      setState(data.done > 0 ? "done" : "error");
-      if (data.done > 0) notifyActivated?.({ title: `${meta.label} (${data.done})`, at: Date.now() });
-    } catch {
-      setState("error");
+    setShowFunnel(true);
+  }
+
+  function onFunnelClose(res: FunnelResult | null) {
+    setShowFunnel(false);
+    if (!res) {
+      setState("idle");
+      return;
+    }
+    setResult({ done: res.done, total: res.total, hint: res.hint, results: res.results });
+    setState(res.done > 0 ? "done" : "error");
+    if (res.done > 0) {
+      notifyActivated?.({ title: `${meta.label} (${res.done})`, at: Date.now() });
+      persistTemplateIfWanted();
     }
   }
 
@@ -126,6 +176,40 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
             ))}
           </div>
         </div>
+
+        {/* Ton du contenu (séquences : tâches & emails) — template pré-rempli,
+            mémorisable pour les prochaines actions du même type. */}
+        {!locked && (action.kind === "create_tasks" || action.kind === "draft_emails") && (
+          <div>
+            <label className={lbl}>Ton du contenu</label>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {ACTION_TONES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTone(t.id)}
+                  title={`Pré-remplir le message avec un ton ${t.label.toLowerCase()}`}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                    tone === t.id
+                      ? "border-amber-300 bg-amber-50 text-amber-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+              <label className="ml-auto flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={reuseTemplate}
+                  onChange={(e) => setReuseTemplate(e.target.checked)}
+                  className="h-3 w-3 rounded border-slate-300 accent-amber-500"
+                />
+                Réutiliser pour les prochaines
+              </label>
+            </div>
+          </div>
+        )}
 
         {/* Paramètres selon le type d'action */}
         {!locked && action.kind ==="update_closedate" && (
@@ -221,6 +305,16 @@ export function DealActionCard({ agentKey, action }: { agentKey: string; action:
           )}
         </div>
       </div>
+
+      {/* Fenêtre d'exécution en funnel : étapes clés auto-déroulantes. */}
+      {showFunnel && (
+        <ActionExecutionFunnel
+          title={action.title}
+          count={action.deals.length}
+          run={runExecution}
+          onClose={onFunnelClose}
+        />
+      )}
     </div>
   );
 }
