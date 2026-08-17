@@ -119,6 +119,21 @@ export default async function PerformanceMarketingPage() {
           tone: "neutral",
           sub: "Formulaires, emails, site, workflows",
         },
+        // ── Lifecycle stage du CRM : UNE tuile par stage (contacts actuellement
+        // dans le stage + part du funnel) — masquables individuellement via
+        // « Personnaliser les KPIs » comme toutes les tuiles par défaut. ──
+        ...lc.stages.map<DefaultTile>((s) => ({
+          key: `lifecycle_${s.value}`,
+          label: `Lifecycle · ${s.label}`,
+          value: s.inStageCount.toLocaleString("fr-FR"),
+          raw: s.inStageCount,
+          rawUnit: "count",
+          tone: "accent",
+          sub:
+            lc.totalContactsInFunnel > 0
+              ? `${Math.round((s.inStageCount / lc.totalContactsInFunnel) * 100)} % du funnel`
+              : undefined,
+        })),
       ]
     : [];
 
