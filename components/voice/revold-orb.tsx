@@ -261,12 +261,12 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
       g.clearRect(0, 0, size * dpr, size * dpr);
 
-      // Halo / cœur lumineux doré
+      // Halo / cœur lumineux FUCHSIA (identité Revold)
       const glow = g.createRadialGradient(cx, cy, R * 0.05, cx, cy, R * 1.55);
       const coreAlpha = s === "listening" ? 0.5 + level * 0.4 : s === "idle" ? 0.32 + 0.05 * Math.sin(t * 1.8) : 0.5;
-      glow.addColorStop(0, `rgba(253, 224, 150, ${coreAlpha})`);
-      glow.addColorStop(0.45, `rgba(245, 190, 90, ${coreAlpha * 0.35})`);
-      glow.addColorStop(1, "rgba(245, 190, 90, 0)");
+      glow.addColorStop(0, `rgba(245, 180, 250, ${coreAlpha})`);
+      glow.addColorStop(0.45, `rgba(217, 70, 239, ${coreAlpha * 0.35})`);
+      glow.addColorStop(1, "rgba(217, 70, 239, 0)");
       g.fillStyle = glow;
       g.fillRect(0, 0, size * dpr, size * dpr);
 
@@ -288,7 +288,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         const r = (0.9 + depth * 1.5) * dpr * (s === "listening" ? 1 + level * 0.5 : 1);
         g.beginPath();
         g.arc(px, py, r, 0, Math.PI * 2);
-        g.fillStyle = `rgba(250, 210, 120, ${alpha})`;
+        g.fillStyle = `rgba(240, 171, 252, ${alpha})`;
         g.fill();
       }
       raf = requestAnimationFrame(draw);
@@ -582,7 +582,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         <canvas ref={canvasRef} style={{ width: size, height: size }} className="pointer-events-none" />
         {/* Logo Revold en filigrane — très fondu, au cœur de l'orbe */}
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" width={size * 0.26} height={size * 0.26} fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1.1" strokeLinecap="round" className="drop-shadow-[0_0_6px_rgba(253,224,150,0.35)]">
+          <svg viewBox="0 0 24 24" width={size * 0.26} height={size * 0.26} fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1.1" strokeLinecap="round" className="drop-shadow-[0_0_6px_rgba(240,171,252,0.35)]">
             <line x1="12" y1="3" x2="12" y2="21" />
             <line x1="4.2" y1="7.5" x2="19.8" y2="16.5" />
             <line x1="19.8" y1="7.5" x2="4.2" y2="16.5" />
@@ -699,7 +699,7 @@ export function RevoldControlTower() {
   return (
     <div className="card relative flex h-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-5">
       {/* fond nocturne discret */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(245,190,90,0.12),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(217,70,239,0.12),transparent_60%)]" />
       <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-200/70">
         Revold · Tour de contrôle
       </p>

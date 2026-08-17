@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 
 const THEME_KEY = "revold:theme";
-type Theme = "light" | "violet-dark";
+type Theme = "light" | "violet-dark" | "gold-dark";
+const DARK_THEMES: Theme[] = ["violet-dark", "gold-dark"];
 
 /**
  * Paramètres → Apparence : choix du thème de la plateforme. Le mode sombre
@@ -17,18 +18,19 @@ export function ThemeToggle() {
 
   useEffect(() => {
     try {
+      const saved = localStorage.getItem(THEME_KEY) as Theme | null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (localStorage.getItem(THEME_KEY) === "violet-dark") setTheme("violet-dark");
+      if (saved && DARK_THEMES.includes(saved)) setTheme(saved);
     } catch {
       /* stockage indisponible */
     }
     setHydrated(true);
   }, []);
 
-  // Applique le thème au DOM (attribut sur <html>) — via effet, après choix.
+  // Applique le thème au DOM (attribut sur <html>) — EN DIRECT, via effet.
   useEffect(() => {
     if (!hydrated) return;
-    if (theme === "violet-dark") document.documentElement.setAttribute("data-theme", "violet-dark");
+    if (DARK_THEMES.includes(theme)) document.documentElement.setAttribute("data-theme", theme);
     else document.documentElement.removeAttribute("data-theme");
   }, [theme, hydrated]);
 
@@ -76,11 +78,30 @@ export function ThemeToggle() {
         </div>
       ),
     },
+    {
+      key: "gold-dark",
+      label: "Sombre gold",
+      hint: "Fond brun doré, textes crème, accents or — la tour de contrôle fuchsia ressort dessus.",
+      preview: (
+        <div className="h-20 w-full overflow-hidden rounded-lg border border-amber-500/30 bg-[#171106] p-2">
+          <div className="h-2 w-1/3 rounded-full bg-[#5c4a1e]" />
+          <div className="mt-2 flex items-end gap-1.5">
+            {[10, 16, 8, 20, 13].map((h, i) => (
+              <div
+                key={i}
+                className="w-4 rounded-t bg-gradient-to-t from-amber-600 to-amber-300 shadow-[0_0_8px_rgba(217,169,63,0.6)]"
+                style={{ height: h * 2 }}
+              />
+            ))}
+          </div>
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="card p-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-2xl">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:max-w-3xl">
         {options.map((o) => {
           const active = hydrated && theme === o.key;
           return (
@@ -101,8 +122,8 @@ export function ThemeToggle() {
                   {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                 </span>
                 <span className="text-sm font-semibold text-slate-900">{o.label}</span>
-                {o.key === "violet-dark" && (
-                  <span className="rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                {o.key === "gold-dark" && (
+                  <span className="rounded-full bg-gradient-to-r from-amber-500 to-yellow-600 px-2 py-0.5 text-[10px] font-bold text-white">
                     Nouveau
                   </span>
                 )}
