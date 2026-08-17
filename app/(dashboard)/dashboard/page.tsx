@@ -236,20 +236,6 @@ export default async function DashboardOverviewPage() {
       ),
     },
     {
-      label: "Séances",
-      description: "Cadrez une séance de travail avec un agent : objectif, ce qui bloque, cadence et prochain rendez-vous.",
-      href: "/dashboard/mes-alertes/seances",
-      cta: "Cadrer une séance",
-      gradient: "from-fuchsia-500 to-pink-500",
-      ai: true,
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" />
-          <path d="M10 21v1a2 2 0 0 0 4 0v-1" />
-        </svg>
-      ),
-    },
-    {
       label: "Rapports",
       description: "Construisez des rapports sur mesure pour piloter ce qui compte vraiment.",
       href: "/dashboard/rapports",
@@ -396,16 +382,9 @@ export default async function DashboardOverviewPage() {
                 {s.icon}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent transition">
-                    {s.label}
-                  </h3>
-                  {s.ai && (
-                    <span className="rounded-full bg-gradient-to-r from-amber-100 to-fuchsia-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-700">
-                      IA
-                    </span>
-                  )}
-                </div>
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-accent transition">
+                  {s.label}
+                </h3>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">{s.description}</p>
               </div>
             </div>

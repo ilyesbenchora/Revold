@@ -35,7 +35,6 @@ const NAV_TARGETS: Record<string, { href: string; label: string }> = {
   actions: { href: "/dashboard/mes-alertes/actions", label: "les Actions" },
   objectifs: { href: "/dashboard/mes-alertes/objectifs", label: "les Objectifs" },
   rapports: { href: "/dashboard/rapports", label: "les Rapports" },
-  seances: { href: "/dashboard/mes-alertes/seances", label: "les Séances" },
   enrichissement: { href: "/dashboard/enrichissement", label: "l'Enrichissement" },
   "parametres-integrations": { href: "/dashboard/parametres/integrations", label: "Paramètres → Intégrations" },
   "modele-donnees": { href: "/dashboard/parametres/modele-donnees", label: "le Modèle de données" },

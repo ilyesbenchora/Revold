@@ -79,7 +79,6 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/mes-alertes/actions", label: "Actions" },
       { href: "/dashboard/mes-alertes/objectifs", label: "Objectifs" },
       { href: "/dashboard/mes-alertes/calendrier", label: "Calendrier" },
-      { href: "/dashboard/mes-alertes/seances", label: "Séances" },
       { href: "/dashboard/enrichissement", label: "Enrichissement" },
     ],
   },

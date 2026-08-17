@@ -153,15 +153,6 @@ const alertesChildren: LeafLink[] = [
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
     ),
   },
-  // Cadrage des séances de travail avec les agents (objectifs, RDV) —
-  // ex-« Coaching IA », désormais rattaché aux agents de Mon équipe IA.
-  {
-    href: "/dashboard/mes-alertes/seances",
-    label: "Séances",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" /><path d="M10 21v1a2 2 0 0 0 4 0v-1" /></svg>
-    ),
-  },
   // Enrichissement = ACTION à forte valeur (remplir/rafraîchir la donnée
   // officielle des entreprises), distinguée des rapports de Rapprochement.
   {
@@ -240,7 +231,7 @@ const sidebarLinks: SidebarItem[] = [
     children: auditChildren,
   },
   // Section « Coaching IA » supprimée : un seul roster d'agents (Mon équipe
-  // IA) qui porte la mécanique de séance ; le cadrage vit dans Suivi → Séances.
+  // IA) qui porte la mécanique de séance, directement sur la page de l'agent.
   {
     id: "dashboard",
     label: "Dashboard",
