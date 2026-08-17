@@ -73,6 +73,37 @@ export async function checkHubSpotProperty(
   return NOT_FOUND;
 }
 
+export type HubSpotPropertyCrossCheckResult = HubSpotPropertyCheckResult & {
+  /** Objet CRM où la propriété a été trouvée (nom ou libellé), sinon null. */
+  foundObject: string | null;
+};
+
+/**
+ * Vérifie une propriété sans connaître son objet porteur (cas des cohortes :
+ * secteur, segment, source… peuvent vivre sur Contact, Entreprise ou Deal).
+ * Retourne le premier objet où elle existe ; à défaut la première suggestion
+ * par libellé ; invérifiable si tous les objets sont invérifiables.
+ */
+export async function checkHubSpotPropertyAcrossObjects(
+  token: string | null,
+  name: string,
+  labelHint?: string,
+): Promise<HubSpotPropertyCrossCheckResult> {
+  if (!token) return { ...UNVERIFIABLE, foundObject: null };
+  const results = await Promise.all(
+    ["companies", "contacts", "deals"].map(async (obj) => ({
+      obj,
+      check: await checkHubSpotProperty(token, obj, name, labelHint),
+    })),
+  );
+  const found = results.find((r) => r.check.exists === true);
+  if (found) return { ...found.check, foundObject: found.obj };
+  const suggested = results.find((r) => r.check.suggestedName);
+  if (suggested) return { ...suggested.check, foundObject: suggested.obj };
+  if (results.every((r) => r.check.exists === null)) return { ...UNVERIFIABLE, foundObject: null };
+  return { ...NOT_FOUND, foundObject: null };
+}
+
 /** Objet HubSpot porteur de chaque identifiant canonique du mapping. */
 export const CANONICAL_TO_HUBSPOT_OBJECT: Record<string, string> = {
   company_name: "companies",

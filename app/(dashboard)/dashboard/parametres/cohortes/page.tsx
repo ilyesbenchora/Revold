@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { checkHubSpotPropertyAcrossObjects } from "@/lib/integrations/hubspot-properties";
 import { ParametresTabs } from "@/components/parametres-tabs";
-import { CohortMappingsForm, type CohortMapping } from "@/components/cohort-mappings-form";
+import { CohortMappingsForm, type CohortMapping, type CohortPropertyStatus } from "@/components/cohort-mappings-form";
 
 /**
  * Paramètres → Cohortes : mapping des propriétés CRM (nom interne + nom API)
@@ -29,6 +31,26 @@ export default async function ParametresCohortesPage() {
     /* table absente → vide */
   }
 
+  // Vérification live des propriétés CRM du mapping — même système que le bloc
+  // d'identifiants (Modèle de données) : un mapping qui pointe vers une
+  // propriété absente du CRM ne vaut rien. CRM connecté = HubSpot aujourd'hui ;
+  // l'objet porteur n'étant pas connu, la recherche couvre Contact/Entreprise/Deal.
+  const hsToken = await getHubSpotToken(supabase, orgId);
+  const propertyStatus: CohortPropertyStatus = {};
+  await Promise.all(
+    mappings
+      .filter((m) => m.api_name?.trim() || m.internal_name?.trim())
+      .map(async (m) => {
+        const check = await checkHubSpotPropertyAcrossObjects(hsToken, m.api_name ?? "", m.internal_name);
+        propertyStatus[m.key] = {
+          exists: check.exists,
+          label: check.label,
+          suggestedName: check.suggestedName,
+          foundObject: check.foundObject,
+        };
+      }),
+  );
+
   return (
     <section className="space-y-6">
       <header>
@@ -42,7 +64,7 @@ export default async function ParametresCohortesPage() {
 
       <ParametresTabs />
 
-      <CohortMappingsForm initial={mappings} />
+      <CohortMappingsForm initial={mappings} initialStatus={propertyStatus} hasCrm={!!hsToken} />
     </section>
   );
 }
