@@ -53,7 +53,8 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
         });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
-          setPushSummary(d.error ?? "Poussée HubSpot impossible.");
+          // Le réglage est enregistré ; seule la poussée a échoué → avertissement.
+          setPropertyWarnings((prev) => [...prev, `Poussée HubSpot impossible : ${d.error ?? "erreur inconnue"}.`]);
           return;
         }
         const d = await res.json();

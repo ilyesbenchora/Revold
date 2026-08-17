@@ -68,15 +68,17 @@ export async function POST(request: Request) {
     total = count ?? 0;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("companies")
     .select("id, siren, siret, vat_number, hubspot_id")
     .eq("organization_id", orgId)
     .not("siren", "is", null)
     .not("hubspot_id", "is", null)
-    .gt("id", cursor ?? "")
     .order("id", { ascending: true })
     .limit(BATCH);
+  // Pagination par curseur — id est un uuid : pas de .gt sur chaîne vide.
+  if (cursor) query = query.gt("id", cursor);
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (data ?? []) as Array<{ id: string; siren: string; siret: string | null; vat_number: string | null; hubspot_id: string }>;
