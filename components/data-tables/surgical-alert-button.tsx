@@ -175,6 +175,9 @@ export function SurgicalAlertButton({
   const [dateTo, setDateTo] = useState("");
   const [description, setDescription] = useState("");
   const [channels, setChannels] = useState<string[]>(["in_app"]);
+  // Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe) —
+  // même sélecteur que le formulaire d'alerte classique.
+  const [scope, setScope] = useState<"personal" | "team">("personal");
 
   function reset() {
     setState("idle"); setError(null); setStep("form");
@@ -183,6 +186,7 @@ export function SurgicalAlertButton({
     setAlertTitle(`Alerte — ${title}`); setTarget(defaultTarget); setThreshold(""); setUnit(baseUnit);
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
     setContinuous(true); setDateFrom(""); setDateTo(""); setDescription(""); setChannels(["in_app"]);
+    setScope("personal");
   }
   function toggleChannel(k: string) {
     setChannels((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
@@ -280,6 +284,7 @@ export function SurgicalAlertButton({
           date_to: continuous ? null : dateTo || null,
           user_context: description.trim() || null,
           notification_channels: channels.length ? channels : ["in_app"],
+          scope,
           source_key: key,
           threshold_secondary: secondary.length ? secondary[0].value : null,
           unit_mode_secondary: secondary.length ? secondary[0].unit_mode : null,
@@ -457,6 +462,10 @@ export function SurgicalAlertButton({
                       <dd className="text-xs font-semibold text-slate-900">{continuous ? "En continu" : `${dateFrom || "…"} → ${dateTo || "…"}`}</dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-slate-500">Portée</dt>
+                      <dd className="text-xs font-semibold text-slate-900">{scope === "team" ? "👥 Équipe" : "👤 Personnel"}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">Canaux</dt>
                       <dd className="text-xs font-semibold text-slate-900">{(channels.length ? channels : ["in_app"]).join(" · ")}</dd>
                     </div>
@@ -564,6 +573,22 @@ export function SurgicalAlertButton({
                 <div>
                   <label className={lbl}>Description (pour l&apos;agent)</label>
                   <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex : alerter si cette ligne décroche vs le mois dernier." className={`${inp} resize-none`} />
+                </div>
+
+                {/* Portée : personnelle ou d'équipe — iso avec l'alerte classique */}
+                <div>
+                  <label className={lbl}>Portée</label>
+                  <div className="flex gap-2">
+                    {([
+                      { id: "personal", label: "👤 Personnel", hint: "Mon suivi" },
+                      { id: "team", label: "👥 Équipe", hint: "Partagée avec l'équipe de l'espace" },
+                    ] as const).map((s) => (
+                      <button key={s.id} type="button" title={s.hint} onClick={() => setScope(s.id)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                          scope === s.id ? "bg-indigo-100 text-indigo-700" : "bg-white border border-slate-200 text-slate-500"
+                        }`}>{s.label}</button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
