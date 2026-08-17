@@ -234,6 +234,12 @@ export function ReportArtifact({
             b.query &&
             setDrill({ query: b.query, sources, period: drillPeriod, bucket, title: curReport.title })
           }
+          onSpecChange={(next) => {
+            setCurReport(next);
+            // Rapport déjà enregistré : l'édition du tableau est persistée.
+            if (savedReportId) updateSavedReport(savedReportId, { report: next });
+            else setSaved(false);
+          }}
         />
       )}
       {curChart && (

@@ -262,7 +262,7 @@ Liste dictée par Ilyes (batch). Fait immédiatement : mode sombre gold + tour d
 
 | # | Demande | Statut |
 |---|---|---|
-| B1 | Chat agent : voir les actions exécutées en auto-pilot dans l'onglet Actions, ou décidées pendant le chat | [ ] |
+| B1 | Chat agent : voir les actions exécutées en auto-pilot dans l'onglet Actions, ou décidées pendant le chat | [x] |
 | B2 | Alerte/Objectif : marquer « équipe » ou « personnel » à la création + afficher l'outil lié sur la carte après enregistrement | [x] |
 | B3 | Funnels de création : descriptif de câblage dicté PAR VOCAL (micro sur le champ description) | [x] |
 | B4 | Paramètres → page « Agents » : modifier la personnalité et le ton de chaque agent + activer des « insights agent » (sujets les plus abordés, profondeur des sujets…) | [x] |
@@ -270,9 +270,9 @@ Liste dictée par Ilyes (batch). Fait immédiatement : mode sombre gold + tour d
 | B6 | Paramètres → page « Enrichissement » : choisir les champs à enrichir (nb employés, CA, SIREN, SIRET, TVA, secteur d'activité) — ne JAMAIS écraser une donnée existante dans le CRM (enrichir uniquement les champs vides) | [x] |
 | B7 | Même page : activer/désactiver la recherche d'entreprises par SIREN/SIRET dans la barre de recherche HubSpot | [x] |
 | B8 | Onboarding : selon le pays/adresse de l'organisation (Paramètres), baser l'enrichissement sur les données administratives du pays | [x] (base pays : FR actif, autres registres affiches) |
-| B9 | Exécution d'action : fenêtre avec les étapes clés en funnel qui s'exécutent automatiquement jusqu'à finalisation | [ ] |
-| B10 | Actions de séquence : choisir le ton du contenu + message avec template pré-rempli, réutilisable pour les prochaines | [ ] |
-| B11 | Rapports en tableau : modifier/ajouter/supprimer des colonnes + sélection en bulk (cocher) pour modifier/supprimer des lignes, comme dans Enrichissement | [ ] |
+| B9 | Exécution d'action : fenêtre avec les étapes clés en funnel qui s'exécutent automatiquement jusqu'à finalisation | [x] |
+| B10 | Actions de séquence : choisir le ton du contenu + message avec template pré-rempli, réutilisable pour les prochaines | [x] |
+| B11 | Rapports en tableau : modifier/ajouter/supprimer des colonnes + sélection en bulk (cocher) pour modifier/supprimer des lignes, comme dans Enrichissement | [x] |
 | B12 | Paramètres → onglet « Cohortes » : mapper les propriétés CRM (nom interne + nom API) — Secteur d'activité, Segment, Sources (canal d'acquisition), Priorité + customs ajoutables — pour croiser correctement le marketing dans les reportings (propriétés souvent custom dans les bases) | [x] |
 | B13 | Fichiers importés (Excel / Google Sheets) sélectionnables dans « Outil source par page » + analyse du fichier pour que les KPIs personnalisés se rapprochent correctement de ses données | [ ] |
 | B14 | Suggestions d'enrichissement (à la façon du catalogue d'actions) : proposer d'enrichir les ID de rapprochement manquants dans le CRM + autres suggestions ultra pertinentes uniquement | [x] |

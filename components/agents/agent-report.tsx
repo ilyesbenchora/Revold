@@ -15,6 +15,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
+import { EditableReportTable } from "./editable-report-table";
 import { bucketTickInterval, currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
@@ -341,10 +342,16 @@ export function ReportChart({
 export function AgentReport({
   spec,
   onBlockBucketClick,
+  onSpecChange,
 }: {
   spec: ReportSpec;
   /** Drill-down : clic sur un bucket d'un bloc PORTEUR de query déterministe. */
   onBlockBucketClick?: (block: ReportBlock, bucket: { raw: string; label: string }) => void;
+  /**
+   * B11 — tableaux éditables : colonnes modifiables/ajoutables/supprimables +
+   * sélection en masse des lignes. Absent → tableaux en lecture seule.
+   */
+  onSpecChange?: (next: ReportSpec) => void;
 }) {
   // Regroupe les blocs KPI consécutifs sur une même rangée.
   const groups: ReportBlock[][] = [];
@@ -377,43 +384,27 @@ export function AgentReport({
           }
           const b = group[0];
           if (b.type === "table") {
-            // Cellule « chiffrée » (montant, %, compteur) → alignée à droite en
-            // chiffres tabulaires, comme les axes des graphiques.
-            const isNumeric = (cell: unknown) =>
-              typeof cell === "string" || typeof cell === "number"
-                ? /^-?[\d\s.,]+(?:\s*(?:€|%|k€|M€|j|jours))?$/.test(String(cell).trim())
-                : false;
+            const blockIndex = spec.blocks.indexOf(b);
             return (
-              <div key={gi}>
-                {b.title && <div className="mb-1 text-xs font-medium text-slate-600">{b.title}</div>}
-                <div className="overflow-x-auto rounded-lg border border-slate-100">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-500">
-                        {(b.columns ?? []).map((c, i) => (
-                          <th key={i} className="px-2.5 py-2 font-semibold">{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(b.rows ?? []).map((r, ri) => (
-                        <tr key={ri} className="border-b border-slate-100 last:border-0 transition hover:bg-indigo-50/40">
-                          {r.map((cell, ci) => (
-                            <td
-                              key={ci}
-                              className={`px-2.5 py-1.5 ${
-                                isNumeric(cell) ? "text-right font-medium tabular-nums text-slate-900" : "text-slate-700"
-                              }`}
-                            >
-                              {cell}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <EditableReportTable
+                key={gi}
+                title={b.title}
+                columns={b.columns ?? []}
+                rows={b.rows ?? []}
+                onChange={
+                  onSpecChange
+                    ? (patch) =>
+                        onSpecChange({
+                          ...spec,
+                          blocks: spec.blocks.map((x, i) =>
+                            i === blockIndex
+                              ? { ...x, columns: patch.columns, rows: patch.rows.map((r) => r.map(String)) }
+                              : x,
+                          ),
+                        })
+                    : undefined
+                }
+              />
             );
           }
           return (
