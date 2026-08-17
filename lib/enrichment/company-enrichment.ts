@@ -48,6 +48,8 @@ type ApiResult = {
   siege?: { siret?: string };
   tranche_effectif_salarie?: string | null;
   annee_tranche_effectif_salarie?: string | null;
+  /** Code NAF/APE officiel (ex : « 62.01Z ») — secteur d'activité. */
+  activite_principale?: string | null;
   finances?: Record<string, { ca?: number | null; resultat_net?: number | null }> | null;
 };
 
@@ -97,6 +99,8 @@ export type CompanyFacts = {
   revenue: number | null;
   revenueYear: number | null;
   netIncome: number | null;
+  /** Code NAF/APE officiel (secteur d'activité). */
+  nafCode: string | null;
 };
 
 /** Extrait effectifs + finances d'un résultat de l'API (partagé recherche/fiche). */
@@ -131,6 +135,7 @@ function factsFromResult(r: ApiResult): CompanyFacts {
     revenue,
     revenueYear,
     netIncome,
+    nafCode: typeof r.activite_principale === "string" && r.activite_principale ? r.activite_principale : null,
   };
 }
 

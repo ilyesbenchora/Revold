@@ -6,6 +6,12 @@ import {
   MIN_QUERY_LENGTH,
 } from "@/lib/enrichment/company-enrichment";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import {
+  getEnrichmentSettings,
+  nafSectionLabel,
+  registryForCountry,
+  type EnrichmentSettings,
+} from "@/lib/enrichment/settings";
 
 /**
  * MOTEUR de backfill d'enrichissement — partagé par le cron horaire
@@ -49,10 +55,29 @@ type FactsRow = { id: string; organization_id: string; siren: string; hubspot_id
 function orgCaches(sb: SupabaseClient) {
   const tokens = new Map<string, string | null>();
   const props = new Map<string, (canonical: string, fallback: string) => string>();
+  const settings = new Map<string, EnrichmentSettings>();
+  const countryOk = new Map<string, boolean>();
   return {
     async token(orgId: string): Promise<string | null> {
       if (!tokens.has(orgId)) tokens.set(orgId, await getHubSpotToken(sb, orgId));
       return tokens.get(orgId) ?? null;
+    },
+    /** Réglages Paramètres → Enrichissement (champs actifs, push HubSpot des IDs). */
+    async settings(orgId: string): Promise<EnrichmentSettings> {
+      if (!settings.has(orgId)) settings.set(orgId, await getEnrichmentSettings(sb, orgId));
+      return settings.get(orgId)!;
+    },
+    /** Registre du pays de l'org supporté ? (FR/absent = Sirene ; autre pays → skip). */
+    async registrySupported(orgId: string): Promise<boolean> {
+      if (!countryOk.has(orgId)) {
+        try {
+          const { data } = await sb.from("organizations").select("country").eq("id", orgId).maybeSingle();
+          countryOk.set(orgId, registryForCountry((data?.country as string | null) ?? null).supported);
+        } catch {
+          countryOk.set(orgId, true);
+        }
+      }
+      return countryOk.get(orgId)!;
     },
     async propFor(orgId: string): Promise<(canonical: string, fallback: string) => string> {
       if (!props.has(orgId)) {
@@ -80,6 +105,34 @@ async function pushHubspot(token: string, hsId: string, properties: Record<strin
       body: JSON.stringify({ properties }),
     });
     return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Push « JAMAIS écraser » : lit d'abord la fiche HubSpot et ne PATCH que les
+ * propriétés VIDES — la donnée saisie par le client dans son CRM fait toujours
+ * foi. En cas d'échec de lecture, on n'écrit rien (prudence > complétude).
+ */
+async function pushHubspotIfEmpty(token: string, hsId: string, properties: Record<string, string>): Promise<boolean> {
+  const keys = Object.keys(properties);
+  if (keys.length === 0) return true;
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/companies/${hsId}?properties=${encodeURIComponent(keys.join(","))}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return false;
+    const d = (await res.json()) as { properties?: Record<string, string | null> };
+    const current = d.properties ?? {};
+    const toWrite: Record<string, string> = {};
+    for (const k of keys) {
+      const v = current[k];
+      if (v == null || String(v).trim() === "") toWrite[k] = properties[k];
+    }
+    if (Object.keys(toWrite).length === 0) return true;
+    return pushHubspot(token, hsId, toWrite);
   } catch {
     return false;
   }
@@ -130,6 +183,21 @@ export async function runEnrichmentBatch(
   for (const c of (identityData ?? []) as IdentityRow[]) {
     if (budget <= 0) break;
     const checked = { sirene_checked_at: new Date().toISOString() };
+
+    // Registre du pays non supporté (org non française) → on marque vérifiée
+    // sans appeler Sirene : chercher une entreprise étrangère dans le registre
+    // français ne produirait que des faux positifs.
+    if (!(await caches.registrySupported(c.organization_id))) {
+      await sb.from("companies").update(checked).eq("id", c.id);
+      continue;
+    }
+    const st = await caches.settings(c.organization_id);
+    // SIREN désactivé dans Paramètres → Enrichissement : la clé d'identité ne
+    // doit pas être posée — on marque vérifiée et on passe.
+    if (!st.fields.siren) {
+      await sb.from("companies").update(checked).eq("id", c.id);
+      continue;
+    }
 
     // Nom trop court pour être cherché (le registre exige 3 caractères) : on
     // MARQUE VÉRIFIÉE au lieu de simplement sauter. Sans cette écriture, la
@@ -185,22 +253,34 @@ export async function runEnrichmentBatch(
       continue;
     }
 
+    // Champs pilotés par Paramètres → Enrichissement (défaut : tout actif).
     const update: Record<string, unknown> = {
       ...checked,
       siren: found.siren,
-      vat_number: vatFromSiren(found.siren),
       enriched_at: new Date().toISOString(),
     };
-    if (found.siret) update.siret = found.siret;
-    if (found.facts.employeeRange) {
+    if (st.fields.vat) update.vat_number = vatFromSiren(found.siren);
+    if (st.fields.siret && found.siret) update.siret = found.siret;
+    if (st.fields.employees && found.facts.employeeRange) {
       update.official_employee_range = found.facts.employeeRange;
       update.official_employee_year = found.facts.employeeYear;
     }
-    if (typeof found.facts.revenue === "number") {
+    if (st.fields.revenue && typeof found.facts.revenue === "number") {
       update.official_revenue = found.facts.revenue;
       update.official_revenue_year = found.facts.revenueYear;
     }
-    const { error } = await sb.from("companies").update(update).eq("id", c.id);
+    if (st.fields.industry && found.facts.nafCode) {
+      update.naf_code = found.facts.nafCode;
+      update.activity_label = nafSectionLabel(found.facts.nafCode);
+    }
+    let { error } = await sb.from("companies").update(update).eq("id", c.id);
+    // Colonnes secteur absentes (migration non appliquée) → on retente sans
+    // elles plutôt que perdre l'identité entière.
+    if (error && /naf_code|activity_label/.test(error.message)) {
+      delete update.naf_code;
+      delete update.activity_label;
+      ({ error } = await sb.from("companies").update(update).eq("id", c.id));
+    }
     if (error) {
       // 23505 = SIREN déjà porté par une autre fiche de l'org : ces deux
       // fiches désignent la MÊME entreprise. On consigne le doublon (info
@@ -238,14 +318,18 @@ export async function runEnrichmentBatch(
     const token = await caches.token(c.organization_id);
     if (token && c.hubspot_id) {
       const propFor = await caches.propFor(c.organization_id);
-      const properties: Record<string, string> = {
-        [propFor("siren", "siren")]: found.siren,
-        [propFor("vat_number", "vat_number")]: vatFromSiren(found.siren),
-      };
-      if (found.siret) properties[propFor("siret", "siret")] = found.siret;
-      if (typeof found.facts.revenue === "number") properties.annualrevenue = String(Math.round(found.facts.revenue));
-      if (typeof found.facts.employeeMidpoint === "number") properties.numberofemployees = String(found.facts.employeeMidpoint);
-      await pushHubspot(token, c.hubspot_id, properties);
+      const properties: Record<string, string> = {};
+      // Identifiants → HubSpot (recherche par SIREN/SIRET dans la barre HubSpot),
+      // désactivable dans Paramètres → Enrichissement.
+      if (st.hubspotSearchIds) {
+        properties[propFor("siren", "siren")] = found.siren;
+        if (st.fields.vat) properties[propFor("vat_number", "vat_number")] = vatFromSiren(found.siren);
+        if (st.fields.siret && found.siret) properties[propFor("siret", "siret")] = found.siret;
+      }
+      if (st.fields.revenue && typeof found.facts.revenue === "number") properties.annualrevenue = String(Math.round(found.facts.revenue));
+      if (st.fields.employees && typeof found.facts.employeeMidpoint === "number") properties.numberofemployees = String(found.facts.employeeMidpoint);
+      // JAMAIS écraser : seuls les champs VIDES de la fiche HubSpot sont remplis.
+      await pushHubspotIfEmpty(token, c.hubspot_id, properties);
     }
   }
 
@@ -265,6 +349,12 @@ export async function runEnrichmentBatch(
     for (const c of (factsData ?? []) as FactsRow[]) {
       if (budget <= 0) break;
       if (!/^\d{9}$/.test(c.siren)) continue;
+      const st = await caches.settings(c.organization_id);
+      // Effectifs, CA et secteur désactivés → rien à rafraîchir pour cette org.
+      if (!st.fields.employees && !st.fields.revenue && !st.fields.industry) {
+        await sb.from("companies").update({ enriched_at: new Date().toISOString() }).eq("id", c.id);
+        continue;
+      }
       budget--;
       const outcome = await lookupCompanyFacts(c.siren);
       await sleep(THROTTLE_MS);
@@ -282,15 +372,24 @@ export async function runEnrichmentBatch(
       consecutiveErrors = 0;
       const facts = outcome.status === "found" ? outcome.data : null;
       const update: Record<string, unknown> = { enriched_at: new Date().toISOString() };
-      if (facts?.employeeRange) {
+      if (st.fields.employees && facts?.employeeRange) {
         update.official_employee_range = facts.employeeRange;
         update.official_employee_year = facts.employeeYear;
       }
-      if (typeof facts?.revenue === "number") {
+      if (st.fields.revenue && typeof facts?.revenue === "number") {
         update.official_revenue = facts.revenue;
         update.official_revenue_year = facts.revenueYear;
       }
-      const { error } = await sb.from("companies").update(update).eq("id", c.id);
+      if (st.fields.industry && facts?.nafCode) {
+        update.naf_code = facts.nafCode;
+        update.activity_label = nafSectionLabel(facts.nafCode);
+      }
+      let { error } = await sb.from("companies").update(update).eq("id", c.id);
+      if (error && /naf_code|activity_label/.test(error.message)) {
+        delete update.naf_code;
+        delete update.activity_label;
+        ({ error } = await sb.from("companies").update(update).eq("id", c.id));
+      }
       if (error) {
         // Colonne absente / conflit : on pose au moins enriched_at, sinon la
         // même fiche reviendrait à chaque passage et bloquerait la file.
@@ -304,9 +403,10 @@ export async function runEnrichmentBatch(
       const token = await caches.token(c.organization_id);
       if (token && c.hubspot_id) {
         const properties: Record<string, string> = {};
-        if (typeof facts.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
-        if (typeof facts.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
-        if (Object.keys(properties).length > 0) await pushHubspot(token, c.hubspot_id, properties);
+        if (st.fields.revenue && typeof facts.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
+        if (st.fields.employees && typeof facts.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
+        // JAMAIS écraser : seuls les champs VIDES de la fiche HubSpot sont remplis.
+        if (Object.keys(properties).length > 0) await pushHubspotIfEmpty(token, c.hubspot_id, properties);
       }
     }
   }

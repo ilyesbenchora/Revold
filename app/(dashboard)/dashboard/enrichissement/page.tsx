@@ -5,6 +5,8 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { CompanyFinancialsBlock } from "@/components/company-financials-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
+import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
+import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
 
 /**
  * Suivi → Enrichissement : l'ACTION à forte valeur ajoutée, distinguée des
@@ -85,6 +87,10 @@ export default async function EnrichissementPage() {
              possible par défaut, le contrôle qualité ne dépend pas du rythme. ── */}
       <EnrichmentBackfillRunner />
 
+      {/* ── Suggestions d'enrichissement : ce qui manque encore (ID de
+             rapprochement en tête), seules les pertinentes s'affichent. ── */}
+      <EnrichmentSuggestions supabase={supabase} orgId={orgId} />
+
       {/* ── 2. Ce que le moteur n'applique pas seul : les correspondances
              d'identité ambiguës, validées à la main. ── */}
       <CompanyEnrichmentBlock />
@@ -92,6 +98,9 @@ export default async function EnrichissementPage() {
       {/* ── 3. Complément : effectifs & CA des entreprises SANS SIREN
              (recherche par nom, SIREN jamais stocké). ── */}
       <CompanyFinancialsBlock />
+
+      {/* ── 4. Le résultat : les entreprises enrichies, en tableau. ── */}
+      <EnrichedCompaniesTable supabase={supabase} orgId={orgId} />
 
       <p className="text-[11px] text-slate-400">
         Sources : base Sirene et comptes déposés à l&apos;INPI via l&apos;API Recherche d&apos;Entreprises de l&apos;État

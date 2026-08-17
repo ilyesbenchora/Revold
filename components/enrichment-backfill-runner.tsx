@@ -185,10 +185,25 @@ export function EnrichmentBackfillRunner() {
           </p>
         </div>
         {status != null && (
-          <p className="shrink-0 text-right text-xs text-slate-500">
-            <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
-            {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
-          </p>
+          <div className="flex shrink-0 items-center gap-3">
+            <p className="text-right text-xs text-slate-500">
+              <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
+              {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
+            </p>
+            {/* B5 : relance manuelle — même quand tout est « terminé », un clic
+                force un passage (nouvelles fiches, rafraîchissement > 90 j). */}
+            <button
+              type="button"
+              disabled={loopRef.current}
+              onClick={() => {
+                setNotice(null);
+                void loop();
+              }}
+              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+            >
+              🔁 Enrichir mon CRM
+            </button>
+          </div>
         )}
       </div>
 
