@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 const THEME_KEY = "revold:theme";
-type Theme = "light" | "violet-dark" | "gold-dark";
-const DARK_THEMES: Theme[] = ["violet-dark", "gold-dark"];
+type Theme = "light" | "violet-dark" | "gold-dark" | "silver-dark";
+const DARK_THEMES: Theme[] = ["violet-dark", "gold-dark", "silver-dark"];
 
 /**
  * Paramètres → Apparence : choix du thème de la plateforme. Le mode sombre
@@ -97,11 +97,30 @@ export function ThemeToggle() {
         </div>
       ),
     },
+    {
+      key: "silver-dark",
+      label: "Sombre silver",
+      hint: "Fond anthracite, textes argentés, accents chrome — sobre et froid.",
+      preview: (
+        <div className="h-20 w-full overflow-hidden rounded-lg border border-slate-400/30 bg-[#101318] p-2">
+          <div className="h-2 w-1/3 rounded-full bg-[#414b5a]" />
+          <div className="mt-2 flex items-end gap-1.5">
+            {[10, 16, 8, 20, 13].map((h, i) => (
+              <div
+                key={i}
+                className="w-4 rounded-t bg-gradient-to-t from-slate-500 to-slate-200 shadow-[0_0_8px_rgba(168,180,196,0.6)]"
+                style={{ height: h * 2 }}
+              />
+            ))}
+          </div>
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="card p-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:max-w-3xl">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-4">
         {options.map((o) => {
           const active = hydrated && theme === o.key;
           return (
@@ -122,8 +141,8 @@ export function ThemeToggle() {
                   {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                 </span>
                 <span className="text-sm font-semibold text-slate-900">{o.label}</span>
-                {o.key === "gold-dark" && (
-                  <span className="rounded-full bg-gradient-to-r from-amber-500 to-yellow-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                {o.key === "silver-dark" && (
+                  <span className="rounded-full bg-gradient-to-r from-slate-400 to-slate-600 px-2 py-0.5 text-[10px] font-bold text-white">
                     Nouveau
                   </span>
                 )}

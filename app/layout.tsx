@@ -109,7 +109,7 @@ export default function RootLayout({
             (préférence Paramètres → Apparence, stockée en localStorage). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark")document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark"||t==="silver-dark")document.documentElement.dataset.theme=t}catch(e){}`,
           }}
         />
         <script
