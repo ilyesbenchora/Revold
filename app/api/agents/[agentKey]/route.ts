@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
 import { getCoachingMemory, memoryDirective } from "@/lib/coaching/session-memory";
+import { getAgentPrefs, prefsDirective } from "@/lib/ai/agents/agent-prefs";
 import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
@@ -64,6 +65,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   let system =
     buildSystemPrompt(agent) +
     `\n\nSources sélectionnées pour cette conversation : ${sources.length ? sources.join(", ") : "aucune sélection explicite (utilise la source configurée par défaut)"}.`;
+
+  // Préférences de l'organisation pour cet agent (Paramètres → Agents) :
+  // ton + personnalité injectés dans le system prompt.
+  const prefDir = prefsDirective(await getAgentPrefs(supabase, orgId, agentKey));
+  if (prefDir) system += prefDir;
 
   // Outils SUR MESURE de l'org (ERP maison, logiciel métier) : sans leur
   // description, « custom_gaia » n'est qu'un nom vide pour l'agent. Avec elle,

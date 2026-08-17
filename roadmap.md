@@ -256,6 +256,29 @@ Le reste (cross-source full, LLM coaching, verticalisation SaaS) = ce qui fait g
 
 ---
 
+## Backlog produit — demandes du 2026-08-17
+
+Liste dictée par Ilyes (batch). Fait immédiatement : mode sombre gold + tour de contrôle fuchsia ✅ · tuiles lifecycle stage sur Performances → Marketing ✅. Reste à faire :
+
+| # | Demande | Statut |
+|---|---|---|
+| B1 | Chat agent : voir les actions exécutées en auto-pilot dans l'onglet Actions, ou décidées pendant le chat | [ ] |
+| B2 | Alerte/Objectif : marquer « équipe » ou « personnel » à la création + afficher l'outil lié sur la carte après enregistrement | [ ] |
+| B3 | Funnels de création : descriptif de câblage dicté PAR VOCAL (micro sur le champ description) | [ ] |
+| B4 | Paramètres → page « Agents » : modifier la personnalité et le ton de chaque agent + activer des « insights agent » (sujets les plus abordés, profondeur des sujets…) | [ ] |
+| B5 | Enrichissement : source LinkedIn pour le nombre d'employés (optimiser le taux) ; bouton « Enrichir mon CRM » sur le bloc ; à la fin, tableau des entreprises enrichies (même visualisation que le bloc du dessous) | [ ] |
+| B6 | Paramètres → page « Enrichissement » : choisir les champs à enrichir (nb employés, CA, SIREN, SIRET, TVA, secteur d'activité) — ne JAMAIS écraser une donnée existante dans le CRM (enrichir uniquement les champs vides) | [ ] |
+| B7 | Même page : activer/désactiver la recherche d'entreprises par SIREN/SIRET dans la barre de recherche HubSpot | [ ] |
+| B8 | Onboarding : selon le pays/adresse de l'organisation (Paramètres), baser l'enrichissement sur les données administratives du pays | [ ] |
+| B9 | Exécution d'action : fenêtre avec les étapes clés en funnel qui s'exécutent automatiquement jusqu'à finalisation | [ ] |
+| B10 | Actions de séquence : choisir le ton du contenu + message avec template pré-rempli, réutilisable pour les prochaines | [ ] |
+| B11 | Rapports en tableau : modifier/ajouter/supprimer des colonnes + sélection en bulk (cocher) pour modifier/supprimer des lignes, comme dans Enrichissement | [ ] |
+| B12 | Paramètres → onglet « Cohortes » : mapper les propriétés CRM (nom interne + nom API) — Secteur d'activité, Segment, Sources (canal d'acquisition), Priorité + customs ajoutables — pour croiser correctement le marketing dans les reportings (propriétés souvent custom dans les bases) | [ ] |
+| B13 | Fichiers importés (Excel / Google Sheets) sélectionnables dans « Outil source par page » + analyse du fichier pour que les KPIs personnalisés se rapprochent correctement de ses données | [ ] |
+| B14 | Suggestions d'enrichissement (à la façon du catalogue d'actions) : proposer d'enrichir les ID de rapprochement manquants dans le CRM + autres suggestions ultra pertinentes uniquement | [ ] |
+
+---
+
 ## Journal de Sessions
 
 | Date | Phase | Tâches complétées | Notes |
