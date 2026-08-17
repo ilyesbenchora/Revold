@@ -6,6 +6,7 @@ import {
   MIN_QUERY_LENGTH,
 } from "@/lib/enrichment/company-enrichment";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { pushHubspotIfEmpty } from "@/lib/enrichment/hubspot-push";
 import {
   getEnrichmentSettings,
   nafSectionLabel,
@@ -50,7 +51,14 @@ export type BackfillResult = BackfillCounts & {
 };
 
 type IdentityRow = { id: string; organization_id: string; name: string | null; hubspot_id: string | null };
-type FactsRow = { id: string; organization_id: string; siren: string; hubspot_id: string | null };
+type FactsRow = {
+  id: string;
+  organization_id: string;
+  siren: string;
+  siret: string | null;
+  vat_number: string | null;
+  hubspot_id: string | null;
+};
 
 function orgCaches(sb: SupabaseClient) {
   const tokens = new Map<string, string | null>();
@@ -95,47 +103,6 @@ function orgCaches(sb: SupabaseClient) {
       return props.get(orgId)!;
     },
   };
-}
-
-async function pushHubspot(token: string, hsId: string, properties: Record<string, string>): Promise<boolean> {
-  try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ properties }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Push « JAMAIS écraser » : lit d'abord la fiche HubSpot et ne PATCH que les
- * propriétés VIDES — la donnée saisie par le client dans son CRM fait toujours
- * foi. En cas d'échec de lecture, on n'écrit rien (prudence > complétude).
- */
-async function pushHubspotIfEmpty(token: string, hsId: string, properties: Record<string, string>): Promise<boolean> {
-  const keys = Object.keys(properties);
-  if (keys.length === 0) return true;
-  try {
-    const res = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/companies/${hsId}?properties=${encodeURIComponent(keys.join(","))}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!res.ok) return false;
-    const d = (await res.json()) as { properties?: Record<string, string | null> };
-    const current = d.properties ?? {};
-    const toWrite: Record<string, string> = {};
-    for (const k of keys) {
-      const v = current[k];
-      if (v == null || String(v).trim() === "") toWrite[k] = properties[k];
-    }
-    if (Object.keys(toWrite).length === 0) return true;
-    return pushHubspot(token, hsId, toWrite);
-  } catch {
-    return false;
-  }
 }
 
 export async function runEnrichmentBatch(
@@ -338,7 +305,7 @@ export async function runEnrichmentBatch(
     const factsQuery = scoped(
       sb
         .from("companies")
-        .select("id, organization_id, siren, hubspot_id")
+        .select("id, organization_id, siren, siret, vat_number, hubspot_id")
         .not("siren", "is", null)
         .or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`),
     )
@@ -396,18 +363,26 @@ export async function runEnrichmentBatch(
         await sb.from("companies").update({ enriched_at: new Date().toISOString() }).eq("id", c.id);
         continue;
       }
-      if (!facts || (!facts.employeeRange && facts.revenue == null)) continue;
-      bump(c.organization_id, "facts");
-      totals.facts++;
-
       const token = await caches.token(c.organization_id);
       if (token && c.hubspot_id) {
+        const propFor = await caches.propFor(c.organization_id);
         const properties: Record<string, string> = {};
-        if (st.fields.revenue && typeof facts.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
-        if (st.fields.employees && typeof facts.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
+        // Identifiants aussi au rafraîchissement : les fiches enrichies AVANT
+        // l'activation du push HubSpot se remplissent au fil des passages,
+        // pas uniquement les identités nouvellement découvertes.
+        if (st.hubspotSearchIds) {
+          properties[propFor("siren", "siren")] = c.siren;
+          if (st.fields.siret && c.siret) properties[propFor("siret", "siret")] = c.siret;
+          if (st.fields.vat) properties[propFor("vat_number", "vat_number")] = c.vat_number ?? vatFromSiren(c.siren);
+        }
+        if (st.fields.revenue && typeof facts?.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
+        if (st.fields.employees && typeof facts?.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
         // JAMAIS écraser : seuls les champs VIDES de la fiche HubSpot sont remplis.
         if (Object.keys(properties).length > 0) await pushHubspotIfEmpty(token, c.hubspot_id, properties);
       }
+      if (!facts || (!facts.employeeRange && facts.revenue == null)) continue;
+      bump(c.organization_id, "facts");
+      totals.facts++;
     }
   }
 
