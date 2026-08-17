@@ -37,6 +37,8 @@ const SECTIONS: Section[] = [
       { key: "audit_paiement_facturation_paiement", label: "Paiement", description: "Encaissements, impayés, moyens de paiement", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_comptabilite", label: "Comptabilité", description: "Écritures, P&L réel, balance", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_paiement_facturation_previsionnel", label: "Prévisionnel", description: "Projection trésorerie, runway, échéances", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_clients_fournisseurs", label: "Clients / Fournisseurs", description: "Balance âgée, encours, top débiteurs", mode: "multi", parentKey: "audit_paiement_facturation" },
+      { key: "audit_paiement_facturation_fiscal", label: "Fiscal", description: "Échéances TVA, IS, URSSAF", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
     ],
   },

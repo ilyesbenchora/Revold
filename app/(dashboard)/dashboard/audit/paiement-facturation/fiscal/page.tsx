@@ -8,6 +8,14 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
+// catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
+const PAGE_KEY = "audit_paiement_facturation_fiscal";
 
 /**
  * Fiscal & social — échéancier 12 mois (TVA / IS / URSSAF, paramètres de
@@ -33,6 +41,32 @@ export default async function FiscalPage() {
   const schedule = expandFiscalSchedule((org ?? null) as OrgFiscalParams | null, new Date(), 12);
   const totalSchedule = schedule.reduce((s, i) => s + i.amount, 0);
 
+  // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
+  const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
+
+  // Tuiles par défaut : lecture cockpit de l'échéancier + provision TVA.
+  const defaults: DefaultTile[] = [
+    ...(schedule.length > 0
+      ? [
+          { key: "echeances_12m", label: "Échéances (12 mois)", value: fmt(schedule.length), raw: schedule.length, rawUnit: "count", tone: "neutral", sub: "TVA · IS · URSSAF" } as DefaultTile,
+          { key: "total_a_decaisser", label: "Total à décaisser", value: totalSchedule > 0 ? fmtK(totalSchedule) : "—", raw: totalSchedule > 0 ? Math.round(totalSchedule) : null, rawUnit: "currency", tone: "neg", sub: "Sur les 12 prochains mois" } as DefaultTile,
+        ]
+      : []),
+    ...(tva.hasData
+      ? [
+          {
+            key: "tva_provision",
+            label: "TVA à provisionner",
+            value: fmtK(tva.provision),
+            raw: Math.round(tva.provision),
+            rawUnit: "currency",
+            tone: tva.provision > 0 ? "neg" : "pos",
+            sub: `Estimée sur ${fmt(tva.moisCouverts)} mois de flux`,
+          } as DefaultTile,
+        ]
+      : []),
+  ];
+
   return (
     <section className="space-y-6">
       <header>
@@ -44,7 +78,20 @@ export default async function FiscalPage() {
 
       <PaiementFacturationTabs />
 
+      {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey={PAGE_KEY}
+        defaults={defaults}
+        customization={custom}
+        tablesPageKey={PAGE_KEY}
+        hiddenBlocks={hiddenBlockList(custom)}
+      />
+
       {/* ── Échéancier 12 mois ── */}
+      {!custom.hiddenBlocks.has("echeancier_fiscal") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="echeancier_fiscal" label="Échéancier fiscal (12 mois)">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -83,8 +130,12 @@ export default async function FiscalPage() {
           />
         )}
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       {/* ── Provision TVA estimée depuis les flux réels ── */}
+      {!custom.hiddenBlocks.has("provision_tva") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="provision_tva" label="Provision de TVA estimée">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -117,6 +168,11 @@ export default async function FiscalPage() {
           />
         )}
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
+
+      {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
+      <PageDataTables pageKey={PAGE_KEY} />
     </section>
   );
 }

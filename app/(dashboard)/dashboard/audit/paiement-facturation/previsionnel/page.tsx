@@ -12,6 +12,14 @@ import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs"
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
+// catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
+const PAGE_KEY = "audit_paiement_facturation_previsionnel";
 
 /**
  * Prévisionnel de trésorerie glissant — 12 mois, 3 scénarios (adapté du
@@ -41,6 +49,30 @@ export default async function PrevisionnelPage() {
 
   const fc = await computeTreasuryForecast(supabase, orgId, cf, (org ?? null) as OrgFiscalParams | null);
 
+  // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
+  const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
+
+  // Tuiles par défaut : lecture cockpit de la projection (scénario probable).
+  const last = fc.points[fc.points.length - 1];
+  const defaults: DefaultTile[] = fc.hasData
+    ? [
+        { key: "treso_depart", label: "Trésorerie de départ", value: fc.start != null ? fmtK(fc.start) : "—", raw: fc.start != null ? Math.round(fc.start) : null, rawUnit: "currency", tone: "neutral", sub: "Disponible aujourd'hui" },
+        {
+          key: "solde_12m",
+          label: "Solde projeté à 12 mois",
+          value: last ? fmtK(last.soldeProbable) : "—",
+          raw: last ? Math.round(last.soldeProbable) : null,
+          rawUnit: "currency",
+          tone: last && last.soldeProbable >= 0 ? "pos" : "neg",
+          sub: "Scénario probable",
+          verdict: fc.breakEvenMonth.probable
+            ? { label: `Sous zéro en ${fc.breakEvenMonth.probable}`, tone: "neg" }
+            : { label: "Pas de passage sous zéro", tone: "pos" },
+        },
+        { key: "pipeline_pondere", label: "Pipeline pondéré", value: fmtK(fc.pipelineWeighted), raw: Math.round(fc.pipelineWeighted), rawUnit: "currency", tone: "accent", sub: `${fmt(fc.dealsRetenus.length)} deals retenus` },
+      ]
+    : [];
+
   return (
     <section className="space-y-6">
       <header>
@@ -62,7 +94,20 @@ export default async function PrevisionnelPage() {
         </div>
       ) : (
         <>
+          {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={defaults}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom)}
+          />
+
           {/* ── Courbe 3 scénarios ── */}
+          {!custom.hiddenBlocks.has("projection_treso") && (
+          <RemovableBlock pageKey={PAGE_KEY} blockKey="projection_treso" label="Projection de trésorerie">
           <CollapsibleBlock
             title={
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -117,8 +162,12 @@ export default async function PrevisionnelPage() {
               />
             </div>
           </CollapsibleBlock>
+          </RemovableBlock>
+          )}
 
           {/* ── Pipeline retenu dans la projection ── */}
+          {!custom.hiddenBlocks.has("pipeline_retenu") && (
+          <RemovableBlock pageKey={PAGE_KEY} blockKey="pipeline_retenu" label="Pipeline pris en compte">
           <CollapsibleBlock
             title={
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -153,8 +202,13 @@ export default async function PrevisionnelPage() {
               />
             )}
           </CollapsibleBlock>
+          </RemovableBlock>
+          )}
         </>
       )}
+
+      {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
+      <PageDataTables pageKey={PAGE_KEY} />
     </section>
   );
 }

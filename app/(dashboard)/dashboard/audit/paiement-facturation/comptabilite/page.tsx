@@ -10,7 +10,14 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { computePnl } from "@/lib/audit/pnl";
 import { fmtK } from "@/lib/audit/paiement-facturation-data";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
+// catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
+const PAGE_KEY = "audit_paiement_facturation_comptabilite";
 
 /**
  * Sous-page « Comptabilité » de la section Trésorerie.
@@ -44,6 +51,9 @@ export default async function ComptabilitePage({
 
   const pnl = activeKey ? await computePnl(supabase, orgId, activeKey) : null;
 
+  // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
+  const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
+
   return (
     <section className="space-y-6">
       <header>
@@ -73,21 +83,27 @@ export default async function ComptabilitePage({
             </div>
           ) : (
             <>
-              {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+              {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
               {(() => {
-                const tiles: StatTile[] = [
-                  { label: "Produits (classe 7)", value: pnl.produits > 0 ? fmtK(pnl.produits) : "—", tone: "pos", sub: "CA + autres produits comptabilisés" },
-                  { label: "Charges (classe 6)", value: pnl.charges > 0 ? fmtK(pnl.charges) : "—", tone: "neg", sub: "Charges comptabilisées" },
+                const defaults: DefaultTile[] = [
+                  { key: "produits", label: "Produits (classe 7)", value: pnl.produits > 0 ? fmtK(pnl.produits) : "—", raw: pnl.produits > 0 ? Math.round(pnl.produits) : null, rawUnit: "currency", tone: "pos", sub: "CA + autres produits comptabilisés" },
+                  { key: "charges", label: "Charges (classe 6)", value: pnl.charges > 0 ? fmtK(pnl.charges) : "—", raw: pnl.charges > 0 ? Math.round(pnl.charges) : null, rawUnit: "currency", tone: "neg", sub: "Charges comptabilisées" },
                   {
+                    key: "resultat",
                     label: "Résultat",
                     value: fmtK(pnl.resultat),
+                    raw: Math.round(pnl.resultat),
+                    rawUnit: "currency",
                     tone: pnl.resultat >= 0 ? "pos" : "neg",
                     sub: "Produits − charges",
                     verdict: pnl.resultat >= 0 ? { label: "Bénéficiaire", tone: "pos" } : { label: "Déficitaire", tone: "neg" },
                   },
                   {
+                    key: "taux_marge_comptable",
                     label: "Taux de marge comptable",
                     value: pnl.tauxMarge != null ? `${pnl.tauxMarge} %` : "—",
+                    raw: pnl.tauxMarge,
+                    rawUnit: "percent",
                     tone: pnl.tauxMarge == null ? "neutral" : pnl.tauxMarge >= 40 ? "pos" : pnl.tauxMarge >= 25 ? "accent" : "neg",
                     sub: "Résultat / produits",
                     verdict: pnl.tauxMarge == null ? undefined
@@ -96,9 +112,21 @@ export default async function ComptabilitePage({
                       : { label: "Faible (< 25 %)", tone: "neg" },
                   },
                 ];
-                return <KpiStatTiles tiles={tiles} />;
+                return (
+                  <ConfigurableKpiTiles
+                    supabase={supabase}
+                    orgId={orgId}
+                    pageKey={PAGE_KEY}
+                    defaults={defaults}
+                    customization={custom}
+                    tablesPageKey={PAGE_KEY}
+                    hiddenBlocks={hiddenBlockList(custom)}
+                  />
+                );
               })()}
               {/* ── P&L ── */}
+              {!custom.hiddenBlocks.has("pnl") && (
+              <RemovableBlock pageKey={PAGE_KEY} blockKey="pnl" label="P&L comptable">
               <CollapsibleBlock
                 title={
                   <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -123,8 +151,12 @@ export default async function ComptabilitePage({
                   footnote="Reconstruit depuis les écritures comptables synchronisées — la marge la plus fiable disponible."
                 />
               </CollapsibleBlock>
+              </RemovableBlock>
+              )}
 
               {/* ── Provisions fiscales estimées ── */}
+              {!custom.hiddenBlocks.has("provisions_fiscales") && (
+              <RemovableBlock pageKey={PAGE_KEY} blockKey="provisions_fiscales" label="Provisions fiscales (estimation)">
               <CollapsibleBlock
                 title={
                   <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -149,9 +181,12 @@ export default async function ComptabilitePage({
                   footnote="Approximations d'aide à la décision depuis vos comptes — pas des déclarations officielles, à confirmer avec votre expert-comptable."
                 />
               </CollapsibleBlock>
+              </RemovableBlock>
+              )}
 
               {/* ── Top charges ── */}
-              {pnl.topCharges.length > 0 && (
+              {pnl.topCharges.length > 0 && !custom.hiddenBlocks.has("top_charges") && (
+              <RemovableBlock pageKey={PAGE_KEY} blockKey="top_charges" label="Top comptes de charges">
                 <CollapsibleBlock
                   title={
                     <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -177,10 +212,12 @@ export default async function ComptabilitePage({
                     footnote="Principaux postes de charges par compte comptable (PCG)."
                   />
                 </CollapsibleBlock>
+              </RemovableBlock>
               )}
 
               {/* ── Balance par classe ── */}
-              {pnl.balanceParClasse.length > 0 && (
+              {pnl.balanceParClasse.length > 0 && !custom.hiddenBlocks.has("balance_classe") && (
+              <RemovableBlock pageKey={PAGE_KEY} blockKey="balance_classe" label="Balance par classe">
                 <CollapsibleBlock
                   title={
                     <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -206,9 +243,13 @@ export default async function ComptabilitePage({
                     footnote="Balance générale synthétique reconstruite (solde = débit − crédit par classe de comptes)."
                   />
                 </CollapsibleBlock>
+              </RemovableBlock>
               )}
             </>
           )}
+
+          {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
+          <PageDataTables pageKey={PAGE_KEY} />
 
           {/* Outil source des blocs — rappel discret en bas de page, switch au clic */}
           <SourceToolSwitcher

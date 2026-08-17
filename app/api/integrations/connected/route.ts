@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
-import { getToolKeys } from "@/lib/integrations/tool-mappings";
+import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
+import { basePageKey } from "@/lib/kpi/tile-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,14 @@ export async function GET(request: Request) {
       perf_ventes: "audit_perf_ventes",
       perf_marketing: "audit_perf_marketing",
     };
-    const mapped = await getToolKeys(supabase, orgId, MAPPING_ALIASES[pageKey] ?? pageKey);
+    // Chaîne de fallback : mapping de la sous-page (Trésorerie → Paiement…)
+    // s'il existe, sinon celui de la page parente. Une sous-page hérite donc
+    // du réglage « Outil source par page » de sa section tant qu'elle n'a pas
+    // le sien.
+    const chain = [MAPPING_ALIASES[pageKey] ?? pageKey];
+    const base = basePageKey(pageKey);
+    if (base !== pageKey) chain.push(MAPPING_ALIASES[base] ?? base);
+    const mapped = await getToolKeysChain(supabase, orgId, chain);
     if (mapped.length > 0) tools = tools.filter((t) => mapped.includes(t.key));
   }
 

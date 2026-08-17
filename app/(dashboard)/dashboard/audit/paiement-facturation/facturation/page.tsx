@@ -9,7 +9,14 @@ import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-fac
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
+// catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
+const PAGE_KEY = "audit_paiement_facturation_facturation";
 
 export default async function FacturationPage({
   searchParams,
@@ -44,6 +51,9 @@ export default async function FacturationPage({
     return !isNaN(due) && now - due > 30 * 86_400_000;
   });
 
+  // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
+  const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
+
   return (
     <section className="space-y-6">
       <header>
@@ -55,32 +65,52 @@ export default async function FacturationPage({
 
       <PaiementFacturationTabs />
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
-      {data.hasData && (() => {
-        const tiles: StatTile[] = [
-          { label: "Factures émises", value: fmt(data.invoices.length), tone: "neutral", sub: data.avgInvoice != null && data.avgInvoice > 0 ? `${fmtK(data.avgInvoice)} en moyenne` : "Montant moyen —" },
-          { label: "Total encaissé", value: data.totalPaid > 0 ? fmtK(data.totalPaid) : "—", tone: "pos", sub: `${fmt(data.paidInvoicesCount)} factures payées` },
-          {
-            label: "Impayées",
-            value: String(data.unpaidInvoicesCount),
-            tone: data.unpaidInvoicesCount === 0 ? "pos" : "neg",
-            sub: data.totalUnpaidAmount > 0 ? `${fmtK(data.totalUnpaidAmount)} en attente` : "Rien en attente",
-            verdict: data.unpaidInvoicesCount === 0 ? { label: "Tout est encaissé", tone: "pos" }
-              : data.unpaidInvoicesCount <= 5 ? { label: "À relancer", tone: "warn" }
-              : { label: "Recouvrement critique", tone: "neg" },
-          },
-          {
-            label: "Retard > 30 jours",
-            value: String(overdueInvoices.length),
-            tone: overdueInvoices.length === 0 ? "pos" : "neg",
-            sub: "Factures échues depuis + de 30 j",
-            verdict: overdueInvoices.length === 0 ? { label: "DSO maîtrisé", tone: "pos" }
-              : { label: "DSO élevé", tone: "neg" },
-          },
-        ];
-        return <KpiStatTiles tiles={tiles} />;
+      {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
+      {(() => {
+        const defaults: DefaultTile[] = data.hasData
+          ? [
+              { key: "factures_emises", label: "Factures émises", value: fmt(data.invoices.length), raw: data.invoices.length, rawUnit: "count", tone: "neutral", sub: data.avgInvoice != null && data.avgInvoice > 0 ? `${fmtK(data.avgInvoice)} en moyenne` : "Montant moyen —" },
+              { key: "total_encaisse", label: "Total encaissé", value: data.totalPaid > 0 ? fmtK(data.totalPaid) : "—", raw: data.totalPaid > 0 ? Math.round(data.totalPaid) : null, rawUnit: "currency", tone: "pos", sub: `${fmt(data.paidInvoicesCount)} factures payées` },
+              {
+                key: "impayees",
+                label: "Impayées",
+                value: String(data.unpaidInvoicesCount),
+                raw: data.unpaidInvoicesCount,
+                rawUnit: "count",
+                tone: data.unpaidInvoicesCount === 0 ? "pos" : "neg",
+                sub: data.totalUnpaidAmount > 0 ? `${fmtK(data.totalUnpaidAmount)} en attente` : "Rien en attente",
+                verdict: data.unpaidInvoicesCount === 0 ? { label: "Tout est encaissé", tone: "pos" }
+                  : data.unpaidInvoicesCount <= 5 ? { label: "À relancer", tone: "warn" }
+                  : { label: "Recouvrement critique", tone: "neg" },
+              },
+              {
+                key: "retard_30j",
+                label: "Retard > 30 jours",
+                value: String(overdueInvoices.length),
+                raw: overdueInvoices.length,
+                rawUnit: "count",
+                tone: overdueInvoices.length === 0 ? "pos" : "neg",
+                sub: "Factures échues depuis + de 30 j",
+                verdict: overdueInvoices.length === 0 ? { label: "DSO maîtrisé", tone: "pos" }
+                  : { label: "DSO élevé", tone: "neg" },
+              },
+            ]
+          : [];
+        return (
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={defaults}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom)}
+          />
+        );
       })()}
 
+      {!custom.hiddenBlocks.has("emission_encaissement") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="emission_encaissement" label="Émission & encaissement">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -105,7 +135,11 @@ export default async function FacturationPage({
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("recouvrement_dso") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="recouvrement_dso" label="Recouvrement & DSO">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -139,7 +173,11 @@ export default async function FacturationPage({
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("pipeline_devis") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="pipeline_devis" label="Pipeline revenue & devis">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -164,6 +202,11 @@ export default async function FacturationPage({
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
+
+      {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
+      <PageDataTables pageKey={PAGE_KEY} />
 
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">

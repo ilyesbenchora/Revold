@@ -6,10 +6,17 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { PaiementFacturationTabs } from "@/components/paiement-facturation-tabs";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { getSwitchableBillingTools, validateSourceParam } from "@/lib/audit/source-switch";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
+// catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
+const PAGE_KEY = "audit_paiement_facturation_paiement";
 
 export default async function PaiementPage({
   searchParams,
@@ -35,6 +42,9 @@ export default async function PaiementPage({
   const trialingSubs = data.subscriptions.filter((s) => s.properties.hs_subscription_status === "trialing").length;
   const pastDueSubs = data.subscriptions.filter((s) => s.properties.hs_subscription_status === "past_due").length;
 
+  // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
+  const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
+
   return (
     <section className="space-y-6">
       <header>
@@ -46,35 +56,55 @@ export default async function PaiementPage({
 
       <PaiementFacturationTabs />
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
-      {data.hasData && (() => {
+      {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
+      {(() => {
         const churn = data.churnRate;
-        const tiles: StatTile[] = [
-          { label: "MRR", value: data.mrr > 0 ? fmtK(data.mrr) : "—", tone: "accent", sub: "Revenu mensuel récurrent" },
-          { label: "ARR", value: data.arr > 0 ? fmtK(data.arr) : "—", tone: "neutral", sub: "Annualisé (MRR × 12)" },
-          {
-            label: "Subscriptions actives",
-            value: String(data.activeSubsCount),
-            tone: "pos",
-            sub: `sur ${fmt(data.subscriptions.length)} au total`,
-            verdict: pastDueSubs === 0 ? { label: "Aucun paiement en échec", tone: "pos" }
-              : pastDueSubs <= 2 ? { label: `${pastDueSubs} past due`, tone: "warn" }
-              : { label: `${pastDueSubs} past due`, tone: "neg" },
-          },
-          {
-            label: "Taux de churn",
-            value: churn != null ? `${churn} %` : "—",
-            tone: churn == null ? "neutral" : churn <= 5 ? "pos" : churn <= 15 ? "accent" : "neg",
-            sub: "Annulés / total subscriptions",
-            verdict: churn == null ? undefined
-              : churn <= 5 ? { label: "Sain (< 5 %)", tone: "pos" }
-              : churn <= 15 ? { label: "À surveiller", tone: "warn" }
-              : { label: "Élevé (> 15 %)", tone: "neg" },
-          },
-        ];
-        return <KpiStatTiles tiles={tiles} />;
+        const defaults: DefaultTile[] = data.hasData
+          ? [
+              { key: "mrr", label: "MRR", value: data.mrr > 0 ? fmtK(data.mrr) : "—", raw: data.mrr > 0 ? Math.round(data.mrr) : null, rawUnit: "currency", tone: "accent", sub: "Revenu mensuel récurrent" },
+              { key: "arr", label: "ARR", value: data.arr > 0 ? fmtK(data.arr) : "—", raw: data.arr > 0 ? Math.round(data.arr) : null, rawUnit: "currency", tone: "neutral", sub: "Annualisé (MRR × 12)" },
+              {
+                key: "subs_actives",
+                label: "Subscriptions actives",
+                value: String(data.activeSubsCount),
+                raw: data.activeSubsCount,
+                rawUnit: "count",
+                tone: "pos",
+                sub: `sur ${fmt(data.subscriptions.length)} au total`,
+                verdict: pastDueSubs === 0 ? { label: "Aucun paiement en échec", tone: "pos" }
+                  : pastDueSubs <= 2 ? { label: `${pastDueSubs} past due`, tone: "warn" }
+                  : { label: `${pastDueSubs} past due`, tone: "neg" },
+              },
+              {
+                key: "taux_churn",
+                label: "Taux de churn",
+                value: churn != null ? `${churn} %` : "—",
+                raw: churn,
+                rawUnit: "percent",
+                tone: churn == null ? "neutral" : churn <= 5 ? "pos" : churn <= 15 ? "accent" : "neg",
+                sub: "Annulés / total subscriptions",
+                verdict: churn == null ? undefined
+                  : churn <= 5 ? { label: "Sain (< 5 %)", tone: "pos" }
+                  : churn <= 15 ? { label: "À surveiller", tone: "warn" }
+                  : { label: "Élevé (> 15 %)", tone: "neg" },
+              },
+            ]
+          : [];
+        return (
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={defaults}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom)}
+          />
+        );
       })()}
 
+      {!custom.hiddenBlocks.has("revenus_recurrents") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="revenus_recurrents" label="Revenus récurrents">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -104,7 +134,11 @@ export default async function PaiementPage({
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("churn_risque") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="churn_risque" label="Churn & risque revenue">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -129,7 +163,11 @@ export default async function PaiementPage({
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("sante_subs") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="sante_subs" label="Santé du portefeuille subscriptions">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -175,6 +213,11 @@ export default async function PaiementPage({
           />
         )}
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
+
+      {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
+      <PageDataTables pageKey={PAGE_KEY} />
 
       {/* Outil source des blocs — rappel discret en bas de page, switch au clic */}
       <SourceToolSwitcher

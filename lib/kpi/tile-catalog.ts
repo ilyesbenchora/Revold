@@ -62,6 +62,23 @@ export const PAGE_TILE_TEAM: Record<string, string> = {
   audit_donnees: "ops",
 };
 
+// Pages « racines » du système de tuiles. Les sous-pages (Trésorerie → Paiement,
+// Facturation… ; Rapprochement données → outils) gardent leur propre clé de
+// personnalisation mais partagent le catalogue, l'équipe et le filtre d'outils
+// de leur page parente.
+const TILE_BASE_KEYS = [
+  "audit_paiement_facturation",
+  "audit_service_client",
+  "audit_donnees",
+  "perf_ventes",
+  "perf_marketing",
+];
+
+/** Clé parente d'une clé de page (identité si la page est déjà une racine). */
+export function basePageKey(pageKey: string): string {
+  return TILE_BASE_KEYS.find((b) => pageKey === b || pageKey.startsWith(`${b}_`)) ?? pageKey;
+}
+
 const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
   perf_ventes: fromKpiDefs(kpisByTeam.sales),
   perf_marketing: fromKpiDefs(kpisByTeam.marketing),
@@ -106,7 +123,7 @@ export function allTileSuggestions(): (TileSuggestion & { team: string })[] {
 export function tileSuggestionsForPage(pageKey: string): TileSuggestion[] {
   // Dédupliqué par id : pipeline_coverage / deal_activation existent dans sales ET revops.
   const seen = new Set<string>();
-  return (PAGE_TILE_SUGGESTIONS[pageKey] ?? []).filter((s) => {
+  return (PAGE_TILE_SUGGESTIONS[basePageKey(pageKey)] ?? []).filter((s) => {
     if (seen.has(s.id)) return false;
     seen.add(s.id);
     return true;

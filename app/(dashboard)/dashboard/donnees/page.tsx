@@ -15,7 +15,6 @@ import { loadToolAudits, buildOnboardingRecommendations } from "@/lib/audit/onbo
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { BlocksManager } from "@/components/data-tables/blocks-manager";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { computeUnmatchedReport, computeWonDealsReadiness, type UnmatchedCause } from "@/lib/audit/unmatched-companies";
@@ -133,13 +132,27 @@ export default async function DonneesPage() {
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]}>
 
       {/* Tuiles KPI configurables (les 4 tuiles CRM par défaut sont sur la
-          sous-page HubSpot — ici ne restent que les KPIs ajoutés). */}
+          sous-page HubSpot — ici ne restent que les KPIs ajoutés). CTA unique
+          iso avec les autres pages : blocs retirés réaffichables depuis le
+          panneau « Personnaliser les KPIs », création via le funnel.
+          (Blocs supprimés de la page — « Synthèse par objet CRM », « Complétude
+          des propriétés clés », cartes objets déplacées vers la page HubSpot :
+          on filtre leurs éventuels masquages.) */}
       <ConfigurableKpiTiles
         supabase={supabase}
         orgId={orgId}
         pageKey="audit_donnees"
         defaults={[]}
         customization={custom}
+        tablesPageKey="audit_donnees"
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          crm_match_rate: { view: "chart-bar", description: "Taux de rapprochement réel CRM × outil + santé du croisement" },
+          match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
+          won_readiness: { view: "table", description: "Deals gagnés : fiches prêtes pour le rapprochement (identifiants cochés)" },
+          unmatched_companies: { view: "table", description: "Entreprises non rapprochées CRM × facturation : cause + action corrective" },
+          audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },
+          plan_action: { view: "table", description: "Plan d'action IA issu de l'audit d'onboarding" },
+        }[key])).filter((h) => !["synthese_objets", "completude_bars", "objets_cards", "dedup_rules"].includes(h.key))}
       />
 
       {/* ── RAPPROCHEMENT INTER-OUTILS : la donnée croisée, pas les volumes
@@ -427,7 +440,7 @@ export default async function DonneesPage() {
               <h2 className="text-lg font-semibold text-slate-900">Plan d&apos;action IA</h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 Les actions détectées par l&apos;audit — configuration Revold ET optimisations de process
-                internes dans vos outils. Activez une action pour la confier à un agent et la suivre jusqu'au bout.
+                internes dans vos outils. Activez une action pour la confier à un agent et la suivre jusqu&apos;au bout.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -438,23 +451,6 @@ export default async function DonneesPage() {
           </div>
         </RemovableBlock>
       )}
-
-      {/* Ajouter un bloc : réafficher un bloc masqué ou créer depuis les suggestions.
-          (Blocs supprimés de la page — « Synthèse par objet CRM », « Complétude
-          des propriétés clés », cartes objets déplacées vers la page HubSpot :
-          on filtre leurs éventuels masquages.) */}
-      <BlocksManager
-        pageKey="audit_donnees"
-        tablesPageKey="audit_donnees"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          crm_match_rate: { view: "chart-bar", description: "Taux de rapprochement réel CRM × outil + santé du croisement" },
-          match_methods: { view: "chart-bar", description: "Répartition des méthodes de rapprochement (SIREN, TVA, email…)" },
-          won_readiness: { view: "table", description: "Deals gagnés : fiches prêtes pour le rapprochement (identifiants cochés)" },
-          unmatched_companies: { view: "table", description: "Entreprises non rapprochées CRM × facturation : cause + action corrective" },
-          audit_outils: { view: "table", description: "Audit par outil : volumes, rapprochements, identifiants, sync" },
-          plan_action: { view: "table", description: "Plan d'action IA issu de l'audit d'onboarding" },
-        }[key])).filter((h) => !["synthese_objets", "completude_bars", "objets_cards", "dedup_rules"].includes(h.key))}
-      />
 
       </PageSourcesGate>
 

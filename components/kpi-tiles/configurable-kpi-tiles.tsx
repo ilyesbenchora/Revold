@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StatTile } from "@/components/kpi-stat-tiles";
 import { getPageCustomization, resolveAddedTiles, type PageCustomization } from "@/lib/kpi/page-tiles";
-import { tileSuggestionsForPage, PAGE_TILE_TEAM } from "@/lib/kpi/tile-catalog";
+import { tileSuggestionsForPage, PAGE_TILE_TEAM, basePageKey } from "@/lib/kpi/tile-catalog";
 import { KpiTilesEditor, type EditorTile } from "./kpi-tiles-editor";
 import type { HiddenBlock } from "@/components/data-tables/blocks-manager";
 
@@ -100,8 +100,8 @@ export async function ConfigurableKpiTiles({
   return (
     <KpiTilesEditor
       pageKey={pageKey}
-      team={PAGE_TILE_TEAM[pageKey] ?? "revops"}
-      alertTeam={PAGE_SURGICAL_TEAM[pageKey] ?? "revops"}
+      team={PAGE_TILE_TEAM[basePageKey(pageKey)] ?? "revops"}
+      alertTeam={PAGE_SURGICAL_TEAM[basePageKey(pageKey)] ?? "revops"}
       tiles={tiles}
       hiddenDefaults={hiddenDefaults}
       suggestions={tileSuggestionsForPage(pageKey)}
