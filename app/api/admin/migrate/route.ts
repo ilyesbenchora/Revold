@@ -26,7 +26,11 @@ export async function POST(request: Request) {
   if (!sql.trim()) return NextResponse.json({ error: "SQL vide" }, { status: 400 });
 
   const { Client } = await import("pg");
-  const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  // Le paramètre sslmode de l'URL Supabase prime sur l'option `ssl` dans les
+  // versions récentes de pg → on le retire pour que rejectUnauthorized:false
+  // s'applique (chaîne de certificats Supabase auto-signée côté runtime).
+  const cleanUrl = url.replace(/([?&])sslmode=[^&]*&?/g, "$1").replace(/[?&]$/, "");
+  const client = new Client({ connectionString: cleanUrl, ssl: { rejectUnauthorized: false } });
   try {
     await client.connect();
     await client.query(sql);
