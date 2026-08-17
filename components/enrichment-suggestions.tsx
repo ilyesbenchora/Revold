@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * SUGGESTIONS D'ENRICHISSEMENT — à la façon du catalogue d'actions : seules
- * les suggestions RÉELLEMENT pertinentes (comptées sur la base) s'affichent,
- * la première étant toujours les ID de rapprochement manquants (la clé du
- * croisement inter-outils). Le moteur les traite automatiquement — les CTA
- * renvoient vers les réglages ou la validation.
+ * SUGGESTIONS D'ENRICHISSEMENT — seule la suggestion NON couverte par les
+ * blocs du dessus s'affiche : le secteur d'activité (NAF). Les ID de
+ * rapprochement, la validation en attente, les effectifs et le CA sont déjà
+ * portés par le moteur et les blocs dédiés de la page.
  */
 export async function EnrichmentSuggestions({ supabase, orgId }: { supabase: SupabaseClient; orgId: string }) {
   const count = async (apply: (q: ReturnType<typeof base>) => ReturnType<typeof base>): Promise<number> => {
@@ -19,47 +18,9 @@ export async function EnrichmentSuggestions({ supabase, orgId }: { supabase: Sup
   };
   const base = () => supabase.from("companies").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
 
-  const [noSiren, noEmployees, noRevenue, toValidate, noSector] = await Promise.all([
-    count((q) => q.is("siren", null).not("name", "is", null)),
-    count((q) => q.not("siren", "is", null).is("official_employee_range", null)),
-    count((q) => q.not("siren", "is", null).is("official_revenue", null)),
-    count((q) => q.is("siren", null).not("candidate_siren", "is", null)),
-    count((q) => q.not("siren", "is", null).is("naf_code", null)),
-  ]);
+  const noSector = await count((q) => q.not("siren", "is", null).is("naf_code", null));
 
   const suggestions = [
-    noSiren > 0 && {
-      icon: "🔗",
-      title: "Enrichir les ID de rapprochement (SIREN · SIRET · TVA)",
-      detail: `${noSiren.toLocaleString("fr-FR")} entreprises sans SIREN — la clé qui permet à Revold de croiser CRM, facturation et compta. Le moteur les traite en continu ; garde les champs SIREN/SIRET/TVA actifs dans les réglages.`,
-      count: noSiren,
-      href: "/dashboard/parametres/enrichissement",
-      cta: "Vérifier les réglages",
-    },
-    toValidate > 0 && {
-      icon: "✅",
-      title: "Valider les correspondances en attente",
-      detail: `${toValidate.toLocaleString("fr-FR")} correspondances plausibles attendent ta validation ci-dessous — 1 clic par fiche, et l'identité est posée partout.`,
-      count: toValidate,
-      href: null,
-      cta: null,
-    },
-    noEmployees > 0 && {
-      icon: "👥",
-      title: "Compléter les effectifs officiels",
-      detail: `${noEmployees.toLocaleString("fr-FR")} entreprises identifiées sans effectif (tranche URSSAF/INSEE). Le registre ne le publie pas toujours — la source LinkedIn (bêta) prendra le relais.`,
-      count: noEmployees,
-      href: "/dashboard/parametres/enrichissement",
-      cta: "Activer LinkedIn (bêta)",
-    },
-    noRevenue > 0 && {
-      icon: "💶",
-      title: "Compléter le chiffre d'affaires (INPI)",
-      detail: `${noRevenue.toLocaleString("fr-FR")} entreprises identifiées sans CA officiel — souvent des comptes déposés en confidentialité (fréquent en PME).`,
-      count: noRevenue,
-      href: null,
-      cta: null,
-    },
     noSector > 0 && {
       icon: "🏷️",
       title: "Poser le secteur d'activité (NAF)",

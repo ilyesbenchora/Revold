@@ -59,7 +59,7 @@ function etaFr(remaining: number): string | null {
   return `environ ${Math.round(hours)} h`;
 }
 
-export function EnrichmentBackfillRunner() {
+export function EnrichmentBackfillRunner({ linkedinEnabled = false }: { linkedinEnabled?: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
@@ -185,25 +185,10 @@ export function EnrichmentBackfillRunner() {
           </p>
         </div>
         {status != null && (
-          <div className="flex shrink-0 items-center gap-3">
-            <p className="text-right text-xs text-slate-500">
-              <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
-              {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
-            </p>
-            {/* B5 : relance manuelle — même quand tout est « terminé », un clic
-                force un passage (nouvelles fiches, rafraîchissement > 90 j). */}
-            <button
-              type="button"
-              disabled={loopRef.current}
-              onClick={() => {
-                setNotice(null);
-                void loop();
-              }}
-              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-            >
-              🔁 Enrichir mon CRM
-            </button>
-          </div>
+          <p className="shrink-0 text-right text-xs text-slate-500">
+            <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
+            {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
+          </p>
         )}
       </div>
 
@@ -242,6 +227,34 @@ export function EnrichmentBackfillRunner() {
         tout cas ambigu passe par ta validation ci-dessous, et un appel au registre qui échoue ne marque jamais une
         entreprise comme traitée.
       </p>
+
+      {/* ── CTA en bas du bloc — même disposition que « Identités à valider ». ── */}
+      {status != null && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-slate-400">
+            {linkedinEnabled ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+                <span aria-hidden className="rounded bg-sky-600 px-1 text-[9px] font-bold leading-4 text-white">in</span>{" "}
+                Source LinkedIn (bêta) activée — les effectifs manquants seront complétés
+                dès le branchement de l&apos;API.
+              </span>
+            ) : (
+              <>Relance manuelle : force un passage (nouvelles fiches, rafraîchissement &gt; 90 j).</>
+            )}
+          </p>
+          <button
+            type="button"
+            disabled={loopRef.current}
+            onClick={() => {
+              setNotice(null);
+              void loop();
+            }}
+            className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
+          >
+            🔁 Enrichir mon CRM
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { CompanyFinancialsBlock } from "@/components/company-financials-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
 import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
+import { getEnrichmentSettings } from "@/lib/enrichment/settings";
 
 /**
  * Suivi → Enrichissement : l'ACTION à forte valeur ajoutée, distinguée des
@@ -38,6 +39,7 @@ export default async function EnrichissementPage() {
   // Server component force-dynamic : l'horloge est stable par requête.
   // eslint-disable-next-line react-hooks/purity
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const settings = await getEnrichmentSettings(supabase, orgId);
   const [total, withSiren, withEmployees, withRevenue, fresh, toReview] = await Promise.all([
     count(supabase, orgId, (q) => q),
     count(supabase, orgId, (q) => q.not("siren", "is", null)),
@@ -82,25 +84,25 @@ export default async function EnrichissementPage() {
         ))}
       </div>
 
-      {/* ── 1. ÉTAT du moteur (et accélération silencieuse tant que la page
-             est ouverte) : aucun bouton — l'enrichissement va aussi vite que
-             possible par défaut, le contrôle qualité ne dépend pas du rythme. ── */}
-      <EnrichmentBackfillRunner />
+      {/* ── 1. ÉTAT du moteur (accélération silencieuse tant que la page est
+             ouverte) — CTA « Enrichir mon CRM » en bas du bloc. ── */}
+      <EnrichmentBackfillRunner linkedinEnabled={settings.linkedinEnabled} />
 
-      {/* ── Suggestions d'enrichissement : ce qui manque encore (ID de
-             rapprochement en tête), seules les pertinentes s'affichent. ── */}
-      <EnrichmentSuggestions supabase={supabase} orgId={orgId} />
+      {/* ── 2. Le résultat, juste sous l'état : entreprises enrichies en
+             panneau dépliable paginé. ── */}
+      <EnrichedCompaniesTable supabase={supabase} orgId={orgId} />
 
-      {/* ── 2. Ce que le moteur n'applique pas seul : les correspondances
+      {/* ── 3. Ce que le moteur n'applique pas seul : les correspondances
              d'identité ambiguës, validées à la main. ── */}
       <CompanyEnrichmentBlock />
 
-      {/* ── 3. Complément : effectifs & CA des entreprises SANS SIREN
+      {/* ── 4. Complément : effectifs & CA des entreprises SANS SIREN
              (recherche par nom, SIREN jamais stocké). ── */}
       <CompanyFinancialsBlock />
 
-      {/* ── 4. Le résultat : les entreprises enrichies, en tableau. ── */}
-      <EnrichedCompaniesTable supabase={supabase} orgId={orgId} />
+      {/* ── 5. En bas de page : la seule suggestion non couverte par les blocs
+             ci-dessus (secteur d'activité). ── */}
+      <EnrichmentSuggestions supabase={supabase} orgId={orgId} />
 
       <p className="text-[11px] text-slate-400">
         Sources : base Sirene et comptes déposés à l&apos;INPI via l&apos;API Recherche d&apos;Entreprises de l&apos;État
