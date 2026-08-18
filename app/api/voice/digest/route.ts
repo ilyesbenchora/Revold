@@ -351,6 +351,8 @@ export async function GET(request: Request) {
       customData: customParts.length,
       overdueExpectedInvoices: radarOverdue,
       enrichmentRemaining,
+      /** Contenu « enrichissement » FINALISÉ : plus rien en attente, base identifiée. */
+      enrichmentCompleted: enrichmentRemaining === 0 && enrichmentDone > 0,
       actionsExecuted: actionsDone,
     },
   });

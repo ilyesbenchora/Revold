@@ -195,6 +195,18 @@ const HEALTH_HINT: Record<Health, string> = {
   critical: "Situation critique — demande ton brief.",
 };
 
+/**
+ * Un contenu du brief est FINALISÉ / EXÉCUTÉ / ATTEINT ? (compteurs du digest)
+ * → objectif atteint, action exécutée dans les outils, enrichissement terminé.
+ * L'orbe passe alors en vert émeraude (charte santé) : le signe visuel qu'une
+ * bonne nouvelle attend dans le brief.
+ */
+function briefContentAchieved(counts: unknown): boolean {
+  if (!counts || typeof counts !== "object") return false;
+  const c = counts as { reachedObjectives?: number; actionsExecuted?: number; enrichmentCompleted?: boolean };
+  return (c.reachedObjectives ?? 0) > 0 || (c.actionsExecuted ?? 0) > 0 || c.enrichmentCompleted === true;
+}
+
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -202,6 +214,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const [caption, setCaption] = useState<string>("");
   const [supported, setSupported] = useState(true);
   const [health, setHealth] = useState<Health | null>(null);
+  // Vert émeraude : un contenu du brief est finalisé/exécuté/atteint.
+  const [achieved, setAchieved] = useState(false);
   // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
   // activables/désactivables + phrase de brief, synchronisées en direct.
   const settings = useTowerSettings();
@@ -212,6 +226,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
   const statusRef = useRef<OrbStatus>("idle");
   statusRef.current = status;
+  const achievedRef = useRef(false);
+  achievedRef.current = achieved;
   const levelRef = useRef(0); // niveau micro 0..1 (lissé)
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const audioRef = useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
@@ -226,7 +242,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     let alive = true;
     void fetch("/api/voice/digest")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && (d?.status === "ok" || d?.status === "warn" || d?.status === "critical")) setHealth(d.status); })
+      .then((d) => {
+        if (!alive || !d) return;
+        if (d.status === "ok" || d.status === "warn" || d.status === "critical") setHealth(d.status);
+        setAchieved(briefContentAchieved(d.counts));
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [settings.healthRing]);
@@ -261,12 +281,21 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
       g.clearRect(0, 0, size * dpr, size * dpr);
 
-      // Halo / cœur lumineux FUCHSIA (identité Revold)
+      // Halo / cœur lumineux FUCHSIA (identité Revold). VERT ÉMERAUDE (même
+      // gamme que l'anneau de santé) quand un contenu du brief est
+      // finalisé/exécuté/atteint — le signe d'une bonne nouvelle à écouter.
+      const done = achievedRef.current;
       const glow = g.createRadialGradient(cx, cy, R * 0.05, cx, cy, R * 1.55);
       const coreAlpha = s === "listening" ? 0.5 + level * 0.4 : s === "idle" ? 0.32 + 0.05 * Math.sin(t * 1.8) : 0.5;
-      glow.addColorStop(0, `rgba(245, 180, 250, ${coreAlpha})`);
-      glow.addColorStop(0.45, `rgba(217, 70, 239, ${coreAlpha * 0.35})`);
-      glow.addColorStop(1, "rgba(217, 70, 239, 0)");
+      if (done) {
+        glow.addColorStop(0, `rgba(167, 243, 208, ${coreAlpha})`);
+        glow.addColorStop(0.45, `rgba(52, 211, 153, ${coreAlpha * 0.35})`);
+        glow.addColorStop(1, "rgba(52, 211, 153, 0)");
+      } else {
+        glow.addColorStop(0, `rgba(245, 180, 250, ${coreAlpha})`);
+        glow.addColorStop(0.45, `rgba(217, 70, 239, ${coreAlpha * 0.35})`);
+        glow.addColorStop(1, "rgba(217, 70, 239, 0)");
+      }
       g.fillStyle = glow;
       g.fillRect(0, 0, size * dpr, size * dpr);
 
@@ -288,7 +317,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         const r = (0.9 + depth * 1.5) * dpr * (s === "listening" ? 1 + level * 0.5 : 1);
         g.beginPath();
         g.arc(px, py, r, 0, Math.PI * 2);
-        g.fillStyle = `rgba(240, 171, 252, ${alpha})`;
+        // Mode accompli : particules vert émeraude (même charte que la santé).
+        g.fillStyle = done ? `rgba(110, 231, 183, ${alpha})` : `rgba(240, 171, 252, ${alpha})`;
         g.fill();
       }
       raf = requestAnimationFrame(draw);
@@ -344,6 +374,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
       if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
+      setAchieved(briefContentAchieved(d.counts));
       setStatus("idle");
       setCaption(d.text ?? "");
       speak(d.text ?? "");
@@ -553,12 +584,17 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
 
   const busy = status === "thinking" || status === "redirecting";
+  // Anneau : écoute > santé critique > contenu du brief accompli (vert) > santé.
   const ringClass =
     status === "listening"
       ? "border-amber-300/50"
-      : health
-        ? HEALTH_RING[health]
-        : "border-amber-200/0 group-hover:border-amber-200/30";
+      : health === "critical"
+        ? HEALTH_RING.critical
+        : achieved
+          ? "border-emerald-300/70 shadow-[0_0_14px_rgba(52,211,153,0.4)]"
+          : health
+            ? HEALTH_RING[health]
+            : "border-amber-200/0 group-hover:border-amber-200/30";
 
   return (
     <div className="flex flex-col items-center">
@@ -571,9 +607,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             ? "Dictée vocale non supportée par ce navigateur"
             : status === "listening"
               ? "Terminer la dictée"
-              : health
-                ? `Parler à Revold — ${HEALTH_HINT[health]}`
-                : "Parler à Revold"
+              : achieved && health !== "critical"
+                ? "Parler à Revold — Bonne nouvelle : un contenu de ton brief est atteint ou exécuté, demande ton brief."
+                : health
+                  ? `Parler à Revold — ${HEALTH_HINT[health]}`
+                  : "Parler à Revold"
         }
         className="group relative rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-amber-300"
         style={{ width: size, height: size }}
