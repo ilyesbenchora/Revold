@@ -9,10 +9,13 @@ import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
 const PAGE_KEY = "audit_service_client_churn";
+// Sources : réglage propre à la sous-page, héritage Vue d'ensemble sinon.
+const SOURCE_KEYS = [PAGE_KEY, "audit_service_client"];
 
 export default async function ServiceClientChurnPage() {
   const orgId = await getOrgId();
@@ -63,6 +66,10 @@ export default async function ServiceClientChurnPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Blocs pilotés par « Outil source par page » (réglage propre à la
+          sous-page, héritage Vue d'ensemble sinon) — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} categories={["crm", "support"]}>
 
       {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
           tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
@@ -224,6 +231,10 @@ export default async function ServiceClientChurnPage() {
           footnote="Unités hétérogènes (montants et volumes) : pas de total agrégé."
         />
       </CollapsibleBlock>
+
+      </PageSourcesGate>
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>
   );
 }

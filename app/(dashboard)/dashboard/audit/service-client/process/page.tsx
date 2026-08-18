@@ -7,6 +7,14 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
+
+// Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
+// KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
+const PAGE_KEY = "audit_service_client_process";
+// Sources : réglage propre à la sous-page, héritage Vue d'ensemble sinon.
+const SOURCE_KEYS = [PAGE_KEY, "audit_service_client"];
 
 export default async function ServiceClientProcessPage() {
   const orgId = await getOrgId();
@@ -58,6 +66,54 @@ export default async function ServiceClientProcessPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Blocs pilotés par « Outil source par page » (réglage propre à la
+          sous-page, héritage Vue d'ensemble sinon) — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} categories={["crm", "support"]}>
+
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
+          tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
+      {(() => {
+        const tiles: DefaultTile[] = [
+          {
+            key: "sla_respecte",
+            label: "SLA respecté (< 4h)",
+            value: slaRate != null ? `${slaRate} %` : "—",
+            raw: slaRate,
+            rawUnit: "percent",
+            tone: slaRate == null ? "neutral" : slaRate >= 80 ? "pos" : slaRate >= 50 ? "accent" : "neg",
+            sub: "1ère réponse sous 4 h",
+          },
+          {
+            key: "premiere_reponse",
+            label: "1ère réponse moyenne",
+            value: data.avgFirstResponseHours != null ? `${data.avgFirstResponseHours} h` : "—",
+            raw: data.avgFirstResponseHours,
+            rawUnit: "count",
+            tone: data.avgFirstResponseHours == null ? "neutral" : data.avgFirstResponseHours <= 4 ? "pos" : data.avgFirstResponseHours <= 12 ? "accent" : "neg",
+            sub: "SLA cible : ≤ 4 h",
+          },
+          {
+            key: "resolution_onboarding",
+            label: "Résolution onboarding",
+            value: onboardingResolutionRate != null ? `${onboardingResolutionRate} %` : "—",
+            raw: onboardingResolutionRate,
+            rawUnit: "percent",
+            tone: onboardingResolutionRate == null ? "neutral" : onboardingResolutionRate >= 80 ? "pos" : onboardingResolutionRate >= 50 ? "accent" : "neg",
+            sub: `${onboardingResolved} sur ${onboardingTickets.length} tickets onboarding`,
+          },
+          {
+            key: "handoff_sales_csm",
+            label: "Handoff sales → CSM",
+            value: handoffRate != null ? `${handoffRate} %` : "—",
+            raw: handoffRate,
+            rawUnit: "percent",
+            tone: handoffRate == null ? "neutral" : handoffRate >= 50 ? "pos" : "accent",
+            sub: "Customers / (opps + customers)",
+          },
+        ];
+        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
+      })()}
 
       <CollapsibleBlock
         title={
@@ -136,6 +192,10 @@ export default async function ServiceClientProcessPage() {
           footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
         />
       </CollapsibleBlock>
+
+      </PageSourcesGate>
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>
   );
 }

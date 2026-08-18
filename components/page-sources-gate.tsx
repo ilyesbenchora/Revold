@@ -18,7 +18,7 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
-import { getToolKeys } from "@/lib/integrations/tool-mappings";
+import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
 import type { ConnectableTool } from "@/lib/integrations/connect-catalog";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -31,15 +31,19 @@ export async function PageSourcesGate({
 }: {
   supabase: SupabaseClient;
   orgId: string;
-  /** Clé tool_mappings de la page (ex : audit_perf_ventes). */
-  pageKey: string;
+  /**
+   * Clé tool_mappings de la page (ex : audit_perf_ventes) — ou chaîne de
+   * fallback [clé sous-page, clé parente] : le premier mapping non vide fait
+   * foi (une sous-page sans réglage hérite de sa page parente).
+   */
+  pageKey: string | string[];
   /** Catégories d'outils pertinentes pour cette page (jamais communication). */
   categories: Array<ConnectableTool["category"]>;
   children: React.ReactNode;
 }) {
   const [connected, mapped] = await Promise.all([
     getConnectedTools(supabase, orgId),
-    getToolKeys(supabase, orgId, pageKey),
+    getToolKeysChain(supabase, orgId, Array.isArray(pageKey) ? pageKey : [pageKey]),
   ]);
 
   // ISO Paramètres : le mapping fait foi tel quel. On n'applique PAS de filtre
@@ -83,12 +87,12 @@ export async function PageSourcesFooter({
 }: {
   supabase: SupabaseClient;
   orgId: string;
-  /** Clé tool_mappings de la page (ex : audit_perf_ventes). */
-  pageKey: string;
+  /** Clé tool_mappings de la page — ou chaîne de fallback (cf. PageSourcesGate). */
+  pageKey: string | string[];
 }) {
   const [connected, mapped] = await Promise.all([
     getConnectedTools(supabase, orgId),
-    getToolKeys(supabase, orgId, pageKey),
+    getToolKeysChain(supabase, orgId, Array.isArray(pageKey) ? pageKey : [pageKey]),
   ]);
   const tools = connected.filter(
     (t) => t.category !== "communication" && mapped.includes(t.key),

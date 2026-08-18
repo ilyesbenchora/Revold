@@ -9,10 +9,13 @@ import { fetchServiceClientData } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
 const PAGE_KEY = "audit_service_client_renouvellement";
+// Sources : réglage propre à la sous-page, héritage Vue d'ensemble sinon.
+const SOURCE_KEYS = [PAGE_KEY, "audit_service_client"];
 
 export default async function ServiceClientRenouvellementPage() {
   const orgId = await getOrgId();
@@ -66,6 +69,10 @@ export default async function ServiceClientRenouvellementPage() {
       </header>
 
       <ServiceClientTabs />
+
+      {/* Blocs pilotés par « Outil source par page » (réglage propre à la
+          sous-page, héritage Vue d'ensemble sinon) — rien sans outil choisi. */}
+      <PageSourcesGate supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} categories={["crm", "support"]}>
 
       {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
           tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
@@ -238,6 +245,10 @@ export default async function ServiceClientRenouvellementPage() {
           />
         </div>
       </CollapsibleBlock>
+
+      </PageSourcesGate>
+
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>
   );
 }
