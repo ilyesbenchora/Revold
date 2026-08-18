@@ -84,6 +84,26 @@ const SECTIONS: Section[] = [
   },
 ];
 
+// Bloc « Paramètres » — réservé aux ADMINS : qui peut voir/modifier chaque page
+// de Paramètres. Par défaut, tout est ouvert (comportement historique) ; la
+// Visualisation refusée masque l'onglet correspondant (ParametresTabs).
+const PARAMETRES_SECTION: Section = {
+  id: "parametres",
+  title: "Paramètres",
+  pages: [
+    { href: "/dashboard/parametres/general", label: "Général" },
+    { href: "/dashboard/parametres/equipe", label: "Utilisateurs & équipes" },
+    { href: "/dashboard/parametres/agents", label: "Agents" },
+    { href: "/dashboard/parametres/enrichissement", label: "Enrichissement" },
+    { href: "/dashboard/parametres/cohortes", label: "Cohortes" },
+    { href: "/dashboard/parametres/integrations", label: "Intégrations" },
+    { href: "/dashboard/parametres/modele-donnees", label: "Modèle de données" },
+    { href: "/dashboard/parametres/notifications", label: "Notifications" },
+    { href: "/dashboard/parametres/tour-de-controle", label: "Tour de contrôle" },
+    { href: "/dashboard/parametres/securite-api", label: "Sécurité & API" },
+  ],
+};
+
 type Access = Record<string, Record<string, boolean>>; // équipe → droit → autorisé
 
 /**
@@ -94,13 +114,14 @@ function defaultAccess(sectionId: string, row: PageRow): Access {
   const ref = row.defaultFrom ?? row.href;
   const out: Access = {};
   for (const t of TEAMS) {
-    const visible = isChildVisible(t.id, sectionId, ref);
+    // Paramètres : hors des règles d'espace (WORKSPACE_NAV) — ouvert par défaut.
+    const visible = sectionId === "parametres" ? true : isChildVisible(t.id, sectionId, ref);
     out[t.id] = { view: visible, edit: visible, create: visible };
   }
   return out;
 }
 
-export function PageAccessSettings({ initialRules }: { initialRules: Record<string, Access> }) {
+export function PageAccessSettings({ initialRules, isAdmin = false }: { initialRules: Record<string, Access>; isAdmin?: boolean }) {
   const router = useRouter();
   const [rules, setRules] = useState<Record<string, Access>>(initialRules);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
@@ -174,7 +195,7 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
 
       {error && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{error}</p>}
 
-      {SECTIONS.map((section) => (
+      {(isAdmin ? [...SECTIONS, PARAMETRES_SECTION] : SECTIONS).map((section) => (
         <div key={section.id} className="card overflow-hidden">
           <button
             type="button"
@@ -183,6 +204,9 @@ export function PageAccessSettings({ initialRules }: { initialRules: Record<stri
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-slate-400 transition-transform ${collapsedSections[section.id] ? "-rotate-90" : ""}`} aria-hidden><polyline points="6 9 12 15 18 9" /></svg>
             <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>
+            {section.id === "parametres" && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Admin uniquement</span>
+            )}
           </button>
           {!collapsedSections[section.id] && (
           <div className="overflow-x-auto">

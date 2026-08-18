@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { getCurrentRole } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,15 @@ export async function POST(request: Request) {
   const access = cleanAccess(body.access);
   if (!href.startsWith("/dashboard") || !access) {
     return NextResponse.json({ error: "page_href et access requis" }, { status: 400 });
+  }
+
+  // Bloc « Paramètres » de la matrice : réservé aux ADMINS — eux seuls règlent
+  // qui accède aux pages de Paramètres.
+  if (href.startsWith("/dashboard/parametres")) {
+    const role = await getCurrentRole(supabase, user.id);
+    if (role !== "admin") {
+      return NextResponse.json({ error: "Réservé aux admins : seuls eux règlent l'accès aux pages Paramètres." }, { status: 403 });
+    }
   }
 
   // Upsert manuel (une règle par page et par org).

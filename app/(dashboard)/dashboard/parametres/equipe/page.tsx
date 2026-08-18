@@ -98,26 +98,38 @@ export default async function EquipePage() {
         }))}
       />
 
-      {/* ── Accès par page et par équipe (visualisation / modification / création) ── */}
+      {/* ── Accès par page et par équipe (visualisation / modification / création).
+             Le bloc « Paramètres » de la matrice n'apparaît qu'aux ADMINS : eux
+             seuls règlent qui accède aux pages de Paramètres. ── */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Accès aux pages par équipe</h2>
         <p className="text-sm text-slate-500">
           Choisis, pour chaque page, ce que chaque équipe de l&apos;espace de travail peut faire. La visualisation
           pilote la navigation ; sans réglage, une page suit l&apos;accès par défaut de l&apos;espace.
+          {myRole === "admin" && (
+            <> Le bloc <span className="font-medium text-slate-700">Paramètres</span> (réservé aux admins) contrôle
+            l&apos;accès aux pages de Paramètres : un onglet refusé en visualisation disparaît pour l&apos;équipe.</>
+          )}
         </p>
-        <PageAccessSettings initialRules={accessRules} />
+        <PageAccessSettings initialRules={accessRules} isAdmin={myRole === "admin"} />
       </div>
 
-      {/* ── Cohortes par équipe (visualisation / modification / création) ── */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Cohortes par équipe</h2>
-        <p className="text-sm text-slate-500">
-          Les cohortes (Paramètres → Cohortes) sont regroupées par équipe. Choisis ici quels groupes chaque équipe
-          peut voir, modifier ou compléter de cohortes custom — par défaut, chaque équipe ne gère que les siennes,
-          pour garder la page lisible même avec beaucoup de cohortes.
-        </p>
-        <CohortAccessSettings initialRules={accessRules} />
-      </div>
+      {/* ── Cohortes par équipe — rattaché au bloc Paramètres (page Paramètres →
+             Cohortes), donc réservé aux ADMINS comme le reste du bloc. ── */}
+      {myRole === "admin" && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            Cohortes par équipe
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Admin uniquement</span>
+          </h2>
+          <p className="text-sm text-slate-500">
+            Les cohortes (Paramètres → Cohortes) sont regroupées par équipe. Choisis ici quels groupes chaque équipe
+            peut voir, modifier ou compléter de cohortes custom — par défaut, chaque équipe ne gère que les siennes,
+            pour garder la page lisible même avec beaucoup de cohortes.
+          </p>
+          <CohortAccessSettings initialRules={accessRules} />
+        </div>
+      )}
     </section>
   );
 }
