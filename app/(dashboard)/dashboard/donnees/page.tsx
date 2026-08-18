@@ -454,24 +454,6 @@ export default async function DonneesPage() {
 
       </PageSourcesGate>
 
-      {/* L'enrichissement (action à forte valeur : SIREN/SIRET/TVA, effectifs,
-          CA officiels) vit désormais dans Suivi → Enrichissement — cette page
-          reste le CONSTAT du rapprochement. */}
-      <Link
-        href="/dashboard/enrichissement"
-        className="card flex items-center justify-between gap-4 p-4 transition hover:shadow-md"
-      >
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-900">✨ Enrichir la donnée de tes entreprises</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            SIREN, SIRET, TVA, effectifs et CA officiels — proposés par Revold, validés par toi, écrits dans HubSpot.
-          </p>
-        </div>
-        <span className="shrink-0 rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-2 text-xs font-semibold text-white shadow-sm">
-          Ouvrir l&apos;Enrichissement →
-        </span>
-      </Link>
-
       <PageDataTables pageKey="audit_donnees" />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_donnees" />
