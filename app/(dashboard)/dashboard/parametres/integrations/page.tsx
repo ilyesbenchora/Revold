@@ -8,7 +8,13 @@ import { SpreadsheetLogo } from "@/components/spreadsheet-logo";
 import { HubspotDisconnectButton } from "@/components/hubspot-disconnect-button";
 import { SyncBlocksStatus } from "@/components/sync-blocks-status";
 import { SyncParityBlock, type ParityRow } from "@/components/sync-parity-block";
-import { ToolMappingSettings, MAPPING_PAGE_KEYS } from "@/components/tool-mapping-settings";
+import { ToolMappingSettings } from "@/components/tool-mapping-settings";
+// ⚠ Toujours importer MAPPING_PAGE_KEYS depuis ce module SERVER-SAFE, jamais
+// depuis le composant client : ici on est dans un composant serveur, et une
+// constante exportée d'un module "use client" y devient une référence client —
+// la requête tool_mappings partait avec une liste vide et les blocs
+// s'affichaient sans aucune sélection (les données, elles, étaient intactes).
+import { MAPPING_PAGE_KEYS } from "@/lib/integrations/mapping-pages";
 import { HubspotLicenseForm } from "@/components/integrations/hubspot-license-form";
 import {
   listConnectedTools,
