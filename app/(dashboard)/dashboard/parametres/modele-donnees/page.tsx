@@ -15,6 +15,7 @@ import { DedupRules } from "@/components/dedup-rules";
 import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import Link from "next/link";
 import { FeatureTour } from "@/components/feature-tour";
+import { isNewUser } from "@/lib/onboarding/is-new-user";
 
 // ── Default field authority ──
 const DEFAULT_FIELD_AUTHORITY = [
@@ -428,8 +429,10 @@ export default async function ParametresModeleDonneesPage() {
         <DedupRules rules={mergedDedupRules} />
       </div>
 
-      {/* Mini-tutoriel (première visite) : où sont les identifiants et comment
-          les enregistrements des outils sont reliés au modèle. */}
+      {/* Mini-tutoriel — UNIQUEMENT pour un nouvel utilisateur (première
+          connexion) : où sont les identifiants et comment les enregistrements
+          des outils sont reliés au modèle. */}
+      {(await isNewUser(supabase)) && (
       <FeatureTour
         tourId="modele-donnees"
         steps={[
@@ -445,6 +448,7 @@ export default async function ParametresModeleDonneesPage() {
           },
         ]}
       />
+      )}
     </section>
   );
 }

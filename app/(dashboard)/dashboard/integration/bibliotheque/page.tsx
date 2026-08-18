@@ -10,6 +10,7 @@ import { CrossSourceNudge } from "@/components/integrations/cross-source-nudge";
 import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 import Link from "next/link";
 import { FeatureTour } from "@/components/feature-tour";
+import { isNewUser } from "@/lib/onboarding/is-new-user";
 
 export default async function BibliothequeOutilsPage({
   searchParams,
@@ -177,7 +178,9 @@ export default async function BibliothequeOutilsPage({
         })}
       </div>
 
-      {/* Mini-tutoriel (première visite) : connecter, puis activer les sources. */}
+      {/* Mini-tutoriel — UNIQUEMENT pour un nouvel utilisateur (première
+          connexion) : connecter, puis activer les sources. */}
+      {(await isNewUser(supabase)) && (
       <FeatureTour
         tourId="connexion-outils"
         steps={[
@@ -193,6 +196,7 @@ export default async function BibliothequeOutilsPage({
           },
         ]}
       />
+      )}
     </section>
   );
 }

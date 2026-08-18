@@ -18,6 +18,7 @@ import {
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
+import { isNewUser } from "@/lib/onboarding/is-new-user";
 import { FeatureTour } from "@/components/feature-tour";
 import { getPageCustomization, formatTileValue, resolveAddedTiles } from "@/lib/kpi/page-tiles";
 import { allTileSuggestions } from "@/lib/kpi/tile-catalog";
@@ -415,8 +416,10 @@ export default async function DashboardOverviewPage() {
         previewBody="L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."
       />
 
-      {/* Mini-tutoriel de bienvenue (première visite) : le circuit indispensable
-          connexion des outils → sources par page/agent → pages de données. */}
+      {/* Mini-tutoriel de bienvenue — UNIQUEMENT pour un nouvel utilisateur
+          (première connexion) : le circuit indispensable connexion des
+          outils → sources par page/agent → pages de données. */}
+      {(await isNewUser(supabase)) && (
       <FeatureTour
         tourId="bienvenue"
         steps={[
@@ -437,6 +440,7 @@ export default async function DashboardOverviewPage() {
           },
         ]}
       />
+      )}
     </section>
   );
 }

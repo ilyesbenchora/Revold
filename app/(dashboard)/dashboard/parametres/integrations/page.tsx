@@ -22,6 +22,7 @@ import {
 } from "@/lib/integrations/tool-mappings";
 import Link from "next/link";
 import { FeatureTour } from "@/components/feature-tour";
+import { isNewUser } from "@/lib/onboarding/is-new-user";
 
 // Pages ET agents réglables dans « Outil source par page » — dérivé du
 // composant qui les affiche, pour qu'aucune page ne puisse s'afficher vide
@@ -414,8 +415,10 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
         </div>
       )}
 
-      {/* Mini-tutoriel (première visite) : les deux blocs indispensables pour
-          que les pages de données affichent quelque chose. */}
+      {/* Mini-tutoriel — UNIQUEMENT pour un nouvel utilisateur (première
+          connexion) : les deux blocs indispensables pour que les pages de
+          données affichent quelque chose. */}
+      {(await isNewUser(supabase)) && (
       <FeatureTour
         tourId="sources-integrations"
         steps={[
@@ -431,6 +434,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
           },
         ]}
       />
+      )}
     </section>
   );
 }
