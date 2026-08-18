@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ENRICHMENT_FIELD_LABELS,
@@ -26,6 +26,31 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [savedNewFields, setSavedNewFields] = useState(false);
+
+  // Bandeau « jamais écraser » masquable : la garantie reste vraie (et
+  // rappelée dans les libellés), seul le rappel visuel se range. Préférence
+  // locale au poste — rendue après montage pour éviter tout écart d'hydratation.
+  const [showGuarantee, setShowGuarantee] = useState(false);
+  useEffect(() => {
+    // Lecture localStorage impossible au rendu serveur : l'état ne peut être
+    // posé qu'après montage (faux → vrai si non masqué), d'où le setState ici.
+    let dismissed = false;
+    try {
+      dismissed = localStorage.getItem("revold.enrichment.guarantee.dismissed") === "1";
+    } catch {
+      dismissed = false;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowGuarantee(!dismissed);
+  }, []);
+  function dismissGuarantee() {
+    setShowGuarantee(false);
+    try {
+      localStorage.setItem("revold.enrichment.guarantee.dismissed", "1");
+    } catch {
+      /* stockage local indisponible : masqué pour la session */
+    }
+  }
 
   async function save() {
     setState("saving");
@@ -53,15 +78,25 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
 
   return (
     <div className="card p-6">
-      {/* Règle structurelle : mise en avant, non désactivable */}
-      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-        <span aria-hidden className="mt-0.5">🛡️</span>
-        <p className="text-sm text-emerald-800">
-          <strong>Revold n&apos;écrase jamais une donnée existante de ton CRM.</strong> L&apos;enrichissement ne remplit
-          que les champs <em>vides</em> des fiches entreprises — chez Revold comme dans HubSpot. Ce comportement est
-          garanti, il ne se désactive pas.
-        </p>
-      </div>
+      {/* Règle structurelle (non désactivable) — seul le RAPPEL visuel est masquable */}
+      {showGuarantee && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <span aria-hidden className="mt-0.5">🛡️</span>
+          <p className="min-w-0 flex-1 text-sm text-emerald-800">
+            <strong>Revold n&apos;écrase jamais une donnée existante de ton CRM.</strong> L&apos;enrichissement ne
+            remplit que les champs <em>vides</em> des fiches entreprises — chez Revold comme dans HubSpot. Ce
+            comportement est garanti, il ne se désactive pas.
+          </p>
+          <button
+            type="button"
+            onClick={dismissGuarantee}
+            className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-100"
+            title="La garantie reste active — seul ce rappel est masqué"
+          >
+            Ne plus afficher
+          </button>
+        </div>
+      )}
 
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Champs à enrichir</p>
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
