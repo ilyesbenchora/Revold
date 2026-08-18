@@ -4,10 +4,13 @@ import { getOrgId } from "@/lib/supabase/cached";
 
 export const dynamic = "force-dynamic";
 
-type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string };
+type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string; team: string };
 
 /** Objets HubSpot valides pour l'objet porteur d'une cohorte ("" = détection auto). */
 const VALID_OBJECTS = new Set(["contacts", "companies", "deals"]);
+
+/** Équipes propriétaires valides ("" = cohorte transverse, toutes équipes). */
+const VALID_TEAMS = new Set(["sales", "marketing", "cs", "finance"]);
 
 /** Nettoie la liste de mappings (clés/labels/champs texte, 30 max). */
 function cleanMappings(v: unknown): CohortMapping[] | null {
@@ -25,6 +28,7 @@ function cleanMappings(v: unknown): CohortMapping[] | null {
       internal_name: typeof o.internal_name === "string" ? o.internal_name.trim().slice(0, 120) : "",
       api_name: typeof o.api_name === "string" ? o.api_name.trim().slice(0, 120) : "",
       object: typeof o.object === "string" && VALID_OBJECTS.has(o.object) ? o.object : "",
+      team: typeof o.team === "string" && VALID_TEAMS.has(o.team) ? o.team : "",
     });
   }
   return out;

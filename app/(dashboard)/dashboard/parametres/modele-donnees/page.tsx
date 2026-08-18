@@ -201,11 +201,12 @@ export default async function ParametresModeleDonneesPage() {
     return { ...row, priority: saved.priority };
   });
 
-  // Champs CRM gérés par Paramètres → Enrichissement (SIREN, SIRET, TVA) :
-  // retirés de CE bloc pour éviter le doublon — le mapping reste le même
-  // (identifier_field_mapping) et s'édite là-bas. Le catalogue partagé n'est
-  // pas touché : la sync et l'audit continuent de couvrir ces champs.
-  const enrichmentManagedCanonicals = new Set(["siren", "siret", "vat_number"]);
+  // Champs CRM gérés AILLEURS pour éviter le doublon : SIREN/SIRET/TVA dans
+  // Paramètres → Enrichissement, dates de contrat dans Paramètres → Cohortes
+  // (groupe Ventes). Le mapping reste le même (identifier_field_mapping) et
+  // s'édite là-bas. Le catalogue partagé n'est pas touché : la sync et l'audit
+  // continuent de couvrir ces champs.
+  const enrichmentManagedCanonicals = new Set(["siren", "siret", "vat_number", "contract_start", "contract_end"]);
 
   // Identifier mapping rows (only connected tools)
   const identifierRows = allProviders
@@ -371,6 +372,10 @@ export default async function ParametresModeleDonneesPage() {
           propriétés SIREN, SIRET et N° TVA du CRM se gèrent dans{" "}
           <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
             Paramètres → Enrichissement
+          </Link>{" "}
+          et les dates de contrat dans{" "}
+          <Link href="/dashboard/parametres/cohortes" className="font-medium text-accent hover:underline">
+            Paramètres → Cohortes
           </Link>.
         </p>
         {identifierRows.length === 0 ? (
