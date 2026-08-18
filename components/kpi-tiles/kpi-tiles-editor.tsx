@@ -3,7 +3,8 @@
 /**
  * Rendu + édition des tuiles KPI d'une page (même style que KpiStatTiles).
  * « Personnaliser » active le mode édition : retirer une tuile (par défaut ou
- * ajoutée), réafficher une tuile masquée ou un bloc retiré.
+ * ajoutée), la modifier (✎ — titre/description d'une tuile par défaut, câblage
+ * complet d'une tuile ajoutée), réafficher une tuile masquée ou un bloc retiré.
  *
  * L'AJOUT d'un KPI passe par le funnel unique des tables de données
  * (PageDataTables, événement `revold:open-data-table`) : sources à croiser →
@@ -45,6 +46,11 @@ export type EditorTile = {
   aggSpec?: Record<string, unknown> | null;
   /** Tuile résolue par resolveKpiValue — seul le titre est éditable. */
   forecastType?: string | null;
+  /** Ligne page_tiles kind='tile_override' (tuile par défaut renommée) — pour réinitialiser. */
+  overrideRowId?: string;
+  /** Libellé/description d'origine d'une tuile par défaut (avant override). */
+  originalLabel?: string;
+  originalSub?: string;
 };
 
 export type EditorSuggestion = {
@@ -151,6 +157,56 @@ export function KpiTilesEditor({
   /** Ouvre le funnel unique de création (PageDataTables sur la même page). */
   function openBuilder() {
     window.dispatchEvent(new CustomEvent("revold:open-data-table"));
+  }
+
+  // ── Édition d'une tuile PAR DÉFAUT (✎) : titre + description persistés en
+  // override (page_tiles kind='tile_override') — la valeur reste calculée. ──
+  const [override, setOverride] = useState<{ tile: EditorTile; title: string; sub: string } | null>(null);
+
+  function openDefaultEdit(t: EditorTile) {
+    setError(null);
+    setOverride({ tile: t, title: t.label, sub: t.sub ?? "" });
+  }
+
+  async function saveOverride() {
+    if (!override || busy != null) return;
+    const t = override.tile;
+    const title = override.title.trim();
+    const sub = override.sub.trim();
+    if (!title) return;
+    // Tout est revenu à l'origine → on supprime l'override plutôt que d'en garder un inutile.
+    const isOriginal = title === (t.originalLabel ?? t.label) && sub === (t.originalSub ?? "").trim();
+    setBusy(`ov-${t.key}`);
+    setError(null);
+    try {
+      const res = isOriginal
+        ? t.overrideRowId
+          ? await fetch(`/api/page-tiles/${t.overrideRowId}`, { method: "DELETE" })
+          : null
+        : await fetch("/api/page-tiles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ page_key: pageKey, kind: "tile_override", tile_key: t.key, title, sub }),
+          });
+      if (res && !res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Une erreur est survenue.");
+        return;
+      }
+      setOverride(null);
+      router.refresh();
+    } catch {
+      setError("Une erreur est survenue.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function resetOverride() {
+    if (!override?.tile.overrideRowId) return;
+    const rowId = override.tile.overrideRowId;
+    setOverride(null);
+    void removeRow(rowId);
   }
 
   /** Ouvre le funnel en ÉDITION d'une tuile ajoutée (✎) — câblage prérempli. */
@@ -293,6 +349,19 @@ export function KpiTilesEditor({
                       ✎
                     </button>
                   )}
+                  {/* ✎ : renommer une tuile PAR DÉFAUT (titre + description) —
+                      la valeur reste calculée par la page. */}
+                  {t.kind === "default" && (
+                    <button
+                      type="button"
+                      title="Modifier le titre et la description"
+                      disabled={busy != null}
+                      onClick={() => openDefaultEdit(t)}
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] text-slate-500 transition hover:bg-indigo-100 hover:text-indigo-600 disabled:opacity-50"
+                    >
+                      ✎
+                    </button>
+                  )}
                   <button
                     type="button"
                     title="Retirer cette tuile"
@@ -362,6 +431,77 @@ export function KpiTilesEditor({
 
       {/* Modal de détail (drill-down d'une tuile) */}
       <DrilldownModal target={drillTarget} onClose={() => setDrillTarget(null)} />
+
+      {/* ── Modal d'édition d'une tuile par défaut : titre + description ── */}
+      {override && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => busy == null && setOverride(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900">Modifier la tuile</h3>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              La valeur reste calculée automatiquement — personnalise le titre et la description affichés.
+            </p>
+            <label className="mt-4 block text-[11px] font-medium text-slate-500">
+              Titre
+              <input
+                autoFocus
+                value={override.title}
+                onChange={(e) => setOverride({ ...override, title: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && saveOverride()}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900 focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label className="mt-3 block text-[11px] font-medium text-slate-500">
+              Description (sous la valeur)
+              <input
+                value={override.sub}
+                placeholder={override.tile.originalSub ?? "Optionnelle"}
+                onChange={(e) => setOverride({ ...override, sub: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && saveOverride()}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900 focus:border-accent focus:outline-none"
+              />
+            </label>
+            {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+            <div className="mt-4 flex items-center justify-between gap-2">
+              {override.tile.overrideRowId ? (
+                <button
+                  type="button"
+                  disabled={busy != null}
+                  onClick={resetOverride}
+                  title="Revenir au titre et à la description d'origine"
+                  className="text-[11px] font-medium text-slate-400 transition hover:text-rose-600 hover:underline disabled:opacity-50"
+                >
+                  Réinitialiser
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy != null}
+                  onClick={() => setOverride(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={busy != null || !override.title.trim()}
+                  onClick={saveOverride}
+                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy != null ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Tuiles masquées : réafficher ── */}
       {editing && hiddenDefaults.length > 0 && (

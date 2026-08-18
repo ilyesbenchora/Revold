@@ -15,7 +15,7 @@ type TileAggSpec = AggSpec & { period_preset?: string; pipeline_label?: string }
 
 export type PageTileRow = {
   id: string;
-  kind: "kpi" | "hide_tile" | "hide_block" | "tile_order";
+  kind: "kpi" | "hide_tile" | "hide_block" | "tile_order" | "tile_override";
   tile_key: string | null;
   title: string | null;
   forecast_type: string | null;
@@ -36,9 +36,17 @@ export type PageCustomization = {
   hiddenBlocks: Map<string, { rowId: string; label: string }>;
   /** Ordre drag & drop de TOUTES les tuiles (clés, défaut + ajoutées) — vide = ordre naturel. */
   tileOrder: string[];
+  /** Overrides des tuiles par défaut (✎) : clé → titre/description personnalisés. */
+  tileOverrides: Map<string, { rowId: string; title: string | null; sub: string | null }>;
 };
 
-const EMPTY: PageCustomization = { added: [], hiddenTiles: new Map(), hiddenBlocks: new Map(), tileOrder: [] };
+const EMPTY: PageCustomization = {
+  added: [],
+  hiddenTiles: new Map(),
+  hiddenBlocks: new Map(),
+  tileOrder: [],
+  tileOverrides: new Map(),
+};
 
 export type HiddenBlockMeta = { view?: string; description?: string };
 
@@ -94,6 +102,20 @@ export async function getPageCustomization(
         rows
           .filter((r) => r.kind === "hide_block" && r.tile_key)
           .map((r) => [r.tile_key as string, { rowId: r.id, label: r.title ?? (r.tile_key as string) }]),
+      ),
+      tileOverrides: new Map(
+        rows
+          .filter((r) => r.kind === "tile_override" && r.tile_key)
+          .map((r) => [
+            r.tile_key as string,
+            {
+              rowId: r.id,
+              title: r.title,
+              sub: typeof (r.agg_spec as unknown as { sub?: unknown } | null)?.sub === "string"
+                ? ((r.agg_spec as unknown as { sub: string }).sub)
+                : null,
+            },
+          ]),
       ),
     };
   } catch {

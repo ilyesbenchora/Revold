@@ -4,7 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 
 export const dynamic = "force-dynamic";
 
-const KINDS = new Set(["kpi", "hide_tile", "hide_block", "tile_order"]);
+const KINDS = new Set(["kpi", "hide_tile", "hide_block", "tile_order", "tile_override"]);
 const UNITS = new Set(["percent", "currency", "count"]);
 
 /** Liste la personnalisation d'une page (tuiles ajoutées + masquages). */
@@ -43,6 +43,8 @@ export async function POST(request: Request) {
     unit_mode?: string | null; position?: number;
     /** kind='tile_order' : ordre complet des clés de tuiles (drag & drop). */
     order?: unknown;
+    /** kind='tile_override' : description affichée sous la valeur (optionnelle). */
+    sub?: string | null;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
 
@@ -80,6 +82,43 @@ export async function POST(request: Request) {
     if (error) {
       const msg = /check|kind/i.test(error.message)
         ? "Migration 20260814000001_page_layout_order non appliquée (kind tile_order refusé)."
+        : error.message;
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── Override d'une tuile PAR DÉFAUT (✎) : titre + description — UNE ligne
+  // par tuile, upsert manuel (index unique partiel → pas d'ON CONFLICT). ──
+  if (kind === "tile_override") {
+    if (!body.tile_key?.trim()) return NextResponse.json({ error: "tile_key requis" }, { status: 400 });
+    if (!body.title?.trim()) return NextResponse.json({ error: "title requis" }, { status: 400 });
+    const values = {
+      title: body.title.trim(),
+      // sub vide ou absent = revenir à la description d'origine de la tuile.
+      agg_spec: typeof body.sub === "string" && body.sub.trim() ? { sub: body.sub.trim() } : null,
+    };
+    const { data: existing } = await supabase
+      .from("page_tiles")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("page_key", body.page_key)
+      .eq("kind", "tile_override")
+      .eq("tile_key", body.tile_key.trim())
+      .maybeSingle();
+    const { error } = existing
+      ? await supabase.from("page_tiles").update(values).eq("id", existing.id)
+      : await supabase.from("page_tiles").insert({
+          organization_id: orgId,
+          page_key: body.page_key,
+          kind: "tile_override",
+          tile_key: body.tile_key.trim(),
+          ...values,
+          created_by: user.id,
+        });
+    if (error) {
+      const msg = /check|kind/i.test(error.message)
+        ? "Migration 20260818000002_page_tile_override non appliquée (kind tile_override refusé)."
         : error.message;
       return NextResponse.json({ error: msg }, { status: 500 });
     }

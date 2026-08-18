@@ -59,17 +59,24 @@ export async function ConfigurableKpiTiles({
   const added = await resolveAddedTiles(supabase, orgId, cust.added);
 
   const tiles: EditorTile[] = [
-    ...visibleDefaults.map<EditorTile>((d) => ({
-      key: d.key,
-      kind: "default",
-      label: d.label,
-      value: d.value,
-      raw: d.raw,
-      rawUnit: d.rawUnit,
-      tone: d.tone,
-      sub: d.sub,
-      verdict: d.verdict,
-    })),
+    ...visibleDefaults.map<EditorTile>((d) => {
+      // Override (✎ sur une tuile par défaut) : titre/description personnalisés.
+      const ov = cust.tileOverrides.get(d.key);
+      return {
+        key: d.key,
+        kind: "default",
+        label: ov?.title ?? d.label,
+        value: d.value,
+        raw: d.raw,
+        rawUnit: d.rawUnit,
+        tone: d.tone,
+        sub: ov?.sub ?? d.sub,
+        verdict: d.verdict,
+        overrideRowId: ov?.rowId,
+        originalLabel: d.label,
+        originalSub: d.sub,
+      };
+    }),
     ...added.map<EditorTile>((a) => ({
       key: `added-${a.rowId}`,
       kind: "added",
@@ -97,7 +104,11 @@ export async function ConfigurableKpiTiles({
 
   const hiddenDefaults = defaults
     .filter((d) => cust.hiddenTiles.has(d.key))
-    .map((d) => ({ key: d.key, label: d.label, rowId: cust.hiddenTiles.get(d.key) as string }));
+    .map((d) => ({
+      key: d.key,
+      label: cust.tileOverrides.get(d.key)?.title ?? d.label,
+      rowId: cust.hiddenTiles.get(d.key) as string,
+    }));
 
   return (
     <KpiTilesEditor
