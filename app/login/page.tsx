@@ -272,7 +272,7 @@ function LoginForm() {
         {!otpMode && !entrepriseMode && (
           <div className="mt-5 flex items-center gap-3" aria-hidden>
             <span className="h-px flex-1 bg-slate-800" />
-            <span className="text-[11px] uppercase tracking-wider text-slate-500">ou par email</span>
+            <span className="text-[11px] uppercase tracking-wider text-slate-500">ou inscription par email</span>
             <span className="h-px flex-1 bg-slate-800" />
           </div>
         )}
@@ -299,10 +299,14 @@ function LoginForm() {
                 type="submit"
                 className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
               >
-                Continuer par email
+                S&apos;inscrire par email
               </button>
+              <p className="text-center text-[11px] text-slate-500">
+                Déjà un compte ? Le code par email te connecte aussi, sans créer de doublon.
+              </p>
             </form>
             <p className="mt-6 text-center text-sm text-slate-500">
+              Déjà inscrit ?{" "}
               <a href="/login?mode=password" className="text-accent hover:underline">
                 Se connecter avec un mot de passe
               </a>
