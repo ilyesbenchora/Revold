@@ -75,6 +75,29 @@ export async function signupAction(formData: FormData) {
   redirect("/login?check_email=1");
 }
 
+export async function googleAction() {
+  const supabase = await createSupabaseServerClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  // OAuth Google via Supabase (PKCE) : le code verifier est posé en cookie par
+  // @supabase/ssr, l'échange se fait au retour sur /auth/callback (déjà en
+  // place). Marche pour la connexion ET l'inscription : un compte Google
+  // inconnu est créé au premier passage (getOrgId crée l'org au 1er accès
+  // dashboard — fallback « Org de <user> » sans org_name).
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${appUrl}/auth/callback`,
+      queryParams: { prompt: "select_account" },
+    },
+  });
+
+  if (error || !data?.url) {
+    redirect(`/login?error=${encodeURIComponent(error?.message ?? "Connexion Google indisponible")}`);
+  }
+  redirect(data.url);
+}
+
 export async function logoutAction() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
