@@ -83,11 +83,12 @@ export async function GET() {
   const lastActivityAt = [lastChecked, lastEnriched].filter(Boolean).sort().pop() ?? null;
 
   const remaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0);
-  // Dénominateur du chantier : ce qui reste + ce qui est déjà acquis
-  // (identifiants trouvés + candidats en attente + doublons identifiés).
   const processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
-  const scope = processed + remaining;
-  const pct = scope > 0 ? Math.min(100, Math.round((processed / scope) * 100)) : 100;
+  // Jauge = fiches À JOUR / base totale. Un champ fraîchement coché dans les
+  // Paramètres remet les fiches concernées en file (enriched_at → null) : la
+  // jauge REPART aussitôt au lieu de rester à 100 % de la passe précédente.
+  const base = total ?? processed + remaining;
+  const pct = base > 0 ? Math.max(0, Math.min(100, Math.round(((base - remaining) / base) * 100))) : 100;
 
   return NextResponse.json({
     total,
