@@ -668,19 +668,15 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
       {/* Zone de texte contenue : les briefs longs défilent au lieu de déborder
           sur le bouton veille et le pied de la carte. Au repos, l'orbe VERTE
-          (contenu du brief accompli) explique sa couleur ici — le texte
-          par défaut ne masque pas la bonne nouvelle. */}
-      <p
-        className={`mt-1 max-h-20 min-h-8 w-full max-w-[17rem] overflow-y-auto px-1 text-center text-[11px] leading-snug ${
-          !caption && status === "idle" && achieved && supported ? "font-medium text-emerald-300" : "text-slate-400"
-        }`}
-      >
+          (contenu du brief accompli) explique sa couleur ici — même style que
+          le texte par défaut, seule la couleur de l'orbe change. */}
+      <p className="mt-1 max-h-20 min-h-8 w-full max-w-[17rem] overflow-y-auto px-1 text-center text-[11px] leading-snug text-slate-400">
         {!supported
           ? "Dictée vocale non supportée par ce navigateur."
           : caption ||
             (status === "idle"
               ? achieved
-                ? "Bonne nouvelle : un contenu de ton brief est atteint ou exécuté — clique et demande ton brief."
+                ? "Bonne nouvelle : un contenu de ton brief est atteint ou exécuté."
                 : "Clique et dicte ta demande — je réponds, je briefe le bon agent ou je crée ton alerte."
               : "")}
       </p>
