@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
+import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
 import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
 import { getEnrichmentSettings } from "@/lib/enrichment/settings";
@@ -85,7 +86,12 @@ export default async function EnrichissementPage() {
 
       {/* ── 1. ÉTAT du moteur (accélération silencieuse tant que la page est
              ouverte) — CTA « Enrichir mon CRM » en bas du bloc. ── */}
-      <EnrichmentBackfillRunner linkedinEnabled={settings.linkedinEnabled} />
+      <EnrichmentBackfillRunner />
+
+      {/* ── 1 bis. Source LinkedIn (bêta), bloc DÉDIÉ sous le moteur : sa
+             propre barre de complétion mesure ce que cette source apporte
+             (effectifs des entreprises que le registre officiel ne couvre pas). ── */}
+      {settings.linkedinEnabled && <LinkedinEnrichmentBlock />}
 
       {/* ── 2. Le résultat, juste sous l'état : entreprises enrichies en
              panneau dépliable paginé. ── */}

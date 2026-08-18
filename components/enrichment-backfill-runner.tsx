@@ -59,7 +59,7 @@ function etaFr(remaining: number): string | null {
   return `environ ${Math.round(hours)} h`;
 }
 
-export function EnrichmentBackfillRunner({ linkedinEnabled = false }: { linkedinEnabled?: boolean }) {
+export function EnrichmentBackfillRunner() {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
@@ -232,15 +232,7 @@ export function EnrichmentBackfillRunner({ linkedinEnabled = false }: { linkedin
       {status != null && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-[11px] text-slate-400">
-            {linkedinEnabled ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
-                <span aria-hidden className="rounded bg-sky-600 px-1 text-[9px] font-bold leading-4 text-white">in</span>{" "}
-                Source LinkedIn (bêta) activée — les effectifs manquants seront complétés
-                dès le branchement de l&apos;API.
-              </span>
-            ) : (
-              <>Relance manuelle : force un passage (nouvelles fiches, rafraîchissement &gt; 90 j).</>
-            )}
+            Relance manuelle : force un passage (nouvelles fiches, rafraîchissement &gt; 90 j).
           </p>
           <button
             type="button"

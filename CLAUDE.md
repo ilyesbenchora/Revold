@@ -61,6 +61,7 @@ Tailwind v4 with CSS variables in `globals.css` (`--background`, `--card`, `--ac
 - `NEXT_PUBLIC_APP_URL` — base URL de l'app (`https://revold.io` en prod, `http://localhost:3000` en dev) — utilisée pour les redirects OAuth
 
 **Optionnels :**
+- `LINKEDIN_ENRICH_ACCESS_TOKEN` — jeton LinkedIn (périmètre organisations) pour la source LinkedIn (bêta) des effectifs ; sinon repli sur le token OAuth `linkedin_ads` connecté par l'org
 - `OAUTH_STATE_SECRET` — clé HMAC pour signer le state OAuth. Si absent, fallback sur `SUPABASE_SERVICE_ROLE_KEY`. Recommandé en prod : valeur dédiée 32+ chars random
 - `HUBSPOT_ACCESS_TOKEN` — **legacy mono-tenant**, sera supprimé après migration de tous les callsites en Phase 8.1b. Garde un fallback dans `getHubSpotToken()` le temps de la transition
 

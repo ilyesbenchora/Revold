@@ -182,11 +182,11 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
           />
           <span>
             <span className="block text-sm font-medium text-slate-800">
-              Source LinkedIn pour l&apos;effectif <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Bêta — bientôt</span>
+              Source LinkedIn pour l&apos;effectif <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Bêta</span>
             </span>
             <span className="block text-[11px] text-slate-400">
-              Complètera l&apos;effectif quand le registre officiel ne le publie pas. Nécessite la connexion de
-              l&apos;API LinkedIn — la préférence est enregistrée dès maintenant et s&apos;activera au branchement.
+              Complète l&apos;effectif quand le registre officiel ne le publie pas — suivi dans son propre bloc sur la
+              page Enrichissement. Utilise la connexion LinkedIn de l&apos;organisation (Paramètres → Intégrations).
             </span>
           </span>
         </label>

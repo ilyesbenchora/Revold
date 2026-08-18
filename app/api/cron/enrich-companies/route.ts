@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { monitoredCron } from "@/lib/cron/monitor";
 import { createClient } from "@supabase/supabase-js";
 import { runEnrichmentBatch } from "@/lib/enrichment/backfill-engine";
+import { runLinkedInBatch } from "@/lib/enrichment/linkedin";
 import { createInAppNotification } from "@/lib/notifications/in-app";
 import { notifyEvent } from "@/lib/notifications/notify-event";
 
@@ -97,8 +98,37 @@ async function handler(request: Request) {
     }
   }
 
+  // ── Source LinkedIn (bêta) : pour les orgs qui l'ont activée, petit lot de
+  // scan des effectifs manquants (périmètre : sans effectif officiel). Cadence
+  // volontairement basse — l'API LinkedIn est bien plus stricte que Sirene.
+  let linkedinFilled = 0;
+  try {
+    const { data: liOrgs } = await sb
+      .from("enrichment_settings")
+      .select("organization_id")
+      .eq("linkedin_enabled", true)
+      .limit(50);
+    for (const row of liOrgs ?? []) {
+      const li = await runLinkedInBatch(sb, { orgId: row.organization_id as string, budget: 15 });
+      linkedinFilled += li.filled;
+      if (li.filled > 0) {
+        await createInAppNotification({
+          orgId: row.organization_id as string,
+          type: "enrichment_auto",
+          title: "Effectifs complétés via LinkedIn",
+          body: `${li.filled} effectif${li.filled > 1 ? "s" : ""} complété${li.filled > 1 ? "s" : ""} grâce à la source LinkedIn (bêta) — entreprises sans effectif officiel.`,
+          link: "/dashboard/enrichissement",
+        });
+      }
+      if (li.interrupted || li.forbidden || li.noToken) continue;
+    }
+  } catch {
+    // Migration linkedin_* pas encore appliquée → simplement rien à faire.
+  }
+
   return NextResponse.json({
     ok: true,
+    linkedinFilled,
     lookupsUsed: result.lookupsUsed,
     identities: result.identities,
     candidates: result.candidates,
