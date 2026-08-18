@@ -108,6 +108,11 @@ export function IdentifierMappingForm({
       const target = m.canonical_field.replace("deal_", "");
       if (!map[`hubspot__${target}`]?.trim()) map[`hubspot__${target}`] = m.provider_field;
     }
+    // Propriété introuvable à la vérification serveur : les deux champs restent
+    // vides — le signalement n'arrive qu'à l'enregistrement (qui revérifie).
+    for (const [field, st] of Object.entries(hubspotPropertyStatus)) {
+      if (st?.exists === false) map[`hubspot__${field}`] = "";
+    }
     return map;
   });
   // Objet CRM porteur de chaque champ (sélecteur) — clé = canonicalField.
@@ -158,7 +163,15 @@ export function IdentifierMappingForm({
     return map;
   });
   const [disabled, setDisabled] = useState<Set<string>>(() => new Set(disabledProviders));
-  const [hsStatus, setHsStatus] = useState<HubSpotPropertyStatus>(hubspotPropertyStatus);
+  // Une propriété absente au chargement repart en « non vérifié » (champs vides,
+  // pas de badge ni de message) : l'alerte n'apparaît qu'à l'enregistrement.
+  const [hsStatus, setHsStatus] = useState<HubSpotPropertyStatus>(() => {
+    const map: HubSpotPropertyStatus = {};
+    for (const [field, st] of Object.entries(hubspotPropertyStatus)) {
+      map[field] = st?.exists === false ? UNVERIFIED : st;
+    }
+    return map;
+  });
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -487,14 +500,6 @@ export function IdentifierMappingForm({
                   <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
                 </>
               )}
-              {status?.exists === false && (
-                <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
-                  Aucune propriété HubSpot ne correspond à ce nom interne ni à ce libellé sur l&apos;objet{" "}
-                  {OBJECT_LABELS[selectedObject] ?? selectedObject}. Vérifiez l&apos;objet sélectionné, ou créez la propriété
-                  (HubSpot → Paramètres → Propriétés), puis saisissez son libellé ou son
-                  nom interne ici et enregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
-                </p>
-              )}
             </div>
           );
         };
@@ -545,27 +550,18 @@ export function IdentifierMappingForm({
                     <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">{customIds.map(renderIdentifier)}</div>
                   )}
                 </div>
-                {isHubSpot && (
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    {allowExtraCustomIds ? (
-                      <button
-                        type="button"
-                        onClick={addCustomIdKey}
-                        className="text-xs font-medium text-accent hover:underline"
-                        title="Le CRM peut partager un code différent avec chaque outil relié"
-                      >
-                        + Ajouter un ID de rapprochement (autre outil)
-                      </button>
-                    ) : (
-                      <span />
-                    )}
+                {/* Un seul CTA : « Enregistrer le mapping » vérifie les propriétés
+                       dans HubSpot puis enregistre — pas de bouton de vérification
+                       séparé. */}
+                {isHubSpot && allowExtraCustomIds && (
+                  <div className="mt-3">
                     <button
                       type="button"
-                      onClick={() => verifyHubSpotProperties()}
-                      disabled={checking}
-                      className="text-xs font-medium text-accent hover:underline disabled:opacity-50"
+                      onClick={addCustomIdKey}
+                      className="text-xs font-medium text-accent hover:underline"
+                      title="Le CRM peut partager un code différent avec chaque outil relié"
                     >
-                      {checking ? "Vérification…" : "Revérifier les propriétés dans HubSpot"}
+                      + Ajouter un ID de rapprochement (autre outil)
                     </button>
                   </div>
                 )}
