@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { checkHubSpotPropertyAcrossObjects } from "@/lib/integrations/hubspot-properties";
+import { checkHubSpotProperty, checkHubSpotPropertyAcrossObjects } from "@/lib/integrations/hubspot-properties";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { CohortMappingsForm, type CohortMapping, type CohortPropertyStatus } from "@/components/cohort-mappings-form";
 
@@ -33,20 +33,25 @@ export default async function ParametresCohortesPage() {
 
   // Vérification live des propriétés CRM du mapping — même système que le bloc
   // d'identifiants (Modèle de données) : un mapping qui pointe vers une
-  // propriété absente du CRM ne vaut rien. CRM connecté = HubSpot aujourd'hui ;
-  // l'objet porteur n'étant pas connu, la recherche couvre Contact/Entreprise/Deal.
+  // propriété absente du CRM ne vaut rien. CRM connecté = HubSpot aujourd'hui.
+  // La recherche cible l'OBJET porté par le mapping (ex : Sources → Contact) ;
+  // sans objet enregistré, elle couvre Contact/Entreprise/Deal.
+  const VALID_OBJECTS = new Set(["contacts", "companies", "deals"]);
   const hsToken = await getHubSpotToken(supabase, orgId);
   const propertyStatus: CohortPropertyStatus = {};
   await Promise.all(
     mappings
       .filter((m) => m.api_name?.trim() || m.internal_name?.trim())
       .map(async (m) => {
-        const check = await checkHubSpotPropertyAcrossObjects(hsToken, m.api_name ?? "", m.internal_name);
+        const obj = m.object && VALID_OBJECTS.has(m.object) ? m.object : null;
+        const check = obj
+          ? { ...(await checkHubSpotProperty(hsToken, obj, m.api_name ?? "", m.internal_name)), foundObject: null as string | null }
+          : await checkHubSpotPropertyAcrossObjects(hsToken, m.api_name ?? "", m.internal_name);
         propertyStatus[m.key] = {
           exists: check.exists,
           label: check.label,
           suggestedName: check.suggestedName,
-          foundObject: check.foundObject,
+          foundObject: check.foundObject ?? (obj && check.exists === true ? obj : null),
         };
       }),
   );

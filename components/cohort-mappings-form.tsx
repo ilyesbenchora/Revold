@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 
-export type CohortMapping = { key: string; label: string; internal_name: string; api_name: string };
+export type CohortMapping = {
+  key: string;
+  label: string;
+  internal_name: string;
+  api_name: string;
+  /** Objet HubSpot porteur de la propriété (contacts/companies/deals) — "" = détection auto. */
+  object: string;
+};
 
 /** État de vérification d'une propriété CRM d'une cohorte. */
 export type CohortPropertyState = {
@@ -23,12 +30,20 @@ const UNVERIFIED: CohortPropertyState = { exists: null, label: null, suggestedNa
 
 const OBJECT_LABELS: Record<string, string> = { contacts: "Contact", companies: "Entreprise", deals: "Deal" };
 
-/** Sections STANDARD — toujours affichées, non supprimables. */
-export const STANDARD_COHORTS: { key: string; label: string; hint: string }[] = [
-  { key: "industry", label: "Secteur d'activité", hint: "La propriété CRM qui porte l'industrie / le secteur" },
-  { key: "segment", label: "Segment", hint: "PME / ETI / Enterprise, tiers, ICP…" },
-  { key: "source", label: "Sources (canal d'acquisition)", hint: "Origine du contact / deal : inbound, outbound, paid…" },
-  { key: "priority", label: "Priorité", hint: "Priorité / score du compte ou du deal" },
+/** Options du sélecteur « Objet HubSpot » ("" = on cherche sur les 3 objets). */
+const OBJECT_OPTIONS: { id: string; label: string }[] = [
+  { id: "contacts", label: "Contact" },
+  { id: "companies", label: "Entreprise" },
+  { id: "deals", label: "Deal" },
+  { id: "", label: "Détection auto (tous les objets)" },
+];
+
+/** Sections STANDARD — toujours affichées, non supprimables. `object` = objet HubSpot par défaut. */
+export const STANDARD_COHORTS: { key: string; label: string; hint: string; object: string }[] = [
+  { key: "industry", label: "Secteur d'activité", hint: "La propriété CRM qui porte l'industrie / le secteur", object: "companies" },
+  { key: "segment", label: "Segment", hint: "PME / ETI / Enterprise, tiers, ICP…", object: "companies" },
+  { key: "source", label: "Sources (canal d'acquisition)", hint: "Origine du contact / deal : inbound, outbound, paid…", object: "contacts" },
+  { key: "priority", label: "Priorité", hint: "Priorité / score du compte ou du deal", object: "deals" },
 ];
 
 /**
@@ -55,8 +70,17 @@ export function CohortMappingsForm({
   // État initial : sections standard (pré-remplies si déjà enregistrées) + customs.
   const [rows, setRows] = useState<CohortMapping[]>(() => {
     const byKey = new Map(initial.map((m) => [m.key, m]));
-    const std = STANDARD_COHORTS.map((s) => byKey.get(s.key) ?? { key: s.key, label: s.label, internal_name: "", api_name: "" });
-    const customs = initial.filter((m) => !STANDARD_COHORTS.some((s) => s.key === m.key));
+    // Mappings enregistrés avant l'ajout du champ objet : objet par défaut de
+    // la section standard (ex : Sources → Contact), sinon détection auto.
+    const std = STANDARD_COHORTS.map((s) => {
+      const saved = byKey.get(s.key);
+      return saved
+        ? { ...saved, object: saved.object || s.object }
+        : { key: s.key, label: s.label, internal_name: "", api_name: "", object: s.object };
+    });
+    const customs = initial
+      .filter((m) => !STANDARD_COHORTS.some((s) => s.key === m.key))
+      .map((m) => ({ ...m, object: m.object ?? "" }));
     return [...std, ...customs];
   });
   const [status, setStatus] = useState<CohortPropertyStatus>(initialStatus);
@@ -69,14 +93,14 @@ export function CohortMappingsForm({
   function patch(key: string, p: Partial<CohortMapping>) {
     setRows((r) => r.map((m) => (m.key === key ? { ...m, ...p } : m)));
     // La saisie a changé : le statut vérifié ne vaut plus pour cette cohorte.
-    if (p.internal_name !== undefined || p.api_name !== undefined) {
+    if (p.internal_name !== undefined || p.api_name !== undefined || p.object !== undefined) {
       setStatus((prev) => ({ ...prev, [key]: UNVERIFIED }));
     }
   }
 
   function addCustom() {
     const n = rows.filter((r) => !isStandard(r.key)).length + 1;
-    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte custom ${n}`, internal_name: "", api_name: "" }]);
+    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte custom ${n}`, internal_name: "", api_name: "", object: "contacts" }]);
   }
 
   function removeRow(key: string) {
@@ -85,24 +109,32 @@ export function CohortMappingsForm({
   }
 
   /**
-   * Vérifie dans le CRM connecté que les propriétés saisies existent (nom API,
-   * puis libellé — comme le mapping des identifiants). Quand le nom API est
-   * faux mais que le libellé correspond à une propriété existante, le nom API
-   * trouvé est appliqué automatiquement. Retourne le statut + les noms
-   * corrigés (clé = key), ou null si la vérification a échoué (réseau…).
+   * Vérifie dans le CRM connecté que les propriétés saisies existent SUR
+   * L'OBJET CHOISI (nom API, puis libellé — comme le mapping des identifiants).
+   * Quand le nom API est faux mais que le libellé correspond à une propriété
+   * existante, le nom API trouvé est appliqué automatiquement ; quand la
+   * propriété vit en réalité sur un AUTRE objet (fallback), l'objet est
+   * corrigé aussi. Retourne le statut + les corrections (clé = key), ou null
+   * si la vérification a échoué (réseau…).
    */
   async function verifyProperties(
     filled: CohortMapping[],
-  ): Promise<{ status: CohortPropertyStatus; corrected: Record<string, string> } | null> {
+  ): Promise<{ status: CohortPropertyStatus; corrected: Record<string, Partial<CohortMapping>> } | null> {
     if (!hasCrm || filled.length === 0) return { status: {}, corrected: {} };
     try {
       const res = await fetch("/api/settings/hubspot-properties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // objectType "any" : l'objet porteur d'un axe cohorte n'est pas connu
-          // → recherche sur Contact / Entreprise / Deal.
-          checks: filled.map((m) => ({ objectType: "any", name: m.api_name.trim(), label: m.internal_name.trim() })),
+          // Objet porteur choisi sur la ligne ("" = détection auto sur les 3
+          // objets). fallbackAny : introuvable sur l'objet choisi → on cherche
+          // ailleurs pour corriger l'objet plutôt que rejeter à tort.
+          checks: filled.map((m) => ({
+            objectType: m.object.trim() || "any",
+            name: m.api_name.trim(),
+            label: m.internal_name.trim(),
+            fallbackAny: true,
+          })),
         }),
       });
       if (!res.ok) return null;
@@ -111,7 +143,7 @@ export function CohortMappingsForm({
         exists: boolean | null; label: string | null; suggestedName: string | null; foundObject: string | null;
       }>;
       const nextStatus: CohortPropertyStatus = {};
-      const corrected: Record<string, string> = {};
+      const corrected: Record<string, Partial<CohortMapping>> = {};
       // Les résultats sont renvoyés dans le même ordre que les checks.
       filled.forEach((m, i) => {
         const r = results[i];
@@ -119,15 +151,19 @@ export function CohortMappingsForm({
           nextStatus[m.key] = UNVERIFIED;
           return;
         }
+        // Trouvée sur un autre objet que celui choisi → l'objet est corrigé.
+        const fix: Partial<CohortMapping> = {};
+        if (r.foundObject && m.object && r.foundObject !== m.object) fix.object = r.foundObject;
         if (r.exists === false && r.suggestedName) {
           // Propriété retrouvée via son libellé → on applique son nom API.
-          corrected[m.key] = r.suggestedName;
-          nextStatus[m.key] = { exists: true, label: r.label, suggestedName: r.suggestedName, foundObject: r.foundObject };
+          fix.api_name = r.suggestedName;
+          nextStatus[m.key] = { exists: true, label: r.label, suggestedName: r.suggestedName, foundObject: r.foundObject ?? (m.object || null) };
         } else {
-          nextStatus[m.key] = { exists: r.exists, label: r.label, suggestedName: null, foundObject: r.foundObject };
+          nextStatus[m.key] = { exists: r.exists, label: r.label, suggestedName: null, foundObject: r.foundObject ?? (r.exists === true ? m.object || null : null) };
         }
+        if (Object.keys(fix).length > 0) corrected[m.key] = fix;
       });
-      setRows((prev) => prev.map((m) => (corrected[m.key] ? { ...m, api_name: corrected[m.key] } : m)));
+      setRows((prev) => prev.map((m) => (corrected[m.key] ? { ...m, ...corrected[m.key] } : m)));
       setStatus((prev) => ({ ...prev, ...nextStatus }));
       return { status: nextStatus, corrected };
     } catch {
@@ -150,12 +186,12 @@ export function CohortMappingsForm({
     if (verified) {
       const missing = filled
         .filter((m) => verified.status[m.key]?.exists === false)
-        .map((m) => `« ${m.api_name.trim() || m.internal_name.trim()} » (${m.label})`);
+        .map((m) => `« ${m.api_name.trim() || m.internal_name.trim()} » (${m.label}${m.object ? ` · objet ${OBJECT_LABELS[m.object] ?? m.object}` : ""})`);
       if (missing.length > 0) {
         setError(
-          `Propriété${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} dans le CRM : ${missing.join(", ")}. ` +
-          "Vérifiez le nom API (ou saisissez le libellé affiché dans le CRM : Revold retrouvera le nom API), " +
-          "ou créez d'abord la propriété dans le CRM, puis réenregistrez.",
+          `Propriété${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} dans HubSpot : ${missing.join(", ")}. ` +
+          "Vérifiez l'objet et le nom API (ou saisissez le libellé affiché dans HubSpot : Revold retrouvera le nom API), " +
+          "ou créez d'abord la propriété dans HubSpot, puis réenregistrez.",
         );
         setState("error");
         return;
@@ -166,7 +202,7 @@ export function CohortMappingsForm({
     //    sur l'état local, qui peut ne pas avoir encore re-rendu.
     setState("saving");
     try {
-      const payload = mappings.map((m) => (verified?.corrected[m.key] ? { ...m, api_name: verified.corrected[m.key] } : m));
+      const payload = mappings.map((m) => (verified?.corrected[m.key] ? { ...m, ...verified.corrected[m.key] } : m));
       const res = await fetch("/api/cohort-mappings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,7 +282,19 @@ export function CohortMappingsForm({
                 </button>
               )}
             </div>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Objet HubSpot</label>
+                <select
+                  value={m.object}
+                  onChange={(e) => patch(m.key, { object: e.target.value })}
+                  className={field}
+                >
+                  {OBJECT_OPTIONS.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Nom de la propriété (interne)</label>
                 <input
@@ -268,9 +316,12 @@ export function CohortMappingsForm({
             </div>
             {st?.exists === false && (
               <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
-                Aucune propriété du CRM ne correspond à ce nom API ni à ce nom interne (recherche sur Contact,
-                Entreprise et Deal). Vérifiez l&apos;orthographe, ou créez la propriété dans le CRM puis
-                réenregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
+                Aucune propriété HubSpot ne correspond à ce nom API ni à ce nom interne
+                {m.object
+                  ? ` — ni sur l'objet ${OBJECT_LABELS[m.object] ?? m.object}, ni sur les autres objets (recherche de repli).`
+                  : " (recherche sur Contact, Entreprise et Deal)."}{" "}
+                Vérifiez l&apos;orthographe, ou créez la propriété dans HubSpot puis réenregistrez : Revold
+                revérifiera avant d&apos;appliquer le mapping.
               </p>
             )}
           </div>

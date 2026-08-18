@@ -8,11 +8,14 @@ export const dynamic = "force-dynamic";
 
 /**
  * Vérifie que des propriétés existent dans HubSpot (mapping des identifiants).
- * Body : { checks: [{ objectType: "companies"|"contacts"|"deals"|"any", name: string, label?: string }] }
+ * Body : { checks: [{ objectType: "companies"|"contacts"|"deals"|"any", name: string, label?: string, fallbackAny?: boolean }] }
  * `name` = nom interne saisi · `label` = libellé HubSpot, utilisé pour retrouver
  * le nom interne quand `name` est introuvable (→ suggestedName dans la réponse).
- * `objectType: "any"` (cas des cohortes, objet porteur inconnu) : la propriété
- * est cherchée sur les 3 objets — `foundObject` indique où elle a été trouvée.
+ * `objectType: "any"` (objet porteur inconnu) : la propriété est cherchée sur
+ * les 3 objets — `foundObject` indique où elle a été trouvée.
+ * `fallbackAny` (cohortes) : introuvable sur l'objet DEMANDÉ → recherche de
+ * repli sur les autres objets, `foundObject` signale alors le bon objet (le
+ * client peut corriger l'objet du mapping au lieu de rejeter à tort).
  * Réponse : { results: [{ objectType, name, exists, label, suggestedName, foundObject }] },
  * dans le même ordre que les checks.
  */
@@ -23,7 +26,7 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { checks?: Array<{ objectType?: string; name?: string; label?: string }> };
+  let body: { checks?: Array<{ objectType?: string; name?: string; label?: string; fallbackAny?: boolean }> };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const checks = (body.checks ?? [])
     .filter((c) => c && typeof c.objectType === "string" && (typeof c.name === "string" || typeof c.label === "string"))
@@ -34,10 +37,16 @@ export async function POST(request: Request) {
   const results = await Promise.all(
     checks.map(async (c) => {
       const labelHint = typeof c.label === "string" ? c.label : undefined;
-      const check =
+      let check =
         c.objectType === "any"
           ? await checkHubSpotPropertyAcrossObjects(token, c.name ?? "", labelHint)
           : { ...(await checkHubSpotProperty(token, c.objectType as string, c.name ?? "", labelHint)), foundObject: null as string | null };
+      // Repli : rien sur l'objet demandé (ni nom, ni libellé) → les autres
+      // objets, pour signaler le bon objet plutôt qu'un faux « absente ».
+      if (c.fallbackAny && c.objectType !== "any" && check.exists === false && !check.suggestedName) {
+        const cross = await checkHubSpotPropertyAcrossObjects(token, c.name ?? "", labelHint);
+        if (cross.exists === true || cross.suggestedName) check = cross;
+      }
       return {
         objectType: c.objectType as string,
         name: c.name ?? "",
