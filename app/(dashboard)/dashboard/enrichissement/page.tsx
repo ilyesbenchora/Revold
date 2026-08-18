@@ -130,9 +130,10 @@ export default async function EnrichissementPage() {
              d'identité ambiguës, validées à la main. ── */}
       <CompanyEnrichmentBlock />
 
-      {/* ── 4. En bas de page : la seule suggestion non couverte par les blocs
-             ci-dessus (secteur d'activité). ── */}
-      <EnrichmentSuggestions supabase={supabase} orgId={orgId} />
+      {/* ── 4. En bas de page : les champs NON COCHÉS dans Paramètres →
+             Enrichissement (données que Revold sait remplir mais non activées)
+             + la donnée manquante malgré un champ actif (secteur NAF). ── */}
+      <EnrichmentSuggestions supabase={supabase} orgId={orgId} fields={settings.fields} />
 
       <p className="text-[11px] text-slate-400">
         Sources : base Sirene et comptes déposés à l&apos;INPI via l&apos;API Recherche d&apos;Entreprises de l&apos;État
