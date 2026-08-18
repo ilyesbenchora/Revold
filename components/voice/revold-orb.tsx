@@ -196,9 +196,38 @@ const HEALTH_HINT: Record<Health, string> = {
 };
 
 // L'orbe passe en vert émeraude quand le digest signale qu'un contenu du brief
-// est finalisé/exécuté/atteint (`achieved`). Le flag est calculé CÔTÉ SERVEUR
-// et gaté par les sections cochées dans Paramètres → Tour de contrôle (contenu
-// du brief) — un contenu décoché ne déclenche jamais le signal.
+// est finalisé/exécuté/atteint (`achievedKeys`, calculées CÔTÉ SERVEUR et
+// gatées par les sections cochées dans Paramètres → Tour de contrôle).
+// ÉCOUTER LE BRIEF ACQUITTE ces clés (l'orbe redevient fuchsia) ; elle ne
+// repasse au vert que pour une clé NOUVELLE — nouvel objectif atteint,
+// nouvelle fournée d'actions exécutées, enrichissement re-terminé.
+const BRIEF_ACK_KEY = "revold:tower-brief-ack";
+
+function readBriefAck(): Set<string> {
+  try {
+    const raw = localStorage.getItem(BRIEF_ACK_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((k): k is string => typeof k === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+function writeBriefAck(keys: string[]) {
+  try {
+    localStorage.setItem(BRIEF_ACK_KEY, JSON.stringify(keys.slice(0, 100)));
+  } catch {}
+}
+/** Clés d'accomplissement du digest, nettoyées. */
+function achievedKeysOf(d: unknown): string[] {
+  const raw = (d as { achievedKeys?: unknown } | null)?.achievedKeys;
+  return Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string") : [];
+}
+/** Vrai s'il reste au moins un accomplissement PAS ENCORE écouté dans un brief. */
+function hasUnackedAchievement(keys: string[]): boolean {
+  if (keys.length === 0) return false;
+  const ack = readBriefAck();
+  return keys.some((k) => !ack.has(k));
+}
 
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
@@ -241,7 +270,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       .then((d) => {
         if (!alive || !d) return;
         if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
-        setAchieved(d.achieved === true);
+        setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -370,7 +399,16 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
       if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
-      setAchieved(d.achieved === true);
+      // Brief ÉCOUTÉ (hors veille : les bonnes nouvelles y sont réellement
+      // lues) → les accomplissements annoncés sont acquittés, l'orbe redevient
+      // fuchsia. Elle ne reverdit que pour une clé nouvelle (nouvelle atteinte
+      // ou exécution sur les contenus cochés).
+      if (!veille) {
+        writeBriefAck(achievedKeysOf(d));
+        setAchieved(false);
+      } else {
+        setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
+      }
       setStatus("idle");
       setCaption(d.text ?? "");
       speak(d.text ?? "");

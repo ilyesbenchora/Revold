@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       .limit(200),
     supabase
       .from("objectives")
-      .select("title, target, current_value, direction, date_to, unit_mode")
+      .select("id, title, target, current_value, direction, date_to, unit_mode")
       .eq("organization_id", orgId)
       .eq("status", "active")
       .limit(100),
@@ -107,6 +107,7 @@ export async function GET(request: Request) {
 
   // ── Objectifs qui décrochent ──
   type ObjRow = {
+    id: string;
     title: string;
     target: number | null;
     current_value: number | null;
@@ -194,20 +195,23 @@ export async function GET(request: Request) {
   let actionsDone = 0;
   let actionsAuto = 0;
   let actionsSample: string[] = [];
+  let actionsLatestAt: string | null = null;
   if (sections.has("actions_done")) {
     try {
       const since = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
       const { data: doneRows } = await supabase
         .from("action_items")
-        .select("title, decided_by")
+        .select("title, decided_by, decided_at")
         .eq("organization_id", orgId)
         .eq("status", "executed")
         .gte("decided_at", since)
         .limit(500);
-      const rows = (doneRows ?? []) as Array<{ title: string | null; decided_by: string | null }>;
+      const rows = (doneRows ?? []) as Array<{ title: string | null; decided_by: string | null; decided_at: string | null }>;
       actionsDone = rows.length;
       actionsAuto = rows.filter((r) => !r.decided_by).length;
       actionsSample = rows.map((r) => r.title?.trim()).filter((t): t is string => !!t).slice(0, 2);
+      // Dernière exécution : identifie la « fournée » (clé d'acquittement de l'orbe).
+      actionsLatestAt = rows.map((r) => r.decided_at).filter((d): d is string => !!d).sort().pop() ?? null;
     } catch {}
   }
 
@@ -339,17 +343,23 @@ export async function GET(request: Request) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
   }
 
-  // ── Un contenu du brief COCHÉ est finalisé/exécuté/atteint ? (orbe verte)
-  // Chaque condition est gatée par SA section : un contenu décoché dans
-  // Paramètres → Tour de contrôle ne peut pas déclencher le signal.
-  const achieved =
-    (sections.has("objectives_reached") && reached.length > 0) ||
-    (sections.has("actions_done") && actionsDone > 0) ||
-    (sections.has("enrichment") && enrichmentRemaining === 0 && enrichmentDone > 0);
+  // ── Contenus du brief COCHÉS finalisés/exécutés/atteints (orbe verte) ──
+  // Chaque accomplissement porte une CLÉ stable : l'orbe acquitte ces clés à
+  // l'écoute du brief (elle redevient fuchsia) et ne repasse au vert que pour
+  // une clé NOUVELLE — nouvel objectif atteint, nouvelle fournée d'actions
+  // exécutées, enrichissement re-terminé. Sections décochées = jamais de clé.
+  const achievedKeys: string[] = [];
+  if (sections.has("objectives_reached")) for (const o of reached) achievedKeys.push(`obj:${o.id}`);
+  if (sections.has("actions_done") && actionsDone > 0 && actionsLatestAt) achievedKeys.push(`actions:${actionsLatestAt}`);
+  if (sections.has("enrichment") && enrichmentRemaining === 0 && enrichmentDone > 0) {
+    achievedKeys.push(`enrichment:${enrichmentDone}`);
+  }
+  const achieved = achievedKeys.length > 0;
 
   return NextResponse.json({
     status,
     achieved,
+    achievedKeys,
     text: parts.join(" "),
     counts: {
       tenseAlerts: tense.length,
