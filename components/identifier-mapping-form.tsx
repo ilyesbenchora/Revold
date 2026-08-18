@@ -69,6 +69,7 @@ export function IdentifierMappingForm({
   savedMappings,
   disabledProviders,
   hubspotPropertyStatus,
+  allowExtraCustomIds = true,
 }: {
   rows: ProviderRow[];
   savedMappings: SavedMapping[];
@@ -76,6 +77,8 @@ export function IdentifierMappingForm({
   disabledProviders: string[];
   /** Statut initial (serveur) des propriétés custom HubSpot, clé = canonicalField. */
   hubspotPropertyStatus: HubSpotPropertyStatus;
+  /** false = pas de bouton « + Ajouter un ID de rapprochement » (mapping restreint, ex : enrichissement). */
+  allowExtraCustomIds?: boolean;
 }) {
   const router = useRouter();
   // Mappings legacy « dates de contrat par objet » (deal_contract_*) : repris
@@ -544,14 +547,18 @@ export function IdentifierMappingForm({
                 </div>
                 {isHubSpot && (
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={addCustomIdKey}
-                      className="text-xs font-medium text-accent hover:underline"
-                      title="Le CRM peut partager un code différent avec chaque outil relié"
-                    >
-                      + Ajouter un ID de rapprochement (autre outil)
-                    </button>
+                    {allowExtraCustomIds ? (
+                      <button
+                        type="button"
+                        onClick={addCustomIdKey}
+                        className="text-xs font-medium text-accent hover:underline"
+                        title="Le CRM peut partager un code différent avec chaque outil relié"
+                      >
+                        + Ajouter un ID de rapprochement (autre outil)
+                      </button>
+                    ) : (
+                      <span />
+                    )}
                     <button
                       type="button"
                       onClick={() => verifyHubSpotProperties()}

@@ -87,15 +87,18 @@ export async function GET() {
   const [lastChecked, lastEnriched] = await Promise.all([lastOf("sirene_checked_at"), lastOf("enriched_at")]);
   const lastActivityAt = [lastChecked, lastEnriched].filter(Boolean).sort().pop() ?? null;
 
-  // ── Champs actifs jamais couverts par une passe : leurs fiches manquantes
-  // comptent dans le RESTANT même si la remise en file (enriched_at → null)
-  // n'a pas eu lieu — champ coché AVANT le correctif de remise en file, ou
-  // colonne posée par une migration ultérieure. Sans cela la jauge reste à
-  // 100 % alors qu'une nouvelle donnée vient d'être demandée.
-  // (Une fois le champ couvert par une passe, seul le marqueur enriched_at
-  // fait foi : une donnée légitimement absente — CA confidentiel, effectif non
-  // publié — ne bloque pas la jauge à jamais.)
-  let newFieldsRemaining = 0;
+  // ── Nouveaux champs cochés (jamais couverts par une passe) : la jauge
+  // change de CHANTIER — elle mesure la couverture de la NOUVELLE donnée
+  // uniquement, et repart donc de ZÉRO (et non d'un % de la base entière :
+  // c'est ce qui affichait « 53 % » à l'activation du statut juridique).
+  // Une fois le champ couvert par une passe, la jauge redevient globale et
+  // seul le marqueur enriched_at fait foi : une donnée légitimement absente
+  // (CA confidentiel, effectif non publié) ne la bloque pas à jamais.
+  const engineRemaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0);
+  let remaining = engineRemaining;
+  let processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
+  let pct: number;
+  let newFieldScope = 0;
   try {
     const settings = await getEnrichmentSettings(supabase, orgId);
     const fieldIdsAll = Object.keys(ENRICHMENT_FIELD_COLUMNS) as (keyof EnrichmentFields)[];
@@ -120,23 +123,27 @@ export async function GET() {
       if ((anyEnriched ?? 0) > 0) coveredFields = fieldIdsAll.filter((f) => DEFAULT_ENRICHMENT_SETTINGS.fields[f]);
     }
     const newFields = active.filter((f) => f !== "siren" && !coveredFields.includes(f));
-    if (newFields.length > 0) {
+    if (newFields.length > 0 && (withSiren ?? 0) > 0) {
       const missing = newFields.map((f) => `${ENRICHMENT_FIELD_COLUMNS[f]}.is.null`).join(",");
-      // Fiches considérées « à jour » par le moteur (enriched_at frais) mais où
-      // la nouvelle donnée manque — les autres sont déjà dans factsRemaining.
-      newFieldsRemaining =
-        (await count((q) => q.not("siren", "is", null).gte("enriched_at", refreshBefore).or(missing))) ?? 0;
+      // Périmètre du chantier = fiches identifiées (le registre se lit par
+      // SIREN) ; manquantes = au moins une nouvelle donnée absente.
+      newFieldScope = withSiren ?? 0;
+      const missingNew = (await count((q) => q.not("siren", "is", null).or(missing))) ?? 0;
+      processed = Math.max(0, newFieldScope - missingNew);
+      remaining = missingNew + engineRemaining;
     }
   } catch {
-    newFieldsRemaining = 0;
+    newFieldScope = 0;
   }
 
-  const remaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0) + newFieldsRemaining;
-  const processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
-  // Jauge = fiches À JOUR / base totale : elle REPART dès qu'une nouvelle
-  // donnée est cochée (remise en file OU champ jamais couvert ci-dessus).
-  const base = total ?? processed + remaining;
-  const pct = base > 0 ? Math.max(0, Math.min(100, Math.round(((base - remaining) / base) * 100))) : 100;
+  if (newFieldScope > 0) {
+    // Jauge du chantier « nouvelle donnée » : 0 % au départ, 100 % couvert.
+    pct = Math.max(0, Math.min(100, Math.round((processed / newFieldScope) * 100)));
+  } else {
+    // Jauge globale = fiches à jour / base totale.
+    const base = total ?? processed + remaining;
+    pct = base > 0 ? Math.max(0, Math.min(100, Math.round(((base - remaining) / base) * 100))) : 100;
+  }
 
   return NextResponse.json({
     total,

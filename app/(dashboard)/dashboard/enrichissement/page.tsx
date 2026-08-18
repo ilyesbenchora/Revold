@@ -6,7 +6,6 @@ import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
-import { HubspotPropertiesBlock } from "@/components/hubspot-properties-block";
 import {
   ENRICHMENT_FIELD_COLUMNS,
   ENRICHMENT_FIELD_LABELS,
@@ -103,10 +102,6 @@ export default async function EnrichissementPage() {
           </article>
         ))}
       </div>
-
-      {/* ── 0. Propriétés HubSpot cibles de l'enrichissement (miroir du bloc
-             des Paramètres, limité aux propriétés propres à l'enrichissement). ── */}
-      <HubspotPropertiesBlock />
 
       {/* ── 1. ÉTAT du moteur — CTA « Enrichir mon CRM » (fenêtre de
              complétion) puis historique des passes juste en dessous. ── */}
