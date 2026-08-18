@@ -6,10 +6,18 @@
 
 export async function pushHubspot(token: string, hsId: string, properties: Record<string, string>): Promise<boolean> {
   try {
+    // Propriétés de type LISTE DÉROULANTE (enumeration) : HubSpot rejette tout
+    // le PATCH si une valeur n'est pas une option existante. On aligne chaque
+    // valeur sur les options de la propriété (par valeur interne, libellé ou
+    // acronyme — « SAS (société par actions simplifiée) » matche l'option
+    // « SAS ») ; sans équivalent, la propriété n'est PAS écrite : on n'invente
+    // jamais d'option dans la liste du client, et les autres données passent.
+    const resolved = await alignEnumProperties(token, properties);
+    if (Object.keys(resolved).length === 0) return true;
     const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ properties }),
+      body: JSON.stringify({ properties: resolved }),
     });
     if (res.ok) return true;
     // 400 = souvent UNE propriété inconnue du portail qui fait rejeter TOUT le
@@ -21,9 +29,9 @@ export async function pushHubspot(token: string, hsId: string, properties: Recor
       const existing = await existingCompanyProperties(token);
       if (existing) {
         const kept: Record<string, string> = {};
-        for (const [k, v] of Object.entries(properties)) if (existing.has(k)) kept[k] = v;
+        for (const [k, v] of Object.entries(resolved)) if (existing.has(k)) kept[k] = v;
         const n = Object.keys(kept).length;
-        if (n > 0 && n < Object.keys(properties).length) {
+        if (n > 0 && n < Object.keys(resolved).length) {
           const retry = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -39,26 +47,100 @@ export async function pushHubspot(token: string, hsId: string, properties: Recor
   }
 }
 
-// Noms des propriétés Company du portail — mis en cache le temps du process
-// (le repli sur PATCH filtré ne coûte qu'UN appel par portail, pas par fiche).
-const propertyNamesCache = new Map<string, { names: Set<string>; at: number }>();
+// Métadonnées des propriétés Company du portail (type + options des listes
+// déroulantes) — mises en cache le temps du process : l'alignement des valeurs
+// et le repli sur PATCH filtré ne coûtent qu'UN appel par portail, pas par fiche.
+type PropertyMeta = { type: string; options: Array<{ label: string; value: string }> };
+const propertyMetaCache = new Map<string, { meta: Map<string, PropertyMeta>; at: number }>();
 const PROPERTY_CACHE_MS = 10 * 60_000;
 
-async function existingCompanyProperties(token: string): Promise<Set<string> | null> {
-  const cached = propertyNamesCache.get(token);
-  if (cached && Date.now() - cached.at < PROPERTY_CACHE_MS) return cached.names;
+async function companyPropertyMeta(token: string): Promise<Map<string, PropertyMeta> | null> {
+  const cached = propertyMetaCache.get(token);
+  if (cached && Date.now() - cached.at < PROPERTY_CACHE_MS) return cached.meta;
   try {
     const res = await fetch("https://api.hubapi.com/crm/v3/properties/companies", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
-    const d = (await res.json()) as { results?: Array<{ name?: string }> };
-    const names = new Set((d.results ?? []).map((p) => p.name).filter((n): n is string => typeof n === "string"));
-    propertyNamesCache.set(token, { names, at: Date.now() });
-    return names;
+    const d = (await res.json()) as {
+      results?: Array<{ name?: string; type?: string; options?: Array<{ label?: string; value?: string }> }>;
+    };
+    const meta = new Map<string, PropertyMeta>();
+    for (const p of d.results ?? []) {
+      if (typeof p.name !== "string") continue;
+      meta.set(p.name, {
+        type: p.type ?? "string",
+        options: (p.options ?? [])
+          .filter((o): o is { label: string; value: string } => typeof o?.value === "string")
+          .map((o) => ({ label: o.label ?? o.value, value: o.value })),
+      });
+    }
+    propertyMetaCache.set(token, { meta, at: Date.now() });
+    return meta;
   } catch {
     return null;
   }
+}
+
+async function existingCompanyProperties(token: string): Promise<Set<string> | null> {
+  const meta = await companyPropertyMeta(token);
+  return meta ? new Set(meta.keys()) : null;
+}
+
+/** Normalisation pour comparer valeurs et options (casse, accents, espaces). */
+const normalizeOption = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Trouve l'option d'une liste déroulante correspondant à une valeur Revold.
+ *  1. égalité stricte (valeur interne ou libellé de l'option) ;
+ *  2. tête du libellé Revold avant la parenthèse — « SAS (société par actions
+ *     simplifiée) » matche l'option « SAS » ;
+ *  3. option égale à un MOT ENTIER de la valeur (jamais de sous-chaîne : « SA »
+ *     ne matche pas « SAS ») — retenue seulement si UNE SEULE option candidate.
+ * Retourne la valeur INTERNE de l'option (c'est elle que l'API attend), ou null.
+ */
+export function matchEnumOption(options: Array<{ label: string; value: string }>, raw: string): string | null {
+  const v = normalizeOption(raw);
+  if (!v) return null;
+  for (const o of options) if (normalizeOption(o.value) === v || normalizeOption(o.label) === v) return o.value;
+  const lead = normalizeOption(raw.split("(")[0]);
+  if (lead && lead !== v) {
+    for (const o of options) if (normalizeOption(o.value) === lead || normalizeOption(o.label) === lead) return o.value;
+  }
+  const tokens = new Set(v.split(/[^a-z0-9]+/).filter((t) => t.length >= 2));
+  const candidates = options.filter(
+    (o) => tokens.has(normalizeOption(o.label)) || tokens.has(normalizeOption(o.value)),
+  );
+  return candidates.length === 1 ? candidates[0].value : null;
+}
+
+/**
+ * Aligne les valeurs sortantes sur les options des propriétés de type liste
+ * déroulante (enumeration). Valeur sans option équivalente → propriété retirée
+ * du PATCH (on n'écrit jamais une valeur qu'une liste ne connaît pas — sinon
+ * HubSpot rejette TOUTES les propriétés de la fiche d'un coup).
+ * Métadonnées indisponibles → valeurs inchangées (comportement historique).
+ */
+async function alignEnumProperties(token: string, properties: Record<string, string>): Promise<Record<string, string>> {
+  const meta = await companyPropertyMeta(token);
+  if (!meta) return properties;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(properties)) {
+    const m = meta.get(k);
+    // Propriété inconnue du cache : laissée telle quelle (le repli 400 gère).
+    if (!m) {
+      out[k] = v;
+      continue;
+    }
+    if (m.type === "enumeration" && m.options.length > 0) {
+      const matched = matchEnumOption(m.options, v);
+      if (matched != null) out[k] = matched;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 /**

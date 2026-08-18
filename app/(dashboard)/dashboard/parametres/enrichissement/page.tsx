@@ -70,9 +70,11 @@ export default async function ParametresEnrichissementPage() {
             exists: check.exists,
             label: check.label,
             suggestedName: check.suggestedName,
+            // Liste déroulante → badge + note « valeurs alignées sur les options ».
+            fieldType: check.fieldType,
           };
         } catch {
-          hubspotPropertyStatus[p.canonical] = { exists: null, label: null, suggestedName: null };
+          hubspotPropertyStatus[p.canonical] = { exists: null, label: null, suggestedName: null, fieldType: null };
         }
       }),
     );

@@ -36,12 +36,18 @@ export type HubSpotPropertyState = {
   label: string | null;
   /** Nom interne retrouvé via le libellé quand le nom saisi n'existait pas. */
   suggestedName: string | null;
+  /** fieldType HubSpot (select/radio/checkbox = liste déroulante à options). */
+  fieldType?: string | null;
 };
+
+/** Propriété à OPTIONS (liste déroulante, cases à cocher…) ? */
+const isDropdownFieldType = (ft: string | null | undefined) =>
+  ft === "select" || ft === "radio" || ft === "checkbox";
 
 /** Statut par identifiant canonique (clé = canonicalField). */
 export type HubSpotPropertyStatus = Record<string, HubSpotPropertyState | undefined>;
 
-const UNVERIFIED: HubSpotPropertyState = { exists: null, label: null, suggestedName: null };
+const UNVERIFIED: HubSpotPropertyState = { exists: null, label: null, suggestedName: null, fieldType: null };
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
@@ -258,7 +264,12 @@ export function IdentifierMappingForm({
       });
       if (!res.ok) return null;
       const d = await res.json();
-      const results = (d.results ?? []) as Array<{ exists: boolean | null; label: string | null; suggestedName: string | null }>;
+      const results = (d.results ?? []) as Array<{
+        exists: boolean | null;
+        label: string | null;
+        suggestedName: string | null;
+        fieldType?: string | null;
+      }>;
       const status: HubSpotPropertyStatus = {};
       const corrected: Record<string, string> = {};
       const nextLabels: Record<string, string> = {};
@@ -272,9 +283,9 @@ export function IdentifierMappingForm({
         if (r.exists === false && r.suggestedName) {
           // Propriété retrouvée via son libellé → on applique son nom interne.
           corrected[c.canonicalField] = r.suggestedName;
-          status[c.canonicalField] = { exists: true, label: r.label, suggestedName: r.suggestedName };
+          status[c.canonicalField] = { exists: true, label: r.label, suggestedName: r.suggestedName, fieldType: r.fieldType ?? null };
         } else {
-          status[c.canonicalField] = { exists: r.exists, label: r.label, suggestedName: null };
+          status[c.canonicalField] = { exists: r.exists, label: r.label, suggestedName: null, fieldType: r.fieldType ?? null };
         }
         if (r.label) nextLabels[c.canonicalField] = r.label;
       });
@@ -427,6 +438,14 @@ export function IdentifierMappingForm({
                 {status?.exists === true && (
                   <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM</span>
                 )}
+                {status?.exists === true && isDropdownFieldType(status.fieldType) && (
+                  <span
+                    className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold text-sky-700"
+                    title="Propriété à options : les valeurs écrites par Revold sont alignées sur les options existantes de la liste"
+                  >
+                    ▾ LISTE DÉROULANTE
+                  </span>
+                )}
                 {status?.exists === false && (
                   <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
                 )}
@@ -487,6 +506,15 @@ export function IdentifierMappingForm({
                     {id.hint} — le nom interne est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
                     la propriété. En cas de doute, saisissez le libellé : Revold retrouvera le nom interne à la vérification.
                   </p>
+                  {status?.exists === true && isDropdownFieldType(status.fieldType) && (
+                    <p className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[10px] text-sky-800">
+                      Cette propriété est une <span className="font-semibold">liste déroulante</span> : Revold aligne
+                      automatiquement chaque valeur sur ses options existantes (par libellé ou acronyme — « SAS
+                      (société par actions simplifiée) » remplit l&apos;option « SAS »). Une valeur sans option
+                      équivalente n&apos;est <span className="font-semibold">pas écrite</span> — Revold n&apos;ajoute
+                      jamais d&apos;option à ta liste — et la donnée complète reste disponible dans Revold.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <>

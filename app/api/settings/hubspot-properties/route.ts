@@ -53,6 +53,9 @@ export async function POST(request: Request) {
         exists: check.exists,
         label: check.label,
         suggestedName: check.suggestedName,
+        // select/radio/checkbox = liste déroulante : les valeurs écrites sont
+        // alignées sur ses options (voir alignEnumProperties côté push).
+        fieldType: check.fieldType,
         foundObject: check.foundObject ?? (check.exists === true ? (c.objectType as string) : null),
       };
     }),

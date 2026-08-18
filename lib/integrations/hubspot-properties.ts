@@ -16,10 +16,15 @@ export type HubSpotPropertyCheckResult = {
   label: string | null;
   /** Nom interne retrouvé via le libellé quand le nom saisi n'existe pas. */
   suggestedName: string | null;
+  /**
+   * fieldType HubSpot de la propriété trouvée (select/radio/checkbox = liste
+   * déroulante : les valeurs écrites doivent correspondre à ses options).
+   */
+  fieldType: string | null;
 };
 
-const UNVERIFIABLE: HubSpotPropertyCheckResult = { exists: null, label: null, suggestedName: null };
-const NOT_FOUND: HubSpotPropertyCheckResult = { exists: false, label: null, suggestedName: null };
+const UNVERIFIABLE: HubSpotPropertyCheckResult = { exists: null, label: null, suggestedName: null, fieldType: null };
+const NOT_FOUND: HubSpotPropertyCheckResult = { exists: false, label: null, suggestedName: null, fieldType: null };
 
 /** Comparaison de libellés : minuscules, sans accents, espaces normalisés. */
 function normalizeLabel(s: string): string {
@@ -49,7 +54,12 @@ export async function checkHubSpotProperty(
       );
       if (res.ok) {
         const d = await res.json().catch(() => null);
-        return { exists: true, label: typeof d?.label === "string" ? d.label : null, suggestedName: null };
+        return {
+          exists: true,
+          label: typeof d?.label === "string" ? d.label : null,
+          suggestedName: null,
+          fieldType: typeof d?.fieldType === "string" ? d.fieldType : null,
+        };
       }
       if (res.status !== 404) return UNVERIFIABLE;
     } catch {
@@ -66,9 +76,11 @@ export async function checkHubSpotProperty(
     });
     if (!res.ok) return NOT_FOUND;
     const d = await res.json().catch(() => null);
-    const all = (d?.results ?? []) as Array<{ name?: string; label?: string }>;
+    const all = (d?.results ?? []) as Array<{ name?: string; label?: string; fieldType?: string }>;
     const found = all.find((p) => p.label && wanted.includes(normalizeLabel(p.label)));
-    if (found?.name) return { exists: false, label: found.label ?? null, suggestedName: found.name };
+    if (found?.name) {
+      return { exists: false, label: found.label ?? null, suggestedName: found.name, fieldType: found.fieldType ?? null };
+    }
   } catch {}
   return NOT_FOUND;
 }
