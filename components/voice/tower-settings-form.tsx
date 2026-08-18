@@ -327,7 +327,7 @@ export function TowerSettingsForm() {
         on={settings.brief}
         onToggle={() => flip("brief")}
         description="Un point de situation lu à voix haute, calculé en direct sur tes vraies données — sans IA générative, donc fiable et instantané."
-        how="Le brief compile 5 choses : les alertes actives dont le seuil est réellement atteint, le radar de facturation (factures attendues non émises), les objectifs en retard (moins de 60 % de progression à moins de 30 jours de l'échéance), les synchronisations d'outils en échec, et tes rendez-vous de coaching dans les 48 h. Il se lance avec le bouton « ☀️ Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
+        how="Le brief annonce chaque famille de données puis donne les chiffres : alertes en tension (valeur actuelle face au seuil, alertes techniques comprises), radar de facturation (nombre de factures attendues et montant, clients concernés), objectifs en retard ou atteints (progression chiffrée et échéance), synchronisations en échec, enrichissement et actions exécutées. Il se lance avec le bouton « ☀️ Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
         examples={[settings.briefPhrase || "quoi de neuf", "fais-moi le point", "mon brief du matin"]}
       >
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
@@ -356,12 +356,11 @@ export function TowerSettingsForm() {
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {([
-                ["briefAlerts", "Alertes en tension", "Alertes actives dont le seuil est atteint"],
-                ["briefRadar", "Radar de facturation", "Factures attendues non émises (rythme réel + fins de contrat)"],
-                ["briefObjectives", "Objectifs en retard", "< 60 % de progression à ≤ 30 j de l'échéance"],
-                ["briefObjectivesReached", "Objectifs atteints", "Objectifs actifs dont la cible est franchie (≥ 100 %)"],
-                ["briefSyncs", "Syncs en échec", "Dernier run de chaque outil connecté"],
-                ["briefMeetings", "RDV de coaching", "Séances prévues dans les 48 h"],
+                ["briefAlerts", "Alertes en tension", "Valeur actuelle face au seuil, alertes techniques comprises"],
+                ["briefRadar", "Radar de facturation", "Nombre, montant estimé et clients concernés"],
+                ["briefObjectives", "Objectifs en retard", "Progression chiffrée et échéance (< 60 % à ≤ 30 j)"],
+                ["briefObjectivesReached", "Objectifs atteints", "Valeur atteinte face à la cible (≥ 100 %)"],
+                ["briefSyncs", "Syncs en échec", "Outil et date du dernier run en échec"],
                 ["briefEnrichment", "Enrichissement terminé", "Le robot a fini d'enrichir la base (SIREN, effectifs, CA)"],
                 ["briefActionsDone", "Actions faites", "Actions exécutées dans tes outils sur les dernières 24 h"],
               ] as const).map(([key, label, hint]) => (
@@ -458,7 +457,7 @@ export function TowerSettingsForm() {
         on={settings.navigation}
         onToggle={() => flip("navigation")}
         description="Déplace-toi dans toute la plateforme à la voix — pages et rapports sauvegardés."
-        how="Toutes les pages principales sont accessibles (Ventes, Marketing, Trésorerie, Service client, Équipes, Rapprochement données, alertes, objectifs, rapports, prévisions, coaching, paramètres…). Pour un rapport sauvegardé, cite son titre même approximativement : l'orbe le retrouve et fait défiler la page jusqu'à sa carte."
+        how="Toutes les pages principales sont accessibles (Ventes, Marketing, Trésorerie, Service client, Équipes, Rapprochement données, alertes, objectifs, rapports, prévisions, paramètres…). Pour un rapport sauvegardé, cite son titre même approximativement : l'orbe le retrouve et fait défiler la page jusqu'à sa carte."
         examples={["ouvre la trésorerie", "montre mes objectifs", "ouvre le rapport pipeline par étape"]}
       />
 

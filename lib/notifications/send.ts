@@ -41,19 +41,14 @@ export type SendNotificationParams = {
     | "alert_resolved"
     | "daily_digest"
     | "weekly_digest"
-    | "coaching_critical"
     | "manual"
     | "billing_radar"
     | "objective_late"
     | "objective_reached"
     | "sync_failed"
     | "enrichment_done"
-    | "action_executed"
-    // Programme de coaching : séance à venir, engagement dépassé, étape qui stagne.
-    | "coaching_meeting_due"
-    | "coaching_commitment_overdue"
-    | "development_step_stalled";
-  /** ID de l'alerte ou coaching à l'origine */
+    | "action_executed";
+  /** ID de l'alerte ou de l'objet à l'origine */
   sourceId?: string;
   /** Canaux à utiliser pour cette notif */
   channels: NotificationChannelType[];

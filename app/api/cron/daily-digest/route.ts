@@ -4,7 +4,6 @@
  * Cron quotidien (configuré dans vercel.json à 8h UTC).
  * Pour chaque org ayant un canal email actif :
  *   - Récupère les alertes RÉSOLVED dans les dernières 24h
- *   - Récupère les top 3 coachings critiques générés
  *   - Compose un digest et envoie via les canaux email/slack/teams configurés
  *
  * Auth : CRON_SECRET en Authorization Bearer.
@@ -38,7 +37,6 @@ async function handler(request: Request) {
 
   let digestsSent = 0;
   let totalAlerts = 0;
-  let totalCoachings = 0;
 
   for (const orgId of uniqueOrgIds) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -51,22 +49,12 @@ async function handler(request: Request) {
       .eq("status", "resolved")
       .gte("resolved_at", since);
 
-    // Coachings critiques actifs
-    const { data: coachings } = await supabase
-      .from("report_coachings")
-      .select("title, severity, recommendation")
-      .eq("organization_id", orgId)
-      .eq("status", "active")
-      .eq("severity", "critical")
-      .order("created_at", { ascending: false })
-      .limit(3);
-
-    // Si rien à reporter, on skip
-    const hasContent = (alerts && alerts.length > 0) || (coachings && coachings.length > 0);
+    // Si rien à reporter, on skip. (Coaching retiré : la section « coachings
+    // critiques » n'existe plus — les tables ont été supprimées de la base.)
+    const hasContent = alerts && alerts.length > 0;
     if (!hasContent) continue;
 
     totalAlerts += alerts?.length ?? 0;
-    totalCoachings += coachings?.length ?? 0;
 
     // Quels canaux d'envoi ?
     const { data: channels } = await supabase
@@ -105,15 +93,6 @@ async function handler(request: Request) {
       lines.push(``);
     }
 
-    if (coachings && coachings.length > 0) {
-      lines.push(`━━━ COACHINGS CRITIQUES (${coachings.length}) ━━━`);
-      for (const c of coachings) {
-        lines.push(`• ${c.title}`);
-        if (c.recommendation) lines.push(`  → ${c.recommendation.slice(0, 200)}${c.recommendation.length > 200 ? "..." : ""}`);
-      }
-      lines.push(``);
-    }
-
     lines.push(`Ouvrez Revold pour explorer le détail et activer les actions recommandées.`);
     const bodyText = lines.join("\n");
 
@@ -133,7 +112,6 @@ async function handler(request: Request) {
     orgs_processed: uniqueOrgIds.length,
     digests_sent: digestsSent,
     total_alerts: totalAlerts,
-    total_coachings: totalCoachings,
   });
 }
 

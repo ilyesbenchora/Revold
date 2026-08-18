@@ -134,7 +134,7 @@ export default async function ParametresNotificationsPage() {
         <div className="card p-5">
           <p className="text-sm text-slate-700">
             Envoyé chaque matin à 7h via le canal email configuré : alertes atteintes dans les
-            dernières 24h, coachings critiques, et KPIs principaux avec leur variation.
+            dernières 24h et KPIs principaux avec leur variation.
           </p>
           <p className="mt-3 text-xs text-slate-500">
             Activez l&apos;email ci-dessus pour le recevoir. Pour le point de situation à la demande
