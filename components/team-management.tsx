@@ -226,7 +226,9 @@ export function TeamManagement({ myUserId, myRole, members, pending }: Props) {
                     {isMe && <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">Vous</span>}
                   </td>
                   <td className="px-3 py-3">
-                    {isAdmin && !isMe ? (
+                    {/* L'admin peut aussi changer SON rôle (ex : se tester en
+                        membre) — le serveur refuse de dégrader le dernier admin. */}
+                    {isAdmin ? (
                       <span className="inline-flex items-center gap-1.5">
                         <select
                           defaultValue={m.role}

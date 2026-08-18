@@ -44,7 +44,11 @@ export function poleToWorkspace(pole: string | null | undefined): WorkspaceId | 
   }
 }
 
-/** Espaces accessibles : admin → tous ; membre avec pôle → le sien ; sinon → global. */
+/**
+ * Espaces accessibles : admin → tous (il supervise plusieurs équipes, le
+ * switcher et « Tous les espaces » lui sont réservés) ; membre avec pôle →
+ * le sien uniquement ; sinon → vue globale seule.
+ */
 export function availableWorkspaces(role: string | null | undefined, pole: string | null | undefined): WorkspaceId[] {
   if (role === "admin") return WORKSPACES.map((w) => w.id);
   const w = poleToWorkspace(pole);
