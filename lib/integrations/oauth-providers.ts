@@ -57,7 +57,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
     label: "LinkedIn Ads",
     authUrl: "https://www.linkedin.com/oauth/v2/authorization",
     tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
-    scopes: ["r_ads", "r_ads_reporting"],
+    // Les scopes dépendent des produits activés sur l'app LinkedIn (Ads vs
+    // Community Management pour l'enrichissement effectifs) : surchargeables
+    // sans redéploiement de code via LINKEDIN_OAUTH_SCOPES (séparés par espace
+    // ou virgule).
+    scopes: process.env.LINKEDIN_OAUTH_SCOPES?.trim()
+      ? process.env.LINKEDIN_OAUTH_SCOPES.trim().split(/[\s,]+/)
+      : ["r_ads", "r_ads_reporting"],
     clientIdEnv: "LINKEDIN_CLIENT_ID",
     clientSecretEnv: "LINKEDIN_CLIENT_SECRET",
   },
