@@ -7,8 +7,12 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+
+// Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
+// KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
+const PAGE_KEY = "audit_service_client_renouvellement";
 
 export default async function ServiceClientRenouvellementPage() {
   const orgId = await getOrgId();
@@ -63,12 +67,16 @@ export default async function ServiceClientRenouvellementPage() {
 
       <ServiceClientTabs />
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
+          tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
       {(() => {
-        const tiles: StatTile[] = [
+        const tiles: DefaultTile[] = [
           {
+            key: "renewal_rate",
             label: "Renewal rate",
             value: renewalRate != null ? `${renewalRate} %` : "—",
+            raw: renewalRate,
+            rawUnit: "percent",
             tone: renewalRate == null ? "neutral" : renewalRate >= 90 ? "pos" : renewalRate >= 70 ? "accent" : "neg",
             sub: "Subs actives / total",
             verdict: renewalRate == null ? undefined
@@ -77,15 +85,29 @@ export default async function ServiceClientRenouvellementPage() {
               : { label: "Fragile (< 70 %)", tone: "neg" },
           },
           {
+            key: "grr",
             label: "GRR",
             value: grr != null ? `${grr} %` : "—",
+            raw: grr,
+            rawUnit: "percent",
             tone: grr == null ? "neutral" : grr >= 95 ? "pos" : grr >= 85 ? "accent" : "neg",
             sub: "Gross Revenue Retention",
           },
-          { label: "ARR sécurisé", value: arrSecured > 0 ? fmtK(arrSecured) : "—", tone: "pos", sub: `${fmt(billing.activeSubsCount)} subs actives` },
           {
+            key: "arr_securise",
+            label: "ARR sécurisé",
+            value: arrSecured > 0 ? fmtK(arrSecured) : "—",
+            raw: arrSecured > 0 ? Math.round(arrSecured) : null,
+            rawUnit: "currency",
+            tone: "pos",
+            sub: `${fmt(billing.activeSubsCount)} subs actives`,
+          },
+          {
+            key: "arr_risque",
             label: "ARR à risque",
             value: arrAtRisk > 0 ? fmtK(arrAtRisk) : "0 €",
+            raw: Math.round(arrAtRisk),
+            rawUnit: "currency",
             tone: arrAtRisk === 0 ? "pos" : "neg",
             sub: `${renewalAtRisk} compte${renewalAtRisk > 1 ? "s" : ""} exposé${renewalAtRisk > 1 ? "s" : ""}`,
             verdict: arrAtRisk === 0 ? { label: "Rien d'exposé", tone: "pos" }
@@ -93,7 +115,7 @@ export default async function ServiceClientRenouvellementPage() {
               : { label: "Exposition forte", tone: "neg" },
           },
         ];
-        return <KpiStatTiles tiles={tiles} />;
+        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
       })()}
 
       <CollapsibleBlock

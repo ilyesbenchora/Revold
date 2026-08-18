@@ -7,8 +7,12 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+
+// Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
+// KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
+const PAGE_KEY = "audit_service_client_cross_sell";
 
 export default async function ServiceClientCrossSellUpsellPage() {
   const orgId = await getOrgId();
@@ -62,13 +66,25 @@ export default async function ServiceClientCrossSellUpsellPage() {
 
       <ServiceClientTabs />
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
+          tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
       {(() => {
-        const tiles: StatTile[] = [
-          { label: "ARPU mensuel", value: arpu != null ? fmtK(arpu) : "—", tone: "accent", sub: "MRR / subs actives" },
+        const tiles: DefaultTile[] = [
           {
+            key: "arpu_mensuel",
+            label: "ARPU mensuel",
+            value: arpu != null ? fmtK(arpu) : "—",
+            raw: arpu,
+            rawUnit: "currency",
+            tone: "accent",
+            sub: "MRR / subs actives",
+          },
+          {
+            key: "clients_sains",
             label: "Clients sains",
             value: healthyPct != null ? `${healthyPct} %` : "—",
+            raw: healthyPct,
+            rawUnit: "percent",
             tone: healthyPct == null ? "neutral" : healthyPct >= 70 ? "pos" : healthyPct >= 40 ? "accent" : "neg",
             sub: "Sans ticket ouvert — candidats expansion",
             verdict: healthyPct == null ? undefined
@@ -77,19 +93,25 @@ export default async function ServiceClientCrossSellUpsellPage() {
               : { label: "Support surchargé", tone: "neg" },
           },
           {
+            key: "potentiel_expansion",
             label: "Potentiel d'expansion",
             value: expansionPotentialMrr != null ? `${fmtK(expansionPotentialMrr)}/mois` : "—",
+            raw: expansionPotentialMrr,
+            rawUnit: "currency",
             tone: "pos",
             sub: "Clients sains × ARPU × 20 %",
           },
           {
+            key: "multi_produit",
             label: "Multi-produit",
             value: subsPerCustomer != null ? `${subsPerCustomer} subs/client` : "—",
+            raw: subsPerCustomer,
+            rawUnit: "count",
             tone: multiProductRate > 0 ? "pos" : "neutral",
             sub: multiProductRate > 0 ? `${multiProductRate} % d'équipement au-delà de 1` : "1 produit par client",
           },
         ];
-        return <KpiStatTiles tiles={tiles} />;
+        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
       })()}
 
       <CollapsibleBlock

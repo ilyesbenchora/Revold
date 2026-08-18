@@ -214,6 +214,16 @@ export default async function DashboardOverviewPage() {
       }),
     );
   }
+  // ── Overrides (✎ en mode Personnaliser) : titre personnalisé par tuile,
+  // persisté en page_tiles kind='tile_override' — la valeur reste calculée. ──
+  for (const k of HOME_KPIS) {
+    const ov = homeCust.tileOverrides.get(k.id);
+    if (!ov) continue;
+    k.overrideRowId = ov.rowId;
+    k.originalLabel = k.label;
+    if (ov.title) k.label = ov.title;
+  }
+
   const homeSuggestions: HomeKpiSuggestion[] = allSuggestions.map((s) => ({
     id: `sug:${s.id}`,
     label: s.label,

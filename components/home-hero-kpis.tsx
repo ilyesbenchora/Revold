@@ -14,6 +14,10 @@ export type HomeKpi = {
   href: string;
   /** Classe de couleur de la valeur (ex : text-fuchsia-600). */
   color: string;
+  /** Ligne page_tiles kind='tile_override' (tuile renommée) — pour réinitialiser. */
+  overrideRowId?: string;
+  /** Libellé d'origine (avant renommage ✎). */
+  originalLabel?: string;
 };
 
 /** Suggestion personnalisée du catalogue complet (« ＋ Plus de KPIs »). */
@@ -38,7 +42,7 @@ const GROUP_LABELS: Record<string, string> = {
 
 /**
  * Bloc héro de la home : KPIs essentiels PERSONNALISABLES — « Personnaliser »
- * permet de retirer des tuiles et d'en ajouter, soit depuis le catalogue
+ * permet de retirer des tuiles, de les renommer (✎) et d'en ajouter, soit depuis le catalogue
  * rapide (volumes réels), soit depuis la LISTE EXHAUSTIVE des suggestions par
  * pôle (« ＋ Plus de KPIs »), avec un plafond de 5 affichées. Sélection
  * persistée par organisation (page_tiles, page_key « home_hero »).
@@ -178,6 +182,51 @@ export function HomeHeroKpis({
   const remove = (id: string) => persist(selected.filter((s) => s !== id));
   const add = (id: string) => !full && persist([...selected, id]);
 
+  // ── Renommage d'une tuile (✎) : titre persisté en override (page_tiles
+  // kind='tile_override', page_key home_hero) — la valeur reste calculée. ──
+  const [rename, setRename] = useState<{ kpi: HomeKpi; title: string } | null>(null);
+  const [renaming, setRenaming] = useState(false);
+
+  async function saveRename() {
+    if (!rename || renaming) return;
+    const title = rename.title.trim();
+    if (!title) return;
+    const k = rename.kpi;
+    // Titre revenu à l'origine → on supprime l'override plutôt que d'en garder un inutile.
+    const isOriginal = title === (k.originalLabel ?? k.label);
+    setRenaming(true);
+    setError(null);
+    try {
+      const res = isOriginal
+        ? k.overrideRowId
+          ? await fetch(`/api/page-tiles/${k.overrideRowId}`, { method: "DELETE" })
+          : null
+        : await fetch("/api/page-tiles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ page_key: "home_hero", kind: "tile_override", tile_key: k.id, title }),
+          });
+      if (res && !res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? "Enregistrement impossible.");
+        return;
+      }
+      setRename(null);
+      router.refresh();
+    } catch {
+      setError("Enregistrement impossible.");
+    } finally {
+      setRenaming(false);
+    }
+  }
+
+  function resetRename() {
+    if (!rename?.kpi.overrideRowId) return;
+    const rowId = rename.kpi.overrideRowId;
+    setRename(null);
+    void fetch(`/api/page-tiles/${rowId}`, { method: "DELETE" }).then(() => router.refresh());
+  }
+
   const groups = [...new Set(availableSuggestions.map((s) => s.group))];
 
   return (
@@ -211,6 +260,15 @@ export function HomeHeroKpis({
                 className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 transition hover:bg-rose-100 hover:text-rose-600"
               >
                 ✕
+              </button>
+              {/* ✎ : renommer la tuile — la valeur reste calculée. */}
+              <button
+                type="button"
+                title="Renommer ce KPI"
+                onClick={() => setRename({ kpi: k, title: k.label })}
+                className="absolute -top-1.5 right-4 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] text-slate-500 transition hover:bg-indigo-100 hover:text-indigo-600"
+              >
+                ✎
               </button>
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
               <p className={`mt-1 text-2xl font-bold tabular-nums ${k.color}`}>{k.value}</p>
@@ -352,6 +410,66 @@ export function HomeHeroKpis({
       )}
 
       {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+
+      {/* ── Modal de renommage d'une tuile (✎) ── */}
+      {rename && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !renaming && setRename(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900">Renommer le KPI</h3>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              La valeur reste calculée automatiquement — personnalise le titre affiché.
+            </p>
+            <label className="mt-4 block text-[11px] font-medium text-slate-500">
+              Titre
+              <input
+                autoFocus
+                value={rename.title}
+                onChange={(e) => setRename({ ...rename, title: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900 focus:border-accent focus:outline-none"
+              />
+            </label>
+            <div className="mt-4 flex items-center justify-between gap-2">
+              {rename.kpi.overrideRowId ? (
+                <button
+                  type="button"
+                  disabled={renaming}
+                  onClick={resetRename}
+                  title="Revenir au titre d'origine"
+                  className="text-[11px] font-medium text-slate-400 transition hover:text-rose-600 hover:underline disabled:opacity-50"
+                >
+                  Réinitialiser
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={renaming}
+                  onClick={() => setRename(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={renaming || !rename.title.trim()}
+                  onClick={saveRename}
+                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {renaming ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,11 @@ import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
-import { KpiStatTiles, type StatTile } from "@/components/kpi-stat-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
+
+// Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
+// KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
+const PAGE_KEY = "audit_service_client_churn";
 
 export default async function ServiceClientChurnPage() {
   const orgId = await getOrgId();
@@ -60,12 +64,16 @@ export default async function ServiceClientChurnPage() {
 
       <ServiceClientTabs />
 
-      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés */}
+      {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
+          tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
       {(() => {
-        const tiles: StatTile[] = [
+        const tiles: DefaultTile[] = [
           {
+            key: "score_churn",
             label: "Score de risque churn",
             value: `${riskScore}/100`,
+            raw: riskScore,
+            rawUnit: "count",
             tone: riskScore >= 60 ? "neg" : riskScore >= 30 ? "accent" : "pos",
             sub: "Churn + past due + urgence tickets",
             verdict: riskScore >= 60 ? { label: "Critique", tone: "neg" }
@@ -73,26 +81,35 @@ export default async function ServiceClientChurnPage() {
               : { label: "Sous contrôle", tone: "pos" },
           },
           {
+            key: "taux_churn",
             label: "Taux de churn",
             value: churnRate != null ? `${churnRate} %` : "—",
+            raw: churnRate,
+            rawUnit: "percent",
             tone: churnRate == null ? "neutral" : churnRate <= 5 ? "pos" : churnRate <= 15 ? "accent" : "neg",
             sub: "Cible top quartile : < 5 %",
           },
           {
+            key: "past_due",
             label: "Past due",
             value: String(pastDueSubs),
+            raw: pastDueSubs,
+            rawUnit: "count",
             tone: pastDueSubs === 0 ? "pos" : "neg",
             sub: "Paiements échoués — churn imminent",
             verdict: pastDueSubs === 0 ? { label: "Aucun", tone: "pos" } : { label: "Action immédiate", tone: "neg" },
           },
           {
+            key: "nrr_proxy",
             label: "NRR (proxy)",
             value: nrrProxy != null ? `${nrrProxy} %` : "—",
+            raw: nrrProxy,
+            rawUnit: "percent",
             tone: nrrProxy == null ? "neutral" : nrrProxy >= 90 ? "pos" : nrrProxy >= 70 ? "accent" : "neg",
             sub: "Subs actives / total",
           },
         ];
-        return <KpiStatTiles tiles={tiles} />;
+        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
       })()}
 
       <CollapsibleBlock
