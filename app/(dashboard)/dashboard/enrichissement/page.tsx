@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
-import { CompanyFinancialsBlock } from "@/components/company-financials-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
 import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
@@ -96,11 +95,7 @@ export default async function EnrichissementPage() {
              d'identité ambiguës, validées à la main. ── */}
       <CompanyEnrichmentBlock />
 
-      {/* ── 4. Complément : effectifs & CA des entreprises SANS SIREN
-             (recherche par nom, SIREN jamais stocké). ── */}
-      <CompanyFinancialsBlock />
-
-      {/* ── 5. En bas de page : la seule suggestion non couverte par les blocs
+      {/* ── 4. En bas de page : la seule suggestion non couverte par les blocs
              ci-dessus (secteur d'activité). ── */}
       <EnrichmentSuggestions supabase={supabase} orgId={orgId} />
 
