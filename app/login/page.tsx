@@ -132,6 +132,25 @@ function LoginForm() {
         {/* ── Étape entreprise (fin d'inscription par email) ── */}
         {entrepriseMode && (
           <form action={completeProfileAction} className="mt-8 space-y-4">
+            {/* Email en lecture seule (autocomplete username) : associe le
+                mot de passe au compte → le navigateur propose de l'enregistrer
+                pour les prochaines connexions email + mot de passe. */}
+            {otpEmail && (
+              <div>
+                <label htmlFor="signup_email" className="mb-1 block text-sm font-medium text-slate-300">
+                  Email
+                </label>
+                <input
+                  id="signup_email"
+                  name="username"
+                  type="email"
+                  autoComplete="username"
+                  value={otpEmail}
+                  readOnly
+                  className="w-full cursor-default rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-400 outline-none"
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="org_name" className="mb-1 block text-sm font-medium text-slate-300">
                 Nom de l&apos;entreprise <span className="text-rose-400">*</span>
@@ -280,13 +299,14 @@ function LoginForm() {
           <>
             <form action={emailOtpAction} className="mt-5 space-y-4">
               <div>
-                <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-300">
+                <label htmlFor="otp_email" className="mb-1 block text-sm font-medium text-slate-300">
                   Email
                 </label>
                 <input
-                  id="email"
+                  id="otp_email"
                   name="email"
                   type="email"
+                  autoComplete="username"
                   placeholder="vous@entreprise.com"
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
                   required
@@ -348,6 +368,7 @@ function LoginForm() {
               id="email"
               name="email"
               type="email"
+              autoComplete="username"
               placeholder="vous@entreprise.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -364,6 +385,7 @@ function LoginForm() {
               id="password"
               name="password"
               type="password"
+              autoComplete="current-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

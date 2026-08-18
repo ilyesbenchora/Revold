@@ -147,7 +147,9 @@ export async function verifyOtpAction(formData: FormData) {
     } catch {}
   }
   if (hasProfile || meta?.org_name?.trim()) redirect("/dashboard");
-  redirect("/login?mode=entreprise");
+  // L'email est repassé au formulaire entreprise : affiché en lecture seule et
+  // associé au mot de passe pour que le navigateur propose de l'enregistrer.
+  redirect(`/login?mode=entreprise&email=${encodeURIComponent(email)}`);
 }
 
 export async function completeProfileAction(formData: FormData) {
