@@ -44,8 +44,23 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Succès : redirige vers la destination (dashboard par défaut).
-  // getOrgId() s'occupera de créer org + profile depuis user_metadata
-  // au premier accès au dashboard si nécessaire.
+  // Succès. NOUVEAU compte OAuth (Google) — ni profil, ni entreprise dans les
+  // métadonnées → même parcours d'inscription que le code email : formulaire
+  // entreprise obligatoire (oauth=1 : le mot de passe y est optionnel, la
+  // connexion Google suffit). Sinon, destination demandée (dashboard).
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const meta = user?.user_metadata as { org_name?: string } | null;
+    if (user && !meta?.org_name?.trim()) {
+      const { data: p } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
+      if (!p) {
+        return NextResponse.redirect(
+          new URL(`/login?mode=entreprise&email=${encodeURIComponent(user.email ?? "")}&oauth=1`, APP_URL),
+        );
+      }
+    }
+  } catch {
+    /* table profiles absente ou lecture impossible → dashboard (getOrgId gère) */
+  }
   return NextResponse.redirect(new URL(next, APP_URL));
 }

@@ -191,24 +191,29 @@ export async function completeProfileAction(formData: FormData) {
   const employees = String(formData.get("employees_range") ?? "").trim();
   const industry = String(formData.get("industry") ?? "").trim();
   const password = String(formData.get("password") ?? "").trim();
-  if (!orgName || !employees || !industry || !password) {
-    redirect("/login?mode=entreprise&error=Tous+les+champs+sont+obligatoires");
+  // Inscription via Google (oauth=1) : le mot de passe est OPTIONNEL — la
+  // connexion Google suffit ; le paramètre est réécrit dans les redirections
+  // d'erreur pour que le formulaire garde le bon libellé.
+  const isOauth = String(formData.get("oauth") ?? "") === "1";
+  const errSuffix = isOauth ? "&oauth=1" : "";
+  if (!orgName || !employees || !industry || (!password && !isOauth)) {
+    redirect(`/login?mode=entreprise&error=Tous+les+champs+sont+obligatoires${errSuffix}`);
   }
-  if (password.length < 8) {
-    redirect("/login?mode=entreprise&error=Le+mot+de+passe+doit+faire+au+moins+8+caractères");
+  if (password && password.length < 8) {
+    redirect(`/login?mode=entreprise&error=Le+mot+de+passe+doit+faire+au+moins+8+caractères${errSuffix}`);
   }
 
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=Session+expirée+—+reconnecte-toi");
 
-  // Mot de passe (connexions futures par mot de passe possibles) + métadonnées
-  // en un appel : getOrgId() lit org_name pour nommer la vraie org.
+  // Mot de passe (connexions futures par mot de passe possibles, s'il est
+  // fourni) + métadonnées : getOrgId() lit org_name pour nommer la vraie org.
   const { error } = await supabase.auth.updateUser({
-    password,
+    ...(password ? { password } : {}),
     data: { org_name: orgName, employees_range: employees, industry },
   });
-  if (error) redirect(`/login?mode=entreprise&error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/login?mode=entreprise&error=${encodeURIComponent(error.message)}${errSuffix}`);
 
   // Crée l'organisation maintenant, puis y range effectif + secteur (best
   // effort : les infos restent dans user_metadata si la colonne manque).

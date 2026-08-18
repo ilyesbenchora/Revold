@@ -55,6 +55,8 @@ function LoginForm() {
   const otpEmail = searchParams.get("email") ?? "";
   // "1" = compte déjà existant (le code connecte, ne crée rien) · "0" = nouveau.
   const existingAccount = searchParams.get("existing") ?? "";
+  // Fin d'inscription après Google : mot de passe optionnel (Google suffit).
+  const oauthSignup = searchParams.get("oauth") === "1";
 
   // Purge de l'ancien stockage en clair (utilisateurs existants).
   useEffect(() => {
@@ -168,22 +170,28 @@ function LoginForm() {
                 ))}
               </select>
             </div>
+            {/* Parcours Google (oauth=1) : le mot de passe est optionnel — la
+                connexion Google suffit pour les prochaines fois. */}
+            <input type="hidden" name="oauth" value={oauthSignup ? "1" : ""} />
             <div>
               <label htmlFor="new_password" className="mb-1 block text-sm font-medium text-slate-300">
-                Choisis un mot de passe <span className="text-rose-400">*</span>
+                Choisis un mot de passe{" "}
+                {oauthSignup ? <span className="text-slate-500">(optionnel)</span> : <span className="text-rose-400">*</span>}
               </label>
               <input
                 id="new_password"
                 name="password"
                 type="password"
                 autoComplete="new-password"
-                minLength={8}
+                minLength={oauthSignup ? undefined : 8}
                 placeholder="8 caractères minimum"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-                required
+                required={!oauthSignup}
               />
               <p className="mt-1 text-[11px] text-slate-500">
-                Pour tes prochaines connexions — le code par email restera aussi disponible.
+                {oauthSignup
+                  ? "Optionnel — tu pourras continuer à te connecter avec Google."
+                  : "Pour tes prochaines connexions — le code par email restera aussi disponible."}
               </p>
             </div>
             <button
