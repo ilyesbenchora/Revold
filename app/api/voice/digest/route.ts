@@ -339,8 +339,17 @@ export async function GET(request: Request) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
   }
 
+  // ── Un contenu du brief COCHÉ est finalisé/exécuté/atteint ? (orbe verte)
+  // Chaque condition est gatée par SA section : un contenu décoché dans
+  // Paramètres → Tour de contrôle ne peut pas déclencher le signal.
+  const achieved =
+    (sections.has("objectives_reached") && reached.length > 0) ||
+    (sections.has("actions_done") && actionsDone > 0) ||
+    (sections.has("enrichment") && enrichmentRemaining === 0 && enrichmentDone > 0);
+
   return NextResponse.json({
     status,
+    achieved,
     text: parts.join(" "),
     counts: {
       tenseAlerts: tense.length,

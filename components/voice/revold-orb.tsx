@@ -195,17 +195,10 @@ const HEALTH_HINT: Record<Health, string> = {
   critical: "Situation critique — demande ton brief.",
 };
 
-/**
- * Un contenu du brief est FINALISÉ / EXÉCUTÉ / ATTEINT ? (compteurs du digest)
- * → objectif atteint, action exécutée dans les outils, enrichissement terminé.
- * L'orbe passe alors en vert émeraude (charte santé) : le signe visuel qu'une
- * bonne nouvelle attend dans le brief.
- */
-function briefContentAchieved(counts: unknown): boolean {
-  if (!counts || typeof counts !== "object") return false;
-  const c = counts as { reachedObjectives?: number; actionsExecuted?: number; enrichmentCompleted?: boolean };
-  return (c.reachedObjectives ?? 0) > 0 || (c.actionsExecuted ?? 0) > 0 || c.enrichmentCompleted === true;
-}
+// L'orbe passe en vert émeraude quand le digest signale qu'un contenu du brief
+// est finalisé/exécuté/atteint (`achieved`). Le flag est calculé CÔTÉ SERVEUR
+// et gaté par les sections cochées dans Paramètres → Tour de contrôle (contenu
+// du brief) — un contenu décoché ne déclenche jamais le signal.
 
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
@@ -236,20 +229,23 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     setSupported(!!createRecognition());
   }, []);
 
-  // Statut de santé au chargement → teinte de l'anneau (désactivable dans les réglages).
+  // Statut de santé + signal « contenu du brief accompli » au chargement.
+  // Les SECTIONS COCHÉES (contenu du brief) sont envoyées au digest : le vert
+  // ne peut venir que d'un contenu réellement activé dans les réglages.
+  const sectionsParam = briefSectionsParam(settings);
   useEffect(() => {
-    if (!settings.healthRing) { setHealth(null); return; }
+    if (!settings.healthRing) setHealth(null);
     let alive = true;
-    void fetch("/api/voice/digest")
+    void fetch(`/api/voice/digest?sections=${encodeURIComponent(sectionsParam)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive || !d) return;
-        if (d.status === "ok" || d.status === "warn" || d.status === "critical") setHealth(d.status);
-        setAchieved(briefContentAchieved(d.counts));
+        if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
+        setAchieved(d.achieved === true);
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [settings.healthRing]);
+  }, [settings.healthRing, sectionsParam]);
 
   const toggleVeille = useCallback(() => {
     const cur = readTowerSettings();
@@ -374,7 +370,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
       if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
-      setAchieved(briefContentAchieved(d.counts));
+      setAchieved(d.achieved === true);
       setStatus("idle");
       setCaption(d.text ?? "");
       speak(d.text ?? "");
