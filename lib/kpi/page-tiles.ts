@@ -124,6 +124,10 @@ export type ResolvedAddedTile = {
   meta?: string;
   /** Drill-down : requête déterministe + filtres de la tuile (agg_spec) — null si non détaillable. */
   drill?: TileDrill | null;
+  /** Câblage brut de la tuile — préremplit le funnel d'édition (✎ en mode Personnaliser). */
+  aggSpec?: Record<string, unknown> | null;
+  /** Tuile résolue par resolveKpiValue (recette réconciliée) — seul le titre est éditable. */
+  forecastType?: string | null;
 };
 
 /** Cible de drill-down d'une tuile KPI (mêmes filtres que son calcul). */
@@ -251,6 +255,8 @@ export async function resolveAddedTiles(
         subTone,
         meta,
         drill,
+        aggSpec: (r.agg_spec as Record<string, unknown> | null) ?? null,
+        forecastType: r.forecast_type ?? null,
       };
     }),
   );

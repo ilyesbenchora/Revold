@@ -289,6 +289,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   const [error, setError] = useState<string | null>(null);
   // Id de la table en cours d'édition (null = création).
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Id de la TUILE page_tiles en cours d'édition (✎ dans Personnaliser les KPIs).
+  const [tileEditId, setTileEditId] = useState<string | null>(null);
   // Outils réellement connectés (sources de données croisables) + sélection.
   const [sources, setSources] = useState<SourceTool[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -380,6 +382,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     setDescription("");
     setError(null);
     setEditingId(null);
+    setTileEditId(null);
     setSelected([]);
     setPeriod("all");
     setCustomFrom("");
@@ -442,6 +445,68 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
     function onOpen() { reset(); setOpen(true); }
     window.addEventListener("revold:open-data-table", onOpen);
     return () => window.removeEventListener("revold:open-data-table", onOpen);
+  }, []);
+
+  // ✎ d'une tuile ajoutée (Personnaliser les KPIs) : le funnel s'ouvre en
+  // ÉDITION, câblage prérempli depuis l'agg_spec de la tuile — même parcours
+  // que la création (Affichage → Vérification), l'enregistrement PATCHe la tuile.
+  useEffect(() => {
+    function onEditTile(e: Event) {
+      const d = (e as CustomEvent).detail as {
+        rowId?: string;
+        title?: string;
+        unit?: string;
+        aggSpec?: Record<string, unknown> | null;
+        forecastType?: string | null;
+      } | null;
+      if (!d?.rowId) return;
+      reset();
+      setTileEditId(d.rowId);
+      setAsTile(true);
+      const spec = d.aggSpec;
+      if (spec && typeof spec.entity === "string" && typeof spec.groupBy === "string") {
+        setDraft({
+          entity: spec.entity,
+          group_by: spec.groupBy,
+          measure: typeof spec.measure === "string" ? spec.measure : "count",
+          field: typeof spec.field === "string" ? spec.field : null,
+          unit_mode: d.unit ?? "count",
+          view: "bloc",
+          title: d.title ?? "KPI",
+          pipeline: typeof spec.pipeline === "string" ? spec.pipeline : null,
+          target: typeof spec.target === "string" ? spec.target : null,
+          percent_of_total: spec.percent_of_total === true,
+          tileOnly: true,
+        });
+        if (Array.isArray(spec.sources)) setSelected(spec.sources.filter((s): s is string => typeof s === "string"));
+        // Période enregistrée sur la tuile (preset relatif ou plage figée).
+        const storedRaw = typeof spec.period_preset === "string" ? spec.period_preset : "all";
+        const stored = parseStoredPeriod(storedRaw);
+        if (stored.kind === "custom") {
+          setPeriod("custom");
+          setCustomFrom(stored.from);
+          setCustomTo(stored.to);
+        } else if (stored.kind === "preset") {
+          setPeriod(stored.preset);
+        }
+      } else {
+        // Tuile forecast_type (recette réconciliée) : seul le titre est éditable.
+        setDraft({
+          entity: "",
+          group_by: "",
+          measure: "count",
+          field: null,
+          unit_mode: d.unit ?? "count",
+          view: "bloc",
+          title: d.title ?? "KPI",
+          forecastType: d.forecastType ?? null,
+        });
+      }
+      setStep(2);
+      setOpen(true);
+    }
+    window.addEventListener("revold:edit-kpi-tile", onEditTile);
+    return () => window.removeEventListener("revold:edit-kpi-tile", onEditTile);
   }, []);
 
   function pickPreset(p: TablePreset) {
@@ -558,10 +623,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       if (res.ok && Array.isArray(d.data)) {
         const total = d.data.reduce((s: number, r: { value?: number }) => s + (Number(r.value) || 0), 0);
         // KPI en taux : la preuve chiffrée est le POURCENTAGE réel (cible/total),
-        // pas la somme des lignes.
+        // pas la somme des lignes. KPI à ligne cible (CA signé, deals perdus…) :
+        // la preuve est la valeur de CETTE ligne.
         if (p.percent_of_total && p.target) {
           const tv = d.data.find((r: { name?: string }) => String(r.name ?? "").toLowerCase() === p.target!.toLowerCase());
           setVerifTotal(total > 0 ? Math.round(((Number(tv?.value) || 0) / total) * 1000) / 10 : null);
+        } else if (p.target && p.target !== "Total") {
+          const tv = d.data.find((r: { name?: string }) => String(r.name ?? "").toLowerCase() === p.target!.toLowerCase());
+          setVerifTotal(Number(tv?.value) || 0);
         } else {
           setVerifTotal(total);
         }
@@ -583,8 +652,41 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   function adjustProposal(patch: Partial<Proposal>) {
     if (!proposal) return;
     const np = { ...proposal, ...patch };
+    // Le regroupement change → la ligne cible de l'ancien regroupement ne veut
+    // plus rien dire (ex : « Gagnés » n'existe pas sur un axe mensuel).
+    if (patch.group_by && patch.group_by !== proposal.group_by) {
+      np.target = null;
+      np.percent_of_total = false;
+    }
     setProposal(np);
     refreshVerif(np);
+  }
+
+  /**
+   * Vérification DÉTERMINISTE d'une suggestion (tuile) : même écran de câblage
+   * que les KPIs personnalisés, sans agent — la spec du preset est affichée
+   * avec sa preuve chiffrée (données trouvées + valeur réelle) et reste
+   * ajustable avant de confirmer la création.
+   */
+  function verifyDraft() {
+    if (!draft) return;
+    const p: Proposal = {
+      entity: draft.entity,
+      group_by: draft.group_by,
+      measure: draft.measure,
+      field: draft.field,
+      unit_mode: draft.unit_mode ?? "count",
+      pipeline: draft.pipeline ?? null,
+      title: draft.title,
+      date_from: null,
+      date_to: null,
+      rowCount: 0,
+      agent: "Revold",
+      target: draft.target ?? (tileMode === "percent" && tileTarget ? tileTarget : null),
+      percent_of_total: draft.percent_of_total || (tileMode === "percent" && !!tileTarget),
+    };
+    setProposal(p);
+    refreshVerif(p);
   }
 
   /** Aperçu optionnel : recalcul réel de la spec du draft (presets déterministes). */
@@ -646,6 +748,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       return;
     }
 
+    // ── Tuile issue d'une suggestion (création OU édition ✎) : passage par la
+    //    même étape Vérification, câblée en déterministe (sans agent) — la
+    //    tuile n'est jamais créée sans preuve chiffrée confirmée. ──
+    if (!draft.custom && !draft.forecastType && draft.entity !== "fiscal" && asTile && !proposal) {
+      verifyDraft();
+      return;
+    }
+
     // ── TUILE KPI : créée dans page_tiles → elle rejoint la ligne de tuiles en
     //    haut de page (« ＋ Ajouter un KPI »). La période choisie (preset relatif
     //    recalculé en continu, ou plage figée) et le pipeline ciblé sont
@@ -657,17 +767,23 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       // ── Recette réconciliée (délai médian cross-source) : tuile résolue par
       //    forecast_type — pas d'agg_spec ni de période (médiane historique). ──
       if (draft.forecastType) {
-        const res = await fetch("/api/page-tiles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            page_key: pageKey,
-            kind: "kpi",
-            title: draft.title.trim() || "KPI",
-            forecast_type: draft.forecastType,
-            unit_mode: draft.unit_mode ?? "count",
-          }),
-        });
+        const res = tileEditId
+          ? await fetch(`/api/page-tiles/${tileEditId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: draft.title.trim() || "KPI" }),
+            })
+          : await fetch("/api/page-tiles", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                page_key: pageKey,
+                kind: "kpi",
+                title: draft.title.trim() || "KPI",
+                forecast_type: draft.forecastType,
+                unit_mode: draft.unit_mode ?? "count",
+              }),
+            });
         const d = await res.json().catch(() => ({}));
         setSaving(false);
         if (res.ok) {
@@ -675,28 +791,30 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
           reset();
           router.refresh();
         } else {
-          setError(d.error || "Création impossible.");
+          setError(d.error || (tileEditId ? "Modification impossible." : "Création impossible."));
         }
         return;
       }
       const storedPeriod = periodValue();
       const tilePeriod = storedPeriod && storedPeriod !== "all" && storedPeriod !== PERIOD_FROM_DESCRIPTION ? storedPeriod : null;
-      const pipelineId = draft.custom && proposal ? proposal.pipeline ?? null : draft.pipeline ?? null;
+      const pipelineId = proposal ? proposal.pipeline ?? null : draft.pipeline ?? null;
       const pipelineLabel = pipelineId
         ? (pipelineOpts ?? []).find((p) => p.id === pipelineId || p.name === pipelineId)?.name ?? pipelineId
         : null;
-      const base = draft.custom && proposal
+      // La spec confirmée à la Vérification fait foi (KPIs personnalisés ET
+      // suggestions passent désormais par cet écran) ; repli sur le draft.
+      const base = proposal
         ? {
             entity: proposal.entity, groupBy: proposal.group_by, measure: proposal.measure, field: proposal.field,
             pipeline: pipelineId, sources: selected,
-            // KPI en taux câblé par l'agent : la tuile affiche le vrai pourcentage.
-            ...(proposal.percent_of_total && proposal.target ? { target: proposal.target, percent_of_total: true } : {}),
+            // Ligne cible confirmée (taux ou valeur d'une ligne : CA signé…).
+            ...(proposal.target
+              ? { target: proposal.target, ...(proposal.percent_of_total ? { percent_of_total: true } : {}) }
+              : {}),
           }
         : {
             entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field,
             pipeline: pipelineId, sources: selected,
-            // Preset ciblé (CA signé, taux de perte…) : la ligne cible est
-            // embarquée dans le preset ; sinon mode « % d'une ligne » manuel.
             ...(draft.target
               ? { target: draft.target, ...(draft.percent_of_total ? { percent_of_total: true } : {}) }
               : tileMode === "percent" && tileTarget
@@ -708,20 +826,25 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         ...(tilePeriod ? { period_preset: tilePeriod } : {}),
         ...(pipelineLabel ? { pipeline_label: pipelineLabel } : {}),
       };
-      const tileUnit = draft.custom && proposal
+      const tileUnit = proposal
         ? proposal.unit_mode
         : tileMode === "percent" && tileTarget ? "percent" : draft.unit_mode;
-      const res = await fetch("/api/page-tiles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          page_key: pageKey,
-          kind: "kpi",
-          title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
-          agg_spec: spec,
-          unit_mode: tileUnit ?? "count",
-        }),
-      });
+      const payload = {
+        title: draft.title.trim() || proposal?.title || kpiText() || "KPI",
+        agg_spec: spec,
+        unit_mode: tileUnit ?? "count",
+      };
+      const res = tileEditId
+        ? await fetch(`/api/page-tiles/${tileEditId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/page-tiles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ page_key: pageKey, kind: "kpi", ...payload }),
+          });
       const d = await res.json().catch(() => ({}));
       setSaving(false);
       if (res.ok) {
@@ -730,7 +853,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         // Les tuiles sont rendues côté serveur (ConfigurableKpiTiles) : refresh.
         router.refresh();
       } else {
-        setError(d.error || "Création impossible.");
+        setError(d.error || (tileEditId ? "Modification impossible." : "Création impossible."));
       }
       return;
     }
@@ -937,7 +1060,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     <span aria-hidden>✨</span> Vérification du câblage
                   </h3>
                   <p className="mt-1 text-xs text-slate-500">
-                    {proposal.agent} propose la donnée ci-dessous pour « {kpiText()} ». Confirme, ou choisis une autre source de données.
+                    {draft.custom
+                      ? `${proposal.agent} propose la donnée ci-dessous pour « ${kpiText()} ». Confirme, ou choisis une autre source de données.`
+                      : `Câblage déterministe de « ${draft.title} » sur ta donnée réelle. Vérifie la preuve chiffrée, ajuste si besoin, puis confirme.`}
                   </p>
                 </div>
 
@@ -949,7 +1074,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     </div>
                     {/* Outil(s) connecté(s) qui alimentent cette entité. */}
                     <WiredToolsRow entity={proposal.entity} sourceKeys={selected} />
-                    {(proposal.pipeline || (proposal.entity === "deals" && proposal.group_by === "stage")) && (
+                    {(proposal.pipeline || (proposal.entity === "deals" && PIPELINE_SCOPED_DIMS.has(proposal.group_by))) && (
                       <div className="flex items-center justify-between gap-3">
                         <dt className="flex items-center gap-1 text-xs text-slate-500">
                           Pipeline
@@ -1067,7 +1192,11 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-xs text-slate-500">
-                        {proposal.percent_of_total ? `Taux calculé (${proposal.target ?? "cible"} / total)` : "Total calculé (toutes périodes)"}
+                        {proposal.percent_of_total
+                          ? `Taux calculé (${proposal.target ?? "cible"} / total)`
+                          : proposal.target && proposal.target !== "Total"
+                            ? `Valeur de la ligne « ${proposal.target} » (toutes périodes)`
+                            : "Total calculé (toutes périodes)"}
                       </dt>
                       <dd className={`font-semibold ${verifTotal != null && verifTotal !== 0 ? "text-emerald-600" : "text-slate-500"}`}>
                         {verifLoading ? "…" : verifTotal != null ? fmtTotal(verifTotal, proposal.unit_mode) : "—"}
@@ -1127,7 +1256,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     onClick={() => { setProposal(null); setError(null); }}
                     className="text-xs text-slate-400 hover:text-fuchsia-600"
                   >
-                    ← Réécrire le KPI
+                    {draft.custom ? "← Réécrire le KPI" : "← Retour à l'affichage"}
                   </button>
                   <button
                     onClick={create}
@@ -1138,7 +1267,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       ? "Enregistrement…"
                       : proposalLoading
                         ? `${proposal.agent} recâble…`
-                        : editingId ? "Confirmer la mise à jour" : "Confirmer et créer"}
+                        : editingId || tileEditId ? "Confirmer la mise à jour" : "Confirmer et créer"}
                   </button>
                 </div>
               </div>
@@ -1681,7 +1810,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                       ? `${agentName} analyse…`
                       : saving
                         ? "Création…"
-                        : draft.custom && !proposal ? `Vérifier via ${agentName}` : asTile ? "Créer la tuile" : "Créer la table"}
+                        : draft.custom && !proposal
+                          ? `Vérifier via ${agentName}`
+                          : asTile
+                            ? draft.forecastType || draft.entity === "fiscal"
+                              ? tileEditId ? "Enregistrer" : "Créer la tuile"
+                              : "Vérifier le câblage"
+                            : "Créer la table"}
                   </button>
                 </div>
               </div>

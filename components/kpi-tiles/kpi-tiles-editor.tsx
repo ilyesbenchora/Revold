@@ -41,6 +41,10 @@ export type EditorTile = {
   verdict?: StatTileVerdict;
   /** Drill-down : clic sur la tuile → détail des enregistrements (tuiles agg_spec). */
   drill?: TileDrill | null;
+  /** Câblage brut (tuiles ajoutées) — préremplit le funnel d'édition (✎). */
+  aggSpec?: Record<string, unknown> | null;
+  /** Tuile résolue par resolveKpiValue — seul le titre est éditable. */
+  forecastType?: string | null;
 };
 
 export type EditorSuggestion = {
@@ -147,6 +151,22 @@ export function KpiTilesEditor({
   /** Ouvre le funnel unique de création (PageDataTables sur la même page). */
   function openBuilder() {
     window.dispatchEvent(new CustomEvent("revold:open-data-table"));
+  }
+
+  /** Ouvre le funnel en ÉDITION d'une tuile ajoutée (✎) — câblage prérempli. */
+  function openTileEdit(t: EditorTile) {
+    if (!t.rowId) return;
+    window.dispatchEvent(
+      new CustomEvent("revold:edit-kpi-tile", {
+        detail: {
+          rowId: t.rowId,
+          title: t.label,
+          unit: t.rawUnit ?? "count",
+          aggSpec: t.aggSpec ?? null,
+          forecastType: t.forecastType ?? null,
+        },
+      }),
+    );
   }
 
   async function mutate(key: string, fn: () => Promise<Response>) {
@@ -259,15 +279,30 @@ export function KpiTilesEditor({
               }`}
             >
               {editing ? (
-                <button
-                  type="button"
-                  title="Retirer cette tuile"
-                  disabled={busy != null}
-                  onClick={() => (t.kind === "added" && t.rowId ? removeRow(t.rowId) : hideTile(t.key))}
-                  className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 transition hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
-                >
-                  ✕
-                </button>
+                <span className="absolute right-2 top-2 flex items-center gap-1">
+                  {/* ✎ : modifier le câblage d'une tuile AJOUTÉE (titre, pipeline,
+                      période, mesure) — les tuiles par défaut se masquent seulement. */}
+                  {t.kind === "added" && t.rowId && (
+                    <button
+                      type="button"
+                      title="Modifier cette tuile"
+                      disabled={busy != null}
+                      onClick={() => openTileEdit(t)}
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] text-slate-500 transition hover:bg-indigo-100 hover:text-indigo-600 disabled:opacity-50"
+                    >
+                      ✎
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    title="Retirer cette tuile"
+                    disabled={busy != null}
+                    onClick={() => (t.kind === "added" && t.rowId ? removeRow(t.rowId) : hideTile(t.key))}
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 transition hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
+                </span>
               ) : (
                 // Alerte chirurgicale INDIVIDUELLE par tuile — cloche seule (tuile petite).
                 typeof t.raw === "number" && !Number.isNaN(t.raw) && (
