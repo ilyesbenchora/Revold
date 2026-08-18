@@ -22,10 +22,11 @@ export function toneDirective(tone: string | null | undefined): string | null {
   return AGENT_TONES.find((t) => t.id === tone)?.directive ?? null;
 }
 
-/** Charge les préférences d'un agent — résilient (table absente → null). */
+/** Charge les préférences d'un agent pour UN utilisateur — résilient (table absente → null). */
 export async function getAgentPrefs(
   supabase: SupabaseClient,
   orgId: string,
+  userId: string,
   agentKey: string,
 ): Promise<AgentPrefs | null> {
   try {
@@ -33,6 +34,7 @@ export async function getAgentPrefs(
       .from("agent_prefs")
       .select("agent_key, tone, personality, insights_enabled")
       .eq("organization_id", orgId)
+      .eq("user_id", userId)
       .eq("agent_key", agentKey)
       .maybeSingle();
     if (error || !data) return null;
@@ -53,7 +55,7 @@ export function prefsDirective(prefs: AgentPrefs | null): string | null {
   const parts: string[] = [];
   const tone = toneDirective(prefs.tone);
   if (tone) parts.push(`- ${tone}`);
-  if (prefs.personality?.trim()) parts.push(`- Personnalité voulue par l'organisation : ${prefs.personality.trim()}`);
+  if (prefs.personality?.trim()) parts.push(`- Personnalité voulue par l'utilisateur : ${prefs.personality.trim()}`);
   if (parts.length === 0) return null;
-  return `\n\nPRÉFÉRENCES DE L'ORGANISATION pour cet agent (à respecter dans toutes tes réponses) :\n${parts.join("\n")}`;
+  return `\n\nPRÉFÉRENCES DE L'UTILISATEUR pour cet agent (à respecter dans toutes tes réponses) :\n${parts.join("\n")}`;
 }

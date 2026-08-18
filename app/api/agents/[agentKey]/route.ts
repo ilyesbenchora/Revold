@@ -66,9 +66,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     buildSystemPrompt(agent) +
     `\n\nSources sélectionnées pour cette conversation : ${sources.length ? sources.join(", ") : "aucune sélection explicite (utilise la source configurée par défaut)"}.`;
 
-  // Préférences de l'organisation pour cet agent (Paramètres → Agents) :
-  // ton + personnalité injectés dans le system prompt.
-  const prefDir = prefsDirective(await getAgentPrefs(supabase, orgId, agentKey));
+  // Préférences de l'UTILISATEUR pour cet agent (Paramètres → Agents) :
+  // ton + personnalité injectés dans le system prompt — propres à chacun.
+  const prefDir = prefsDirective(await getAgentPrefs(supabase, orgId, user.id, agentKey));
   if (prefDir) system += prefDir;
 
   // Outils SUR MESURE de l'org (ERP maison, logiciel métier) : sans leur

@@ -24,13 +24,16 @@ export default async function ParametresAgentsPage() {
 
   const agents = listAgentsBySection("donnees");
 
-  // Préférences enregistrées (résilient : migration absente → défauts).
+  // Préférences enregistrées — PAR UTILISATEUR (résilient : migration absente → défauts).
   const prefsByKey = new Map<string, { tone: string | null; personality: string | null; insights: boolean }>();
   try {
-    const { data } = await supabase
-      .from("agent_prefs")
-      .select("agent_key, tone, personality, insights_enabled")
-      .eq("organization_id", orgId);
+    const { data } = userId
+      ? await supabase
+          .from("agent_prefs")
+          .select("agent_key, tone, personality, insights_enabled")
+          .eq("organization_id", orgId)
+          .eq("user_id", userId)
+      : { data: [] };
     for (const r of data ?? []) {
       prefsByKey.set(r.agent_key as string, {
         tone: (r.tone as string | null) ?? null,
@@ -93,6 +96,7 @@ export default async function ParametresAgentsPage() {
         <p className="mt-1 text-sm text-slate-500">
           Agents : personnalise le ton et la personnalité de chaque agent — appliqués à toutes ses réponses (chat,
           routines, séances) — et active les insights d&apos;usage (sujets les plus abordés, profondeur des échanges).
+          Ces réglages te sont propres : chaque membre du compte a les siens.
         </p>
       </header>
 

@@ -24,11 +24,13 @@ export async function POST(request: Request) {
   const personality = typeof body.personality === "string" ? body.personality.trim().slice(0, 1200) || null : null;
   const insightsEnabled = body.insights_enabled === true;
 
-  // Upsert manuel (unique organization_id + agent_key).
+  // Upsert manuel (unique organization_id + user_id + agent_key) — les
+  // préférences sont propres à l'utilisateur, pas partagées par l'organisation.
   const { data: existing, error: readErr } = await supabase
     .from("agent_prefs")
     .select("id")
     .eq("organization_id", orgId)
+    .eq("user_id", user.id)
     .eq("agent_key", agentKey)
     .maybeSingle();
   if (readErr && /agent_prefs/.test(readErr.message)) {
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
   const row = { tone, personality, insights_enabled: insightsEnabled, updated_by: user.id, updated_at: new Date().toISOString() };
   const { error } = existing
     ? await supabase.from("agent_prefs").update(row).eq("id", existing.id)
-    : await supabase.from("agent_prefs").insert({ organization_id: orgId, agent_key: agentKey, ...row });
+    : await supabase.from("agent_prefs").insert({ organization_id: orgId, user_id: user.id, agent_key: agentKey, ...row });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
