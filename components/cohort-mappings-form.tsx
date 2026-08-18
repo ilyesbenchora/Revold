@@ -380,7 +380,7 @@ export function CohortMappingsForm({
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span aria-hidden>{g.icon}</span> {g.label}
+                  {g.label}
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                     {cohortCount} cohorte{cohortCount > 1 ? "s" : ""}
                   </span>
