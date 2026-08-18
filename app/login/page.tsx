@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { RevoldLogo } from "@/components/revold-logo";
 import {
@@ -24,7 +24,10 @@ const INDUSTRIES = [
   "Autre",
 ];
 
-const STORAGE_KEY = "revold_remember_me";
+// Ancienne case « Se souvenir de moi » : stockait email + mot de passe en
+// CLAIR dans le localStorage. Retirée au profit du gestionnaire de mots de
+// passe du navigateur (chiffré, synchronisé) ; on purge l'ancien stockage.
+const LEGACY_STORAGE_KEY = "revold_remember_me";
 
 export default function LoginPage() {
   return (
@@ -51,47 +54,12 @@ function LoginForm() {
   const entrepriseMode = mode === "entreprise";
   const otpEmail = searchParams.get("email") ?? "";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  // Load saved credentials on mount
+  // Purge de l'ancien stockage en clair (utilisateurs existants).
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const { email: savedEmail, password: savedPassword } = JSON.parse(saved);
-        if (savedEmail) setEmail(savedEmail);
-        if (savedPassword) setPassword(savedPassword);
-        setRememberMe(true);
-      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch {}
-    setLoaded(true);
   }, []);
-
-  // Save or clear credentials when rememberMe changes or form submits
-  function handleSubmit(formData: FormData) {
-    if (rememberMe) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, password }));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-
-    if (isSignup) {
-      signupAction(formData);
-    } else {
-      loginAction(formData);
-    }
-  }
-
-  if (!loaded) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-accent" />
-      </main>
-    );
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
@@ -328,7 +296,7 @@ function LoginForm() {
         )}
 
         {passwordMode && (
-        <form action={handleSubmit} className="mt-5 space-y-4">
+        <form action={isSignup ? signupAction : loginAction} className="mt-5 space-y-4">
           {isSignup && (
             <>
               <div>
@@ -370,8 +338,6 @@ function LoginForm() {
               type="email"
               autoComplete="username"
               placeholder="vous@entreprise.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
               required
             />
@@ -387,32 +353,10 @@ function LoginForm() {
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
               required
             />
           </div>
-
-          {!isSignup && (
-            <div className="flex items-center gap-2">
-              <input
-                id="remember"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => {
-                  setRememberMe(e.target.checked);
-                  if (!e.target.checked) {
-                    localStorage.removeItem(STORAGE_KEY);
-                  }
-                }}
-                className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-accent focus:ring-accent/30"
-              />
-              <label htmlFor="remember" className="text-sm text-slate-400">
-                Se souvenir de moi
-              </label>
-            </div>
-          )}
 
           <button
             type="submit"
