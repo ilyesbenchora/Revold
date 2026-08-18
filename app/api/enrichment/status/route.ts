@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { ENRICHMENT_FIELD_COLUMNS } from "@/lib/enrichment/settings";
+import {
+  DEFAULT_ENRICHMENT_SETTINGS,
+  ENRICHMENT_FIELD_COLUMNS,
+  getEnrichmentSettings,
+  type EnrichmentFields,
+} from "@/lib/enrichment/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -82,11 +87,54 @@ export async function GET() {
   const [lastChecked, lastEnriched] = await Promise.all([lastOf("sirene_checked_at"), lastOf("enriched_at")]);
   const lastActivityAt = [lastChecked, lastEnriched].filter(Boolean).sort().pop() ?? null;
 
-  const remaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0);
+  // ── Champs actifs jamais couverts par une passe : leurs fiches manquantes
+  // comptent dans le RESTANT même si la remise en file (enriched_at → null)
+  // n'a pas eu lieu — champ coché AVANT le correctif de remise en file, ou
+  // colonne posée par une migration ultérieure. Sans cela la jauge reste à
+  // 100 % alors qu'une nouvelle donnée vient d'être demandée.
+  // (Une fois le champ couvert par une passe, seul le marqueur enriched_at
+  // fait foi : une donnée légitimement absente — CA confidentiel, effectif non
+  // publié — ne bloque pas la jauge à jamais.)
+  let newFieldsRemaining = 0;
+  try {
+    const settings = await getEnrichmentSettings(supabase, orgId);
+    const fieldIdsAll = Object.keys(ENRICHMENT_FIELD_COLUMNS) as (keyof EnrichmentFields)[];
+    const active = fieldIdsAll.filter((f) => settings.fields[f]);
+    // Champs couverts = ceux de la dernière passe terminée ; repli : défauts
+    // historiques dès lors que des fiches ont déjà été enrichies (même logique
+    // que /api/enrichment/runs).
+    let coveredFields: string[] = [];
+    try {
+      const { data } = await supabase
+        .from("enrichment_runs")
+        .select("fields")
+        .eq("organization_id", orgId)
+        .neq("status", "running")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.fields) coveredFields = data.fields as string[];
+    } catch { /* table absente */ }
+    if (coveredFields.length === 0) {
+      const anyEnriched = await count((q) => q.not("enriched_at", "is", null));
+      if ((anyEnriched ?? 0) > 0) coveredFields = fieldIdsAll.filter((f) => DEFAULT_ENRICHMENT_SETTINGS.fields[f]);
+    }
+    const newFields = active.filter((f) => f !== "siren" && !coveredFields.includes(f));
+    if (newFields.length > 0) {
+      const missing = newFields.map((f) => `${ENRICHMENT_FIELD_COLUMNS[f]}.is.null`).join(",");
+      // Fiches considérées « à jour » par le moteur (enriched_at frais) mais où
+      // la nouvelle donnée manque — les autres sont déjà dans factsRemaining.
+      newFieldsRemaining =
+        (await count((q) => q.not("siren", "is", null).gte("enriched_at", refreshBefore).or(missing))) ?? 0;
+    }
+  } catch {
+    newFieldsRemaining = 0;
+  }
+
+  const remaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0) + newFieldsRemaining;
   const processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
-  // Jauge = fiches À JOUR / base totale. Un champ fraîchement coché dans les
-  // Paramètres remet les fiches concernées en file (enriched_at → null) : la
-  // jauge REPART aussitôt au lieu de rester à 100 % de la passe précédente.
+  // Jauge = fiches À JOUR / base totale : elle REPART dès qu'une nouvelle
+  // donnée est cochée (remise en file OU champ jamais couvert ci-dessus).
   const base = total ?? processed + remaining;
   const pct = base > 0 ? Math.max(0, Math.min(100, Math.round(((base - remaining) / base) * 100))) : 100;
 
@@ -104,7 +152,9 @@ export async function GET() {
     processed,
     pct,
     lastActivityAt,
-    /** Il reste du travail → le robot (cron 10 min) le traite : « en cours ». */
-    inProgress: remaining > 0,
+    /** Travail en FILE (remis en file) → le robot le traite : « en cours ».
+     *  Les champs jamais couverts (newFieldsRemaining) attendent le clic
+     *  « Enrichir mon CRM » : la jauge baisse mais l'état reste « à lancer ». */
+    inProgress: (identitiesRemaining ?? 0) + (factsRemaining ?? 0) > 0,
   });
 }

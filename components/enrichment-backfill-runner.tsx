@@ -56,6 +56,19 @@ type Run = {
 
 const FIELD_LABEL: Record<string, string> = Object.fromEntries(ENRICHMENT_FIELD_LABELS.map((f) => [f.id, f.label]));
 
+/** Libellés courts pour le détail des passes (« +12 effectifs ») dans l'historique. */
+const FIELD_SHORT: Record<string, string> = {
+  siren: "SIREN",
+  siret: "SIRET",
+  vat: "N° TVA",
+  employees: "effectifs",
+  revenue: "CA",
+  industry: "secteurs",
+  legalForm: "statuts juridiques",
+  shareCapital: "capitaux sociaux",
+  headOfficeAddress: "adresses siège",
+};
+
 const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
 
 function sinceFr(iso: string | null): string {
@@ -71,11 +84,9 @@ const dateTimeFr = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function EnrichmentBackfillRunner({
-  linkedinEnabled = false,
   fields,
   hubspotSearchIds = true,
 }: {
-  linkedinEnabled?: boolean;
   fields: EnrichmentFields;
   hubspotSearchIds?: boolean;
 }) {
@@ -157,6 +168,9 @@ export function EnrichmentBackfillRunner({
     const totals = { identities: 0, candidates: 0, facts: 0, duplicates: 0 };
     let runId: string | null = null;
     let interrupted = false;
+    // Couverture par champ AVANT la passe → le delta par donnée (SIREN,
+    // effectifs, CA…) est consigné dans l'historique à la clôture.
+    const baselineFieldCounts: Record<string, number | null> = { ...((await loadStatus())?.fieldCounts ?? {}) };
 
     try {
       // 1. Ouvre la passe — remet en file les fiches où les NOUVEAUX champs
@@ -236,8 +250,15 @@ export function EnrichmentBackfillRunner({
         }
       }
 
-      // 4. Clôt la passe (date/heure + compteurs → historique).
+      // 4. Clôt la passe (date/heure + compteurs → historique), avec le DÉTAIL
+      //    PAR DONNÉE enrichie (delta de couverture champ par champ).
       if (runId) {
+        const fieldStats: Record<string, number> = {};
+        const after = (await loadStatus())?.fieldCounts ?? {};
+        for (const [k, v] of Object.entries(after)) {
+          const before = baselineFieldCounts[k];
+          if (typeof v === "number" && typeof before === "number" && v > before) fieldStats[`field_${k}`] = v - before;
+        }
         await fetch("/api/enrichment/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -245,7 +266,7 @@ export function EnrichmentBackfillRunner({
             action: "finish",
             runId,
             status: interrupted ? "interrupted" : "done",
-            stats: { ...totals, crmPushed, crmFailed },
+            stats: { ...totals, crmPushed, crmFailed, ...fieldStats },
           }),
         }).catch(() => {});
       }
@@ -337,36 +358,13 @@ export function EnrichmentBackfillRunner({
           />
         </div>
 
-        {status != null && (
-          <p className="mt-1.5 text-[11px] text-slate-500">
-            <span className="font-semibold text-slate-700">{fmt(status.withSiren)}</span> entreprises identifiées
-            (SIREN/TVA trouvés) · <span className="font-semibold text-slate-700">{fmt(status.withEmployees)}</span> avec
-            effectif officiel · <span className="font-semibold text-amber-700">{fmt(status.candidates)}</span> en attente
-            de validation ci-dessous
-            {(status.duplicates ?? 0) > 0 && (
-              <>
-                {" "}· <span className="font-semibold text-slate-700">{fmt(status.duplicates)}</span> fiches en doublon
-                (même entreprise déjà présente)
-              </>
-            )}
-            {sessionTotal > 0 && (
-              <>
-                {" "}· <span className="text-fuchsia-600">+{sessionTotal} pendant cette passe</span>
-              </>
-            )}
-          </p>
+        {/* Le détail chiffré (identités, effectifs, doublons…) vit dans
+            l'historique des enrichissements ci-dessous — pas ici. */}
+        {status != null && sessionTotal > 0 && (
+          <p className="mt-1.5 text-[11px] text-fuchsia-600">+{sessionTotal} pendant cette passe</p>
         )}
 
         {notice && !modalOpen && <p className="mt-1.5 text-[11px] font-medium text-amber-700">{notice}</p>}
-
-        {linkedinEnabled && (
-          <p className="mt-2 text-[11px]">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
-              <span aria-hidden className="rounded bg-sky-600 px-1 text-[9px] font-bold leading-4 text-white">in</span>{" "}
-              Source LinkedIn (bêta) activée — les effectifs manquants seront complétés dès le branchement de l&apos;API.
-            </span>
-          </p>
-        )}
 
         {/* ── CTA : passe complète tant qu'il reste du travail ou que de
                nouveaux champs sont cochés ; sinon état discret. ── */}
@@ -419,10 +417,20 @@ export function EnrichmentBackfillRunner({
           <ul className="mt-2 divide-y divide-slate-100">
             {historyRuns.map((r) => {
               const s = r.stats ?? {};
+              // Détail PAR DONNÉE enrichie (« +12 SIREN · +30 effectifs ») quand
+              // la passe l'a consigné ; sinon repli sur les compteurs globaux.
+              const fieldParts = Object.entries(s)
+                .filter(([k, v]) => k.startsWith("field_") && typeof v === "number" && v > 0)
+                .map(([k, v]) => `+${fmt(v)} ${FIELD_SHORT[k.slice(6)] ?? FIELD_LABEL[k.slice(6)] ?? k.slice(6)}`);
               const parts = [
-                s.identities ? `${fmt(s.identities)} identités` : null,
-                s.facts ? `${fmt(s.facts)} fiches complétées` : null,
+                ...(fieldParts.length > 0
+                  ? fieldParts
+                  : [
+                      s.identities ? `${fmt(s.identities)} identités` : null,
+                      s.facts ? `${fmt(s.facts)} fiches complétées` : null,
+                    ].filter(Boolean)),
                 s.candidates ? `${fmt(s.candidates)} à valider` : null,
+                s.duplicates ? `${fmt(s.duplicates)} doublons détectés` : null,
                 s.crmPushed ? `${fmt(s.crmPushed)} fiches CRM synchronisées` : null,
               ].filter(Boolean);
               return (

@@ -111,11 +111,7 @@ export default async function EnrichissementPage() {
 
       {/* ── 1. ÉTAT du moteur — CTA « Enrichir mon CRM » (fenêtre de
              complétion) puis historique des passes juste en dessous. ── */}
-      <EnrichmentBackfillRunner
-        linkedinEnabled={settings.linkedinEnabled}
-        fields={settings.fields}
-        hubspotSearchIds={settings.hubspotSearchIds}
-      />
+      <EnrichmentBackfillRunner fields={settings.fields} hubspotSearchIds={settings.hubspotSearchIds} />
 
       {/* ── 1 bis. Source LinkedIn (bêta), bloc DÉDIÉ sous le moteur : sa
              propre barre de complétion mesure ce que cette source apporte
