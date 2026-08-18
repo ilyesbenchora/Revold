@@ -159,8 +159,10 @@ export async function verifyOtpAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const code = String(formData.get("code") ?? "").trim();
   if (!email) redirect("/login?error=Email+manquant");
-  if (!/^\d{6}$/.test(code)) {
-    redirect(`/login?mode=otp&email=${encodeURIComponent(email)}&error=Le+code+comporte+6+chiffres`);
+  // 6 chiffres attendus, mais on tolère jusqu'à 10 (longueur réglable côté
+  // Supabase) pour ne jamais bloquer un code valide reçu par email.
+  if (!/^\d{6,10}$/.test(code)) {
+    redirect(`/login?mode=otp&email=${encodeURIComponent(email)}&error=Recopie+le+code+reçu+par+email`);
   }
 
   const supabase = await createSupabaseServerClient();

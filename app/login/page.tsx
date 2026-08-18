@@ -231,8 +231,8 @@ function LoginForm() {
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  pattern="\d{6}"
-                  maxLength={6}
+                  pattern="\d{6,10}"
+                  maxLength={10}
                   placeholder="••••••"
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-center text-2xl tracking-[0.5em] text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
                   required
