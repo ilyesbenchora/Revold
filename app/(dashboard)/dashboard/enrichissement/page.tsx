@@ -7,7 +7,12 @@ import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runne
 import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
 import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
-import { getEnrichmentSettings } from "@/lib/enrichment/settings";
+import { HubspotPropertiesBlock } from "@/components/hubspot-properties-block";
+import {
+  ENRICHMENT_FIELD_COLUMNS,
+  ENRICHMENT_FIELD_LABELS,
+  getEnrichmentSettings,
+} from "@/lib/enrichment/settings";
 
 /**
  * Suivi → Enrichissement : l'ACTION à forte valeur ajoutée, distinguée des
@@ -40,21 +45,36 @@ export default async function EnrichissementPage() {
   // eslint-disable-next-line react-hooks/purity
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const settings = await getEnrichmentSettings(supabase, orgId);
-  const [total, withSiren, withEmployees, withRevenue, fresh, toReview] = await Promise.all([
+
+  // Tuiles CORRÉLÉES aux champs cochés dans Paramètres → Enrichissement : une
+  // tuile de couverture par champ actif (un champ fraîchement coché démarre à 0).
+  const activeFields = ENRICHMENT_FIELD_LABELS.filter((f) => settings.fields[f.id]);
+  const FIELD_TILE: Record<string, { label: string; sub: string }> = {
+    siren: { label: "Avec SIREN", sub: "la clé de tout l'enrichissement" },
+    siret: { label: "Avec SIRET", sub: "établissement siège identifié" },
+    vat: { label: "N° TVA connu", sub: "calculé depuis le SIREN" },
+    employees: { label: "Effectif officiel connu", sub: "tranche URSSAF/INSEE datée" },
+    revenue: { label: "CA officiel connu", sub: "dernier exercice déposé (INPI)" },
+    industry: { label: "Secteur connu", sub: "code NAF/APE + section INSEE" },
+    legalForm: { label: "Statut juridique connu", sub: "forme juridique officielle INSEE" },
+    shareCapital: { label: "Capital social connu", sub: "publié au RNE (INPI)" },
+    headOfficeAddress: { label: "Adresse siège connue", sub: "adresse officielle Sirene" },
+  };
+  const [total, fresh, toReview, ...fieldValues] = await Promise.all([
     count(supabase, orgId, (q) => q),
-    count(supabase, orgId, (q) => q.not("siren", "is", null)),
-    count(supabase, orgId, (q) => q.not("official_employee_range", "is", null)),
-    count(supabase, orgId, (q) => q.not("official_revenue", "is", null)),
     count(supabase, orgId, (q) => q.gte("enriched_at", ninetyDaysAgo)),
     count(supabase, orgId, (q) => q.is("siren", null).not("candidate_siren", "is", null)),
+    ...activeFields.map((f) => count(supabase, orgId, (q) => q.not(ENRICHMENT_FIELD_COLUMNS[f.id], "is", null))),
   ]);
-  const sirenPct = total ? Math.round(((withSiren ?? 0) / total) * 100) : 0;
 
   const tiles = [
     { label: "Entreprises", value: total, sub: "dans le modèle de données" },
-    { label: "Avec SIREN", value: withSiren, sub: total ? `${sirenPct} % — la clé de tout l'enrichissement` : "" },
-    { label: "Effectif officiel connu", value: withEmployees, sub: "tranche URSSAF/INSEE datée" },
-    { label: "CA officiel connu", value: withRevenue, sub: "dernier exercice déposé (INPI)" },
+    ...activeFields.map((f, i) => {
+      const t = FIELD_TILE[f.id] ?? { label: f.label, sub: "" };
+      const v = fieldValues[i];
+      const pctOf = total && v != null ? ` — ${Math.round((v / total) * 100)} %` : "";
+      return { label: t.label, value: v, sub: `${t.sub}${f.id === "siren" ? pctOf : ""}` };
+    }),
     { label: "Rafraîchies < 90 j", value: fresh, sub: "données évolutives — à entretenir" },
     { label: "À valider", value: toReview, sub: "correspondances plausibles en attente" },
   ];
@@ -65,7 +85,8 @@ export default async function EnrichissementPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Enrichissement</h1>
         <p className="mt-1 text-sm text-slate-500">
           Revold remplit et rafraîchit la donnée officielle de tes entreprises — identifiants (SIREN, SIRET, TVA),
-          effectifs et chiffre d&apos;affaires — puis l&apos;écrit dans ton CRM.{" "}
+          effectifs, chiffre d&apos;affaires, statut juridique, capital social, adresse du siège — puis l&apos;écrit
+          dans ton CRM.{" "}
           <span className="font-medium text-slate-700">
             L&apos;enrichissement tourne automatiquement, en continu, sur toute la base
           </span>{" "}
@@ -84,9 +105,17 @@ export default async function EnrichissementPage() {
         ))}
       </div>
 
-      {/* ── 1. ÉTAT du moteur (accélération silencieuse tant que la page est
-             ouverte) — CTA « Enrichir mon CRM » en bas du bloc. ── */}
-      <EnrichmentBackfillRunner />
+      {/* ── 0. Propriétés HubSpot cibles de l'enrichissement (miroir du bloc
+             des Paramètres, limité aux propriétés propres à l'enrichissement). ── */}
+      <HubspotPropertiesBlock />
+
+      {/* ── 1. ÉTAT du moteur — CTA « Enrichir mon CRM » (fenêtre de
+             complétion) puis historique des passes juste en dessous. ── */}
+      <EnrichmentBackfillRunner
+        linkedinEnabled={settings.linkedinEnabled}
+        fields={settings.fields}
+        hubspotSearchIds={settings.hubspotSearchIds}
+      />
 
       {/* ── 1 bis. Source LinkedIn (bêta), bloc DÉDIÉ sous le moteur : sa
              propre barre de complétion mesure ce que cette source apporte

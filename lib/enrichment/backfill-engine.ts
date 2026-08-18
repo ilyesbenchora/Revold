@@ -8,7 +8,9 @@ import {
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { pushHubspotIfEmpty } from "@/lib/enrichment/hubspot-push";
 import {
+  ENRICHMENT_HUBSPOT_PROPERTIES,
   getEnrichmentSettings,
+  legalFormLabel,
   nafSectionLabel,
   registryForCountry,
   type EnrichmentSettings,
@@ -30,6 +32,11 @@ import {
  */
 
 const THROTTLE_MS = 200; // ~5 req/s — l'API publique tolère 7/s
+/** Propriété HubSpot cible par champ d'enrichissement (fallback si non mappée). */
+const HS_PROP = Object.fromEntries(ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => [p.field, p])) as Record<
+  string,
+  { canonical: string; fallback: string }
+>;
 const RECHECK_DAYS = 30;
 const REFRESH_DAYS = 90;
 /** Échecs d'affilée avant de conclure à une vraie panne du registre. */
@@ -240,12 +247,21 @@ export async function runEnrichmentBatch(
       update.naf_code = found.facts.nafCode;
       update.activity_label = nafSectionLabel(found.facts.nafCode);
     }
+    if (st.fields.legalForm && found.facts.legalFormCode) {
+      const label = legalFormLabel(found.facts.legalFormCode);
+      if (label) update.legal_form = label;
+    }
+    if (st.fields.headOfficeAddress && found.facts.headOfficeAddress) update.head_office_address = found.facts.headOfficeAddress;
+    if (st.fields.shareCapital && typeof found.facts.shareCapital === "number") update.share_capital = found.facts.shareCapital;
     let { error } = await sb.from("companies").update(update).eq("id", c.id);
-    // Colonnes secteur absentes (migration non appliquée) → on retente sans
+    // Colonnes récentes absentes (migration non appliquée) → on retente sans
     // elles plutôt que perdre l'identité entière.
-    if (error && /naf_code|activity_label/.test(error.message)) {
+    if (error && /naf_code|activity_label|legal_form|head_office_address|share_capital/.test(error.message)) {
       delete update.naf_code;
       delete update.activity_label;
+      delete update.legal_form;
+      delete update.head_office_address;
+      delete update.share_capital;
       ({ error } = await sb.from("companies").update(update).eq("id", c.id));
     }
     if (error) {
@@ -295,6 +311,14 @@ export async function runEnrichmentBatch(
       }
       if (st.fields.revenue && typeof found.facts.revenue === "number") properties.annualrevenue = String(Math.round(found.facts.revenue));
       if (st.fields.employees && typeof found.facts.employeeMidpoint === "number") properties.numberofemployees = String(found.facts.employeeMidpoint);
+      const legalLabel = st.fields.legalForm ? legalFormLabel(found.facts.legalFormCode) : null;
+      if (legalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = legalLabel;
+      if (st.fields.shareCapital && typeof found.facts.shareCapital === "number") {
+        properties[propFor(HS_PROP.shareCapital.canonical, HS_PROP.shareCapital.fallback)] = String(found.facts.shareCapital);
+      }
+      if (st.fields.headOfficeAddress && found.facts.headOfficeAddress) {
+        properties[propFor(HS_PROP.headOfficeAddress.canonical, HS_PROP.headOfficeAddress.fallback)] = found.facts.headOfficeAddress;
+      }
       // JAMAIS écraser : seuls les champs VIDES de la fiche HubSpot sont remplis.
       await pushHubspotIfEmpty(token, c.hubspot_id, properties);
     }
@@ -317,8 +341,11 @@ export async function runEnrichmentBatch(
       if (budget <= 0) break;
       if (!/^\d{9}$/.test(c.siren)) continue;
       const st = await caches.settings(c.organization_id);
-      // Effectifs, CA et secteur désactivés → rien à rafraîchir pour cette org.
-      if (!st.fields.employees && !st.fields.revenue && !st.fields.industry) {
+      // Aucun champ évolutif actif → rien à rafraîchir pour cette org.
+      if (
+        !st.fields.employees && !st.fields.revenue && !st.fields.industry &&
+        !st.fields.legalForm && !st.fields.shareCapital && !st.fields.headOfficeAddress
+      ) {
         await sb.from("companies").update({ enriched_at: new Date().toISOString() }).eq("id", c.id);
         continue;
       }
@@ -351,10 +378,17 @@ export async function runEnrichmentBatch(
         update.naf_code = facts.nafCode;
         update.activity_label = nafSectionLabel(facts.nafCode);
       }
+      const factsLegalLabel = st.fields.legalForm ? legalFormLabel(facts?.legalFormCode) : null;
+      if (factsLegalLabel) update.legal_form = factsLegalLabel;
+      if (st.fields.headOfficeAddress && facts?.headOfficeAddress) update.head_office_address = facts.headOfficeAddress;
+      if (st.fields.shareCapital && typeof facts?.shareCapital === "number") update.share_capital = facts.shareCapital;
       let { error } = await sb.from("companies").update(update).eq("id", c.id);
-      if (error && /naf_code|activity_label/.test(error.message)) {
+      if (error && /naf_code|activity_label|legal_form|head_office_address|share_capital/.test(error.message)) {
         delete update.naf_code;
         delete update.activity_label;
+        delete update.legal_form;
+        delete update.head_office_address;
+        delete update.share_capital;
         ({ error } = await sb.from("companies").update(update).eq("id", c.id));
       }
       if (error) {
@@ -377,6 +411,13 @@ export async function runEnrichmentBatch(
         }
         if (st.fields.revenue && typeof facts?.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
         if (st.fields.employees && typeof facts?.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
+        if (factsLegalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = factsLegalLabel;
+        if (st.fields.shareCapital && typeof facts?.shareCapital === "number") {
+          properties[propFor(HS_PROP.shareCapital.canonical, HS_PROP.shareCapital.fallback)] = String(facts.shareCapital);
+        }
+        if (st.fields.headOfficeAddress && facts?.headOfficeAddress) {
+          properties[propFor(HS_PROP.headOfficeAddress.canonical, HS_PROP.headOfficeAddress.fallback)] = facts.headOfficeAddress;
+        }
         // JAMAIS écraser : seuls les champs VIDES de la fiche HubSpot sont remplis.
         if (Object.keys(properties).length > 0) await pushHubspotIfEmpty(token, c.hubspot_id, properties);
       }

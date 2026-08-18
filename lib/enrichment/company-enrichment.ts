@@ -45,12 +45,14 @@ type ApiResult = {
   siren?: string;
   nom_complet?: string;
   nom_raison_sociale?: string;
-  siege?: { siret?: string };
+  siege?: { siret?: string; adresse?: string | null };
   tranche_effectif_salarie?: string | null;
   annee_tranche_effectif_salarie?: string | null;
   /** Code NAF/APE officiel (ex : « 62.01Z ») — secteur d'activité. */
   activite_principale?: string | null;
-  finances?: Record<string, { ca?: number | null; resultat_net?: number | null }> | null;
+  /** Catégorie juridique INSEE (ex : « 5710 » = SAS) — statut juridique. */
+  nature_juridique?: string | null;
+  finances?: Record<string, { ca?: number | null; resultat_net?: number | null; capital_social?: number | null }> | null;
 };
 
 // ── Effectifs & CA officiels (données ÉVOLUTIVES, à rafraîchir) ─────────────
@@ -101,6 +103,12 @@ export type CompanyFacts = {
   netIncome: number | null;
   /** Code NAF/APE officiel (secteur d'activité). */
   nafCode: string | null;
+  /** Catégorie juridique INSEE (« 5710 ») — libellé dérivé côté moteur. */
+  legalFormCode: string | null;
+  /** Adresse officielle du siège social (registre Sirene). */
+  headOfficeAddress: string | null;
+  /** Capital social (RNE/INPI) — null tant que le registre ne le publie pas. */
+  shareCapital: number | null;
 };
 
 /** Extrait effectifs + finances d'un résultat de l'API (partagé recherche/fiche). */
@@ -112,6 +120,7 @@ function factsFromResult(r: ApiResult): CompanyFacts {
   let revenue: number | null = null;
   let revenueYear: number | null = null;
   let netIncome: number | null = null;
+  let shareCapital: number | null = null;
   const finances = r.finances ?? null;
   if (finances && typeof finances === "object") {
     const years = Object.keys(finances)
@@ -120,6 +129,7 @@ function factsFromResult(r: ApiResult): CompanyFacts {
       .sort((a, b) => b - a);
     for (const y of years) {
       const f = finances[String(y)];
+      if (f && typeof f.capital_social === "number" && shareCapital == null) shareCapital = f.capital_social;
       if (f && typeof f.ca === "number") {
         revenue = f.ca;
         revenueYear = y;
@@ -136,6 +146,10 @@ function factsFromResult(r: ApiResult): CompanyFacts {
     revenueYear,
     netIncome,
     nafCode: typeof r.activite_principale === "string" && r.activite_principale ? r.activite_principale : null,
+    legalFormCode: typeof r.nature_juridique === "string" && r.nature_juridique ? r.nature_juridique : null,
+    headOfficeAddress:
+      typeof r.siege?.adresse === "string" && r.siege.adresse.trim() ? r.siege.adresse.trim() : null,
+    shareCapital,
   };
 }
 

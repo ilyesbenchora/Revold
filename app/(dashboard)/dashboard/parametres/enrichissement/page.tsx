@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { EnrichmentSettingsForm } from "@/components/enrichment-settings-form";
+import { HubspotPropertiesBlock } from "@/components/hubspot-properties-block";
 import { getEnrichmentSettings, registryForCountry } from "@/lib/enrichment/settings";
 
 /**
@@ -65,6 +66,11 @@ export default async function ParametresEnrichissementPage() {
       </div>
 
       <EnrichmentSettingsForm initial={settings} />
+
+      {/* Identifiants & propriétés HubSpot : vérifie que chaque propriété cible
+          (SIREN, SIRET, TVA, statut juridique, capital social, adresse du
+          siège — selon les champs cochés) existe dans le portail. */}
+      <HubspotPropertiesBlock showSettingsLink={false} />
 
       <p className="text-[11px] text-slate-400">
         Les réglages s&apos;appliquent aux prochains passages du moteur (cron horaire et page{" "}

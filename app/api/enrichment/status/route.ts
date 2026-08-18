@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { ENRICHMENT_FIELD_COLUMNS } from "@/lib/enrichment/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,14 @@ export async function GET() {
       count((q) => q.not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`)),
     ]);
 
+  // Couverture PAR CHAMP d'enrichissement (tuiles et modale de complétion
+  // corrélées aux champs cochés dans Paramètres → Enrichissement).
+  const fieldIds = Object.keys(ENRICHMENT_FIELD_COLUMNS) as (keyof typeof ENRICHMENT_FIELD_COLUMNS)[];
+  const fieldCountValues = await Promise.all(
+    fieldIds.map((f) => count((q) => q.not(ENRICHMENT_FIELD_COLUMNS[f], "is", null))),
+  );
+  const fieldCounts = Object.fromEntries(fieldIds.map((f, i) => [f, fieldCountValues[i]]));
+
   // Dernière avancée réelle (preuve que le robot travaille) : le plus récent
   // des marqueurs écrits par le moteur, quelle que soit sa source (cron ou page).
   const lastOf = async (col: "sirene_checked_at" | "enriched_at"): Promise<string | null> => {
@@ -85,6 +94,7 @@ export async function GET() {
     withSiren,
     withEmployees,
     withRevenue,
+    fieldCounts,
     candidates,
     duplicates,
     identitiesRemaining,

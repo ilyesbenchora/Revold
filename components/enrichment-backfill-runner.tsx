@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ENRICHMENT_FIELD_LABELS, type EnrichmentFields } from "@/lib/enrichment/settings";
 
 /**
- * État de l'enrichissement de la base — et accélérateur SILENCIEUX.
+ * État de l'enrichissement + CTA « Enrichir mon CRM » + historique des passes.
  *
- * Aucun bouton : tant qu'il reste des entreprises à traiter, le robot avance
- * en tâche de fond (cron toutes les 5 min) ET cette page enchaîne des lots
- * pendant qu'elle est ouverte. Pas d'arbitrage vitesse/qualité à proposer à
- * l'utilisateur : c'est le MÊME moteur, les mêmes règles (seules les
- * correspondances exactes sont appliquées seules, le reste passe par la
- * validation humaine) — seule la cadence d'appel change.
+ * Le robot de fond (cron) entretient la base en continu ; ici, le CTA lance
+ * une PASSE explicite : fenêtre de complétion qui coche une à une les
+ * catégories de données (SIREN, SIRET, TVA…) puis synchronise le CRM HubSpot.
+ * Après une première passe complète, le CTA s'efface au profit d'un état
+ * « synchronisé » ; il ne revient que si de NOUVEAUX champs sont cochés dans
+ * Paramètres → Enrichissement — la passe suivante ne porte alors que sur la
+ * nouvelle donnée (compteurs repartis à zéro sur ce périmètre).
  */
 
 const POLL_MS = 20_000;
@@ -22,6 +25,7 @@ type Status = {
   withEmployees: number | null;
   candidates: number | null;
   duplicates: number | null;
+  fieldCounts?: Record<string, number | null>;
   remaining: number;
   processed: number;
   pct: number;
@@ -39,6 +43,19 @@ type Batch = {
   error?: string;
 };
 
+type Run = {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  fields: string[];
+  scope_total: number;
+  stats: Record<string, number>;
+  status: "running" | "done" | "interrupted";
+  derived?: boolean;
+};
+
+const FIELD_LABEL: Record<string, string> = Object.fromEntries(ENRICHMENT_FIELD_LABELS.map((f) => [f.id, f.label]));
+
 const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
 
 function sinceFr(iso: string | null): string {
@@ -50,22 +67,34 @@ function sinceFr(iso: string | null): string {
   return h < 48 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
 }
 
-/** Fin estimée au rythme du robot seul (~4 800 entreprises/h). */
-function etaFr(remaining: number): string | null {
-  if (remaining <= 0) return null;
-  const hours = remaining / 4800;
-  if (hours < 0.5) return "moins de 30 min";
-  if (hours < 1.5) return "environ 1 h";
-  return `environ ${Math.round(hours)} h`;
-}
+const dateTimeFr = (iso: string) =>
+  new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-export function EnrichmentBackfillRunner() {
+export function EnrichmentBackfillRunner({
+  linkedinEnabled = false,
+  fields,
+  hubspotSearchIds = true,
+}: {
+  linkedinEnabled?: boolean;
+  fields: EnrichmentFields;
+  hubspotSearchIds?: boolean;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
+  const [runs, setRuns] = useState<Run[] | null>(null);
+  const [covered, setCovered] = useState<string[]>([]);
   const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
   const [notice, setNotice] = useState<string | null>(null);
+
+  // ── Passe en cours (fenêtre de complétion) ──
+  const [modalOpen, setModalOpen] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "engine" | "crm" | "done" | "interrupted">("idle");
+  const [passScope, setPassScope] = useState(0);
+  const [passRemaining, setPassRemaining] = useState(0);
+  const [crmProgress, setCrmProgress] = useState<{ done: number; total: number; pushed: number; failed: number } | null>(null);
+
   const mountedRef = useRef(true);
-  const loopRef = useRef(false);
+  const runningRef = useRef(false);
 
   const loadStatus = useCallback(async (): Promise<Status | null> => {
     try {
@@ -79,174 +108,444 @@ export function EnrichmentBackfillRunner() {
     }
   }, []);
 
-  /** Enchaîne des lots tant que la page est ouverte et qu'il reste du travail. */
-  const loop = useCallback(async () => {
-    if (loopRef.current) return;
-    loopRef.current = true;
+  const loadRuns = useCallback(async () => {
     try {
-      while (mountedRef.current) {
+      const res = await fetch("/api/enrichment/runs");
+      if (!res.ok) return;
+      const d = (await res.json()) as { runs: Run[]; covered: string[] };
+      if (mountedRef.current) {
+        setRuns(d.runs);
+        setCovered(d.covered);
+      }
+    } catch {
+      /* historique indisponible */
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void loadStatus();
+    void loadRuns();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [loadStatus, loadRuns]);
+
+  // Suivi du robot de fond même sans passe locale.
+  useEffect(() => {
+    if (!status?.inProgress || runningRef.current) return;
+    const iv = setInterval(() => void loadStatus(), POLL_MS);
+    return () => clearInterval(iv);
+  }, [status?.inProgress, loadStatus]);
+
+  const activeFieldIds = ENRICHMENT_FIELD_LABELS.filter((f) => fields[f.id]).map((f) => f.id as string);
+  const inactiveFieldIds = ENRICHMENT_FIELD_LABELS.filter((f) => !fields[f.id]).map((f) => f.id as string);
+  // Nouveaux champs cochés depuis la dernière passe → le CTA principal revient.
+  const newFields = runs == null ? [] : activeFieldIds.filter((f) => !covered.includes(f));
+  const remaining = status?.remaining ?? 0;
+  const needsRun = remaining > 0 || newFields.length > 0;
+
+  /** Lance une passe complète : moteur (registre) puis synchronisation CRM. */
+  const startPass = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setModalOpen(true);
+    setPhase("engine");
+    setNotice(null);
+    setSession({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
+    setCrmProgress(null);
+    const totals = { identities: 0, candidates: 0, facts: 0, duplicates: 0 };
+    let runId: string | null = null;
+    let interrupted = false;
+
+    try {
+      // 1. Ouvre la passe — remet en file les fiches où les NOUVEAUX champs
+      //    manquent (le moteur ne remplit que les champs vides : rien n'est écrasé).
+      try {
+        const res = await fetch("/api/enrichment/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start" }),
+        });
+        const d = await res.json().catch(() => ({}));
+        runId = d.runId ?? null;
+        setPassScope(d.scopeTotal ?? 0);
+        setPassRemaining(d.scopeTotal ?? 0);
+      } catch {
+        /* la passe tourne même sans historique */
+      }
+
+      // 2. Moteur : enchaîne les lots tant qu'il reste du travail.
+      for (;;) {
+        if (!mountedRef.current) return;
         const res = await fetch("/api/enrichment/backfill", { method: "POST" });
         const d = (await res.json().catch(() => ({}))) as Partial<Batch>;
-        if (!mountedRef.current) break;
+        if (!mountedRef.current) return;
         if (!res.ok) {
-          // Erreur serveur : on laisse le robot de fond prendre le relais.
           setNotice("Traitement poursuivi en tâche de fond.");
+          interrupted = true;
           break;
         }
-        setSession((s) => ({
-          identities: s.identities + (d.identities ?? 0),
-          candidates: s.candidates + (d.candidates ?? 0),
-          facts: s.facts + (d.facts ?? 0),
-          duplicates: s.duplicates + (d.duplicates ?? 0),
-        }));
+        totals.identities += d.identities ?? 0;
+        totals.candidates += d.candidates ?? 0;
+        totals.facts += d.facts ?? 0;
+        totals.duplicates += d.duplicates ?? 0;
+        setSession({ ...totals });
         const fresh = await loadStatus();
-        router.refresh();
-        if (!mountedRef.current) break;
+        if (fresh) setPassRemaining(fresh.remaining);
         if ((fresh?.remaining ?? 0) <= 0) break;
-
         if (d.interrupted) {
-          // Le registre ne répond plus correctement : on patiente brièvement
-          // (aucune entreprise n'a été marquée à tort — le contrôle qualité
-          // passe avant la vitesse), puis on reprend là où on s'était arrêté.
           setNotice("Le registre ne répond pas — nouvelle tentative dans 5 s.");
           await new Promise((r) => setTimeout(r, 5_000));
-          if (!mountedRef.current) break;
+          if (!mountedRef.current) return;
           setNotice(null);
         } else if ((d.lookupsUsed ?? 0) === 0) {
           break;
         }
       }
+
+      // 3. Synchronisation CRM : pousse les valeurs dans les fiches HubSpot
+      //    (champs vides uniquement) — c'est cette étape qui aligne HubSpot
+      //    sur Revold, fiche par fiche.
+      let crmPushed = 0;
+      let crmFailed = 0;
+      if (hubspotSearchIds && !interrupted) {
+        setPhase("crm");
+        let cursor: string | null = null;
+        let total = 0;
+        let done = 0;
+        for (;;) {
+          if (!mountedRef.current) return;
+          const res: Response = await fetch("/api/enrichment/push-hubspot-ids", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cursor }),
+          });
+          if (!res.ok) {
+            setNotice("Synchronisation HubSpot indisponible — elle reprendra aux prochains passages du moteur.");
+            break;
+          }
+          const d = await res.json();
+          if (typeof d.total === "number") total = d.total;
+          done += d.processed ?? 0;
+          crmPushed += d.pushed ?? 0;
+          crmFailed += d.failed ?? 0;
+          setCrmProgress({ done, total, pushed: crmPushed, failed: crmFailed });
+          if (d.done || !d.nextCursor) break;
+          cursor = d.nextCursor;
+        }
+      }
+
+      // 4. Clôt la passe (date/heure + compteurs → historique).
+      if (runId) {
+        await fetch("/api/enrichment/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "finish",
+            runId,
+            status: interrupted ? "interrupted" : "done",
+            stats: { ...totals, crmPushed, crmFailed },
+          }),
+        }).catch(() => {});
+      }
+      if (mountedRef.current) {
+        setPhase(interrupted ? "interrupted" : "done");
+        void loadRuns();
+        void loadStatus();
+        router.refresh();
+      }
     } finally {
-      loopRef.current = false;
+      runningRef.current = false;
     }
-  }, [loadStatus, router]);
+  }, [hubspotSearchIds, loadRuns, loadStatus, router]);
 
-  // Montage : état réel, puis accélération automatique s'il reste du travail.
-  useEffect(() => {
-    mountedRef.current = true;
-    void (async () => {
-      const s = await loadStatus();
-      if (mountedRef.current && (s?.remaining ?? 0) > 0) void loop();
-    })();
-    return () => {
-      mountedRef.current = false; // la boucle s'arrête au lot suivant
-    };
-  }, [loadStatus, loop]);
-
-  // Suivi de l'avancement même quand la boucle locale ne tourne pas.
-  useEffect(() => {
-    if (!status?.inProgress) return;
-    const iv = setInterval(() => void loadStatus(), POLL_MS);
-    return () => clearInterval(iv);
-  }, [status?.inProgress, loadStatus]);
+  // ── Fenêtre de complétion : catégories cochées une à une ──
+  const engineProgress =
+    passScope > 0 ? Math.min(1, Math.max(0, (passScope - passRemaining) / passScope)) : phase === "engine" ? 0 : 1;
+  const nCats = activeFieldIds.length;
+  const catsDone = phase === "engine" ? Math.floor(engineProgress * nCats) : nCats;
 
   const pct = status?.pct ?? 0;
-  const remaining = status?.remaining ?? 0;
   const inProgress = status?.inProgress ?? false;
   const sessionTotal = session.identities + session.facts + session.candidates + session.duplicates;
-  const eta = etaFr(remaining);
+  const historyRuns = (runs ?? []).slice(0, 8);
 
   return (
-    <div className="card border-fuchsia-200/70 bg-gradient-to-r from-fuchsia-50/50 via-white to-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            {status == null ? (
-              // Tant que l'état n'est pas chargé, on n'affiche NI « terminé »
-              // NI « en cours » — sinon flash trompeur à chaque rafraîchissement.
-              <>
-                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-300" />
-                Lecture de l&apos;avancement…
-              </>
-            ) : inProgress ? (
-              <>
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-60" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-fuchsia-500" />
-                </span>
-                Enrichissement en cours
-              </>
-            ) : (
-              <>✓ Base entièrement enrichie</>
-            )}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {status == null ? (
-              <>Récupération de l&apos;état réel de ta base…</>
-            ) : inProgress ? (
-              <>
-                Revold traite ta base en continu, application ouverte ou fermée
-                {eta && <> — fin estimée dans <span className="font-medium text-slate-700">{eta}</span></>}. Dernière
-                avancée <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
-              </>
-            ) : (
-              <>Le robot entretient la donnée : nouvelles entreprises traitées à leur arrivée, rafraîchissement tous les 90 jours.</>
-            )}
-          </p>
+    <>
+      <div className="card border-fuchsia-200/70 bg-gradient-to-r from-fuchsia-50/50 via-white to-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              {status == null ? (
+                // Tant que l'état n'est pas chargé, on n'affiche NI « terminé »
+                // NI « en cours » — sinon flash trompeur à chaque rafraîchissement.
+                <>
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-300" />
+                  Lecture de l&apos;avancement…
+                </>
+              ) : inProgress || runningRef.current ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-60" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-fuchsia-500" />
+                  </span>
+                  Enrichissement en cours
+                </>
+              ) : newFields.length > 0 ? (
+                <>✦ Nouveaux champs à enrichir</>
+              ) : (
+                <>✓ Base entièrement enrichie et synchronisée</>
+              )}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {status == null ? (
+                <>Récupération de l&apos;état réel de ta base…</>
+              ) : inProgress || runningRef.current ? (
+                <>
+                  Revold traite ta base en continu, application ouverte ou fermée. Dernière avancée{" "}
+                  <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
+                </>
+              ) : newFields.length > 0 ? (
+                <>
+                  <span className="font-medium text-slate-700">
+                    {newFields.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
+                  </span>{" "}
+                  — coché{newFields.length > 1 ? "s" : ""} dans les paramètres mais pas encore enrichi
+                  {newFields.length > 1 ? "s" : ""} : lance une passe pour compléter la base et ton CRM.
+                </>
+              ) : (
+                <>
+                  Toute nouvelle entreprise arrivant dans la base est enrichie et synchronisée avec ton CRM
+                  automatiquement — rafraîchissement des données évolutives tous les 90 jours.
+                </>
+              )}
+            </p>
+          </div>
+          {status != null && (
+            <p className="shrink-0 text-right text-xs text-slate-500">
+              <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
+              {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
+            </p>
+          )}
         </div>
+
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
+            style={{ width: `${status == null ? 0 : Math.max(pct, 2)}%` }}
+          />
+        </div>
+
         {status != null && (
-          <p className="shrink-0 text-right text-xs text-slate-500">
-            <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
-            {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            <span className="font-semibold text-slate-700">{fmt(status.withSiren)}</span> entreprises identifiées
+            (SIREN/TVA trouvés) · <span className="font-semibold text-slate-700">{fmt(status.withEmployees)}</span> avec
+            effectif officiel · <span className="font-semibold text-amber-700">{fmt(status.candidates)}</span> en attente
+            de validation ci-dessous
+            {(status.duplicates ?? 0) > 0 && (
+              <>
+                {" "}· <span className="font-semibold text-slate-700">{fmt(status.duplicates)}</span> fiches en doublon
+                (même entreprise déjà présente)
+              </>
+            )}
+            {sessionTotal > 0 && (
+              <>
+                {" "}· <span className="text-fuchsia-600">+{sessionTotal} pendant cette passe</span>
+              </>
+            )}
           </p>
+        )}
+
+        {notice && !modalOpen && <p className="mt-1.5 text-[11px] font-medium text-amber-700">{notice}</p>}
+
+        {linkedinEnabled && (
+          <p className="mt-2 text-[11px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+              <span aria-hidden className="rounded bg-sky-600 px-1 text-[9px] font-bold leading-4 text-white">in</span>{" "}
+              Source LinkedIn (bêta) activée — les effectifs manquants seront complétés dès le branchement de l&apos;API.
+            </span>
+          </p>
+        )}
+
+        {/* ── CTA : passe complète tant qu'il reste du travail ou que de
+               nouveaux champs sont cochés ; sinon état discret. ── */}
+        {status != null && runs != null && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-fuchsia-100 pt-3">
+            {needsRun ? (
+              <>
+                <p className="text-[11px] text-slate-400">
+                  {newFields.length > 0 ? (
+                    <>La passe complète la base puis écrit chaque donnée dans ton CRM (champs vides uniquement).</>
+                  ) : (
+                    <>Lance la passe : identification au registre officiel puis synchronisation de ton CRM, en direct.</>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  disabled={runningRef.current}
+                  onClick={() => void startPass()}
+                  className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
+                >
+                  🔁 Enrichir mon CRM
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-400">
+                  Première passe faite : la synchronisation couvre désormais chaque nouvelle entreprise, sans action de
+                  ta part.
+                </p>
+                {inactiveFieldIds.length > 0 && (
+                  <Link
+                    href="/dashboard/parametres/enrichissement"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
+                  >
+                    ＋ Ajouter des données
+                  </Link>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
-          style={{ width: `${status == null ? 0 : Math.max(pct, 2)}%` }}
-        />
-      </div>
-
-      {status != null && (
-        <p className="mt-1.5 text-[11px] text-slate-500">
-          <span className="font-semibold text-slate-700">{fmt(status.withSiren)}</span> entreprises identifiées
-          (SIREN/TVA trouvés) · <span className="font-semibold text-slate-700">{fmt(status.withEmployees)}</span> avec
-          effectif officiel · <span className="font-semibold text-amber-700">{fmt(status.candidates)}</span> en attente
-          de validation ci-dessous
-          {(status.duplicates ?? 0) > 0 && (
-            <>
-              {" "}· <span className="font-semibold text-slate-700">{fmt(status.duplicates)}</span> fiches en doublon
-              (même entreprise déjà présente)
-            </>
-          )}
-          {sessionTotal > 0 && (
-            <>
-              {" "}· <span className="text-fuchsia-600">+{sessionTotal} depuis l&apos;ouverture de cette page</span>
-            </>
-          )}
-        </p>
-      )}
-
-      {notice && <p className="mt-1.5 text-[11px] font-medium text-amber-700">{notice}</p>}
-
-      <p className="mt-2 border-t border-fuchsia-100 pt-2 text-[11px] text-slate-400">
-        <span className="font-medium text-slate-500">Qualité garantie quel que soit le rythme</span> : seules les
-        correspondances <span className="font-medium text-slate-500">exactes</span> sont appliquées automatiquement ;
-        tout cas ambigu passe par ta validation ci-dessous, et un appel au registre qui échoue ne marque jamais une
-        entreprise comme traitée.
-      </p>
-
-      {/* ── CTA en bas du bloc — même disposition que « Identités à valider ». ── */}
-      {status != null && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-slate-400">
-            Relance manuelle : force un passage (nouvelles fiches, rafraîchissement &gt; 90 j).
+      {/* ── Historique des enrichissements (date, heure, champs, volumes) ── */}
+      {historyRuns.length > 0 && (
+        <div className="card p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            Historique des enrichissements
           </p>
-          <button
-            type="button"
-            disabled={loopRef.current}
-            onClick={() => {
-              setNotice(null);
-              void loop();
-            }}
-            className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
-          >
-            🔁 Enrichir mon CRM
-          </button>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {historyRuns.map((r) => {
+              const s = r.stats ?? {};
+              const parts = [
+                s.identities ? `${fmt(s.identities)} identités` : null,
+                s.facts ? `${fmt(s.facts)} fiches complétées` : null,
+                s.candidates ? `${fmt(s.candidates)} à valider` : null,
+                s.crmPushed ? `${fmt(s.crmPushed)} fiches CRM synchronisées` : null,
+              ].filter(Boolean);
+              return (
+                <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-700">
+                      {dateTimeFr(r.started_at)}
+                      {r.status === "running" ? (
+                        <span className="ml-2 rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-700">
+                          en cours
+                        </span>
+                      ) : r.status === "interrupted" ? (
+                        <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                          interrompue — reprise par le robot
+                        </span>
+                      ) : r.derived ? (
+                        <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                          enrichissement initial
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      {(r.fields ?? []).map((f) => FIELD_LABEL[f] ?? f).join(" · ")}
+                    </p>
+                  </div>
+                  <p className="text-[11px] tabular-nums text-slate-500">
+                    {parts.length > 0 ? parts.join(" · ") : `${fmt(r.scope_total)} fiches au périmètre`}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
-    </div>
+
+      {/* ── Fenêtre de complétion : catégories synchronisées une à une ── */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <p className="text-sm font-semibold text-slate-900">
+              {phase === "done" ? "✓ CRM enrichi" : phase === "interrupted" ? "Passe interrompue" : "Enrichissement de ton CRM…"}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {phase === "engine" && (
+                <>
+                  Identification au registre officiel — {fmt(Math.max(0, passScope - passRemaining))}
+                  {passScope > 0 && <> / {fmt(passScope)}</>} fiches traitées.
+                </>
+              )}
+              {phase === "crm" && <>Écriture dans les fiches HubSpot (champs vides uniquement — rien n&apos;est écrasé).</>}
+              {phase === "done" && <>Toutes les catégories actives sont synchronisées avec ton CRM.</>}
+              {phase === "interrupted" && <>Le robot de fond reprendra automatiquement là où la passe s&apos;est arrêtée.</>}
+            </p>
+
+            <ul className="mt-4 space-y-2">
+              {activeFieldIds.map((f, i) => {
+                const done = i < catsDone;
+                const active = phase === "engine" && i === catsDone;
+                return (
+                  <li key={f} className="flex items-center gap-2.5 text-sm">
+                    {done ? (
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-600">
+                        ✓
+                      </span>
+                    ) : active ? (
+                      <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-fuchsia-500 border-t-transparent" />
+                    ) : (
+                      <span className="h-5 w-5 shrink-0 rounded-full border-2 border-slate-200" />
+                    )}
+                    <span className={done ? "text-slate-700" : active ? "font-medium text-slate-900" : "text-slate-400"}>
+                      {FIELD_LABEL[f] ?? f}
+                    </span>
+                    {done && <span className="ml-auto text-[10px] font-medium text-emerald-600">synchronisé</span>}
+                  </li>
+                );
+              })}
+              {hubspotSearchIds && (
+                <li className="flex items-center gap-2.5 border-t border-slate-100 pt-2 text-sm">
+                  {phase === "done" ? (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-600">
+                      ✓
+                    </span>
+                  ) : phase === "crm" ? (
+                    <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-fuchsia-500 border-t-transparent" />
+                  ) : (
+                    <span className="h-5 w-5 shrink-0 rounded-full border-2 border-slate-200" />
+                  )}
+                  <span className={phase === "crm" ? "font-medium text-slate-900" : phase === "done" ? "text-slate-700" : "text-slate-400"}>
+                    Synchronisation HubSpot
+                  </span>
+                  {crmProgress && phase !== "done" && (
+                    <span className="ml-auto text-[10px] tabular-nums text-slate-500">
+                      {fmt(crmProgress.done)}{crmProgress.total ? ` / ${fmt(crmProgress.total)}` : ""} fiches
+                    </span>
+                  )}
+                  {phase === "done" && crmProgress && (
+                    <span className="ml-auto text-[10px] font-medium text-emerald-600">
+                      {fmt(crmProgress.pushed)} fiches mises à jour
+                    </span>
+                  )}
+                </li>
+              )}
+            </ul>
+
+            {notice && <p className="mt-3 text-[11px] font-medium text-amber-700">{notice}</p>}
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <p className="text-[10px] text-slate-400">
+                {phase === "engine" || phase === "crm"
+                  ? "Tu peux fermer cette fenêtre : la passe continue tant que la page reste ouverte."
+                  : "Le détail est consigné dans l'historique de la page."}
+              </p>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
