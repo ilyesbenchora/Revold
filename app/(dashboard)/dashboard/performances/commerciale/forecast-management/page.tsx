@@ -9,8 +9,16 @@ import { VentesTabs } from "@/components/ventes-tabs";
 import { CloseDateManagementBlock } from "@/components/close-date-management-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { fetchCloseDateBuckets } from "@/lib/integrations/hubspot-close-date";
 import { fetchOwners } from "@/lib/integrations/hubspot-owners";
+
+// Clé de personnalisation propre à la sous-page (tuiles, KPIs ajoutés) —
+// catalogue de KPIs sales hérité de la page Cycle de ventes parente.
+const PAGE_KEY = "perf_ventes_expirees";
+
+const eur = (v: number) =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
 
 export default async function ForecastManagementPage() {
   const orgId = await getOrgId();
@@ -60,6 +68,30 @@ export default async function ForecastManagementPage() {
     name: `${o.firstName ?? ""} ${o.lastName ?? ""}`.trim() || o.email || o.id,
   }));
 
+  // Tuiles par défaut depuis les buckets tous pipelines (mêmes données que le bloc).
+  const montantExpire = initialBuckets.passedCloseDate.reduce((sum, d) => sum + d.amount, 0);
+  const quarterDeals = initialBuckets.quarters.flatMap((q) => q.deals);
+  const forecastPondere = quarterDeals.reduce((sum, d) => sum + d.weightedAmount, 0);
+  const tiles: DefaultTile[] = pipelines.length > 0
+    ? [
+        {
+          key: "deals_expires",
+          label: "Transactions expirées",
+          value: String(initialBuckets.passedCloseDate.length),
+          raw: initialBuckets.passedCloseDate.length,
+          rawUnit: "count",
+          tone: initialBuckets.passedCloseDate.length === 0 ? "pos" : "neg",
+          sub: "Date de closing dépassée",
+          verdict: initialBuckets.passedCloseDate.length === 0
+            ? { label: "Forecast à jour", tone: "pos" }
+            : { label: "Dates à requalifier", tone: "neg" },
+        },
+        { key: "montant_expire", label: "Montant expiré", value: eur(montantExpire), raw: Math.round(montantExpire), rawUnit: "currency", tone: montantExpire > 0 ? "neg" : "neutral", sub: "Cumul des transactions expirées" },
+        { key: "forecast_pondere_annee", label: "Forecast pondéré", value: eur(forecastPondere), raw: Math.round(forecastPondere), rawUnit: "currency", tone: "accent", sub: `Deals planifiés ${initialBuckets.year} × probabilité` },
+        { key: "deals_planifies_annee", label: "Deals planifiés", value: String(quarterDeals.length), raw: quarterDeals.length, rawUnit: "count", tone: "neutral", sub: `Closing prévu en ${initialBuckets.year}` },
+      ]
+    : [];
+
   return (
     <section className="space-y-8">
       <header className="flex items-start justify-between gap-4">
@@ -73,6 +105,14 @@ export default async function ForecastManagementPage() {
 
       <PerformancesTabs />
       <VentesTabs />
+
+      {/* ── Tuiles KPI configurables (CTA « Personnaliser les KPIs ») ── */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey={PAGE_KEY}
+        defaults={tiles}
+      />
 
       {pipelines.length === 0 ? (
         <p className="text-sm text-slate-500">
