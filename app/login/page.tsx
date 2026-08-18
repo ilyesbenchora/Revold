@@ -3,7 +3,26 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RevoldLogo } from "@/components/revold-logo";
-import { loginAction, signupAction, googleAction } from "@/app/login/actions";
+import {
+  loginAction,
+  signupAction,
+  googleAction,
+  emailOtpAction,
+  verifyOtpAction,
+  completeProfileAction,
+} from "@/app/login/actions";
+
+const EMPLOYEE_RANGES = ["1-10", "11-50", "51-200", "201-500", "500+"];
+const INDUSTRIES = [
+  "SaaS / Tech",
+  "Services B2B",
+  "Industrie",
+  "Commerce / Retail",
+  "Finance / Assurance",
+  "Santé",
+  "Éducation",
+  "Autre",
+];
 
 const STORAGE_KEY = "revold_remember_me";
 
@@ -23,7 +42,14 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const checkEmail = searchParams.get("check_email") === "1";
-  const isSignup = searchParams.get("mode") === "signup";
+  const mode = searchParams.get("mode");
+  const isSignup = mode === "signup";
+  // Formulaire mot de passe affiché seulement à la demande (ou en signup) —
+  // l'entrée par défaut est Google / code email.
+  const passwordMode = mode === "password" || isSignup;
+  const otpMode = mode === "otp";
+  const entrepriseMode = mode === "entreprise";
+  const otpEmail = searchParams.get("email") ?? "";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,12 +98,22 @@ function LoginForm() {
       <section className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
         <RevoldLogo tone="dark" />
         <h1 className="mt-6 text-2xl font-semibold text-white">
-          {isSignup ? "Créer un compte" : "Connexion"}
+          {entrepriseMode
+            ? "Bienvenue sur Revold"
+            : otpMode
+              ? "Vérifie tes emails"
+              : isSignup
+                ? "Créer un compte"
+                : "Connexion"}
         </h1>
         <p className="mt-2 text-sm text-slate-400">
-          {isSignup
-            ? "Commencez à piloter votre revenue intelligence."
-            : "Accédez à votre plateforme d'intelligence revenus."}
+          {entrepriseMode
+            ? "Encore quelques informations sur ton entreprise et c'est parti."
+            : otpMode
+              ? `Un code à 6 chiffres vient d'être envoyé à ${otpEmail || "ton adresse"}.`
+              : isSignup
+                ? "Commencez à piloter votre revenue intelligence."
+                : "Accédez à votre plateforme d'intelligence revenus."}
         </p>
 
         {error && (
@@ -93,7 +129,110 @@ function LoginForm() {
           </div>
         )}
 
+        {/* ── Étape entreprise (fin d'inscription par email) ── */}
+        {entrepriseMode && (
+          <form action={completeProfileAction} className="mt-8 space-y-4">
+            <div>
+              <label htmlFor="org_name" className="mb-1 block text-sm font-medium text-slate-300">
+                Nom de l&apos;entreprise <span className="text-rose-400">*</span>
+              </label>
+              <input
+                id="org_name"
+                name="org_name"
+                type="text"
+                placeholder="NovaTech SAS"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="employees_range" className="mb-1 block text-sm font-medium text-slate-300">
+                Nombre de salariés <span className="text-rose-400">*</span>
+              </label>
+              <select
+                id="employees_range"
+                name="employees_range"
+                defaultValue=""
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                required
+              >
+                <option value="" disabled>Sélectionner…</option>
+                {EMPLOYEE_RANGES.map((r) => (
+                  <option key={r} value={r}>{r} salariés</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="industry" className="mb-1 block text-sm font-medium text-slate-300">
+                Secteur d&apos;activité <span className="text-rose-400">*</span>
+              </label>
+              <select
+                id="industry"
+                name="industry"
+                defaultValue=""
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                required
+              >
+                <option value="" disabled>Sélectionner…</option>
+                {INDUSTRIES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            >
+              Accéder à Revold
+            </button>
+          </form>
+        )}
+
+        {/* ── Étape code de vérification (6 chiffres) ── */}
+        {otpMode && !entrepriseMode && (
+          <>
+            <form action={verifyOtpAction} className="mt-8 space-y-4">
+              <input type="hidden" name="email" value={otpEmail} />
+              <div>
+                <label htmlFor="code" className="mb-1 block text-sm font-medium text-slate-300">
+                  Code de vérification
+                </label>
+                <input
+                  id="code"
+                  name="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  placeholder="••••••"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-center text-2xl tracking-[0.5em] text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                  required
+                  autoFocus
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              >
+                Continuer
+              </button>
+            </form>
+            <form action={emailOtpAction} className="mt-4 text-center">
+              <input type="hidden" name="email" value={otpEmail} />
+              <button type="submit" className="text-sm text-slate-500 transition hover:text-slate-300">
+                Renvoyer le code
+              </button>
+              <span className="mx-2 text-slate-700">·</span>
+              <a href="/login" className="text-sm text-slate-500 transition hover:text-slate-300">
+                Changer d&apos;email
+              </a>
+            </form>
+          </>
+        )}
+
         {/* Connexion / inscription via Google (OAuth Supabase) */}
+        {!otpMode && !entrepriseMode && (
         <form action={googleAction} className="mt-8">
           <button
             type="submit"
@@ -108,13 +247,49 @@ function LoginForm() {
             {isSignup ? "S'inscrire avec Google" : "Continuer avec Google"}
           </button>
         </form>
+        )}
 
-        <div className="mt-5 flex items-center gap-3" aria-hidden>
-          <span className="h-px flex-1 bg-slate-800" />
-          <span className="text-[11px] uppercase tracking-wider text-slate-500">ou par email</span>
-          <span className="h-px flex-1 bg-slate-800" />
-        </div>
+        {!otpMode && !entrepriseMode && (
+          <div className="mt-5 flex items-center gap-3" aria-hidden>
+            <span className="h-px flex-1 bg-slate-800" />
+            <span className="text-[11px] uppercase tracking-wider text-slate-500">ou par email</span>
+            <span className="h-px flex-1 bg-slate-800" />
+          </div>
+        )}
 
+        {/* ── Entrée par défaut : email → code de vérification à 6 chiffres ── */}
+        {!otpMode && !entrepriseMode && !passwordMode && (
+          <>
+            <form action={emailOtpAction} className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-300">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="vous@entreprise.com"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              >
+                Continuer par email
+              </button>
+            </form>
+            <p className="mt-6 text-center text-sm text-slate-500">
+              <a href="/login?mode=password" className="text-accent hover:underline">
+                Se connecter avec un mot de passe
+              </a>
+            </p>
+          </>
+        )}
+
+        {passwordMode && (
         <form action={handleSubmit} className="mt-5 space-y-4">
           {isSignup && (
             <>
@@ -206,24 +381,31 @@ function LoginForm() {
             {isSignup ? "Créer mon compte" : "Se connecter"}
           </button>
         </form>
+        )}
 
-        <p className="mt-6 text-center text-sm text-slate-500">
-          {isSignup ? (
-            <>
-              Déjà un compte ?{" "}
-              <a href="/login" className="text-accent hover:underline">
-                Se connecter
-              </a>
-            </>
-          ) : (
-            <>
-              Pas encore de compte ?{" "}
-              <a href="/login?mode=signup" className="text-accent hover:underline">
-                Créer un compte
-              </a>
-            </>
-          )}
-        </p>
+        {passwordMode && (
+          <p className="mt-6 text-center text-sm text-slate-500">
+            {isSignup ? (
+              <>
+                Déjà un compte ?{" "}
+                <a href="/login" className="text-accent hover:underline">
+                  Se connecter
+                </a>
+              </>
+            ) : (
+              <>
+                Pas encore de compte ?{" "}
+                <a href="/login?mode=signup" className="text-accent hover:underline">
+                  Créer un compte
+                </a>
+                <span className="mx-2 text-slate-700">·</span>
+                <a href="/login" className="text-accent hover:underline">
+                  Code par email
+                </a>
+              </>
+            )}
+          </p>
+        )}
       </section>
     </main>
   );

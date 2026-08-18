@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/supabase/cached";
 
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
@@ -96,6 +97,90 @@ export async function googleAction() {
     redirect(`/login?error=${encodeURIComponent(error?.message ?? "Connexion Google indisponible")}`);
   }
   redirect(data.url);
+}
+
+// ── Connexion par email (code à 6 chiffres) ─────────────────────────────────
+// 1. emailOtpAction : envoie le code (crée le compte si l'email est inconnu).
+// 2. verifyOtpAction : vérifie le code → session ; nouveau compte sans
+//    entreprise renseignée → formulaire (mode=entreprise), sinon dashboard.
+// 3. completeProfileAction : nom d'entreprise + effectif + secteur (tous
+//    obligatoires) → user_metadata + organisation, puis dashboard.
+// ⚠ Le template d'email « Magic Link » de Supabase doit contenir {{ .Token }}
+//    pour que le code à 6 chiffres apparaisse dans l'email.
+
+export async function emailOtpAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) redirect("/login?error=Renseigne+ton+email");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true },
+  });
+  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  redirect(`/login?mode=otp&email=${encodeURIComponent(email)}`);
+}
+
+export async function verifyOtpAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const code = String(formData.get("code") ?? "").trim();
+  if (!email) redirect("/login?error=Email+manquant");
+  if (!/^\d{6}$/.test(code)) {
+    redirect(`/login?mode=otp&email=${encodeURIComponent(email)}&error=Le+code+comporte+6+chiffres`);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+  if (error) {
+    redirect(`/login?mode=otp&email=${encodeURIComponent(email)}&error=Code+invalide+ou+expiré`);
+  }
+
+  // Compte déjà installé (profil existant ou entreprise déjà renseignée) →
+  // dashboard direct ; sinon, formulaire entreprise obligatoire.
+  const { data: { user } } = await supabase.auth.getUser();
+  const meta = user?.user_metadata as { org_name?: string } | null;
+  let hasProfile = false;
+  if (user) {
+    try {
+      const { data: p } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
+      hasProfile = Boolean(p);
+    } catch {}
+  }
+  if (hasProfile || meta?.org_name?.trim()) redirect("/dashboard");
+  redirect("/login?mode=entreprise");
+}
+
+export async function completeProfileAction(formData: FormData) {
+  const orgName = String(formData.get("org_name") ?? "").trim();
+  const employees = String(formData.get("employees_range") ?? "").trim();
+  const industry = String(formData.get("industry") ?? "").trim();
+  if (!orgName || !employees || !industry) {
+    redirect("/login?mode=entreprise&error=Tous+les+champs+sont+obligatoires");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login?error=Session+expirée+—+reconnecte-toi");
+
+  // Métadonnées d'abord : getOrgId() lit org_name pour nommer la vraie org.
+  const { error } = await supabase.auth.updateUser({
+    data: { org_name: orgName, employees_range: employees, industry },
+  });
+  if (error) redirect(`/login?mode=entreprise&error=${encodeURIComponent(error.message)}`);
+
+  // Crée l'organisation maintenant, puis y range effectif + secteur (best
+  // effort : les infos restent dans user_metadata si la colonne manque).
+  try {
+    const orgId = await getOrgId();
+    if (orgId) {
+      await supabase
+        .from("organizations")
+        .update({ employees_range: employees, industry })
+        .eq("id", orgId);
+    }
+  } catch {}
+
+  redirect("/dashboard");
 }
 
 export async function logoutAction() {
