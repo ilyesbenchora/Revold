@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTowerSettings, readTowerSettings, writeTowerSettings, disabledDispatchTools, normalizePhrase, briefSectionsParam } from "@/lib/voice/tower-settings";
+import { useTowerSettings, readTowerSettings, disabledDispatchTools, normalizePhrase, briefSectionsParam } from "@/lib/voice/tower-settings";
 
 type OrbStatus = "idle" | "listening" | "thinking" | "redirecting" | "error";
 type Health = "ok" | "warn" | "critical";
@@ -275,11 +275,6 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       .catch(() => {});
     return () => { alive = false; };
   }, [settings.healthRing, sectionsParam]);
-
-  const toggleVeille = useCallback(() => {
-    const cur = readTowerSettings();
-    writeTowerSettings({ ...cur, veille: !cur.veille });
-  }, []);
 
   /* ── Animation canvas ── */
   useEffect(() => {
@@ -717,7 +712,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         </button>
       )}
 
-      {/* Brief du jour + mode veille (désactivables dans Paramètres → Tour de contrôle) */}
+      {/* Brief du jour — le mode veille se règle dans Paramètres → Tour de
+          contrôle (pas de toggle en doublon sur la home). */}
       {settings.brief && (
         <div className="mt-3 flex items-center gap-3">
           <button
@@ -727,17 +723,6 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
           >
             Brief du jour
-          </button>
-          <button
-            type="button"
-            onClick={toggleVeille}
-            title="Mode veille : le brief ne remonte que les exceptions (alertes en tension, syncs en échec)."
-            className={`flex items-center gap-1.5 text-[11px] font-medium transition ${veille ? "text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
-          >
-            <span className={`relative inline-block h-3.5 w-6 rounded-full transition ${veille ? "bg-amber-300/70" : "bg-slate-700"}`}>
-              <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-slate-950 transition-all ${veille ? "left-3" : "left-0.5"}`} />
-            </span>
-            Veille
           </button>
         </div>
       )}
