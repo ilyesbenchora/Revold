@@ -1,8 +1,30 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+
+/**
+ * Un compte existe-t-il déjà pour cet email ? (service role, côté serveur)
+ * Sonde via generateLink type RECOVERY : succès = compte existant, 404 « user
+ * not found » = inconnu. ⚠ recovery uniquement — le type magiclink CRÉE le
+ * compte s'il n'existe pas (vérifié). Le lien généré n'est jamais envoyé et
+ * expire seul ; le mot de passe reste valide. null = invérifiable.
+ */
+async function accountExists(email: string): Promise<boolean | null> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { error } = await admin.auth.admin.generateLink({ type: "recovery", email });
+    if (!error) return true;
+    return /not[ _-]?found|does not exist|introuvable/i.test(error.message) ? false : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
@@ -59,7 +81,13 @@ export async function signupAction(formData: FormData) {
   }
 
   if (data.user && !data.user.identities?.length) {
-    redirect("/login?error=Cet+email+est+déjà+utilisé");
+    // Compte déjà existant : on le DIT clairement et on renvoie vers la
+    // connexion (email prérempli) — impossible de créer un doublon.
+    redirect(
+      `/login?mode=password&email=${encodeURIComponent(email)}&error=${encodeURIComponent(
+        "Un compte Revold existe déjà avec cet email — connecte-toi ci-dessous (ou utilise « mot de passe oublié »).",
+      )}`,
+    );
   }
 
   // ⚠ NE PAS créer org + profile ici. À ce stade le user n'est pas encore
@@ -112,13 +140,19 @@ export async function emailOtpAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) redirect("/login?error=Renseigne+ton+email");
 
+  // Détection AVANT l'envoi du code : compte existant → l'écran suivant
+  // l'annonce clairement (le code CONNECTE au compte existant, aucun doublon
+  // n'est créé) ; email inconnu → parcours d'inscription assumé.
+  const existing = await accountExists(email);
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: true },
   });
   if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  redirect(`/login?mode=otp&email=${encodeURIComponent(email)}`);
+  const existingParam = existing === true ? "1" : existing === false ? "0" : "";
+  redirect(`/login?mode=otp&email=${encodeURIComponent(email)}&existing=${existingParam}`);
 }
 
 export async function verifyOtpAction(formData: FormData) {

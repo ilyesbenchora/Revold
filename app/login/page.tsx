@@ -53,6 +53,8 @@ function LoginForm() {
   const otpMode = mode === "otp";
   const entrepriseMode = mode === "entreprise";
   const otpEmail = searchParams.get("email") ?? "";
+  // "1" = compte déjà existant (le code connecte, ne crée rien) · "0" = nouveau.
+  const existingAccount = searchParams.get("existing") ?? "";
 
   // Purge de l'ancien stockage en clair (utilisateurs existants).
   useEffect(() => {
@@ -196,6 +198,19 @@ function LoginForm() {
         {/* ── Étape code de vérification (6 chiffres) ── */}
         {otpMode && !entrepriseMode && (
           <>
+            {/* Compte déjà existant détecté côté serveur : on le DIT — le code
+                connecte au compte existant, aucun doublon ne sera créé. */}
+            {existingAccount === "1" && (
+              <div className="mt-4 rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
+                Un compte Revold existe déjà avec cet email — le code à 6 chiffres te
+                <span className="font-semibold"> connecte à ton compte existant</span>, aucun nouveau compte ne sera créé.
+              </div>
+            )}
+            {existingAccount === "0" && (
+              <p className="mt-4 text-xs text-slate-500">
+                Aucun compte avec cet email : ton compte sera créé après vérification du code.
+              </p>
+            )}
             <form action={verifyOtpAction} className="mt-8 space-y-4">
               <input type="hidden" name="email" value={otpEmail} />
               <div>
@@ -338,6 +353,8 @@ function LoginForm() {
               type="email"
               autoComplete="username"
               placeholder="vous@entreprise.com"
+              // Prérempli quand on arrive d'une inscription bloquée (compte déjà existant).
+              defaultValue={otpEmail}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
               required
             />
