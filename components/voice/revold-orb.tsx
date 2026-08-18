@@ -726,7 +726,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             disabled={busy || status === "listening"}
             className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
           >
-            ☀️ Brief du jour
+            Brief du jour
           </button>
           <button
             type="button"

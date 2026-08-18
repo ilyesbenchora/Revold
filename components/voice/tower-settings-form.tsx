@@ -327,7 +327,7 @@ export function TowerSettingsForm() {
         on={settings.brief}
         onToggle={() => flip("brief")}
         description="Un point de situation lu à voix haute, calculé en direct sur tes vraies données — sans IA générative, donc fiable et instantané."
-        how="Le brief annonce chaque famille de données puis donne les chiffres : alertes en tension (valeur actuelle face au seuil, alertes techniques comprises), radar de facturation (nombre de factures attendues et montant, clients concernés), objectifs en retard ou atteints (progression chiffrée et échéance), synchronisations en échec, enrichissement et actions exécutées. Il se lance avec le bouton « ☀️ Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
+        how="Le brief annonce chaque famille de données puis donne les chiffres : alertes en tension (valeur actuelle face au seuil, alertes techniques comprises), radar de facturation (nombre de factures attendues et montant, clients concernés), objectifs en retard ou atteints (progression chiffrée et échéance), synchronisations en échec, enrichissement et actions exécutées. Il se lance avec le bouton « Brief du jour » sous l'orbe, ou à la voix avec ta phrase personnalisée."
         examples={[settings.briefPhrase || "quoi de neuf", "fais-moi le point", "mon brief du matin"]}
       >
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
