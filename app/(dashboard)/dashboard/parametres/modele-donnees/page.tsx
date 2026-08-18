@@ -14,6 +14,7 @@ import { FieldAuthorityEditor } from "@/components/field-authority-editor";
 import { DedupRules } from "@/components/dedup-rules";
 import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import Link from "next/link";
+import { FeatureTour } from "@/components/feature-tour";
 
 // ── Default field authority ──
 const DEFAULT_FIELD_AUTHORITY = [
@@ -361,7 +362,7 @@ export default async function ParametresModeleDonneesPage() {
       )}
 
       {/* ── Mapping identifiants ── */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="mapping-identifiants">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Mapping des identifiants
         </h2>
@@ -388,7 +389,7 @@ export default async function ParametresModeleDonneesPage() {
       </div>
 
       {/* ── Règles de résolution ── */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="regles-resolution">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Règles de résolution d&apos;entités
         </h2>
@@ -421,6 +422,24 @@ export default async function ParametresModeleDonneesPage() {
         </p>
         <DedupRules rules={mergedDedupRules} />
       </div>
+
+      {/* Mini-tutoriel (première visite) : où sont les identifiants et comment
+          les enregistrements des outils sont reliés au modèle. */}
+      <FeatureTour
+        tourId="modele-donnees"
+        steps={[
+          {
+            anchor: "mapping-identifiants",
+            title: "Mapping des identifiants",
+            text: "Indique dans quel champ de chaque outil se trouvent SIREN, TVA ou ID client — c'est ce qui permet de relier les enregistrements entre outils.",
+          },
+          {
+            anchor: "regles-resolution",
+            title: "Règles de résolution",
+            text: "Active les règles de rapprochement adaptées à tes outils : la première qui matche relie l'enregistrement à la bonne entité.",
+          },
+        ]}
+      />
     </section>
   );
 }

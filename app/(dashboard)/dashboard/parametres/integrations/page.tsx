@@ -15,6 +15,7 @@ import {
   getToolKeysBatch,
 } from "@/lib/integrations/tool-mappings";
 import Link from "next/link";
+import { FeatureTour } from "@/components/feature-tour";
 
 // Pages ET agents réglables dans « Outil source par page » — dérivé du
 // composant qui les affiche, pour qu'aucune page ne puisse s'afficher vide
@@ -345,7 +346,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       </div>
 
       {/* Mapping outil source par page Revold */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="source-par-page">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Outil source par page
         </h2>
@@ -366,7 +367,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
       </div>
 
       {/* Mapping outils sources par agent (Mon équipe IA) */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="source-par-agent">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Outils sources par agent
         </h2>
@@ -406,6 +407,24 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
           </div>
         </div>
       )}
+
+      {/* Mini-tutoriel (première visite) : les deux blocs indispensables pour
+          que les pages de données affichent quelque chose. */}
+      <FeatureTour
+        tourId="sources-integrations"
+        steps={[
+          {
+            anchor: "source-par-page",
+            title: "Étape indispensable",
+            text: "Choisis ici l'outil source de chaque page Revold. Sans sélection, les pages de données n'affichent rien.",
+          },
+          {
+            anchor: "source-par-agent",
+            title: "Outils de tes agents IA",
+            text: "Même logique pour chaque agent : les outils qu'il analyse dans ses rapports et routines. Par défaut, tout son périmètre métier.",
+          },
+        ]}
+      />
     </section>
   );
 }

@@ -18,6 +18,7 @@ import {
 import { buildIntegrationInsights } from "@/lib/audit/build-integration-insights";
 import { getTabCounts } from "@/lib/reports/report-tab-counts";
 import { getOnboardingState, shouldShowOnboarding, onboardingProgress } from "@/lib/onboarding/state";
+import { FeatureTour } from "@/components/feature-tour";
 import { getPageCustomization, formatTileValue, resolveAddedTiles } from "@/lib/kpi/page-tiles";
 import { allTileSuggestions } from "@/lib/kpi/tile-catalog";
 import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
@@ -412,6 +413,29 @@ export default async function DashboardOverviewPage() {
       <InsightLockedBlock
         previewTitle="Analyse stratégique de votre pipeline RevOps"
         previewBody="L'IA Revold analyse en continu vos données CRM pour identifier les opportunités cachées, les risques émergents et les actions prioritaires à mener."
+      />
+
+      {/* Mini-tutoriel de bienvenue (première visite) : le circuit indispensable
+          connexion des outils → sources par page/agent → pages de données. */}
+      <FeatureTour
+        tourId="bienvenue"
+        steps={[
+          {
+            anchor: "nav-integrations",
+            title: "1. Connecte tes outils",
+            text: "Tout part d'ici : branche HubSpot (et tes autres outils) depuis Intégrations → Bibliothèque d'outils.",
+          },
+          {
+            anchor: "nav-parametres",
+            title: "2. Active tes sources",
+            text: "Dans Paramètres → Intégrations, remplis « Outil source par page » et « Outils sources par agent » — sans ça, les pages de données restent vides.",
+          },
+          {
+            anchor: "nav-audit",
+            title: "3. Explore tes données",
+            text: "Performances, Trésorerie, Service client… chaque page croise les sources que tu as choisies, avec KPIs et agents IA.",
+          },
+        ]}
       />
     </section>
   );

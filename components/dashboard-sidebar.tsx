@@ -451,6 +451,7 @@ export function DashboardSidebar({
                 <button
                   type="button"
                   aria-label={item.label}
+                  data-tour={`nav-${item.id}`}
                   onFocus={() => openGroup(item.id)}
                   className={`flex w-full items-center justify-center rounded-lg p-2.5 transition ${
                     groupActive || open ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
@@ -496,6 +497,7 @@ export function DashboardSidebar({
               <Link
                 href={item.href}
                 aria-label={item.label}
+                data-tour={item.href === "/dashboard/parametres" ? "nav-parametres" : undefined}
                 className={`flex items-center justify-center rounded-lg p-2.5 transition ${
                   isActive ? "bg-accent-soft text-accent" : `text-slate-500 ${item.ai ? AI_HOVER_GRADIENT : "hover:bg-slate-50"}`
                 }`}

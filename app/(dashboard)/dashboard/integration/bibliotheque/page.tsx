@@ -9,6 +9,7 @@ import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/integrations/category-meta"
 import { CrossSourceNudge } from "@/components/integrations/cross-source-nudge";
 import { checkConnectorLimit } from "@/lib/billing/connector-limit";
 import Link from "next/link";
+import { FeatureTour } from "@/components/feature-tour";
 
 export default async function BibliothequeOutilsPage({
   searchParams,
@@ -50,7 +51,7 @@ export default async function BibliothequeOutilsPage({
 
   return (
     <section className="space-y-8">
-      <header>
+      <header data-tour="bibliotheque-header">
         <h1 className="text-2xl font-semibold text-slate-900">Bibliothèque d&apos;outils</h1>
         <p className="mt-1 text-sm text-slate-500">
           Tous les outils sur lesquels Revold peut se connecter. Cliquez pour connecter — vos outils déjà branchés sont
@@ -175,6 +176,23 @@ export default async function BibliothequeOutilsPage({
           );
         })}
       </div>
+
+      {/* Mini-tutoriel (première visite) : connecter, puis activer les sources. */}
+      <FeatureTour
+        tourId="connexion-outils"
+        steps={[
+          {
+            anchor: "bibliotheque-header",
+            title: "Connecte ton premier outil",
+            text: "Clique sur une carte pour connecter l'outil (HubSpot en premier). La connexion se fait en OAuth, en quelques clics.",
+          },
+          {
+            anchor: "nav-parametres",
+            title: "Puis active tes sources",
+            text: "Une fois connecté, va dans Paramètres → Intégrations remplir « Outil source par page » et « par agent » — sinon les pages de données restent vides.",
+          },
+        ]}
+      />
     </section>
   );
 }
