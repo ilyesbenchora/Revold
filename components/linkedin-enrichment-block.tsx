@@ -134,12 +134,7 @@ export function LinkedinEnrichmentBlock() {
             {status == null ? (
               <>Lecture de l&apos;avancement LinkedIn…</>
             ) : !connected ? (
-              <>
-                API LinkedIn non connectée — connecte LinkedIn dans{" "}
-                <span className="font-medium text-slate-700">Paramètres → Intégrations</span> (ou fournis{" "}
-                <code className="rounded bg-slate-100 px-1 text-[10px]">LINKEDIN_ENRICH_ACCESS_TOKEN</code>) pour
-                compléter les effectifs que le registre officiel ne publie pas.
-              </>
+              <>Complète l&apos;effectif des entreprises que le registre officiel ne couvre pas.</>
             ) : remaining > 0 ? (
               <>
                 Scan des pages LinkedIn des{" "}
