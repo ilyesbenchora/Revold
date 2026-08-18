@@ -128,11 +128,8 @@ export default async function ParametresEnrichissementPage() {
       >
         <span aria-hidden className="mt-0.5">🌍</span>
         <p>
-          Pays de l&apos;organisation : <strong>{country ?? "France (défaut)"}</strong> — registre administratif :{" "}
-          <strong>{registry.registry}</strong>.{" "}
-          {registry.supported ? (
-            <>L&apos;enrichissement est actif sur ce registre (officiel, gratuit).</>
-          ) : (
+          Pays de l&apos;organisation : <strong>{country ?? "France (défaut)"}</strong> — registre administratif adapté.{" "}
+          {registry.supported ? null : (
             <>
               Ce registre n&apos;est pas encore branché : l&apos;enrichissement automatique est en pause pour éviter les
               faux rapprochements avec le registre français. Modifie le pays dans{" "}
