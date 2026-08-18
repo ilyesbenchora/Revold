@@ -200,13 +200,20 @@ export default async function ParametresModeleDonneesPage() {
     return { ...row, priority: saved.priority };
   });
 
+  // Champs CRM gérés par Paramètres → Enrichissement (SIREN, SIRET, TVA) :
+  // retirés de CE bloc pour éviter le doublon — le mapping reste le même
+  // (identifier_field_mapping) et s'édite là-bas. Le catalogue partagé n'est
+  // pas touché : la sync et l'audit continuent de couvrir ces champs.
+  const enrichmentManagedCanonicals = new Set(["siren", "siret", "vat_number"]);
+
   // Identifier mapping rows (only connected tools)
   const identifierRows = allProviders
     .map((provider) => {
       const tool = CONNECTABLE_TOOLS[provider] ?? (provider === "hubspot" ? { label: "HubSpot", icon: "🟧", domain: "hubspot.com" } : null);
       const ids = PROVIDER_IDENTIFIERS[provider];
       if (!tool || !ids) return null;
-      return { provider, label: tool.label, icon: tool.icon, domain: tool.domain, identifiers: ids };
+      const identifiers = provider === "hubspot" ? ids.filter((id) => !enrichmentManagedCanonicals.has(id.canonicalField)) : ids;
+      return { provider, label: tool.label, icon: tool.icon, domain: tool.domain, identifiers };
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
@@ -359,7 +366,11 @@ export default async function ParametresModeleDonneesPage() {
           Mapping des identifiants
         </h2>
         <p className="text-sm text-slate-500">
-          Pour chaque outil connecté, indiquez dans quel champ se trouvent les identifiants d&apos;entreprise.
+          Pour chaque outil connecté, indiquez dans quel champ se trouvent les identifiants d&apos;entreprise. Les
+          propriétés SIREN, SIRET et N° TVA du CRM se gèrent dans{" "}
+          <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
+            Paramètres → Enrichissement
+          </Link>.
         </p>
         {identifierRows.length === 0 ? (
           <div className="card p-8 text-center">
