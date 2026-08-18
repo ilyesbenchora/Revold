@@ -31,12 +31,17 @@ import {
 } from "@/lib/reports/periods";
 
 // Un KPI est déterministe (câblé précisément, sans agent) uniquement pour la
-// projection pondérée, les échéances fiscales et les recettes réconciliées
-// (forecastType). Tous les autres presets passent par l'agent pour être câblés
+// projection pondérée, les échéances fiscales, les recettes réconciliées
+// (forecastType) et les tuiles à ligne cible (target : CA signé, taux de
+// perte…). Tous les autres presets passent par l'agent pour être câblés
 // sur la vraie donnée enrichie.
-function isDeterministicPreset(p: { measure: string; entity: string; forecastType?: string }): boolean {
-  return p.measure === "weighted" || p.entity === "fiscal" || !!p.forecastType;
+function isDeterministicPreset(p: { measure: string; entity: string; forecastType?: string; target?: string }): boolean {
+  return p.measure === "weighted" || p.entity === "fiscal" || !!p.forecastType || !!p.target;
 }
+
+// Regroupements de deals où le CHOIX DU PIPELINE a du sens : la donnée est
+// restreinte au pipeline sélectionné (étapes homonymes, KPIs « par pipeline »).
+const PIPELINE_SCOPED_DIMS = new Set(["stage", "status", "outcome", "close_date_state"]);
 
 // Catégories d'outils qui portent des DONNÉES à croiser. La communication
 // (Slack, Teams, Gmail…) est un canal de notification, pas une source d'analyse.
@@ -85,6 +90,12 @@ type Draft = {
   description?: string;
   /** Recette réconciliée (délai médian cross-source) — TUILE uniquement, résolue par resolveKpiValue. */
   forecastType?: string | null;
+  /** Ligne du regroupement isolée par la tuile (preset ciblé : « Gagnés », « Dépassée »…). */
+  target?: string | null;
+  /** Avec target : la tuile affiche le taux (100 × ligne cible / total). */
+  percent_of_total?: boolean;
+  /** Preset proposé uniquement en tuile (valeur unique) — les autres affichages sont masqués. */
+  tileOnly?: boolean;
 };
 
 /** Fréquences d'affichage des regroupements temporels (month_*). */
@@ -452,8 +463,11 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         view: p.view ?? "table",
         title: p.label,
         forecastType: p.forecastType ?? null,
+        target: p.target ?? null,
+        percent_of_total: !!p.percentOfTotal,
+        tileOnly: !!p.tileOnly,
       });
-      // Recette réconciliée = valeur unique (délai médian) → tuile imposée.
+      // Recette réconciliée / tuile ciblée = valeur unique → tuile imposée.
       if (p.tileOnly || p.forecastType) setAsTile(true);
     } else {
       setDraft({
@@ -681,8 +695,13 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
         : {
             entity: draft.entity, groupBy: draft.group_by, measure: draft.measure, field: draft.field,
             pipeline: pipelineId, sources: selected,
-            // Suggestion en mode « % d'une ligne » : la tuile affiche le vrai taux.
-            ...(tileMode === "percent" && tileTarget ? { target: tileTarget, percent_of_total: true } : {}),
+            // Preset ciblé (CA signé, taux de perte…) : la ligne cible est
+            // embarquée dans le preset ; sinon mode « % d'une ligne » manuel.
+            ...(draft.target
+              ? { target: draft.target, ...(draft.percent_of_total ? { percent_of_total: true } : {}) }
+              : tileMode === "percent" && tileTarget
+                ? { target: tileTarget, percent_of_total: true }
+                : {}),
           };
       const spec = {
         ...base,
@@ -825,8 +844,8 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
   //    chargés à la demande dès qu'un regroupement par étape est en jeu. ──
   const [pipelineOpts, setPipelineOpts] = useState<{ id: string; name: string }[] | null>(null);
   const needsPipeline =
-    (draft?.entity === "deals" && draft.group_by === "stage") ||
-    (proposal?.entity === "deals" && proposal.group_by === "stage");
+    (draft?.entity === "deals" && PIPELINE_SCOPED_DIMS.has(draft.group_by)) ||
+    (proposal?.entity === "deals" && PIPELINE_SCOPED_DIMS.has(proposal.group_by));
   useEffect(() => {
     if (!needsPipeline || pipelineOpts !== null) return;
     let alive = true;
@@ -1429,7 +1448,7 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                     <label className="text-xs font-medium text-slate-500">Grouper par</label>
                     <select
                       value={draft.group_by}
-                      onChange={(e) => { setDraft({ ...draft, group_by: e.target.value, pipeline: e.target.value === "stage" ? draft.pipeline : null }); setTileTarget(""); setTileTargetOpts(null); }}
+                      onChange={(e) => { setDraft({ ...draft, group_by: e.target.value, pipeline: PIPELINE_SCOPED_DIMS.has(e.target.value) ? draft.pipeline : null }); setTileTarget(""); setTileTargetOpts(null); }}
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-accent"
                     >
                       {dims.map((d) => (
@@ -1439,13 +1458,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                   </div>
                 )}
 
-                {/* Regroupement par étape → CHOIX DU PIPELINE : sans lui, les
-                    étapes homonymes de tous les pipelines seraient mélangées. */}
-                {!draft.custom && draft.entity === "deals" && draft.group_by === "stage" && (
+                {/* Regroupement par étape ou par statut → CHOIX DU PIPELINE :
+                    la donnée est restreinte au pipeline sélectionné (KPIs
+                    « par pipeline », étapes homonymes non mélangées). */}
+                {!draft.custom && draft.entity === "deals" && PIPELINE_SCOPED_DIMS.has(draft.group_by) && (
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-slate-500">
                       Pipeline
-                      <InfoHint text="Restreint la table à CE pipeline : les étapes affichées sont uniquement les siennes. « Tous » mélange les étapes homonymes de tous les pipelines." />
+                      <InfoHint text="Restreint le KPI à CE pipeline : seuls ses deals sont comptés. « Tous » agrège tous les pipelines." />
                     </label>
                     <select
                       value={draft.pipeline ?? ""}
@@ -1482,10 +1502,12 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
 
                 <div>
                   <label className="text-xs font-medium text-slate-500">Affichage</label>
-                  {draft.forecastType ? (
-                    // Recette réconciliée = une valeur unique (délai médian) : tuile imposée.
+                  {draft.forecastType || draft.tileOnly ? (
+                    // Recette réconciliée / preset ciblé = une valeur unique : tuile imposée.
                     <p className="mt-0.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                      Délai médian mesuré par le moteur de rapprochement (jointures réelles entre tes outils) —
+                      {draft.forecastType
+                        ? "Délai médian mesuré par le moteur de rapprochement (jointures réelles entre tes outils) — "
+                        : "KPI à valeur unique, calculé sur le pipeline choisi ci-dessus — "}
                       ce KPI s&apos;ajoute en <span className="font-semibold">tuile</span>, à la ligne de KPIs en haut de page.
                     </p>
                   ) : (
@@ -1529,8 +1551,9 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                         (« ce trimestre »…) suit automatiquement la période courante.
                       </p>
                       {/* Suggestions (presets) : valeur en NOMBRE total ou en % d'une
-                          ligne sur le total — l'évolution suit la même unité. */}
-                      {!draft.custom && (
+                          ligne sur le total — l'évolution suit la même unité. Les
+                          presets ciblés (target embarqué) n'ont rien à choisir. */}
+                      {!draft.custom && !draft.target && (
                         <div className="space-y-1.5">
                           <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
                             {([
@@ -1606,7 +1629,14 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
                         <div className="mt-2 w-56 rounded-xl border border-slate-200 bg-white p-4">
                           <p className="truncate text-[11px] font-medium text-slate-500">{draft.title || "Tuile KPI"}</p>
                           <p className="mt-1 text-xl font-bold tabular-nums text-indigo-600">
-                            {fmtTotal(previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0), draft.unit_mode)}
+                            {(() => {
+                              const total = previewRows.reduce((s, r) => s + (Number(r.value) || 0), 0);
+                              if (!draft.target) return fmtTotal(total, draft.unit_mode);
+                              // Preset ciblé : la tuile vaut la ligne cible (ou son taux).
+                              const tv = Number(previewRows.find((r) => r.name.toLowerCase() === draft.target!.toLowerCase())?.value) || 0;
+                              if (!draft.percent_of_total) return fmtTotal(tv, draft.unit_mode);
+                              return total > 0 ? fmtTotal(Math.round((tv / total) * 1000) / 10, "percent") : "—";
+                            })()}
                           </p>
                           <EvolutionBadge rows={previewRows} groupBy={draft.group_by} />
                         </div>

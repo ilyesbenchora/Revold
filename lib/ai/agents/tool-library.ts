@@ -446,6 +446,12 @@ function relField(rel: unknown, key: string): string | null {
   const v = o?.[key];
   return typeof v === "string" && v ? v : null;
 }
+/** Champ BOOLÉEN d'une relation Supabase (ex : pipeline_stages.is_closed_won). */
+function relFlag(rel: unknown, key: string): boolean {
+  if (!rel) return false;
+  const o = (Array.isArray(rel) ? rel[0] : rel) as Record<string, unknown> | undefined;
+  return o?.[key] === true;
+}
 /** Champ NUMÉRIQUE d'une relation Supabase (ex : pipeline_stages.probability). */
 function relNum(rel: unknown, key: string): number | null {
   if (!rel) return null;
@@ -496,10 +502,26 @@ async function resolveStageMap(token: string | null): Promise<Map<string, StageI
   }
   return map;
 }
+// ── Statut d'un deal depuis l'étape canonique (is_closed_won / is_closed_lost).
+//    Libellés partagés entre les dims status/outcome/close_date_state et les
+//    presets de tuiles (target) — ne pas les modifier sans migrer les agg_spec.
+export const DEAL_STATUS_LABELS = { open: "En cours", won: "Gagnés", lost: "Perdus" } as const;
+function dealStatusLabel(won: boolean, lost: boolean): string {
+  return won ? DEAL_STATUS_LABELS.won : lost ? DEAL_STATUS_LABELS.lost : DEAL_STATUS_LABELS.open;
+}
+// État de la close date d'un deal EN COURS : dépassée (date < aujourd'hui),
+// à jour, ou absente. Les deals clôturés sont hors périmètre (null → ignorés).
+export const CLOSE_DATE_LABELS = { overdue: "Dépassée", current: "À jour", missing: "Sans close date" } as const;
+function closeDateStateLabel(closeDate: unknown): string {
+  const d = String(closeDate ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return CLOSE_DATE_LABELS.missing;
+  return d < new Date().toISOString().slice(0, 10) ? CLOSE_DATE_LABELS.overdue : CLOSE_DATE_LABELS.current;
+}
+
 const AGG_SPECS: Record<string, AggSpec> = {
   deals: {
     columns:
-      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability)",
+      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability, is_closed_won, is_closed_lost)",
     dims: {
       month_created: (r) => monthOf(r.created_date),
       month_closed: (r) => monthOf(r.close_date),
@@ -507,6 +529,20 @@ const AGG_SPECS: Record<string, AggSpec> = {
       // canonique n'est pas mappé (cf. resolveStageMap).
       stage: (r) => relName(r.pipeline_stages),
       pipeline: (r) => relField(r.pipeline_stages, "pipeline_name") ?? "Sans pipeline",
+      // Statut du deal : En cours / Gagnés / Perdus (tous les deals).
+      status: (r) => dealStatusLabel(relFlag(r.pipeline_stages, "is_closed_won"), relFlag(r.pipeline_stages, "is_closed_lost")),
+      // Résultat des deals CLÔTURÉS uniquement (Gagnés / Perdus) — les deals en
+      // cours sont ignorés : percent_of_total sur « Perdus » = vrai taux de perte.
+      outcome: (r) => {
+        const won = relFlag(r.pipeline_stages, "is_closed_won");
+        const lost = relFlag(r.pipeline_stages, "is_closed_lost");
+        return won || lost ? dealStatusLabel(won, lost) : null;
+      },
+      // Hygiène des deals EN COURS : close date dépassée / à jour / absente.
+      close_date_state: (r) =>
+        relFlag(r.pipeline_stages, "is_closed_won") || relFlag(r.pipeline_stages, "is_closed_lost")
+          ? null
+          : closeDateStateLabel(r.close_date),
       // Étape qualifiée par son pipeline : zéro ambiguïté entre deux pipelines
       // qui partagent un libellé d'étape (« Closed won », « Qualification »…).
       stage_pipeline: (r) =>
@@ -720,7 +756,7 @@ export type AggregateSpec = {
 // l'agrégat. kind pilote le formatage côté client (currency/date/text).
 const DETAIL_COLUMNS: Record<string, string> = {
   deals:
-    "name, amount, created_date, close_date, days_in_stage, last_activity_at, is_at_risk, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability), companies(name)",
+    "name, amount, created_date, close_date, days_in_stage, last_activity_at, is_at_risk, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability, is_closed_won, is_closed_lost), companies(name)",
   invoices:
     "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, companies(name)",
   subscriptions: "mrr, status, primary_source, started_at, canceled_at, current_period_end, companies(name)",
@@ -892,7 +928,10 @@ export async function computeAggregate(
       : null;
   const wantPipeline = typeof input.pipeline === "string" && input.pipeline.trim() ? input.pipeline.trim() : null;
   const pipelineDim = groupBy === "pipeline" || groupBy === "stage_pipeline";
-  if (entity === "deals" && (groupBy === "stage" || pipelineDim || wantPipeline)) {
+  // Dims fondées sur le statut gagné/perdu de l'étape : bénéficient aussi du
+  // fallback HubSpot quand l'ETL n'a pas mappé dealstage → pipeline_stages.
+  const statusDim = groupBy === "status" || groupBy === "outcome" || groupBy === "close_date_state";
+  if (entity === "deals" && (groupBy === "stage" || pipelineDim || statusDim || wantPipeline)) {
     // Fallback HubSpot quand l'ETL n'a pas mappé dealstage → pipeline_stages.
     const stageMap = await resolveStageMap(hubspotToken);
     const extOf = (r: Record<string, unknown>) =>
@@ -931,9 +970,20 @@ export async function computeAggregate(
         (r) => (pipelineIdOf(r) ?? "").toLowerCase() === want || pipelineOf(r).toLowerCase() === want,
       );
     }
+    // Statut gagné/perdu : étape canonique d'abord, HubSpot en fallback.
+    const wonOf = (r: Record<string, unknown>) =>
+      relFlag(r.pipeline_stages, "is_closed_won") || !!stageMap.get(extOf(r))?.closedWon;
+    const lostOf = (r: Record<string, unknown>) =>
+      relFlag(r.pipeline_stages, "is_closed_lost") || !!stageMap.get(extOf(r))?.closedLost;
+
     if (groupBy === "stage") resolveDim = stageOf;
     else if (groupBy === "pipeline") resolveDim = pipelineOf;
     else if (groupBy === "stage_pipeline") resolveDim = (r) => `${pipelineOf(r)} › ${stageOf(r)}`;
+    else if (groupBy === "status") resolveDim = (r) => dealStatusLabel(wonOf(r), lostOf(r));
+    else if (groupBy === "outcome")
+      resolveDim = (r) => (wonOf(r) || lostOf(r) ? dealStatusLabel(wonOf(r), lostOf(r)) : null);
+    else if (groupBy === "close_date_state")
+      resolveDim = (r) => (wonOf(r) || lostOf(r) ? null : closeDateStateLabel(r.close_date));
 
     // Enrichissement HubSpot de la probabilité quand l'étape canonique ne la porte pas.
     probResolver = (r) => {
@@ -1035,7 +1085,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date) (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",

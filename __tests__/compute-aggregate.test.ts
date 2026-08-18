@@ -160,6 +160,73 @@ describe("computeAggregate", () => {
     expect(String(res.error)).toContain("Champ numérique requis");
   });
 
+  // ── Dims statut/résultat/close date des deals (KPIs « par pipeline » de la
+  //    page Ventes) : libellés exacts attendus par les presets (target). ──
+  const dealOf = (over: Record<string, unknown>, stage: Record<string, unknown>) => ({
+    organization_id: ORG,
+    amount: 100,
+    created_date: "2026-01-15",
+    stage_external_id: "ext-1",
+    pipeline_stages: { name: "Étape", pipeline_name: "Pipeline A", pipeline_external_id: "pa", probability: 50, ...stage },
+    ...over,
+  });
+  const DEALS_STATUS = [
+    dealOf({ amount: 1000, close_date: "2020-01-01" }, {}), // en cours, close date dépassée
+    dealOf({ amount: 500, close_date: "2999-01-01" }, {}), // en cours, close date à jour
+    dealOf({ amount: 2000, close_date: "2026-02-01" }, { is_closed_won: true, probability: 100 }), // gagné
+    dealOf({ amount: 300, close_date: "2026-02-01" }, { is_closed_lost: true, probability: 0 }), // perdu
+    // Autre pipeline : doit disparaître avec le filtre pipeline "pa".
+    dealOf({ amount: 9000, close_date: "2026-02-01" }, { pipeline_name: "Pipeline B", pipeline_external_id: "pb", is_closed_won: true }),
+  ];
+
+  it("status : En cours / Gagnés / Perdus, restreint au pipeline ciblé", async () => {
+    const res = await computeAggregate(fakeSupabase({ deals: DEALS_STATUS }), ORG, [], null, {
+      entity: "deals",
+      groupBy: "status",
+      measure: "sum",
+      field: "amount",
+      pipeline: "pa",
+    });
+    expect(groupValue(res, "En cours")).toBe(1500);
+    expect(groupValue(res, "Gagnés")).toBe(2000); // le deal du pipeline B est exclu
+    expect(groupValue(res, "Perdus")).toBe(300);
+  });
+
+  it("outcome : deals clôturés uniquement (les en-cours sont ignorés)", async () => {
+    const res = await computeAggregate(fakeSupabase({ deals: DEALS_STATUS }), ORG, [], null, {
+      entity: "deals",
+      groupBy: "outcome",
+      measure: "count",
+      pipeline: "pa",
+    });
+    expect(rowsOf(res)).toHaveLength(2);
+    expect(groupValue(res, "Gagnés")).toBe(1);
+    expect(groupValue(res, "Perdus")).toBe(1);
+  });
+
+  it("close_date_state : dépassée vs à jour, deals EN COURS seulement", async () => {
+    const res = await computeAggregate(fakeSupabase({ deals: DEALS_STATUS }), ORG, [], null, {
+      entity: "deals",
+      groupBy: "close_date_state",
+      measure: "count",
+      pipeline: "pa",
+    });
+    expect(groupValue(res, "Dépassée")).toBe(1);
+    expect(groupValue(res, "À jour")).toBe(1);
+    expect(rowsOf(res)).toHaveLength(2); // aucun deal clôturé compté
+  });
+
+  it("weighted + status : montant pondéré des deals en cours du pipeline", async () => {
+    const res = await computeAggregate(fakeSupabase({ deals: DEALS_STATUS }), ORG, [], null, {
+      entity: "deals",
+      groupBy: "status",
+      measure: "weighted",
+      field: "amount",
+      pipeline: "pa",
+    });
+    expect(groupValue(res, "En cours")).toBe(750); // (1000 + 500) × 0,5
+  });
+
   it("aucune ligne → hasData false", async () => {
     const res = await computeAggregate(fakeSupabase({}), ORG, [], null, {
       entity: "deals",

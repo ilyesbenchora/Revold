@@ -131,6 +131,8 @@ export type TileDrill = {
   query: { entity: string; groupBy: string; measure?: string; field?: string; pipeline?: string };
   sources: string[];
   period: { from?: string; to?: string; all?: boolean };
+  /** Tuile à ligne cible (CA signé, taux de perte…) : le détail est restreint à ce bucket. */
+  bucket?: { raw: string; label: string } | null;
 };
 
 /** Delta formaté dans l'unité de la tuile (percent → points). */
@@ -202,6 +204,11 @@ export async function resolveAddedTiles(
               },
               sources: Array.isArray(spec.sources) ? spec.sources : [],
               period: dateFrom && dateTo ? { from: dateFrom, to: dateTo, all: false } : { all: true },
+              // Ligne cible (« Gagnés », « Dépassée »…) : le détail montre uniquement ces deals.
+              bucket:
+                typeof spec.target === "string" && spec.target && spec.target !== "Total"
+                  ? { raw: spec.target, label: spec.target }
+                  : null,
             };
           }
         }

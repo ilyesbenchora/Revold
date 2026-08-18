@@ -37,6 +37,13 @@ export type TablePreset = {
   forecastType?: string;
   /** Proposé uniquement comme TUILE (pas de table/graphique — valeur unique). */
   tileOnly?: boolean;
+  /**
+   * Ligne du regroupement isolée par la tuile (ex : « Gagnés » sur le
+   * regroupement outcome) — la valeur est celle de CETTE ligne, pas le total.
+   */
+  target?: string;
+  /** Avec target : la tuile affiche 100 × ligne cible / total (taux). */
+  percentOfTotal?: boolean;
 };
 
 // Catégorie d'outil qui alimente chaque entité canonique. Le funnel de création
@@ -61,6 +68,9 @@ export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]>
 export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
   deals: [
     { id: "stage", label: "Étape du pipeline" },
+    { id: "status", label: "Statut (en cours / gagné / perdu)" },
+    { id: "outcome", label: "Résultat des deals clôturés (gagné / perdu)" },
+    { id: "close_date_state", label: "Close date (à jour / dépassée)" },
     { id: "month_created", label: "Date de création" },
     { id: "month_closed", label: "Date de closing" },
   ],
@@ -157,7 +167,16 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
   perf_ventes: [
     { id: "deals_stage", label: "Deals par étape", entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
     { id: "pipeline_stage", label: "Montant du pipeline par étape", entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
-    { id: "weighted_forecast_stage", label: "Projection pondérée par étape", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
+    { id: "weighted_forecast_stage", label: "Répartition du CA pondéré par étape (par pipeline)", entity: "deals", groupBy: "stage", measure: "weighted", field: "amount", unit: "currency", view: "bar", requiresKey: "hubspot" },
+    // ── Tuiles ciblées PAR PIPELINE : le pipeline se choisit à l'étape
+    //    Affichage et la tuile est calculée uniquement sur celui-ci. Les
+    //    targets reprennent les libellés des dims status/outcome/close_date_state.
+    { id: "pipeline_weighted_amount", label: "Montant pondéré des deals en cours (par pipeline)", entity: "deals", groupBy: "status", measure: "weighted", field: "amount", unit: "currency", view: "bloc", requiresKey: "hubspot", target: "En cours", tileOnly: true },
+    { id: "pipeline_open_amount", label: "Montant des deals en cours (par pipeline)", entity: "deals", groupBy: "status", measure: "sum", field: "amount", unit: "currency", view: "bloc", target: "En cours", tileOnly: true },
+    { id: "pipeline_won_amount", label: "CA signé (par pipeline)", entity: "deals", groupBy: "outcome", measure: "sum", field: "amount", unit: "currency", view: "bloc", target: "Gagnés", tileOnly: true },
+    { id: "pipeline_lost_amount", label: "Montant des deals perdus (par pipeline)", entity: "deals", groupBy: "outcome", measure: "sum", field: "amount", unit: "currency", view: "bloc", target: "Perdus", tileOnly: true },
+    { id: "pipeline_loss_rate", label: "Taux de perte (par pipeline)", entity: "deals", groupBy: "outcome", measure: "count", unit: "percent", view: "bloc", target: "Perdus", percentOfTotal: true, tileOnly: true },
+    { id: "pipeline_close_date_overdue", label: "% de close dates dépassées (par pipeline)", entity: "deals", groupBy: "close_date_state", measure: "count", unit: "percent", view: "bloc", target: "Dépassée", percentOfTotal: true, tileOnly: true },
     { id: "avg_amount_stage", label: "Montant moyen par étape", entity: "deals", groupBy: "stage", measure: "avg", field: "amount", unit: "currency", view: "bar" },
     { id: "revenue_month", label: "Évolution du CA signé", entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" },
     { id: "deals_created_month", label: "Évolution des deals créés", entity: "deals", groupBy: "month_created", measure: "count", unit: "count", view: "line" },

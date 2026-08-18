@@ -108,7 +108,7 @@ export function KpiTilesEditor({
   const [drillTarget, setDrillTarget] = useState<DrilldownTarget | null>(null);
   function openTileDrill(t: EditorTile) {
     if (!t.drill || editing) return;
-    setDrillTarget({ ...t.drill, bucket: null, title: t.label });
+    setDrillTarget({ ...t.drill, bucket: t.drill.bucket ?? null, title: t.label });
   }
 
   // ── Drag & drop des tuiles (mode édition) : réordonner en glissant, ordre
