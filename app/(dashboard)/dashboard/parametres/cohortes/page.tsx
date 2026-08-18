@@ -138,7 +138,33 @@ export default async function ParametresCohortesPage() {
   const contractRows = [
     { provider: "hubspot", label: "HubSpot", icon: "🟠", domain: "hubspot.com", identifiers: contractIdentifiers },
   ];
-  const salesGroup = COHORT_TEAMS.find((t) => t.id === "sales");
+
+  // Cohorte « Contrat » — rendue DANS le groupe Ventes du formulaire (mêmes
+  // droits que le groupe) : dates de début et de fin de contrat, stockées en
+  // identifier_field_mapping (la sync et le radar de facturation les consomment).
+  const contractBlock = (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <p className="text-sm font-semibold text-slate-800">Contrat</p>
+      <p className="text-[11px] text-slate-400">
+        Les propriétés CRM qui portent les dates de début et de fin de contrat — elles alimentent le radar de
+        facturation et les analyses par cohorte de contrat. Revold vérifie qu&apos;elles existent dans ton CRM
+        avant d&apos;appliquer le mapping.
+      </p>
+      <div className="mt-3">
+        {hsToken ? (
+          <IdentifierMappingForm
+            rows={contractRows}
+            savedMappings={contractMappings}
+            disabledProviders={[]}
+            hubspotPropertyStatus={contractPropertyStatus}
+            allowExtraCustomIds={false}
+          />
+        ) : (
+          <p className="text-sm text-slate-500">Connecte ton CRM pour mapper les dates de contrat.</p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <section className="space-y-6">
@@ -146,41 +172,20 @@ export default async function ParametresCohortesPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-500">
           Cohortes : indique dans quelles propriétés de ton CRM vivent tes axes d&apos;analyse — secteur, segment,
-          sources, priorité, dates de contrat et cohortes custom. Les cohortes sont regroupées par équipe : chacun ne
+          sources, dates de contrat et cohortes custom. Les cohortes sont regroupées par équipe : chacun ne
           voit que les groupes que ses droits autorisent (matrice « Cohortes par équipe » dans Utilisateurs &amp; équipes).
         </p>
       </header>
 
       <ParametresTabs />
 
-      <CohortMappingsForm initial={mappings} initialStatus={propertyStatus} hasCrm={!!hsToken} teamRights={teamRights} />
-
-      {/* ── Dates de contrat : groupe Ventes — visibles selon les mêmes droits. ── */}
-      {teamRights.sales?.view && (
-        <div className="space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span aria-hidden>{salesGroup?.icon}</span> Dates de contrat ({salesGroup?.label})
-          </h2>
-          <p className="text-sm text-slate-500">
-            Les propriétés CRM qui portent les dates de début et de fin de contrat — elles alimentent le radar de
-            facturation et les analyses par cohorte de contrat. Le nom de la propriété diffère selon les bases :
-            Revold vérifie qu&apos;elle existe dans ton CRM avant d&apos;appliquer le mapping.
-          </p>
-          {hsToken ? (
-            <IdentifierMappingForm
-              rows={contractRows}
-              savedMappings={contractMappings}
-              disabledProviders={[]}
-              hubspotPropertyStatus={contractPropertyStatus}
-              allowExtraCustomIds={false}
-            />
-          ) : (
-            <div className="card p-6 text-center">
-              <p className="text-sm text-slate-500">Connecte ton CRM pour mapper les dates de contrat.</p>
-            </div>
-          )}
-        </div>
-      )}
+      <CohortMappingsForm
+        initial={mappings}
+        initialStatus={propertyStatus}
+        hasCrm={!!hsToken}
+        teamRights={teamRights}
+        salesExtra={contractBlock}
+      />
     </section>
   );
 }

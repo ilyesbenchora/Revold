@@ -49,8 +49,10 @@ export const STANDARD_COHORTS: { key: string; label: string; hint: string; objec
   { key: "industry", label: "Secteur d'activité", hint: "La propriété CRM qui porte l'industrie / le secteur", object: "companies" },
   { key: "segment", label: "Segment", hint: "PME / ETI / Enterprise, tiers, ICP…", object: "companies" },
   { key: "source", label: "Sources (canal d'acquisition)", hint: "Origine du contact / deal : inbound, outbound, paid…", object: "contacts" },
-  { key: "priority", label: "Priorité", hint: "Priorité / score du compte ou du deal", object: "deals" },
 ];
+
+/** Cohortes standard RETIRÉES : les enregistrements legacy sont ignorés au chargement. */
+const REMOVED_COHORT_KEYS = new Set(["priority"]);
 
 /** Groupes affichés : les 4 équipes puis les cohortes transverses (toutes équipes). */
 const GROUPS: { id: string; label: string; icon: string }[] = [
@@ -73,6 +75,7 @@ export function CohortMappingsForm({
   initialStatus = {},
   hasCrm = false,
   teamRights,
+  salesExtra,
 }: {
   initial: CohortMapping[];
   /** Statut initial (serveur) des propriétés, clé = key du mapping. */
@@ -81,6 +84,8 @@ export function CohortMappingsForm({
   hasCrm?: boolean;
   /** Droits du membre courant par équipe (clé = team id) — admin : tout à true. */
   teamRights: CohortTeamRights;
+  /** Bloc supplémentaire rendu DANS le groupe Ventes (ex : cohorte Contrat — dates de début/fin). */
+  salesExtra?: React.ReactNode;
 }) {
   // État initial : sections standard (pré-remplies si déjà enregistrées) + customs.
   // IMPORTANT : l'état contient TOUTES les cohortes, y compris celles des
@@ -95,7 +100,7 @@ export function CohortMappingsForm({
         : { key: s.key, label: s.label, internal_name: "", api_name: "", object: s.object, team: defaultTeam };
     });
     const customs = initial
-      .filter((m) => !STANDARD_COHORTS.some((s) => s.key === m.key))
+      .filter((m) => !STANDARD_COHORTS.some((s) => s.key === m.key) && !REMOVED_COHORT_KEYS.has(m.key))
       .map((m) => ({ ...m, object: m.object ?? "", team: m.team ?? "" }));
     return [...std, ...customs];
   });
@@ -368,6 +373,8 @@ export function CohortMappingsForm({
         // Groupe transverse vide et non créable : rien à montrer.
         if (g.id === "" && groupRows.length === 0 && !canCreate("")) return null;
         const editable = canEdit(g.id);
+        // La cohorte Contrat (salesExtra) compte dans le badge du groupe Ventes.
+        const cohortCount = groupRows.length + (g.id === "sales" && salesExtra ? 1 : 0);
         return (
           <div key={g.id || "all"} className="card p-6">
             <div className="mb-4 flex items-center justify-between gap-2">
@@ -375,7 +382,7 @@ export function CohortMappingsForm({
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <span aria-hidden>{g.icon}</span> {g.label}
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    {groupRows.length} cohorte{groupRows.length > 1 ? "s" : ""}
+                    {cohortCount} cohorte{cohortCount > 1 ? "s" : ""}
                   </span>
                 </h3>
                 {!editable && (
@@ -392,11 +399,13 @@ export function CohortMappingsForm({
                 </button>
               )}
             </div>
-            {groupRows.length === 0 ? (
+            {groupRows.length === 0 && !(g.id === "sales" && salesExtra) ? (
               <p className="text-xs text-slate-400">Aucune cohorte dans ce groupe pour l&apos;instant.</p>
             ) : (
               <div className="space-y-4">{groupRows.map((m) => renderRow(m, editable))}</div>
             )}
+            {/* Cohorte Contrat (dates de début/fin) — rendue dans le groupe Ventes. */}
+            {g.id === "sales" && salesExtra && <div className="mt-4">{salesExtra}</div>}
           </div>
         );
       })}

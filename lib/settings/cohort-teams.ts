@@ -28,7 +28,6 @@ export const STANDARD_COHORT_TEAMS: Record<string, CohortTeamId> = {
   industry: "marketing",
   segment: "marketing",
   source: "marketing",
-  priority: "sales",
 };
 
 export type CohortRight = "view" | "edit" | "create";
