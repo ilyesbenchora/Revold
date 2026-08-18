@@ -6,7 +6,6 @@ import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
-import { EnrichedCompaniesTable } from "@/components/enriched-companies-table";
 import { HubspotPropertiesBlock } from "@/components/hubspot-properties-block";
 import {
   ENRICHMENT_FIELD_COLUMNS,
@@ -118,9 +117,8 @@ export default async function EnrichissementPage() {
              (effectifs des entreprises que le registre officiel ne couvre pas). ── */}
       {settings.linkedinEnabled && <LinkedinEnrichmentBlock />}
 
-      {/* ── 2. Le résultat, juste sous l'état : entreprises enrichies en
-             panneau dépliable paginé. ── */}
-      <EnrichedCompaniesTable supabase={supabase} orgId={orgId} />
+      {/* Le détail des entreprises enrichies vit DANS l'Historique des
+          enrichissements (EnrichmentBackfillRunner) — pas de bloc doublon. */}
 
       {/* ── 3. Ce que le moteur n'applique pas seul : les correspondances
              d'identité ambiguës, validées à la main. ── */}

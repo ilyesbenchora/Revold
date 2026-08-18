@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ENRICHMENT_FIELD_LABELS, type EnrichmentFields } from "@/lib/enrichment/settings";
+import { EnrichedCompaniesPanel } from "@/components/enriched-companies-panel";
 
 /**
  * État de l'enrichissement + CTA « Enrichir mon CRM » + historique des passes.
@@ -463,6 +464,10 @@ export function EnrichmentBackfillRunner({
               );
             })}
           </ul>
+
+          {/* ── Détail fiche par fiche : les entreprises enrichies, dépliables
+                 ICI (même bloc que les passes — pas de carte doublon). ── */}
+          <EnrichedCompaniesPanel />
         </div>
       )}
 
