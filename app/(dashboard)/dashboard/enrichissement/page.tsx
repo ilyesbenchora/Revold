@@ -39,9 +39,6 @@ export default async function EnrichissementPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
   const supabase = await createSupabaseServerClient();
 
-  // Server component force-dynamic : l'horloge est stable par requête.
-  // eslint-disable-next-line react-hooks/purity
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const settings = await getEnrichmentSettings(supabase, orgId);
 
   // Tuiles CORRÉLÉES aux champs cochés dans Paramètres → Enrichissement : une
@@ -58,9 +55,11 @@ export default async function EnrichissementPage() {
     shareCapital: { label: "Capital social connu", sub: "publié au RNE (INPI)" },
     headOfficeAddress: { label: "Adresse siège connue", sub: "adresse officielle Sirene" },
   };
-  const [total, fresh, toReview, ...fieldValues] = await Promise.all([
+  // Pas de tuile « Rafraîchies < 90 j » : l'entretien est AUTOMATIQUE (cron
+  // toutes les 5 min — nouvelles entreprises + rafraîchissement 90 j), ce
+  // compteur interne de maintenance n'apprend rien à l'utilisateur.
+  const [total, toReview, ...fieldValues] = await Promise.all([
     count(supabase, orgId, (q) => q),
-    count(supabase, orgId, (q) => q.gte("enriched_at", ninetyDaysAgo)),
     count(supabase, orgId, (q) => q.is("siren", null).not("candidate_siren", "is", null)),
     ...activeFields.map((f) => count(supabase, orgId, (q) => q.not(ENRICHMENT_FIELD_COLUMNS[f.id], "is", null))),
   ]);
@@ -73,7 +72,6 @@ export default async function EnrichissementPage() {
       const pctOf = total && v != null ? ` — ${Math.round((v / total) * 100)} %` : "";
       return { label: t.label, value: v, sub: `${t.sub}${f.id === "siren" ? pctOf : ""}` };
     }),
-    { label: "Rafraîchies < 90 j", value: fresh, sub: "données évolutives — à entretenir" },
     { label: "À valider", value: toReview, sub: "correspondances plausibles en attente" },
   ];
 
