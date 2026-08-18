@@ -154,16 +154,22 @@ export async function completeProfileAction(formData: FormData) {
   const orgName = String(formData.get("org_name") ?? "").trim();
   const employees = String(formData.get("employees_range") ?? "").trim();
   const industry = String(formData.get("industry") ?? "").trim();
-  if (!orgName || !employees || !industry) {
+  const password = String(formData.get("password") ?? "").trim();
+  if (!orgName || !employees || !industry || !password) {
     redirect("/login?mode=entreprise&error=Tous+les+champs+sont+obligatoires");
+  }
+  if (password.length < 8) {
+    redirect("/login?mode=entreprise&error=Le+mot+de+passe+doit+faire+au+moins+8+caractères");
   }
 
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=Session+expirée+—+reconnecte-toi");
 
-  // Métadonnées d'abord : getOrgId() lit org_name pour nommer la vraie org.
+  // Mot de passe (connexions futures par mot de passe possibles) + métadonnées
+  // en un appel : getOrgId() lit org_name pour nommer la vraie org.
   const { error } = await supabase.auth.updateUser({
+    password,
     data: { org_name: orgName, employees_range: employees, industry },
   });
   if (error) redirect(`/login?mode=entreprise&error=${encodeURIComponent(error.message)}`);

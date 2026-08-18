@@ -179,6 +179,24 @@ function LoginForm() {
                 ))}
               </select>
             </div>
+            <div>
+              <label htmlFor="new_password" className="mb-1 block text-sm font-medium text-slate-300">
+                Choisis un mot de passe <span className="text-rose-400">*</span>
+              </label>
+              <input
+                id="new_password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                placeholder="8 caractères minimum"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                required
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Pour tes prochaines connexions — le code par email restera aussi disponible.
+              </p>
+            </div>
             <button
               type="submit"
               className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
