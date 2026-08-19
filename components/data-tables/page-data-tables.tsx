@@ -14,6 +14,7 @@ import {
   presetsForPage,
   baseTableKey,
   filterPresetsBySources,
+  extraFieldPresets,
   PAGE_AGENT_KEY,
   type SourceTool,
   type TablePreset,
@@ -381,8 +382,10 @@ export function PageDataTables({
   }, [pageKey]);
 
   // Outils sélectionnés (objets) → KPIs proposés, filtrés dynamiquement.
+  // + KPIs dynamiques des champs MÉTIER supplémentaires des connecteurs sur
+  // mesure sélectionnés (somme / répartition sur extra.<id>).
   const selectedTools = sources.filter((s) => selected.includes(s.key));
-  const presets = filterPresetsBySources(allPresets, selectedTools);
+  const presets = [...filterPresetsBySources(allPresets, selectedTools), ...extraFieldPresets(selectedTools)];
 
   // Regroupe les outils connectés par catégorie pour le sélecteur de sources.
   const sourcesByCategory = sources.reduce<Record<string, SourceTool[]>>((acc, t) => {

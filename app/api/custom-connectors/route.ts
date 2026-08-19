@@ -6,7 +6,9 @@ import {
   CUSTOM_ENTITIES,
   targetsForEntities,
   targetsForPages,
+  extraFieldId,
   type CustomEntity,
+  type ExtraField,
 } from "@/lib/integrations/custom-connector";
 import { getToolKeys, setToolKeys } from "@/lib/integrations/tool-mappings";
 
@@ -34,11 +36,21 @@ export async function GET() {
   const ids = (data ?? []).map((c) => c.id as string);
   let endpoints: unknown[] = [];
   if (ids.length > 0) {
-    const { data: eps } = await supabase
+    // Résilient à la migration extra_fields non appliquée : retente sans.
+    const COLS = "id, connector_id, entity, path, records_path, pagination, field_map, extra_fields, is_active, last_count";
+    const { data: eps, error: epsErr } = await supabase
       .from("custom_connector_endpoints")
-      .select("id, connector_id, entity, path, records_path, pagination, field_map, is_active, last_count")
+      .select(COLS)
       .in("connector_id", ids);
-    endpoints = eps ?? [];
+    if (epsErr && /extra_fields/.test(epsErr.message)) {
+      const { data: fallback } = await supabase
+        .from("custom_connector_endpoints")
+        .select("id, connector_id, entity, path, records_path, pagination, field_map, is_active, last_count")
+        .in("connector_id", ids);
+      endpoints = fallback ?? [];
+    } else {
+      endpoints = eps ?? [];
+    }
   }
   return NextResponse.json({ connectors: data ?? [], endpoints });
 }
@@ -70,6 +82,8 @@ export async function POST(request: Request) {
       recordsPath?: string | null;
       pagination?: Record<string, unknown>;
       fieldMap?: Record<string, string>;
+      /** Champs métier supplémentaires (agrégeables via extra.<id>). */
+      extraFields?: Array<{ label?: string; kind?: string; source?: string }>;
       isActive?: boolean;
     }>;
   };
@@ -162,20 +176,40 @@ export async function POST(request: Request) {
   for (const ep of body.endpoints ?? []) {
     if (!ep.entity || !(CUSTOM_ENTITIES as readonly string[]).includes(ep.entity)) continue;
     if (!ep.path?.trim()) continue;
-    const { error } = await supabase.from("custom_connector_endpoints").upsert(
-      {
-        connector_id: connectorId,
-        organization_id: orgId,
-        entity: ep.entity,
-        path: ep.path.trim(),
-        records_path: ep.recordsPath?.trim() || null,
-        pagination: ep.pagination ?? { type: "none" },
-        field_map: ep.fieldMap ?? {},
-        is_active: ep.isActive !== false,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "connector_id,entity" },
-    );
+    // Champs métier supplémentaires : id sluggé stable, kind whitelisté, 12 max.
+    const extraFields: ExtraField[] = [];
+    const seenIds = new Set<string>();
+    for (const f of (ep.extraFields ?? []).slice(0, 12)) {
+      const fLabel = typeof f.label === "string" ? f.label.trim().slice(0, 60) : "";
+      const source = typeof f.source === "string" ? f.source.trim().slice(0, 200) : "";
+      if (!fLabel || !source) continue;
+      const id = extraFieldId(fLabel);
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      extraFields.push({ id, label: fLabel, kind: f.kind === "number" ? "number" : "label", source });
+    }
+    const epRow: Record<string, unknown> = {
+      connector_id: connectorId,
+      organization_id: orgId,
+      entity: ep.entity,
+      path: ep.path.trim(),
+      records_path: ep.recordsPath?.trim() || null,
+      pagination: ep.pagination ?? { type: "none" },
+      field_map: ep.fieldMap ?? {},
+      extra_fields: extraFields,
+      is_active: ep.isActive !== false,
+      updated_at: new Date().toISOString(),
+    };
+    let { error } = await supabase
+      .from("custom_connector_endpoints")
+      .upsert(epRow, { onConflict: "connector_id,entity" });
+    // Migration extra_fields non appliquée → on enregistre sans (résilient).
+    if (error && /extra_fields/.test(error.message)) {
+      delete epRow.extra_fields;
+      ({ error } = await supabase
+        .from("custom_connector_endpoints")
+        .upsert(epRow, { onConflict: "connector_id,entity" }));
+    }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

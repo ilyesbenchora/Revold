@@ -42,6 +42,9 @@ Merci d'avance.`;
  * canonique. La clé de jointure est l'ID de rapprochement partagé avec le CRM.
  */
 
+/** Champ MÉTIER supplémentaire (hors modèle canonique) — agrégeable dans le funnel. */
+type ExtraFieldDraft = { label: string; kind: "number" | "label"; source: string };
+
 type EndpointDraft = {
   entity: CustomEntity;
   path: string;
@@ -52,6 +55,7 @@ type EndpointDraft = {
   size: number;
   cursorPath: string;
   fieldMap: Record<string, string>;
+  extraFields: ExtraFieldDraft[];
   keys: string[];
   sample: Record<string, unknown> | null;
   tested: boolean;
@@ -69,6 +73,7 @@ const emptyEndpoint = (entity: CustomEntity): EndpointDraft => ({
   size: 100,
   cursorPath: "",
   fieldMap: {},
+  extraFields: [],
   keys: [],
   sample: null,
   tested: false,
@@ -189,6 +194,7 @@ export function CustomConnectorWizard({
                       cursorPath: e.paginationType === "cursor" ? e.cursorPath : undefined,
                     },
               fieldMap: e.fieldMap,
+              extraFields: e.extraFields.filter((f) => f.label.trim() && f.source),
             })),
         }),
       });
@@ -561,6 +567,70 @@ export function CustomConnectorWizard({
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* ── Champs MÉTIER supplémentaires : au-delà du modèle canonique.
+                       Stockés à la sync (source_metadata.extra) et agrégeables dans
+                       le funnel — le reporting propre à l'ERP/outil métier. ── */}
+                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                    Champs métier supplémentaires
+                    <InfoHint
+                      wide
+                      text={"Les champs propres à ton outil que Revold ne connaît pas d'avance (marge, entrepôt, type de contrat, quantité…).\n\nChaque champ ajouté devient utilisable dans les KPIs et tables de données : « Nombre » pour les montants/quantités (sommes, moyennes), « Libellé » pour les catégories (répartitions)."}
+                    />
+                    <span className="font-normal text-slate-400">(facultatif)</span>
+                  </p>
+                  {ep.extraFields.map((f, fi) => (
+                    <div key={fi} className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={f.label}
+                        onChange={(e) =>
+                          patch(i, { extraFields: ep.extraFields.map((x, xi) => (xi === fi ? { ...x, label: e.target.value } : x)) })
+                        }
+                        placeholder="Nom du champ (ex : Marge brute)"
+                        className={`${field} w-48 py-1.5 text-xs`}
+                      />
+                      <select
+                        value={f.kind}
+                        onChange={(e) =>
+                          patch(i, { extraFields: ep.extraFields.map((x, xi) => (xi === fi ? { ...x, kind: e.target.value as ExtraFieldDraft["kind"] } : x)) })
+                        }
+                        className={`${field} py-1.5 text-xs`}
+                      >
+                        <option value="number">Nombre (sommes, moyennes)</option>
+                        <option value="label">Libellé (répartitions)</option>
+                      </select>
+                      <select
+                        value={f.source}
+                        onChange={(e) =>
+                          patch(i, { extraFields: ep.extraFields.map((x, xi) => (xi === fi ? { ...x, source: e.target.value } : x)) })
+                        }
+                        className={`${field} min-w-0 flex-1 py-1.5 text-xs`}
+                      >
+                        <option value="">— champ de l&apos;outil —</option>
+                        {ep.keys.map((k) => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => patch(i, { extraFields: ep.extraFields.filter((_, xi) => xi !== fi) })}
+                        className="shrink-0 rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-rose-50 hover:text-rose-500"
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                  ))}
+                  {ep.extraFields.length < 12 && (
+                    <button
+                      type="button"
+                      onClick={() => patch(i, { extraFields: [...ep.extraFields, { label: "", kind: "number", source: "" }] })}
+                      className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[11px] font-medium text-slate-500 transition hover:border-accent hover:text-accent"
+                    >
+                      ＋ Ajouter un champ métier
+                    </button>
+                  )}
                 </div>
 
                 {/* Pagination */}

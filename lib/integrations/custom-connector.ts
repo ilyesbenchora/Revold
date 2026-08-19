@@ -36,6 +36,22 @@ export type Pagination = {
   cursorPath?: string;
 };
 
+/**
+ * Champ MÉTIER supplémentaire d'un endpoint — au-delà du modèle canonique.
+ * Stocké à la sync dans source_metadata.extra.<id> de chaque enregistrement ;
+ * agrégeable dans le funnel via groupBy "extra.<id>" (libellé) ou
+ * field "extra.<id>" (nombre). C'est le déblocage ERP/outils métier : Revold
+ * n'a pas à deviner le reporting, l'utilisateur câble ses propres champs.
+ */
+export type ExtraField = {
+  /** Identifiant stable (slug du libellé) — clé dans source_metadata.extra. */
+  id: string;
+  label: string;
+  kind: "number" | "label";
+  /** Chemin pointé du champ dans l'enregistrement source. */
+  source: string;
+};
+
 export type CustomEndpoint = {
   id: string;
   connector_id: string;
@@ -44,6 +60,8 @@ export type CustomEndpoint = {
   records_path: string | null;
   pagination: Pagination;
   field_map: Record<string, string>;
+  /** Champs métier supplémentaires (colonne extra_fields, migration 20260819000002). */
+  extra_fields?: ExtraField[] | null;
   is_active: boolean;
 };
 
@@ -639,4 +657,41 @@ export function mapRecord(record: Record<string, unknown>, fieldMap: Record<stri
     out[canonical] = getByPath(record, path);
   }
   return out;
+}
+
+/**
+ * Valeurs des champs métier supplémentaires d'un enregistrement — typées selon
+ * leur kind (number → Number, sinon libellé texte). Renvoie null si aucun
+ * champ n'a de valeur (pour ne pas gonfler source_metadata inutilement).
+ */
+export function extraValuesFromRecord(
+  record: Record<string, unknown>,
+  extraFields: ExtraField[] | null | undefined,
+): Record<string, string | number> | null {
+  if (!extraFields?.length) return null;
+  const out: Record<string, string | number> = {};
+  for (const f of extraFields) {
+    if (!f?.id || !f.source) continue;
+    const raw = getByPath(record, f.source);
+    if (raw == null || raw === "") continue;
+    if (f.kind === "number") {
+      const n = Number(String(raw).replace(",", "."));
+      if (Number.isFinite(n)) out[f.id] = n;
+    } else {
+      out[f.id] = String(raw).slice(0, 120);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/** Slug stable d'un libellé de champ supplémentaire (clé source_metadata.extra). */
+export function extraFieldId(label: string): string {
+  return label
+    .normalize("NFD")
+    // Diacritiques combinants (é → e + ́) retirés après décomposition NFD.
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
 }

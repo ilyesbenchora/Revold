@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchAllRecords,
   mapRecord,
+  extraValuesFromRecord,
   customProvider,
   type CustomConnector,
   type CustomEndpoint,
@@ -106,6 +107,11 @@ export async function syncCustomConnector(
       continue;
     }
     const rows = records.map((r) => mapRecord(r, ep.field_map));
+    // Champs MÉTIER supplémentaires (extra_fields) : valeurs typées extraites
+    // de l'enregistrement BRUT, rangées dans source_metadata.extra.<id> —
+    // agrégeables dans le funnel (groupBy/field "extra.<id>").
+    const rowExtras = records.map((r) => extraValuesFromRecord(r, ep.extra_fields));
+    const extraOf = new Map(rows.map((r, i) => [r, rowExtras[i]]));
 
     // ── CLIENTS : résolution d'entreprise par ID de rapprochement ──
     if (ep.entity === "companies") {
@@ -189,6 +195,9 @@ export async function syncCustomConnector(
           close_date: date(r.close_date)?.slice(0, 10) ?? null,
           is_closed_won: won,
           is_closed_lost: lost,
+          // Champs métier supplémentaires — colonne posée par la migration
+          // 20260819000002 (livrée avec ce code, appliquée au même build).
+          ...(extraOf.get(r) ? { source_metadata: { custom_connector: connector.key, extra: extraOf.get(r) } } : {}),
           updated_at: new Date().toISOString(),
         };
         const known = links.get(externalId);
@@ -229,7 +238,11 @@ export async function syncCustomConnector(
           paid_at: date(r.paid_at),
           due_at: date(r.due_at),
           primary_source: provider,
-          source_metadata: { custom_connector: connector.key, external_id: externalId },
+          source_metadata: {
+            custom_connector: connector.key,
+            external_id: externalId,
+            ...(extraOf.get(r) ? { extra: extraOf.get(r) } : {}),
+          },
           updated_at: new Date().toISOString(),
         };
         const known = links.get(externalId);
@@ -263,7 +276,11 @@ export async function syncCustomConnector(
           started_at: date(r.started_at),
           canceled_at: date(r.canceled_at),
           primary_source: provider,
-          source_metadata: { custom_connector: connector.key, external_id: externalId },
+          source_metadata: {
+            custom_connector: connector.key,
+            external_id: externalId,
+            ...(extraOf.get(r) ? { extra: extraOf.get(r) } : {}),
+          },
           updated_at: new Date().toISOString(),
         };
         const known = links.get(externalId);
@@ -295,6 +312,7 @@ export async function syncCustomConnector(
           date: date(r.date)?.slice(0, 10) ?? null,
           category: r.category ?? null,
           primary_source: provider,
+          ...(extraOf.get(r) ? { source_metadata: { custom_connector: connector.key, extra: extraOf.get(r) } } : {}),
           updated_at: new Date().toISOString(),
         };
         const known = links.get(externalId);
@@ -328,6 +346,7 @@ export async function syncCustomConnector(
           resolved_at: date(r.resolved_at),
           closed_at: date(r.resolved_at),
           primary_source: provider,
+          ...(extraOf.get(r) ? { source_metadata: { custom_connector: connector.key, extra: extraOf.get(r) } } : {}),
           updated_at: new Date().toISOString(),
         };
         const known = links.get(externalId);

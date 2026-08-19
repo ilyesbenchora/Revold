@@ -874,7 +874,26 @@ export async function computeAggregate(
   const spec = AGG_SPECS[entity];
   if (!spec) return { error: `Entité non supportée: ${entity}. Choisir: ${Object.keys(AGG_SPECS).join(", ")}.` };
   const groupBy = String(input.groupBy ?? "");
-  const dimFn = spec.dims[groupBy];
+  // ── Champs MÉTIER supplémentaires des connecteurs sur mesure ──
+  // Dimension "extra.<id>" (libellé) et champ numérique "extra.<id>" : lus dans
+  // source_metadata.extra, posé à la sync custom (migration 20260819000002).
+  // Uniquement sur les entités qui portent source_metadata.
+  const EXTRA_ENTITIES = new Set(["deals", "invoices", "subscriptions", "transactions", "tickets"]);
+  const readExtra = (r: Record<string, unknown>, id: string): unknown => {
+    const meta = r.source_metadata as Record<string, unknown> | null | undefined;
+    const extra = meta?.extra as Record<string, unknown> | undefined;
+    return extra?.[id];
+  };
+  const extraDim = groupBy.startsWith("extra.") ? groupBy.slice(6) : null;
+  if (extraDim && !EXTRA_ENTITIES.has(entity)) {
+    return { error: `Dimension extra.* non disponible pour ${entity} (réservée aux entités des connecteurs sur mesure).` };
+  }
+  const dimFn = extraDim
+    ? (r: Record<string, unknown>) => {
+        const v = readExtra(r, extraDim);
+        return v == null || v === "" ? null : String(v);
+      }
+    : spec.dims[groupBy];
   if (!dimFn) return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
   const measure = ["count", "sum", "avg", "weighted"].includes(String(input.measure)) ? String(input.measure) : "count";
   // « weighted » (projection pondérée par la probabilité de closing) n'a de sens
@@ -884,10 +903,18 @@ export async function computeAggregate(
   }
   let numFn: ((r: Record<string, unknown>) => number) | null = null;
   const field = input.field ? String(input.field) : null;
+  const extraField = field?.startsWith("extra.") ? field.slice(6) : null;
+  if (extraField && !EXTRA_ENTITIES.has(entity)) {
+    return { error: `Champ extra.* non disponible pour ${entity} (réservé aux entités des connecteurs sur mesure).` };
+  }
   if (measure !== "count") {
-    if (!field || !spec.numeric[field])
+    if (extraField) {
+      numFn = (r) => Number(readExtra(r, extraField)) || 0;
+    } else if (!field || !spec.numeric[field]) {
       return { error: `Champ numérique requis pour ${measure} sur ${entity}. Choisir: ${Object.keys(spec.numeric).join(", ") || "(aucun)"}.` };
-    numFn = spec.numeric[field];
+    } else {
+      numFn = spec.numeric[field];
+    }
   }
   const months = Math.min(Math.max(Number(input.months) || 12, 1), 36);
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
@@ -907,10 +934,13 @@ export async function computeAggregate(
     if (dateCol && to) qb = qb.lte(dateCol, to);
     return qb;
   };
-  const detailCols = wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns;
+  // Les dimensions/champs extra.* lisent source_metadata → colonne ajoutée au select.
+  const withExtraCols = (cols: string) =>
+    (extraDim || extraField) && !cols.includes("source_metadata") ? `${cols}, source_metadata` : cols;
+  const detailCols = withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns);
   let { data, error } = await buildQuery(detailCols);
-  if (error && wantDetail && detailCols !== spec.columns) {
-    ({ data, error } = await buildQuery(spec.columns));
+  if (error && wantDetail && detailCols !== withExtraCols(spec.columns)) {
+    ({ data, error } = await buildQuery(withExtraCols(spec.columns)));
   }
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];

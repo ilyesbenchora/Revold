@@ -285,7 +285,55 @@ export type SourceTool = {
    * rattachés à une entreprise, par entité — le périmètre réel des KPIs croisés.
    */
   coverage?: Array<{ entity: string; label: string; total: number; linked: number }>;
+  /**
+   * Connecteurs SUR MESURE : champs métier supplémentaires déclarés au wizard —
+   * le funnel en fait des KPIs dynamiques (groupBy/field "extra.<id>").
+   */
+  extraFields?: Array<{ entity: string; id: string; label: string; kind: string }>;
 };
+
+/**
+ * KPIs dynamiques issus des champs métier supplémentaires des connecteurs sur
+ * mesure sélectionnés : « nombre » → somme du champ, « libellé » → répartition.
+ * Même contrat TablePreset que les presets statiques (spec agrégée déterministe).
+ */
+export function extraFieldPresets(selectedTools: SourceTool[]): TablePreset[] {
+  // Dimension par défaut d'une somme de champ métier, par entité.
+  const DEFAULT_DIM: Record<string, string> = {
+    deals: "status",
+    invoices: "status",
+    subscriptions: "status",
+    transactions: "direction",
+    tickets: "status",
+  };
+  const out: TablePreset[] = [];
+  for (const t of selectedTools) {
+    for (const f of t.extraFields ?? []) {
+      if (!DEFAULT_DIM[f.entity]) continue;
+      out.push(
+        f.kind === "number"
+          ? {
+              id: `extra_${t.key}_${f.entity}_${f.id}_sum`,
+              label: `${f.label} — total (${t.label})`,
+              entity: f.entity,
+              groupBy: DEFAULT_DIM[f.entity],
+              measure: "sum",
+              field: `extra.${f.id}`,
+              unit: "count",
+            }
+          : {
+              id: `extra_${t.key}_${f.entity}_${f.id}_repartition`,
+              label: `Répartition par ${f.label} (${t.label})`,
+              entity: f.entity,
+              groupBy: `extra.${f.id}`,
+              measure: "count",
+              unit: "count",
+            },
+      );
+    }
+  }
+  return out;
+}
 
 /** Catégorie source d'un preset, dérivée de son entité canonique. */
 export function presetSourceCategory(p: TablePreset): ConnectableTool["category"] | null {

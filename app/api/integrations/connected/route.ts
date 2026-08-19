@@ -62,17 +62,42 @@ export async function GET(request: Request) {
     if (mapped.length > 0) tools = tools.filter((t) => mapped.includes(t.key));
   }
 
-  // Couverture de rattachement des connecteurs sur mesure (opt-in).
+  // Couverture de rattachement + champs MÉTIER supplémentaires des connecteurs
+  // sur mesure (opt-in `coverage=1` — le funnel en fait des KPIs dynamiques).
   const coverageByKey = new Map<string, SourceCoverage[]>();
-  if (wantCoverage) {
-    await Promise.all(
-      tools
+  const extraByKey = new Map<string, Array<{ entity: string; id: string; label: string; kind: string }>>();
+  if (wantCoverage && tools.some((t) => t.key.startsWith("custom_"))) {
+    await Promise.all([
+      ...tools
         .filter((t) => t.key.startsWith("custom_"))
         .map(async (t) => {
           const cov = await customSourceCoverage(supabase, orgId, t.key);
           if (cov.length > 0) coverageByKey.set(t.key, cov);
         }),
-    );
+      (async () => {
+        try {
+          const { data: eps } = await supabase
+            .from("custom_connector_endpoints")
+            .select("entity, extra_fields, is_active, custom_connectors(key)")
+            .eq("organization_id", orgId);
+          for (const ep of eps ?? []) {
+            if (ep.is_active === false) continue;
+            const connKey = (ep.custom_connectors as { key?: string } | null)?.key;
+            if (!connKey) continue;
+            const providerKey = `custom_${connKey}`;
+            const fields = Array.isArray(ep.extra_fields) ? ep.extra_fields : [];
+            for (const f of fields as Array<{ id?: string; label?: string; kind?: string }>) {
+              if (!f?.id || !f.label) continue;
+              const list = extraByKey.get(providerKey) ?? [];
+              list.push({ entity: String(ep.entity), id: f.id, label: f.label, kind: f.kind === "number" ? "number" : "label" });
+              extraByKey.set(providerKey, list);
+            }
+          }
+        } catch {
+          /* colonne extra_fields absente (migration non appliquée) → rien */
+        }
+      })(),
+    ]);
   }
 
   return NextResponse.json({
@@ -82,6 +107,7 @@ export async function GET(request: Request) {
       icon: t.icon,
       category: t.category,
       ...(coverageByKey.has(t.key) ? { coverage: coverageByKey.get(t.key) } : {}),
+      ...(extraByKey.has(t.key) ? { extraFields: extraByKey.get(t.key) } : {}),
     })),
   });
 }
