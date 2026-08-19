@@ -111,17 +111,6 @@ const dashboardChildren: LeafLink[] = [
     ),
   },
   {
-    href: "/dashboard/templates",
-    label: "Templates",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="5" rx="1" />
-        <rect x="3" y="11" width="8" height="10" rx="1" />
-        <rect x="14" y="11" width="7" height="10" rx="1" />
-      </svg>
-    ),
-  },
-  {
     href: "/dashboard/mes-rapports",
     label: "Mes rapports",
     icon: (
@@ -129,6 +118,17 @@ const dashboardChildren: LeafLink[] = [
         <path d="M4 4h16v4H4z" />
         <path d="M4 12h10v8H4z" />
         <path d="M18 12h2v8h-2z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/templates",
+    label: "Templates",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="5" rx="1" />
+        <rect x="3" y="11" width="8" height="10" rx="1" />
+        <rect x="14" y="11" width="7" height="10" rx="1" />
       </svg>
     ),
   },
