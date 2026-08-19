@@ -237,8 +237,16 @@ function readBriefAck(): Set<string> {
 }
 function writeBriefAck(keys: string[]) {
   try {
-    localStorage.setItem(BRIEF_ACK_KEY, JSON.stringify(keys.slice(0, 100)));
+    // FUSION avec les acquittements existants (jamais d'écrasement) : sinon un
+    // accomplissement déjà entendu redevient « nouveau » dès qu'un brief
+    // intermédiaire porte d'autres clés — l'orbe reverdissait et répétait.
+    const merged = [...new Set([...readBriefAck(), ...keys])];
+    localStorage.setItem(BRIEF_ACK_KEY, JSON.stringify(merged.slice(-200)));
   } catch {}
+}
+/** Clés déjà acquittées, à transmettre au digest (il ne les répète pas). */
+function briefAckParam(): string {
+  return encodeURIComponent([...readBriefAck()].join(","));
 }
 /** Clés d'accomplissement du digest, nettoyées. */
 function achievedKeysOf(d: unknown): string[] {
@@ -294,7 +302,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   useEffect(() => {
     if (!settings.healthRing) setHealth(null);
     let alive = true;
-    void fetch(`/api/voice/digest?sections=${encodeURIComponent(sectionsParam)}`)
+    void fetch(`/api/voice/digest?sections=${encodeURIComponent(sectionsParam)}&ack=${briefAckParam()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive || !d) return;
@@ -439,6 +447,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const params = new URLSearchParams();
       if (veille) params.set("mode", "veille");
       params.set("sections", briefSectionsParam(readTowerSettings()));
+      // Accomplissements déjà entendus : le digest ne les répète pas, il
+      // n'annonce que les NOUVELLES atteintes/exécutions.
+      params.set("ack", [...readBriefAck()].join(","));
       const res = await fetch(`/api/voice/digest?${params.toString()}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");

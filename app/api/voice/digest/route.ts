@@ -6,6 +6,21 @@ import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { computeAggregate } from "@/lib/ai/agents/tool-library";
 import { computeBillingRadar } from "@/lib/audit/billing-radar";
+import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+
+/** Libellé lisible d'un provider (« pennylane » → « Pennylane »). */
+function toolLabel(key: string): string {
+  return CONNECTABLE_TOOLS[key]?.label ?? key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+/** Entités du modèle alimentées par les outils de facturation/banque : leur
+ *  table porte primary_source (pennylane, stripe…) — on NOMME la source. */
+const BILLING_ENTITY_TABLES: Record<string, string> = {
+  invoices: "invoices",
+  subscriptions: "subscriptions",
+  bank_transactions: "bank_transactions",
+  payments: "payments",
+};
 
 /** Format lisible à voix haute d'une valeur (unit_mode d'alerte/objectif ou unité custom). */
 function fmtCustomValue(v: number, unit: string | null): string {
@@ -55,6 +70,9 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const veille = url.searchParams.get("mode") === "veille";
+  // Accomplissements DÉJÀ ENTENDUS (clés acquittées par l'orbe) : jamais
+  // répétés — le brief n'annonce que les nouvelles atteintes/exécutions.
+  const ack = new Set((url.searchParams.get("ack") ?? "").split(",").filter(Boolean));
   // Sections choisies dans Paramètres → Tour de contrôle (défaut : toutes).
   const sectionsParam = url.searchParams.get("sections");
   const sections = new Set(
@@ -87,6 +105,22 @@ export async function GET(request: Request) {
       .order("started_at", { ascending: false })
       .limit(60),
   ]);
+
+  // ── Outil CRM connecté (HubSpot…) : nommé dans le brief — une organisation
+  //    peut connecter beaucoup d'outils, on dit toujours OÙ ça s'est passé. ──
+  let crmLabel: string | null = null;
+  try {
+    const { data: ints } = await supabase
+      .from("integrations")
+      .select("provider")
+      .eq("organization_id", orgId)
+      .eq("is_active", true)
+      .limit(50);
+    const crm = (ints ?? [])
+      .map((i) => i.provider as string)
+      .find((p) => CONNECTABLE_TOOLS[p]?.category === "crm");
+    if (crm) crmLabel = toolLabel(crm);
+  } catch {}
 
   // ── Alertes en tension : seuil atteint sur la dernière valeur connue ──
   type AlertRow = {
@@ -237,6 +271,24 @@ export async function GET(request: Request) {
       .slice(0, 8);
     if (enabled.length > 0) {
       const hubspotToken = await getHubSpotToken(supabase, orgId);
+      // Source de chaque entité NOMMÉE dans le brief (« via Pennylane ») :
+      // entités billing/banque → primary_source réel des lignes ; sinon CRM.
+      const entitySource = async (entity: string): Promise<string | null> => {
+        const table = BILLING_ENTITY_TABLES[entity];
+        if (!table) return crmLabel;
+        try {
+          const { data } = await supabase
+            .from(table)
+            .select("primary_source")
+            .eq("organization_id", orgId)
+            .not("primary_source", "is", null)
+            .limit(100);
+          const uniq = [...new Set((data ?? []).map((r) => r.primary_source as string))];
+          return uniq.length > 0 ? uniq.map(toolLabel).join(" + ") : crmLabel;
+        } catch {
+          return crmLabel;
+        }
+      };
       const computed = await Promise.all(
         enabled.map(async (i) => {
           try {
@@ -253,7 +305,8 @@ export async function GET(request: Request) {
             if (result.error) return null;
             const rows = ((result.rows as { value?: number }[] | undefined) ?? []);
             const total = rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
-            return `${i.label} : ${fmtCustomValue(total, i.unit ?? null)}`;
+            const src = await entitySource(i.query!.entity!);
+            return `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}`;
           } catch {
             return null;
           }
@@ -315,29 +368,33 @@ export async function GET(request: Request) {
         .join(" ; ");
       parts.push(`Côté objectifs : ${offTrack.length} en retard à moins de 30 jours de l'échéance — ${details}.`);
     }
-    if (sections.has("objectives_reached") && reached.length > 0) {
-      const details = reached
+    // Atteintes/exécutions : SEULEMENT les nouvelles — un accomplissement déjà
+    // entendu (clé acquittée par l'orbe) n'est jamais répété.
+    const newReached = reached.filter((o) => !ack.has(`obj:${o.id}`));
+    if (sections.has("objectives_reached") && newReached.length > 0) {
+      const details = newReached
         .slice(0, 3)
         .map((o) => `${o.title} (${fmtCustomValue(o.current_value!, o.unit_mode)} pour ${fmtCustomValue(o.target!, o.unit_mode)} visé)`)
         .join(", ");
-      parts.push(`Bonne nouvelle côté objectifs : ${reached.length} atteint${reached.length > 1 ? "s" : ""} — ${details}.`);
+      parts.push(`Bonne nouvelle côté objectifs : ${newReached.length} atteint${newReached.length > 1 ? "s" : ""} — ${details}.`);
     }
     // Enrichissement : on ne parle que des deux états qui appellent une
-    // décision — c'est fini, ou il reste du travail en cours.
+    // décision — c'est fini (annoncé UNE fois), ou il reste du travail en cours.
     if (sections.has("enrichment") && enrichmentRemaining != null) {
-      if (enrichmentRemaining === 0 && enrichmentDone > 0) {
-        parts.push(`Sur la donnée : enrichissement terminé, ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} — plus rien en attente.`);
+      if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${enrichmentDone}`)) {
+        parts.push(`Sur la donnée : enrichissement terminé sur ${crmLabel ?? "ton CRM"}, ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} via l'API Sirene — plus rien en attente.`);
       } else if (enrichmentRemaining > 0) {
-        parts.push(`Sur la donnée : enrichissement en cours, ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} encore à traiter.`);
+        parts.push(`Sur la donnée : enrichissement en cours, ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} ${crmLabel ? `${crmLabel} ` : ""}encore à traiter.`);
       }
     }
-    if (sections.has("actions_done") && actionsDone > 0) {
+    if (sections.has("actions_done") && actionsDone > 0 && !(actionsLatestAt && ack.has(`actions:${actionsLatestAt}`))) {
       parts.push(
-        `Côté actions : ${actionsDone} exécutée${actionsDone > 1 ? "s" : ""} dans tes outils depuis hier${actionsAuto > 0 ? `, dont ${actionsAuto} en automatique` : ""}${actionsSample.length > 0 ? ` — par exemple ${actionsSample.join(" et ")}` : ""}.`,
+        `Côté actions : ${actionsDone} exécutée${actionsDone > 1 ? "s" : ""} dans ${crmLabel ?? "tes outils"} depuis hier${actionsAuto > 0 ? `, dont ${actionsAuto} en automatique` : ""}${actionsSample.length > 0 ? ` — par exemple ${actionsSample.join(" et ")}` : ""}.`,
       );
     }
-    // Données personnalisées : lues à la fin du brief, valeurs en direct.
-    if (customParts.length > 0) parts.push(`Et tes données personnalisées : ${customParts.join(" ; ")}.`);
+    // Indicateurs suivis (Paramètres → Tour de contrôle) : valeurs en direct,
+    // chaque chiffre porte sa source (« via Pennylane »).
+    if (customParts.length > 0) parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
