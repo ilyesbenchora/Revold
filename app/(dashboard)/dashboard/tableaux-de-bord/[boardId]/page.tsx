@@ -7,12 +7,16 @@ import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { BoardActions } from "@/components/boards/board-actions";
 import { availableBoardTemplates } from "@/lib/boards/board-templates";
+import { getBoardViewer, listVisibleBoards } from "@/lib/boards/visibility";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BASE = "/dashboard/tableaux-de-bord";
 
-type BoardRow = BoardTab & { parent_id?: string | null };
+type BoardRow = BoardTab & {
+  parent_id?: string | null;
+  visibility?: "private" | "team" | "workspace";
+};
 
 /**
  * Un tableau de bord créé par l'utilisateur, OU l'un de ses onglets
@@ -35,29 +39,10 @@ export default async function BoardPage({
   const supabase = await createSupabaseServerClient();
   const { boardId } = await params;
 
-  // Tous les tableaux + onglets — repli sans parent_id (migration non appliquée).
-  let rows: BoardRow[] = [];
-  try {
-    const full = await supabase
-      .from("custom_dashboards")
-      .select("id, name, parent_id")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: true });
-    let data: unknown = full.data;
-    let error = full.error;
-    if (error && /parent_id/.test(error.message)) {
-      const basic = await supabase
-        .from("custom_dashboards")
-        .select("id, name")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: true });
-      data = basic.data;
-      error = basic.error;
-    }
-    if (!error) rows = (data as BoardRow[] | null) ?? [];
-  } catch {
-    /* table absente → aucun tableau */
-  }
+  // Tous les tableaux + onglets VISIBLES par le lecteur courant (visibilité
+  // privé / équipe / espace) — un tableau invisible = « n'existe plus » ici.
+  const viewer = await getBoardViewer(supabase);
+  const rows: BoardRow[] = await listVisibleBoards(supabase, orgId, viewer);
   const roots = rows.filter((b) => !b.parent_id);
   const board = UUID_RE.test(boardId) ? rows.find((b) => b.id === boardId) : undefined;
   // Templates proposables à la création (entités réellement synchronisées).
@@ -102,7 +87,7 @@ export default async function BoardPage({
             source par page.
           </p>
         </div>
-        <BoardActions boardId={board.id} name={board.name} />
+        <BoardActions boardId={board.id} name={board.name} visibility={board.visibility ?? "workspace"} />
       </header>
 
       {/* Rangée 1 — les TABLEAUX : Vue d'ensemble + racines + ＋ Nouveau tableau.

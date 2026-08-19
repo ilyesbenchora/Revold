@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { BOARD_VISIBILITIES, getBoardViewer, type BoardVisibility } from "@/lib/boards/visibility";
 
 export const dynamic = "force-dynamic";
 
-/** Renomme un tableau de bord personnalisé. */
+/** Renomme un tableau de bord et/ou change sa visibilité (privé / équipe / espace). */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -16,19 +17,36 @@ export async function PATCH(
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   const { id } = await params;
-  let body: { name?: string };
+  let body: { name?: string; visibility?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
-  if (!name) return NextResponse.json({ error: "name requis" }, { status: 400 });
+  const visibility = BOARD_VISIBILITIES.has(body.visibility as BoardVisibility)
+    ? (body.visibility as BoardVisibility)
+    : null;
+  if (!name && !visibility) return NextResponse.json({ error: "name ou visibility requis" }, { status: 400 });
+
+  const update: Record<string, unknown> = {};
+  if (name) update.name = name;
+  if (visibility) {
+    update.visibility = visibility;
+    // 'team' = l'équipe (espace de travail) de celui qui fait le choix.
+    const viewer = await getBoardViewer(supabase);
+    update.team = visibility === "team" ? viewer.team : null;
+  }
 
   const { data, error } = await supabase
     .from("custom_dashboards")
-    .update({ name })
+    .update(update)
     .eq("organization_id", orgId)
     .eq("id", id)
     .select("id, name")
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const msg = /visibility|team/.test(error.message)
+      ? "Migration 20260819000011_board_visibility non appliquée (visibilité indisponible)."
+      : error.message;
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
   if (!data) return NextResponse.json({ error: "Tableau introuvable" }, { status: 404 });
   return NextResponse.json({ board: data });
 }

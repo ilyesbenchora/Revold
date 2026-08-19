@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { BOARD_TEMPLATES, seedBoardFromTemplate, seedBoardComposition } from "@/lib/boards/board-templates";
 import { sanitizeComposition, listKnownExtraFields } from "@/lib/boards/board-suggest";
+import { BOARD_VISIBILITIES, getBoardViewer, listVisibleBoards, type BoardVisibility } from "@/lib/boards/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -18,25 +19,10 @@ export async function GET() {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  // parent_id d'une migration récente → repli sans la colonne.
-  const full = await supabase
-    .from("custom_dashboards")
-    .select("id, name, parent_id, created_at")
-    .eq("organization_id", orgId)
-    .order("created_at", { ascending: true });
-  let data: unknown = full.data;
-  let error = full.error;
-  if (error && /parent_id/.test(error.message)) {
-    const basic = await supabase
-      .from("custom_dashboards")
-      .select("id, name, created_at")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: true });
-    data = basic.data;
-    error = basic.error;
-  }
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ boards: data ?? [] });
+  // Filtrés par visibilité (private / team / workspace) pour le lecteur courant.
+  const viewer = await getBoardViewer(supabase);
+  const boards = await listVisibleBoards(supabase, orgId, viewer);
+  return NextResponse.json({ boards });
 }
 
 /** Crée un tableau de bord personnalisé. */
@@ -47,11 +33,15 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { name?: string; template?: string | null; composition?: unknown; parentId?: string | null };
+  let body: { name?: string; template?: string | null; composition?: unknown; parentId?: string | null; visibility?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
   if (!name) return NextResponse.json({ error: "name requis" }, { status: 400 });
   const parentId = typeof body.parentId === "string" && body.parentId ? body.parentId : null;
+  // Visibilité : private (moi) | team (mon équipe) | workspace (défaut, toute l'org).
+  const visibility: BoardVisibility = BOARD_VISIBILITIES.has(body.visibility as BoardVisibility)
+    ? (body.visibility as BoardVisibility)
+    : "workspace";
   // Template de départ (optionnel) — id inconnu = page vierge, jamais une erreur.
   const template =
     typeof body.template === "string" && BOARD_TEMPLATES.some((t) => t.id === body.template)
@@ -109,11 +99,18 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data, error } = await supabase
+  // Équipe associée quand visibility='team' : l'espace de travail du créateur.
+  const viewer = await getBoardViewer(supabase);
+  const baseRow = { organization_id: orgId, name, created_by: user.id, ...(parentId ? { parent_id: parentId } : {}) };
+  let { data, error } = await supabase
     .from("custom_dashboards")
-    .insert({ organization_id: orgId, name, created_by: user.id, ...(parentId ? { parent_id: parentId } : {}) })
+    .insert({ ...baseRow, visibility, team: visibility === "team" ? viewer.team : null })
     .select("id, name")
     .single();
+  // Migration visibility non appliquée → création sans (comportement workspace).
+  if (error && /visibility|team/.test(error.message)) {
+    ({ data, error } = await supabase.from("custom_dashboards").insert(baseRow).select("id, name").single());
+  }
   if (error) {
     const msg = /custom_dashboards/.test(error.message)
       ? "Migration 20260819000001_custom_dashboards non appliquée (table absente)."

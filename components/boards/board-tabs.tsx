@@ -39,6 +39,8 @@ export function BoardTabs({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<string | null>(null);
+  // Visibilité de la nouvelle page : privé / équipe / espace (défaut : espace).
+  const [visibility, setVisibility] = useState<"private" | "team" | "workspace">("workspace");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +59,7 @@ export function BoardTabs({
       const res = await fetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: n, template, ...(parentId ? { parentId } : {}) }),
+        body: JSON.stringify({ name: n, template, visibility, ...(parentId ? { parentId } : {}) }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.board?.id) {
@@ -67,6 +69,7 @@ export function BoardTabs({
       setCreating(false);
       setName("");
       setTemplate(null);
+      setVisibility("workspace");
       router.push(`${BASE}/${d.board.id}`);
       router.refresh();
     } catch {
@@ -134,6 +137,32 @@ export function BoardTabs({
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900 focus:border-accent focus:outline-none"
               />
             </label>
+
+            {/* ── Visibilité : moi / mon équipe / tout l'espace — modifiable
+                   ensuite à tout moment depuis la page (sélecteur en haut). ── */}
+            <div className="mt-3">
+              <p className="text-[11px] font-medium text-slate-500">Visible par</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {([
+                  { id: "private", label: "🔒 Moi uniquement" },
+                  { id: "team", label: "👥 Mon équipe" },
+                  { id: "workspace", label: "🌐 Tout l'espace" },
+                ] as const).map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setVisibility(o.id)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      visibility === o.id
+                        ? "border-accent bg-accent/10 text-accent"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* ── Composition de départ : page vierge ou template basé sur les
                    entités réellement synchronisées — tout reste modifiable. ── */}

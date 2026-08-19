@@ -4,16 +4,62 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Actions d'un tableau de bord personnalisé : renommer (inline) et supprimer
- * (confirmation en deux clics — le 1er clic arme, le 2e supprime).
+ * Actions d'un tableau de bord personnalisé : visibilité (privé / équipe /
+ * espace de travail), renommer (inline) et supprimer (confirmation en deux
+ * clics — le 1er clic arme, le 2e supprime).
  */
-export function BoardActions({ boardId, name }: { boardId: string; name: string }) {
+
+export const VISIBILITY_OPTIONS: { id: "private" | "team" | "workspace"; label: string; hint: string }[] = [
+  { id: "private", label: "🔒 Moi uniquement", hint: "Visible par toi seul (et les admins)." },
+  { id: "team", label: "👥 Mon équipe", hint: "Visible par les membres de ton espace de travail (pôle)." },
+  { id: "workspace", label: "🌐 Tout l'espace de travail", hint: "Visible par toute l'organisation." },
+];
+
+export function BoardActions({
+  boardId,
+  name,
+  visibility = "workspace",
+}: {
+  boardId: string;
+  name: string;
+  visibility?: "private" | "team" | "workspace";
+}) {
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
   const [value, setValue] = useState(name);
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Visibilité : modifiable À TOUT MOMENT sur un tableau/onglet existant. ──
+  const [vis, setVis] = useState(visibility);
+
+  async function changeVisibility(next: "private" | "team" | "workspace") {
+    if (busy || next === vis) return;
+    const prev = vis;
+    setVis(next);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/boards/${boardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility: next }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setVis(prev);
+        setError(d.error ?? "Changement de visibilité impossible.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setVis(prev);
+      setError("Changement de visibilité impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function rename() {
     const n = value.trim();
@@ -64,6 +110,18 @@ export function BoardActions({ boardId, name }: { boardId: string; name: string 
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Visibilité du tableau / de l'onglet — appliquée immédiatement. */}
+      <select
+        value={vis}
+        disabled={busy}
+        onChange={(e) => changeVisibility(e.target.value as "private" | "team" | "workspace")}
+        title={VISIBILITY_OPTIONS.find((o) => o.id === vis)?.hint}
+        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-accent disabled:opacity-50"
+      >
+        {VISIBILITY_OPTIONS.map((o) => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
       {renaming ? (
         <>
           <input

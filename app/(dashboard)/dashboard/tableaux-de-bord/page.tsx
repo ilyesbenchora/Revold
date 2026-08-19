@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { availableBoardTemplates } from "@/lib/boards/board-templates";
+import { getBoardViewer, listVisibleBoards } from "@/lib/boards/visibility";
 
 // Clé de personnalisation + tool_mappings de la Vue d'ensemble des tableaux.
 const PAGE_KEY = "tableau_bord";
@@ -24,31 +25,10 @@ export default async function TableauxDeBordPage() {
   }
   const supabase = await createSupabaseServerClient();
 
-  // TABLEAUX RACINES seulement (les onglets, parent_id non nul, vivent dans la
-  // rangée de leur tableau) — repli sans la colonne si migration non appliquée.
-  let boards: BoardTab[] = [];
-  try {
-    const full = await supabase
-      .from("custom_dashboards")
-      .select("id, name, parent_id")
-      .eq("organization_id", orgId)
-      .is("parent_id", null)
-      .order("created_at", { ascending: true });
-    let data: unknown = full.data;
-    let error = full.error;
-    if (error && /parent_id/.test(error.message)) {
-      const basic = await supabase
-        .from("custom_dashboards")
-        .select("id, name")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: true });
-      data = basic.data;
-      error = basic.error;
-    }
-    if (!error) boards = (data as BoardTab[] | null) ?? [];
-  } catch {
-    /* table absente (migration non appliquée) → pas de tableaux customs */
-  }
+  // TABLEAUX RACINES visibles par le lecteur (visibilité privé/équipe/espace) —
+  // les onglets (parent_id non nul) vivent dans la rangée de leur tableau.
+  const viewer = await getBoardViewer(supabase);
+  const boards: BoardTab[] = (await listVisibleBoards(supabase, orgId, viewer)).filter((b) => !b.parent_id);
   // Templates proposables à la création (entités réellement synchronisées).
   const templates = await availableBoardTemplates(supabase, orgId);
 
