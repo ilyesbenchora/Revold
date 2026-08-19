@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { DashboardTabs } from "@/components/dashboard-tabs";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
+import { availableBoardTemplates } from "@/lib/boards/board-templates";
 
 // Clé de personnalisation + tool_mappings de la Vue d'ensemble des tableaux.
 const PAGE_KEY = "tableau_bord";
@@ -35,6 +36,8 @@ export default async function TableauxDeBordPage() {
   } catch {
     /* table absente (migration non appliquée) → pas de tableaux customs */
   }
+  // Templates proposables à la création (entités réellement synchronisées).
+  const templates = await availableBoardTemplates(supabase, orgId);
 
   return (
     <section className="space-y-6">
@@ -47,7 +50,7 @@ export default async function TableauxDeBordPage() {
       </header>
 
       <DashboardTabs />
-      <BoardTabs boards={boards} />
+      <BoardTabs boards={boards} templates={templates} />
 
       <BoardFrame supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} sourceKeys={[PAGE_KEY]} />
     </section>

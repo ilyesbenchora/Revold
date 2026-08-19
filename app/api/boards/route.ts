@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { BOARD_TEMPLATES, seedBoardFromTemplate } from "@/lib/boards/board-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,15 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { name?: string };
+  let body: { name?: string; template?: string | null };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Corps invalide" }, { status: 400 }); }
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
   if (!name) return NextResponse.json({ error: "name requis" }, { status: 400 });
+  // Template de départ (optionnel) — id inconnu = page vierge, jamais une erreur.
+  const template =
+    typeof body.template === "string" && BOARD_TEMPLATES.some((t) => t.id === body.template)
+      ? body.template
+      : null;
 
   const { count } = await supabase
     .from("custom_dashboards")
@@ -55,5 +61,12 @@ export async function POST(request: Request) {
       : error.message;
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+
+  // Composition de départ (tuiles + tables) — best effort, la page reste
+  // utilisable vierge si le seed échoue.
+  if (template && data?.id) {
+    await seedBoardFromTemplate(supabase, orgId, user.id, data.id as string, template);
+  }
+
   return NextResponse.json({ board: data });
 }

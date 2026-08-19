@@ -12,13 +12,17 @@ import { usePathname, useRouter } from "next/navigation";
  */
 export type BoardTab = { id: string; name: string };
 
+/** Template proposé à la création (sérialisé côté serveur — entités réellement synchronisées). */
+export type BoardTemplateOption = { id: string; label: string; description: string };
+
 const BASE = "/dashboard/tableaux-de-bord";
 
-export function BoardTabs({ boards }: { boards: BoardTab[] }) {
+export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; templates?: BoardTemplateOption[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [template, setTemplate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +40,7 @@ export function BoardTabs({ boards }: { boards: BoardTab[] }) {
       const res = await fetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: n }),
+        body: JSON.stringify({ name: n, template }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.board?.id) {
@@ -45,6 +49,7 @@ export function BoardTabs({ boards }: { boards: BoardTab[] }) {
       }
       setCreating(false);
       setName("");
+      setTemplate(null);
       router.push(`${BASE}/${d.board.id}`);
       router.refresh();
     } catch {
@@ -106,6 +111,43 @@ export function BoardTabs({ boards }: { boards: BoardTab[] }) {
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900 focus:border-accent focus:outline-none"
               />
             </label>
+
+            {/* ── Composition de départ : page vierge ou template basé sur les
+                   entités réellement synchronisées — tout reste modifiable. ── */}
+            {templates.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[11px] font-medium text-slate-500">Composition de départ</p>
+                <div className="mt-1.5 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                  <button
+                    type="button"
+                    onClick={() => setTemplate(null)}
+                    className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                      template === null ? "border-accent bg-accent/5" : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold text-slate-800">Page vierge</span>
+                      <span className="block text-[11px] text-slate-400">Tu composes tout toi-même — tuiles et tables.</span>
+                    </span>
+                  </button>
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTemplate(t.id)}
+                      className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                        template === t.id ? "border-accent bg-accent/5" : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-slate-800">{t.label}</span>
+                        <span className="block text-[11px] text-slate-400">{t.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
             <div className="mt-4 flex items-center justify-end gap-2">
               <button

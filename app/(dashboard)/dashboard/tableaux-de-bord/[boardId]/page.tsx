@@ -7,6 +7,7 @@ import { DashboardTabs } from "@/components/dashboard-tabs";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { BoardActions } from "@/components/boards/board-actions";
+import { availableBoardTemplates } from "@/lib/boards/board-templates";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,6 +41,8 @@ export default async function BoardPage({
     /* table absente → aucun tableau */
   }
   const board = UUID_RE.test(boardId) ? boards.find((b) => b.id === boardId) : undefined;
+  // Templates proposables à la création (entités réellement synchronisées).
+  const templates = await availableBoardTemplates(supabase, orgId);
 
   if (!board) {
     return (
@@ -48,7 +51,7 @@ export default async function BoardPage({
           <h1 className="text-2xl font-semibold text-slate-900">Tableaux de bord</h1>
         </header>
         <DashboardTabs />
-        <BoardTabs boards={boards} />
+        <BoardTabs boards={boards} templates={templates} />
         <p className="p-8 text-center text-sm text-slate-500">
           Ce tableau de bord n&apos;existe plus.{" "}
           <Link href="/dashboard/tableaux-de-bord" className="font-medium text-accent hover:underline">
@@ -75,7 +78,7 @@ export default async function BoardPage({
       </header>
 
       <DashboardTabs />
-      <BoardTabs boards={boards} />
+      <BoardTabs boards={boards} templates={templates} />
 
       <BoardFrame supabase={supabase} orgId={orgId} pageKey={pageKey} sourceKeys={[pageKey, "tableau_bord"]} />
     </section>

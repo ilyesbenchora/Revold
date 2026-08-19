@@ -369,7 +369,7 @@ export function PageDataTables({
   // Ajouter/retirer un outil dans les paramètres se reflète ici automatiquement.
   useEffect(() => {
     let alive = true;
-    fetch(`/api/integrations/connected?page_key=${encodeURIComponent(pageKey)}`)
+    fetch(`/api/integrations/connected?page_key=${encodeURIComponent(pageKey)}&coverage=1`)
       .then((r) => (r.ok ? r.json() : { tools: [] }))
       .then((d) => {
         const tools: SourceTool[] = Array.isArray(d.tools) ? d.tools : [];
@@ -1487,6 +1487,27 @@ export function PageDataTables({
                       ? `${selectedTools.map((t) => t.label).join(" · ")} — ${presets.length} KPI${presets.length > 1 ? "s" : ""} adapté${presets.length > 1 ? "s" : ""}`
                       : "Aucun filtre : tous les KPIs de la page sont proposés"}
                   </p>
+
+                  {/* ── Couverture des connecteurs SUR MESURE sélectionnés : part des
+                         enregistrements rattachés à une entreprise (périmètre réel des
+                         KPIs croisés). Un KPI honnête sur sa couverture > un KPI faux. ── */}
+                  {selectedTools
+                    .filter((t) => (t.coverage ?? []).some((c) => c.total > 0 && c.linked < c.total))
+                    .map((t) => (
+                      <div key={`cov-${t.key}`} className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p className="text-[11px] font-semibold text-amber-800">
+                          ⚠ {t.label} — rattachement partiel aux entreprises
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-amber-700">
+                          {(t.coverage ?? [])
+                            .filter((c) => c.total > 0)
+                            .map((c) => `${c.label} : ${Math.round((c.linked / c.total) * 100)} % rattachées (${c.linked.toLocaleString("fr-FR")}/${c.total.toLocaleString("fr-FR")})`)
+                            .join(" · ")}
+                          {" "}— les KPIs croisés par entreprise couvrent ce périmètre. Complète l&apos;ID de
+                          rapprochement dans l&apos;outil ou le CRM pour élargir la couverture.
+                        </p>
+                      </div>
+                    ))}
                 </div>
 
                 {/* Suggestions de KPI — en dessous des données à croiser */}

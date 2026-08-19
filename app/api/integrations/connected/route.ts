@@ -4,6 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
 import { basePageKey } from "@/lib/kpi/tile-catalog";
+import { customSourceCoverage, type SourceCoverage } from "@/lib/integrations/custom-health";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,12 @@ export const dynamic = "force-dynamic";
  *   automatiquement dans les pages.
  */
 export async function GET(request: Request) {
-  const pageKey = new URL(request.url).searchParams.get("page_key");
+  const url = new URL(request.url);
+  const pageKey = url.searchParams.get("page_key");
+  // `?coverage=1` : joint la couverture de rattachement des connecteurs SUR
+  // MESURE (part des enregistrements reliés à une entreprise) — le funnel
+  // l'affiche au choix de la source. Opt-in : les autres appels ne paient rien.
+  const wantCoverage = url.searchParams.get("coverage") === "1";
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -49,11 +55,33 @@ export async function GET(request: Request) {
     const chain = [MAPPING_ALIASES[pageKey] ?? pageKey];
     const base = basePageKey(pageKey);
     if (base !== pageKey) chain.push(MAPPING_ALIASES[base] ?? base);
+    // Tableaux de bord personnalisés (board_<id>) : héritage de la Vue
+    // d'ensemble des tableaux, comme le gate de la page.
+    if (pageKey.startsWith("board_")) chain.push("tableau_bord");
     const mapped = await getToolKeysChain(supabase, orgId, chain);
     if (mapped.length > 0) tools = tools.filter((t) => mapped.includes(t.key));
   }
 
+  // Couverture de rattachement des connecteurs sur mesure (opt-in).
+  const coverageByKey = new Map<string, SourceCoverage[]>();
+  if (wantCoverage) {
+    await Promise.all(
+      tools
+        .filter((t) => t.key.startsWith("custom_"))
+        .map(async (t) => {
+          const cov = await customSourceCoverage(supabase, orgId, t.key);
+          if (cov.length > 0) coverageByKey.set(t.key, cov);
+        }),
+    );
+  }
+
   return NextResponse.json({
-    tools: tools.map((t) => ({ key: t.key, label: t.label, icon: t.icon, category: t.category })),
+    tools: tools.map((t) => ({
+      key: t.key,
+      label: t.label,
+      icon: t.icon,
+      category: t.category,
+      ...(coverageByKey.has(t.key) ? { coverage: coverageByKey.get(t.key) } : {}),
+    })),
   });
 }

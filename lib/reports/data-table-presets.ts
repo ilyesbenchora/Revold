@@ -280,6 +280,11 @@ export type SourceTool = {
   category: ConnectableTool["category"];
   label: string;
   icon: string;
+  /**
+   * Connecteurs SUR MESURE (`?coverage=1`) : part des enregistrements
+   * rattachés à une entreprise, par entité — le périmètre réel des KPIs croisés.
+   */
+  coverage?: Array<{ entity: string; label: string; total: number; linked: number }>;
 };
 
 /** Catégorie source d'un preset, dérivée de son entité canonique. */
