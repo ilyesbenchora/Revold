@@ -101,18 +101,8 @@ export function BoardTabs({
         >
           {isTabRow ? "＋ Nouvel onglet" : "＋ Nouveau tableau"}
         </button>
-        {/* Galerie des templates + compositeur agent — rangée racine uniquement. */}
-        {!isTabRow && (
-          <Link
-            href={`${BASE}/templates`}
-            className={`relative shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition ${
-              pathname === `${BASE}/templates` ? "text-accent" : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            Templates
-            {pathname === `${BASE}/templates` && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
-          </Link>
-        )}
+        {/* La galerie des Templates est une page À PART (sidebar Dashboard →
+            Templates) — pas d'onglet ici. */}
       </div>
 
       {/* ── Modal de création : juste un nom, la page arrive prête à câbler. ── */}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BoardTemplateGalleryItem } from "@/lib/boards/board-templates";
+import { TemplatePreview } from "@/components/boards/template-preview";
 
 /**
  * Galerie des templates de tableaux de bord (Dashboard → Tableaux de bord →
@@ -77,18 +78,20 @@ export function TemplateGallery({ items }: { items: BoardTemplateGalleryItem[] }
             </div>
             <p className="mt-1 text-xs text-slate-500">{t.description}</p>
 
-            <div className="mt-3 space-y-1.5 text-[11px] text-slate-600">
-              <p>
-                <span className="font-semibold text-slate-700">Tuiles :</span> {t.tileTitles.join(" · ")}
-              </p>
-              {t.tableTitles.length > 0 && (
-                <p>
-                  <span className="font-semibold text-slate-700">Tables & graphiques :</span> {t.tableTitles.join(" · ")}
-                </p>
-              )}
+            {/* Aperçu visuel : le mini-dashboard que ce template installe. */}
+            <div className="mt-3">
+              <TemplatePreview id={t.id} tiles={t.previewTiles} tables={t.previewTables} />
             </div>
 
-            <div className="mt-4 flex flex-1 items-end">
+            <p className="mt-2 text-[10px] text-slate-400">
+              {t.tileTitles.length} tuile{t.tileTitles.length > 1 ? "s" : ""}
+              {t.tableTitles.length > 0 && (
+                <> · {t.tableTitles.length} visualisation{t.tableTitles.length > 1 ? "s" : ""}</>
+              )}{" "}
+              — aperçu illustratif, tes vraies données au premier affichage.
+            </p>
+
+            <div className="mt-3 flex flex-1 items-end">
               {t.available ? (
                 <button
                   type="button"

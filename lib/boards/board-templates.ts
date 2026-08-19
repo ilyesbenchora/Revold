@@ -184,6 +184,9 @@ export type BoardTemplateGalleryItem = BoardTemplateOption & {
   entities: string[];
   tileTitles: string[];
   tableTitles: string[];
+  /** Composition détaillée pour l'APERÇU visuel de la carte (mini-dashboard). */
+  previewTiles: { title: string; unit: "currency" | "count" | "percent" }[];
+  previewTables: { title: string; view: "table" | "bar" | "line" | "donut" }[];
 };
 
 /** Volumes synchronisés par entité agrégeable (comptages head, coût borné). */
@@ -240,6 +243,8 @@ export async function boardTemplateGallery(
     entities: t.entities,
     tileTitles: t.tiles.map((x) => x.title),
     tableTitles: t.tables.map((x) => x.title),
+    previewTiles: t.tiles.map((x) => ({ title: x.title, unit: x.unit })),
+    previewTables: t.tables.map((x) => ({ title: x.title, view: x.view })),
   }));
 }
 
