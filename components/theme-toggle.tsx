@@ -7,22 +7,23 @@ type Theme = "light" | "violet-dark" | "gold-dark" | "silver-dark";
 const DARK_THEMES: Theme[] = ["violet-dark", "gold-dark", "silver-dark"];
 
 /**
- * Paramètres → Apparence : choix du thème de la plateforme. Le mode sombre
- * « violet fuchsia » pose data-theme="violet-dark" sur <html> (repris avant le
- * premier rendu par le script anti-flash du layout racine) ; le remap des
+ * Paramètres → Apparence : choix du thème de la plateforme. DÉFAUT = sombre
+ * violet (data-theme="violet-dark" posé sur <html> par le script anti-flash du
+ * layout racine dès qu'aucune préférence n'est enregistrée) ; « Clair » reste
+ * disponible et respecté quand il est choisi explicitement. Le remap des
  * couleurs vit dans globals.css, scoping .dashboard-shell.
  */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("violet-dark");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY) as Theme | null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved && DARK_THEMES.includes(saved)) setTheme(saved);
+      if (saved === "light" || (saved && DARK_THEMES.includes(saved))) setTheme(saved);
     } catch {
-      /* stockage indisponible */
+      /* stockage indisponible → défaut violet-dark */
     }
     setHydrated(true);
   }, []);

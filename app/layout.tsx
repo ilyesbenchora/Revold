@@ -105,11 +105,15 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${dmSans.variable} ${wordmark.variable} h-full antialiased`}>
       <head>
-        {/* Anti-flash : applique le thème sombre violet AVANT le premier rendu
-            (préférence Paramètres → Apparence, stockée en localStorage). */}
+        {/* Anti-flash : applique le thème AVANT le premier rendu (préférence
+            Paramètres → Apparence, localStorage). DÉFAUT = sombre violet :
+            sans préférence enregistrée (ou stockage indisponible), la
+            plateforme démarre en violet-dark ; « light » explicite reste
+            respecté. Le remap est scopé .dashboard-shell : les pages
+            marketing ne sont pas affectées par l'attribut. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark"||t==="silver-dark")document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark"||t==="silver-dark")document.documentElement.dataset.theme=t;else if(t!=="light")document.documentElement.dataset.theme="violet-dark"}catch(e){document.documentElement.dataset.theme="violet-dark"}`,
           }}
         />
         <script
