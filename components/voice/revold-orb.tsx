@@ -736,7 +736,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
  */
 export function RevoldControlTowerLocked() {
   return (
-    <div className="card relative flex h-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-5">
+    // PAS la classe .card : son fond blanc (hors layer, plus fort que les
+    // utilitaires) écrasait bg-slate-950 en mode CLAIR — carte illisible.
+    // La tour de contrôle est sombre par conception, quel que soit le thème.
+    <div className="theme-exempt relative flex h-full flex-col items-center justify-center overflow-hidden rounded-[0.875rem] border border-slate-800 bg-slate-950 p-5">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(148,163,184,0.08),transparent_60%)]" />
       <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
         Revold · Tour de contrôle
@@ -761,7 +764,9 @@ export function RevoldControlTowerLocked() {
 /** Carte « tour de contrôle » de la home — à droite du bloc équipe IA. */
 export function RevoldControlTower() {
   return (
-    <div className="card relative flex h-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-5">
+    // PAS la classe .card (fond blanc prioritaire) : la carte reste SOMBRE
+    // dans tous les thèmes, mode clair compris — voir RevoldControlTowerLocked.
+    <div className="theme-exempt relative flex h-full flex-col items-center justify-center overflow-hidden rounded-[0.875rem] border border-slate-800 bg-slate-950 p-5">
       {/* fond nocturne discret */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(217,70,239,0.12),transparent_60%)]" />
       <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-200/70">
