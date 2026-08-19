@@ -43,11 +43,33 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
 
   const supabase = await createSupabaseServerClient();
   const snapMeta = await getSnapshotMeta();
+
+  // Tableaux de bord créés par l'utilisateur : chacun est réglable dans
+  // « Outil source par page » sous sa clé board_<id> (héritage Vue d'ensemble).
+  let boards: Array<{ id: string; name: string }> = [];
+  try {
+    const { data } = await supabase
+      .from("custom_dashboards")
+      .select("id, name")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: true });
+    boards = (data ?? []) as typeof boards;
+  } catch {
+    /* table absente → aucun tableau */
+  }
+  const boardPages = boards.map((b) => ({
+    key: `board_${b.id}`,
+    label: b.name,
+    description: "Tableau de bord personnalisé",
+    mode: "multi" as const,
+    parentKey: "tableau_bord",
+  }));
+
   const [{ data: integrations }, snapshot, mappingOptions, mappingValues, { data: parityRows }] = await Promise.all([
     supabase.from("integrations").select("*").eq("organization_id", orgId).order("updated_at", { ascending: false }),
     getHubspotSnapshot(),
     listConnectedTools(supabase, orgId),
-    getToolKeysBatch(supabase, orgId, ALL_PAGE_KEYS),
+    getToolKeysBatch(supabase, orgId, [...ALL_PAGE_KEYS, ...boardPages.map((p) => p.key)]),
     supabase
       .from("hubspot_sync_state")
       .select("object_type, records_in_supabase, records_in_hubspot, parity_drift, parity_status, last_full_sync_at, last_delta_sync_at, last_error")
@@ -370,6 +392,7 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
           options={mappingOptions.filter((o) => o.category !== "communication")}
           initialMappings={mappingValues}
           only="pages"
+          extraDashboardPages={boardPages}
         />
       </div>
 

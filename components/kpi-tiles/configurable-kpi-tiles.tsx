@@ -41,6 +41,7 @@ export async function ConfigurableKpiTiles({
   customization,
   tablesPageKey,
   hiddenBlocks,
+  placeholderRow,
 }: {
   supabase: SupabaseClient;
   orgId: string;
@@ -52,6 +53,8 @@ export async function ConfigurableKpiTiles({
   tablesPageKey?: string;
   /** Blocs de la page retirés, réaffichables depuis le même panneau. */
   hiddenBlocks?: HiddenBlock[];
+  /** Page vierge (tableaux de bord) : rangée d'encarts « ＋ Ajouter un KPI » par défaut. */
+  placeholderRow?: boolean;
 }) {
   const cust = customization ?? (await getPageCustomization(supabase, orgId, pageKey));
 
@@ -120,6 +123,7 @@ export async function ConfigurableKpiTiles({
       suggestions={tileSuggestionsForPage(pageKey)}
       tablesPageKey={tablesPageKey}
       hiddenBlocks={hiddenBlocks}
+      placeholderRow={placeholderRow}
     />
   );
 }

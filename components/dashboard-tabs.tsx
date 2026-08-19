@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Onglets de la section Dashboard : la vue d'ensemble, les rapports produits
- * par les routines, et les rapports libres (non rattachés à une page).
+ * Onglets de la section Dashboard : la vue d'ensemble, les tableaux de bord
+ * personnalisables, et les rapports (les rapports des routines y vivent aussi).
  */
 const tabs = [
   { href: "/dashboard", label: "Vue d'ensemble" },
-  { href: "/dashboard/routines", label: "Routines" },
+  { href: "/dashboard/tableaux-de-bord", label: "Tableaux de bord" },
   { href: "/dashboard/mes-rapports", label: "Mes rapports" },
 ];
 

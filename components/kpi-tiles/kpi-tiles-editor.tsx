@@ -90,6 +90,7 @@ export function KpiTilesEditor({
   tiles,
   hiddenDefaults,
   hiddenBlocks = [],
+  placeholderRow = false,
 }: {
   pageKey: string;
   /** Catalogue du pôle — conservé dans la signature (pages appelantes), l'ajout passe par le funnel. */
@@ -103,6 +104,11 @@ export function KpiTilesEditor({
   tablesPageKey?: string;
   /** Blocs de la page retirés (réaffichables avec leur visualisation d'origine). */
   hiddenBlocks?: HiddenBlock[];
+  /**
+   * Page vierge (tableaux de bord) : sans aucune tuile, affiche une rangée
+   * d'encarts « ＋ Ajouter un KPI » (cadre par défaut) au lieu du CTA discret.
+   */
+  placeholderRow?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -260,6 +266,35 @@ export function KpiTilesEditor({
 
   const nothingToShow = tiles.length === 0 && hiddenDefaults.length === 0 && !editing;
   if (nothingToShow) {
+    // Page vierge de type tableau de bord : cadre par défaut — une rangée
+    // d'encarts « ＋ Ajouter un KPI » qui ouvrent le funnel de câblage.
+    if (placeholderRow) {
+      return (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={openBuilder}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              Personnaliser les KPIs
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={openBuilder}
+                className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-sm font-medium text-slate-400 transition hover:border-accent hover:text-accent"
+              >
+                ＋ Ajouter un KPI
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
     // Pas de tuile par défaut ni de perso : on garde uniquement le CTA discret.
     return (
       <div className="flex justify-end">

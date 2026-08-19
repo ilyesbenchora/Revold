@@ -9,18 +9,27 @@ import type { ConnectedToolOption } from "@/lib/integrations/tool-mappings";
 // importer depuis CE module ("use client") lui donnait une référence client au
 // lieu du tableau réel → requête tool_mappings vide, blocs affichés sans
 // aucune sélection alors que les enregistrements étaient intacts.
-import { MAPPING_SECTIONS as SECTIONS, AGENT_SECTION_IDS } from "@/lib/integrations/mapping-pages";
+import { MAPPING_SECTIONS, AGENT_SECTION_IDS, type PageMappingDef } from "@/lib/integrations/mapping-pages";
 
 export function ToolMappingSettings({
   options,
   initialMappings,
   only,
+  extraDashboardPages = [],
 }: {
   options: ConnectedToolOption[];
   initialMappings: Record<string, string[]>;
   /** Restreint le rendu à un groupe de sections (bloc distinct dans la page). */
   only?: "pages" | "agents";
+  /** Tableaux de bord créés par l'utilisateur (clés board_<id>) — ajoutés à la section Dashboard. */
+  extraDashboardPages?: PageMappingDef[];
 }) {
+  // Sections + tableaux de bord dynamiques (la page serveur les charge en base).
+  const SECTIONS = extraDashboardPages.length
+    ? MAPPING_SECTIONS.map((s) =>
+        s.id === "dashboard" ? { ...s, pages: [...s.pages, ...extraDashboardPages] } : s,
+      )
+    : MAPPING_SECTIONS;
   const router = useRouter();
   const [mappings, setMappings] = useState<Record<string, string[]>>(initialMappings);
   const [pendingKey, setPendingKey] = useState<string | null>(null);

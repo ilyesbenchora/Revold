@@ -95,18 +95,18 @@ const auditChildren: LeafLink[] = [
 ];
 
 
-// L'agent Reporting faisait doublon avec les autres agents (tous savent
-// produire des rapports) : la page « Vue d'ensemble » a été supprimée, le
-// menu Dashboard garde Routines + Mes rapports.
+// La page Routines a été supprimée (ses rapports vivent dans Mes rapports) :
+// le menu Dashboard porte Tableaux de bord + Mes rapports.
 const dashboardChildren: LeafLink[] = [
   {
-    href: "/dashboard/routines",
-    label: "Routines",
+    href: "/dashboard/tableaux-de-bord",
+    label: "Tableaux de bord",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 12a9 9 0 1 0 3-6.7" />
-        <polyline points="3 4 3 9 8 9" />
-        <polyline points="12 8 12 12 15 14" />
+        <rect x="3" y="3" width="7" height="9" rx="1" />
+        <rect x="14" y="3" width="7" height="5" rx="1" />
+        <rect x="14" y="12" width="7" height="9" rx="1" />
+        <rect x="3" y="16" width="7" height="5" rx="1" />
       </svg>
     ),
   },

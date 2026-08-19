@@ -58,6 +58,9 @@ export const MAPPING_SECTIONS: MappingSection[] = [
     hint: "Sélection multiple — KPIs cross-outils dans la vue de pilotage.",
     pages: [
       { key: "dashboard", label: "Dashboard", description: "Vue d'ensemble & Mes rapports — KPIs en temps réel", mode: "multi" },
+      { key: "tableau_bord", label: "Tableaux de bord", description: "Vue d'ensemble des tableaux personnalisables — les tableaux créés héritent de ce réglage", mode: "multi" },
+      // Les tableaux créés par l'utilisateur (clés board_<id>) sont ajoutés
+      // DYNAMIQUEMENT par la page Paramètres (prop extraDashboardPages).
     ],
   },
   // Sources par AGENT (clés agent_<agentKey>) : chaque agent expert n'analyse
