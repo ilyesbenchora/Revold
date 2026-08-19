@@ -19,7 +19,11 @@ import { EditableReportTable } from "./editable-report-table";
 import { bucketTickInterval, currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import type { ReportSpec, ReportBlock } from "@/lib/ai/agents/agent-runtime";
 
-const COLORS = ["#d946ef", "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+// Palette catégorielle VALIDÉE (script dataviz : bande de luminance, chroma,
+// séparation daltonisme ΔE ≥ 8 par paire adjacente, plancher vision normale,
+// contraste ≥ 3:1 sur carte blanche). Ordre FIXE, jamais recyclé — le fuchsia
+// Revold reste la 1re série. Ne pas réordonner sans re-valider.
+const COLORS = ["#c026d3", "#0d9488", "#d97706", "#4f46e5", "#db2777", "#0284c7", "#4d7c0f"];
 
 export type ChartUnit = "currency" | "percent" | "count" | string | null;
 

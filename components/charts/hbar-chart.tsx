@@ -8,7 +8,10 @@
 
 export type HBarItem = { label: string; value: number; color?: string };
 
-const PALETTE = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e", "#14b8a6", "#a855f7"];
+// Même palette catégorielle validée que ReportChart (ordre fixe, daltonisme-
+// safe par paire adjacente) — l'identité des barres reste portée par leur
+// libellé, la couleur n'est jamais seule.
+const PALETTE = ["#c026d3", "#0d9488", "#d97706", "#4f46e5", "#db2777", "#0284c7", "#4d7c0f"];
 
 function fmtValue(v: number, unit: "currency" | "count" | "percent"): string {
   if (unit === "currency")
