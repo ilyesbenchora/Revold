@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Revold — Architecture technique</title>
+<link rel="stylesheet" href="_style.css">
+</head>
+<body>
+
+<!-- ══════════ COUVERTURE ══════════ -->
+<div class="cover">
+  <div class="cover-halo-a"></div>
+  <div class="cover-halo-b"></div>
+  <div class="cover-inner">
+    <div class="brand">
+      <div class="brand-mark">✳</div>
+      <div class="brand-name">Revold</div>
+    </div>
+
+    <span class="cover-kicker">Documentation technique</span>
+    <h1>Revold<br><span class="grad">Architecture</span></h1>
+    <p class="cover-sub">
+      Infrastructure, modèle de données, flux d'ingestion, couche IA, sécurité et conformité RGPD.
+      Document destiné aux CTO, DevOps, RSSI et équipes IT chargées d'évaluer ou d'exploiter la plateforme.
+    </p>
+
+    <div class="cover-toc">
+      <h3>Sommaire</h3>
+      <ol>
+        <li>Vue d'ensemble &amp; principes d'architecture</li>
+        <li>Stack technique et dépendances</li>
+        <li>Infrastructure, déploiement et tâches planifiées</li>
+        <li>Modèle de données et isolation multi-tenant</li>
+        <li>Flux de données : de l'API source au KPI affiché</li>
+        <li>Moteur de rapprochement d'entités</li>
+        <li>Couche IA : agents, outils et garde-fous</li>
+        <li>Sécurité : authentification, autorisation, secrets</li>
+        <li>Conformité RGPD et sous-traitants</li>
+        <li>Exploitation : migrations, monitoring, résilience, tests</li>
+        <li>Intégrations et extensibilité</li>
+      </ol>
+    </div>
+
+    <div class="cover-meta">
+      <div><b>Version</b> · Août 2026</div>
+      <div><b>Public</b> · CTO / DevOps / RSSI / DSI</div>
+      <div><b>Confidentialité</b> · Communicable sous NDA</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 1. VUE D'ENSEMBLE ══════════ -->
+<section class="continue">
+  <h2><span class="num">1</span>Vue d'ensemble &amp; principes</h2>
+
+  <p>
+    Revold est une application <strong>Next.js 16 (App Router)</strong> déployée sur Vercel, adossée à une base
+    <strong>PostgreSQL managée (Supabase)</strong> hébergée dans l'Union européenne. Elle agrège les données
+    de plusieurs outils SaaS d'entreprise (CRM, facturation, comptabilité, support), les réconcilie dans un
+    modèle canonique unique, et expose une couche d'analyse assistée par IA ainsi qu'une couche d'exécution
+    d'actions vers les outils sources.
+  </p>
+
+  <h3>Quatre principes d'ingénierie structurants</h3>
+
+  <div class="grid grid-2">
+    <div class="card card-accent">
+      <h4>1. Séparation stricte chiffres / IA</h4>
+      <p>
+        Tous les chiffres proviennent d'un <strong>moteur d'agrégation déterministe</strong> exécuté en SQL.
+        Le modèle de langage reçoit ces chiffres et rédige l'analyse : il ne les produit jamais. Le même
+        moteur sert au tool de l'agent et au recalcul par période côté interface — un changement de période
+        ne déclenche aucun appel LLM.
+      </p>
+    </div>
+    <div class="card card-accent">
+      <h4>2. Human-in-the-loop sur toute écriture</h4>
+      <p>
+        Les cinq outils de l'agent qui produisent un effet (proposition d'alerte, rapport, graphique, action
+        sur un deal, redirection) sont <strong>capturés et jamais exécutés côté serveur</strong> : ils
+        remontent à l'interface pour validation explicite de l'utilisateur.
+      </p>
+    </div>
+    <div class="card card-accent">
+      <h4>3. Refus plutôt qu'approximation</h4>
+      <p>
+        Quand une donnée est indisponible ou qu'un périmètre n'est pas résoluble (pipeline ambigu, mesure
+        inapplicable à l'entité), le moteur <strong>retourne une erreur explicite au lieu de zéro</strong> —
+        un zéro déclencherait à tort des alertes de seuil.
+      </p>
+    </div>
+    <div class="card card-accent">
+      <h4>4. Isolation multi-tenant sans exception</h4>
+      <p>
+        Chaque table métier porte <code>organization_id</code> et est protégée par des politiques
+        <strong>Row Level Security</strong> PostgreSQL. La résolution de l'organisation courante interdit
+        explicitement tout fallback de type « première organisation trouvée ».
+      </p>
+    </div>
+  </div>
+
+  <h3>Volumétrie du code (août 2026)</h3>
+  <div class="grid grid-4">
+    <div class="card stat"><div class="v">119</div><div class="l">routes API</div></div>
+    <div class="card stat"><div class="v">58</div><div class="l">tables PostgreSQL</div></div>
+    <div class="card stat"><div class="v">75</div><div class="l">politiques RLS</div></div>
+    <div class="card stat"><div class="v">87</div><div class="l">migrations versionnées</div></div>
+    <div class="card stat"><div class="v">16</div><div class="l">connecteurs de synchronisation</div></div>
+    <div class="card stat"><div class="v">10</div><div class="l">agents IA spécialisés</div></div>
+    <div class="card stat"><div class="v">12</div><div class="l">tâches planifiées</div></div>
+    <div class="card stat"><div class="v">118</div><div class="l">pages applicatives</div></div>
+  </div>
+</section>
+
+<!-- ══════════ 2. STACK ══════════ -->
+<section>
+  <h2><span class="num">2</span>Stack technique</h2>
+
+  <h3>Runtime et framework</h3>
+  <table>
+    <thead><tr><th style="width:32%">Composant</th><th style="width:20%">Version</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td><b>Next.js</b></td><td>16.2.2</td><td>Framework applicatif — App Router, Server Components, routes API, middleware</td></tr>
+      <tr><td><b>React / React DOM</b></td><td>19.2.4</td><td>Couche de rendu</td></tr>
+      <tr><td><b>TypeScript</b></td><td>5.x (mode strict)</td><td>Typage statique de bout en bout</td></tr>
+      <tr><td><b>Tailwind CSS</b></td><td>4.x</td><td>Design system (variables CSS, <code>@theme inline</code>) — aucune librairie UI tierce</td></tr>
+      <tr><td><b>Node.js</b></td><td>20.x</td><td>Runtime serveur (fonctions Vercel)</td></tr>
+      <tr><td><b>npm</b></td><td>—</td><td>Gestionnaire de paquets (lockfile versionné)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Dépendances de production</h3>
+  <table>
+    <thead><tr><th style="width:32%">Paquet</th><th style="width:20%">Version</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td><code>@supabase/supabase-js</code></td><td>2.101.x</td><td>Client base de données et authentification</td></tr>
+      <tr><td><code>@supabase/ssr</code></td><td>0.10.x</td><td>Session serveur via cookies (middleware, Server Components)</td></tr>
+      <tr><td><code>@anthropic-ai/sdk</code></td><td>0.82.x</td><td>Agents IA (Claude)</td></tr>
+      <tr><td><code>recharts</code></td><td>3.8.x</td><td>Visualisations (courbes, barres, anneaux)</td></tr>
+      <tr><td><code>zod</code></td><td>4.3.x</td><td>Validation de schémas (variables d'environnement, entrées)</td></tr>
+      <tr><td><code>resend</code></td><td>6.12.x</td><td>Emails transactionnels (alertes, digests)</td></tr>
+      <tr><td><code>@sentry/nextjs</code></td><td>10.51.x</td><td>Supervision d'erreurs (activé uniquement si DSN présent)</td></tr>
+      <tr><td><code>@vercel/analytics</code></td><td>2.x</td><td>Métriques d'usage</td></tr>
+      <tr><td><code>pg</code></td><td>8.20.x</td><td>Client PostgreSQL du runner de migrations</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="t">Choix d'architecture notables</span>
+    <p>
+      <strong>Aucun ORM</strong> : requêtes SQL explicites via le client Supabase, pour garder le contrôle
+      total sur les plans d'exécution et les politiques RLS. <strong>Aucune librairie de composants</strong> :
+      le design system est maison, ce qui élimine une classe entière de dépendances transitives.
+      <strong>Un seul fournisseur d'IA</strong> (Anthropic), pas de framework d'orchestration intermédiaire.
+    </p>
+  </div>
+
+  <h3>Outillage de développement</h3>
+  <p>
+    <code>vitest</code> 4.x + <code>happy-dom</code> pour les tests, <code>@testing-library/react</code> pour
+    les composants, <code>eslint</code> 9 avec la configuration Next, <code>prettier</code> 3.x,
+    et <code>puppeteer-core</code> pour la génération automatisée de captures.
+  </p>
+</section>
+
+<!-- ══════════ 3. INFRASTRUCTURE ══════════ -->
+<section>
+  <h2><span class="num">3</span>Infrastructure &amp; déploiement</h2>
+
+  <h3>Topologie</h3>
+  <div class="flow">
+    <span>Navigateur</span><i>→</i>
+    <span>Vercel Edge / Middleware</span><i>→</i>
+    <span>Fonctions serveur Next.js</span><i>→</i>
+    <span>PostgreSQL Supabase (UE)</span>
+  </div>
+  <div class="flow">
+    <span>Vercel Cron (12 tâches)</span><i>→</i>
+    <span>Routes <code>/api/cron/*</code></span><i>→</i>
+    <span>Connecteurs / ETL / Moteurs</span><i>→</i>
+    <span>Base de données</span>
+  </div>
+
+  <h3>Chaîne de build et de déploiement</h3>
+  <p>
+    La commande de build exécutée par Vercel est <code>npm run ci-build</code>, qui enchaîne
+    <strong>trois étapes bloquantes</strong> :
+  </p>
+  <ol>
+    <li><code>npm run migrate</code> — application transactionnelle des migrations SQL en attente ;</li>
+    <li><code>npm run test:run</code> — suite de tests unitaires ;</li>
+    <li><code>next build</code> — compilation de l'application.</li>
+  </ol>
+  <div class="callout ok">
+    <span class="t">Conséquence opérationnelle</span>
+    <p>
+      Une migration en erreur ou un test rouge <strong>empêche le déploiement</strong>. Le schéma de la base
+      et le code applicatif ne peuvent pas diverger silencieusement lors d'une mise en production.
+    </p>
+  </div>
+
+  <h3>Tâches planifiées (Vercel Cron)</h3>
+  <table class="tight">
+    <thead><tr><th style="width:33%">Tâche</th><th style="width:20%">Fréquence (UTC)</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/cron/etl-delta</code></td><td>toutes les 30 min</td><td>Synchronisation incrémentale HubSpot + recalcul du snapshot</td></tr>
+      <tr><td><code>/api/cron/etl-full</code></td><td>dimanche 03:00</td><td>Réconciliation complète hebdomadaire</td></tr>
+      <tr><td><code>/api/cron/sync-connectors</code></td><td>toutes les heures</td><td>Synchronisation des connecteurs directs (Stripe, Pennylane…)</td></tr>
+      <tr><td><code>/api/cron/enrich-companies</code></td><td>toutes les 5 min</td><td>Enrichissement Sirene en tâche de fond + source LinkedIn (bêta) pour les effectifs</td></tr>
+      <tr><td><code>/api/cron/run-routines</code></td><td>toutes les 15 min</td><td>Exécution serveur des routines d'agents (6 max par passage)</td></tr>
+      <tr><td><code>/api/cron/compute-kpis</code></td><td>toutes les 6 h</td><td>Calcul des instantanés de KPI</td></tr>
+      <tr><td><code>/api/cron/detect-risks</code></td><td>toutes les 6 h</td><td>Détection des deals à risque</td></tr>
+      <tr><td><code>/api/cron/compute-fill-rates</code></td><td>toutes les 6 h</td><td>Taux de remplissage des propriétés CRM</td></tr>
+      <tr><td><code>/api/cron/check-alerts</code></td><td>toutes les 6 h</td><td>Évaluation des seuils d'alerte</td></tr>
+      <tr><td><code>/api/cron/check-objectives</code></td><td>toutes les 6 h</td><td>Progression des objectifs</td></tr>
+      <tr><td><code>/api/cron/daily-digest</code></td><td>07:00</td><td>Digest quotidien (email / Slack)</td></tr>
+      <tr><td><code>/api/cron/generate-insights</code></td><td>lundi 06:30</td><td>Génération hebdomadaire d'insights</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">
+    Authentification des tâches par en-tête <code>Authorization: Bearer &lt;CRON_SECRET&gt;</code>.
+    Les tâches longues (ETL, connecteurs, routines, enrichissement) sont configurées avec une durée maximale
+    d'exécution de 300 secondes ; l'appel principal aux agents IA également.
+  </p>
+
+  <h3>Middleware</h3>
+  <p>
+    Le middleware s'applique aux routes <code>/dashboard/*</code> et <code>/login</code>. Il assure trois
+    fonctions : rafraîchissement de la session Supabase et propagation des cookies, redirection
+    d'authentification, et injection de l'en-tête <code>x-pathname</code> permettant au layout serveur
+    d'appliquer le contrôle d'accès par espace de travail (voir §8).
+  </p>
+</section>
+
+<!-- ══════════ 4. MODÈLE DE DONNÉES ══════════ -->
+<section>
+  <h2><span class="num">4</span>Modèle de données &amp; multi-tenant</h2>
+
+  <h3>Principe : un modèle canonique unique</h3>
+  <p>
+    Chaque outil source possède son propre vocabulaire (un « customer » Stripe, une « company » HubSpot, un
+    « client » Pennylane). Revold les projette dans un <strong>modèle canonique</strong> unique, ce qui rend
+    les croisements possibles indépendamment de l'outil d'origine.
+  </p>
+
+  <h4>Tables canoniques</h4>
+  <table class="tight">
+    <thead><tr><th style="width:24%">Table</th><th>Colonnes structurantes</th></tr></thead>
+    <tbody>
+      <tr><td><code>companies</code></td><td><b>siren, siret, vat_number, custom_id, custom_ids[]</b>, legal_name, name, domain, segment, industry, annual_revenue, employee_count, contract_end, hubspot_id</td></tr>
+      <tr><td><code>contacts</code></td><td>company_id, email, full_name, title, phone, is_mql, is_sql, lifecycle_stage, hubspot_id</td></tr>
+      <tr><td><code>deals</code></td><td>company_id, owner_id, stage_id, amount, close_date, created_date, last_activity_at, is_at_risk, risk_reasons, win_probability</td></tr>
+      <tr><td><code>invoices</code></td><td>company_id, deal_id, number, status, amount_total / amount_paid / amount_due, issued_at, due_at, paid_at, direction, primary_source</td></tr>
+      <tr><td><code>subscriptions</code></td><td>company_id, status, mrr, current_period_start / end, started_at, canceled_at, primary_source</td></tr>
+      <tr><td><code>payments</code>, <code>tickets</code></td><td>Paiements et tickets rapprochés à l'entreprise et au contact</td></tr>
+      <tr><td><code>bank_transactions</code>, <code>bank_accounts</code>, <code>ledger_balances</code></td><td>Flux bancaires signés, comptes et balances comptables</td></tr>
+      <tr><td><code>pipeline_stages</code></td><td>Correspondance réelle des étapes de pipeline (jamais devinée), clé unique par identifiant externe</td></tr>
+      <tr><td><b><code>source_links</code></b></td><td><b>Table pivot</b> : provider, external_id, entity_type, internal_id, match_method, match_score — unicité sur (organisation, provider, identifiant externe, type)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Tables de configuration — le moteur est piloté par le client</h4>
+  <table class="tight">
+    <thead><tr><th style="width:34%">Table</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td><code>identifier_field_mapping</code></td><td>Chemin réel du champ portant chaque identifiant, par outil (ex. <code>metadata.siren</code> chez Stripe)</td></tr>
+      <tr><td><code>entity_resolution_config</code></td><td>Règles de rapprochement : activation, priorité, paramètres</td></tr>
+      <tr><td><code>field_authority_config</code></td><td>Quelle source fait autorité sur quel champ en cas de conflit</td></tr>
+      <tr><td><code>tool_mappings</code></td><td>Outils sources par page et par agent</td></tr>
+      <tr><td><code>page_tiles</code>, <code>page_data_tables</code></td><td>Tuiles KPI et visualisations persistées, par page</td></tr>
+      <tr><td><code>page_access</code></td><td>Droits par page et par équipe (consultation / édition / création)</td></tr>
+      <tr><td><code>sync_config</code>, <code>notification_channels</code>, <code>notification_event_prefs</code></td><td>Fréquences de synchronisation, canaux et préférences de notification</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Tables opérationnelles</h4>
+  <p class="muted">
+    <code>alerts</code>, <code>objectives</code>, <code>action_items</code> (boîte d'actions),
+    <code>invoice_reminders</code> (mesure du cash récupéré), <code>agent_routines</code>,
+    <code>saved_reports</code>, <code>agent_conversations</code>, <code>notifications</code>,
+    <code>sync_logs</code>, <code>connector_audits</code>, <code>kpi_snapshots</code>,
+    <code>data_requests</code> (demandes RGPD), <code>audit_log</code>, <code>invitations</code>,
+    <code>org_subscriptions</code>, <code>cron_runs</code> (supervision).
+  </p>
+
+  <h3>Isolation multi-tenant</h3>
+  <p>
+    L'organisation est le tenant. Toutes les tables métier portent <code>organization_id</code> avec clé
+    étrangère, et sont protégées par une politique RLS de la forme :
+  </p>
+  <p><code>organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid())</code></p>
+  <p>
+    Les tables récentes ajoutent une clause <code>WITH CHECK</code> explicite pour verrouiller également les
+    écritures. Deux exceptions documentées : les réglages de la tour de contrôle vocale sont isolés
+    <strong>par utilisateur</strong> (et non par organisation), et les conversations d'agent sont privées à
+    leur auteur. La table de supervision des tâches planifiées est accessible au seul rôle de service.
+  </p>
+
+  <div class="callout">
+    <span class="t">Point de vigilance traité</span>
+    <p>
+      La résolution de l'organisation courante n'admet <strong>aucun fallback</strong> de type « première
+      organisation trouvée » — l'anti-pattern classique de fuite inter-tenant. En cas d'absence de profil,
+      l'organisation est créée puis relue, avec gestion explicite des accès concurrents.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 5. FLUX DE DONNÉES ══════════ -->
+<section>
+  <h2><span class="num">5</span>Flux de données</h2>
+
+  <p>De l'API d'un outil source jusqu'au KPI affiché, la chaîne comporte six étapes :</p>
+
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body">
+      <h4>Authentification à la source</h4>
+      <p>
+        OAuth 2.0 (HubSpot, Slack, Google, Salesforce, Intercom, Pipedrive…) ou clé API (Stripe, Pennylane,
+        Chargebee, GoCardless, Sage). Les jetons sont stockés dans la table <code>integrations</code> avec
+        leur date d'expiration ; le rafraîchissement est automatique avec une marge de sécurité et un repli
+        sur l'ancien jeton en cas d'échec, sans interruption de service.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body">
+      <h4>Connecteur</h4>
+      <p>
+        Chaque outil dispose d'un connecteur implémentant un contrat unique
+        <code>(contexte) → résultat de synchronisation</code>. Le contexte fournit le client base de données,
+        l'organisation, le jeton principal et les identifiants. Pagination, quotas et erreurs sont gérés
+        connecteur par connecteur ; un échec sur un type d'entité n'interrompt pas les autres.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body">
+      <h4>Accesseur d'identifiants</h4>
+      <p>
+        Aucun connecteur n'accède aux champs source en dur. Il interroge un accesseur — « donne-moi le SIREN,
+        l'email, le nom d'entreprise de cet enregistrement » — qui résout le chemin réel à partir du catalogue
+        par défaut, <strong>surchargé par la configuration du client</strong>. Corriger un mapping dans les
+        paramètres modifie donc réellement la synchronisation suivante, y compris pour un outil non prévu à
+        l'origine. L'accesseur mesure au passage la <strong>couverture de chaque identifiant</strong>, matière
+        première de l'audit d'onboarding.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">4</div>
+    <div class="step-body">
+      <h4>Résolution d'entités</h4>
+      <p>
+        Chaque enregistrement est rattaché à une entité canonique par la chaîne de règles décrite au
+        chapitre 6, puis une ligne <code>source_links</code> est écrite. Les synchronisations suivantes
+        deviennent des recherches en temps constant.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">5</div>
+    <div class="step-body">
+      <h4>Miroir local et instantané</h4>
+      <p>
+        Pour HubSpot, un ETL dédié maintient un miroir local avec <strong>watermarking</strong> par type
+        d'objet (dernière date de modification), pagination par curseur, et réessais exponentiels honorant
+        l'en-tête <code>Retry-After</code> en cas de limitation de débit. Un instantané agrégé est recalculé
+        après chaque synchronisation : l'interface lit ce cache (latence de l'ordre de 50 ms) et reste
+        fonctionnelle même si l'API source est indisponible.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">6</div>
+    <div class="step-body">
+      <h4>Moteur d'agrégation</h4>
+      <p>
+        Un moteur unique traduit une spécification <code>{entité, dimension, mesure, champ, période,
+        granularité, sources}</code> en requête SQL. Sept entités sont déclarées ; les mesures possibles sont
+        le comptage, la somme, la moyenne et la projection pondérée. Le filtrage temporel s'appuie sur la
+        <em>vraie</em> colonne de date de l'entité, et les granularités vont du jour à l'année, avec axe
+        continu (périodes vides incluses) lorsque les bornes sont connues.
+      </p>
+    </div>
+  </div>
+
+  <div class="callout ok">
+    <span class="t">Le même moteur pour l'IA et pour l'interface</span>
+    <p>
+      Le moteur d'agrégation est appelé à la fois par l'outil de l'agent et par la route de recalcul
+      déterministe utilisée quand l'utilisateur change une période. C'est ce partage qui garantit qu'un
+      chiffre affiché par un agent et le même chiffre recalculé plus tard sont rigoureusement identiques.
+    </p>
+  </div>
+
+  <figure>
+    <img src="assets/08-modele-donnees.jpg" alt="Paramètres — Modèle de données">
+    <figcaption><b>Paramètres → Modèle de données</b> — liens sources établis, méthodes de rapprochement mesurées sur les données réelles, et mapping des identifiants par outil.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 6. RÉSOLUTION D'ENTITÉS ══════════ -->
+<section>
+  <h2><span class="num">6</span>Moteur de rapprochement d'entités</h2>
+
+  <p>
+    C'est le composant différenciant de la plateforme : relier une entreprise entre plusieurs outils avec un
+    niveau de confiance mesurable, dans un contexte français où l'identité légale prime sur le nom commercial.
+  </p>
+
+  <h3>Chaîne de règles</h3>
+  <table>
+    <thead><tr><th style="width:8%">Ordre</th><th style="width:34%">Règle</th><th style="width:16%">Score</th><th>Principe</th></tr></thead>
+    <tbody>
+      <tr><td>—</td><td><b>Lien existant</b> (source_links)</td><td>1,00</td><td>Identifiant technique déjà rapproché lors d'une synchronisation antérieure</td></tr>
+      <tr><td>0</td><td><b>ID de rapprochement</b> (code client interne)</td><td>1,00</td><td>Code partagé entre CRM et facturation, insensible à la casse ; plusieurs codes possibles par entreprise (un par outil)</td></tr>
+      <tr><td>1</td><td><b>SIREN</b></td><td>0,99</td><td>Identifiant INSEE à 9 chiffres — unique et permanent pour une personne morale</td></tr>
+      <tr><td>2</td><td><b>N° TVA intracommunautaire</b></td><td>0,97</td><td>Normalisation et validation de format</td></tr>
+      <tr><td>3</td><td><b>SIRET</b></td><td>0,90</td><td>14 chiffres ; les 9 premiers permettent d'extraire le SIREN</td></tr>
+      <tr><td>4</td><td><b>Domaine web</b></td><td>0,75</td><td>Désactivée par défaut ; exclut 17 domaines personnels</td></tr>
+      <tr><td>5</td><td><b>Nom d'entreprise</b></td><td>0,65</td><td>Désactivée par défaut ; normalisation (accents, 20 formes juridiques), refus des noms trop courts, vérification exacte après présélection</td></tr>
+      <tr><td>—</td><td><b>Email exact</b> (contacts)</td><td>1,00</td><td>Normalisation en minuscules, blocage configurable des adresses génériques</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    L'ordre d'application est <strong>configurable par le client</strong> (priorité stockée en base) ; la
+    première règle qui trouve une correspondance gagne. Deux garde-fous : une configuration vide retombe sur
+    un ordre sûr prédéfini — le moteur ne fonctionne jamais sans aucune règle, ce qui créerait des doublons —
+    et la règle d'ID de rapprochement est réactivée par défaut tant que l'utilisateur ne l'a pas explicitement
+    désactivée.
+  </p>
+
+  <h3>Autorité de champ</h3>
+  <p>
+    Lorsqu'une entité est rapprochée, une source n'écrase une valeur existante que si elle fait
+    <strong>autorité sur ce champ</strong> selon la matrice configurée (par exemple : la facturation fait
+    autorité sur le montant encaissé, le CRM sur le nom commercial). Sinon, elle se contente de remplir les
+    champs vides. Cette règle évite l'écrasement en boucle entre outils.
+  </p>
+
+  <h3>Enrichissement depuis les données publiques</h3>
+  <p>
+    Un moteur complémentaire interroge l'<strong>API publique de recherche d'entreprises de l'État</strong>
+    (base Sirene / INSEE, gratuite et sans clé) pour remplir les identifiants manquants : SIREN, SIRET du
+    siège, raison sociale officielle, tranche d'effectif salarié (source URSSAF) et dernier chiffre d'affaires
+    déposé (INPI). Le numéro de TVA intracommunautaire est <em>calculé</em> depuis le SIREN par la clé fiscale
+    déterministe. Les correspondances exactes sont appliquées automatiquement ; les correspondances plausibles
+    sont déposées dans une file de validation humaine. Les valeurs validées peuvent être réécrites dans le CRM
+    sur les propriétés mappées.
+  </p>
+
+  <figure>
+    <img src="assets/09-enrichissement.jpg" alt="Page Enrichissement">
+    <figcaption><b>Enrichissement</b> — couverture des identifiants, effectifs et CA officiels, file de validation des correspondances plausibles.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════ 7. COUCHE IA ══════════ -->
+<section>
+  <h2><span class="num">7</span>Couche IA : agents, outils et garde-fous</h2>
+
+  <h3>Modèles utilisés</h3>
+  <table>
+    <thead><tr><th style="width:38%">Usage</th><th style="width:28%">Modèle</th><th>Justification</th></tr></thead>
+    <tbody>
+      <tr><td>Agents experts (chat, rapports, routines)</td><td>Claude Opus</td><td>Raisonnement analytique sur données métier</td></tr>
+      <tr><td>Routage de la commande vocale</td><td>Claude Haiku</td><td>Latence minimale pour une intention courte</td></tr>
+      <tr><td>Brief vocal du jour</td><td><b>Aucun modèle</b></td><td>Calcul 100 % déterministe : fiable, instantané, sans coût</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Boucle d'exécution</h3>
+  <p>
+    Chaque appel d'agent s'exécute dans une boucle d'utilisation d'outils bornée à 8 étapes et 4 096 jetons
+    de sortie. Si le budget d'étapes est épuisé, un dernier appel <em>sans outils</em> force une synthèse à
+    partir des données déjà récupérées — l'utilisateur ne reçoit jamais une réponse tronquée.
+  </p>
+
+  <h3>Outils exposés</h3>
+  <p>
+    Dix-sept outils de lecture sont disponibles : instantané de KPI, séries temporelles de deals et de revenu,
+    pipeline par étape, vue d'ensemble facturation, factures impayées, détail du churn, comparaison
+    CA signé / CA facturé, état du rapprochement, qualité des données, sources connectées, et surtout
+    l'<strong>agrégation canonique</strong> qui donne accès au moteur déterministe.
+  </p>
+
+  <h3>Les quatre couches de garde-fou anti-hallucination</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4>① Instruction système contraignante</h4>
+      <p>
+        La règle « données câblées » ouvre le prompt système : interdiction de compléter de mémoire,
+        « donnée insuffisante » est une réponse explicitement autorisée et valorisée.
+      </p>
+    </div>
+    <div class="card">
+      <h4>② Requête déterministe attachée</h4>
+      <p>
+        Chaque bloc de rapport issu d'une agrégation doit porter sa requête d'origine (entité, dimension,
+        mesure, champ). Les rapports sans données sont rejetés à la normalisation.
+      </p>
+    </div>
+    <div class="card">
+      <h4>③ Recalcul sans IA</h4>
+      <p>
+        Le changement de période sur un rapport rejoue la requête en SQL. Aucun appel au modèle : les
+        chiffres sont reproductibles à l'identique.
+      </p>
+    </div>
+    <div class="card">
+      <h4>④ Refus au niveau moteur</h4>
+      <p>
+        Périmètre non résoluble ou mesure inapplicable ⇒ erreur explicite plutôt qu'une valeur nulle
+        potentiellement interprétée comme un signal.
+      </p>
+    </div>
+  </div>
+
+  <h3>Human-in-the-loop</h3>
+  <p>
+    Cinq outils sont « capturés » : ils ne s'exécutent jamais côté serveur mais remontent à l'interface pour
+    validation. Le résultat renvoyé au modèle contient une instruction explicite lui interdisant de considérer
+    l'action comme réalisée. La création de tâches CRM, l'envoi de rappels de facture, la création d'alertes
+    et d'objectifs passent tous par ce mécanisme.
+  </p>
+
+  <figure>
+    <img src="assets/06-agent-chat.jpg" alt="Chat d'un agent Revold">
+    <figcaption><b>Interface d'un agent</b> — sources croisées explicites, onglets Discussion / Historique / Suggestions / Routines / Actions / Alertes.</figcaption>
+  </figure>
+
+  <h3>Exécution programmée des routines</h3>
+  <p>
+    Les routines sont stockées en base au niveau de l'organisation (partagées par l'équipe) et exécutées
+    <strong>côté serveur</strong> toutes les quinze minutes, avec un plafond de six rapports par passage et
+    un calcul d'échéance dans le fuseau horaire de l'utilisateur. Le rapport produit est déposé dans les
+    rapports enregistrés et notifié dans l'application — sans qu'aucun navigateur n'ait besoin d'être ouvert.
+  </p>
+</section>
+
+<!-- ══════════ 8. SÉCURITÉ ══════════ -->
+<section>
+  <h2><span class="num">8</span>Sécurité</h2>
+
+  <h3>Authentification</h3>
+  <p>
+    Authentification déléguée à Supabase Auth (email/mot de passe, lien magique), session portée par cookies
+    HTTP-only et rafraîchie par le middleware. Trois clients de base distincts sont utilisés : navigateur
+    (clé publique), serveur avec session utilisateur (clé publique, RLS active), et rôle de service réservé
+    aux contextes sans session (tâches planifiées, webhooks entrants). Les routes API revalident
+    systématiquement la session et l'organisation.
+  </p>
+
+  <h3>Autorisation — trois niveaux</h3>
+  <table>
+    <thead><tr><th style="width:26%">Niveau</th><th>Mécanisme</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Base de données</b></td>
+        <td>Row Level Security PostgreSQL : 75 politiques, filtrage systématique par organisation. C'est la barrière qui ne peut pas être contournée depuis l'application.</td>
+      </tr>
+      <tr>
+        <td><b>Rôles</b></td>
+        <td>Trois rôles hiérarchisés (administrateur &gt; manager &gt; commercial), vérification par assertion serveur, invitations à jeton aléatoire cryptographique, journal d'audit avec 12 types d'actions, adresse IP et agent utilisateur.</td>
+      </tr>
+      <tr>
+        <td><b>Espaces de travail</b></td>
+        <td>Rattachement d'un membre à un pôle (ventes, marketing, service client, finance) : la navigation est filtrée côté client <em>et</em> l'accès est revérifié côté serveur dans le layout — saisir directement une URL hors périmètre déclenche une redirection.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Secrets et jetons</h3>
+  <ul>
+    <li><strong>Jetons d'intégration</strong> : stockés dans la base, protégés par RLS, jamais journalisés ni exposés côté client. Rafraîchissement automatique des jetons OAuth.</li>
+    <li><strong>Protection CSRF du flux OAuth</strong> : paramètre <code>state</code> signé en HMAC-SHA256 et vérifié en <strong>temps constant</strong>, doublé d'un cookie de vérification à durée de vie de 10 minutes.</li>
+    <li><strong>Validation défensive des clés</strong> : détection des clés API collées depuis une valeur masquée (caractères de puce), traitées comme absentes plutôt que de produire une erreur de transport opaque.</li>
+    <li><strong>Accès aux outils clients</strong> : lecture seule par défaut ; les trois écritures possibles (enrichissement validé, tâche CRM, rappel de facture) sont déclenchées explicitement par un utilisateur.</li>
+  </ul>
+
+  <div class="callout warn">
+    <span class="t">Recommandations de durcissement pour un déploiement à grande échelle</span>
+    <p>
+      Trois axes sont identifiés et documentés en interne : chiffrement applicatif des jetons d'intégration
+      en complément de la RLS ; clé HMAC dédiée pour la signature du paramètre <code>state</code> OAuth
+      plutôt que le repli sur le secret de service ; et extension du contrôle d'accès par espace de travail
+      aux routes API en plus des pages. Ces points sont suivis dans la feuille de route sécurité.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 9. RGPD ══════════ -->
+<section>
+  <h2><span class="num">9</span>Conformité RGPD</h2>
+
+  <h3>Localisation et nature des données</h3>
+  <p>
+    Les données applicatives sont hébergées dans l'<strong>Union européenne</strong> (PostgreSQL managé,
+    région Francfort). Revold traite des <strong>données professionnelles</strong> : entreprises clientes,
+    contacts professionnels, opportunités commerciales, factures, abonnements, tickets et flux bancaires
+    agrégés. Le client reste responsable de traitement ; Revold agit comme sous-traitant au sens de
+    l'article 28 du RGPD.
+  </p>
+
+  <h3>Sous-traitants ultérieurs</h3>
+  <table class="tight">
+    <thead><tr><th style="width:22%">Sous-traitant</th><th style="width:40%">Finalité</th><th>Région de traitement</th></tr></thead>
+    <tbody>
+      <tr><td><b>Supabase</b></td><td>Base de données PostgreSQL et authentification</td><td>UE — Francfort</td></tr>
+      <tr><td><b>Vercel</b></td><td>Hébergement applicatif et exécution des fonctions</td><td>UE (Francfort) / réseau edge</td></tr>
+      <tr><td><b>Anthropic</b></td><td>Génération des analyses par les agents (données de contexte transmises à la demande, sans entraînement du modèle)</td><td>UE / États-Unis — accord de traitement signé</td></tr>
+      <tr><td><b>Resend</b></td><td>Emails transactionnels (alertes, digests)</td><td>UE — Francfort</td></tr>
+      <tr><td><b>Sentry</b></td><td>Supervision d'erreurs applicatives</td><td>UE / États-Unis</td></tr>
+      <tr><td><b>ElevenLabs</b></td><td>Synthèse vocale des réponses d'agent (optionnelle ; repli sur la synthèse du navigateur)</td><td>États-Unis</td></tr>
+      <tr><td><b>Twilio</b></td><td>Notifications SMS et WhatsApp (si activées)</td><td>UE / États-Unis</td></tr>
+      <tr><td><b>Stripe</b></td><td>Abonnement à la plateforme (facturation Revold)</td><td>UE — Irlande</td></tr>
+      <tr><td><b>api.gouv.fr</b> (INSEE)</td><td>Enrichissement d'identité d'entreprise — <b>seule la raison sociale est transmise</b>, aucune donnée personnelle</td><td>France</td></tr>
+      <tr><td><b>Slack / Microsoft Teams</b></td><td>Canaux de notification, si le client les connecte</td><td>Selon le fournisseur choisi par le client</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">
+    Les outils métier connectés par le client (CRM, facturation, comptabilité) ne sont pas des sous-traitants
+    de Revold : ce sont les systèmes du client, auxquels Revold accède avec les identifiants fournis par
+    celui-ci, révocables à tout moment de son côté.
+  </p>
+
+  <h3>Droits des personnes et réversibilité</h3>
+  <div class="grid grid-2">
+    <div class="card card-ok">
+      <h4>Portabilité — export immédiat</h4>
+      <p>
+        Depuis Paramètres → Sécurité, un export JSON complet des données canoniques de l'organisation est
+        généré et téléchargé immédiatement (entreprises, contacts, deals, factures, abonnements, alertes,
+        objectifs, actions).
+      </p>
+    </div>
+    <div class="card card-ok">
+      <h4>Effacement — demande tracée</h4>
+      <p>
+        Une demande de suppression est enregistrée avec horodatage et auteur, notifiée dans l'application, et
+        annulable pendant le délai. La suppression effective est opérée sous 30 jours.
+      </p>
+    </div>
+  </div>
+
+  <h3>Mesures techniques</h3>
+  <ul class="check">
+    <li>Chiffrement en transit (TLS) et au repos, assurés par les fournisseurs d'infrastructure</li>
+    <li>Isolation logique stricte par organisation au niveau du moteur de base de données (RLS)</li>
+    <li>Journal d'audit des actions sensibles (invitations, changements de rôle, connexions d'intégration, exports, modifications de réglages)</li>
+    <li>Accès aux outils clients en lecture par défaut, écritures explicitement déclenchées et tracées</li>
+    <li>Aucune donnée client utilisée pour entraîner un modèle d'IA</li>
+    <li>Documentation publique : pages Sécurité &amp; conformité, RGPD, DPA, Confidentialité et CGU sur revold.io</li>
+  </ul>
+</section>
+
+<!-- ══════════ 10. EXPLOITATION ══════════ -->
+<section>
+  <h2><span class="num">10</span>Exploitation</h2>
+
+  <h3>Gestion des migrations</h3>
+  <p>
+    Les migrations SQL sont versionnées dans le dépôt et appliquées par un runner dédié qui maintient une
+    table de suivi, applique chaque fichier dans une transaction, et <strong>interrompt le build en cas
+    d'erreur</strong>. Les migrations sont écrites de façon idempotente (<code>IF NOT EXISTS</code>,
+    remplacement de politique) pour supporter les rattrapages.
+  </p>
+
+  <h3>Supervision</h3>
+  <p>
+    Chaque tâche planifiée est encapsulée dans un moniteur qui enregistre son statut, sa durée et un détail
+    d'exécution borné, détecte l'échec aussi bien sur exception que sur code de retour non conforme, et peut
+    alerter sur un canal d'exploitation. Une route de santé expose l'historique récent pour un système de
+    supervision externe. Le monitoring ne fait jamais échouer la tâche qu'il observe.
+  </p>
+
+  <h3>Patterns de résilience</h3>
+  <table>
+    <thead><tr><th style="width:34%">Pattern</th><th>Effet</th></tr></thead>
+    <tbody>
+      <tr><td><b>Dégradation silencieuse contrôlée</b></td><td>Une fonctionnalité dont la table n'existe pas encore se désactive proprement au lieu de casser la page</td></tr>
+      <tr><td><b>Cache de requête (React cache)</b></td><td>Onze accès fréquents dédoublonnés entre layout et page dans une même requête serveur</td></tr>
+      <tr><td><b>Cache d'instantané persistant</b></td><td>L'interface lit un miroir agrégé plutôt que l'API source : latence stable, aucune limitation de débit</td></tr>
+      <tr><td><b>Contraintes d'unicité métier</b></td><td>Déduplication garantie au niveau base (liens sources, actions, instantanés de KPI, SIREN, TVA…)</td></tr>
+      <tr><td><b>Réessais exponentiels</b></td><td>Respect des quotas d'API avec lecture de l'en-tête de temporisation</td></tr>
+      <tr><td><b>Watermarking</b></td><td>Synchronisation incrémentale par date de dernière modification, par type d'objet et par organisation</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Tests</h3>
+  <p>
+    La suite de tests couvre en priorité le <strong>noyau déterministe</strong> — moteur d'agrégation,
+    périmètre de pipeline, calcul de KPI, détection de risque, moteur de réconciliation, contrôle des rôles,
+    validation d'environnement, plans de facturation, échéance des routines. Elle s'exécute à chaque build et
+    conditionne le déploiement. L'extension de la couverture aux connecteurs et aux routes API fait partie de
+    la feuille de route qualité.
+  </p>
+</section>
+
+<!-- ══════════ 11. INTÉGRATIONS ══════════ -->
+<section>
+  <h2><span class="num">11</span>Intégrations &amp; extensibilité</h2>
+
+  <h3>Connecteurs câblés en profondeur</h3>
+  <table>
+    <thead><tr><th style="width:22%">Outil</th><th style="width:18%">Authentification</th><th>Données synchronisées</th></tr></thead>
+    <tbody>
+      <tr><td><b>HubSpot</b> <span class="badge b-ok">Disponible</span></td><td>OAuth 2.0</td><td>Contacts, entreprises, deals, tickets, propriétaires, pipelines, workflows, formulaires, listes, devis, factures, abonnements, objectifs, campagnes — ETL dédié avec miroir local</td></tr>
+      <tr><td><b>Stripe</b> <span class="badge b-ok">Disponible</span></td><td>Clé secrète</td><td>Clients, factures, abonnements, paiements</td></tr>
+      <tr><td><b>Pennylane</b> <span class="badge b-ok">Disponible</span></td><td>Jeton API</td><td>Clients, factures clients et fournisseurs, transactions bancaires, comptes, écritures agrégées</td></tr>
+      <tr><td><b>Chargebee</b> <span class="badge b-ok">Disponible</span></td><td>Site + clé API</td><td>Clients, abonnements, factures</td></tr>
+      <tr><td><b>GoCardless</b> <span class="badge b-ok">Disponible</span></td><td>Jeton d'accès</td><td>Clients, mandats, paiements récurrents</td></tr>
+      <tr><td><b>Sage Accounting</b> <span class="badge b-ok">Disponible</span></td><td>Jeton OAuth</td><td>Contacts, factures, paiements</td></tr>
+      <tr><td><b>Excel / Google Sheets</b> <span class="badge b-ok">Disponible</span></td><td>Import fichier ou lien partagé</td><td>Jeux de données arbitraires rattachés au modèle</td></tr>
+      <tr><td>Slack, Teams, Gmail, Outlook, WhatsApp, Google Calendar</td><td>OAuth / webhook</td><td><em>Canaux de notification</em> — jamais des sources de données d'analyse</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">
+    D'autres connecteurs (Salesforce, Pipedrive, Zoho, monday, Sellsy, Axonaut, QuickBooks, Zendesk,
+    Intercom, Crisp, Freshdesk, téléphonie, régies publicitaires) sont présents au catalogue en statut
+    <span class="badge b-soon">Bientôt</span> : le principe est de n'ouvrir un connecteur qu'après validation
+    sur des charges utiles réelles.
+  </p>
+
+  <h3>Extensibilité</h3>
+  <ul>
+    <li><strong>Connecteur REST sur mesure</strong> : déclaration d'une URL de base, d'un mode d'authentification, d'endpoints par entité et d'une correspondance champ à champ. La jointure se fait par l'ID de rapprochement, et l'outil alimente le modèle canonique comme un connecteur natif.</li>
+    <li><strong>Serveurs MCP</strong> : possibilité de brancher des serveurs Model Context Protocol pour étendre les capacités des agents (fonctionnalité en phase pilote).</li>
+    <li><strong>Webhooks entrants</strong> : réception d'événements HubSpot, Stripe, WhatsApp et conversation intelligence.</li>
+  </ul>
+
+  <figure>
+    <img src="assets/07-parametres-integrations.jpg" alt="Paramètres — Intégrations">
+    <figcaption><b>Paramètres → Intégrations</b> — état OAuth, portée accordée, volumétrie live accessible et parité entre le portail source et le miroir Revold.</figcaption>
+  </figure>
+
+  <p class="footer-note">
+    Revold — Documentation d'architecture, août 2026. Ce document décrit l'état réel de la plateforme et est
+    mis à jour à chaque évolution structurante. Contact technique : revold.io
+  </p>
+</section>
+
+</body>
+</html>

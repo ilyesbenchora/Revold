@@ -1,0 +1,204 @@
+/* ============================================================
+   Charte graphique documentaire Revold — thème sombre cockpit
+   (identique à l'app : slate-950, halos fuchsia/indigo, cartes
+   translucides). Utilisé par tous les PDF de docs/.
+   ============================================================ */
+
+@page {
+  size: A4;
+  margin: 14mm 13mm 16mm 13mm;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  margin: 0;
+  background: #020617;
+  color: #e2e8f0;
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 10.2pt;
+  line-height: 1.55;
+}
+
+/* ── Couverture ─────────────────────────────────────────── */
+.cover {
+  page-break-after: always;
+  position: relative;
+  min-height: 250mm;
+  padding: 30mm 0 0 0;
+  overflow: hidden;
+}
+.cover-halo-a, .cover-halo-b {
+  position: absolute; border-radius: 999px; filter: blur(60px);
+}
+.cover-halo-a { top: -40mm; left: -30mm; width: 120mm; height: 120mm; background: rgba(217, 70, 239, 0.22); }
+.cover-halo-b { bottom: -30mm; right: -35mm; width: 130mm; height: 130mm; background: rgba(79, 70, 229, 0.22); }
+.cover-inner { position: relative; }
+.brand {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 26mm;
+}
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 999px;
+  background: linear-gradient(135deg, #d946ef, #a855f7 50%, #4f46e5);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 17px; line-height: 1;
+}
+.brand-name { font-size: 17pt; font-weight: 300; letter-spacing: 0.04em; color: #fff; }
+.cover-kicker {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05);
+  font-size: 8.5pt; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #f0abfc;
+}
+.cover h1 {
+  margin: 14px 0 10px; font-size: 34pt; line-height: 1.1; font-weight: 700; color: #fff;
+}
+.cover h1 .grad {
+  background: linear-gradient(90deg, #e879f9, #c084fc 45%, #818cf8);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.cover-sub { font-size: 12pt; color: #94a3b8; max-width: 150mm; margin: 0 0 20mm; }
+.cover-meta {
+  display: flex; gap: 8mm; flex-wrap: wrap; padding-top: 8mm;
+  border-top: 1px solid rgba(255,255,255,0.1); font-size: 8.5pt; color: #64748b;
+}
+.cover-meta b { color: #cbd5e1; font-weight: 600; }
+.cover-toc {
+  margin-top: 16mm; padding: 7mm; border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; background: rgba(255,255,255,0.03);
+}
+.cover-toc h3 { margin: 0 0 8px; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; }
+.cover-toc ol { margin: 0; padding-left: 18px; color: #cbd5e1; font-size: 10pt; }
+.cover-toc li { margin: 3px 0; }
+
+/* ── Titres ─────────────────────────────────────────────── */
+h2 {
+  font-size: 17pt; color: #fff; margin: 0 0 4mm;
+  padding-bottom: 3mm; border-bottom: 1px solid rgba(255,255,255,0.12);
+  page-break-after: avoid;
+}
+h2 .num {
+  display: inline-block; margin-right: 8px; padding: 2px 9px; border-radius: 7px;
+  background: linear-gradient(135deg, #d946ef, #4f46e5); color: #fff; font-size: 11pt; font-weight: 700;
+}
+h3 { font-size: 12.5pt; color: #f1f5f9; margin: 7mm 0 2.5mm; page-break-after: avoid; }
+h4 { font-size: 10.5pt; color: #e879f9; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 0 0 3mm; }
+strong { color: #fff; font-weight: 600; }
+em { color: #cbd5e1; }
+a { color: #f0abfc; text-decoration: none; }
+code {
+  font-family: "Cascadia Mono", Consolas, monospace; font-size: 8.6pt;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px; padding: 1px 5px; color: #e9d5ff;
+}
+section { page-break-before: always; }
+section.continue { page-break-before: auto; }
+
+/* ── Cartes ─────────────────────────────────────────────── */
+.card {
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+  border-radius: 10px; padding: 4.5mm 5mm; margin: 0 0 4mm; page-break-inside: avoid;
+}
+.card h4 { margin-top: 0; }
+.card-accent { border-color: rgba(232,121,249,0.35); background: rgba(217,70,239,0.07); }
+.card-ok { border-color: rgba(52,211,153,0.3); background: rgba(16,185,129,0.07); }
+.card-warn { border-color: rgba(251,191,36,0.3); background: rgba(245,158,11,0.07); }
+.grid { display: grid; gap: 3.5mm; margin-bottom: 4mm; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ── Statistiques ───────────────────────────────────────── */
+.stat { text-align: center; padding: 4mm 2mm; }
+.stat .v {
+  font-size: 20pt; font-weight: 700; line-height: 1.1;
+  background: linear-gradient(90deg, #e879f9, #818cf8);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.stat .l { font-size: 7.6pt; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-top: 2mm; }
+
+/* ── Tableaux ───────────────────────────────────────────── */
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 4mm;
+  font-size: 8.8pt; page-break-inside: avoid;
+}
+thead th {
+  text-align: left; padding: 2.5mm 3mm; background: rgba(255,255,255,0.06);
+  color: #94a3b8; font-size: 7.6pt; text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+tbody td { padding: 2.2mm 3mm; border-bottom: 1px solid rgba(255,255,255,0.07); vertical-align: top; color: #cbd5e1; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody td b, tbody td strong { color: #fff; }
+table.tight { font-size: 8.2pt; }
+
+/* ── Listes ─────────────────────────────────────────────── */
+ul, ol { margin: 0 0 3.5mm; padding-left: 5mm; }
+li { margin: 1.6mm 0; }
+ul.check { list-style: none; padding-left: 0; }
+ul.check li { position: relative; padding-left: 7mm; }
+ul.check li::before { content: "✓"; position: absolute; left: 0; color: #34d399; font-weight: 700; }
+
+/* ── Badges ─────────────────────────────────────────────── */
+.badge {
+  display: inline-block; padding: 1.5px 8px; border-radius: 999px;
+  font-size: 7.4pt; font-weight: 700; letter-spacing: 0.03em;
+}
+.b-ok { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+.b-soon { background: rgba(245,158,11,0.18); color: #fcd34d; }
+.b-info { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+.b-alert { background: rgba(244,63,94,0.18); color: #fda4af; }
+
+/* ── Captures d'écran ───────────────────────────────────── */
+figure { margin: 0 0 5mm; page-break-inside: avoid; }
+figure img {
+  width: 100%; border-radius: 9px; border: 1px solid rgba(255,255,255,0.12);
+  display: block;
+}
+figcaption { margin-top: 2mm; font-size: 8pt; color: #64748b; text-align: center; }
+figcaption b { color: #cbd5e1; }
+
+/* ── Encarts ────────────────────────────────────────────── */
+.callout {
+  border-left: 3px solid #e879f9; background: rgba(217,70,239,0.08);
+  padding: 3.5mm 4mm; border-radius: 0 8px 8px 0; margin: 0 0 4mm; page-break-inside: avoid;
+}
+.callout.warn { border-left-color: #fbbf24; background: rgba(245,158,11,0.08); }
+.callout.ok { border-left-color: #34d399; background: rgba(16,185,129,0.08); }
+.callout p:last-child { margin-bottom: 0; }
+.callout .t { font-weight: 700; color: #fff; display: block; margin-bottom: 1.5mm; }
+
+/* ── Étapes numérotées ──────────────────────────────────── */
+.step { display: flex; gap: 4mm; margin-bottom: 4.5mm; page-break-inside: avoid; }
+.step-n {
+  flex: 0 0 9mm; height: 9mm; border-radius: 999px;
+  background: linear-gradient(135deg, #d946ef, #4f46e5);
+  color: #fff; font-weight: 700; font-size: 11pt;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-body { flex: 1; }
+.step-body h4 { margin: 1mm 0 1.5mm; color: #fff; }
+
+/* ── Divers ─────────────────────────────────────────────── */
+.muted { color: #64748b; font-size: 8.6pt; }
+.footer-note {
+  margin-top: 8mm; padding-top: 4mm; border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 8pt; color: #475569;
+}
+.kv { display: grid; grid-template-columns: 42mm 1fr; gap: 1.5mm 4mm; font-size: 9pt; }
+.kv dt { color: #94a3b8; }
+.kv dd { margin: 0; color: #e2e8f0; }
+.flow {
+  display: flex; align-items: center; gap: 2mm; flex-wrap: wrap;
+  font-size: 8.4pt; margin-bottom: 4mm;
+}
+.flow span {
+  padding: 2mm 3mm; border-radius: 7px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04); color: #e2e8f0;
+}
+.flow i { color: #e879f9; font-style: normal; font-weight: 700; }

@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Revold — Guide d'onboarding</title>
+<link rel="stylesheet" href="_style.css">
+</head>
+<body>
+
+<!-- ══════════ COUVERTURE ══════════ -->
+<div class="cover">
+  <div class="cover-halo-a"></div>
+  <div class="cover-halo-b"></div>
+  <div class="cover-inner">
+    <div class="brand">
+      <div class="brand-mark">✳</div>
+      <div class="brand-name">Revold</div>
+    </div>
+
+    <span class="cover-kicker">Guide de démarrage</span>
+    <h1>Vos 30 premiers jours<br>sur <span class="grad">Revold</span></h1>
+    <p class="cover-sub">
+      De la création du compte à la première action exécutée dans vos outils : le parcours complet,
+      étape par étape, avec les décisions à prendre et les pièges à éviter.
+    </p>
+
+    <div class="cover-toc">
+      <h3>Sommaire</h3>
+      <ol>
+        <li>Avant de commencer — la checklist</li>
+        <li>Jour 1 · Créer le compte et l'organisation</li>
+        <li>Jour 1 · L'assistant de démarrage</li>
+        <li>Jour 1 · Connecter votre premier outil</li>
+        <li>Jour 2 · Vérifier le modèle de données</li>
+        <li>Jour 2 · Fiabiliser et enrichir</li>
+        <li>Semaine 1 · Inviter l'équipe et ouvrir les espaces</li>
+        <li>Semaine 1 · Alertes, objectifs et KPIs</li>
+        <li>Semaine 2 · Agents et routines</li>
+        <li>Semaine 3 · Passer à l'exécution</li>
+        <li>Résolution des problèmes courants</li>
+        <li>Récapitulatif — la checklist des 30 jours</li>
+      </ol>
+    </div>
+
+    <div class="cover-meta">
+      <div><b>Public</b> · Nouvel utilisateur, administrateur d'organisation</div>
+      <div><b>Durée</b> · 45 min pour la mise en route initiale</div>
+      <div><b>Version</b> · Août 2026</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 1. AVANT DE COMMENCER ══════════ -->
+<section class="continue">
+  <h2><span class="num">1</span>Avant de commencer</h2>
+
+  <p>
+    La mise en route de Revold prend environ <strong>45 minutes</strong>. Elle est plus rapide et plus fiable
+    si vous rassemblez ces éléments à l'avance.
+  </p>
+
+  <h3>Ce qu'il vous faut</h3>
+  <table>
+    <thead><tr><th style="width:36%">Élément</th><th style="width:18%">Nécessaire</th><th>Détail</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Un accès administrateur à votre CRM</b></td>
+        <td><span class="badge b-alert">Indispensable</span></td>
+        <td>Pour autoriser la connexion HubSpot par OAuth. Un compte utilisateur simple ne peut pas accorder l'autorisation.</td>
+      </tr>
+      <tr>
+        <td><b>Une clé API de facturation</b></td>
+        <td><span class="badge b-alert">Fortement conseillé</span></td>
+        <td>Stripe, Chargebee ou GoCardless. C'est le croisement CRM × facturation qui produit l'essentiel de la valeur.</td>
+      </tr>
+      <tr>
+        <td><b>Un accès comptabilité</b></td>
+        <td><span class="badge b-info">Optionnel</span></td>
+        <td>Pennylane ou Sage, pour la trésorerie encaissée et la marge.</td>
+      </tr>
+      <tr>
+        <td><b>La liste de vos pôles et de vos membres</b></td>
+        <td><span class="badge b-info">Utile</span></td>
+        <td>Qui appartient à Ventes, Marketing, Finance, Service client, Data. Sert à créer les espaces de travail.</td>
+      </tr>
+      <tr>
+        <td><b>Vos 3 à 5 KPIs prioritaires</b></td>
+        <td><span class="badge b-info">Utile</span></td>
+        <td>Ceux que vous regardez déjà chaque semaine. Ce sont eux que vous câblerez en premier.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <span class="t">Une seule source ne suffit pas</span>
+    <p>
+      Revold est un outil de <em>croisement</em>. Avec un CRM seul, vous obtiendrez de bons tableaux de bord
+      commerciaux — mais ni la réconciliation CA signé / encaissé, ni la trésorerie, ni les relances, ni la
+      preuve de cash récupéré. Prévoyez une deuxième source dès le premier jour.
+    </p>
+  </div>
+
+  <h3>Comment ce guide est organisé</h3>
+  <div class="flow">
+    <span>Jour 1 · Connecter</span><i>→</i>
+    <span>Jour 2 · Fiabiliser</span><i>→</i>
+    <span>Semaine 1 · Équiper</span><i>→</i>
+    <span>Semaine 2 · Automatiser</span><i>→</i>
+    <span>Semaine 3 · Exécuter</span>
+  </div>
+  <p class="muted">
+    Ce rythme est un repère, pas une contrainte : rien n'empêche de tout faire en une journée. En revanche,
+    l'<strong>ordre</strong> compte. Fiabiliser avant de câbler des KPIs évite de construire des alertes sur
+    des données incomplètes.
+  </p>
+</section>
+
+<!-- ══════════ 2. CRÉER LE COMPTE ══════════ -->
+<section>
+  <h2><span class="num">2</span>Jour 1 · Créer le compte et l'organisation</h2>
+
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body">
+      <h4>S'inscrire</h4>
+      <p>
+        Rendez-vous sur <a href="https://revold.io">revold.io</a> et cliquez sur <strong>Essai gratuit</strong>.
+        Renseignez votre email professionnel et un mot de passe. Vous recevez un email de confirmation : validez-le
+        pour activer le compte.
+      </p>
+      <p class="muted">
+        L'essai dure 14 jours, sans carte bancaire. Aucune fonctionnalité n'est bridée pendant cette période.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body">
+      <h4>L'organisation est créée automatiquement</h4>
+      <p>
+        À la première connexion, Revold crée votre <strong>organisation</strong> et vous y attribue le rôle
+        <strong>administrateur</strong>. Six étapes de pipeline par défaut sont initialisées (de la prise de
+        contact à la signature) ; vous les ajusterez plus tard pour coller à votre CRM.
+      </p>
+      <p>
+        L'organisation est l'unité d'isolation : toutes vos données, connexions, rapports et membres lui sont
+        rattachés, et aucune autre organisation ne peut y accéder.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body">
+      <h4>Régler le cadre de l'organisation</h4>
+      <p>
+        Dans <strong>Paramètres → Général</strong>, renseignez le nom de l'organisation, la
+        <strong>devise</strong>, le <strong>début d'année fiscale</strong>, le <strong>fuseau horaire</strong>,
+        le pays et votre objectif trimestriel. Ces réglages ne sont pas cosmétiques : ils déterminent le
+        découpage des périodes dans tous vos rapports et récaps. Un début d'année fiscale mal réglé fausse
+        chaque trimestre affiché ensuite.
+      </p>
+      <p class="muted">
+        Le même écran permet de choisir le <strong>thème</strong> d'affichage (clair ou sombre).
+      </p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="t">Qui doit créer le compte ?</span>
+    <p>
+      De préférence la personne qui pilote le revenue au quotidien (RevOps, DAF, directeur commercial) plutôt
+      qu'un compte technique générique. L'administrateur reçoit les alertes de synchronisation et arbitre les
+      accès ; il vaut mieux que ce soit quelqu'un qui utilise réellement la plateforme.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 3. ASSISTANT DE DÉMARRAGE ══════════ -->
+<section>
+  <h2><span class="num">3</span>Jour 1 · L'assistant de démarrage</h2>
+
+  <p>
+    Tant que l'assistant n'est pas terminé, un bandeau reste affiché en haut du tableau de bord :
+    <em>« Activez votre Revenue Intelligence en moins de 5 minutes »</em>, avec une barre de progression et un
+    bouton <strong>Continuer</strong>. Quatre étapes le composent.
+  </p>
+
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body">
+      <h4>Bienvenue sur Revold</h4>
+      <p>Un écran de présentation qui pose ce que la plateforme va faire de vos données.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body">
+      <h4>Connectez vos outils</h4>
+      <p>
+        HubSpot d'abord, puis — et c'est le point qu'insiste l'écran — une <strong>deuxième source</strong>.
+        L'encart « Pourquoi 2 outils ? » l'explique sans détour : c'est le croisement qui produit la valeur.
+        L'écran rappelle également que l'hébergement est européen (Francfort) et que les jetons d'accès sont
+        chiffrés au repos.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body">
+      <h4>Vos équipes &amp; objectifs</h4>
+      <p>
+        Vous indiquez les pôles présents dans votre entreprise — Ventes, Marketing, Revenue &amp; Finance,
+        Service Client. Ce choix conditionne les espaces de travail et les pages qui seront proposés.
+      </p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">4</div>
+    <div class="step-body">
+      <h4>Premier sync de vos données</h4>
+      <p>
+        La synchronisation initiale est lancée depuis l'assistant. À son terme, l'écran « Vous êtes prêt »
+        vous renvoie sur le tableau de bord avec vos premiers chiffres.
+      </p>
+    </div>
+  </div>
+
+  <div class="callout ok">
+    <span class="t">Rien n'est figé</span>
+    <p>
+      L'assistant peut être repris plus tard : le bandeau reste disponible tant qu'il n'est pas terminé, et
+      tous les réglages qu'il pose sont modifiables ensuite dans <strong>Paramètres</strong>. Ne bloquez pas
+      sur une étape.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 4. CONNECTER ══════════ -->
+<section>
+  <h2><span class="num">4</span>Jour 1 · Connecter votre premier outil</h2>
+
+  <figure>
+    <img src="assets/07-parametres-integrations.jpg" alt="Paramètres → Intégrations">
+    <figcaption><b>Paramètres → Intégrations</b> — chaque connecteur affiche son état réel : connecté, disponible, ou en préparation.</figcaption>
+  </figure>
+
+  <h3>HubSpot — connexion en un clic</h3>
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body"><h4>Lancer l'autorisation</h4><p>Dans <strong>Paramètres → Intégrations</strong>, cliquez sur <strong>Connecter</strong> en face de HubSpot. Vous êtes redirigé vers HubSpot.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body"><h4>Choisir le compte et autoriser</h4><p>Sélectionnez le compte HubSpot concerné, vérifiez les permissions demandées (lecture des contacts, entreprises, transactions, propriétaires ; écriture des tâches), puis validez.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body"><h4>Retour automatique</h4><p>Revold récupère l'autorisation, la chiffre en base et lance immédiatement la première synchronisation. Aucune clé à copier-coller.</p></div>
+  </div>
+
+  <h3>Les autres connecteurs — par clé API</h3>
+  <table>
+    <thead><tr><th style="width:22%">Outil</th><th style="width:30%">Ce qu'il faut</th><th>Où le trouver</th></tr></thead>
+    <tbody>
+      <tr><td><b>Stripe</b></td><td>Clé secrète restreinte (lecture)</td><td>Dashboard Stripe → Développeurs → Clés API → Créer une clé restreinte</td></tr>
+      <tr><td><b>Pennylane</b></td><td>Jeton d'API</td><td>Pennylane → Paramètres → API &amp; intégrations</td></tr>
+      <tr><td><b>Chargebee</b></td><td>Clé API + nom du site</td><td>Chargebee → Settings → Configure → API Keys</td></tr>
+      <tr><td><b>GoCardless</b></td><td>Access token</td><td>GoCardless → Developers → Create access token (lecture seule)</td></tr>
+      <tr><td><b>Sage</b></td><td>Identifiants API</td><td>Espace développeur Sage de votre offre</td></tr>
+      <tr><td><b>Excel / Google Sheets</b></td><td>Un fichier au format attendu</td><td>Import direct depuis la page Intégrations</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="t">Toujours privilégier une clé en lecture seule</span>
+    <p>
+      Revold n'a besoin d'écrire que pour trois actions, toutes déclenchées par vous : appliquer un
+      enrichissement dans le CRM, créer une tâche CRM, envoyer un rappel de facture. Si vous n'utilisez pas ces
+      actions, une clé strictement en lecture suffit — et reste révocable depuis vos outils à tout instant.
+    </p>
+  </div>
+
+  <h3>La première synchronisation</h3>
+  <p>
+    Elle démarre seule et dure de <strong>30 secondes à quelques minutes</strong> selon le volume. La page
+    Intégrations affiche l'avancement, la date de dernière synchronisation et le nombre d'enregistrements
+    importés par type. Vous pouvez naviguer ailleurs pendant ce temps ; la synchronisation continue côté
+    serveur. Ensuite, un cron la rejoue automatiquement à intervalle régulier.
+  </p>
+  <p>
+    <strong>Vérifiez au moins une source de facturation avant de passer à la suite.</strong> Une deuxième
+    source débloque la réconciliation, la trésorerie et les relances.
+  </p>
+</section>
+
+<!-- ══════════ 5. MODÈLE DE DONNÉES ══════════ -->
+<section>
+  <h2><span class="num">5</span>Jour 2 · Vérifier le modèle de données</h2>
+
+  <p>
+    C'est l'étape la plus importante du guide, et la plus souvent bâclée. Revold doit savoir
+    <strong>où se trouvent vos identifiants</strong> dans chaque outil pour relier une entreprise du CRM à la
+    même entreprise dans la facturation.
+  </p>
+
+  <figure>
+    <img src="assets/08-modele-donnees.jpg" alt="Paramètres → Modèle de données">
+    <figcaption><b>Paramètres → Modèle de données</b> — le mapping des champs et les règles de résolution d'entités.</figcaption>
+  </figure>
+
+  <h3>Le mapping des identifiants</h3>
+  <p>
+    Dans <strong>Paramètres → Modèle de données</strong>, indiquez pour chaque outil le champ qui contient le
+    SIREN, le SIRET et le numéro de TVA. Dans HubSpot, ce sont souvent des propriétés personnalisées créées
+    par vos équipes — Revold ne peut pas les deviner.
+  </p>
+
+  <h3>Les règles de résolution d'entités</h3>
+  <p>
+    Sept règles, chacune activable et réordonnable. Revold les applique dans l'ordre et s'arrête à la première
+    qui correspond ; le niveau de confiance associé est conservé et visible dans les audits.
+  </p>
+  <table>
+    <thead><tr><th style="width:8%">Ordre</th><th style="width:32%">Règle</th><th style="width:16%">Confiance</th><th>Quand l'activer</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>Identifiant de rapprochement personnalisé</b></td><td><span class="badge b-ok">Maximale</span></td><td>Si vos outils partagent déjà une référence commune. Plusieurs identifiants peuvent être déclarés côté CRM.</td></tr>
+      <tr><td>2</td><td><b>SIREN</b></td><td><span class="badge b-ok">Très haute</span></td><td>Toujours. C'est la règle de référence pour la France.</td></tr>
+      <tr><td>3</td><td><b>Numéro de TVA intracommunautaire</b></td><td><span class="badge b-ok">Très haute</span></td><td>Toujours. Souvent présent en facturation quand le SIREN manque.</td></tr>
+      <tr><td>4</td><td><b>SIRET</b></td><td><span class="badge b-ok">Haute</span></td><td>Utile si vous suivez les établissements séparément.</td></tr>
+      <tr><td>5</td><td><b>Email</b></td><td><span class="badge b-info">Moyenne</span></td><td>Efficace pour les contacts ; moins pour les entreprises.</td></tr>
+      <tr><td>6</td><td><b>Nom de domaine</b></td><td><span class="badge b-info">Moyenne</span></td><td>À éviter si vous avez beaucoup de filiales sur un même domaine.</td></tr>
+      <tr><td>7</td><td><b>Nom d'entreprise normalisé</b></td><td><span class="badge b-soon">Faible</span></td><td>Dernier recours. À désactiver si vous voulez zéro faux positif.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <span class="t">Le piège du rapprochement par nom</span>
+    <p>
+      « Dupont SAS », « DUPONT S.A.S. » et « Dupont Group » se ressemblent mais ne sont pas forcément la même
+      entité juridique. Si votre portefeuille contient des groupes avec filiales, désactivez la règle par nom
+      et investissez plutôt dans l'enrichissement SIREN : le résultat sera plus lent à obtenir mais
+      incontestable.
+    </p>
+  </div>
+
+  <h3>Deux réglages à ne pas oublier sur le même écran</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4>Matrice d'autorité des champs</h4>
+      <p>
+        Quand deux outils portent une valeur différente pour le même champ, lequel fait foi ? Vous ordonnez
+        les outils par priorité, champ par champ. C'est ce réglage qui met fin aux débats sur « quel chiffre
+        est le bon ».
+      </p>
+    </div>
+    <div class="card">
+      <h4>Règles de déduplication</h4>
+      <p>
+        Elles définissent ce qui constitue un doublon (même email pour un contact, même domaine pour une
+        entreprise). <strong>Les fusions sont désactivées par défaut</strong> — rien ne fusionne sans votre
+        accord explicite, fiche par fiche.
+      </p>
+    </div>
+  </div>
+
+  <h3>Les étapes de pipeline</h3>
+  <p>
+    Alignez les étapes par défaut sur celles de votre CRM et attribuez à chacune une
+    <strong>probabilité de conversion</strong>. Ces probabilités alimentent le pipeline pondéré et la
+    projection affichés en Performances et en Trésorerie — si elles sont fausses, la projection l'est aussi.
+  </p>
+</section>
+
+<!-- ══════════ 6. FIABILISER ══════════ -->
+<section>
+  <h2><span class="num">6</span>Jour 2 · Fiabiliser et enrichir</h2>
+
+  <h3>Lire le rapprochement</h3>
+  <figure>
+    <img src="assets/10-rapprochement.jpg" alt="Page Rapprochement données">
+    <figcaption><b>Données → Rapprochement données</b> — le taux réel avec le CRM, outil par outil, et les causes de non-rapprochement.</figcaption>
+  </figure>
+  <p>
+    C'est votre tableau de bord de qualité. Il affiche le <strong>taux de rapprochement réel avec le CRM</strong>,
+    outil par outil, le nombre d'entités présentes dans au moins deux outils, et la
+    <strong>méthode de rapprochement dominante</strong>. Un graphique détaille la répartition entre SIREN,
+    SIRET, TVA, email, domaine, nom — et « nouvelle fiche » quand aucune correspondance n'a été trouvée.
+  </p>
+  <p>
+    Deux blocs vous disent quoi corriger : <strong>« Deals gagnés — prêts pour le rapprochement ? »</strong>
+    contrôle en amont que les identifiants que vous avez activés sont bien présents, et
+    <strong>« Entreprises non rapprochées »</strong> liste chaque cas avec sa cause étiquetée : SIREN ou SIRET
+    absent, nom différent, email différent, aucune correspondance. Chaque outil connecté a en plus son propre
+    onglet avec ses points d'attention, et un plan d'action rédigé par l'IA clôt la page.
+  </p>
+  <p>
+    Ne cherchez pas 100 %. Visez un <strong>taux de rapprochement supérieur à 70 %</strong> sur vos comptes
+    actifs : c'est le seuil à partir duquel les chiffres croisés deviennent défendables en comité.
+  </p>
+
+  <h3>L'enrichissement tourne tout seul</h3>
+  <figure>
+    <img src="assets/09-enrichissement.jpg" alt="Page Enrichissement">
+    <figcaption><b>Suivi → Enrichissement</b> — la couverture officielle de votre base et la file des correspondances à valider.</figcaption>
+  </figure>
+  <p>
+    C'est le point qui surprend le plus les nouveaux utilisateurs : <strong>le moteur balaie votre base en
+    continu</strong>, en arrière-plan, et accélère silencieusement tant que la page reste ouverte. Il
+    interroge la base Sirene et les comptes déposés à l'INPI via l'API publique et gratuite de l'État. Dans
+    <strong>Paramètres → Enrichissement</strong>, vous choisissez les données à remplir — SIREN, SIRET, TVA,
+    effectifs, CA, secteur, statut juridique, capital social, adresse du siège — et vous vérifiez les
+    propriétés CRM cibles (badge « ✓ dans le CRM » / « ⚠ absente », listes déroulantes gérées). Cocher une
+    nouvelle donnée fait repartir la jauge de zéro sur ce chantier ; le CTA <strong>« Enrichir mon
+    CRM »</strong> lance alors une passe ciblée avec sa fenêtre de complétion, et chaque passe est consignée
+    dans l'historique avec le détail par donnée. Une source <strong>LinkedIn (bêta)</strong> peut compléter
+    l'effectif des entreprises que le registre officiel ne publie pas, suivie dans son propre bloc.
+  </p>
+  <p>Ce qu'il en tire :</p>
+  <ul>
+    <li><strong>Les correspondances certaines s'appliquent seules</strong> — SIREN, SIRET du siège, numéro de TVA calculé depuis le SIREN, raison sociale officielle, effectif et chiffre d'affaires — et sont poussées dans HubSpot.</li>
+    <li><strong>Les correspondances plausibles vous attendent</strong> dans la file de validation, présentées côte à côte avec la fiche CRM. Vous pouvez en valider plusieurs d'un coup.</li>
+    <li><strong>Les entreprises sans correspondance</strong> sont marquées vérifiées et re-testées 30 jours plus tard, au cas où elles apparaîtraient au registre.</li>
+  </ul>
+
+  <p>
+    Les tuiles de couverture suivent les champs cochés dans les Paramètres : entreprises dans le modèle de
+    données, part avec SIREN, effectif officiel connu, CA officiel connu, secteur, statut juridique… et
+    correspondances à valider. Les données évolutives (effectif, CA) sont automatiquement recontrôlées
+    au-delà de 90 jours.
+  </p>
+
+  <div class="callout warn">
+    <span class="t">Ce que l'enrichissement ne fera jamais</span>
+    <p>
+      Le chiffre d'affaires n'existe pas pour les entreprises ayant déposé leurs comptes en confidentialité.
+      Dans ce cas la case reste vide : <strong>Revold ne devine jamais un chiffre</strong>. De même, un SIREN
+      n'est jamais stocké pour une entreprise dont la correspondance n'a pas été établie avec certitude.
+    </p>
+  </div>
+
+  <div class="callout ok">
+    <span class="t">Votre seul geste hebdomadaire</span>
+    <p>
+      Passez une fois par semaine dans la file « à valider » pendant le premier mois. Les entreprises créées
+      dans le CRM arrivent souvent sans identifiants ; les traiter au fil de l'eau évite de refaire un gros
+      chantier trois mois plus tard.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 7. ÉQUIPE ══════════ -->
+<section>
+  <h2><span class="num">7</span>Semaine 1 · Inviter l'équipe et ouvrir les espaces</h2>
+
+  <h3>Inviter les membres</h3>
+  <p>
+    Dans <strong>Paramètres → Utilisateurs &amp; équipes</strong>, invitez chaque personne par email, puis
+    attribuez-lui un <strong>rôle</strong> et un <strong>pôle</strong>. Le rôle
+    <strong>administrateur</strong> donne accès à tous les espaces et à la configuration ; un membre rattaché à
+    un pôle est verrouillé sur l'espace de ce pôle.
+  </p>
+
+  <h3>Les espaces de travail</h3>
+  <p>
+    Cinq espaces existent : <strong>Tous les espaces</strong> (vue globale), <strong>Ventes</strong> (pipeline,
+    closing, prévisions), <strong>Marketing</strong> (acquisition, conversion, data),
+    <strong>Service client</strong> (support, rétention, churn) et <strong>Comptabilité</strong> (MRR,
+    encaissement, cash).
+  </p>
+  <p>
+    L'espace filtre la navigation : un commercial voit Mon équipe IA, Performances, Appels et Rapprochement
+    données ; la comptabilité voit Trésorerie et Rapprochement données. Les sections Dashboard,
+    Intégrations et Suivi restent complètes pour tout le monde, et « Mon équipe IA » est accessible depuis
+    n'importe quel espace.
+  </p>
+  <p>
+    Le filtrage est <strong>vérifié côté serveur</strong> : un membre qui tape directement l'URL d'une page
+    hors de son périmètre est renvoyé au tableau de bord. L'administrateur, lui, bascule d'un espace à l'autre
+    depuis le sélecteur en haut de la barre latérale.
+  </p>
+
+  <h3>Affiner les droits page par page</h3>
+  <p>
+    Sur le même écran, le bloc <strong>« Accès aux pages par équipe »</strong> présente une matrice des quatre
+    équipes (Ventes, Marketing, Service client, Comptabilité) croisée avec trois niveaux de droits :
+    <strong>Visualisation</strong>, <strong>Modification</strong> et <strong>Création</strong>, sur environ
+    vingt-cinq pages. Une règle explicite ici prime sur l'accès par défaut de l'espace de travail ; sans
+    réglage, la page suit l'espace.
+  </p>
+
+  <h3>Choisir les sources par page et par agent</h3>
+  <p>
+    Dans <strong>Paramètres → Intégrations</strong>, deux blocs déterminent d'où vient chaque chiffre.
+    <strong>« Outil source par page »</strong> désigne, page par page, l'outil qui fait foi — par exemple
+    Pennylane plutôt que Stripe pour le chiffre d'affaires encaissé. <strong>« Outils sources par agent »</strong>
+    fait de même pour chaque agent ; sans sélection, l'agent utilise tous les outils connectés
+    de son périmètre métier. Les tableaux de bord personnalisés que vous créez apparaissent aussi dans ce
+    réglage, sous la Vue d'ensemble.
+  </p>
+  <div class="callout warn">
+    <span class="t">Une page sans source reste vide</span>
+    <p>
+      C'est volontaire, et c'est la première question du support. Tant qu'aucun outil n'est désigné pour une
+      page, ses blocs ne s'affichent pas — Revold préfère ne rien montrer plutôt que d'afficher un chiffre dont
+      l'origine est ambiguë. Le message « Choisis ta source pour activer les blocs » vous renvoie directement
+      au bon réglage.
+    </p>
+  </div>
+
+  <div class="callout">
+    <span class="t">Conseil de déploiement</span>
+    <p>
+      N'ouvrez pas la plateforme à toute l'entreprise le premier jour. Commencez par deux ou trois personnes qui
+      valident la fiabilité des chiffres, puis élargissez pôle par pôle. Un utilisateur qui découvre Revold avec
+      des données non rapprochées en garde une mauvaise impression durable.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ 8. ALERTES & KPIs ══════════ -->
+<section>
+  <h2><span class="num">8</span>Semaine 1 · Alertes, objectifs et KPIs</h2>
+
+  <h3>Le funnel de câblage — le même partout</h3>
+  <p>
+    Que vous créiez une alerte, un objectif, un KPI personnalisé ou une table de données, le parcours suit la
+    même logique et se termine toujours par une vérification sur données réelles.
+  </p>
+  <div class="flow">
+    <span>Équipe / sources à croiser</span><i>→</i>
+    <span>Choix du KPI</span><i>→</i>
+    <span>Seuil, période, priorité</span><i>→</i>
+    <span>Vérification du câblage</span><i>→</i>
+    <span>Canaux ou affichage</span>
+  </div>
+  <p>
+    L'écran de vérification affiche la source de données, le regroupement, la mesure, la donnée réellement
+    suivie, <strong>l'outil sur lequel elle est câblée</strong>, le nombre de lignes trouvées et la valeur
+    calculée à cet instant. Il propose aussi les autres sources possibles. Si ce chiffre ne correspond pas à
+    ce que vous attendez, corrigez le câblage avant d'enregistrer — pas après.
+  </p>
+  <p class="muted">
+    Le même écran de confirmation existe pour les <strong>alertes chirurgicales</strong>, créées directement
+    depuis une ligne d'une table de données : vous surveillez alors un compte précis, pas un agrégat.
+  </p>
+
+  <h3>Choisir ses canaux de notification</h3>
+  <p>
+    La dernière étape d'une alerte demande où elle doit arriver. Six canaux existent : la
+    <strong>cloche in-app</strong> (toujours active), l'<strong>email</strong>, <strong>Slack</strong>,
+    <strong>Microsoft Teams</strong>, <strong>HubSpot CRM</strong> (notification interne et tâche assignée au
+    propriétaire) et un <strong>webhook HTTPS</strong> personnalisé. Un canal non configuré apparaît grisé avec
+    un lien direct vers sa configuration, dans <strong>Paramètres → Notifications</strong>.
+  </p>
+
+  <h3>Vos premières alertes</h3>
+  <table>
+    <thead><tr><th style="width:34%">Alerte</th><th>Pourquoi commencer par celle-ci</th></tr></thead>
+    <tbody>
+      <tr><td><b>Factures impayées au-delà de 30 jours</b></td><td>Impact cash immédiat, et alimente directement les relances et le compteur de cash récupéré.</td></tr>
+      <tr><td><b>Deals sans activité depuis 21 jours</b></td><td>Récupère du pipeline qui meurt en silence ; se transforme en tâche CRM en un clic.</td></tr>
+      <tr><td><b>Synchronisation en échec</b></td><td>Garantit que vos chiffres restent à jour ; à activer dès le premier jour.</td></tr>
+      <tr><td><b>Écart CA signé / CA encaissé</b></td><td>Le chiffre qui déclenche les vraies conversations en comité de direction.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Objectifs</h3>
+  <p>
+    Un objectif porte une cible chiffrée, un pôle (Ventes, Marketing, Service client, Finance, RevOps), une
+    date de début et une échéance, et une priorité. Vous pouvez le rattacher à un
+    <strong>KPI suivi automatiquement</strong> — CA signé, deals gagnés, taux de closing, valeur du pipeline,
+    forecast pondéré — ou saisir la valeur à la main.
+  </p>
+  <p>
+    Revold calcule la complétion en continu et détecte le franchissement de seuil de façon déterministe ; un
+    agent rédige ensuite la notification en langage clair. Vous êtes prévenu <strong>en retard comme en
+    avance</strong> : les objectifs atteints déclenchent aussi une notification. Un bloc
+    <strong>« Suivi manager »</strong> agrège le tout — nombre d'objectifs, complétion moyenne, atteints, à
+    risque — avec le détail par pôle. À l'approche de l'échéance, Revold peut proposer un plan pour rattraper
+    un objectif en retard.
+  </p>
+
+  <h3>Voir le tout dans le temps</h3>
+  <p>
+    La page <strong>Suivi → Calendrier</strong> affiche alertes et objectifs sur une frise en vue Jour,
+    Semaine ou Mois, avec les dates de début et d'échéance — utile pour repérer les semaines surchargées avant
+    de les subir.
+  </p>
+</section>
+
+<!-- ══════════ 9. AGENTS & ROUTINES ══════════ -->
+<section>
+  <h2><span class="num">9</span>Semaine 2 · Agents et routines</h2>
+
+  <figure>
+    <img src="assets/06-agent-chat.jpg" alt="Discussion avec un agent">
+    <figcaption><b>Discussion avec un agent</b> — questions en langage naturel, réponses appuyées sur vos données réelles.</figcaption>
+  </figure>
+
+  <h3>Bien parler aux agents</h3>
+  <p>
+    Chaque agent a un domaine et des sources déclarées. Adressez-vous à celui dont c'est le métier : l'agent
+    Trésorerie pour l'encaissement, l'agent Performances pour le pipeline, l'agent Rapprochement pour la
+    qualité des données.
+  </p>
+  <div class="grid grid-2">
+    <div class="card card-ok">
+      <h4>Formulations efficaces</h4>
+      <ul>
+        <li>« Quel est mon CA encaissé ce trimestre par rapport au précédent ? »</li>
+        <li>« Quels deals de plus de 20 000 € sont sans activité depuis un mois ? »</li>
+        <li>« Fais-moi un récap de la performance commerciale du mois. »</li>
+        <li>« Pourquoi l'écart entre le CA signé et le CA facturé a-t-il augmenté ? »</li>
+      </ul>
+    </div>
+    <div class="card card-warn">
+      <h4>Formulations à éviter</h4>
+      <ul>
+        <li>« Comment améliorer mon business ? » — trop vague, sans ancrage chiffré.</li>
+        <li>Des questions portant sur un outil non connecté : l'agent le dira, mais vous aurez perdu du temps.</li>
+        <li>Des demandes de projection sur une période sans historique suffisant.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>L'accompagnement dans la durée</h3>
+  <p>
+    Au-delà de la question ponctuelle, chaque agent expert travaille <strong>dans la durée</strong> depuis sa
+    propre page : objectifs du pôle, historique des décisions, suggestions, alertes et actions suivies. Tout
+    l'accompagnement vit là — pas de module séparé à ouvrir.
+  </p>
+
+  <h3>Programmer une routine</h3>
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body"><h4>Choisir la période</h4><p>Semaine, mois, trimestre, année ou dates personnalisées.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body"><h4>Choisir les thèmes macro</h4><p>Pour les ventes par exemple : récap des ventes, deals en cours, performance des commerciaux, taux de closing, projection. On reste au niveau macro — c'est un récap, pas un audit.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body"><h4>Ajuster l'aperçu avant d'enregistrer</h4><p>Retirez un KPI, réordonnez les blocs par glisser-déposer, ajoutez-en un via le funnel de câblage. Ce que vous voyez est exactement ce que vous recevrez.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">4</div>
+    <div class="step-body"><h4>Programmer</h4><p>La routine s'exécute côté serveur à la fréquence choisie, application fermée. Vous recevez une notification dans la cloche à chaque exécution, et le rapport s'affiche en pleine page — tuiles, courbes, tableaux, anneaux.</p></div>
+  </div>
+
+  <p class="muted">
+    Les rapports antérieurs peuvent être réduits pour ne garder que le dernier à l'écran, ou retirés de
+    l'affichage tout en restant consultables dans la page <strong>Rapports</strong>.
+  </p>
+
+  <h3>La tour de contrôle vocale</h3>
+  <p>
+    Sur la page d'accueil, l'orbe répond à la voix. Un seul bouton, <strong>Parler à Revold</strong>, et
+    l'anneau qui l'entoure vous donne l'état du compte avant même de parler : vert tout va bien, ambre points
+    de vigilance, rouge pulsant situation critique.
+  </p>
+  <p>Elle sait faire cinq choses :</p>
+  <ul>
+    <li><strong>Le brief du jour</strong> — déclenché par une phrase que vous choisissez (« quoi de neuf » par défaut).</li>
+    <li><strong>Répondre à une question KPI simple</strong> — « c'est quoi mon MRR ? », « combien de MQL ce mois-ci ? » — avec un calcul réel, puis proposer d'aller plus loin avec l'agent compétent.</li>
+    <li><strong>Créer une alerte ou un objectif à la voix</strong> — un résumé s'affiche avec <em>Valider</em> et <em>Annuler</em> : rien n'est créé sans clic.</li>
+    <li><strong>Naviguer</strong> — « ouvre la trésorerie », « montre mes objectifs », « ouvre le rapport pipeline par étape ».</li>
+    <li><strong>Briefer plusieurs agents d'affilée</strong> — la demande est mise en file et chaque agent traite sa part.</li>
+  </ul>
+  <p>
+    Le contenu du brief se compose dans <strong>Paramètres → Tour de contrôle</strong> : alertes en tension
+    (valeur actuelle face au seuil, alertes techniques comprises), radar de facturation (nombre, montant
+    estimé, clients concernés), objectifs en retard ou atteints (progression chiffrée, échéance),
+    synchronisations en échec, enrichissement terminé, actions exécutées dans les dernières 24 heures — et
+    jusqu'à douze <strong>données personnalisées</strong> de votre choix, chacune câblée et vérifiée au moment
+    de l'ajout, puis recalculée à chaque brief. Chaque famille est annoncée avant ses chiffres (« Côté
+    alertes… », « Sur la facturation… ») : l'écoute suit les transitions au lieu d'une dictée monotone.
+  </p>
+  <p>
+    Le <strong>mode veille</strong> réduit le brief aux seules exceptions. S'il n'y en a aucune, l'orbe le dit :
+    « tout est au vert ».
+  </p>
+  <p class="muted">
+    La tour de contrôle est disponible à partir du plan Business. Chrome et Edge sont recommandés pour la
+    reconnaissance vocale.
+  </p>
+</section>
+
+<!-- ══════════ 10. EXÉCUTION ══════════ -->
+<section>
+  <h2><span class="num">10</span>Semaine 3 · Passer à l'exécution</h2>
+
+  <figure>
+    <img src="assets/05-actions.jpg" alt="Suivi → Actions">
+    <figcaption><b>Suivi → Actions</b> — Revold détecte, vous validez, l'action s'exécute dans vos outils.</figcaption>
+  </figure>
+
+  <p>
+    C'est l'étape qui transforme Revold d'un outil d'analyse en un outil de pilotage. Sept familles d'actions
+    sont détectées en continu ; vous choisissez lesquelles afficher, et rien ne part sans validation.
+  </p>
+
+  <table>
+    <thead><tr><th style="width:28%">Famille</th><th style="width:26%">Déclencheur</th><th>Effet dans votre outil</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Deals silencieux à relancer</b></td>
+        <td>Deal ouvert sans contact depuis 21 jours</td>
+        <td>Relance par email au nom du propriétaire si votre licence le permet, sinon création d'une tâche qui lui est assignée.</td>
+      </tr>
+      <tr>
+        <td><b>Impayés à relancer</b></td>
+        <td>Facture échue avec un reste dû</td>
+        <td>Rappel officiel Stripe ou tâche de relance CRM. Cycle borné : 7 jours entre deux relances, 3 au maximum, arrêt immédiat dès réception du paiement, puis escalade humaine.</td>
+      </tr>
+      <tr>
+        <td><b>Doublons à fusionner</b></td>
+        <td>Même email pour deux contacts, même domaine pour deux entreprises</td>
+        <td>Fusion validée fiche par fiche. <b>Jamais automatisable</b> — l'opération est irréversible.</td>
+      </tr>
+      <tr>
+        <td><b>Fiches facturation à relier au CRM</b></td>
+        <td>Entreprise présente côté facturation sans lien CRM</td>
+        <td>Rattachement dans Revold : le chiffre d'affaires devient attribuable compte par compte.</td>
+      </tr>
+      <tr>
+        <td><b>Deals de renouvellement manquants</b></td>
+        <td>Abonnement actif se terminant sous 60 jours sans deal ouvert</td>
+        <td>Création du deal de renouvellement, valorisé sur douze mois de MRR.</td>
+      </tr>
+      <tr>
+        <td><b>Écarts signé vs facturé</b></td>
+        <td>Deal gagné dont les factures couvrent moins de 90 % du montant signé</td>
+        <td>Tâche chiffrée pour le propriétaire du deal — c'est le poste de fuite de revenu le plus fréquent.</td>
+      </tr>
+      <tr>
+        <td><b>Contacts de facturation à créer</b></td>
+        <td>Email de facturation connu côté Stripe ou Pennylane, absent du CRM</td>
+        <td>Création du contact, rattaché à la bonne entreprise.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Passer une famille en automatique</h3>
+  <p>
+    Chaque famille dispose d'un interrupteur <strong>« Auto »</strong> dans le catalogue. Quand une même
+    famille accumule plusieurs validations identiques, Revold vous le signale et propose de l'automatiser. Vous
+    fixez alors la cadence et les conditions de sortie du cycle, et vous pouvez déclarer des
+    <strong>exceptions</strong> compte par compte pour vos clients stratégiques, qui resteront en validation
+    manuelle.
+  </p>
+  <p class="muted">
+    L'historique conserve chaque exécution, avec un badge distinguant ce qui a été validé à la main de ce qui
+    est parti automatiquement.
+  </p>
+
+  <h3>Mesurer le cash récupéré</h3>
+  <p>
+    Quand une facture relancée depuis Revold est ensuite constatée payée, le montant gelé au moment du rappel
+    est attribué à la relance. La page <strong>Trésorerie</strong> affiche alors trois compteurs :
+    <em>cash récupéré</em> en euros, <em>factures récupérées</em>, <em>relances en cours</em>.
+  </p>
+
+  <div class="callout ok">
+    <span class="t">Votre premier chiffre de ROI</span>
+    <p>
+      Faites une passe complète sur vos impayés dès la troisième semaine. À la fin du premier mois, ce compteur
+      est le chiffre à présenter à votre direction : il est traçable facture par facture, pas estimé.
+    </p>
+  </div>
+
+  <h3>Le rythme de croisière</h3>
+  <div class="grid grid-3">
+    <div class="card">
+      <h4>Chaque matin — 2 min</h4>
+      <p>Brief vocal, notifications de la cloche, file d'actions à valider.</p>
+    </div>
+    <div class="card">
+      <h4>Chaque semaine — 20 min</h4>
+      <p>Récap de routine, file d'enrichissement à valider, contrôle du taux de rapprochement.</p>
+    </div>
+    <div class="card">
+      <h4>Chaque mois — 45 min</h4>
+      <p>Revue des objectifs, ajustement des KPIs et des alertes, contrôle du taux de rapprochement.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 11. PROBLÈMES ══════════ -->
+<section>
+  <h2><span class="num">11</span>Résolution des problèmes courants</h2>
+
+  <table>
+    <thead><tr><th style="width:32%">Symptôme</th><th style="width:30%">Cause la plus fréquente</th><th>Ce qu'il faut faire</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Mes tuiles sont vides</b></td>
+        <td>Aucune source connectée pour ce domaine, ou première synchronisation encore en cours</td>
+        <td>Vérifier l'état et l'horodatage dans Paramètres → Intégrations. Revold affiche du vide plutôt qu'un chiffre inventé — c'est volontaire.</td>
+      </tr>
+      <tr>
+        <td><b>Le taux de rapprochement est faible</b></td>
+        <td>Identifiants légaux absents, ou champs non mappés</td>
+        <td>Contrôler le mapping dans Modèle de données, puis lancer l'enrichissement Sirene.</td>
+      </tr>
+      <tr>
+        <td><b>Une entreprise apparaît en double</b></td>
+        <td>Deux fiches CRM sans identifiant commun</td>
+        <td>Enrichir les deux fiches pour leur donner le même SIREN : le rapprochement se fait ensuite automatiquement.</td>
+      </tr>
+      <tr>
+        <td><b>Le CA affiché ne correspond pas au CRM</b></td>
+        <td>Périmètre différent (signé vs facturé vs encaissé) ou source configurée différemment</td>
+        <td>Vérifier l'outil source de la page, et lire l'écart expliqué dans le bloc de réconciliation en Trésorerie.</td>
+      </tr>
+      <tr>
+        <td><b>La synchronisation échoue</b></td>
+        <td>Clé API révoquée ou expirée, ou quota atteint côté outil</td>
+        <td>Le détail de l'erreur est affiché sur la carte du connecteur. Reconnecter avec une clé valide.</td>
+      </tr>
+      <tr>
+        <td><b>Un agent dit ne pas avoir la donnée</b></td>
+        <td>Source non connectée ou hors de son périmètre</td>
+        <td>C'est le comportement attendu : l'agent refuse d'inventer. Connecter la source, ou s'adresser à l'agent compétent.</td>
+      </tr>
+      <tr>
+        <td><b>Un membre n'accède pas à une page</b></td>
+        <td>Restriction d'espace de travail par pôle</td>
+        <td>Ajuster son pôle ou son rôle dans Paramètres → Équipe.</td>
+      </tr>
+      <tr>
+        <td><b>La période se réinitialise dans un rapport</b></td>
+        <td>Période non enregistrée à la création</td>
+        <td>Redéfinir la période dans le funnel : elle est reprise dans le rapport et conservée au rechargement.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Vos données restent les vôtres</h3>
+  <p>
+    Depuis <strong>Paramètres → Sécurité &amp; API</strong> et depuis <strong>Mon compte</strong>, vous pouvez
+    à tout moment exporter l'ensemble de vos données au format JSON, ou déposer une demande de suppression.
+    Les autorisations accordées à Revold sont révocables directement depuis vos outils, sans passer par nous.
+  </p>
+</section>
+
+<!-- ══════════ 12. CHECKLIST ══════════ -->
+<section>
+  <h2><span class="num">12</span>Récapitulatif — la checklist des 30 jours</h2>
+
+  <h3>Jour 1</h3>
+  <ul class="check">
+    <li>Compte créé, email confirmé, organisation initialisée</li>
+    <li>Devise, année fiscale, fuseau horaire et pays réglés dans Paramètres → Général</li>
+    <li>Assistant de démarrage terminé (bandeau du tableau de bord à 100 %)</li>
+    <li>HubSpot connecté par OAuth</li>
+    <li>Au moins une source de facturation connectée</li>
+    <li>Première synchronisation terminée et vérifiée</li>
+  </ul>
+
+  <h3>Jour 2</h3>
+  <ul class="check">
+    <li>Champs SIREN / SIRET / TVA mappés pour chaque outil</li>
+    <li>Règles de résolution d'entités activées et ordonnées</li>
+    <li>Matrice d'autorité des champs arbitrée</li>
+    <li>Règles de déduplication passées en revue</li>
+    <li>Étapes de pipeline alignées sur le CRM, probabilités renseignées</li>
+    <li>Page Rapprochement données lue, taux relevé par outil</li>
+    <li>Première passe faite sur la file d'enrichissement à valider</li>
+  </ul>
+
+  <h3>Semaine 1</h3>
+  <ul class="check">
+    <li>Membres invités avec rôle et pôle</li>
+    <li>Espaces de travail vérifiés pour chaque pôle</li>
+    <li>Matrice d'accès aux pages ajustée si nécessaire</li>
+    <li>Outil source défini par page et par agent</li>
+    <li>3 à 5 KPIs prioritaires câblés et vérifiés</li>
+    <li>Alertes essentielles activées (impayés, deals silencieux, sync en échec)</li>
+    <li>Premiers objectifs définis par pôle</li>
+    <li>Canaux de notification configurés</li>
+  </ul>
+
+  <h3>Semaine 2</h3>
+  <ul class="check">
+    <li>Première conversation menée avec un agent expert</li>
+    <li>Sources par agent vérifiées dans Paramètres → Intégrations</li>
+    <li>Une routine hebdomadaire programmée après ajustement de l'aperçu</li>
+    <li>Brief vocal du jour testé et contenus personnalisés ajoutés</li>
+  </ul>
+
+  <h3>Semaine 3 et au-delà</h3>
+  <ul class="check">
+    <li>Première file d'actions traitée et validée</li>
+    <li>Passe complète sur les impayés effectuée</li>
+    <li>Compteur de cash récupéré alimenté</li>
+    <li>Rythme de croisière installé — quotidien, hebdomadaire, mensuel</li>
+    <li>Enrichissement repassé sur les nouvelles entreprises</li>
+  </ul>
+
+  <div class="callout">
+    <span class="t">Un besoin d'accompagnement ?</span>
+    <p>
+      Le support est joignable depuis la plateforme. Les offres Business et Scale donnent accès à un support
+      prioritaire ; l'offre Scale ajoute un advisor RevOps dédié qui peut prendre en charge la configuration
+      initiale avec vous.
+    </p>
+  </div>
+
+  <p class="footer-note">
+    Revold — Guide d'onboarding · Août 2026. Données hébergées dans l'Union européenne.
+    Documents complémentaires disponibles : « Revold — La plateforme », « Revold — Architecture »,
+    « Pourquoi Revold ? » · revold.io
+  </p>
+</section>
+
+</body>
+</html>
