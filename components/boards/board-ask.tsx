@@ -1,28 +1,109 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DictationButton } from "@/components/dictation-button";
+import { basePageKey } from "@/lib/kpi/tile-catalog";
 
 /**
- * Tableau de bord CONVERSATIONNEL — un champ de question posé sur le tableau :
- * « Pourquoi le CA baisse en mars ? », « Combien de deals gagnés ce mois ? ».
- * La réponse vient de /api/boards/ask : l'agent recalcule les chiffres via le
- * moteur déterministe (jamais un chiffre inventé), contextualisé par la
- * composition réelle du tableau. Les suivis fonctionnent (« et en avril ? ») :
- * les 3 derniers échanges repartent avec la question.
+ * Bloc CONVERSATIONNEL d'une page de données / d'un tableau de bord : pose une
+ * question, l'agent expert de la page répond en recalculant via le moteur
+ * déterministe (/api/boards/ask — jamais un chiffre inventé).
+ *
+ * Les EXEMPLES (placeholder + puces cliquables) s'adaptent à la page ET aux
+ * outils réellement connectés dessus (mapping « Outil source par page ») :
+ * pas de « combien de deals ? » sur une page sans CRM.
  */
 
 type Exchange = { q: string; a: string; agent?: { name: string; role: string } | null };
+
+type SourceTool = { key: string; label: string; category: string };
+
+/** Exemples par famille de page — chaque exemple exige une catégorie d'outil. */
+const EXAMPLES: Record<string, Array<{ cat: string; q: string }>> = {
+  perf_ventes: [
+    { cat: "crm", q: "Combien de deals gagnés ce mois-ci ?" },
+    { cat: "crm", q: "Quel est le montant du pipeline en cours ?" },
+    { cat: "crm", q: "Quel est mon taux de perte ce trimestre ?" },
+    { cat: "crm", q: "Combien de deals ont une close date dépassée ?" },
+  ],
+  perf_marketing: [
+    { cat: "crm", q: "Combien de contacts MQL ce mois-ci ?" },
+    { cat: "crm", q: "Quelle part de mes contacts devient SQL ?" },
+    { cat: "crm", q: "Combien de deals créés ce mois-ci ?" },
+    { cat: "ads", q: "Quelles campagnes génèrent le plus de contacts ?" },
+  ],
+  audit_paiement_facturation: [
+    { cat: "billing", q: "Quel montant reste impayé aujourd'hui ?" },
+    { cat: "billing", q: "Combien ai-je encaissé ce mois-ci ?" },
+    { cat: "billing", q: "Quelles sont mes plus grosses dépenses par catégorie ?" },
+    { cat: "crm", q: "Quel écart entre le CA signé et le CA facturé ?" },
+  ],
+  audit_service_client: [
+    { cat: "support", q: "Combien de tickets sont encore ouverts ?" },
+    { cat: "billing", q: "Combien d'abonnements annulés ce mois-ci ?" },
+    { cat: "billing", q: "Quel MRR est actif en ce moment ?" },
+  ],
+  audit_donnees: [
+    { cat: "crm", q: "Combien d'entreprises par segment ?" },
+    { cat: "billing", q: "Combien de factures viennent de chaque outil ?" },
+    { cat: "crm", q: "Combien de contacts sont MQL ?" },
+  ],
+  perf_appels: [
+    { cat: "crm", q: "Combien de deals créés cette semaine ?" },
+    { cat: "phone", q: "Quel volume d'activité ce mois-ci ?" },
+  ],
+  // Tableaux de bord créés / Vue d'ensemble : composés selon les outils.
+  board: [
+    { cat: "crm", q: "Combien de deals gagnés ce mois-ci ?" },
+    { cat: "billing", q: "Quel montant facturé ce mois-ci ?" },
+    { cat: "billing", q: "Quel montant reste impayé ?" },
+    { cat: "support", q: "Combien de tickets ouverts ?" },
+    { cat: "crm", q: "Combien d'entreprises par segment ?" },
+  ],
+};
+
+/** Famille d'exemples de la page (les sous-pages héritent de leur parente). */
+function familyOf(pageKey: string): string {
+  if (pageKey === "tableau_bord" || pageKey.startsWith("board_")) return "board";
+  const base = basePageKey(pageKey);
+  if (EXAMPLES[base]) return base;
+  if (pageKey.startsWith("perf_appels")) return "perf_appels";
+  return "board";
+}
+
+/** Exemples réellement posables : filtrés par les catégories d'outils connectés. */
+function buildExamples(pageKey: string, tools: SourceTool[] | null): string[] {
+  const pool = EXAMPLES[familyOf(pageKey)] ?? EXAMPLES.board;
+  // Outils pas encore chargés : on propose les exemples de la page telle quelle.
+  if (tools === null) return pool.slice(0, 3).map((e) => e.q);
+  const cats = new Set(tools.map((t) => t.category));
+  const matched = pool.filter((e) => cats.has(e.cat)).map((e) => e.q);
+  return matched.slice(0, 3);
+}
 
 export function BoardAsk({ pageKey }: { pageKey: string }) {
   const [question, setQuestion] = useState("");
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tools, setTools] = useState<SourceTool[] | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  async function ask() {
-    const q = question.trim();
+  // Outils connectés SUR CETTE PAGE (même source de vérité que le funnel) →
+  // les exemples proposés sont réellement posables.
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/integrations/connected?page_key=${encodeURIComponent(pageKey)}`)
+      .then((r) => (r.ok ? r.json() : { tools: [] }))
+      .then((d) => alive && setTools(Array.isArray(d.tools) ? d.tools : []))
+      .catch(() => alive && setTools([]));
+    return () => { alive = false; };
+  }, [pageKey]);
+
+  const examples = buildExamples(pageKey, tools);
+
+  async function ask(text?: string) {
+    const q = (text ?? question).trim();
     if (!q || busy) return;
     setBusy(true);
     setError(null);
@@ -62,7 +143,11 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
-          placeholder="Pose une question sur ce tableau — « pourquoi le CA baisse ce mois ? », « combien de deals gagnés ? »…"
+          placeholder={
+            examples.length > 0
+              ? `Pose une question sur cette page — « ${examples[0]} »`
+              : "Pose une question sur les données de cette page…"
+          }
           disabled={busy}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
         />
@@ -76,6 +161,23 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           {busy ? "Je calcule…" : "Demander"}
         </button>
       </div>
+
+      {/* Suggestions ADAPTÉES à la page et à ses outils connectés — un clic = la réponse. */}
+      {exchanges.length === 0 && examples.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+          {examples.map((e) => (
+            <button
+              key={e}
+              type="button"
+              disabled={busy}
+              onClick={() => void ask(e)}
+              className="rounded-full border border-fuchsia-200/70 bg-white px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-50"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <p className="mt-2 px-6 text-xs text-rose-600">{error}</p>}
 
