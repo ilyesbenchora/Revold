@@ -21,28 +21,22 @@ export function RevoldLogo({
       {/* Marque — avatar rond avec flocon */}
       <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
         <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-tr from-white/0 to-white/20 ring-1 ring-white/20" />
-        {/* Flocon — traits fins, blanc */}
+        {/* Flocon — même dessin que le filigrane de l'orbe (tour de contrôle) */}
         <svg
           viewBox="0 0 24 24"
           className="relative h-5 w-5 text-white"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.3"
+          strokeWidth="1.2"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden
         >
-          {/* 6 branches */}
-          <line x1="12" y1="2.5" x2="12" y2="21.5" />
-          <line x1="3.8" y1="7.25" x2="20.2" y2="16.75" />
-          <line x1="20.2" y1="7.25" x2="3.8" y2="16.75" />
-          {/* chevrons aux 6 pointes */}
-          <path d="M12 5.6 l-2 -1.9 M12 5.6 l2 -1.9" />
-          <path d="M12 18.4 l-2 1.9 M12 18.4 l2 1.9" />
-          <path d="M17.4 8.9 l0.6 -2.7 M17.4 8.9 l2.7 0.5" />
-          <path d="M6.6 15.1 l-0.6 2.7 M6.6 15.1 l-2.7 -0.5" />
-          <path d="M6.6 8.9 l-2.7 -0.5 M6.6 8.9 l0.6 -2.7" />
-          <path d="M17.4 15.1 l2.7 0.5 M17.4 15.1 l0.6 2.7" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+          <line x1="4.2" y1="7.5" x2="19.8" y2="16.5" />
+          <line x1="19.8" y1="7.5" x2="4.2" y2="16.5" />
+          <path d="M12 3l-1.6 1.9M12 3l1.6 1.9M12 21l-1.6-1.9M12 21l1.6-1.9" />
+          <path d="M4.2 7.5l2.4.3M4.2 16.5l2.4-.3M19.8 7.5l-2.4.3M19.8 16.5l-2.4-.3" />
         </svg>
       </div>
 
