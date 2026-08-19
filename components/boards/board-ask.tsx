@@ -167,9 +167,11 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           disabled={busy}
           className="min-w-[11rem] flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
         />
+        {/* 2 suggestions max, JAMAIS de barre de défilement : ce qui ne tient
+            pas est coupé net (overflow-hidden) ; masquées sur petit écran. */}
         {exchanges.length === 0 && examples.length > 0 && (
-          <div className="flex min-w-0 max-w-[55%] flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:thin]">
-            {examples.map((e) => (
+          <div className="hidden min-w-0 max-w-[55%] flex-nowrap items-center gap-1.5 overflow-hidden md:flex">
+            {examples.slice(0, 2).map((e) => (
               <button
                 key={e}
                 type="button"
