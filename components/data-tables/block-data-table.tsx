@@ -1,11 +1,68 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   blockSourceKey,
   SurgicalAlertButton,
   type SurgicalAggSpec,
   type SurgicalUnit,
 } from "./surgical-alert-button";
+import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-period-bar";
+
+/**
+ * Spec de RECALCUL d'une ligne (période / cohorte à la consultation) : la
+ * ligne est reproductible par computeAggregate — valeur = bucket `target`,
+ * sinon somme des buckets (count/sum), × multiplier éventuel (MRR → ARR).
+ * Les lignes SANS spec (composites : marges, écarts, médianes…) affichent
+ * « — » quand un filtre est actif : jamais un chiffre faux.
+ */
+export type BlockRowSpec = {
+  entity: string;
+  groupBy: string;
+  measure: "count" | "sum" | "weighted";
+  field?: string | null;
+  target?: string | null;
+  multiplier?: number | null;
+  pipeline?: string | null;
+};
+
+/** Cohortes filtrables : standard + mappées (chargées une fois par page). */
+const BASE_COHORTS: { id: string; label: string }[] = [
+  { id: "industry", label: "Secteur d'activité" },
+  { id: "segment", label: "Segment" },
+];
+let cohortOptionsPromise: Promise<{ id: string; label: string }[]> | null = null;
+function fetchCohortOptions(): Promise<{ id: string; label: string }[]> {
+  cohortOptionsPromise ??= fetch("/api/cohort-mappings")
+    .then((r) => (r.ok ? r.json() : { mappings: [] }))
+    .then((d) => {
+      const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
+      const extras = mapped
+        .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
+        .filter((m) => !BASE_COHORTS.some((o) => o.id === m.key))
+        .map((m) => ({ id: m.key as string, label: m.label as string }));
+      return [...BASE_COHORTS, ...extras];
+    })
+    .catch(() => BASE_COHORTS);
+  return cohortOptionsPromise;
+}
+const cohortValuesCache = new Map<string, Promise<string[]>>();
+function fetchCohortValues(key: string): Promise<string[]> {
+  if (!cohortValuesCache.has(key)) {
+    cohortValuesCache.set(
+      key,
+      fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: { entity: "companies", groupBy: `cohort.${key}`, measure: "count" }, all: true, sources: [] }),
+      })
+        .then((r) => r.json())
+        .then((d) => (Array.isArray(d.data) ? (d.data as { name: string }[]).map((r) => r.name).filter(Boolean) : []))
+        .catch(() => []),
+    );
+  }
+  return cohortValuesCache.get(key)!;
+}
 
 /**
  * Cellule additionnelle : une valeur brute, ou un lien (deep link HubSpot,
@@ -27,6 +84,8 @@ export type BlockTableRow = {
    * résultats…), "pos"/"neg" = forcée (encaissements, charges…).
    */
   tone?: "auto" | "pos" | "neg";
+  /** Spec de recalcul (période / cohorte) — absent = ligne composite, non filtrable. */
+  spec?: BlockRowSpec;
 };
 
 /** Classe couleur de la valeur selon la tonalité demandée et le signe. */
@@ -84,6 +143,7 @@ export function BlockDataTable({
   footnote,
   showTotal = false,
   emptyLabel = "Aucune donnée à afficher pour ce bloc.",
+  sources = [],
 }: {
   title: string;
   subtitle?: string;
@@ -101,8 +161,105 @@ export function BlockDataTable({
   /** true seulement si toutes les lignes partagent la même unité additive. */
   showTotal?: boolean;
   emptyLabel?: string;
+  /** Outils sources du bloc (filtre appliqué au recalcul période/cohorte). */
+  sources?: string[];
 }) {
-  const alertRows = rows
+  // ── Consultation : période + cohorte quand au moins une ligne a un spec.
+  // Sans filtre actif : les valeurs SERVEUR d'origine, à l'identique.
+  const filterable = rows.some((r) => r.spec);
+  const [period, setPeriod] = useState<AppliedPeriod | null>(null);
+  const [cohortKey, setCohortKey] = useState<string | null>(null);
+  const [cohortValue, setCohortValue] = useState<string | null>(null);
+  const [cohortOptions, setCohortOptions] = useState(BASE_COHORTS);
+  const [cohortVals, setCohortVals] = useState<string[]>([]);
+  const [recomputing, setRecomputing] = useState(false);
+  // Valeurs recalculées par nom de ligne (null = non calculable) — actives
+  // uniquement quand un filtre l'est.
+  const [override, setOverride] = useState<Map<string, number | null> | null>(null);
+  // Barre repliable, mémorisée par bloc et par navigateur (localStorage).
+  const storageKey = `revold:block-filters:${blockSourceKey(title, subtitle)}`;
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem(storageKey) === "0") setShowFilters(false); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function toggleFilters() {
+    setShowFilters((v) => {
+      try { localStorage.setItem(storageKey, v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+  useEffect(() => {
+    if (filterable) void fetchCohortOptions().then(setCohortOptions);
+  }, [filterable]);
+
+  const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
+  const filtersActive = (period !== null && period.preset !== "all") || activeCohort !== null;
+
+  async function recompute(p: AppliedPeriod | null, co: { key: string; value: string } | null) {
+    const active = (p !== null && p.preset !== "all") || co !== null;
+    if (!active) { setOverride(null); return; }
+    setRecomputing(true);
+    try {
+      const next = new Map<string, number | null>();
+      await Promise.all(
+        rows.map(async (r) => {
+          if (!r.spec) { next.set(r.name, null); return; }
+          try {
+            const res = await fetch("/api/reports/recompute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                query: {
+                  entity: r.spec.entity, groupBy: r.spec.groupBy, measure: r.spec.measure,
+                  field: r.spec.field ?? undefined, pipeline: r.spec.pipeline ?? null, cohort: co,
+                },
+                sources,
+                all: !p || p.preset === "all",
+                date_from: p?.from,
+                date_to: p?.to,
+              }),
+            });
+            const d = await res.json();
+            if (!res.ok) { next.set(r.name, null); return; }
+            const buckets = (Array.isArray(d.data) ? d.data : []) as { name: string; value: number }[];
+            const raw = r.spec.target != null
+              ? (buckets.find((b) => b.name === r.spec!.target)?.value ?? 0)
+              : buckets.reduce((s, b) => s + (b.value || 0), 0);
+            next.set(r.name, Math.round(raw * (r.spec.multiplier ?? 1)));
+          } catch {
+            next.set(r.name, null);
+          }
+        }),
+      );
+      setOverride(next);
+    } finally {
+      setRecomputing(false);
+    }
+  }
+
+  function applyPeriod(p: AppliedPeriod) {
+    const normalized = p.preset === "all" ? null : p;
+    setPeriod(normalized);
+    void recompute(normalized, activeCohort);
+  }
+  function applyCohortKey(key: string | null) {
+    setCohortKey(key);
+    setCohortValue(null);
+    if (key) void fetchCohortValues(key).then(setCohortVals);
+    if (!key || cohortValue) void recompute(period, null);
+  }
+  function applyCohortValue(v: string | null) {
+    setCohortValue(v);
+    void recompute(period, cohortKey && v ? { key: cohortKey, value: v } : null);
+  }
+
+  // Lignes affichées : valeurs serveur, remplacées par le recalcul si filtre actif.
+  const shownRows = filtersActive && override
+    ? rows.map((r) => ({ ...r, value: override.get(r.name) ?? null }))
+    : rows;
+
+  const alertRows = shownRows
     .filter((r) => typeof r.value === "number" && !Number.isNaN(r.value))
     .map((r) => ({ name: r.name, value: r.value as number }));
 
@@ -120,6 +277,18 @@ export function BlockDataTable({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {filterable && (
+            <button
+              onClick={toggleFilters}
+              title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
+              aria-pressed={!showFilters}
+              className={`rounded-lg p-1.5 transition ${
+                showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+            </button>
+          )}
           <SurgicalAlertButton
             title={title}
             scopeLabel={`la table « ${title} »${subtitle ? ` (${subtitle})` : ""}`}
@@ -133,6 +302,47 @@ export function BlockDataTable({
           />
         </div>
       </div>
+
+      {/* ── Barre de consultation (période + cohorte) : lignes reproductibles
+             recalculées, composites en « — » (jamais un chiffre faux). ── */}
+      {filterable && showFilters && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2">
+          <ReportPeriodBar
+            onApply={applyPeriod}
+            loading={recomputing}
+            activeLabel={period?.label ?? "Toutes périodes"}
+            applied={period ?? { preset: "all", from: "", to: "", label: "Toutes les données" }}
+          />
+          <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+            Cohorte
+            <select
+              value={cohortKey ?? ""}
+              disabled={recomputing}
+              onChange={(e) => applyCohortKey(e.target.value || null)}
+              className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+            >
+              <option value="">Aucune</option>
+              {cohortOptions.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+            {cohortKey && (
+              <select
+                value={cohortValue ?? ""}
+                disabled={recomputing}
+                onChange={(e) => applyCohortValue(e.target.value || null)}
+                className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+              >
+                <option value="">Toutes les valeurs</option>
+                {(cohortVals.length > 0 ? cohortVals : cohortValue ? [cohortValue] : []).map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            )}
+          </label>
+          {recomputing && <span className="text-[11px] text-slate-400">Recalcul…</span>}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-xs text-slate-400">{emptyLabel}</p>
@@ -149,7 +359,7 @@ export function BlockDataTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {shownRows.map((r, i) => (
                 <tr key={`${r.name}-${i}`} className="border-t border-slate-100">
                   <td className="px-4 py-2 text-slate-700">{r.name || "—"}</td>
                   <td className={`px-4 py-2 text-right font-semibold ${valueToneClass(r)}`}>
@@ -167,6 +377,11 @@ export function BlockDataTable({
         </div>
       )}
 
+      {filtersActive && shownRows.some((r) => !r.spec) && (
+        <p className="border-t border-slate-100 px-4 py-2 text-[10px] text-amber-600">
+          Les lignes « — » sont des indicateurs composites, non recalculables sur la période/cohorte choisie.
+        </p>
+      )}
       {footnote && (
         <p className="border-t border-slate-100 px-4 py-2 text-[10px] text-slate-400">{footnote}</p>
       )}

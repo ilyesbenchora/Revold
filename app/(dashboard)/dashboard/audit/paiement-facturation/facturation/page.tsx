@@ -124,13 +124,14 @@ export default async function FacturationPage({
           subtitle="invoices"
           team="finance"
           unit="currency"
+          sources={[activeSourceKey]}
           nameLabel="Indicateur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
-            { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
-            { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
-            { name: "Total encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} factures payées`] },
+            { name: "Factures émises", value: data.invoices.length, unit: "count" as const, cells: ["—"], spec: { entity: "invoices", groupBy: "status", measure: "count" as const } },
+            { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency" as const, cells: ["Par facture émise"] },
+            { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count" as const, cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
+            { name: "Total encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency" as const, cells: [`${fmt(data.paidInvoicesCount)} factures payées`], spec: { entity: "invoices", groupBy: "status", measure: "sum" as const, field: "amount_paid" } },
           ]}
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
@@ -158,6 +159,7 @@ export default async function FacturationPage({
           subtitle="invoices"
           team="finance"
           unit="count"
+          sources={[activeSourceKey]}
           nameLabel="Indicateur"
           extraColumns={["Détail"]}
           rows={[
@@ -168,7 +170,7 @@ export default async function FacturationPage({
               unit: "percent",
               cells: ["Payées / émises"],
             },
-            { name: "Encours total", value: data.totalUnpaidAmount > 0 ? data.totalUnpaidAmount : null, unit: "currency", cells: ["Cash à collecter"] },
+            { name: "Encours total", value: data.totalUnpaidAmount > 0 ? data.totalUnpaidAmount : null, unit: "currency" as const, cells: ["Cash à collecter"], spec: { entity: "invoices", groupBy: "status", measure: "sum" as const, field: "amount_due" } },
           ]}
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
@@ -194,8 +196,8 @@ export default async function FacturationPage({
           nameLabel="Indicateur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "Pipeline ouvert", value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null, unit: "currency", cells: [`${fmt(snapshot.openDeals)} deals`] },
-            { name: "Won historique", value: snapshot.wonAmount > 0 ? snapshot.wonAmount : null, unit: "currency", cells: [`${fmt(snapshot.wonDeals)} deals gagnés`] },
+            { name: "Pipeline ouvert", value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null, unit: "currency" as const, cells: [`${fmt(snapshot.openDeals)} deals`], spec: { entity: "deals", groupBy: "status", measure: "sum" as const, field: "amount", target: "En cours" } },
+            { name: "Won historique", value: snapshot.wonAmount > 0 ? snapshot.wonAmount : null, unit: "currency" as const, cells: [`${fmt(snapshot.wonDeals)} deals gagnés`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
             { name: "Devis émis", value: snapshot.totalQuotes, unit: "count", cells: ["HubSpot Quotes"] },
             { name: "Line items", value: snapshot.totalLineItems, unit: "count", cells: ["SKUs vendus"] },
           ]}

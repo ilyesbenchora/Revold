@@ -294,15 +294,16 @@ export default async function PaiementFacturationOverviewPage({
             rows={
               singleIsCrm
                 ? [
-                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency", cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${labelOf(singleKey)})`] },
-                    { name: "Pipeline pondéré", value: singleCa.pipelinePondere > 0 ? singleCa.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
+                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency" as const, cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${labelOf(singleKey)})`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
+                    { name: "Pipeline pondéré", value: singleCa.pipelinePondere > 0 ? singleCa.pipelinePondere : null, unit: "currency" as const, cells: ["Deals en cours × probabilité"], spec: { entity: "deals", groupBy: "status", measure: "weighted" as const, field: "amount", target: "En cours" } },
                   ]
                 : [
-                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency", cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${connectedCrmLabel})`] },
-                    { name: "CA encaissé", value: singleCa.caEncaisse > 0 ? Math.round(singleCa.caEncaisse) : null, unit: "currency", cells: [`Factures payées (${labelOf(singleKey)})`] },
-                    { name: "Écart signé vs encaissé", value: singleCa.caSigne > 0 || singleCa.caEncaisse > 0 ? Math.round(singleCa.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
+                    { name: "CA signé (deals gagnés)", value: singleCa.caSigne > 0 ? Math.round(singleCa.caSigne) : null, unit: "currency" as const, cells: [`${fmt(singleCa.dealsGagnesCount)} deals gagnés (${connectedCrmLabel})`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
+                    { name: "CA encaissé", value: singleCa.caEncaisse > 0 ? Math.round(singleCa.caEncaisse) : null, unit: "currency" as const, cells: [`Factures payées (${labelOf(singleKey)})`], spec: { entity: "invoices", groupBy: "status", measure: "sum" as const, field: "amount_paid" } },
+                    { name: "Écart signé vs encaissé", value: singleCa.caSigne > 0 || singleCa.caEncaisse > 0 ? Math.round(singleCa.ecartSigneEncaisse) : null, unit: "currency" as const, tone: "auto" as const, cells: ["Deals gagnés jamais facturés / encaissés"] },
                   ]
             }
+            sources={singleIsCrm ? [] : [singleKey]}
             footnote={
               singleIsCrm
                 ? "CA signé : somme des deals gagnés du CRM — la facturation vit sur les pages des outils de facturation."
@@ -356,9 +357,9 @@ export default async function PaiementFacturationOverviewPage({
                   nameLabel="Indicateur"
                   extraColumns={["Détail"]}
                   rows={[
-                    { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
-                    { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
-                    { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+                    { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency" as const, cells: ["Mensuel récurrent"], spec: { entity: "subscriptions", groupBy: "status", measure: "sum" as const, field: "mrr", target: "active" } },
+                    { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency" as const, cells: ["Annualisé (MRR × 12)"], spec: { entity: "subscriptions", groupBy: "status", measure: "sum" as const, field: "mrr", target: "active", multiplier: 12 } },
+                    { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count" as const, cells: [`sur ${fmt(data.subscriptions.length)}`], spec: { entity: "subscriptions", groupBy: "status", measure: "count" as const, target: "active" } },
                     { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
                   ]}
                   footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
@@ -385,8 +386,8 @@ export default async function PaiementFacturationOverviewPage({
                 nameLabel="Indicateur"
                 extraColumns={["Détail"]}
                 rows={[
-                  { name: "Factures émises", value: data.invoices.length, unit: "count", cells: ["—"] },
-                  { name: "Encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency", cells: [`${fmt(data.paidInvoicesCount)} payées`] },
+                  { name: "Factures émises", value: data.invoices.length, unit: "count" as const, cells: ["—"], spec: { entity: "invoices", groupBy: "status", measure: "count" as const } },
+                  { name: "Encaissé", value: data.totalPaid > 0 ? data.totalPaid : null, unit: "currency" as const, cells: [`${fmt(data.paidInvoicesCount)} payées`], spec: { entity: "invoices", groupBy: "status", measure: "sum" as const, field: "amount_paid" } },
                   { name: "Factures impayées", value: data.unpaidInvoicesCount, unit: "count", cells: [data.totalUnpaidAmount > 0 ? fmtK(data.totalUnpaidAmount) : "—"] },
                   { name: "Montant moyen", value: data.avgInvoice != null && data.avgInvoice > 0 ? data.avgInvoice : null, unit: "currency", cells: ["Par facture émise"] },
                 ]}
@@ -421,9 +422,9 @@ export default async function PaiementFacturationOverviewPage({
               nameLabel="Indicateur"
               extraColumns={["Détail"]}
               rows={[
-                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency", tone: "pos", cells: ["Flux entrants synchronisés (TTC)"] },
-                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency", tone: "neg", cells: [cf.hasOutflows ? "Flux sortants synchronisés (TTC)" : "Aucun flux sortant synchronisé"] },
-                { name: "Balance", value: cf.hasData ? Math.round(cf.balance) : null, unit: "currency", tone: "auto", cells: ["Encaissements − décaissements"] },
+                { name: "Encaissements", value: cf.encaissementsTotal > 0 ? Math.round(cf.encaissementsTotal) : null, unit: "currency" as const, tone: "pos" as const, cells: ["Flux entrants synchronisés (TTC)"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount_in" } },
+                { name: "Décaissements", value: cf.hasOutflows ? Math.round(cf.decaissementsTotal) : null, unit: "currency" as const, tone: "neg" as const, cells: [cf.hasOutflows ? "Flux sortants synchronisés (TTC)" : "Aucun flux sortant synchronisé"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount_out" } },
+                { name: "Balance", value: cf.hasData ? Math.round(cf.balance) : null, unit: "currency" as const, tone: "auto" as const, cells: ["Encaissements − décaissements"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount" } },
                 { name: "Balance du mois en cours", value: cf.balanceMoisCourant, unit: "currency", tone: "auto", cells: ["Encaissé − décaissé ce mois-ci (mois partiel)"] },
                 { name: "Charges fixes mensuelles", value: cf.chargesFixesMensuelles != null ? Math.round(cf.chargesFixesMensuelles) : null, unit: "currency", tone: "neg", cells: ["Médiane des décaissements (6 mois)"] },
                 { name: cf.balanceSource === "bank" ? "Trésorerie disponible" : "Trésorerie disponible (estimée)", value: cf.tresorerieDisponible != null ? Math.round(cf.tresorerieDisponible) : null, unit: "currency", tone: "auto", cells: [cf.balanceSource === "bank" ? "Solde réel des comptes bancaires (TTC)" : "Cumul TTC des flux synchronisés"] },
@@ -525,8 +526,8 @@ export default async function PaiementFacturationOverviewPage({
                 nameLabel="Indicateur"
                 extraColumns={["Détail"]}
                 rows={[
-                  { name: "CA signé (deals gagnés)", value: margin.caSigne > 0 ? Math.round(margin.caSigne) : null, unit: "currency", cells: [`${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`] },
-                  { name: "CA encaissé", value: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null, unit: "currency", cells: ["Factures payées (facturation)"] },
+                  { name: "CA signé (deals gagnés)", value: margin.caSigne > 0 ? Math.round(margin.caSigne) : null, unit: "currency" as const, cells: [`${fmt(margin.dealsGagnesCount)} deals gagnés (CRM)`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
+                  { name: "CA encaissé", value: margin.caEncaisse > 0 ? Math.round(margin.caEncaisse) : null, unit: "currency" as const, cells: ["Factures payées (facturation)"], spec: { entity: "invoices", groupBy: "status", measure: "sum" as const, field: "amount_paid" } },
                   { name: "Écart signé vs encaissé", value: margin.caSigne > 0 || margin.caEncaisse > 0 ? Math.round(margin.ecartSigneEncaisse) : null, unit: "currency", tone: "auto", cells: ["Deals gagnés jamais facturés / encaissés"] },
                 ]}
                 footnote="Réconciliation du CA : ce que le CRM a signé vs ce que la facturation a réellement encaissé."
@@ -570,7 +571,7 @@ export default async function PaiementFacturationOverviewPage({
                 nameLabel="Indicateur"
                 extraColumns={["Détail"]}
                 rows={[
-                  { name: "Décaissements", value: margin.decaissements != null ? Math.round(margin.decaissements) : null, unit: "currency", tone: "neg", cells: [margin.decaissements != null ? "Flux sortants synchronisés" : "Sync fournisseurs requise"] },
+                  { name: "Décaissements", value: margin.decaissements != null ? Math.round(margin.decaissements) : null, unit: "currency" as const, tone: "neg" as const, cells: [margin.decaissements != null ? "Flux sortants synchronisés" : "Sync fournisseurs requise"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount_out" } },
                   { name: "Marge brute", value: margin.margeBrute != null ? Math.round(margin.margeBrute) : null, unit: "currency", tone: "auto", cells: [margin.margeBrute != null ? "CA encaissé − décaissements" : "Décaissements requis (sync fournisseurs)"] },
                   { name: "Taux de marge", value: margin.tauxMarge, unit: "percent", tone: "auto", cells: ["Marge / CA encaissé"] },
                 ]}
@@ -610,7 +611,7 @@ export default async function PaiementFacturationOverviewPage({
                 nameLabel="Indicateur"
                 extraColumns={["Détail"]}
                 rows={[
-                  { name: "Pipeline pondéré", value: margin.pipelinePondere > 0 ? margin.pipelinePondere : null, unit: "currency", cells: ["Deals en cours × probabilité"] },
+                  { name: "Pipeline pondéré", value: margin.pipelinePondere > 0 ? margin.pipelinePondere : null, unit: "currency" as const, cells: ["Deals en cours × probabilité"], spec: { entity: "deals", groupBy: "status", measure: "weighted" as const, field: "amount", target: "En cours" } },
                   { name: "Prévision de marge", value: margin.previsionMarge, unit: "currency", cells: ["Pipeline pondéré × taux de marge"] },
                 ]}
                 footnote="Projection : la prévision applique le taux de marge courant au pipeline pondéré du CRM."

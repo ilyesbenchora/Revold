@@ -121,9 +121,9 @@ export default async function PaiementPage({
           nameLabel="Indicateur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency", cells: ["Mensuel récurrent"] },
-            { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency", cells: ["Annualisé (MRR × 12)"] },
-            { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count", cells: [`sur ${fmt(data.subscriptions.length)}`] },
+            { name: "MRR", value: data.mrr > 0 ? data.mrr : null, unit: "currency" as const, cells: ["Mensuel récurrent"], spec: { entity: "subscriptions", groupBy: "status", measure: "sum" as const, field: "mrr", target: "active" } },
+            { name: "ARR", value: data.arr > 0 ? data.arr : null, unit: "currency" as const, cells: ["Annualisé (MRR × 12)"], spec: { entity: "subscriptions", groupBy: "status", measure: "sum" as const, field: "mrr", target: "active", multiplier: 12 } },
+            { name: "Subscriptions actives", value: data.activeSubsCount, unit: "count" as const, cells: [`sur ${fmt(data.subscriptions.length)}`], spec: { entity: "subscriptions", groupBy: "status", measure: "count" as const, target: "active" } },
             {
               name: "ARPU",
               value: data.activeSubsCount > 0 ? Math.round(data.mrr / data.activeSubsCount) : null,
