@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { DashboardTabs } from "@/components/dashboard-tabs";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { BoardActions } from "@/components/boards/board-actions";
@@ -50,7 +49,6 @@ export default async function BoardPage({
         <header>
           <h1 className="text-2xl font-semibold text-slate-900">Tableaux de bord</h1>
         </header>
-        <DashboardTabs />
         <BoardTabs boards={boards} templates={templates} />
         <p className="p-8 text-center text-sm text-slate-500">
           Ce tableau de bord n&apos;existe plus.{" "}
@@ -77,7 +75,7 @@ export default async function BoardPage({
         <BoardActions boardId={board.id} name={board.name} />
       </header>
 
-      <DashboardTabs />
+      {/* Rangée UNIQUE : Vue d'ensemble + tableaux créés + ＋ Nouveau tableau. */}
       <BoardTabs boards={boards} templates={templates} />
 
       <BoardFrame supabase={supabase} orgId={orgId} pageKey={pageKey} sourceKeys={[pageKey, "tableau_bord"]} />

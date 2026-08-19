@@ -5,10 +5,10 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 /**
- * Onglets des Tableaux de bord : les tableaux créés par l'utilisateur + le CTA
- * « ＋ Nouveau tableau ». Pas d'onglet « Vue d'ensemble » ici : ce serait une
- * redite de l'onglet de la rangée Dashboard juste au-dessus — le tableau par
- * défaut EST la page /tableaux-de-bord (clic sur « Tableaux de bord »).
+ * LA rangée principale des Tableaux de bord (les pages n'affichent pas la
+ * rangée Dashboard au-dessus — elle ferait doublon) : « Vue d'ensemble »
+ * (le tableau par défaut) + les onglets créés par l'utilisateur + le CTA
+ * « ＋ Nouvel onglet » pour en ajouter, directement dans la rangée.
  * Chaque tableau est une page entièrement personnalisable (tuiles KPI +
  * tables de données) sous sa propre clé board_<id> — sources réglables dans
  * « Outil source par page ».
@@ -29,7 +29,10 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tabs = boards.map((b) => ({ href: `${BASE}/${b.id}`, label: b.name }));
+  const tabs = [
+    { href: BASE, label: "Vue d'ensemble" },
+    ...boards.map((b) => ({ href: `${BASE}/${b.id}`, label: b.name })),
+  ];
 
   async function create() {
     const n = name.trim();
@@ -82,7 +85,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
           onClick={() => { setCreating(true); setError(null); }}
           className="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-fuchsia-600 transition hover:text-fuchsia-700"
         >
-          ＋ Nouveau tableau
+          ＋ Nouvel onglet
         </button>
       </div>
 
@@ -95,13 +98,13 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
           onClick={() => !busy && setCreating(false)}
         >
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-slate-900">Nouveau tableau de bord</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Nouvel onglet</h3>
             <p className="mt-0.5 text-[11px] text-slate-400">
               Une page vierge à composer : tes KPIs (funnel de câblage sur tes outils) et tes tables de données.
               Les sources se choisissent dans Paramètres → Intégrations → Outil source par page.
             </p>
             <label className="mt-4 block text-[11px] font-medium text-slate-500">
-              Nom du tableau
+              Nom de l&apos;onglet
               <input
                 autoFocus
                 value={name}
@@ -164,7 +167,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
                 onClick={create}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? "Création…" : "Créer le tableau"}
+                {busy ? "Création…" : "Créer l'onglet"}
               </button>
             </div>
           </div>

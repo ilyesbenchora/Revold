@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { DashboardTabs } from "@/components/dashboard-tabs";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { availableBoardTemplates } from "@/lib/boards/board-templates";
@@ -49,7 +48,9 @@ export default async function TableauxDeBordPage() {
         </p>
       </header>
 
-      <DashboardTabs />
+      {/* Rangée UNIQUE : Vue d'ensemble + tableaux créés + ＋ Nouveau tableau.
+          (Pas de rangée Dashboard ici — Vue d'ensemble / Mes rapports vivent
+          dans la sidebar et sur leurs propres pages.) */}
       <BoardTabs boards={boards} templates={templates} />
 
       <BoardFrame supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} sourceKeys={[PAGE_KEY]} />
