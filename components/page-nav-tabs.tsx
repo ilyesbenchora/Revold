@@ -9,7 +9,15 @@ import {
   slugifyNavLabel,
   type PageNavDef,
   type PageNavItem,
+  type PageNavScope,
 } from "@/lib/settings/page-nav";
+
+/** Libellés du sélecteur de visibilité d'une page custom. */
+const SCOPE_OPTIONS: { id: PageNavScope; label: (def: PageNavDef) => string }[] = [
+  { id: "me", label: () => "Moi uniquement" },
+  { id: "team", label: (def) => `Équipe ${def.teamLabel}` },
+  { id: "all", label: () => "Tout l'espace de travail" },
+];
 
 /**
  * Barre d'onglets PERSONNALISABLE d'une section (table page_nav) : les
@@ -47,12 +55,12 @@ export function PageNavTabs({ nav }: { nav: PageNavDef }) {
     setEditing(true);
   }
 
-  function patchDraft(i: number, label: string) {
-    setDraft((d) => d.map((t, j) => (j === i ? { ...t, label } : t)));
+  function patchDraft(i: number, p: Partial<PageNavItem>) {
+    setDraft((d) => d.map((t, j) => (j === i ? { ...t, ...p } : t)));
   }
 
   function addPage() {
-    setDraft((d) => [...d, { slug: "", label: "", custom: true }]);
+    setDraft((d) => [...d, { slug: "", label: "", custom: true, scope: "all" }]);
   }
 
   function removePage(i: number) {
@@ -124,19 +132,32 @@ export function PageNavTabs({ nav }: { nav: PageNavDef }) {
           <p className="text-xs font-semibold text-slate-700">Personnaliser les onglets</p>
           <p className="mt-0.5 text-[11px] text-slate-400">
             Renomme les onglets, ou ajoute une page : elle aura ses propres tuiles KPI et tableaux, à composer
-            comme sur les autres pages.
+            comme sur les autres pages. Pour chaque page, choisis qui la voit — toi uniquement, l&apos;équipe de la
+            section, ou tout l&apos;espace de travail.
           </p>
           <div className="mt-3 space-y-2">
             {draft.map((t, i) => (
-              <div key={`${t.custom ? "c" : "s"}-${t.slug}-${i}`} className="flex items-center gap-2">
+              <div key={`${t.custom ? "c" : "s"}-${t.slug}-${i}`} className="flex flex-wrap items-center gap-2">
                 <input
                   value={t.label}
-                  onChange={(e) => patchDraft(i, e.target.value)}
+                  onChange={(e) => patchDraft(i, { label: e.target.value })}
                   placeholder={t.custom ? "Nom de la nouvelle page" : undefined}
                   className="w-72 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-accent"
                 />
                 {t.custom ? (
                   <>
+                    {/* Visibilité de la page : soi-même, l'équipe de la section,
+                        ou tout l'espace de travail. */}
+                    <select
+                      value={t.scope ?? "all"}
+                      onChange={(e) => patchDraft(i, { scope: e.target.value as PageNavScope })}
+                      title="Qui voit cette page ?"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-accent"
+                    >
+                      {SCOPE_OPTIONS.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label(nav)}</option>
+                      ))}
+                    </select>
                     <span className="rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-600">PAGE CUSTOM</span>
                     <button
                       type="button"
