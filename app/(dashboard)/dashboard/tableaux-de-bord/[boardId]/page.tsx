@@ -112,7 +112,13 @@ export default async function BoardPage({
       {/* Rangée 2 — les ONGLETS (sous-pages) du tableau courant + ＋ Nouvel onglet. */}
       <BoardTabs boards={tabsOfRoot} templates={templates} parentId={root.id} />
 
-      <BoardFrame supabase={supabase} orgId={orgId} pageKey={pageKey} sourceKeys={sourceKeys} />
+      <BoardFrame
+        supabase={supabase}
+        orgId={orgId}
+        pageKey={pageKey}
+        sourceKeys={sourceKeys}
+        shareTitle={board.parent_id ? `${root.name} · ${board.name}` : board.name}
+      />
     </section>
   );
 }

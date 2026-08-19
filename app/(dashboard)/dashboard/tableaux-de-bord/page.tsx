@@ -67,7 +67,7 @@ export default async function TableauxDeBordPage() {
           dans la sidebar et sur leurs propres pages.) */}
       <BoardTabs boards={boards} templates={templates} />
 
-      <BoardFrame supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} sourceKeys={[PAGE_KEY]} />
+      <BoardFrame supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} sourceKeys={[PAGE_KEY]} shareTitle="Vue d'ensemble" />
     </section>
   );
 }

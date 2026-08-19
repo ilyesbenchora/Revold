@@ -12,6 +12,7 @@ import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-ti
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { BoardAsk } from "@/components/boards/board-ask";
+import { BoardShareButton } from "@/components/boards/board-share-button";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
 
@@ -20,6 +21,7 @@ export async function BoardFrame({
   orgId,
   pageKey,
   sourceKeys,
+  shareTitle,
 }: {
   supabase: SupabaseClient;
   orgId: string;
@@ -27,6 +29,8 @@ export async function BoardFrame({
   pageKey: string;
   /** Chaîne tool_mappings : clé du tableau, héritage Vue d'ensemble sinon. */
   sourceKeys: string[];
+  /** Titre figé sur la page publique quand le tableau est partagé. */
+  shareTitle?: string;
 }) {
   // Même règle que le gate : aucun outil source mappé pour la page → le CTA
   // « Créer une table de données » renvoie le MÊME message au clic, au lieu
@@ -40,6 +44,11 @@ export async function BoardFrame({
 
   return (
     <>
+      {/* Partage public en lecture seule (lien /partage/<jeton>, révocable). */}
+      <div className="flex justify-end">
+        <BoardShareButton pageKey={pageKey} title={shareTitle} />
+      </div>
+
       {/* Tableau conversationnel : pose une question, l'agent recalcule en
           déterministe — masqué tant qu'aucun outil source n'alimente la page. */}
       {!sourcesLocked && <BoardAsk pageKey={pageKey} />}
