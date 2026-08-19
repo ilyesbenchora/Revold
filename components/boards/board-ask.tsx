@@ -102,6 +102,8 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tools, setTools] = useState<SourceTool[] | null>(null);
+  // Conversation repliée (✕) : l'historique reste, le bloc redevient une ligne.
+  const [collapsed, setCollapsed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Outils connectés SUR CETTE PAGE (même source de vérité que le funnel) →
@@ -141,6 +143,7 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
         ...prev.slice(-4),
         { q, a: d.text, agent: d.agent?.name ? { name: d.agent.name, role: d.agent.role ?? "" } : null },
       ]);
+      setCollapsed(false);
       setQuestion("");
     } catch {
       setError("Réponse impossible — réessaie.");
@@ -177,16 +180,18 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
         </button>
       </div>
 
-      {/* Suggestions ADAPTÉES à la page et à ses outils connectés — un clic = la réponse. */}
+      {/* Suggestions ADAPTÉES à la page et à ses outils connectés — un clic =
+          la réponse. UNE seule ligne compacte (défilement horizontal) : le
+          bloc garde toujours la même hauteur. */}
       {exchanges.length === 0 && examples.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+        <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 pl-6 [scrollbar-width:thin]">
           {examples.map((e) => (
             <button
               key={e}
               type="button"
               disabled={busy}
               onClick={() => void ask(e)}
-              className="rounded-full border border-fuchsia-200/70 bg-white px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap rounded-full border border-fuchsia-200/70 bg-white px-2.5 py-0.5 text-[11px] text-slate-500 transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-50"
             >
               {e}
             </button>
@@ -196,11 +201,31 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
 
       {error && <p className="mt-2 px-6 text-xs text-rose-600">{error}</p>}
 
-      {exchanges.length > 0 && (
-        <div className="mt-3 space-y-3 border-t border-fuchsia-100 px-1 pt-3">
+      {/* Conversation REPLIÉE : une ligne discrète pour la rouvrir. */}
+      {exchanges.length > 0 && collapsed && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          className="mt-1.5 pl-6 text-[11px] font-medium text-slate-400 transition hover:text-fuchsia-600"
+        >
+          ▸ Revoir la conversation ({exchanges.length} réponse{exchanges.length > 1 ? "s" : ""})
+        </button>
+      )}
+
+      {exchanges.length > 0 && !collapsed && (
+        <div className="relative mt-3 space-y-3 border-t border-fuchsia-100 px-1 pt-3">
+          {/* ✕ : replie la conversation — le bloc redevient une simple ligne. */}
+          <button
+            type="button"
+            title="Fermer la conversation"
+            onClick={() => setCollapsed(true)}
+            className="absolute right-0 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+          >
+            ✕
+          </button>
           {exchanges.map((e, i) => (
             <div key={i}>
-              <p className="text-[11px] font-medium text-slate-400">« {e.q} »</p>
+              <p className="pr-7 text-[11px] font-medium text-slate-400">« {e.q} »</p>
               {e.agent && (
                 <p className="mt-1 text-[10px] font-semibold text-fuchsia-600">
                   {e.agent.name}
@@ -214,7 +239,7 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
             Chiffres recalculés en direct sur tes données synchronisées — jamais inventés.{" "}
             <button
               type="button"
-              onClick={() => setExchanges([])}
+              onClick={() => { setExchanges([]); setCollapsed(false); }}
               className="font-medium text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
             >
               Effacer
