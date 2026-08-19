@@ -95,7 +95,7 @@ export default async function PerformanceCommercialePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Ce que ton pipeline vaut vraiment — ce qui avance, ce qui bloque, ce qui va signer.
+            La vérité sur ta performance — ce qui progresse, ce qui décroche, où agir en premier.
           </p>
         </div>
       </header>
