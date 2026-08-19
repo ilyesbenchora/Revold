@@ -879,7 +879,7 @@ const CANONICAL_COHORT_COLS: Record<string, string> = { segment: "segment", indu
  * companies.raw_data.properties) PRIME ; repli sur la colonne canonique
  * (industry/segment). { prop: null, col: null } = cohorte non filtrable.
  */
-async function resolveCohortAccessor(
+export async function resolveCohortAccessor(
   supabase: AgentContext["supabase"],
   orgId: string,
   key: string,
@@ -903,6 +903,44 @@ async function resolveCohortAccessor(
   }
   const col = CANONICAL_COHORT_COLS[key] ?? null;
   return { prop, col: prop ? null : col };
+}
+
+/**
+ * TOUTES les cohortes lisibles sur l'entreprise (Paramètres → Cohortes, objet
+ * Company : propriété mappée dans raw_data) + les canoniques segment/industry
+ * en repli — colonnes « cohorte » du détail (drill-down des rapports).
+ */
+async function listCompanyCohortAccessors(
+  supabase: AgentContext["supabase"],
+  orgId: string,
+): Promise<Array<{ key: string; label: string; prop: string | null; col: string | null }>> {
+  const out: Array<{ key: string; label: string; prop: string | null; col: string | null }> = [];
+  const seen = new Set<string>();
+  try {
+    const { data } = await supabase
+      .from("cohort_mappings")
+      .select("mappings")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const mappings = Array.isArray(data?.mappings)
+      ? (data.mappings as Array<{ key?: string; label?: string; api_name?: string; object?: string }>)
+      : [];
+    for (const m of mappings) {
+      const key = typeof m.key === "string" ? m.key : "";
+      const prop = typeof m.api_name === "string" ? m.api_name.trim() : "";
+      if (!key || !prop || (m.object && m.object !== "companies")) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, label: (typeof m.label === "string" && m.label.trim()) || key, prop, col: null });
+    }
+  } catch {
+    /* table absente → canoniques seulement */
+  }
+  for (const [key, col] of Object.entries(CANONICAL_COHORT_COLS)) {
+    if (seen.has(key)) continue;
+    out.push({ key, label: key === "industry" ? "Secteur d'activité" : "Segment", prop: null, col });
+  }
+  return out.slice(0, 12);
 }
 
 export async function computeAggregate(
@@ -1005,10 +1043,22 @@ export async function computeAggregate(
     if (cohortDimKey && !out.includes("raw_data")) out = `${out}, raw_data`;
     return out;
   };
-  const detailCols = withCohortCols(withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns));
+  // Mode détail : clé de jointure vers l'entreprise (colonnes cohortes) —
+  // id pour companies, company_id pour les entités rattachées.
+  const withDetailLinkCols = (cols: string) => {
+    if (!wantDetail) return cols;
+    let out = cols;
+    if (entity === "companies") {
+      if (!/(^|,\s*)id(\s*,|$)/.test(out)) out = `id, ${out}`;
+    } else if (["deals", "invoices", "subscriptions", "contacts", "tickets", "transactions"].includes(entity) && !out.includes("company_id")) {
+      out = `${out}, company_id`;
+    }
+    return out;
+  };
+  const detailCols = withDetailLinkCols(withCohortCols(withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns)));
   let { data, error } = await buildQuery(detailCols);
-  if (error && wantDetail && detailCols !== withCohortCols(withExtraCols(spec.columns))) {
-    ({ data, error } = await buildQuery(withCohortCols(withExtraCols(spec.columns))));
+  if (error && wantDetail && detailCols !== withDetailLinkCols(withCohortCols(withExtraCols(spec.columns)))) {
+    ({ data, error } = await buildQuery(withDetailLinkCols(withCohortCols(withExtraCols(spec.columns)))));
   }
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
@@ -1149,6 +1199,52 @@ export async function computeAggregate(
     const fields = DETAIL_FIELDS[entity];
     if (!fields) return { error: `Détail non disponible pour l'entité ${entity}.` };
     const LIMIT = 200;
+    const sliced = matched.slice(0, LIMIT);
+    const columns: DetailColumn[] = fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind, default: f.default }));
+    const records: unknown[][] = sliced.map((r) => fields.map((f) => f.value(r)));
+
+    // ── Colonnes COHORTES (Paramètres → Cohortes, objet Entreprise) :
+    // suggestions activables dans « Colonnes » du détail — la valeur est lue
+    // sur l'entreprise liée à chaque enregistrement (2e requête bornée à 200
+    // ids). Sur companies, segment/industry canoniques sont déjà des colonnes :
+    // seules les cohortes MAPPÉES s'ajoutent. Best effort : un échec n'enlève
+    // rien au détail standard.
+    try {
+      const cohorts = (await listCompanyCohortAccessors(supabase, orgId)).filter(
+        (c) => entity !== "companies" || c.prop,
+      );
+      const idOf = (r: Record<string, unknown>) =>
+        entity === "companies" ? r.id : r.company_id;
+      const ids = [...new Set(sliced.map(idOf).filter((v): v is string => typeof v === "string" && !!v))];
+      if (cohorts.length > 0 && ids.length > 0) {
+        const { data: comps } = await supabase
+          .from("companies")
+          .select("id, segment, industry, raw_data")
+          .eq("organization_id", orgId)
+          .in("id", ids);
+        const byId = new Map(
+          ((comps ?? []) as Array<{ id: string; segment?: unknown; industry?: unknown; raw_data?: unknown }>).map((c) => [c.id, c]),
+        );
+        const readCohort = (companyId: unknown, c: { prop: string | null; col: string | null }): string => {
+          const comp = typeof companyId === "string" ? byId.get(companyId) : null;
+          if (!comp) return "—";
+          if (c.prop) {
+            const props = (comp.raw_data as { properties?: Record<string, unknown> } | null)?.properties;
+            const v = props?.[c.prop];
+            return v == null || v === "" ? "—" : String(v);
+          }
+          const v = (comp as Record<string, unknown>)[c.col!];
+          return v == null || v === "" ? "—" : String(v);
+        };
+        for (const c of cohorts) columns.push({ id: `cohort_${c.key}`, label: c.label, kind: "text", default: false });
+        sliced.forEach((r, i) => {
+          for (const c of cohorts) records[i].push(readCohort(idOf(r), c));
+        });
+      }
+    } catch {
+      /* cohortes indisponibles → détail standard inchangé */
+    }
+
     return {
       hasData: matched.length > 0,
       entity,
@@ -1156,10 +1252,10 @@ export async function computeAggregate(
       bucket,
       totalRecords: matched.length,
       truncated: matched.length > LIMIT,
-      // TOUTES les colonnes du catalogue (default = affichée d'emblée) :
-      // le client choisit celles qu'il affiche, sans re-requête.
-      columns: fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind, default: f.default })),
-      records: matched.slice(0, LIMIT).map((r) => fields.map((f) => f.value(r))),
+      // TOUTES les colonnes du catalogue (default = affichée d'emblée, les
+      // cohortes en suggestions) : le client choisit, sans re-requête.
+      columns,
+      records,
     };
   }
 
