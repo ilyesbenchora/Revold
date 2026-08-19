@@ -260,8 +260,18 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   audit_donnees: "proprietes",
 };
 
+/**
+ * Clé racine d'une clé de page pour les presets/équipe/agent : identité si la
+ * page est connue, sinon la racine par préfixe — les pages custom
+ * (perf_ventes_<slug>) héritent des presets de leur page parente.
+ */
+export function baseTableKey(pageKey: string): string {
+  if (TABLE_PRESETS[pageKey]) return pageKey;
+  return Object.keys(TABLE_PRESETS).find((b) => pageKey.startsWith(`${b}_`)) ?? pageKey;
+}
+
 export function presetsForPage(pageKey: string): TablePreset[] {
-  return TABLE_PRESETS[pageKey] ?? [];
+  return TABLE_PRESETS[baseTableKey(pageKey)] ?? [];
 }
 
 /** Un outil connecté, tel que renvoyé par /api/integrations/connected. */

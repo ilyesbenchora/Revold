@@ -12,6 +12,7 @@ import {
   entityLabel,
   dimLabel,
   presetsForPage,
+  baseTableKey,
   filterPresetsBySources,
   PAGE_AGENT_KEY,
   type SourceTool,
@@ -251,9 +252,11 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
 export function PageDataTables({ pageKey }: { pageKey: string }) {
   const router = useRouter();
   const allPresets = useMemo(() => presetsForPage(pageKey), [pageKey]);
-  const alertTeam = PAGE_ALERT_TEAM[pageKey] ?? "revops";
-  const agentName = getAgentPersona(PAGE_AGENT_KEY[pageKey]).name;
-  const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[pageKey]) ? "Elle" : "Il";
+  // Pages custom (perf_ventes_<slug>…) : équipe/agent hérités de la page racine.
+  const baseKey = baseTableKey(pageKey);
+  const alertTeam = PAGE_ALERT_TEAM[baseKey] ?? "revops";
+  const agentName = getAgentPersona(PAGE_AGENT_KEY[baseKey]).name;
+  const agentPronoun = agentIsFeminine(PAGE_AGENT_KEY[baseKey]) ? "Elle" : "Il";
   const [tables, setTables] = useState<SavedTable[]>([]);
   // ── Drag & drop des tables (mode « Personnaliser les KPIs ») : réordonner en
   // glissant, positions persistées (page_data_tables.position), optimiste. ──
