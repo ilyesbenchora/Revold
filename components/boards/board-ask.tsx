@@ -153,7 +153,7 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
   }
 
   return (
-    <div className="rounded-2xl border border-fuchsia-200/60 bg-gradient-to-r from-fuchsia-50/40 via-white to-white p-3">
+    <div data-tour="board-ask" className="rounded-2xl border border-fuchsia-200/60 bg-gradient-to-r from-fuchsia-50/40 via-white to-white p-3">
       {/* TOUT sur UNE ligne : champ de question + suggestions adaptées (un
           clic = la réponse, défilement horizontal si étroites) + dictée + CTA. */}
       <div className="flex items-center gap-2">

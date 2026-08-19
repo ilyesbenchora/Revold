@@ -84,7 +84,7 @@ export function BoardShareButton({ pageKey, title }: { pageKey: string; title?: 
   }
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="board-share">
       <button
         type="button"
         onClick={() => (open ? setOpen(false) : void openPanel())}

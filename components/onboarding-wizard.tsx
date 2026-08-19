@@ -73,11 +73,12 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
     router.push("/dashboard");
   }
 
-  async function complete() {
+  /** Clôt l'onboarding puis emmène vers la destination choisie (défaut : home). */
+  async function complete(destination: string = "/dashboard") {
     setBusy("complete");
     await patch({ step: "completed" });
     setBusy(null);
-    router.push("/dashboard");
+    router.push(destination);
   }
 
   const totalSteps = 4;
@@ -282,16 +283,27 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
           </div>
           <h2 className="mt-4 text-2xl font-bold text-slate-900">Vous êtes prêt</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Votre Revenue Intelligence est active. Direction votre 1er insight.
+            Vos données sont connectées. Prochaine étape : votre PREMIER tableau de bord — partez d&apos;un
+            template avec aperçu (3 minutes), tout reste modifiable ensuite.
           </p>
-          <button
-            type="button"
-            onClick={complete}
-            disabled={busy !== null}
-            className="mt-6 rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-          >
-            {busy === "complete" ? "…" : "Voir mon 1er insight →"}
-          </button>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => void complete("/dashboard/templates")}
+              disabled={busy !== null}
+              className="rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {busy === "complete" ? "…" : "Créer mon premier tableau →"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void complete()}
+              disabled={busy !== null}
+              className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              Aller au dashboard
+            </button>
+          </div>
         </div>
       )}
     </section>

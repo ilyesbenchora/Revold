@@ -23,6 +23,7 @@ import {
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
 import { InfoHint } from "@/components/info-hint";
 import { NoPageSourcesNotice } from "@/components/no-page-sources-notice";
+import { FeatureTour } from "@/components/feature-tour";
 import { WiredToolsRow } from "@/components/wired-tools-row";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
@@ -1432,8 +1433,29 @@ export function PageDataTables({
             {/* ── ÉTAPE 1 : Données à croiser (haut) + KPI (bas) ── */}
             {step === 1 && (
               <div className="space-y-5">
+                {/* Tutoriel « premiers pas » du funnel — première ouverture uniquement. */}
+                <FeatureTour
+                  tourId="data-funnel"
+                  steps={[
+                    {
+                      anchor: "funnel-sources",
+                      title: "1. Choisis tes sources",
+                      text: "Les outils à croiser pour ce KPI — la liste des KPIs proposés s'adapte automatiquement.",
+                    },
+                    {
+                      anchor: "funnel-kpis",
+                      title: "2. Choisis ton KPI",
+                      text: "Un KPI suggéré (câblage vérifié avant création, preuve chiffrée à l'appui)…",
+                    },
+                    {
+                      anchor: "funnel-custom",
+                      title: "…ou décris-le toi-même",
+                      text: "L'agent le câble sur tes vraies données et te montre le câblage avant de créer quoi que ce soit.",
+                    },
+                  ]}
+                />
                 {/* Données à croiser — thème fuchsia */}
-                <div className="rounded-2xl border border-fuchsia-200/70 bg-gradient-to-br from-fuchsia-50/70 via-white to-white p-4">
+                <div data-tour="funnel-sources" className="rounded-2xl border border-fuchsia-200/70 bg-gradient-to-br from-fuchsia-50/70 via-white to-white p-4">
                   <h3 className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
                     <span className="inline-block h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500" />
                     Quelles données croiser ?
@@ -1514,7 +1536,7 @@ export function PageDataTables({
                 </div>
 
                 {/* Suggestions de KPI — en dessous des données à croiser */}
-                <div>
+                <div data-tour="funnel-kpis">
                   <h3 className="text-base font-semibold text-slate-900">Quelle donnée visualiser ?</h3>
                   <p className="mt-1 text-xs text-slate-500">
                     {selectedTools.length > 0
@@ -1541,7 +1563,7 @@ export function PageDataTables({
                   </div>
 
                   {/* KPI personnalisé — construit sur mesure par l'agent de la page. */}
-                  <div className="mt-4 rounded-xl border border-dashed border-fuchsia-300/60 bg-fuchsia-50/30 p-3">
+                  <div data-tour="funnel-custom" className="mt-4 rounded-xl border border-dashed border-fuchsia-300/60 bg-fuchsia-50/30 p-3">
                     <label className="flex items-center gap-1.5 text-xs font-semibold text-fuchsia-600">
                       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                       KPI personnalisé

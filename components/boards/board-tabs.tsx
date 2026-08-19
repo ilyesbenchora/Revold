@@ -100,6 +100,8 @@ export function BoardTabs({
         <button
           type="button"
           onClick={() => { setCreating(true); setError(null); }}
+          // Ancre du tutoriel « premiers pas » — rangée racine uniquement.
+          {...(isTabRow ? {} : { "data-tour": "board-create" })}
           className="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-fuchsia-600 transition hover:text-fuchsia-700"
         >
           {isTabRow ? "＋ Nouvel onglet" : "＋ Nouveau tableau"}

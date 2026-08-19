@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { BoardTabs, type BoardTab } from "@/components/boards/board-tabs";
+import { FeatureTour } from "@/components/feature-tour";
 import { BoardFrame } from "@/components/boards/board-frame";
 import { availableBoardTemplates } from "@/lib/boards/board-templates";
 import { getBoardViewer, listVisibleBoards } from "@/lib/boards/visibility";
@@ -48,6 +49,28 @@ export default async function TableauxDeBordPage() {
       <BoardTabs boards={boards} templates={templates} />
 
       <BoardFrame supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} sourceKeys={[PAGE_KEY]} shareTitle="Vue d'ensemble" />
+
+      {/* Premiers pas (une seule fois) : composer → interroger → partager. */}
+      <FeatureTour
+        tourId="boards"
+        steps={[
+          {
+            anchor: "board-create",
+            title: "Compose ton tableau",
+            text: "Crée un tableau vierge ici, ou pars d'un template avec aperçu depuis la page Templates (menu Dashboard). Chaque tableau peut avoir ses onglets.",
+          },
+          {
+            anchor: "board-ask",
+            title: "Pose ta question à l'agent",
+            text: "« Combien de deals gagnés ce mois-ci ? » — l'agent de la page recalcule sur tes vraies données, jamais un chiffre inventé.",
+          },
+          {
+            anchor: "board-share",
+            title: "Partage en lecture seule",
+            text: "Un lien public révocable pour ton board ou un client — les chiffres se recalculent à chaque ouverture.",
+          },
+        ]}
+      />
     </section>
   );
 }
