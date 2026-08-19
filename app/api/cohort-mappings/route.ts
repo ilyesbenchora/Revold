@@ -34,6 +34,25 @@ function cleanMappings(v: unknown): CohortMapping[] | null {
   return out;
 }
 
+/** Liste le mapping des cohortes de l'organisation ([] si aucune / table absente). */
+export async function GET() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
+  try {
+    const { data } = await supabase
+      .from("cohort_mappings")
+      .select("mappings")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    return NextResponse.json({ mappings: Array.isArray(data?.mappings) ? data.mappings : [] });
+  } catch {
+    return NextResponse.json({ mappings: [] });
+  }
+}
+
 /** Enregistre (upsert) le mapping des cohortes de l'organisation. */
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();

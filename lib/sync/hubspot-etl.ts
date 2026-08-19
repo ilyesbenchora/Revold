@@ -356,6 +356,31 @@ async function loadCustomIdProperties(supabase: SupabaseClient, orgId: string): 
   }
 }
 
+/**
+ * Propriétés des COHORTES mappées (Paramètres → Cohortes) portées par l'objet
+ * Company : demandées à l'API pour que leurs valeurs arrivent dans
+ * companies.raw_data — c'est là que le filtre cohorte des rapports les lit.
+ */
+async function loadCohortProperties(supabase: SupabaseClient, orgId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from("cohort_mappings")
+      .select("mappings")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const mappings = Array.isArray(data?.mappings)
+      ? (data.mappings as Array<{ api_name?: string; object?: string }>)
+      : [];
+    const props = mappings
+      .filter((m) => !m.object || m.object === "companies")
+      .map((m) => (m.api_name ?? "").trim())
+      .filter((p) => p && /^[a-z0-9_]+$/i.test(p));
+    return [...new Set(props)];
+  } catch {
+    return [];
+  }
+}
+
 type ContractProps = { start: string | null; end: string | null };
 
 /**
@@ -952,6 +977,8 @@ export async function syncCrmObject(
     // (companies/deals) : les propriétés doivent être demandées à l'API
     // HubSpot pour apparaître dans les payloads.
     const customIdProps = type === "companies" ? await loadCustomIdProperties(supabase, orgId) : [];
+    // Cohortes mappées (objet Company) : valeurs embarquées dans raw_data.
+    const cohortProps = type === "companies" ? await loadCohortProperties(supabase, orgId) : [];
     const contractProps = type === "companies" || type === "deals"
       ? await loadContractProperties(supabase, orgId)
       : null;
@@ -961,7 +988,7 @@ export async function syncCrmObject(
         ? contractProps?.deal ?? { start: null, end: null }
         : { start: null, end: null };
     const contractExtra = [contractForType.start, contractForType.end].filter((p): p is string => !!p);
-    const { records, latest } = await syncViaSearch(token, type, watermark, [...customIdProps, ...contractExtra]);
+    const { records, latest } = await syncViaSearch(token, type, watermark, [...customIdProps, ...cohortProps, ...contractExtra]);
 
     let upserted = 0;
     if (type === "contacts") upserted = await upsertContacts(supabase, orgId, records);

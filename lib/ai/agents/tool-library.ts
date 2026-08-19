@@ -870,6 +870,41 @@ const DETAIL_FIELDS: Record<string, DetailField[]> = {
  * seules les bornes de dates changent). Filtre par source (cross-source) et par
  * période exacte (date_from/date_to).
  */
+/** Colonnes canoniques des cohortes standard (repli sans mapping). */
+const CANONICAL_COHORT_COLS: Record<string, string> = { segment: "segment", industry: "industry" };
+
+/**
+ * Où lire la valeur d'une cohorte pour une entreprise : la propriété CRM
+ * mappée dans Paramètres → Cohortes (objet Company — valeur synchronisée dans
+ * companies.raw_data.properties) PRIME ; repli sur la colonne canonique
+ * (industry/segment). { prop: null, col: null } = cohorte non filtrable.
+ */
+async function resolveCohortAccessor(
+  supabase: AgentContext["supabase"],
+  orgId: string,
+  key: string,
+): Promise<{ prop: string | null; col: string | null }> {
+  let prop: string | null = null;
+  try {
+    const { data } = await supabase
+      .from("cohort_mappings")
+      .select("mappings")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const mappings = Array.isArray(data?.mappings)
+      ? (data.mappings as Array<{ key?: string; api_name?: string; object?: string }>)
+      : [];
+    const m = mappings.find(
+      (x) => x.key === key && (x.api_name ?? "").trim() && (!x.object || x.object === "companies"),
+    );
+    if (m) prop = (m.api_name as string).trim();
+  } catch {
+    /* table absente → repli canonique */
+  }
+  const col = CANONICAL_COHORT_COLS[key] ?? null;
+  return { prop, col: prop ? null : col };
+}
+
 export async function computeAggregate(
   supabase: AgentContext["supabase"],
   orgId: string,
@@ -895,12 +930,18 @@ export async function computeAggregate(
   if (extraDim && !EXTRA_ENTITIES.has(entity)) {
     return { error: `Dimension extra.* non disponible pour ${entity} (réservée aux entités des connecteurs sur mesure).` };
   }
+  // Dimension COHORTE dynamique (companies uniquement) : « cohort.<key> » —
+  // résolue après le fetch (propriété mappée dans raw_data, sinon colonne
+  // canonique). Sert aussi de source des valeurs du filtre cohorte des rapports.
+  const cohortDimKey = entity === "companies" && groupBy.startsWith("cohort.") ? groupBy.slice(7) : null;
   const dimFn = extraDim
     ? (r: Record<string, unknown>) => {
         const v = readExtra(r, extraDim);
         return v == null || v === "" ? null : String(v);
       }
-    : spec.dims[groupBy];
+    : cohortDimKey
+      ? () => null // placeholder — remplacé par resolveDim après résolution du mapping
+      : spec.dims[groupBy];
   if (!dimFn) return { error: `Dimension non supportée pour ${entity}: ${groupBy}. Choisir: ${Object.keys(spec.dims).join(", ")}.` };
   const measure = ["count", "sum", "avg", "weighted"].includes(String(input.measure)) ? String(input.measure) : "count";
   // « weighted » (projection pondérée par la probabilité de closing) n'a de sens
@@ -929,13 +970,13 @@ export async function computeAggregate(
   const to = input.date_to && dateRe.test(input.date_to) ? input.date_to : null;
   const dateCol = dateColumnFor(entity, groupBy);
 
-  // ── Filtre COHORTE (segment / secteur de l'ENTREPRISE) ──
-  // Colonnes canoniques uniquement (déterministe) ; « inconnu » = valeur null.
-  const COHORT_COLS: Record<string, string> = { segment: "segment", industry: "industry" };
+  // ── Filtre COHORTE : segment/industry canoniques + TOUTES les cohortes de
+  // Paramètres → Cohortes (objet Company) — leurs valeurs vivent dans
+  // companies.raw_data (propriétés demandées par la sync). « inconnu » = null.
   const COHORT_ENTITIES = new Set(["companies", "deals", "contacts", "invoices", "subscriptions", "tickets"]);
-  const cohortCol = input.cohort?.key ? COHORT_COLS[String(input.cohort.key)] : undefined;
+  const cohortKey = input.cohort?.key ? String(input.cohort.key) : null;
   const cohortValue =
-    cohortCol && typeof input.cohort?.value === "string" && input.cohort.value !== "" ? input.cohort.value : null;
+    cohortKey && typeof input.cohort?.value === "string" && input.cohort.value !== "" ? input.cohort.value : null;
   if (cohortValue && !COHORT_ENTITIES.has(entity)) {
     return { error: `Filtre cohorte non disponible pour ${entity} (entreprises requises : deals, contacts, factures, abonnements, tickets).` };
   }
@@ -955,9 +996,15 @@ export async function computeAggregate(
   // Les dimensions/champs extra.* lisent source_metadata → colonne ajoutée au select.
   const withExtraCols = (cols: string) =>
     (extraDim || extraField) && !cols.includes("source_metadata") ? `${cols}, source_metadata` : cols;
-  // Filtre cohorte hors companies : la jointure se fait en JS via company_id.
-  const withCohortCols = (cols: string) =>
-    cohortValue && entity !== "companies" && !cols.includes("company_id") ? `${cols}, company_id` : cols;
+  // Filtre cohorte : jointure JS via company_id (autres entités) ou id
+  // (companies) ; dimension cohort.<key> → raw_data (propriétés mappées).
+  const withCohortCols = (cols: string) => {
+    let out = cols;
+    if (cohortValue && entity !== "companies" && !out.includes("company_id")) out = `${out}, company_id`;
+    if (cohortValue && entity === "companies" && !/(^|,\s*)id(\s*,|$)/.test(out)) out = `id, ${out}`;
+    if (cohortDimKey && !out.includes("raw_data")) out = `${out}, raw_data`;
+    return out;
+  };
   const detailCols = withCohortCols(withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns));
   let { data, error } = await buildQuery(detailCols);
   if (error && wantDetail && detailCols !== withCohortCols(withExtraCols(spec.columns))) {
@@ -969,19 +1016,40 @@ export async function computeAggregate(
   let resolveDim = dimFn;
   let scoped = rows;
 
-  // ── Application du filtre cohorte ──
-  if (cohortValue && cohortCol) {
-    if (entity === "companies") {
-      scoped = scoped.filter((r) => String(r[cohortCol] ?? "inconnu") === cohortValue);
-    } else {
-      // Entreprises de la cohorte → Set d'ids → jointure JS sur company_id.
-      let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
-      cq = cohortValue === "inconnu" ? cq.is(cohortCol, null) : cq.eq(cohortCol, cohortValue);
-      const { data: comp, error: compErr } = await cq;
-      if (compErr) throw new Error(compErr.message);
-      const ids = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
-      scoped = scoped.filter((r) => typeof r.company_id === "string" && ids.has(r.company_id));
+  // ── Dimension cohorte : lecture mappée (raw_data) sinon canonique ──
+  if (cohortDimKey) {
+    const acc = await resolveCohortAccessor(supabase, orgId, cohortDimKey);
+    if (!acc.prop && !acc.col) {
+      return { error: `Cohorte inconnue ou non mappée : ${cohortDimKey}. Mappe-la dans Paramètres → Cohortes.` };
     }
+    resolveDim = (r) => {
+      if (acc.prop) {
+        const rd = r.raw_data as Record<string, unknown> | null;
+        const props = rd?.properties as Record<string, unknown> | undefined;
+        const v = props?.[acc.prop];
+        return v == null || v === "" ? "inconnu" : String(v);
+      }
+      return String(r[acc.col!] ?? "inconnu");
+    };
+  }
+
+  // ── Application du filtre cohorte (mêmes règles de lecture que la dim) ──
+  if (cohortValue && cohortKey) {
+    const acc = await resolveCohortAccessor(supabase, orgId, cohortKey);
+    if (!acc.prop && !acc.col) {
+      return { error: `Cohorte inconnue ou non mappée : ${cohortKey}. Mappe-la dans Paramètres → Cohortes.` };
+    }
+    // Entreprises de la cohorte → Set d'ids → jointure JS (company_id / id).
+    const target = acc.prop ? `raw_data->properties->>${acc.prop}` : acc.col!;
+    let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
+    cq = cohortValue === "inconnu" ? cq.is(target, null) : cq.eq(target, cohortValue);
+    const { data: comp, error: compErr } = await cq;
+    if (compErr) throw new Error(compErr.message);
+    const ids = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
+    scoped = scoped.filter((r) => {
+      const cid = entity === "companies" ? r.id : r.company_id;
+      return typeof cid === "string" && ids.has(cid);
+    });
   }
   // Probabilité de closing par deal (0..1) pour la mesure « weighted ».
   // Défaut : probabilité de l'étape canonique ; enrichie via HubSpot dans le bloc deals.

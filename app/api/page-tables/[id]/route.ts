@@ -60,8 +60,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // Option d'affichage : barre de filtres visible/masquée à la consultation.
   if (typeof body.show_filters === "boolean") update.show_filters = body.show_filters;
   // Filtre cohorte (clé + valeur ensemble ; null = retiré) — sans agent.
-  const VALID_COHORT_KEYS = new Set(["segment", "industry"]);
-  if (body.cohort_key === null || (typeof body.cohort_key === "string" && VALID_COHORT_KEYS.has(body.cohort_key))) {
+  // Clés : cohortes standard (segment/industry) ET cohortes mappées de
+  // Paramètres → Cohortes (custom_<ts>…) — le moteur valide le mapping.
+  const isValidCohortKey = (k: string) => /^[a-z0-9_.-]{1,60}$/i.test(k);
+  if (body.cohort_key === null || (typeof body.cohort_key === "string" && isValidCohortKey(body.cohort_key))) {
     update.cohort_key = body.cohort_key;
     update.cohort_value =
       body.cohort_key === null ? null : typeof body.cohort_value === "string" && body.cohort_value ? body.cohort_value : null;

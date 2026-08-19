@@ -40,7 +40,9 @@ export type SavedTable = {
   granularity?: string | null;
 };
 
-/** Cohortes filtrables à la consultation (colonnes canoniques companies). */
+/** Cohortes standard toujours filtrables (colonnes canoniques companies) —
+ * complétées dynamiquement par les cohortes mappées de Paramètres → Cohortes
+ * (objet Company), y compris les customs. */
 const COHORT_OPTIONS: { id: string; label: string }[] = [
   { id: "industry", label: "Secteur d'activité" },
   { id: "segment", label: "Segment" },
@@ -114,6 +116,25 @@ export function DataTableCard({
   // Valeurs distinctes par cohorte (chargées à la demande, mises en cache).
   const [cohortValues, setCohortValues] = useState<Record<string, string[]>>({});
   const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
+  // Cohortes proposées : standard + celles de Paramètres → Cohortes (objet Company).
+  const [cohortOptions, setCohortOptions] = useState<{ id: string; label: string }[]>(COHORT_OPTIONS);
+  useEffect(() => {
+    if (!cohortable) return;
+    let alive = true;
+    fetch("/api/cohort-mappings")
+      .then((r) => (r.ok ? r.json() : { mappings: [] }))
+      .then((d) => {
+        if (!alive) return;
+        const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
+        const extras = mapped
+          .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
+          .filter((m) => !COHORT_OPTIONS.some((o) => o.id === m.key))
+          .map((m) => ({ id: m.key as string, label: m.label as string }));
+        if (extras.length > 0) setCohortOptions([...COHORT_OPTIONS, ...extras]);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [cohortable]);
 
   // ── Drill-down : clic sur un chiffre (barre, segment, point, ligne, total)
   // → modal listant les enregistrements sous-jacents (deals, factures…). ──
@@ -245,7 +266,9 @@ export function DataTableCard({
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: { entity: "companies", groupBy: key, measure: "count" }, all: true, sources: [] }),
+        // Dimension cohort.<key> : mêmes règles de lecture que le filtre du
+        // moteur (propriété mappée sinon colonne canonique) — valeurs exactes.
+        body: JSON.stringify({ query: { entity: "companies", groupBy: `cohort.${key}`, measure: "count" }, all: true, sources: [] }),
       });
       const d = await res.json().catch(() => ({}));
       const vals = (Array.isArray(d.data) ? (d.data as { name: string }[]) : []).map((r) => r.name).filter(Boolean);
@@ -423,7 +446,7 @@ export function DataTableCard({
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
             {pipeline && <> · Pipeline {pipelineName ?? pipeline}</>}
             {activeCohort && (
-              <> · {COHORT_OPTIONS.find((c) => c.id === activeCohort.key)?.label ?? activeCohort.key} : {activeCohort.value}</>
+              <> · {cohortOptions.find((c) => c.id === activeCohort.key)?.label ?? activeCohort.key} : {activeCohort.value}</>
             )}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
@@ -563,7 +586,7 @@ export function DataTableCard({
                 className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
               >
                 <option value="">Aucune</option>
-                {COHORT_OPTIONS.map((c) => (
+                {cohortOptions.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
