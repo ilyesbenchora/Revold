@@ -91,6 +91,52 @@ const NO_MATCH_TOOL: Anthropic.Tool = {
   },
 };
 
+/**
+ * Champs MÉTIER supplémentaires des connecteurs sur mesure SÉLECTIONNÉS —
+ * injectés dans le catalogue de l'agent : il peut câbler « marge brute
+ * totale » sur field "extra.marge_brute" ou une répartition sur
+ * groupBy "extra.type_contrat". Même contrat de fiabilité : la spec produite
+ * est revérifiée par computeAggregate (qui supporte extra.*) avant création.
+ */
+async function extraFieldsDoc(
+  supabase: Parameters<typeof computeAggregate>[0],
+  orgId: string,
+  sources: string[],
+): Promise<string> {
+  const customKeys = new Set(sources.filter((s) => s.startsWith("custom_")));
+  if (customKeys.size === 0) return "";
+  try {
+    const { data } = await supabase
+      .from("custom_connector_endpoints")
+      .select("entity, extra_fields, is_active, custom_connectors(key, label)")
+      .eq("organization_id", orgId);
+    const lines: string[] = [];
+    for (const ep of data ?? []) {
+      if (ep.is_active === false) continue;
+      const conn = ep.custom_connectors as { key?: string; label?: string } | null;
+      if (!conn?.key || !customKeys.has(`custom_${conn.key}`)) continue;
+      const fields = (Array.isArray(ep.extra_fields) ? ep.extra_fields : []) as Array<{
+        id?: string; label?: string; kind?: string;
+      }>;
+      for (const f of fields) {
+        if (!f?.id || !f.label) continue;
+        lines.push(
+          `entité ${ep.entity} (${conn.label ?? conn.key}) : ${f.kind === "number" ? `field "extra.${f.id}"` : `groupBy "extra.${f.id}"`} = « ${f.label} » (${f.kind === "number" ? "champ numérique, mesures sum/avg" : "dimension de regroupement"})`,
+        );
+      }
+    }
+    if (lines.length === 0) return "";
+    return (
+      `CHAMPS MÉTIER SUPPLÉMENTAIRES des outils sur mesure sélectionnés — utilisables en PLUS du catalogue canonique, ` +
+      `avec la même fiabilité : ${lines.join(" ; ")}. ` +
+      `Un champ "extra.<id>" numérique s'utilise en field (avec une dimension canonique de l'entité en groupBy) ; ` +
+      `un champ "extra.<id>" libellé s'utilise en groupBy (mesure count, ou sum/avg d'un champ numérique). `
+    );
+  } catch {
+    return ""; // colonne extra_fields absente → catalogue canonique seul
+  }
+}
+
 export type ResolvedKpi =
   | {
       ok: true;
@@ -154,6 +200,8 @@ export async function resolveCustomKpiSpec(
   if (!anthropicKey) return { ok: false, error: reason ?? "ANTHROPIC_API_KEY not configured", status: 500 };
 
   const client = new Anthropic({ apiKey: anthropicKey });
+  // Champs métier supplémentaires des connecteurs sur mesure sélectionnés.
+  const extraDoc = await extraFieldsDoc(supabase, orgId, sources);
   // Outils sources choisis dans le funnel → contrainte forte sur le câblage :
   // les entités invoices/subscriptions portent la source de chaque ligne
   // (Stripe, Pennylane, Chargebee…) ; deals/contacts/companies viennent du CRM.
@@ -183,6 +231,7 @@ export async function resolveCustomKpiSpec(
     entityRule +
     sourcesRule +
     `IMPÉRATIF DE FIABILITÉ : n'utilise QUE ce catalogue canonique — ${CANONICAL_DOC} ` +
+    extraDoc +
     `Si une combinaison entité/dimension/mesure/champ répond FIDÈLEMENT au besoin (matching à 100 %), ` +
     `appelle build_data_table. Si le besoin ne correspond à AUCUNE combinaison du catalogue ` +
     `(KPI hors périmètre, donnée non disponible, intention ambiguë), appelle no_reliable_match : ` +
