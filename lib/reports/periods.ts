@@ -8,13 +8,17 @@
 export type PeriodPreset =
   | "all"
   | "this_week"
+  | "last_week"
   | "this_month"
+  | "last_month"
   | "mtd"
   | "this_quarter"
+  | "last_quarter"
   | "qtd"
   | "this_semester"
   | "std"
   | "this_year"
+  | "last_year"
   | "ytd"
   | "custom";
 
@@ -23,13 +27,17 @@ export type Period = { preset: PeriodPreset; from: string; to: string; label: st
 export const PERIOD_PRESETS: { id: PeriodPreset; label: string }[] = [
   { id: "all", label: "Toutes les données" },
   { id: "this_week", label: "Cette semaine" },
+  { id: "last_week", label: "Semaine dernière" },
   { id: "this_month", label: "Ce mois-ci" },
+  { id: "last_month", label: "Mois dernier" },
   { id: "mtd", label: "Mois à ce jour" },
   { id: "this_quarter", label: "Ce trimestre" },
+  { id: "last_quarter", label: "Trimestre dernier" },
   { id: "qtd", label: "Trimestre à ce jour" },
   { id: "this_semester", label: "Ce semestre" },
   { id: "std", label: "Semestre à ce jour" },
   { id: "this_year", label: "Cette année" },
+  { id: "last_year", label: "Année dernière" },
   { id: "ytd", label: "Année à ce jour" },
   { id: "custom", label: "Dates personnalisées" },
 ];
@@ -114,12 +122,24 @@ export function computePeriod(preset: PeriodPreset, now: Date): { from: string; 
       const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
       return { from: fmt(mon), to: fmt(sun) };
     }
+    case "last_week": {
+      const dow = (now.getDay() + 6) % 7; // 0 = lundi
+      const mon = new Date(y, m, now.getDate() - dow - 7);
+      const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+      return { from: fmt(mon), to: fmt(sun) };
+    }
     case "this_month":
       return { from: fmt(new Date(y, m, 1)), to: fmt(new Date(y, m + 1, 0)) };
+    case "last_month":
+      return { from: fmt(new Date(y, m - 1, 1)), to: fmt(new Date(y, m, 0)) };
     case "mtd":
       return { from: fmt(new Date(y, m, 1)), to: fmt(today) };
     case "this_quarter": {
       const qs = Math.floor(m / 3) * 3;
+      return { from: fmt(new Date(y, qs, 1)), to: fmt(new Date(y, qs + 3, 0)) };
+    }
+    case "last_quarter": {
+      const qs = Math.floor(m / 3) * 3 - 3;
       return { from: fmt(new Date(y, qs, 1)), to: fmt(new Date(y, qs + 3, 0)) };
     }
     case "qtd": {
@@ -136,6 +156,8 @@ export function computePeriod(preset: PeriodPreset, now: Date): { from: string; 
     }
     case "this_year":
       return { from: fmt(new Date(y, 0, 1)), to: fmt(new Date(y, 11, 31)) };
+    case "last_year":
+      return { from: fmt(new Date(y - 1, 0, 1)), to: fmt(new Date(y - 1, 11, 31)) };
     case "ytd":
       return { from: fmt(new Date(y, 0, 1)), to: fmt(today) };
     case "custom":

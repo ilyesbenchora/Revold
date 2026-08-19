@@ -21,7 +21,7 @@ export function cleanSources(v: unknown): string[] {
 }
 
 export const TABLE_COLS =
-  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, pipeline, granularity, position, created_at";
+  "id, page_key, title, entity, group_by, measure, field, unit_mode, view, custom_kpi, description, period_preset, sources, show_total, show_filters, pipeline, granularity, position, created_at";
 
 /** Fréquences temporelles valides (dimensions month_*). */
 export const VALID_GRANULARITIES = new Set(["day", "week", "month", "quarter", "semester", "year"]);

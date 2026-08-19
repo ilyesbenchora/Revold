@@ -29,6 +29,8 @@ export type SavedTable = {
   sources?: string[] | null;
   /** Affiche le total DANS la visualisation (badge graphique / centre anneau / pied de tableau). */
   show_total?: boolean | null;
+  /** Barre de filtres (période/fréquence/pipeline/détail) visible à la consultation (défaut true). */
+  show_filters?: boolean | null;
   /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
   pipeline?: string | null;
   /** Fréquence des dimensions temporelles (day/week/month/quarter/semester/year — null = month). */
@@ -90,6 +92,10 @@ export function DataTableCard({
   // date et casserait complètement le rapport : le sélecteur n'apparaît pas.
   const isTimeDim = table.group_by.startsWith("month_");
   const [granularity, setGranularity] = useState(table.granularity ?? "month");
+  // Pipeline ciblé — modifiable À LA CONSULTATION (deals uniquement), persisté.
+  const [pipeline, setPipeline] = useState<string | null>(table.pipeline ?? null);
+  // Barre de filtres repliable (rendu propre pour projection/partage), persistée.
+  const [showFilters, setShowFilters] = useState(table.show_filters !== false);
 
   // ── Drill-down : clic sur un chiffre (barre, segment, point, ligne, total)
   // → modal listant les enregistrements sous-jacents (deals, factures…). ──
@@ -103,7 +109,7 @@ export function DataTableCard({
         groupBy: table.group_by,
         measure: table.measure,
         field: table.field ?? undefined,
-        pipeline: table.pipeline ?? undefined,
+        pipeline: pipeline ?? undefined,
         granularity: isTimeDim ? granularity || null : null,
       },
       sources: table.sources ?? [],
@@ -113,23 +119,21 @@ export function DataTableCard({
     });
   }
 
-  // Nom lisible du pipeline ciblé (table.pipeline stocke l'id externe HubSpot).
-  const [pipelineName, setPipelineName] = useState<string | null>(null);
+  // Pipelines de l'org (deals uniquement) : nourrit le sélecteur de la barre de
+  // filtres ET le nom lisible du pipeline ciblé (id externe HubSpot en base).
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
-    if (!table.pipeline) { setPipelineName(null); return; }
+    if (table.entity !== "deals") return;
     let alive = true;
     fetch("/api/pipelines")
       .then((r) => (r.ok ? r.json() : { pipelines: [] }))
-      .then((d) => {
-        if (!alive) return;
-        const found = (d.pipelines ?? []).find(
-          (p: { id: string; name: string }) => p.id === table.pipeline || p.name === table.pipeline,
-        );
-        setPipelineName(found?.name ?? table.pipeline);
-      })
-      .catch(() => alive && setPipelineName(table.pipeline ?? null));
+      .then((d) => { if (alive) setPipelines(Array.isArray(d.pipelines) ? d.pipelines : []); })
+      .catch(() => {});
     return () => { alive = false; };
-  }, [table.pipeline]);
+  }, [table.entity]);
+  const pipelineName = pipeline
+    ? (pipelines.find((p) => p.id === pipeline || p.name === pipeline)?.name ?? pipeline)
+    : null;
 
   // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
   async function toggleShowTotal() {
@@ -145,7 +149,7 @@ export function DataTableCard({
     else setShowTotal(!next);
   }
 
-  const load = useCallback(async (p: AppliedPeriod | null, g?: string) => {
+  const load = useCallback(async (p: AppliedPeriod | null, g?: string, pl?: string | null) => {
     setLoading(true);
     setError(null);
     try {
@@ -160,6 +164,7 @@ export function DataTableCard({
       // La fréquence ne s'applique QU'AUX regroupements temporels — le
       // regroupement choisi à la création (étape, statut…) reste intangible.
       const gr = g ?? granularity;
+      const pip = pl !== undefined ? pl : pipeline;
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,7 +174,7 @@ export function DataTableCard({
             groupBy: table.group_by,
             measure: table.measure,
             field: table.field,
-            pipeline: table.pipeline ?? null,
+            pipeline: pip ?? null,
             granularity: isTimeDim ? gr || null : null,
           },
           sources: table.sources ?? [],
@@ -189,7 +194,36 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, table.pipeline, granularity, isTimeDim, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, pipeline, granularity, isTimeDim, JSON.stringify(table.sources ?? [])]);
+
+  // Changement de pipeline À LA CONSULTATION (deals) : recalcul immédiat +
+  // persistance — même mécanique que la fréquence, sans repasser par l'agent.
+  async function applyPipeline(pl: string | null) {
+    setPipeline(pl);
+    load(period, undefined, pl);
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pipeline: pl }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+  }
+
+  // Barre de filtres visible/masquée — persistée par rapport (rendu propre
+  // pour projection ou partage), optimiste.
+  async function toggleShowFilters() {
+    const next = !showFilters;
+    setShowFilters(next);
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ show_filters: next }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+    else setShowFilters(!next);
+  }
 
   // Changement de fréquence : recalcul immédiat + persistance (sans agent).
   // « Aucune » (tables non temporelles) est persisté en null.
@@ -311,7 +345,7 @@ export function DataTableCard({
               pipeline vit ICI (plus de pastille séparée sous le titre). */}
           <p className="mt-0.5 text-[11px] text-slate-400">
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
-            {table.pipeline && <> · Pipeline {pipelineName ?? table.pipeline}</>}
+            {pipeline && <> · Pipeline {pipelineName ?? pipeline}</>}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
           {(table.sources ?? []).length > 0 ? (
@@ -353,6 +387,17 @@ export function DataTableCard({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <TableAlertButton table={table} rows={rows} team={team} />
+          {/* Filtres visibles/masqués à la consultation (persisté par rapport). */}
+          <button
+            onClick={toggleShowFilters}
+            title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
+            aria-pressed={!showFilters}
+            className={`rounded-lg p-1.5 transition ${
+              showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+          </button>
           <button
             onClick={() => onEdit(table)}
             title="Modifier via l'agent"
@@ -372,6 +417,7 @@ export function DataTableCard({
         </div>
       </div>
 
+      {showFilters && (
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <ReportPeriodBar
@@ -408,6 +454,24 @@ export function DataTableCard({
               </select>
             </label>
           )}
+          {/* Pipeline — modifiable à la consultation (deals uniquement) : le
+              rapport tourne sur le pipeline choisi, persisté comme la période. */}
+          {table.entity === "deals" && pipelines.length > 0 && (
+            <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+              Pipeline
+              <select
+                value={pipeline ?? ""}
+                disabled={loading}
+                onChange={(e) => applyPipeline(e.target.value || null)}
+                className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+              >
+                <option value="">Tous les pipelines</option>
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <span className="inline-flex items-center gap-2">
           {/* Drill-down du TOTAL : liste tous les enregistrements du rapport. */}
@@ -432,6 +496,7 @@ export function DataTableCard({
           </label>
         </span>
       </div>
+      )}
 
       <div className="mt-3">
         {loading ? (
@@ -444,11 +509,11 @@ export function DataTableCard({
           <div className="relative">
             {/* Vue « Bloc » : période active + pipeline ciblé rappelés DANS le
                 bloc, en pastilles discrètes (le chiffre héros n'a pas d'axe). */}
-            {table.view === "bloc" && (period || table.pipeline) && (
+            {table.view === "bloc" && (period || pipeline) && (
               <span className="absolute right-1 top-1 z-10 flex items-center gap-1">
-                {table.pipeline && (
+                {pipeline && (
                   <span className="rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-medium text-indigo-600">
-                    {pipelineName ?? table.pipeline}
+                    {pipelineName ?? pipeline}
                   </span>
                 )}
                 {period && (

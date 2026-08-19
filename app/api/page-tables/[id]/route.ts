@@ -26,6 +26,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let body: {
     title?: string; view?: string; custom_kpi?: string; description?: string; period_preset?: string; sources?: string[];
     show_total?: boolean;
+    // Barre de filtres (période/fréquence/pipeline/détail) visible à la consultation.
+    show_filters?: boolean;
     // Fréquence des dimensions temporelles (day/week/month/quarter/semester/year).
     granularity?: string | null;
     // Ordre d'affichage sur la page (drag & drop du mode personnalisation).
@@ -52,6 +54,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.period_preset === "string") update.period_preset = cleanPeriod(body.period_preset);
   // Option d'affichage : total dans la visualisation (simple toggle, sans agent).
   if (typeof body.show_total === "boolean") update.show_total = body.show_total;
+  // Option d'affichage : barre de filtres visible/masquée à la consultation.
+  if (typeof body.show_filters === "boolean") update.show_filters = body.show_filters;
   // Ordre d'affichage (drag & drop) — simple entier, sans agent.
   if (typeof body.position === "number" && Number.isFinite(body.position)) update.position = Math.trunc(body.position);
   // Fréquence temporelle (simple option d'affichage, sans agent).
