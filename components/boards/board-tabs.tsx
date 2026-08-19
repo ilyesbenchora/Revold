@@ -5,10 +5,13 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 /**
- * Onglets des Tableaux de bord : « Vue d'ensemble » + les tableaux créés par
- * l'utilisateur + le CTA « ＋ Nouveau tableau ». Chaque tableau est une page
- * entièrement personnalisable (tuiles KPI + tables de données) sous sa propre
- * clé board_<id> — sources réglables dans « Outil source par page ».
+ * Onglets des Tableaux de bord : les tableaux créés par l'utilisateur + le CTA
+ * « ＋ Nouveau tableau ». Pas d'onglet « Vue d'ensemble » ici : ce serait une
+ * redite de l'onglet de la rangée Dashboard juste au-dessus — le tableau par
+ * défaut EST la page /tableaux-de-bord (clic sur « Tableaux de bord »).
+ * Chaque tableau est une page entièrement personnalisable (tuiles KPI +
+ * tables de données) sous sa propre clé board_<id> — sources réglables dans
+ * « Outil source par page ».
  */
 export type BoardTab = { id: string; name: string };
 
@@ -26,10 +29,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tabs = [
-    { href: BASE, label: "Vue d'ensemble" },
-    ...boards.map((b) => ({ href: `${BASE}/${b.id}`, label: b.name })),
-  ];
+  const tabs = boards.map((b) => ({ href: `${BASE}/${b.id}`, label: b.name }));
 
   async function create() {
     const n = name.trim();
