@@ -12,7 +12,7 @@ import { DictationButton } from "@/components/dictation-button";
  * les 3 derniers échanges repartent avec la question.
  */
 
-type Exchange = { q: string; a: string };
+type Exchange = { q: string; a: string; agent?: { name: string; role: string } | null };
 
 export function BoardAsk({ pageKey }: { pageKey: string }) {
   const [question, setQuestion] = useState("");
@@ -41,7 +41,10 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
         setError(d.error ?? "Réponse impossible — réessaie.");
         return;
       }
-      setExchanges((prev) => [...prev.slice(-4), { q, a: d.text }]);
+      setExchanges((prev) => [
+        ...prev.slice(-4),
+        { q, a: d.text, agent: d.agent?.name ? { name: d.agent.name, role: d.agent.role ?? "" } : null },
+      ]);
       setQuestion("");
     } catch {
       setError("Réponse impossible — réessaie.");
@@ -81,6 +84,12 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           {exchanges.map((e, i) => (
             <div key={i}>
               <p className="text-[11px] font-medium text-slate-400">« {e.q} »</p>
+              {e.agent && (
+                <p className="mt-1 text-[10px] font-semibold text-fuchsia-600">
+                  {e.agent.name}
+                  {e.agent.role && <span className="font-normal text-slate-400"> · {e.agent.role}</span>}
+                </p>
+              )}
               <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{e.a}</p>
             </div>
           ))}

@@ -6,6 +6,9 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { aggregateCanonical, listConnectedSources } from "@/lib/ai/agents/tool-library";
 import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
+import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
+import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
+import { basePageKey } from "@/lib/kpi/tile-catalog";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -111,8 +114,14 @@ export async function POST(request: Request) {
     tables = (data ?? []) as TableRow[];
   } catch { /* table absente → tableau vide */ }
 
+  // ── L'agent ADÉQUAT de la page : le même expert que son funnel de câblage
+  // (Ventes/Marketing → Chloé Performance, Trésorerie → Inès, Service client →
+  // Hugo, Rapprochement données → Karim ; tableaux créés → agent Revold neutre).
+  const agentKey = PAGE_AGENT_KEY[basePageKey(pageKey)] ?? null;
+  const persona = getAgentPersona(agentKey);
+
   const system =
-    "Tu es l'analyste data de Revold, en conversation SUR un tableau de bord précis de l'utilisateur (PME/ETI française). " +
+    `Tu es ${persona.name}, ${persona.role} chez Revold, en conversation SUR un tableau de bord précis de l'utilisateur (PME/ETI française). ` +
     "Tu réponds à ses questions chiffrées en RECALCULANT les données via tes outils — JAMAIS un chiffre inventé, estimé ou de mémoire : " +
     "chaque valeur citée vient d'un appel aggregate_canonical (respecte les filtres pipeline/target des blocs concernés quand la question porte sur eux). " +
     "Si une donnée n'existe pas ou n'est pas calculable, dis-le simplement. " +
@@ -143,7 +152,10 @@ export async function POST(request: Request) {
       ctx: { supabase, orgId, hubspotToken, sources: [] },
       maxSteps: 6,
     });
-    return NextResponse.json({ text: result.text || "Je n'ai pas pu formuler de réponse — reformule ta question." });
+    return NextResponse.json({
+      text: result.text || "Je n'ai pas pu formuler de réponse — reformule ta question.",
+      agent: { name: persona.name, role: persona.role },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Réponse impossible — réessaie." },
