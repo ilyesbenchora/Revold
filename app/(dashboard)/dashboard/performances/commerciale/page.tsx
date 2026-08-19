@@ -52,8 +52,6 @@ export default async function PerformanceCommercialePage() {
     pipelineConversions = pipelineAnalytics.map(buildPipelineConversion);
   }
 
-  const total = snapshot.totalDeals;
-
   // KPIs + séries mensuelles depuis le miroir canonique (tuiles + graphes).
   const series = await computeDealsSeries(supabase, orgId);
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
@@ -97,8 +95,7 @@ export default async function PerformanceCommercialePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Performances</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Pipeline et activité commerciale — calculés en direct sur tes outils connectés
-            {total > 0 && ` (${total} deals analysés)`}
+            Ce que ton pipeline vaut vraiment — ce qui avance, ce qui bloque, ce qui va signer.
           </p>
         </div>
       </header>
