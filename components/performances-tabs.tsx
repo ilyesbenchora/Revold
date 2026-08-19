@@ -5,18 +5,18 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { WORKSPACE_COOKIE, type WorkspaceId } from "@/lib/workspaces";
 
+// Premier rang : les SECTIONS uniquement — leurs sous-pages (Cycle de ventes,
+// Publicité, pages custom…) vivent dans la deuxième rangée d'onglets
+// personnalisable de chaque section (VentesTabs / MarketingTabs).
 const tabs: Array<{ href: string; label: string; highlight?: boolean }> = [
   { href: "/dashboard/performances/commerciale", label: "Ventes" },
   { href: "/dashboard/performances/marketing", label: "Marketing" },
-  // Sous-page Publicité (Ads) : préparée, s'active avec un outil publicitaire.
-  { href: "/dashboard/performances/marketing/publicite", label: "Publicité" },
 ];
 
 /**
  * Onglets filtrés par ESPACE DE TRAVAIL (même source que la sidebar : cookie
  * puis localStorage) : l'espace Ventes ne voit que l'onglet Ventes ;
- * Marketing voit Marketing + Publicité (qui lui appartiennent) ; l'espace
- * global voit tout.
+ * Marketing ne voit que Marketing ; l'espace global voit tout.
  */
 function visibleTabs(ws: WorkspaceId) {
   if (ws === "sales") return tabs.filter((t) => t.href === "/dashboard/performances/commerciale");
@@ -44,11 +44,9 @@ export function PerformancesTabs() {
     <div className="border-b border-card-border">
       <div className="flex gap-1">
         {visibleTabs(ws).map((t) => {
-          // « Marketing » ne doit pas rester actif sur sa sous-page Publicité.
-          const isActive =
-            t.href === "/dashboard/performances/marketing"
-              ? pathname.startsWith(t.href) && !pathname.startsWith("/dashboard/performances/marketing/publicite")
-              : pathname === t.href || pathname.startsWith(t.href);
+          // La section reste active sur toutes ses sous-pages (Publicité,
+          // pages custom /p/[slug]…) — la 2e rangée précise laquelle.
+          const isActive = pathname === t.href || pathname.startsWith(`${t.href}/`);
           return (
             <Link
               key={t.href}

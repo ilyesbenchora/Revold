@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { PerformancesTabs } from "@/components/performances-tabs";
+import { MarketingTabs } from "@/components/marketing-tabs";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -33,6 +34,7 @@ export default async function PerformancePublicitePage() {
       </header>
 
       <PerformancesTabs />
+      <MarketingTabs />
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_perf_ads" categories={["ads"]}>

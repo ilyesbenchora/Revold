@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
+import { MarketingTabs } from "@/components/marketing-tabs";
 import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
@@ -149,6 +150,7 @@ export default async function PerformanceMarketingPage() {
       </header>
 
       <PerformancesTabs />
+      <MarketingTabs />
 
       <InsightLockedBlock
         previewTitle="Analyse IA de votre performance marketing"

@@ -36,7 +36,20 @@ export const VENTES_NAV: PageNavDef = {
   ],
 };
 
-export const PAGE_NAVS: Record<string, PageNavDef> = { ventes: VENTES_NAV };
+/** Page Marketing (Performances → marketing). La sous-page Publicité vit ici
+ * (deuxième rangée d'onglets) — le premier rang (PerformancesTabs) ne garde
+ * que les sections. */
+export const MARKETING_NAV: PageNavDef = {
+  navKey: "marketing",
+  baseHref: "/dashboard/performances/marketing",
+  basePageKey: "perf_marketing",
+  defaults: [
+    { slug: "", label: "Vue d'ensemble" },
+    { slug: "publicite", label: "Publicité" },
+  ],
+};
+
+export const PAGE_NAVS: Record<string, PageNavDef> = { ventes: VENTES_NAV, marketing: MARKETING_NAV };
 
 /** URL d'un onglet : racine, sous-page standard, ou page custom (/p/slug). */
 export function navItemHref(def: PageNavDef, item: PageNavItem): string {
