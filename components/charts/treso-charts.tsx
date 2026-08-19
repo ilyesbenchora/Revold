@@ -179,13 +179,14 @@ export function TresoFlowsChart({ points }: { points: FlowsPoint[] }) {
             formatter={(value, name) => [fullValue(Number(value), "currency"), name === "in" ? "Encaissements" : "Décaissements"]}
             labelStyle={{ fontWeight: 600, color: "#0f172a" }}
           />
-          <Bar dataKey="in" fill="#10b981" radius={[5, 5, 0, 0]} maxBarSize={22} />
+          {/* emerald-600 : l'emerald-500 était sous 3:1 de contraste sur carte blanche. */}
+          <Bar dataKey="in" fill="#059669" radius={[5, 5, 0, 0]} maxBarSize={22} />
           <Bar dataKey="out" fill="#f43f5e" radius={[5, 5, 0, 0]} maxBarSize={22} />
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-1 flex items-center gap-4">
         <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
-          <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" /> Encaissements
+          <span className="inline-block h-2 w-2 rounded-sm bg-emerald-600" /> Encaissements
         </span>
         <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
           <span className="inline-block h-2 w-2 rounded-sm bg-rose-500" /> Décaissements

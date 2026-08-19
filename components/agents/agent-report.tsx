@@ -163,11 +163,18 @@ export function ReportChart({
   if (block.type === "donut") {
     // Légende chiffrée à côté de l'anneau — même exigence de « retranscription
     // chiffrée » que les courbes cockpit : chaque segment affiche sa valeur et
-    // sa part, sans devoir survoler. Au-delà de 7 segments, le reste est agrégé.
+    // sa part, sans devoir survoler. Au-delà de 7 segments, le reste est agrégé
+    // DANS L'ANNEAU AUSSI (segment gris « autres ») : la palette n'est jamais
+    // recyclée — un 8e segment ne reprend jamais la couleur du 1er.
     const LEGEND_MAX = 7;
     const legendRows = data.slice(0, LEGEND_MAX);
     const rest = data.slice(LEGEND_MAX);
     const restTotal = rest.reduce((s, d) => s + (Number(d.value) || 0), 0);
+    const OTHER_FILL = "#cbd5e1";
+    const pieData =
+      rest.length > 0
+        ? [...legendRows, { name: `+ ${rest.length} autres`, rawName: "", value: restTotal }]
+        : data;
     const share = (v: number) => (total > 0 ? `${Math.round((v / total) * 100)} %` : "—");
     return (
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -175,7 +182,7 @@ export function ReportChart({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={data}
+                data={pieData}
                 dataKey="value"
                 nameKey="name"
                 innerRadius={52}
@@ -186,8 +193,12 @@ export function ReportChart({
                 strokeWidth={2}
                 onClick={fireBucket}
               >
-                {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} cursor={onBucketClick ? "pointer" : undefined} />
+                {pieData.map((d, i) => (
+                  <Cell
+                    key={i}
+                    fill={i < LEGEND_MAX ? COLORS[i] : OTHER_FILL}
+                    cursor={onBucketClick && d.rawName ? "pointer" : undefined}
+                  />
                 ))}
               </Pie>
               {/* Total au centre de l'anneau — l'espace vide lui est destiné. */}
@@ -219,7 +230,8 @@ export function ReportChart({
           ))}
           {rest.length > 0 && (
             <li className="flex items-center gap-2 text-xs">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-200" />
+              {/* Même gris que le segment « autres » de l'anneau (slate-300). */}
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-300" />
               <span className="min-w-0 flex-1 truncate text-slate-400">+ {rest.length} autres</span>
               <span className="shrink-0 font-semibold tabular-nums text-slate-500">{fullValue(restTotal, unit)}</span>
               <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{share(restTotal)}</span>
@@ -323,8 +335,8 @@ export function ReportChart({
               <stop offset="100%" stopColor="#6366f1" stopOpacity={0.45} />
             </linearGradient>
             <linearGradient id="agentBarMax" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d946ef" stopOpacity={0.95} />
-              <stop offset="100%" stopColor="#d946ef" stopOpacity={0.5} />
+              <stop offset="0%" stopColor="#c026d3" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#c026d3" stopOpacity={0.5} />
             </linearGradient>
           </defs>
           {axis}
