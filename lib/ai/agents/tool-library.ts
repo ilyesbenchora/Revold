@@ -741,6 +741,13 @@ export type AggregateSpec = {
    */
   granularity?: string | null;
   /**
+   * Filtre COHORTE : restreint aux enregistrements dont l'ENTREPRISE appartient
+   * à la cohorte — key ∈ { segment, industry }, value = bucket exact (colonnes
+   * canoniques companies.segment / companies.industry ; « inconnu » = null).
+   * Companies : filtre direct ; autres entités : jointure via company_id.
+   */
+  cohort?: { key: string; value: string } | null;
+  /**
    * Mode DÉTAIL (drill-down) : au lieu de l'agrégat, renvoie les
    * ENREGISTREMENTS sous-jacents (contacts, deals, factures…) — mêmes filtres
    * (sources, période, pipeline) et même résolution de bucket que l'agrégat.
@@ -922,6 +929,17 @@ export async function computeAggregate(
   const to = input.date_to && dateRe.test(input.date_to) ? input.date_to : null;
   const dateCol = dateColumnFor(entity, groupBy);
 
+  // ── Filtre COHORTE (segment / secteur de l'ENTREPRISE) ──
+  // Colonnes canoniques uniquement (déterministe) ; « inconnu » = valeur null.
+  const COHORT_COLS: Record<string, string> = { segment: "segment", industry: "industry" };
+  const COHORT_ENTITIES = new Set(["companies", "deals", "contacts", "invoices", "subscriptions", "tickets"]);
+  const cohortCol = input.cohort?.key ? COHORT_COLS[String(input.cohort.key)] : undefined;
+  const cohortValue =
+    cohortCol && typeof input.cohort?.value === "string" && input.cohort.value !== "" ? input.cohort.value : null;
+  if (cohortValue && !COHORT_ENTITIES.has(entity)) {
+    return { error: `Filtre cohorte non disponible pour ${entity} (entreprises requises : deals, contacts, factures, abonnements, tickets).` };
+  }
+
   // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
   // colonnes de l'agrégat si le schéma ne les porte pas toutes.
   const wantDetail = input.detail === true;
@@ -937,16 +955,34 @@ export async function computeAggregate(
   // Les dimensions/champs extra.* lisent source_metadata → colonne ajoutée au select.
   const withExtraCols = (cols: string) =>
     (extraDim || extraField) && !cols.includes("source_metadata") ? `${cols}, source_metadata` : cols;
-  const detailCols = withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns);
+  // Filtre cohorte hors companies : la jointure se fait en JS via company_id.
+  const withCohortCols = (cols: string) =>
+    cohortValue && entity !== "companies" && !cols.includes("company_id") ? `${cols}, company_id` : cols;
+  const detailCols = withCohortCols(withExtraCols(wantDetail ? DETAIL_COLUMNS[entity] ?? spec.columns : spec.columns));
   let { data, error } = await buildQuery(detailCols);
-  if (error && wantDetail && detailCols !== withExtraCols(spec.columns)) {
-    ({ data, error } = await buildQuery(withExtraCols(spec.columns)));
+  if (error && wantDetail && detailCols !== withCohortCols(withExtraCols(spec.columns))) {
+    ({ data, error } = await buildQuery(withCohortCols(withExtraCols(spec.columns))));
   }
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
   let resolveDim = dimFn;
   let scoped = rows;
+
+  // ── Application du filtre cohorte ──
+  if (cohortValue && cohortCol) {
+    if (entity === "companies") {
+      scoped = scoped.filter((r) => String(r[cohortCol] ?? "inconnu") === cohortValue);
+    } else {
+      // Entreprises de la cohorte → Set d'ids → jointure JS sur company_id.
+      let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
+      cq = cohortValue === "inconnu" ? cq.is(cohortCol, null) : cq.eq(cohortCol, cohortValue);
+      const { data: comp, error: compErr } = await cq;
+      if (compErr) throw new Error(compErr.message);
+      const ids = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
+      scoped = scoped.filter((r) => typeof r.company_id === "string" && ids.has(r.company_id));
+    }
+  }
   // Probabilité de closing par deal (0..1) pour la mesure « weighted ».
   // Défaut : probabilité de l'étape canonique ; enrichie via HubSpot dans le bloc deals.
   let probResolver: ((r: Record<string, unknown>) => number) | null =

@@ -31,11 +31,22 @@ export type SavedTable = {
   show_total?: boolean | null;
   /** Barre de filtres (période/fréquence/pipeline/détail) visible à la consultation (défaut true). */
   show_filters?: boolean | null;
+  /** Filtre cohorte persisté : segment / industry de l'entreprise (null = aucun). */
+  cohort_key?: string | null;
+  cohort_value?: string | null;
   /** Deals uniquement : pipeline ciblé (nom ou id) — évite les étapes homonymes. */
   pipeline?: string | null;
   /** Fréquence des dimensions temporelles (day/week/month/quarter/semester/year — null = month). */
   granularity?: string | null;
 };
+
+/** Cohortes filtrables à la consultation (colonnes canoniques companies). */
+const COHORT_OPTIONS: { id: string; label: string }[] = [
+  { id: "industry", label: "Secteur d'activité" },
+  { id: "segment", label: "Segment" },
+];
+/** Entités reliées à une entreprise → filtre cohorte disponible. */
+const COHORTABLE_ENTITIES = new Set(["deals", "companies", "contacts", "invoices", "subscriptions", "tickets"]);
 
 /** Fréquences d'affichage des regroupements temporels (month_*). */
 const GRANULARITY_OPTIONS: { id: string; label: string }[] = [
@@ -96,6 +107,13 @@ export function DataTableCard({
   const [pipeline, setPipeline] = useState<string | null>(table.pipeline ?? null);
   // Barre de filtres repliable (rendu propre pour projection/partage), persistée.
   const [showFilters, setShowFilters] = useState(table.show_filters !== false);
+  // Filtre cohorte (segment / secteur de l'entreprise) — persisté par rapport.
+  const cohortable = COHORTABLE_ENTITIES.has(table.entity);
+  const [cohortKey, setCohortKey] = useState<string | null>(table.cohort_key ?? null);
+  const [cohortValue, setCohortValue] = useState<string | null>(table.cohort_value ?? null);
+  // Valeurs distinctes par cohorte (chargées à la demande, mises en cache).
+  const [cohortValues, setCohortValues] = useState<Record<string, string[]>>({});
+  const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
 
   // ── Drill-down : clic sur un chiffre (barre, segment, point, ligne, total)
   // → modal listant les enregistrements sous-jacents (deals, factures…). ──
@@ -111,6 +129,7 @@ export function DataTableCard({
         field: table.field ?? undefined,
         pipeline: pipeline ?? undefined,
         granularity: isTimeDim ? granularity || null : null,
+        cohort: activeCohort,
       },
       sources: table.sources ?? [],
       period: period ? { from: period.from, to: period.to, all: period.preset === "all" } : { all: true },
@@ -135,6 +154,12 @@ export function DataTableCard({
     ? (pipelines.find((p) => p.id === pipeline || p.name === pipeline)?.name ?? pipeline)
     : null;
 
+  // Cohorte persistée : précharge ses valeurs pour afficher le sélecteur rempli.
+  useEffect(() => {
+    if (cohortable && cohortKey) void loadCohortValues(cohortKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Toggle « total dans la visualisation » — optimiste, persisté sans agent.
   async function toggleShowTotal() {
     const next = !showTotal;
@@ -149,7 +174,7 @@ export function DataTableCard({
     else setShowTotal(!next);
   }
 
-  const load = useCallback(async (p: AppliedPeriod | null, g?: string, pl?: string | null) => {
+  const load = useCallback(async (p: AppliedPeriod | null, g?: string, pl?: string | null, co?: { key: string; value: string } | null) => {
     setLoading(true);
     setError(null);
     try {
@@ -165,6 +190,7 @@ export function DataTableCard({
       // regroupement choisi à la création (étape, statut…) reste intangible.
       const gr = g ?? granularity;
       const pip = pl !== undefined ? pl : pipeline;
+      const coh = co !== undefined ? co : activeCohort;
       const res = await fetch("/api/reports/recompute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,6 +202,7 @@ export function DataTableCard({
             field: table.field,
             pipeline: pip ?? null,
             granularity: isTimeDim ? gr || null : null,
+            cohort: coh,
           },
           sources: table.sources ?? [],
           all: !p,
@@ -194,7 +221,7 @@ export function DataTableCard({
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.entity, table.group_by, table.measure, table.field, pipeline, granularity, isTimeDim, JSON.stringify(table.sources ?? [])]);
+  }, [table.entity, table.group_by, table.measure, table.field, pipeline, granularity, isTimeDim, cohortKey, cohortValue, JSON.stringify(table.sources ?? [])]);
 
   // Changement de pipeline À LA CONSULTATION (deals) : recalcul immédiat +
   // persistance — même mécanique que la fréquence, sans repasser par l'agent.
@@ -208,6 +235,55 @@ export function DataTableCard({
     });
     const d = await res.json().catch(() => ({}));
     if (res.ok && d.table) onUpdated(d.table);
+  }
+
+  // ── Filtre cohorte à la consultation : valeurs distinctes chargées à la
+  // demande (agrégat companies × cohorte), choix persisté par rapport. ──
+  async function loadCohortValues(key: string) {
+    if (cohortValues[key]) return;
+    try {
+      const res = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: { entity: "companies", groupBy: key, measure: "count" }, all: true, sources: [] }),
+      });
+      const d = await res.json().catch(() => ({}));
+      const vals = (Array.isArray(d.data) ? (d.data as { name: string }[]) : []).map((r) => r.name).filter(Boolean);
+      setCohortValues((prev) => ({ ...prev, [key]: vals }));
+    } catch {
+      setCohortValues((prev) => ({ ...prev, [key]: [] }));
+    }
+  }
+
+  async function persistCohort(key: string | null, value: string | null) {
+    const res = await fetch(`/api/page-tables/${table.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cohort_key: key, cohort_value: value }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.table) onUpdated(d.table);
+  }
+
+  function applyCohortKey(key: string | null) {
+    setCohortKey(key);
+    setCohortValue(null);
+    if (key) {
+      void loadCohortValues(key);
+      // Pas de recalcul tant qu'aucune valeur n'est choisie — mais un filtre
+      // actif retiré (clé vidée) recalcule et se dé-persiste tout de suite.
+    }
+    if (!key || cohortValue) {
+      load(period, undefined, undefined, null);
+      void persistCohort(key, null);
+    }
+  }
+
+  function applyCohortValue(value: string | null) {
+    setCohortValue(value);
+    const co = cohortKey && value ? { key: cohortKey, value } : null;
+    load(period, undefined, undefined, co);
+    void persistCohort(cohortKey, value);
   }
 
   // Barre de filtres visible/masquée — persistée par rapport (rendu propre
@@ -346,6 +422,9 @@ export function DataTableCard({
           <p className="mt-0.5 text-[11px] text-slate-400">
             {entityLabel(table.entity)} · {dimLabel(table.entity, table.group_by)}
             {pipeline && <> · Pipeline {pipelineName ?? pipeline}</>}
+            {activeCohort && (
+              <> · {COHORT_OPTIONS.find((c) => c.id === activeCohort.key)?.label ?? activeCohort.key} : {activeCohort.value}</>
+            )}
             {rows.length > 0 && <> · total {formatValue(total, table.unit_mode)}</>}
           </p>
           {(table.sources ?? []).length > 0 ? (
@@ -470,6 +549,37 @@ export function DataTableCard({
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+            </label>
+          )}
+          {/* Cohorte — restreint le rapport aux entreprises de la cohorte
+              (segment / secteur), persisté comme la période et le pipeline. */}
+          {cohortable && (
+            <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+              Cohorte
+              <select
+                value={cohortKey ?? ""}
+                disabled={loading}
+                onChange={(e) => applyCohortKey(e.target.value || null)}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+              >
+                <option value="">Aucune</option>
+                {COHORT_OPTIONS.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              {cohortKey && (
+                <select
+                  value={cohortValue ?? ""}
+                  disabled={loading}
+                  onChange={(e) => applyCohortValue(e.target.value || null)}
+                  className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+                >
+                  <option value="">Toutes les valeurs</option>
+                  {(cohortValues[cohortKey] ?? (cohortValue ? [cohortValue] : [])).map((v) => (
+                    <option key={v} value={v}>{formatBucketLabel(v, locale)}</option>
+                  ))}
+                </select>
+              )}
             </label>
           )}
         </div>

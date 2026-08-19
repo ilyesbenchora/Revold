@@ -7,7 +7,7 @@ import { entityLabel } from "@/lib/reports/data-table-presets";
 import type { ChartQuery } from "@/lib/ai/agents/agent-runtime";
 
 export type DrilldownTarget = {
-  query: ChartQuery & { granularity?: string | null };
+  query: ChartQuery & { granularity?: string | null; cohort?: { key: string; value: string } | null };
   sources: string[];
   period: { from?: string; to?: string; all?: boolean } | null;
   /** Bucket cliqué : clé brute moteur + libellé affiché. null = total (tous). */

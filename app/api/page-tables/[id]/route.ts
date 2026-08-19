@@ -28,6 +28,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     show_total?: boolean;
     // Barre de filtres (période/fréquence/pipeline/détail) visible à la consultation.
     show_filters?: boolean;
+    // Filtre cohorte persisté (segment / industry) — null = aucun filtre.
+    cohort_key?: string | null;
+    cohort_value?: string | null;
     // Fréquence des dimensions temporelles (day/week/month/quarter/semester/year).
     granularity?: string | null;
     // Ordre d'affichage sur la page (drag & drop du mode personnalisation).
@@ -56,6 +59,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.show_total === "boolean") update.show_total = body.show_total;
   // Option d'affichage : barre de filtres visible/masquée à la consultation.
   if (typeof body.show_filters === "boolean") update.show_filters = body.show_filters;
+  // Filtre cohorte (clé + valeur ensemble ; null = retiré) — sans agent.
+  const VALID_COHORT_KEYS = new Set(["segment", "industry"]);
+  if (body.cohort_key === null || (typeof body.cohort_key === "string" && VALID_COHORT_KEYS.has(body.cohort_key))) {
+    update.cohort_key = body.cohort_key;
+    update.cohort_value =
+      body.cohort_key === null ? null : typeof body.cohort_value === "string" && body.cohort_value ? body.cohort_value : null;
+  }
   // Ordre d'affichage (drag & drop) — simple entier, sans agent.
   if (typeof body.position === "number" && Number.isFinite(body.position)) update.position = Math.trunc(body.position);
   // Fréquence temporelle (simple option d'affichage, sans agent).

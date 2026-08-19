@@ -21,7 +21,11 @@ export async function POST(request: Request) {
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
   let body: {
-    query?: { entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null; granularity?: string | null };
+    query?: {
+      entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null; granularity?: string | null;
+      /** Filtre cohorte (segment / industry de l'entreprise). */
+      cohort?: { key?: string; value?: string } | null;
+    };
     date_from?: string;
     date_to?: string;
     all?: boolean;
@@ -51,6 +55,10 @@ export async function POST(request: Request) {
     granularity: typeof q.granularity === "string" && q.granularity.trim() ? q.granularity.trim() : null,
     date_from: from,
     date_to: to,
+    cohort:
+      q.cohort && typeof q.cohort.key === "string" && typeof q.cohort.value === "string" && q.cohort.value
+        ? { key: q.cohort.key, value: q.cohort.value }
+        : null,
   };
 
   try {
