@@ -4,7 +4,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
-import { aggregateCanonical, listConnectedSources } from "@/lib/ai/agents/tool-library";
+import {
+  aggregateCanonical,
+  listConnectedSources,
+  compareCrmVsBilled,
+  getBillingOverview,
+  getSupportOverview,
+} from "@/lib/ai/agents/tool-library";
 import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
 import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
@@ -147,7 +153,9 @@ export async function POST(request: Request) {
     const result = await runAgentTurn({
       client,
       system,
-      tools: [aggregateCanonical, listConnectedSources],
+      // Outils CROISÉS inclus (CRM × facturé, synthèses facturation/support) :
+      // les questions multi-outils restent déterministes, jamais estimées.
+      tools: [aggregateCanonical, listConnectedSources, compareCrmVsBilled, getBillingOverview, getSupportOverview],
       messages,
       ctx: { supabase, orgId, hubspotToken, sources: [] },
       maxSteps: 6,

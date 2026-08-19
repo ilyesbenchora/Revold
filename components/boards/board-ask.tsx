@@ -36,7 +36,6 @@ const EXAMPLES: Record<string, Array<{ cat: string; q: string }>> = {
     { cat: "billing", q: "Quel montant reste impayé aujourd'hui ?" },
     { cat: "billing", q: "Combien ai-je encaissé ce mois-ci ?" },
     { cat: "billing", q: "Quelles sont mes plus grosses dépenses par catégorie ?" },
-    { cat: "crm", q: "Quel écart entre le CA signé et le CA facturé ?" },
   ],
   audit_service_client: [
     { cat: "support", q: "Combien de tickets sont encore ouverts ?" },
@@ -62,6 +61,18 @@ const EXAMPLES: Record<string, Array<{ cat: string; q: string }>> = {
   ],
 };
 
+/**
+ * Exemples CROISÉS multi-outils : proposés uniquement quand TOUTES les
+ * catégories requises sont connectées sur la page — l'agent y répond via ses
+ * outils croisés (compare CRM × facturé, synthèses) ou deux agrégats comparés.
+ */
+const CROSS_EXAMPLES: Array<{ cats: string[]; q: string }> = [
+  { cats: ["crm", "billing"], q: "Quel écart entre le CA signé et le CA facturé ce trimestre ?" },
+  { cats: ["crm", "billing"], q: "Le cash encaissé suit-il mes deals gagnés ce mois-ci ?" },
+  { cats: ["billing", "support"], q: "Mes annulations d'abonnements suivent-elles le volume de tickets ?" },
+  { cats: ["crm", "support"], q: "Compare mes deals gagnés au volume de tickets ce mois-ci" },
+];
+
 /** Famille d'exemples de la page (les sous-pages héritent de leur parente). */
 function familyOf(pageKey: string): string {
   if (pageKey === "tableau_bord" || pageKey.startsWith("board_")) return "board";
@@ -78,7 +89,11 @@ function buildExamples(pageKey: string, tools: SourceTool[] | null): string[] {
   if (tools === null) return pool.slice(0, 3).map((e) => e.q);
   const cats = new Set(tools.map((t) => t.category));
   const matched = pool.filter((e) => cats.has(e.cat)).map((e) => e.q);
-  return matched.slice(0, 3);
+  // Plusieurs outils connectés → les questions CROISÉES d'abord : c'est la
+  // valeur Revold (personne d'autre ne peut y répondre en un champ).
+  const cross = CROSS_EXAMPLES.filter((e) => e.cats.every((c) => cats.has(c))).map((e) => e.q);
+  const dedup = [...new Set([...cross.slice(0, 2), ...matched])];
+  return dedup.slice(0, cross.length > 0 ? 4 : 3);
 }
 
 export function BoardAsk({ pageKey }: { pageKey: string }) {
