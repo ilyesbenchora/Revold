@@ -189,6 +189,29 @@ const HEALTH_RING: Record<Health, string> = {
   warn: "border-amber-300/60",
   critical: "border-rose-400/70 animate-pulse",
 };
+
+/**
+ * Thème actuel de la plateforme : true = clair (aucun data-theme sombre sur
+ * <html>). La carte tour de contrôle suit le FOND du thème (même dégradé que
+ * le bloc « équipe d'agents IA ») : c'est l'ORBE et les textes qui s'adaptent —
+ * violets foncés sur fond clair, dorés/pâles sur fonds sombres. Suivi en direct
+ * (MutationObserver) : changer de thème dans Apparence recolore l'orbe aussitôt.
+ */
+function useIsLightTheme(): boolean {
+  const [light, setLight] = useState(true);
+  useEffect(() => {
+    const el = document.documentElement;
+    // Lecture du DOM impossible au rendu serveur : l'état ne peut être posé
+    // qu'après montage, puis suivi en direct au changement de thème.
+     
+    const sync = () => setLight(!el.dataset.theme);
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(el, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return light;
+}
 const HEALTH_HINT: Record<Health, string> = {
   ok: "Tout est au vert.",
   warn: "Points de vigilance — demande ton brief.",
@@ -232,6 +255,12 @@ function hasUnackedAchievement(keys: string[]): boolean {
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Thème clair → orbe FONCÉE (violet soutenu) pour rester visible sur le fond
+  // clair de la carte ; thèmes sombres → palette pâle historique. Ref lue par
+  // la boucle canvas (pas de redémarrage de l'animation au changement).
+  const isLight = useIsLightTheme();
+  const isLightRef = useRef(isLight);
+  isLightRef.current = isLight;
   const [status, setStatus] = useState<OrbStatus>("idle");
   const [caption, setCaption] = useState<string>("");
   const [supported, setSupported] = useState(true);
@@ -305,12 +334,24 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       // gamme que l'anneau de santé) quand un contenu du brief est
       // finalisé/exécuté/atteint — le signe d'une bonne nouvelle à écouter.
       const done = achievedRef.current;
+      const lightTheme = isLightRef.current;
       const glow = g.createRadialGradient(cx, cy, R * 0.05, cx, cy, R * 1.55);
       const coreAlpha = s === "listening" ? 0.5 + level * 0.4 : s === "idle" ? 0.32 + 0.05 * Math.sin(t * 1.8) : 0.5;
       if (done) {
-        glow.addColorStop(0, `rgba(167, 243, 208, ${coreAlpha})`);
-        glow.addColorStop(0.45, `rgba(52, 211, 153, ${coreAlpha * 0.35})`);
-        glow.addColorStop(1, "rgba(52, 211, 153, 0)");
+        if (lightTheme) {
+          glow.addColorStop(0, `rgba(16, 185, 129, ${coreAlpha * 0.8})`);
+          glow.addColorStop(0.45, `rgba(4, 120, 87, ${coreAlpha * 0.3})`);
+          glow.addColorStop(1, "rgba(4, 120, 87, 0)");
+        } else {
+          glow.addColorStop(0, `rgba(167, 243, 208, ${coreAlpha})`);
+          glow.addColorStop(0.45, `rgba(52, 211, 153, ${coreAlpha * 0.35})`);
+          glow.addColorStop(1, "rgba(52, 211, 153, 0)");
+        }
+      } else if (lightTheme) {
+        // Fond clair : halo violet soutenu (l'orbe pâle disparaissait sur blanc).
+        glow.addColorStop(0, `rgba(192, 132, 252, ${coreAlpha * 0.8})`);
+        glow.addColorStop(0.45, `rgba(147, 51, 234, ${coreAlpha * 0.3})`);
+        glow.addColorStop(1, "rgba(147, 51, 234, 0)");
       } else {
         glow.addColorStop(0, `rgba(245, 180, 250, ${coreAlpha})`);
         glow.addColorStop(0.45, `rgba(217, 70, 239, ${coreAlpha * 0.35})`);
@@ -338,7 +379,15 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         g.beginPath();
         g.arc(px, py, r, 0, Math.PI * 2);
         // Mode accompli : particules vert émeraude (même charte que la santé).
-        g.fillStyle = done ? `rgba(110, 231, 183, ${alpha})` : `rgba(240, 171, 252, ${alpha})`;
+        // Thème clair : teintes FONCÉES (violet/émeraude soutenus) — les pâles
+        // historiques disparaissaient sur le fond clair de la carte.
+        g.fillStyle = done
+          ? lightTheme
+            ? `rgba(5, 150, 105, ${alpha})`
+            : `rgba(110, 231, 183, ${alpha})`
+          : lightTheme
+            ? `rgba(126, 34, 206, ${alpha})`
+            : `rgba(240, 171, 252, ${alpha})`;
         g.fill();
       }
       raf = requestAnimationFrame(draw);
@@ -649,7 +698,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         <canvas ref={canvasRef} style={{ width: size, height: size }} className="pointer-events-none" />
         {/* Logo Revold en filigrane — très fondu, au cœur de l'orbe */}
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" width={size * 0.26} height={size * 0.26} fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1.1" strokeLinecap="round" className="drop-shadow-[0_0_6px_rgba(240,171,252,0.35)]">
+          <svg viewBox="0 0 24 24" width={size * 0.26} height={size * 0.26} fill="none" stroke={isLight ? "rgba(88,28,135,0.35)" : "rgba(255,255,255,0.34)"} strokeWidth="1.1" strokeLinecap="round" className={isLight ? "drop-shadow-[0_0_6px_rgba(147,51,234,0.3)]" : "drop-shadow-[0_0_6px_rgba(240,171,252,0.35)]"}>
             <line x1="12" y1="3" x2="12" y2="21" />
             <line x1="4.2" y1="7.5" x2="19.8" y2="16.5" />
             <line x1="19.8" y1="7.5" x2="4.2" y2="16.5" />
@@ -679,7 +728,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       {/* Validation d'une création dictée (alerte / objectif) */}
       {pending && (
         <div className="mt-2 w-full max-w-[16rem] rounded-lg border border-amber-300/30 bg-amber-400/10 p-2 text-center">
-          <p className="text-[11px] leading-snug text-amber-100">{pending.summary}</p>
+          <p className={`text-[11px] leading-snug ${isLight ? "text-amber-900" : "text-amber-100"}`}>{pending.summary}</p>
           <div className="mt-2 flex justify-center gap-2">
             <button
               type="button"
@@ -693,7 +742,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
               type="button"
               onClick={cancelPending}
               disabled={creating}
-              className="rounded-md border border-slate-600 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:bg-slate-800"
+              className={`rounded-md border px-3 py-1 text-[11px] font-medium transition ${isLight ? "border-slate-300 text-slate-600 hover:bg-slate-100" : "border-slate-600 text-slate-300 hover:bg-slate-800"}`}
             >
               Annuler
             </button>
@@ -706,7 +755,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         <button
           type="button"
           onClick={() => router.push(`/dashboard/agents/${followup.agentKey}?ask=${encodeURIComponent(followup.ask)}`)}
-          className="mt-2 rounded-md border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-200 transition hover:bg-amber-400/20"
+          className={`mt-2 rounded-md border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium transition hover:bg-amber-400/20 ${isLight ? "text-amber-700" : "text-amber-200"}`}
         >
           Creuser avec {followup.name} →
         </button>
@@ -720,7 +769,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             type="button"
             onClick={() => void runBrief()}
             disabled={busy || status === "listening"}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300 transition hover:border-amber-300/40 hover:text-amber-200 disabled:opacity-50"
+            className={`rounded-md border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
+              isLight
+                ? "border-slate-300 bg-white text-slate-700 hover:border-fuchsia-300 hover:text-fuchsia-700"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
+            }`}
           >
             Brief du jour
           </button>
@@ -735,41 +788,46 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
  * emplacement, orbe éteinte, invitation à passer au plan Business.
  */
 export function RevoldControlTowerLocked() {
+  const isLight = useIsLightTheme();
   return (
-    // PAS la classe .card : son fond blanc (hors layer, plus fort que les
-    // utilitaires) écrasait bg-slate-950 en mode CLAIR — carte illisible.
-    // La tour de contrôle est sombre par conception, quel que soit le thème.
-    <div className="theme-exempt relative flex h-full flex-col items-center justify-center overflow-hidden rounded-[0.875rem] border border-slate-800 bg-slate-950 p-5">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(148,163,184,0.08),transparent_60%)]" />
-      <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
-        Revold · Tour de contrôle
-      </p>
-      <div className="relative z-10 my-3 flex h-16 w-16 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-2xl grayscale">
-        🔒
+    // MÊME FOND que le bloc « équipe d'agents IA » (card + dégradé) : la carte
+    // se fond dans le thème — c'est l'orbe et les textes qui s'adaptent.
+    <div className="card relative flex h-full overflow-hidden">
+      <div className="relative flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-fuchsia-50 via-white to-indigo-50 p-5">
+        <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+          Revold · Tour de contrôle
+        </p>
+        <div className={`relative z-10 my-3 flex h-16 w-16 items-center justify-center rounded-full border text-2xl grayscale ${isLight ? "border-slate-300 bg-slate-100" : "border-slate-700 bg-slate-900"}`}>
+          🔒
+        </div>
+        <p className="relative z-10 text-center text-xs leading-relaxed text-slate-400">
+          Commande tes agents à la voix, façon Jarvis : brief santé, navigation et
+          agents briefés à la dictée.
+        </p>
+        <a
+          href="/dashboard/mon-compte/facturation"
+          className={`relative z-10 mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold transition hover:bg-amber-400/20 ${isLight ? "text-amber-700" : "text-amber-200"}`}
+        >
+          Disponible dès le plan Business →
+        </a>
       </div>
-      <p className="relative z-10 text-center text-xs leading-relaxed text-slate-400">
-        Commande tes agents à la voix, façon Jarvis : brief santé, navigation et
-        agents briefés à la dictée.
-      </p>
-      <a
-        href="/dashboard/mon-compte/facturation"
-        className="relative z-10 mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
-      >
-        Disponible dès le plan Business →
-      </a>
     </div>
   );
 }
 
 /** Carte « tour de contrôle » de la home — à droite du bloc équipe IA. */
 export function RevoldControlTower() {
+  const isLight = useIsLightTheme();
   return (
-    // PAS la classe .card (fond blanc prioritaire) : la carte reste SOMBRE
-    // dans tous les thèmes, mode clair compris — voir RevoldControlTowerLocked.
-    <div className="theme-exempt relative flex h-full flex-col items-center justify-center overflow-hidden rounded-[0.875rem] border border-slate-800 bg-slate-950 p-5">
-      {/* fond nocturne discret */}
+    // MÊME FOND que le bloc « équipe d'agents IA » (card + dégradé fuchsia →
+    // blanc → indigo, remappé par les thèmes sombres) : la carte se fond dans
+    // le thème — l'orbe passe en violet FONCÉ sur fond clair pour rester
+    // visible, en doré/pâle sur les fonds sombres.
+    <div className="card relative flex h-full overflow-hidden">
+      <div className="relative flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-fuchsia-50 via-white to-indigo-50 p-5">
+      {/* halo discret au cœur de la carte */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(217,70,239,0.12),transparent_60%)]" />
-      <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-200/70">
+      <p className={`relative z-10 text-[10px] font-semibold uppercase tracking-[0.25em] ${isLight ? "text-amber-600/90" : "text-amber-200/70"}`}>
         Revold · Tour de contrôle
       </p>
       {/* Réglages : fonctionnement détaillé + activation par fonctionnalité */}
@@ -786,6 +844,7 @@ export function RevoldControlTower() {
       </a>
       <div className="relative z-10 -my-1">
         <RevoldOrb />
+      </div>
       </div>
     </div>
   );
