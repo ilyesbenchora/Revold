@@ -11,7 +11,6 @@ import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-ga
 import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateAlertModal } from "@/components/create-alert-modal";
-import { BoardAsk } from "@/components/boards/board-ask";
 import { BoardShareButton } from "@/components/boards/board-share-button";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
@@ -49,9 +48,9 @@ export async function BoardFrame({
         <BoardShareButton pageKey={pageKey} title={shareTitle} />
       </div>
 
-      {/* Tableau conversationnel : pose une question, l'agent recalcule en
-          déterministe — masqué tant qu'aucun outil source n'alimente la page. */}
-      {!sourcesLocked && <BoardAsk pageKey={pageKey} />}
+      {/* Le champ conversationnel « Pose une question » vit dans
+          ConfigurableKpiTiles (comme sur toutes les pages de données) —
+          masqué par le gate quand aucun outil source n'alimente la page. */}
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey={sourceKeys} categories={["crm", "billing", "support", "ads"]}>

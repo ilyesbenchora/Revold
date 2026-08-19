@@ -14,6 +14,7 @@ import type { StatTile } from "@/components/kpi-stat-tiles";
 import { getPageCustomization, resolveAddedTiles, type PageCustomization } from "@/lib/kpi/page-tiles";
 import { tileSuggestionsForPage, PAGE_TILE_TEAM, basePageKey } from "@/lib/kpi/tile-catalog";
 import { KpiTilesEditor, type EditorTile } from "./kpi-tiles-editor";
+import { BoardAsk } from "@/components/boards/board-ask";
 import type { HiddenBlock } from "@/components/data-tables/blocks-manager";
 
 export type DefaultTile = StatTile & {
@@ -42,6 +43,7 @@ export async function ConfigurableKpiTiles({
   tablesPageKey,
   hiddenBlocks,
   placeholderRow,
+  ask = true,
 }: {
   supabase: SupabaseClient;
   orgId: string;
@@ -55,6 +57,8 @@ export async function ConfigurableKpiTiles({
   hiddenBlocks?: HiddenBlock[];
   /** Page vierge (tableaux de bord) : rangée d'encarts « ＋ Ajouter un KPI » par défaut. */
   placeholderRow?: boolean;
+  /** false = masque le champ conversationnel « Pose une question » (défaut : affiché). */
+  ask?: boolean;
 }) {
   const cust = customization ?? (await getPageCustomization(supabase, orgId, pageKey));
 
@@ -114,16 +118,22 @@ export async function ConfigurableKpiTiles({
     }));
 
   return (
-    <KpiTilesEditor
-      pageKey={pageKey}
-      team={PAGE_TILE_TEAM[basePageKey(pageKey)] ?? "revops"}
-      alertTeam={PAGE_SURGICAL_TEAM[basePageKey(pageKey)] ?? "revops"}
-      tiles={tiles}
-      hiddenDefaults={hiddenDefaults}
-      suggestions={tileSuggestionsForPage(pageKey)}
-      tablesPageKey={tablesPageKey}
-      hiddenBlocks={hiddenBlocks}
-      placeholderRow={placeholderRow}
-    />
+    <>
+      {/* Page conversationnelle : pose une question sur les données de CETTE
+          page, l'agent recalcule en déterministe (toutes les pages de données
+          sont des tableaux de bord — même mécanique que les tableaux créés). */}
+      {ask && <BoardAsk pageKey={pageKey} />}
+      <KpiTilesEditor
+        pageKey={pageKey}
+        team={PAGE_TILE_TEAM[basePageKey(pageKey)] ?? "revops"}
+        alertTeam={PAGE_SURGICAL_TEAM[basePageKey(pageKey)] ?? "revops"}
+        tiles={tiles}
+        hiddenDefaults={hiddenDefaults}
+        suggestions={tileSuggestionsForPage(pageKey)}
+        tablesPageKey={tablesPageKey}
+        hiddenBlocks={hiddenBlocks}
+        placeholderRow={placeholderRow}
+      />
+    </>
   );
 }

@@ -19,8 +19,13 @@ export const maxDuration = 120;
  * Réponse : { text } — texte court, chiffres câblés.
  */
 
-/** Clés de page autorisées : Vue d'ensemble des tableaux, ou un tableau/onglet. */
-const PAGE_KEY_RE = /^(tableau_bord|board_[0-9a-f-]{36})$/i;
+/**
+ * Clés de page autorisées : tableaux de bord (tableau_bord, board_<id>) ET
+ * pages de données (perf_ventes, audit_paiement_facturation…) — toutes les
+ * pages de données sont des tableaux de bord conversationnels. Le charset est
+ * borné ; les lectures restent scellées à l'organisation de l'utilisateur.
+ */
+const PAGE_KEY_RE = /^[a-z0-9_-]{3,64}$/i;
 
 type TileRow = { title: string | null; forecast_type: string | null; agg_spec: Record<string, unknown> | null };
 type TableRow = {
