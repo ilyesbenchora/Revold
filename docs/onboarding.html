@@ -285,6 +285,30 @@
     </p>
   </div>
 
+  <h3>Un ERP ou un outil métier maison ? Le connecteur sur mesure</h3>
+  <p>
+    Si votre outil n'est pas dans la bibliothèque mais expose une <strong>API REST</strong> (ERP interne,
+    logiciel métier, back-office maison), la page <strong>Intégrations → Sur mesure</strong> le connecte sans
+    développement. Le principe : Revold ne devine jamais les endpoints d'un outil inconnu — vous les déclarez
+    une fois, il les vérifie en direct.
+  </p>
+  <div class="step">
+    <div class="step-n">1</div>
+    <div class="step-body"><h4>Déclarer l'accès</h4><p>URL de base + mode d'authentification (bearer, en-tête ou paramètre). La description métier de l'outil sert à proposer automatiquement les pages et agents à alimenter.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">2</div>
+    <div class="step-body"><h4>Tester en direct</h4><p>Chaque endpoint (clients, affaires, factures, abonnements, transactions, tickets) est appelé sur vos vraies données ; Revold détecte les champs présents dans la réponse et propose la correspondance vers son modèle canonique.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">3</div>
+    <div class="step-body"><h4>Poser la clé de jointure</h4><p>L'<strong>ID de rapprochement</strong> — le code client que vos équipes saisissent à la fois dans l'outil et dans le CRM — relie chaque enregistrement à la bonne entreprise. Vos champs métier propres peuvent être ajoutés en plus et restent agrégeables dans les tableaux et KPIs.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-n">4</div>
+    <div class="step-body"><h4>Synchroniser</h4><p>L'outil apparaît dans « Outil source par page » et dans les sources des agents comme un connecteur natif, et le cron le resynchronise automatiquement.</p></div>
+  </div>
+
   <h3>La première synchronisation</h3>
   <p>
     Elle démarre seule et dure de <strong>30 secondes à quelques minutes</strong> selon le volume. La page

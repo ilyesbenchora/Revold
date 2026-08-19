@@ -734,7 +734,7 @@
 
   <h3>Extensibilité</h3>
   <ul>
-    <li><strong>Connecteur REST sur mesure</strong> : déclaration d'une URL de base, d'un mode d'authentification, d'endpoints par entité et d'une correspondance champ à champ. La jointure se fait par l'ID de rapprochement, et l'outil alimente le modèle canonique comme un connecteur natif.</li>
+    <li><strong>Connecteur REST sur mesure (ERP / outils métiers)</strong> : déclaration d'une URL de base, d'un mode d'authentification, d'endpoints par entité (clients, affaires, factures, abonnements, transactions, tickets) et d'une correspondance champ à champ testée sur la réponse réelle. La jointure se fait par l'ID de rapprochement, l'outil alimente le modèle canonique comme un connecteur natif, et des champs métier supplémentaires (stockés dans <code>source_metadata.extra</code>) restent agrégeables dans les tableaux et KPIs.</li>
     <li><strong>Serveurs MCP</strong> : possibilité de brancher des serveurs Model Context Protocol pour étendre les capacités des agents (fonctionnalité en phase pilote).</li>
     <li><strong>Webhooks entrants</strong> : réception d'événements HubSpot, Stripe, WhatsApp et conversation intelligence.</li>
   </ul>
