@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { aggregateCanonical, listConnectedSources } from "@/lib/ai/agents/tool-library";
+import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -113,7 +114,9 @@ export async function POST(request: Request) {
     "Réponds en FRANÇAIS, tutoiement, 2 à 6 phrases maximum, direct et concret : le chiffre d'abord, la lecture ensuite (tendance, comparaison, point d'attention). " +
     "Formate les montants proprement (ex : 124 500 €, 1,2 M€), sans caractères spéciaux inhabituels ; pas de listes à puces sauf nécessité. " +
     "\n\nComposition ACTUELLE du tableau (les blocs que l'utilisateur a sous les yeux — sers-t'en pour interpréter sa question) :\n" +
-    describeComposition(tiles, tables);
+    describeComposition(tiles, tables) +
+    // Dictionnaire des métriques de l'org : ses définitions maison font foi.
+    (await metricDictionaryDirective(supabase, orgId));
 
   // Historique court (suivis « et en mars ? ») — 6 messages max, le dernier est la question.
   const history: AgentMessage[] = (Array.isArray(body.history) ? body.history : [])

@@ -4,6 +4,7 @@ import { getAgentPersona } from "@/lib/ai/agents/coach-personas";
 import { PAGE_AGENT_KEY } from "@/lib/reports/data-table-presets";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
+import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
 
 // Catalogue canonique disponible (même contrat que aggregate_canonical) : garantit
 // que l'agent ne peut produire qu'une table 100 % calculable et fiable.
@@ -202,6 +203,9 @@ export async function resolveCustomKpiSpec(
   const client = new Anthropic({ apiKey: anthropicKey });
   // Champs métier supplémentaires des connecteurs sur mesure sélectionnés.
   const extraDoc = await extraFieldsDoc(supabase, orgId, sources);
+  // Dictionnaire des métriques de l'org : si le KPI demandé emploie un terme
+  // défini (« CA signé »…), le câblage suit la définition MAISON.
+  const metricsDoc = await metricDictionaryDirective(supabase, orgId);
   // Outils sources choisis dans le funnel → contrainte forte sur le câblage :
   // les entités invoices/subscriptions portent la source de chaque ligne
   // (Stripe, Pennylane, Chargebee…) ; deals/contacts/companies viennent du CRM.
@@ -243,7 +247,8 @@ export async function resolveCustomKpiSpec(
     `Date du jour : ${new Date().toISOString().slice(0, 10)}. Si le KPI ou sa description mentionne explicitement une période, ` +
     `convertis-la en dates absolues (date_from/date_to) ; sinon n'envoie PAS ces champs. ` +
     `Pour le titre : REPRENDS fidèlement le KPI écrit par l'utilisateur, en le peaufinant seulement si besoin ` +
-    `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via un outil.`;
+    `(orthographe, concision) — ne change pas son sens ni son intention. Réponds uniquement via un outil.` +
+    metricsDoc;
 
   const desc = description?.trim();
   const userMessage =

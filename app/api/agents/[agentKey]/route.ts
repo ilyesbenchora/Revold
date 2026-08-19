@@ -7,6 +7,7 @@ import { runAgentTurn, type AgentMessage } from "@/lib/ai/agents/agent-runtime";
 import { getAgent, buildSystemPrompt, coachingDirective } from "@/lib/ai/agents/registry";
 import { getCoachingMemory, memoryDirective } from "@/lib/coaching/session-memory";
 import { getAgentPrefs, prefsDirective } from "@/lib/ai/agents/agent-prefs";
+import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
 import { sanitizeAttachments, attachmentsSystemBlock } from "@/lib/attachments";
 import { getActiveMcpServers } from "@/lib/mcp/servers";
 import { getAnthropicKey } from "@/lib/ai/anthropic-key";
@@ -70,6 +71,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   // ton + personnalité injectés dans le system prompt — propres à chacun.
   const prefDir = prefsDirective(await getAgentPrefs(supabase, orgId, user.id, agentKey));
   if (prefDir) system += prefDir;
+
+  // Dictionnaire des métriques de l'org (Paramètres → Métriques) : les
+  // définitions MAISON font foi quand l'utilisateur emploie ces termes.
+  system += await metricDictionaryDirective(supabase, orgId);
 
   // Outils SUR MESURE de l'org (ERP maison, logiciel métier) : sans leur
   // description, « custom_gaia » n'est qu'un nom vide pour l'agent. Avec elle,
