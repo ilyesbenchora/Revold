@@ -30,9 +30,9 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Mon équipe IA, disponible 24/7",
-    desc: "Des agents experts par domaine (performance, trésorerie, service client, qualité des données) et des coachs par métier. Chaque chiffre affiché est câblé sur vos vraies données — jamais inventé par l'IA.",
+    desc: "Des agents experts par domaine (performance, trésorerie, service client, qualité des données), à briefer par écrit ou à la voix depuis la tour de contrôle. Chaque chiffre affiché est câblé sur vos vraies données — jamais inventé par l'IA.",
     stat: "24/7",
-    statLabel: "agents experts & coachs",
+    statLabel: "agents experts par domaine",
   },
   {
     title: "Des actions, pas des dashboards",

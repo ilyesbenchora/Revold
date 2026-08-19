@@ -23,7 +23,7 @@ const PRICING = [
     features: [
       "3 intégrations incluses (HubSpot en 1 clic, Stripe, Pennylane…)",
       "Rapprochement SIREN / SIRET / TVA + enrichissement Sirene",
-      "Agents experts IA + coachs par métier",
+      "Agents experts IA par domaine, pilotables à la voix",
       "Rapports & graphiques câblés sur tes vraies données (jusqu'à 20)",
       "Alertes, objectifs et calendrier avec câblage vérifié",
       "5 utilisateurs · support email",

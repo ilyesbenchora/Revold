@@ -57,7 +57,7 @@ export default function MarketingPage() {
           <div className="mt-12 space-y-6">
             {[
               { title: "Attribution cross-source", desc: "Reliez l'acquisition au pipeline généré puis aux factures réellement encaissées, grâce au rapprochement SIREN / SIRET / TVA entre CRM et facturation. De la campagne au CA, chaque euro est tracé.", icon: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" },
-              { title: "Coach Marketing IA 24/7", desc: "Un coach dédié à votre métier qui répond sur vos vraies données : quelles campagnes rapportent, où se perd le funnel, quoi tester ensuite. Jamais un chiffre inventé.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+              { title: "Agent Marketing IA 24/7", desc: "Un agent expert dédié à votre métier qui répond sur vos vraies données : quelles campagnes rapportent, où se perd le funnel, quoi tester ensuite. Jamais un chiffre inventé.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
               { title: "Qualité des leads mesurée", desc: "Taux de conversion, doublons détectés, données manquantes remplies depuis la base Sirene. Améliorez la qualité avant de scaler le volume.", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
               { title: "Campagnes × facturation réelle", desc: "Chaque campagne est reliée au chiffre d'affaires réellement facturé, pas seulement aux opportunités créées. Vous savez ce qui rapporte vraiment.", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
               { title: "Routines & récaps programmés", desc: "Un récap marketing complet (tuiles, courbes, synthèses) généré à la fréquence de votre choix et livré automatiquement — même app fermée.", icon: "M12 8v4l3 3M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" },
@@ -85,7 +85,7 @@ export default function MarketingPage() {
               { val: "+40%", desc: "lead quality" },
               { val: "E2E", desc: "attribution end-to-end" },
               { val: "0", desc: "spreadsheet" },
-              { val: "24/7", desc: "coach Marketing IA" },
+              { val: "24/7", desc: "agent Marketing IA" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>

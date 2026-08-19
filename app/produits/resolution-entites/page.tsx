@@ -14,7 +14,7 @@ export default function ResolutionEntitesPage() {
       badge="Résolution d'entités"
       title="Une entreprise, une fiche."
       titleAccent="Partout."
-      subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même les identifiants manquants depuis la base Sirene officielle, à valider en un clic."
+      subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même la donnée officielle manquante (identifiants, effectifs, CA, secteur, statut juridique, capital social, adresse du siège) depuis Sirene et l'INPI, en continu."
       heroIcon={icon}
       pains={[
         { value: "40%", label: "des leads B2B générés sont invalides, incomplets ou doublons dans le CRM.", source: "Cognism" },
@@ -23,10 +23,10 @@ export default function ResolutionEntitesPage() {
       ]}
       features={[
         { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
-        { title: "Enrichissement automatique via Sirene", desc: "Le cœur du moteur : quand un identifiant manque, Revold interroge la base Sirene officielle et propose le SIREN / SIRET correspondant. Vous validez, la fiche est complète." },
+        { title: "Enrichissement officiel Sirene + INPI", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
         { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },
         { title: "Validation utilisateur", desc: "Aucun enrichissement n'est écrit sans votre accord. Chaque proposition est présentée avec sa source ; vous validez ou rejetez en un clic." },
-        { title: "Écriture dans HubSpot", desc: "Les identifiants validés sont aussi écrits dans vos fiches HubSpot : votre CRM devient plus propre, pas seulement Revold." },
+        { title: "Écriture dans HubSpot", desc: "Identifiants et données officielles (effectifs, CA, statut juridique…) sont aussi écrits dans vos fiches HubSpot — champs vides uniquement, jamais d'écrasement. Chaque nouvelle entreprise est enrichie automatiquement, et les données évolutives sont rafraîchies tous les 90 jours." },
         { title: "Traçabilité totale", desc: "Chaque entité sait d'où elle vient : outil source, identifiant externe, méthode de rapprochement. Rien n'est une boîte noire." },
       ]}
       howItWorks={[

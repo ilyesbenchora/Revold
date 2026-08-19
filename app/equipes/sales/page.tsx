@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Revold pour les Sales / Direction Commerciale — Revenue Intelligence",
-  description: "Revold aide les équipes commerciales à closer plus de deals : détection des deals silencieux, tâches HubSpot créées après validation, coach Sales IA 24/7 et projection pondérée du pipeline.",
+  description: "Revold aide les équipes commerciales à closer plus de deals : détection des deals silencieux, tâches HubSpot créées après validation, agent Sales IA 24/7 et projection pondérée du pipeline.",
 };
 
 export default function SalesPage() {
@@ -19,7 +19,7 @@ export default function SalesPage() {
             Closez plus de deals.{" "}
             <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">Perdez moins de temps.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">Détection des deals silencieux, tâches HubSpot créées après votre validation, coach Sales IA 24/7 et projection pondérée du pipeline. Concentrez votre énergie sur les deals qui vont closer.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">Détection des deals silencieux, tâches HubSpot créées après votre validation, agent Sales IA 24/7 et projection pondérée du pipeline. Concentrez votre énergie sur les deals qui vont closer.</p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/demo" className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl">Faire une démo</Link>
             <Link href="/essai-gratuit" className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">Essai gratuit</Link>
@@ -58,7 +58,7 @@ export default function SalesPage() {
             {[
               { title: "Pipeline temps réel", desc: "Visualisez l'ensemble de votre pipeline avec les montants, probabilités et dates de close synchronisés automatiquement depuis HubSpot.", icon: "M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" },
               { title: "Deals silencieux détectés, tâche créée", desc: "Deal sans activité depuis 21 jours ? Revold le détecte et vous propose l'action : vous validez, la tâche est créée directement dans HubSpot pour le bon commercial.", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" },
-              { title: "Coach Sales IA 24/7", desc: "Un coach dédié à votre métier, disponible en direct : posez vos questions sur vos deals, vos comptes, votre pipeline — chaque réponse est câblée sur vos vraies données.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+              { title: "Agent Sales IA 24/7", desc: "Un agent expert dédié à votre métier, disponible en direct : posez vos questions sur vos deals, vos comptes, votre pipeline — chaque réponse est câblée sur vos vraies données.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
               { title: "Projection pondérée du pipeline", desc: "Montants × probabilités par stage, croisés avec la facturation réelle rapprochée par SIREN / TVA. Fini la lecture du pipeline au doigt mouillé.", icon: "M3 3v18h18M7 16l4-8 4 4 4-8" },
               { title: "Alertes & objectifs au câblage vérifié", desc: "Avant de créer une alerte ou un objectif d'équipe, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve d'abord, le suivi ensuite.", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
             ].map((f) => (
@@ -84,7 +84,7 @@ export default function SalesPage() {
             {[
               { val: "21 j", desc: "seuil deal silencieux" },
               { val: "1 clic", desc: "tâche HubSpot créée" },
-              { val: "24/7", desc: "coach Sales IA" },
+              { val: "24/7", desc: "agent Sales IA" },
               { val: "100%", desc: "chiffres câblés" },
             ].map((m) => (
               <div key={m.desc} className="text-center">

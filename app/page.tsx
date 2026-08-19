@@ -48,13 +48,13 @@ const FEATURES = [
   {
     icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
     title: "Rapprochement de données à la française",
-    desc: "SIREN, SIRET, N° TVA : Revold relie vos entreprises entre CRM, facturation et compta — et REMPLIT lui-même les identifiants manquants depuis la base Sirene officielle, à valider en un clic.",
+    desc: "SIREN, SIRET, N° TVA : Revold relie vos entreprises entre CRM, facturation et compta — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis Sirene et l'INPI, jusque dans votre CRM.",
     href: "/produits/resolution-entites",
   },
   {
     icon: "M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7zM10 21v1a2 2 0 0 0 4 0v-1",
     title: "Mon équipe IA, disponible 24/7",
-    desc: "Des agents experts par domaine (performance, trésorerie, service client, qualité des données) et des coachs par métier. Chaque chiffre affiché est câblé sur vos vraies données — jamais inventé.",
+    desc: "Des agents experts par domaine (performance, trésorerie, service client, qualité des données), à briefer par écrit ou à la voix. Chaque chiffre affiché est câblé sur vos vraies données — jamais inventé.",
     href: "/produits/insights-ia",
   },
   {
@@ -88,7 +88,7 @@ const PERSONAS = [
   { role: "Sales / Directeur Commercial", pain: "Forecast au feeling, deals qui meurent en silence", gain: "Détection des deals silencieux → tâche HubSpot créée, projection pondérée du pipeline" },
   { role: "Marketing", pain: "Impossible de prouver le ROI jusqu'à la facture", gain: "Attribution cross-source : acquisition → pipeline → factures réellement encaissées" },
   { role: "RevOps", pain: "Des jours à compiler des rapports, données incohérentes entre outils", gain: "Rapprochement SIREN/TVA automatique, KPIs vérifiés sur données réelles, récaps de routine" },
-  { role: "CSM / Customer Success", pain: "Aucune visibilité sur les signaux de churn avant qu'il soit trop tard", gain: "Croisement tickets × paiements × activité CRM, coach dédié et alertes câblées" },
+  { role: "CSM / Customer Success", pain: "Aucune visibilité sur les signaux de churn avant qu'il soit trop tard", gain: "Croisement tickets × paiements × activité CRM, agent service client dédié et alertes câblées" },
   { role: "Finance / DAF", pain: "Écart permanent entre pipeline CRM et cash réellement encaissé", gain: "Trésorerie temps réel, relances d'impayés exécutées et cash récupéré attribué en euros" },
 ];
 
@@ -211,7 +211,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold text-white md:text-4xl">Pensé pour chaque métier du revenue</h2>
-            <p className="mt-4 text-slate-400">Des espaces de travail par pôle : chaque équipe voit ses pages, ses coachs et ses KPIs.</p>
+            <p className="mt-4 text-slate-400">Des espaces de travail par pôle : chaque équipe voit ses pages, ses agents et ses KPIs.</p>
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {PERSONAS.map((p) => (

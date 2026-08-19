@@ -14,7 +14,7 @@ export default function AccelererCyclesVentePage() {
       keyBenefits={[
         { title: "Deals silencieux détectés tôt", desc: "Inactivité prolongée détectée en déterministe sur vos données HubSpot — le signal remonte avant que le deal ne meure." },
         { title: "Action dans votre CRM", desc: "Deal silencieux → tâche HubSpot créée pour le bon owner, avec le contexte. Vous validez, Revold exécute." },
-        { title: "Coach commercial IA", desc: "Un coach dédié aux sales, branché sur vos pipelines réels : priorités du jour, deals en tension, chiffres toujours câblés." },
+        { title: "Agent commercial IA", desc: "Un agent expert dédié aux sales, branché sur vos pipelines réels : priorités du jour, deals en tension, chiffres toujours câblés." },
       ]}
       teams={[
         { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Les deals traînent dans le pipeline sans que personne ne réagisse.", solution: "Alertes câblées sur les deals qui stagnent + brief du jour sur la tour de contrôle.", result: "Pipeline qui avance. Décisions rapides sur les deals bloqués." },

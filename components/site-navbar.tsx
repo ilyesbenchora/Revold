@@ -11,7 +11,7 @@ import { RevoldLogo } from "@/components/revold-logo";
 
 const PRODUCT_LINKS = [
   { label: "Rapprochement de données", href: "/produits/resolution-entites", desc: "SIREN / SIRET / TVA, enrichissement Sirene automatique" },
-  { label: "Mon équipe IA 24/7", href: "/produits/insights-ia", desc: "Agents experts + coachs par métier, routines & récaps" },
+  { label: "Mon équipe IA 24/7", href: "/produits/insights-ia", desc: "Agents experts par domaine, tour de contrôle vocale, routines & récaps" },
   { label: "Synchronisation de données", href: "/produits/synchronisation", desc: "HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage" },
   { label: "Reporting cross-source", href: "/produits/reporting-cross-source", desc: "KPIs câblés et vérifiés, CRM × facturation × compta" },
   { label: "Audit complet du CRM", href: "/produits/audit-crm", desc: "Complétude, doublons, orphelins, score de santé" },

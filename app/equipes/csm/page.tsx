@@ -57,7 +57,7 @@ export default function CSMPage() {
           <div className="mt-12 space-y-6">
             {[
               { title: "Croisement tickets × paiements × activité CRM", desc: "Revold croise les signaux de votre outil de support, vos données de paiement et l'activité CRM pour détecter les premiers signes de désengagement.", icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" },
-              { title: "Coach CSM IA 24/7", desc: "Un coach dédié à votre métier, disponible en direct : posez vos questions sur un compte, ses paiements, son historique — chaque réponse est câblée sur vos vraies données.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+              { title: "Agent CSM IA 24/7", desc: "Un agent expert dédié à votre métier, disponible en direct : posez vos questions sur un compte, ses paiements, son historique — chaque réponse est câblée sur vos vraies données.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
               { title: "Alertes au câblage vérifié sur comptes à fort MRR", desc: "Avant de créer une alerte, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. Plus le MRR est élevé, plus l'alerte est prioritaire.", icon: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" },
               { title: "Vue unifiée du client", desc: "Grâce au rapprochement SIREN / SIRET / TVA, Revold réconcilie toutes les données d'un même client entre CRM, support et facturation. Une seule fiche, zéro trou.", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { title: "Historique complet deal → onboarding → support", desc: "Visualisez le parcours complet du client : du premier deal à l'onboarding, en passant par chaque interaction support. Le contexte est toujours là.", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
@@ -83,7 +83,7 @@ export default function CSMPage() {
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
               { val: "3×", desc: "sources croisées par compte" },
-              { val: "24/7", desc: "coach CSM IA" },
+              { val: "24/7", desc: "agent CSM IA" },
               { val: "Temps réel", desc: "alertes câblées" },
               { val: "360°", desc: "vue client unifiée" },
             ].map((m) => (
