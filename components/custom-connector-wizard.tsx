@@ -115,6 +115,46 @@ export function CustomConnectorWizard({
   const patch = (i: number, p: Partial<EndpointDraft>) =>
     setEndpoints((prev) => prev.map((e, idx) => (idx === i ? { ...e, ...p } : e)));
 
+  // ── Correspondance proposée par l'AGENT (1d) : depuis les champs détectés et
+  // l'enregistrement d'exemple du test — appliquée dans les sélecteurs, jamais
+  // enregistrée sans validation humaine. ──
+  const [agentMapping, setAgentMapping] = useState<number | null>(null);
+  const [agentNotes, setAgentNotes] = useState<Record<number, string>>({});
+
+  async function agentMap(i: number) {
+    const ep = endpoints[i];
+    if (!ep.tested || ep.keys.length === 0 || agentMapping != null) return;
+    setAgentMapping(i);
+    setError(null);
+    try {
+      const res = await fetch("/api/custom-connectors/agent-map", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entity: ep.entity,
+          keys: ep.keys,
+          sample: ep.sample,
+          toolLabel: label,
+          toolDescription: description,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(d.error || "Proposition impossible.");
+        return;
+      }
+      patch(i, {
+        fieldMap: (d.fieldMap ?? {}) as Record<string, string>,
+        extraFields: Array.isArray(d.extraFields) ? (d.extraFields as ExtraFieldDraft[]) : [],
+      });
+      setAgentNotes((prev) => ({ ...prev, [i]: typeof d.note === "string" && d.note ? d.note : "" }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Proposition impossible.");
+    } finally {
+      setAgentMapping(null);
+    }
+  }
+
   async function testEndpoint(i: number) {
     const ep = endpoints[i];
     if (!ep.path.trim() || testing != null) return;
@@ -545,7 +585,20 @@ export function CustomConnectorWizard({
                       wide
                       text={"À gauche : ce dont Revold a besoin. À droite : les champs réellement présents dans ton outil (détectés lors du test).\n\nRevold a déjà pré-rempli ce qu'il a reconnu — vérifie et corrige. Laisse « non fourni » si l'information n'existe pas dans l'outil : rien ne sera inventé."}
                     />
+                    <button
+                      type="button"
+                      disabled={agentMapping != null}
+                      onClick={() => agentMap(i)}
+                      className="ml-auto rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                    >
+                      {agentMapping === i ? "Analyse de l'échantillon…" : "✨ Correspondance proposée par l'agent"}
+                    </button>
                   </p>
+                  {agentNotes[i] && (
+                    <p className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-[11px] text-indigo-700">
+                      ✨ À vérifier : {agentNotes[i]}
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     {def.fields.map((f) => (
                       <div key={f.id} className="flex items-center gap-2">

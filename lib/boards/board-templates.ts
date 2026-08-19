@@ -14,7 +14,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type TemplateTile = {
+export type TemplateTile = {
   title: string;
   unit: "currency" | "count" | "percent";
   /** Spec d'agrégat — même contrat que le cron d'alertes (valueFromAggSpec). */
@@ -29,7 +29,7 @@ type TemplateTile = {
   };
 };
 
-type TemplateTable = {
+export type TemplateTable = {
   title: string;
   entity: string;
   group_by: string;
@@ -57,6 +57,8 @@ const ENTITY_TABLE: Record<string, string> = {
   subscriptions: "subscriptions",
   transactions: "bank_transactions",
   tickets: "tickets",
+  contacts: "contacts",
+  companies: "companies",
 };
 
 // Libellés de statut des deals — mêmes valeurs que DEAL_STATUS_LABELS
@@ -142,19 +144,50 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
       { title: "Tickets par statut", entity: "tickets", group_by: "status", measure: "count", unit_mode: "count", view: "bar", description: "Ouverts, en cours, résolus…" },
     ],
   },
+  {
+    id: "funnel_marketing",
+    label: "Funnel marketing",
+    description: "Contacts, MQL, SQL — la qualification de ta base.",
+    entities: ["contacts"],
+    tiles: [
+      { title: "Contacts MQL", unit: "count", agg: { entity: "contacts", groupBy: "mql", measure: "count", target: "MQL" } },
+      { title: "Contacts SQL", unit: "count", agg: { entity: "contacts", groupBy: "sql", measure: "count", target: "SQL" } },
+      { title: "Taux de MQL", unit: "percent", agg: { entity: "contacts", groupBy: "mql", measure: "count", target: "MQL", percent_of_total: true } },
+    ],
+    tables: [
+      { title: "Répartition MQL / non-MQL", entity: "contacts", group_by: "mql", measure: "count", unit_mode: "count", view: "donut", description: "Part des contacts qualifiés marketing." },
+      { title: "Répartition SQL / non-SQL", entity: "contacts", group_by: "sql", measure: "count", unit_mode: "count", view: "donut", description: "Part des contacts qualifiés sales." },
+    ],
+  },
+  {
+    id: "portefeuille_clients",
+    label: "Portefeuille clients",
+    description: "Tes entreprises par segment, industrie et pays.",
+    entities: ["companies"],
+    tiles: [
+      { title: "Entreprises", unit: "count", agg: { entity: "companies", groupBy: "segment", measure: "count" } },
+    ],
+    tables: [
+      { title: "Entreprises par segment", entity: "companies", group_by: "segment", measure: "count", unit_mode: "count", view: "bar", description: "PME / ETI / Enterprise…" },
+      { title: "Entreprises par industrie", entity: "companies", group_by: "industry", measure: "count", unit_mode: "count", view: "bar", description: "Les secteurs de ton portefeuille." },
+    ],
+  },
 ];
 
 /** Version sérialisable pour le client (modal de création). */
 export type BoardTemplateOption = { id: string; label: string; description: string };
 
-/**
- * Templates réellement proposables : chaque entité requise a au moins un
- * enregistrement synchronisé (comptages head, coût borné).
- */
-export async function availableBoardTemplates(
-  supabase: SupabaseClient,
-  orgId: string,
-): Promise<BoardTemplateOption[]> {
+/** Carte de la galerie Templates : composition détaillée + disponibilité. */
+export type BoardTemplateGalleryItem = BoardTemplateOption & {
+  available: boolean;
+  /** Entités requises (libellés d'affichage gérés côté page). */
+  entities: string[];
+  tileTitles: string[];
+  tableTitles: string[];
+};
+
+/** Volumes synchronisés par entité agrégeable (comptages head, coût borné). */
+async function entityCounts(supabase: SupabaseClient, orgId: string): Promise<Map<string, number>> {
   const entities = [...new Set(BOARD_TEMPLATES.flatMap((t) => t.entities))];
   const counts = new Map<string, number>();
   await Promise.all(
@@ -172,25 +205,59 @@ export async function availableBoardTemplates(
       }
     }),
   );
+  return counts;
+}
+
+/**
+ * Templates réellement proposables : chaque entité requise a au moins un
+ * enregistrement synchronisé.
+ */
+export async function availableBoardTemplates(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<BoardTemplateOption[]> {
+  const counts = await entityCounts(supabase, orgId);
   return BOARD_TEMPLATES.filter((t) => t.entities.every((e) => (counts.get(e) ?? 0) > 0)).map(
     (t) => ({ id: t.id, label: t.label, description: t.description }),
   );
 }
 
 /**
- * Seed la composition d'un template sous la clé board_<id> — best effort :
+ * Galerie complète (page Templates) : TOUS les templates avec leur composition
+ * et leur disponibilité — les indisponibles restent visibles (ils montrent ce
+ * que débloquerait la connexion d'un outil).
+ */
+export async function boardTemplateGallery(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<BoardTemplateGalleryItem[]> {
+  const counts = await entityCounts(supabase, orgId);
+  return BOARD_TEMPLATES.map((t) => ({
+    id: t.id,
+    label: t.label,
+    description: t.description,
+    available: t.entities.every((e) => (counts.get(e) ?? 0) > 0),
+    entities: t.entities,
+    tileTitles: t.tiles.map((x) => x.title),
+    tableTitles: t.tables.map((x) => x.title),
+  }));
+}
+
+/** Composition seedable (template statique ou proposition de l'agent). */
+export type BoardComposition = { tiles: TemplateTile[]; tables: TemplateTable[] };
+
+/**
+ * Seed une composition (tuiles + tables) sous la clé board_<id> — best effort :
  * une insertion qui échoue n'empêche pas la création du tableau (la page
  * reste utilisable vierge).
  */
-export async function seedBoardFromTemplate(
+export async function seedBoardComposition(
   supabase: SupabaseClient,
   orgId: string,
   userId: string,
   boardId: string,
-  templateId: string,
+  tpl: BoardComposition,
 ): Promise<void> {
-  const tpl = BOARD_TEMPLATES.find((t) => t.id === templateId);
-  if (!tpl) return;
   const pageKey = `board_${boardId}`;
 
   try {
@@ -235,4 +302,17 @@ export async function seedBoardFromTemplate(
   } catch {
     /* idem — les tuiles seedées restent en place */
   }
+}
+
+/** Seed la composition d'un template statique (id du catalogue). */
+export async function seedBoardFromTemplate(
+  supabase: SupabaseClient,
+  orgId: string,
+  userId: string,
+  boardId: string,
+  templateId: string,
+): Promise<void> {
+  const tpl = BOARD_TEMPLATES.find((t) => t.id === templateId);
+  if (!tpl) return;
+  await seedBoardComposition(supabase, orgId, userId, boardId, { tiles: tpl.tiles, tables: tpl.tables });
 }
