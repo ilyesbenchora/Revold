@@ -582,7 +582,7 @@ export const WIZARD_CONFIGS: Record<string, WizardConfig> = {
     buildSteps: () => [
       {
         title: "Pas de clé API à créer",
-        body: "Les emails sont envoyés depuis Revold via Resend (DKIM/SPF configurés sur revold.io). Vous indiquez juste les destinataires.",
+        body: "Les emails sont envoyés depuis Revold via Resend (DKIM/SPF configurés sur revold.ai). Vous indiquez juste les destinataires.",
       },
       {
         title: "Listez les adresses Gmail / Workspace destinataires",
@@ -613,7 +613,7 @@ export const WIZARD_CONFIGS: Record<string, WizardConfig> = {
     buildSteps: () => [
       {
         title: "Pas de clé API à créer",
-        body: "Les emails sont envoyés depuis Revold via Resend (DKIM/SPF configurés sur revold.io, donc pas marqués spam).",
+        body: "Les emails sont envoyés depuis Revold via Resend (DKIM/SPF configurés sur revold.ai, donc pas marqués spam).",
       },
       {
         title: "Listez les adresses Outlook / M365 destinataires",

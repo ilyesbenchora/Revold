@@ -1,7 +1,7 @@
 import { articles } from "../data";
 
 export async function GET() {
-  const baseUrl = "https://revold.io";
+  const baseUrl = "https://revold.ai";
   const sorted = [...articles].sort((a, b) => b.date.localeCompare(a.date));
 
   const items = sorted

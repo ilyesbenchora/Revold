@@ -392,7 +392,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     category: "communication",
     description: "Notifications email via votre compte Gmail. Recevez les alertes et le digest quotidien sur votre boîte pro.",
     helpUrl: "https://support.google.com/mail/answer/7126229",
-    helpText: "Ajoutez simplement les adresses Gmail destinataires dans la page Notifications. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.io).",
+    helpText: "Ajoutez simplement les adresses Gmail destinataires dans la page Notifications. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.ai).",
     fields: [
       { key: "recipients", label: "Adresses Gmail destinataires", placeholder: "alice@gmail.com, bob@workspace.fr", type: "text", helper: "Séparées par virgule. Acceptent aussi Google Workspace." },
     ],
@@ -436,7 +436,7 @@ export const CONNECTABLE_TOOLS: Record<string, ConnectableTool> = {
     category: "communication",
     description: "Notifications email Outlook / Microsoft 365. Le digest quotidien et les alertes critiques arrivent dans votre Outlook.",
     helpUrl: "https://support.microsoft.com/en-us/office/welcome-to-outlook-com-3920a3c9-2c5b-4a5b-8c5d-1e7e88a45f23",
-    helpText: "Ajoutez simplement les adresses Outlook/M365 destinataires. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.io, donc pas marqués comme spam).",
+    helpText: "Ajoutez simplement les adresses Outlook/M365 destinataires. Les emails sont envoyés via Resend (DKIM/SPF configurés sur revold.ai, donc pas marqués comme spam).",
     fields: [
       { key: "recipients", label: "Adresses Outlook destinataires", placeholder: "alice@outlook.com, bob@company.com", type: "text", helper: "Séparées par virgule. Microsoft 365 accepté." },
     ],

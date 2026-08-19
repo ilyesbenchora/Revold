@@ -142,7 +142,7 @@ export default function SecuritePage() {
       <h2 id="audit" className="mt-10 text-xl font-bold text-slate-900">Tests d&apos;intrusion & divulgation responsable</h2>
       <ul className="mt-3 list-disc space-y-2 pl-6 text-sm text-slate-600">
         <li><strong>Pen test annuel</strong> par un cabinet externe indépendant (premier audit prévu Q3 2026).</li>
-        <li><strong>Programme de divulgation responsable</strong> : envoyez vos rapports à <a href="mailto:security@revold.io" className="font-medium text-accent hover:underline">security@revold.io</a>. Nous accusons réception sous 48 h ouvrées et nous nous engageons à ne pas poursuivre les chercheurs agissant de bonne foi.</li>
+        <li><strong>Programme de divulgation responsable</strong> : envoyez vos rapports à <a href="mailto:security@revold.ai" className="font-medium text-accent hover:underline">security@revold.ai</a>. Nous accusons réception sous 48 h ouvrées et nous nous engageons à ne pas poursuivre les chercheurs agissant de bonne foi.</li>
         <li><strong>SCA + Dependabot</strong> : revue automatique des dépendances open-source, patches CVE appliqués sous 7 jours pour les sévérités critiques.</li>
       </ul>
 
@@ -157,8 +157,8 @@ export default function SecuritePage() {
 
       <h2 id="contact" className="mt-10 text-xl font-bold text-slate-900">Contact sécurité</h2>
       <p className="mt-3 text-slate-600">
-        DPO et équipe sécurité : <a href="mailto:security@revold.io" className="font-medium text-accent hover:underline">security@revold.io</a>.<br />
-        Pour les demandes RGPD (accès, rectification, suppression) : <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline">dpo@revold.io</a>.
+        DPO et équipe sécurité : <a href="mailto:security@revold.ai" className="font-medium text-accent hover:underline">security@revold.ai</a>.<br />
+        Pour les demandes RGPD (accès, rectification, suppression) : <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline">dpo@revold.ai</a>.
       </p>
 
       <div className="mt-10 rounded-xl border border-slate-200 bg-slate-50 p-5">

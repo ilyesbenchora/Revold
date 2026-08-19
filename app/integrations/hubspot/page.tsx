@@ -224,9 +224,9 @@ export default function HubSpotIntegrationPage() {
               équipe basée à Paris (FR).
             </p>
             <ul className="mt-4 space-y-2 text-sm text-slate-300">
-              <li>📧 <a href="mailto:support@revold.io" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">support@revold.io</a> — questions produit</li>
-              <li>🔒 <a href="mailto:security@revold.io" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">security@revold.io</a> — vulnérabilités, divulgation responsable</li>
-              <li>⚖️ <a href="mailto:dpo@revold.io" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">dpo@revold.io</a> — RGPD, DPA, demandes d&apos;accès</li>
+              <li>📧 <a href="mailto:support@revold.ai" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">support@revold.ai</a> — questions produit</li>
+              <li>🔒 <a href="mailto:security@revold.ai" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">security@revold.ai</a> — vulnérabilités, divulgation responsable</li>
+              <li>⚖️ <a href="mailto:dpo@revold.ai" className="text-fuchsia-300 hover:text-fuchsia-200 hover:underline">dpo@revold.ai</a> — RGPD, DPA, demandes d&apos;accès</li>
             </ul>
           </div>
         </div>

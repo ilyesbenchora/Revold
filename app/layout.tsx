@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s — Revold",
   },
   description: "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
-  metadataBase: new URL("https://revold.io"),
+  metadataBase: new URL("https://revold.ai"),
   alternates: {
     canonical: "/",
     types: {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_FR",
     siteName: "Revold",
-    url: "https://revold.io",
+    url: "https://revold.ai",
   },
   twitter: {
     card: "summary_large_image",
@@ -70,8 +70,8 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: "Revold",
   alternateName: "Revold — Revenue Intelligence",
-  url: "https://revold.io",
-  logo: "https://revold.io/icon.svg",
+  url: "https://revold.ai",
+  logo: "https://revold.ai/icon.svg",
   description:
     "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
   foundingDate: "2025",
@@ -85,14 +85,14 @@ const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "Revold",
-  url: "https://revold.io",
+  url: "https://revold.ai",
   inLanguage: "fr-FR",
   publisher: {
     "@type": "Organization",
     name: "Revold",
     logo: {
       "@type": "ImageObject",
-      url: "https://revold.io/icon.svg",
+      url: "https://revold.ai/icon.svg",
     },
   },
 };

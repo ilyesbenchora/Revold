@@ -141,7 +141,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_contact: { label: "Création de contact", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_deal_update: { label: "Date de closing", domain: "hubspot.com", icon: "📅", tool: "hubspot", toolLabel: "HubSpot" },
-  link_company: { label: "Rattachement de fiches", domain: "revold.io", icon: "🔗", tool: "revold", toolLabel: "Revold" },
+  link_company: { label: "Rattachement de fiches", domain: "revold.ai", icon: "🔗", tool: "revold", toolLabel: "Revold" },
   stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
 };
 

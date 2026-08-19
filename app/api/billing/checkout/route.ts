@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       org?.name ?? "Revold customer",
     );
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai";
     const session = await createCheckoutSession({
       customerId,
       plan,

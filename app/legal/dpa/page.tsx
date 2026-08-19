@@ -26,7 +26,7 @@ export default function DpaPage() {
         <p className="text-sm font-semibold text-amber-900">⚠ Signature électronique</p>
         <p className="mt-1 text-xs text-amber-800">
           Pour une version contre-signée par Revold avec en-tête à votre nom et signature électronique qualifiée,
-          envoyez votre demande à <a href="mailto:dpo@revold.io" className="font-medium underline">dpo@revold.io</a>.
+          envoyez votre demande à <a href="mailto:dpo@revold.ai" className="font-medium underline">dpo@revold.ai</a>.
           La version ci-dessous est juridiquement opposable dès l&apos;activation du compte.
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function DpaPage() {
         <li>Authentification forte (Supabase Auth, JWT signés, refresh rotation).</li>
         <li>Sauvegardes quotidiennes chiffrées avec rétention 7 jours.</li>
         <li>Tests de pénétration annuels par un cabinet externe indépendant.</li>
-        <li>Programme de divulgation responsable (security@revold.io).</li>
+        <li>Programme de divulgation responsable (security@revold.ai).</li>
       </ul>
 
       <h2 id="article-7" className="mt-10 text-xl font-bold text-slate-900">7. Audits</h2>
@@ -116,14 +116,14 @@ export default function DpaPage() {
         Revold assiste le Responsable de traitement dans la réponse aux demandes d&apos;exercice des droits prévus
         aux articles 12 à 22 du RGPD (information, accès, rectification, effacement, limitation, portabilité,
         opposition, profilage). Les requêtes peuvent être adressées à
-        <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline"> dpo@revold.io</a>.
+        <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline"> dpo@revold.ai</a>.
         Revold s&apos;engage à un délai de réponse <strong>≤ 7 jours ouvrés</strong>.
       </p>
 
       <h2 id="article-10" className="mt-10 text-xl font-bold text-slate-900">10. Suppression des données</h2>
       <ul className="mt-3 list-disc space-y-2 pl-6 text-sm text-slate-600">
         <li><strong>À la fin du contrat</strong> : sur demande, Revold restitue les Données dans un format structuré (CSV / JSON) sous 30 jours, puis procède à leur suppression définitive de toutes les bases (production + sauvegardes) sous 60 jours supplémentaires.</li>
-        <li><strong>Suppression à la demande</strong> : possibilité d&apos;effacer un compte client ou un contact spécifique à tout moment depuis l&apos;UI ou par email à <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline">dpo@revold.io</a>.</li>
+        <li><strong>Suppression à la demande</strong> : possibilité d&apos;effacer un compte client ou un contact spécifique à tout moment depuis l&apos;UI ou par email à <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline">dpo@revold.ai</a>.</li>
         <li><strong>Logs anonymisés</strong> : les logs techniques sont anonymisés après 30 jours pour préserver la traçabilité opérationnelle sans identification directe.</li>
       </ul>
 
@@ -142,7 +142,7 @@ export default function DpaPage() {
 
       <h2 id="contact" className="mt-10 text-xl font-bold text-slate-900">Contact</h2>
       <p className="mt-3 text-sm text-slate-600">
-        Délégué à la protection des données (DPO) : <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline">dpo@revold.io</a>
+        Délégué à la protection des données (DPO) : <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline">dpo@revold.ai</a>
         <br />Pour toute question sur ce DPA ou pour demander une version contre-signée : même adresse.
       </p>
 

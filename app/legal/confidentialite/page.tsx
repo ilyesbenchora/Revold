@@ -50,13 +50,13 @@ export default function ConfidentialitePage() {
         <li>Droit à la portabilité.</li>
         <li>Droit d&apos;opposition et de limitation du traitement.</li>
       </ul>
-      <p className="mt-3 text-slate-600">Pour exercer vos droits : <a href="mailto:privacy@revold.io" className="font-medium text-accent hover:underline">privacy@revold.io</a></p>
+      <p className="mt-3 text-slate-600">Pour exercer vos droits : <a href="mailto:privacy@revold.ai" className="font-medium text-accent hover:underline">privacy@revold.ai</a></p>
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">6. Conservation des données</h2>
       <p className="mt-3 text-slate-600">Vos données sont conservées pendant la durée de votre abonnement et supprimées dans les 30 jours suivant la clôture de votre compte, sauf obligation légale de conservation.</p>
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">7. Contact</h2>
-      <p className="mt-3 text-slate-600">Pour toute question relative à cette politique : <a href="mailto:privacy@revold.io" className="font-medium text-accent hover:underline">privacy@revold.io</a></p>
+      <p className="mt-3 text-slate-600">Pour toute question relative à cette politique : <a href="mailto:privacy@revold.ai" className="font-medium text-accent hover:underline">privacy@revold.ai</a></p>
     </article>
   );
 }

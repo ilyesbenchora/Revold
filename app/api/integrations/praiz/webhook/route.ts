@@ -5,7 +5,7 @@
  *
  * SETUP côté Praiz :
  *   1. Contacter hello@praiz.io pour obtenir l'accès API webhooks
- *   2. Configurer l'URL : https://revold.io/api/integrations/praiz/webhook?org=<UUID>
+ *   2. Configurer l'URL : https://revold.ai/api/integrations/praiz/webhook?org=<UUID>
  *   3. Récupérer le webhook_secret fourni par Praiz
  *   4. L'enregistrer dans Revold via /dashboard/integration/connect/praiz
  *
@@ -225,7 +225,7 @@ export async function GET(req: NextRequest) {
     status: "ok",
     message: "Praiz webhook endpoint",
     your_webhook_url: orgId
-      ? `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}/api/integrations/praiz/webhook?org=${orgId}`
+      ? `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai"}/api/integrations/praiz/webhook?org=${orgId}`
       : "Add ?org=<your-org-uuid> to get the URL",
     auth_header: "Authorization: Bearer <webhook_secret>",
     setup: [

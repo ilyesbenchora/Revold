@@ -14,7 +14,7 @@ export default function RGPDPage() {
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">Responsable de traitement</h2>
       <p className="mt-3 text-slate-600">Le responsable de traitement est Air Rise Inc., société éditrice de Revold.</p>
-      <p className="mt-2 text-slate-600">Contact DPO : <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline">dpo@revold.io</a></p>
+      <p className="mt-2 text-slate-600">Contact DPO : <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline">dpo@revold.ai</a></p>
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">Bases légales du traitement</h2>
       <div className="mt-4 overflow-x-auto rounded-xl border border-card-border bg-white">
@@ -65,7 +65,7 @@ export default function RGPDPage() {
       </ul>
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">Exercer vos droits</h2>
-      <p className="mt-3 text-slate-600">Envoyez votre demande à <a href="mailto:dpo@revold.io" className="font-medium text-accent hover:underline">dpo@revold.io</a> en précisant votre identité et la nature de votre demande. Nous répondrons sous 30 jours.</p>
+      <p className="mt-3 text-slate-600">Envoyez votre demande à <a href="mailto:dpo@revold.ai" className="font-medium text-accent hover:underline">dpo@revold.ai</a> en précisant votre identité et la nature de votre demande. Nous répondrons sous 30 jours.</p>
       <p className="mt-3 text-slate-600">Vous pouvez également introduire une réclamation auprès de la CNIL : <a href="https://www.cnil.fr" className="font-medium text-accent hover:underline" target="_blank" rel="noopener noreferrer">www.cnil.fr</a></p>
     </article>
   );

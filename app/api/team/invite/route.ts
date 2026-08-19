@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     metadata: { role },
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai";
   const acceptUrl = `${baseUrl}/auth/invitation?token=${token}`;
 
   // TODO 8.4 hook : envoyer l'email via le canal email configuré pour l'org

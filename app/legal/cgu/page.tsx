@@ -50,7 +50,7 @@ export default function CGUPage() {
       <p className="mt-3 text-slate-600">Les présentes CGU sont régies par le droit français. Tout litige sera soumis à la compétence exclusive des tribunaux de Paris.</p>
 
       <h2 className="mt-10 text-xl font-bold text-slate-900">10. Contact</h2>
-      <p className="mt-3 text-slate-600">Pour toute question : <a href="mailto:legal@revold.io" className="font-medium text-accent hover:underline">legal@revold.io</a></p>
+      <p className="mt-3 text-slate-600">Pour toute question : <a href="mailto:legal@revold.ai" className="font-medium text-accent hover:underline">legal@revold.ai</a></p>
     </article>
   );
 }

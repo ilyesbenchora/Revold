@@ -1,6 +1,6 @@
 import { articles } from "../blog/data";
 
-const BASE = "https://revold.io";
+const BASE = "https://revold.ai";
 
 const STATIC_PAGES = [
   "",

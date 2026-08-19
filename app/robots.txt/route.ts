@@ -5,7 +5,7 @@ Disallow: /dashboard
 Disallow: /api
 Disallow: /login
 
-Sitemap: https://revold.io/sitemap.xml
+Sitemap: https://revold.ai/sitemap.xml
 `;
   return new Response(body, {
     headers: { "Content-Type": "text/plain" },

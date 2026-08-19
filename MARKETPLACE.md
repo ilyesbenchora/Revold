@@ -13,14 +13,14 @@ et Stripe Partner Directory. Les pré-requis techniques sont livrés (Phase 8.1
 - [x] App publique HubSpot avec OAuth (`HUBSPOT_CLIENT_ID`/`HUBSPOT_CLIENT_SECRET`)
 - [x] Callback OAuth fonctionnel (`/api/integrations/hubspot/callback`)
 - [x] Refresh token rotation auto < 5 min (`getHubSpotToken`)
-- [x] Page de pricing publique : <https://revold.io/tarifs>
-- [x] Politique de confidentialité publique : <https://revold.io/legal/confidentialite>
-- [x] Page sécurité : <https://revold.io/legal/securite>
-- [x] DPA RGPD : <https://revold.io/legal/dpa>
-- [x] Page RGPD : <https://revold.io/legal/rgpd>
-- [x] Onboarding ≤ 5 min : <https://revold.io/dashboard/onboarding>
-- [x] Page support : <https://revold.io/contact>
-- [x] Page listing détaillée pour le Marketplace : <https://revold.io/integrations/hubspot>
+- [x] Page de pricing publique : <https://revold.ai/tarifs>
+- [x] Politique de confidentialité publique : <https://revold.ai/legal/confidentialite>
+- [x] Page sécurité : <https://revold.ai/legal/securite>
+- [x] DPA RGPD : <https://revold.ai/legal/dpa>
+- [x] Page RGPD : <https://revold.ai/legal/rgpd>
+- [x] Onboarding ≤ 5 min : <https://revold.ai/dashboard/onboarding>
+- [x] Page support : <https://revold.ai/contact>
+- [x] Page listing détaillée pour le Marketplace : <https://revold.ai/integrations/hubspot>
 - [x] OAuth scopes minimum justifiés (table publiée sur la page listing)
 - [x] Sentry pour les erreurs runtime
 - [x] RBAC (admins / managers / reps)
@@ -34,22 +34,22 @@ et Stripe Partner Directory. Les pré-requis techniques sont livrés (Phase 8.1
 3. Compléter le profil de l'app :
    - **Name** : `Revold`
    - **Description courte** : `Audit CRM + Forecast IA pour HubSpot`
-   - **Description longue** : voir <https://revold.io/integrations/hubspot> (copier-coller)
+   - **Description longue** : voir <https://revold.ai/integrations/hubspot> (copier-coller)
    - **App icon** : 128×128 px (à uploader)
    - **Featured image** : 1280×800 px (à uploader)
    - **Screenshots** : minimum 5 captures écran 1280×800 (Dashboard / Audit / Coaching IA / Pipeline / Reports)
-   - **Support contact** : `support@revold.io`
-   - **Privacy policy URL** : `https://revold.io/legal/confidentialite`
-   - **Terms of service URL** : `https://revold.io/legal/cgu`
-   - **Pricing URL** : `https://revold.io/tarifs`
-   - **Documentation URL** : `https://revold.io/integrations/hubspot`
+   - **Support contact** : `support@revold.ai`
+   - **Privacy policy URL** : `https://revold.ai/legal/confidentialite`
+   - **Terms of service URL** : `https://revold.ai/legal/cgu`
+   - **Pricing URL** : `https://revold.ai/tarifs`
+   - **Documentation URL** : `https://revold.ai/integrations/hubspot`
 
 #### 2. Configurer l'OAuth public
 
 1. **Required scopes** : laisser uniquement les scopes en lecture seule (cf table sur la page listing).
 2. **Optional scopes** : aucun pour V1.
-3. **Redirect URLs** : ajouter `https://revold.io/api/integrations/hubspot/callback`.
-4. **Install URL** : `https://revold.io/essai-gratuit?source=hubspot-marketplace` (à créer côté Marketplace listing).
+3. **Redirect URLs** : ajouter `https://revold.ai/api/integrations/hubspot/callback`.
+4. **Install URL** : `https://revold.ai/essai-gratuit?source=hubspot-marketplace` (à créer côté Marketplace listing).
 
 #### 3. Soumettre à la review
 
@@ -77,7 +77,7 @@ Re-soumettre dès correction. Pas de cooldown imposé.
 - [x] Connecteur Stripe fonctionnel : `lib/integrations/sources/stripe.ts`
 - [x] Lecture seule via Restricted Key (rk_…)
 - [x] Cross-source HubSpot × Stripe pour MRR/ARR/churn
-- [x] Page listing : <https://revold.io/integrations/stripe>
+- [x] Page listing : <https://revold.ai/integrations/stripe>
 - [x] Documentation publique des permissions
 
 ### Actions manuelles
@@ -91,8 +91,8 @@ Re-soumettre dès correction. Pas de cooldown imposé.
    - **Categories** : Analytics, Reporting, Subscriptions
    - **Industry focus** : SaaS, B2B
    - **Geographic focus** : France, Europe
-   - **Pricing URL** : `https://revold.io/tarifs`
-   - **Support email** : `support@revold.io`
+   - **Pricing URL** : `https://revold.ai/tarifs`
+   - **Support email** : `support@revold.ai`
 4. Délai de review : **1 à 2 semaines**.
 
 ### Si refus

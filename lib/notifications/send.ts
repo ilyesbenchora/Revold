@@ -20,7 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "Revold <noreply@revold.io>";
+const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "Revold <noreply@revold.ai>";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -158,7 +158,7 @@ async function sendSlackMessage(
           {
             type: "button",
             text: { type: "plain_text", text: "Ouvrir Revold" },
-            url: link.startsWith("http") ? link : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`,
+            url: link.startsWith("http") ? link : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai"}${link}`,
           },
         ],
       });
@@ -199,7 +199,7 @@ async function sendTeamsMessage(
                   os: "default",
                   uri: link.startsWith("http")
                     ? link
-                    : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`,
+                    : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai"}${link}`,
                 },
               ],
             },
@@ -257,7 +257,7 @@ async function sendHubSpotNotification(
   const fullLink = link
     ? link.startsWith("http")
       ? link
-      : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io"}${link}`
+      : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai"}${link}`
     : null;
   const body = `${bodyText}${fullLink ? `\n\n→ ${fullLink}` : ""}`;
   const ownerId = await getDefaultHubspotOwnerId(supabase, orgId);
@@ -386,7 +386,7 @@ async function sendTwilioMessage(
   if (recipients.length === 0) {
     return { ok: false, error: "Aucun numéro de mobile — ajoute-le dans Mon compte." };
   }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai";
   const fullLink = link ? (link.startsWith("http") ? link : `${appUrl}${link}`) : appUrl;
   // Un SMS long est facturé par segment : on borne le corps, le lien fait le reste.
   const body = `Revold — ${subject}\n\n${bodyText.slice(0, 380)}\n\n${fullLink}`;
@@ -466,7 +466,7 @@ export function buildEmailHtml(args: {
   link?: string;
   ctaLabel?: string;
 }): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai";
   const fullLink = args.link
     ? args.link.startsWith("http")
       ? args.link

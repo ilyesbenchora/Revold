@@ -38,7 +38,7 @@ export async function POST() {
     );
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.io";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://revold.ai";
   try {
     const session = await createPortalSession(
       sub.stripe_customer_id as string,

@@ -9,7 +9,7 @@
  *                         survivant (delta sync)
  *
  * Configuration côté HubSpot Developer Portal → ton app → Webhooks :
- *   Target URL : https://revold.io/api/webhooks/hubspot
+ *   Target URL : https://revold.ai/api/webhooks/hubspot
  *   Subscriptions :
  *     contact.{creation,deletion,merged,propertyChange}
  *     company.{creation,deletion,merged,propertyChange}

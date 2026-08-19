@@ -8,8 +8,8 @@
  *
  * Ce route DOIT être référencé dans Supabase Dashboard :
  *   Project Settings → Authentication → URL Configuration
- *     - Site URL          : https://revold.io
- *     - Redirect URLs     : https://revold.io/auth/callback
+ *     - Site URL          : https://revold.ai
+ *     - Redirect URLs     : https://revold.ai/auth/callback
  *
  * ET les templates d'email doivent pointer vers
  *   {{ .SiteURL }}/auth/callback?code={{ .TokenHash }}

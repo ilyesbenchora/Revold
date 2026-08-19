@@ -9,7 +9,7 @@
  * Vercel + le webhook lui-même est secret (URL non publiée).
  *
  * Usage par les routines :
- *   curl -X POST https://revold.io/api/admin/slack-relay \
+ *   curl -X POST https://revold.ai/api/admin/slack-relay \
  *     -H 'x-slack-relay-secret: <secret>' \
  *     -H 'Content-Type: application/json' \
  *     -d '<payload Slack avec text/blocks>'
