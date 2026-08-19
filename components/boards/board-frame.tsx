@@ -11,6 +11,8 @@ import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-ga
 import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CreateAlertModal } from "@/components/create-alert-modal";
+import { getConnectedTools } from "@/lib/integrations/connected-tools";
+import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
 
 export async function BoardFrame({
   supabase,
@@ -25,6 +27,16 @@ export async function BoardFrame({
   /** Chaîne tool_mappings : clé du tableau, héritage Vue d'ensemble sinon. */
   sourceKeys: string[];
 }) {
+  // Même règle que le gate : aucun outil source mappé pour la page → le CTA
+  // « Créer une table de données » renvoie le MÊME message au clic, au lieu
+  // d'ouvrir un funnel sans source.
+  const [connected, mapped] = await Promise.all([
+    getConnectedTools(supabase, orgId),
+    getToolKeysChain(supabase, orgId, sourceKeys),
+  ]);
+  const sourcesLocked =
+    connected.filter((t) => t.category !== "communication" && mapped.includes(t.key)).length === 0;
+
   return (
     <>
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
@@ -41,7 +53,7 @@ export async function BoardFrame({
       </PageSourcesGate>
 
       {/* Tables de données : funnel complet (sources à croiser → KPI → visualisation). */}
-      <PageDataTables pageKey={pageKey} />
+      <PageDataTables pageKey={pageKey} sourcesLocked={sourcesLocked} />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={sourceKeys} />
 

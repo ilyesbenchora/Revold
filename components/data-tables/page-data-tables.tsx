@@ -21,6 +21,7 @@ import {
 } from "@/lib/reports/data-table-presets";
 import { getAgentPersona, agentIsFeminine } from "@/lib/ai/agents/coach-personas";
 import { InfoHint } from "@/components/info-hint";
+import { NoPageSourcesNotice } from "@/components/no-page-sources-notice";
 import { WiredToolsRow } from "@/components/wired-tools-row";
 import { BrandLogo } from "../brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
@@ -249,7 +250,18 @@ const PAGE_ALERT_TEAM: Record<string, string> = {
   audit_donnees: "revops",
 };
 
-export function PageDataTables({ pageKey }: { pageKey: string }) {
+export function PageDataTables({
+  pageKey,
+  sourcesLocked = false,
+}: {
+  pageKey: string;
+  /**
+   * Aucun outil source mappé pour la page (même règle que PageSourcesGate) :
+   * le CTA reste visible mais le clic affiche le message « Aucun outil source
+   * choisi pour cette page » au lieu d'ouvrir un funnel sans source.
+   */
+  sourcesLocked?: boolean;
+}) {
   const router = useRouter();
   const allPresets = useMemo(() => presetsForPage(pageKey), [pageKey]);
   // Pages custom (perf_ventes_<slug>…) : équipe/agent hérités de la page racine.
@@ -1055,7 +1067,22 @@ export function PageDataTables({ pageKey }: { pageKey: string }) {
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setOpen(false)}>
           <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            {proposal && draft ? (
+            {sourcesLocked ? (
+              /* ── Aucun outil source mappé : MÊME message que le gate de la
+                    page, pas de funnel sans source. ── */
+              <div className="space-y-4">
+                <NoPageSourcesNotice />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            ) : proposal && draft ? (
               /* ── VÉRIFICATION : l'agent propose, l'utilisateur confirme ou corrige la source ── */
               <div className="space-y-4">
                 <div>
