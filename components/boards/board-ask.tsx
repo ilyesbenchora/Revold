@@ -154,6 +154,8 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
 
   return (
     <div className="rounded-2xl border border-fuchsia-200/60 bg-gradient-to-r from-fuchsia-50/40 via-white to-white p-3">
+      {/* TOUT sur UNE ligne : champ de question + suggestions adaptées (un
+          clic = la réponse, défilement horizontal si étroites) + dictée + CTA. */}
       <div className="flex items-center gap-2">
         <span aria-hidden className="text-base leading-none">✨</span>
         <input
@@ -161,14 +163,25 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
-          placeholder={
-            examples.length > 0
-              ? `Pose une question sur cette page — « ${examples[0]} »`
-              : "Pose une question sur les données de cette page…"
-          }
+          placeholder="Pose une question sur cette page…"
           disabled={busy}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+          className="min-w-[11rem] flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
         />
+        {exchanges.length === 0 && examples.length > 0 && (
+          <div className="flex min-w-0 max-w-[55%] flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:thin]">
+            {examples.map((e) => (
+              <button
+                key={e}
+                type="button"
+                disabled={busy}
+                onClick={() => void ask(e)}
+                className="shrink-0 whitespace-nowrap rounded-full border border-fuchsia-200/70 bg-white px-2.5 py-0.5 text-[11px] text-slate-500 transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-50"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
         <DictationButton onText={(t) => setQuestion((q) => (q ? `${q} ${t}` : t))} title="Dicter la question" />
         <button
           type="button"
@@ -179,25 +192,6 @@ export function BoardAsk({ pageKey }: { pageKey: string }) {
           {busy ? "Je calcule…" : "Demander"}
         </button>
       </div>
-
-      {/* Suggestions ADAPTÉES à la page et à ses outils connectés — un clic =
-          la réponse. UNE seule ligne compacte (défilement horizontal) : le
-          bloc garde toujours la même hauteur. */}
-      {exchanges.length === 0 && examples.length > 0 && (
-        <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 pl-6 [scrollbar-width:thin]">
-          {examples.map((e) => (
-            <button
-              key={e}
-              type="button"
-              disabled={busy}
-              onClick={() => void ask(e)}
-              className="shrink-0 whitespace-nowrap rounded-full border border-fuchsia-200/70 bg-white px-2.5 py-0.5 text-[11px] text-slate-500 transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-50"
-            >
-              {e}
-            </button>
-          ))}
-        </div>
-      )}
 
       {error && <p className="mt-2 px-6 text-xs text-rose-600">{error}</p>}
 
