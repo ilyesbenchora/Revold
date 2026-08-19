@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Onglets de la section Dashboard : la vue d'ensemble, les tableaux de bord
- * personnalisables, et les rapports (les rapports des routines y vivent aussi).
+ * Onglets de la section Dashboard : « Vue d'ensemble » = la page des rapports
+ * (anciennement « Mes rapports »), puis les tableaux de bord personnalisables.
+ * L'accueil /dashboard a sa propre entrée dans la sidebar — plus d'onglet ici.
  */
 const tabs = [
-  { href: "/dashboard", label: "Vue d'ensemble" },
+  { href: "/dashboard/mes-rapports", label: "Vue d'ensemble" },
   { href: "/dashboard/tableaux-de-bord", label: "Tableaux de bord" },
-  { href: "/dashboard/mes-rapports", label: "Mes rapports" },
 ];
 
 export function DashboardTabs() {
