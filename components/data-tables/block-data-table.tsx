@@ -26,43 +26,12 @@ export type BlockRowSpec = {
   pipeline?: string | null;
 };
 
-/** Cohortes filtrables : standard + mappées (chargées une fois par page). */
-const BASE_COHORTS: { id: string; label: string }[] = [
-  { id: "industry", label: "Secteur d'activité" },
-  { id: "segment", label: "Segment" },
-];
-let cohortOptionsPromise: Promise<{ id: string; label: string }[]> | null = null;
-function fetchCohortOptions(): Promise<{ id: string; label: string }[]> {
-  cohortOptionsPromise ??= fetch("/api/cohort-mappings")
-    .then((r) => (r.ok ? r.json() : { mappings: [] }))
-    .then((d) => {
-      const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
-      const extras = mapped
-        .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
-        .filter((m) => !BASE_COHORTS.some((o) => o.id === m.key))
-        .map((m) => ({ id: m.key as string, label: m.label as string }));
-      return [...BASE_COHORTS, ...extras];
-    })
-    .catch(() => BASE_COHORTS);
-  return cohortOptionsPromise;
-}
-const cohortValuesCache = new Map<string, Promise<string[]>>();
-function fetchCohortValues(key: string): Promise<string[]> {
-  if (!cohortValuesCache.has(key)) {
-    cohortValuesCache.set(
-      key,
-      fetch("/api/reports/recompute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: { entity: "companies", groupBy: `cohort.${key}`, measure: "count" }, all: true, sources: [] }),
-      })
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d.data) ? (d.data as { name: string }[]).map((r) => r.name).filter(Boolean) : []))
-        .catch(() => []),
-    );
-  }
-  return cohortValuesCache.get(key)!;
-}
+// Options/valeurs de cohortes : helpers partagés (cache module par page).
+import {
+  BASE_COHORT_OPTIONS as BASE_COHORTS,
+  fetchCohortOptions,
+  fetchCohortValues,
+} from "@/lib/reports/cohort-filter-client";
 
 /**
  * Cellule additionnelle : une valeur brute, ou un lien (deep link HubSpot,

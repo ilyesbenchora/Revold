@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { CohortDealFilter } from "@/components/reports/cohort-deal-filter";
+import type { ActiveCohort } from "@/lib/reports/cohort-filter-client";
 import type { DealRiskBuckets, RiskDeal } from "@/lib/integrations/hubspot-deal-risk";
 import {
   DaysCell,
@@ -50,8 +52,33 @@ export function DealsAtRiskBlock({
   initialBuckets: DealRiskBuckets;
 }) {
   const [pipelineId, setPipelineId] = useState<string | null>(initialPipelineId);
-  const [buckets, setBuckets] = useState<DealRiskBuckets>(initialBuckets);
+  const [rawBuckets, setBuckets] = useState<DealRiskBuckets>(initialBuckets);
   const [isPending, startTransition] = useTransition();
+  // ── Filtre cohorte (entreprise du deal) + barre de filtres repliable ──
+  const [cohort, setCohort] = useState<ActiveCohort | null>(null);
+  const [cohortIds, setCohortIds] = useState<Set<string> | null>(null);
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem("revold:block-filters:deals-a-risque") === "0") setShowFilters(false); } catch { /* ignore */ }
+  }, []);
+  function toggleFilters() {
+    setShowFilters((v) => {
+      try { localStorage.setItem("revold:block-filters:deals-a-risque", v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+  // Buckets affichés : restreints aux deals de la cohorte quand elle est active.
+  const buckets = useMemo<DealRiskBuckets>(() => {
+    if (!cohort || !cohortIds) return rawBuckets;
+    const keep = (deals: RiskDeal[]) => deals.filter((d) => cohortIds.has(d.id));
+    return {
+      pipelineId: rawBuckets.pipelineId,
+      trueRisk: keep(rawBuckets.trueRisk),
+      blocked: keep(rawBuckets.blocked),
+      noVisibility: keep(rawBuckets.noVisibility),
+      noActivity: keep(rawBuckets.noActivity),
+    };
+  }, [rawBuckets, cohort, cohortIds]);
 
   useEffect(() => {
     if (pipelineId === initialPipelineId) {
@@ -90,25 +117,48 @@ export function DealsAtRiskBlock({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-slate-600">Pipeline :</label>
-          <select
-            value={pipelineId ?? "__all__"}
-            onChange={(e) =>
-              setPipelineId(e.target.value === "__all__" ? null : e.target.value)
-            }
-            disabled={isPending}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-accent focus:outline-none disabled:opacity-50"
-          >
-            <option value="__all__">Tous pipelines</option>
-            {pipelines.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          {isPending && <span className="text-xs text-slate-400">Chargement…</span>}
-        </div>
+        {showFilters ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-medium text-slate-600">Pipeline :</label>
+            <select
+              value={pipelineId ?? "__all__"}
+              onChange={(e) =>
+                setPipelineId(e.target.value === "__all__" ? null : e.target.value)
+              }
+              disabled={isPending}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-accent focus:outline-none disabled:opacity-50"
+            >
+              <option value="__all__">Tous pipelines</option>
+              {pipelines.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            {/* Cohorte : restreint tous les buckets aux deals des entreprises de la cohorte. */}
+            <CohortDealFilter
+              onChange={(c, ids) => {
+                setCohort(c);
+                setCohortIds(ids);
+              }}
+            />
+            {isPending && <span className="text-xs text-slate-400">Chargement…</span>}
+          </div>
+        ) : (
+          <span className="text-[11px] text-slate-400">
+            Filtres masqués{cohort ? ` — cohorte active : ${cohort.value}` : ""}
+          </span>
+        )}
+        <button
+          onClick={toggleFilters}
+          title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
+          aria-pressed={!showFilters}
+          className={`rounded-lg p-1.5 transition ${
+            showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+        </button>
       </div>
 
       {/* Mêmes buckets que les tables ci-dessous, en table normalisée : permet

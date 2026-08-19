@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { CohortDealFilter } from "@/components/reports/cohort-deal-filter";
+import type { ActiveCohort } from "@/lib/reports/cohort-filter-client";
 import type {
   CloseDateBuckets,
   CloseDateDeal,
@@ -50,8 +52,31 @@ export function CloseDateManagementBlock({
   initialBuckets: CloseDateBuckets;
 }) {
   const [pipelineId, setPipelineId] = useState<string | null>(initialPipelineId);
-  const [buckets, setBuckets] = useState<CloseDateBuckets>(initialBuckets);
+  const [rawBuckets, setBuckets] = useState<CloseDateBuckets>(initialBuckets);
   const [isPending, startTransition] = useTransition();
+  // ── Filtre cohorte (entreprise du deal) + barre de filtres repliable ──
+  const [cohort, setCohort] = useState<ActiveCohort | null>(null);
+  const [cohortIds, setCohortIds] = useState<Set<string> | null>(null);
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem("revold:block-filters:forecast-management") === "0") setShowFilters(false); } catch { /* ignore */ }
+  }, []);
+  function toggleFilters() {
+    setShowFilters((v) => {
+      try { localStorage.setItem("revold:block-filters:forecast-management", v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+  // Buckets affichés : restreints aux deals de la cohorte quand elle est active.
+  const buckets = useMemo<CloseDateBuckets>(() => {
+    if (!cohort || !cohortIds) return rawBuckets;
+    const keep = (deals: CloseDateDeal[]) => deals.filter((d) => cohortIds.has(d.id));
+    return {
+      ...rawBuckets,
+      passedCloseDate: keep(rawBuckets.passedCloseDate),
+      quarters: rawBuckets.quarters.map((q) => ({ ...q, deals: keep(q.deals) })),
+    };
+  }, [rawBuckets, cohort, cohortIds]);
 
   useEffect(() => {
     if (pipelineId === initialPipelineId) {
@@ -88,7 +113,12 @@ export function CloseDateManagementBlock({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        {!showFilters && (
+          <span className="text-[11px] text-slate-400">
+            Filtres masqués{cohort ? ` — cohorte active : ${cohort.value}` : ""}
+          </span>
+        )}
+        <div className={showFilters ? "flex flex-wrap items-center gap-3" : "hidden"}>
           <label className="text-xs font-medium text-slate-600">Pipeline :</label>
           <select
             value={pipelineId ?? "__all__"}
@@ -105,8 +135,26 @@ export function CloseDateManagementBlock({
               </option>
             ))}
           </select>
+          {/* Cohorte : restreint le retard et les trimestres aux deals des
+              entreprises de la cohorte. */}
+          <CohortDealFilter
+            onChange={(c, ids) => {
+              setCohort(c);
+              setCohortIds(ids);
+            }}
+          />
           {isPending && <span className="text-xs text-slate-400">Chargement…</span>}
         </div>
+        <button
+          onClick={toggleFilters}
+          title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
+          aria-pressed={!showFilters}
+          className={`rounded-lg p-1.5 transition ${
+            showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+        </button>
       </div>
 
       <PassedCloseDateTable
