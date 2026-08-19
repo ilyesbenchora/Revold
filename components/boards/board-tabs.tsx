@@ -5,13 +5,14 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 /**
- * LA rangée principale des Tableaux de bord (les pages n'affichent pas la
- * rangée Dashboard au-dessus — elle ferait doublon) : « Vue d'ensemble »
- * (le tableau par défaut) + les onglets créés par l'utilisateur + le CTA
- * « ＋ Nouvel onglet » pour en ajouter, directement dans la rangée.
- * Chaque tableau est une page entièrement personnalisable (tuiles KPI +
- * tables de données) sous sa propre clé board_<id> — sources réglables dans
- * « Outil source par page ».
+ * Rangées d'onglets des Tableaux de bord — DEUX niveaux :
+ *  - rangée RACINE (sans parentId) : « Vue d'ensemble » (tableau par défaut)
+ *    + les tableaux créés + « ＋ Nouveau tableau » ;
+ *  - rangée d'un TABLEAU (parentId = id du tableau) : ses onglets (sous-pages)
+ *    + « ＋ Nouvel onglet ».
+ * Chaque tableau / onglet est une page entièrement personnalisable (tuiles
+ * KPI + tables de données) sous sa propre clé board_<id> — sources réglables
+ * dans « Outil source par page ».
  */
 export type BoardTab = { id: string; name: string };
 
@@ -20,7 +21,19 @@ export type BoardTemplateOption = { id: string; label: string; description: stri
 
 const BASE = "/dashboard/tableaux-de-bord";
 
-export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; templates?: BoardTemplateOption[] }) {
+export function BoardTabs({
+  boards,
+  templates = [],
+  parentId = null,
+  activeHref,
+}: {
+  boards: BoardTab[];
+  templates?: BoardTemplateOption[];
+  /** id du tableau parent → la rangée liste ses ONGLETS (« ＋ Nouvel onglet »). */
+  parentId?: string | null;
+  /** Onglet à surligner quand l'URL ne suffit pas (tableau parent actif sur un onglet). */
+  activeHref?: string;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -29,8 +42,9 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isTabRow = parentId != null;
   const tabs = [
-    { href: BASE, label: "Vue d'ensemble" },
+    ...(isTabRow ? [] : [{ href: BASE, label: "Vue d'ensemble" }]),
     ...boards.map((b) => ({ href: `${BASE}/${b.id}`, label: b.name })),
   ];
 
@@ -43,7 +57,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
       const res = await fetch("/api/boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: n, template }),
+        body: JSON.stringify({ name: n, template, ...(parentId ? { parentId } : {}) }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.board?.id) {
@@ -66,7 +80,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
     <div className="border-b border-card-border">
       <div className="flex items-center gap-1 overflow-x-auto">
         {tabs.map((t) => {
-          const isActive = pathname === t.href;
+          const isActive = pathname === t.href || activeHref === t.href;
           return (
             <Link
               key={t.href}
@@ -85,8 +99,20 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
           onClick={() => { setCreating(true); setError(null); }}
           className="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-fuchsia-600 transition hover:text-fuchsia-700"
         >
-          ＋ Nouvel onglet
+          {isTabRow ? "＋ Nouvel onglet" : "＋ Nouveau tableau"}
         </button>
+        {/* Galerie des templates + compositeur agent — rangée racine uniquement. */}
+        {!isTabRow && (
+          <Link
+            href={`${BASE}/templates`}
+            className={`relative shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition ${
+              pathname === `${BASE}/templates` ? "text-accent" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            Templates
+            {pathname === `${BASE}/templates` && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
+          </Link>
+        )}
       </div>
 
       {/* ── Modal de création : juste un nom, la page arrive prête à câbler. ── */}
@@ -98,13 +124,17 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
           onClick={() => !busy && setCreating(false)}
         >
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-slate-900">Nouvel onglet</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {isTabRow ? "Nouvel onglet" : "Nouveau tableau de bord"}
+            </h3>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Une page vierge à composer : tes KPIs (funnel de câblage sur tes outils) et tes tables de données.
+              {isTabRow
+                ? "Une sous-page de ce tableau, vierge à composer : tes KPIs et tes tables de données."
+                : "Une page vierge à composer : tes KPIs (funnel de câblage sur tes outils) et tes tables de données."}{" "}
               Les sources se choisissent dans Paramètres → Intégrations → Outil source par page.
             </p>
             <label className="mt-4 block text-[11px] font-medium text-slate-500">
-              Nom de l&apos;onglet
+              {isTabRow ? "Nom de l'onglet" : "Nom du tableau"}
               <input
                 autoFocus
                 value={name}
@@ -151,6 +181,15 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
                 </div>
               </div>
             )}
+            {/* Renvoi vers la galerie : aperçu détaillé des templates + compositeur agent. */}
+            {!isTabRow && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                <Link href={`${BASE}/templates`} className="font-medium text-fuchsia-600 hover:underline">
+                  Voir la galerie des templates
+                </Link>
+                {" "}— ou laisse l&apos;agent ✨ composer ton tableau depuis cette page.
+              </p>
+            )}
             {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
@@ -167,7 +206,7 @@ export function BoardTabs({ boards, templates = [] }: { boards: BoardTab[]; temp
                 onClick={create}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? "Création…" : "Créer l'onglet"}
+                {busy ? "Création…" : isTabRow ? "Créer l'onglet" : "Créer le tableau"}
               </button>
             </div>
           </div>
