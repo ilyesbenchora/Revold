@@ -31,6 +31,16 @@ export type CompanyGapRow = {
   note: string | null;
 };
 
+export type PeriodGapRow = {
+  /** Trimestre « 2026-T1 ». */
+  period: string;
+  won: number;
+  billed: number;
+  /** Avoirs émis sur le trimestre (positif). */
+  credits: number;
+  gap: number;
+};
+
 type DealRow = { amount: number | null; company_id: string | null };
 type InvRow = { amount_total: number | null; company_id: string | null };
 
@@ -52,6 +62,76 @@ async function pageAll<T>(
     if (rows.length < 1000) break;
   }
   return out;
+}
+
+/** Trimestre « YYYY-Tn » d'une date ISO (null si invalide). */
+function quarterOf(iso: string | null): string | null {
+  const s = String(iso ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m] = s.split("-").map(Number);
+  return `${y}-T${Math.ceil(m / 3)}`;
+}
+
+/**
+ * PÉRIODISATION de l'écart : CA signé (close_date) vs facturé (issued_at)
+ * trimestre par trimestre — la question du DAF « les deals gagnés en T1
+ * ont-ils été facturés ? », par période de rattachement, avoirs exposés.
+ * Renvoie les `quarters` derniers trimestres, du plus ancien au plus récent.
+ */
+export async function computePeriodizedGap(
+  sb: SupabaseClient,
+  orgId: string,
+  quarters = 6,
+): Promise<PeriodGapRow[]> {
+  const [deals, invoices] = await Promise.all([
+    pageAll<{ amount: number | null; close_date: string | null }>(sb, "deals", "amount, close_date", (q) =>
+      q.eq("organization_id", orgId).eq("is_closed_won", true)),
+    pageAll<{ amount_total: number | null; issued_at: string | null }>(sb, "invoices", "amount_total, issued_at", (q) =>
+      q.eq("organization_id", orgId)),
+  ]);
+
+  const acc = new Map<string, { won: number; billed: number; credits: number }>();
+  const bucket = (key: string) => {
+    let b = acc.get(key);
+    if (!b) {
+      b = { won: 0, billed: 0, credits: 0 };
+      acc.set(key, b);
+    }
+    return b;
+  };
+  for (const d of deals) {
+    const q = quarterOf(d.close_date);
+    if (q) bucket(q).won += d.amount ?? 0;
+  }
+  for (const i of invoices) {
+    const q = quarterOf(i.issued_at);
+    if (!q) continue;
+    const v = i.amount_total ?? 0;
+    const b = bucket(q);
+    b.billed += v;
+    if (v < 0) b.credits += -v;
+  }
+
+  // Les N derniers trimestres jusqu'au trimestre COURANT (axes continus,
+  // trimestres vides inclus) — un trimestre sans activité reste visible.
+  const now = new Date();
+  const rows: PeriodGapRow[] = [];
+  let y = now.getFullYear();
+  let q = Math.ceil((now.getMonth() + 1) / 3);
+  for (let i = 0; i < quarters; i++) {
+    const key = `${y}-T${q}`;
+    const b = acc.get(key) ?? { won: 0, billed: 0, credits: 0 };
+    rows.unshift({
+      period: key,
+      won: Math.round(b.won),
+      billed: Math.round(b.billed),
+      credits: Math.round(b.credits),
+      gap: Math.round(b.won - b.billed),
+    });
+    q--;
+    if (q === 0) { q = 4; y--; }
+  }
+  return rows;
 }
 
 /** Écarts par entreprise + statut d'apurement. Résilient (table absente → statuts open). */

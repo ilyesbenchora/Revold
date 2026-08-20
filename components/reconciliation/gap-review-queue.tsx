@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CompanyGapRow, GapReviewStatus } from "@/lib/reconciliation/gap-reviews";
+import type { CompanyGapRow, GapReviewStatus, PeriodGapRow } from "@/lib/reconciliation/gap-reviews";
 
 /**
  * File d'APUREMENT des écarts CA signé ↔ facturé (page Trésorerie) — le
@@ -28,6 +28,7 @@ const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
 export function GapReviewQueue() {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<CompanyGapRow[] | null>(null);
+  const [periods, setPeriods] = useState<PeriodGapRow[]>([]);
   const [reviewsAvailable, setReviewsAvailable] = useState(true);
   const [filter, setFilter] = useState<GapReviewStatus | "all">("all");
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,8 +40,9 @@ export function GapReviewQueue() {
     try {
       const res = await fetch("/api/reconciliation/gap-reviews");
       if (!res.ok) return;
-      const d = (await res.json()) as { rows: CompanyGapRow[]; reviewsAvailable: boolean };
+      const d = (await res.json()) as { rows: CompanyGapRow[]; reviewsAvailable: boolean; periods?: PeriodGapRow[] };
       setRows(d.rows);
+      setPeriods(Array.isArray(d.periods) ? d.periods : []);
       setReviewsAvailable(d.reviewsAvailable);
       setNoteDraft(Object.fromEntries(d.rows.map((r) => [r.companyId, r.note ?? ""])));
     } catch { /* réseau */ }
@@ -110,7 +112,9 @@ export function GapReviewQueue() {
   const visible = (rows ?? []).filter((r) => filter === "all" || r.status === filter);
   const openGapTotal = (rows ?? []).filter((r) => r.status === "open" || r.status === "to_fix").reduce((s, r) => s + r.gap, 0);
 
-  if (rows !== null && rows.length === 0) return null; // aucun écart → pas de bloc
+  // Aucun écart ET aucune activité périodisée → pas de bloc.
+  const hasPeriods = periods.some((p) => p.won !== 0 || p.billed !== 0);
+  if (rows !== null && rows.length === 0 && !hasPeriods) return null;
 
   return (
     <div className="card overflow-hidden">
@@ -152,6 +156,55 @@ export function GapReviewQueue() {
             </p>
           )}
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+          {/* ── PÉRIODISATION : signé (close date) vs facturé (émission) par
+                 trimestre — « les deals gagnés en T1 ont-ils été facturés ? » ── */}
+          {periods.length > 0 && periods.some((p) => p.won !== 0 || p.billed !== 0) && (
+            <div className="overflow-x-auto rounded-lg border border-slate-100">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-1.5 font-semibold">Trimestre</th>
+                    {periods.map((p) => (
+                      <th key={p.period} className="px-3 py-1.5 text-right font-semibold tabular-nums">{p.period}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="px-3 py-1.5 text-slate-500">CA signé</td>
+                    {periods.map((p) => (
+                      <td key={p.period} className="px-3 py-1.5 text-right tabular-nums text-slate-700">{fmtEur(p.won)}</td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="px-3 py-1.5 text-slate-500">Facturé</td>
+                    {periods.map((p) => (
+                      <td key={p.period} className="px-3 py-1.5 text-right tabular-nums text-slate-700">
+                        {fmtEur(p.billed)}
+                        {p.credits > 0 && (
+                          <span className="block text-[10px] text-violet-600">avoirs −{fmtEur(p.credits)}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1.5 font-medium text-slate-600">Écart</td>
+                    {periods.map((p) => (
+                      <td
+                        key={p.period}
+                        className={`px-3 py-1.5 text-right font-semibold tabular-nums ${
+                          p.gap === 0 ? "text-slate-400" : p.gap > 0 ? "text-rose-600" : "text-violet-600"
+                        }`}
+                      >
+                        {p.gap === 0 ? "—" : fmtEur(p.gap)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-1.5">
             {(["all", ...STATUS_ORDER] as const).map((s) => (

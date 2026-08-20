@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { computeCompanyGaps, GAP_REVIEW_STATUSES, type GapReviewStatus } from "@/lib/reconciliation/gap-reviews";
+import {
+  computeCompanyGaps,
+  computePeriodizedGap,
+  GAP_REVIEW_STATUSES,
+  type GapReviewStatus,
+} from "@/lib/reconciliation/gap-reviews";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,8 +29,12 @@ async function authed() {
 export async function GET() {
   const a = await authed();
   if ("error" in a) return a.error;
-  const state = await computeCompanyGaps(a.supabase, a.orgId);
-  return NextResponse.json(state);
+  // Écarts par entreprise + périodisation (6 derniers trimestres) en un appel.
+  const [state, periods] = await Promise.all([
+    computeCompanyGaps(a.supabase, a.orgId),
+    computePeriodizedGap(a.supabase, a.orgId, 6),
+  ]);
+  return NextResponse.json({ ...state, periods });
 }
 
 export async function POST(request: Request) {
