@@ -50,11 +50,12 @@ export function DictationButton({
   const [listening, setListening] = useState(false);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const onTextRef = useRef(onText);
-  onTextRef.current = onText;
+  useEffect(() => {
+    onTextRef.current = onText;
+  }, [onText]);
 
   useEffect(() => {
     // Détection après montage (SSR-safe) : sans support, pas de bouton.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSupported(createRecognition() != null);
     return () => {
       try { recRef.current?.stop(); } catch { /* rien */ }
