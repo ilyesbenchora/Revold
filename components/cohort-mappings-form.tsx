@@ -375,22 +375,27 @@ export function CohortMappingsForm({
                 )}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {/* « Toutes les équipes » : reprendre une cohorte DÉJÀ enregistrée
-                    dans une équipe (sans la retaper) — elle devient transverse. */}
-                {g.id === "" && editable && (() => {
-                  const candidates = rows.filter((m) => (m.team || "") !== "" && canView(m.team));
+                {/* Reprendre une cohorte DÉJÀ enregistrée dans un autre groupe
+                    (sans la retaper) : vers « Toutes les équipes » elle devient
+                    transverse ; vers une équipe, elle rejoint son périmètre. */}
+                {editable && (() => {
+                  const candidates = rows.filter((m) => (m.team || "") !== g.id && canView(m.team || ""));
                   if (candidates.length === 0) return null;
                   return (
                     <select
                       value=""
-                      onChange={(e) => { if (e.target.value) patch(e.target.value, { team: "" }); }}
-                      title="Rendre une cohorte existante visible par toutes les équipes"
+                      onChange={(e) => { if (e.target.value) patch(e.target.value, { team: g.id }); }}
+                      title={
+                        g.id === ""
+                          ? "Rendre une cohorte existante visible par toutes les équipes"
+                          : `Reprendre une cohorte d'un autre groupe dans ${g.label}`
+                      }
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 outline-none focus:border-fuchsia-300"
                     >
                       <option value="">↪ Reprendre une cohorte existante…</option>
                       {candidates.map((m) => (
                         <option key={m.key} value={m.key}>
-                          {m.label} ({GROUPS.find((g2) => g2.id === m.team)?.label ?? m.team})
+                          {m.label} ({GROUPS.find((g2) => g2.id === (m.team || ""))?.label ?? m.team})
                         </option>
                       ))}
                     </select>
