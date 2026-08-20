@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
+import { useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { RevoldLogo } from "@/components/revold-logo";
 import {
@@ -28,6 +29,52 @@ const INDUSTRIES = [
 // CLAIR dans le localStorage. Retirée au profit du gestionnaire de mots de
 // passe du navigateur (chiffré, synchronisé) ; on purge l'ancien stockage.
 const LEGACY_STORAGE_KEY = "revold_remember_me";
+
+/**
+ * Bouton de soumission avec ÉTAT DE CHARGEMENT (useFormStatus) : les server
+ * actions du login redirigent sans feedback — sans lui, on clique et rien ne
+ * bouge visuellement. Pendant l'envoi : bouton désactivé, spinner + libellé
+ * dédié, et curseur « progress » sur toute la page jusqu'à la navigation.
+ */
+function SubmitButton({
+  className,
+  pendingLabel,
+  spinnerClass = "border-white/40 border-t-white",
+  children,
+}: {
+  className: string;
+  pendingLabel?: string;
+  /** Couleur du spinner (boutons clairs : bordure sombre). */
+  spinnerClass?: string;
+  children: React.ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  useEffect(() => {
+    if (!pending) return;
+    const prev = document.body.style.cursor;
+    document.body.style.cursor = "progress";
+    return () => {
+      document.body.style.cursor = prev;
+    };
+  }, [pending]);
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className={`${className} ${pending ? "cursor-progress opacity-75" : ""}`}
+    >
+      {pending ? (
+        <span className="inline-flex items-center justify-center gap-2">
+          <span aria-hidden className={`h-3.5 w-3.5 animate-spin rounded-full border-2 ${spinnerClass}`} />
+          {pendingLabel ?? children}
+        </span>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
 
 export default function LoginPage() {
   return (
@@ -194,12 +241,12 @@ function LoginForm() {
                   : "Pour tes prochaines connexions — le code par email restera aussi disponible."}
               </p>
             </div>
-            <button
-              type="submit"
+            <SubmitButton
               className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              pendingLabel="Création de ton espace…"
             >
               Accéder à Revold
-            </button>
+            </SubmitButton>
           </form>
         )}
 
@@ -239,18 +286,22 @@ function LoginForm() {
                   autoFocus
                 />
               </div>
-              <button
-                type="submit"
+              <SubmitButton
                 className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                pendingLabel="Vérification du code…"
               >
                 Continuer
-              </button>
+              </SubmitButton>
             </form>
             <form action={emailOtpAction} className="mt-4 text-center">
               <input type="hidden" name="email" value={otpEmail} />
-              <button type="submit" className="text-sm text-slate-500 transition hover:text-slate-300">
+              <SubmitButton
+                className="text-sm text-slate-500 transition hover:text-slate-300"
+                pendingLabel="Renvoi du code…"
+                spinnerClass="border-slate-500/40 border-t-slate-300"
+              >
                 Renvoyer le code
-              </button>
+              </SubmitButton>
               <span className="mx-2 text-slate-700">·</span>
               <a href="/login" className="text-sm text-slate-500 transition hover:text-slate-300">
                 Changer d&apos;email
@@ -262,9 +313,10 @@ function LoginForm() {
         {/* Connexion / inscription via Google (OAuth Supabase) */}
         {!otpMode && !entrepriseMode && (
         <form action={googleAction} className="mt-8">
-          <button
-            type="submit"
+          <SubmitButton
             className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-700 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+            pendingLabel="Redirection vers Google…"
+            spinnerClass="border-slate-400/50 border-t-slate-700"
           >
             <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
@@ -273,7 +325,7 @@ function LoginForm() {
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
             </svg>
             {isSignup ? "S'inscrire avec Google" : "Continuer avec Google"}
-          </button>
+          </SubmitButton>
         </form>
         )}
 
@@ -303,12 +355,12 @@ function LoginForm() {
                   required
                 />
               </div>
-              <button
-                type="submit"
+              <SubmitButton
                 className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                pendingLabel="Envoi du code…"
               >
                 S&apos;inscrire par email
-              </button>
+              </SubmitButton>
               <p className="text-center text-[11px] text-slate-500">
                 Déjà un compte ? Le code par email te connecte aussi, sans créer de doublon.
               </p>
@@ -387,12 +439,12 @@ function LoginForm() {
             />
           </div>
 
-          <button
-            type="submit"
+          <SubmitButton
             className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            pendingLabel={isSignup ? "Création du compte…" : "Connexion…"}
           >
             {isSignup ? "Créer mon compte" : "Se connecter"}
-          </button>
+          </SubmitButton>
         </form>
         )}
 
