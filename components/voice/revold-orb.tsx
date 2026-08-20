@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * Orbe vocale « Revold » — la tour de contrôle de la home (style Jarvis).
@@ -831,11 +831,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     const now = new Date();
     const day = now.getDay();
     const dom = now.getDate();
-    if (settings.recapWeekly && day === 1) return { label: "🗓️ Récap de la semaine passée", period: "week", scope: "last" };
-    if (settings.recapWeekly && day === 5) return { label: "🗓️ Récap de la semaine en cours", period: "week", scope: "current" };
+    if (settings.recapWeekly && day === 1) return { label: "Récap de la semaine passée", period: "week", scope: "last" };
+    if (settings.recapWeekly && day === 5) return { label: "Récap de la semaine en cours", period: "week", scope: "current" };
     if (settings.recapQuarterly && now.getMonth() % 3 === 0 && dom <= 7)
-      return { label: "🗓️ Récap du trimestre passé", period: "quarter", scope: "last" };
-    if (settings.recapMonthly && dom <= 3) return { label: "🗓️ Récap du mois passé", period: "month", scope: "last" };
+      return { label: "Récap du trimestre passé", period: "quarter", scope: "last" };
+    if (settings.recapMonthly && dom <= 3) return { label: "Récap du mois passé", period: "month", scope: "last" };
     return null;
   })();
 
