@@ -41,7 +41,9 @@ export default async function FacturationPage({
   ]);
   const activeSourceKey = data.source ?? "hubspot";
 
-  // Audit factures > 30 jours impayées (DSO élevé)
+  // Audit factures > 30 jours impayées (DSO élevé).
+  // Page force-dynamic : l'horloge est stable par requête.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const overdueInvoices = data.invoices.filter((i) => {
     if (!["open", "uncollectible"].includes(i.properties.hs_invoice_status ?? "")) return false;
