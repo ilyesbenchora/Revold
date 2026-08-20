@@ -12,18 +12,18 @@ const LABEL_CLASS = "mb-1.5 block text-sm font-medium text-slate-300";
 export default function DemoPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    const form = e.currentTarget;
-    await fetch("https://formspree.io/f/xgorvpnr", {
-      method: "POST",
-      body: new FormData(form),
-      headers: { Accept: "application/json" },
-    });
+    setFailed(false);
+    const body = new FormData(e.currentTarget);
+    body.set("_form", "demo");
+    const res = await fetch("/api/site-forms", { method: "POST", body }).catch(() => null);
     setLoading(false);
-    setSubmitted(true);
+    if (res?.ok) setSubmitted(true);
+    else setFailed(true);
   }
 
   return (
@@ -102,6 +102,10 @@ export default function DemoPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-8">
+              <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
+              {failed && (
+                <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">L&apos;envoi a échoué — réessaie dans un instant.</p>
+              )}
                 <h2 className="text-xl font-bold text-white">Réservez votre démo</h2>
                 <p className="text-sm text-slate-400">Remplissez le formulaire, on revient vers vous sous 24h.</p>
 
