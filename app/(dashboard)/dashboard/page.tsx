@@ -26,7 +26,6 @@ import { resolveKpiValue } from "@/lib/alerts/kpi-resolver";
 import { valueFromAggSpec } from "@/lib/alerts/agg-value";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { HomeHeroKpis, type HomeKpi, type HomeKpiSuggestion } from "@/components/home-hero-kpis";
-import { DashboardTabs } from "@/components/dashboard-tabs";
 
 export default async function DashboardOverviewPage() {
   const orgId = await getOrgId();
@@ -303,8 +302,8 @@ export default async function DashboardOverviewPage() {
         </p>
       </header>
 
-      {/* Section Dashboard : vue d'ensemble · routines · rapports libres */}
-      <DashboardTabs />
+      {/* Pas d'onglets sur l'accueil : Vue d'ensemble (rapports) et Tableaux
+          de bord se rejoignent via la sidebar — la rangée vit sur leurs pages. */}
 
       {/* Onboarding banner — visible tant que l'org n'a pas terminé le wizard */}
       {showOnboardingBanner && (
