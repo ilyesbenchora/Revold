@@ -200,6 +200,18 @@ export function IdentifierMappingForm({
   }
 
   /**
+   * Retire le mapping d'un champ custom : les deux noms sont vidés — à
+   * l'enregistrement, un champ vide SUPPRIME le mapping côté serveur (la sync
+   * cesse de lire/écrire cette propriété).
+   */
+  function clearCustomField(canonicalField: string) {
+    setValues((prev) => ({ ...prev, [`hubspot__${canonicalField}`]: "" }));
+    setLabels((prev) => ({ ...prev, [canonicalField]: "" }));
+    setHsStatus((prev) => ({ ...prev, [canonicalField]: UNVERIFIED }));
+    setSaved(false);
+  }
+
+  /**
    * Identifiants affichés pour un outil. Côté CRM, l'« ID de rapprochement »
    * unique du catalogue est déplié en autant de champs que d'IDs configurés
    * (custom_id, custom_id_2…) — le CRM étant relié à plusieurs outils, chaque
@@ -434,6 +446,12 @@ export function IdentifierMappingForm({
             "companies";
           // ID de rapprochement du CRM : supprimable dès qu'il y en a plusieurs.
           const removable = isHubSpot && isCustomIdKey(id.canonicalField) && hubspotCustomIdKeys.length > 1;
+          // Autres champs CUSTOM : « Retirer » vide le mapping (supprimé à
+          // l'enregistrement) — visible dès qu'un des deux noms est renseigné.
+          const clearable =
+            isHsCustom &&
+            !removable &&
+            !!((values[`hubspot__${id.canonicalField}`] ?? "").trim() || (labels[id.canonicalField] ?? "").trim());
           return (
             <div key={id.canonicalField} className="rounded-xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-2">
@@ -473,6 +491,17 @@ export function IdentifierMappingForm({
                     aria-label={`Retirer ${id.label}`}
                   >
                     Supprimer
+                  </button>
+                )}
+                {clearable && (
+                  <button
+                    type="button"
+                    onClick={() => clearCustomField(id.canonicalField)}
+                    className="shrink-0 rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-rose-50 hover:text-rose-500"
+                    title="Vider ce mapping — il sera supprimé à l'enregistrement (la sync cesse d'utiliser cette propriété)"
+                    aria-label={`Retirer le mapping ${id.label}`}
+                  >
+                    Retirer
                   </button>
                 )}
               </div>
