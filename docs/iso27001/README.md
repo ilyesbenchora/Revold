@@ -25,13 +25,17 @@ aux outils clients, postes de travail des personnes y accédant. Hébergement Ve
 | [gestion-incidents.md](gestion-incidents.md) | Détection, réponse, notification (CNIL 72 h) |
 | [pca-pra.md](pca-pra.md) | Continuité et reprise (sauvegardes, RTO/RPO) |
 | [fournisseurs-sous-traitants.md](fournisseurs-sous-traitants.md) | Sous-traitants, DPA, revue annuelle |
+| [charte-utilisateur.md](charte-utilisateur.md) | Charte à signer (poste, secrets, télétravail) |
+| [cycle-de-vie-personnel.md](cycle-de-vie-personnel.md) | Embauche → départ (clause type, checklist 24 h) |
+| [contacts-veille.md](contacts-veille.md) | Autorités (CNIL, CERT-FR) + veille sécurité |
+| [cahier-des-charges-pentest.md](cahier-des-charges-pentest.md) | Cahier des charges du test d'intrusion |
 
 ## Feuille de route vers la certification
 
 | Jalon | Échéance cible | Contenu |
 | --- | --- | --- |
-| M0 — Socle (ce dossier) | fait (2026-08) | PSSI, SoA initiale, registre des risques, politiques cœur |
-| M1 — Mise en œuvre | +2 mois | Contrôles « À faire » de la SoA traités ou planifiés, revues d'accès, journalisation centralisée |
+| M0 — Socle (ce dossier) | fait (2026-08) | PSSI, SoA (0 contrôle « À faire » restant), risques, politiques cœur, charte, cycle de vie RH, contacts autorités, CDC pentest, CI security-audit, en-têtes HTTP |
+| M1 — Mise en œuvre | +2 mois | Preuves d'exploitation : 1re revue d'accès datée, test de restauration, session de sensibilisation, compte CNIL créé, Dependabot activé |
 | M2 — Preuves | +4 mois | 3 mois de preuves d'exploitation (revues, tests de restauration, sensibilisation), pentest externe |
 | M3 — Audit blanc | +6 mois | Audit interne + revue de direction (exigés par la norme), corrections |
 | M4 — Certification | +8 à 12 mois | Audit de certification (étape 1 documentaire, étape 2 sur site) par un organisme accrédité (AFNOR, Bureau Veritas, LNE/BSI…) |

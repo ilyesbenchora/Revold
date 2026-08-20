@@ -1,0 +1,26 @@
+# Audit de sécurité des dépendances — contrôle SoA 8.8 (gestion des
+# vulnérabilités techniques). Hebdomadaire + à chaque PR touchant les
+# dépendances : `npm audit` échoue sur toute vulnérabilité HIGH/CRITICAL
+# corrigeable. Les findings sont visibles dans l'onglet Actions ; un échec
+# sur PR bloque le merge tant que la dépendance n'est pas mise à jour.
+name: security-audit
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # lundi 06:00 UTC
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit des dépendances (high et plus)
+        run: npm audit --audit-level=high

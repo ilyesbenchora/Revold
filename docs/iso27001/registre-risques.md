@@ -9,7 +9,7 @@ incident ou évolution majeure.
 | R1 | Fuite de données inter-clients (défaut d'isolation) | 1 | 4 | 4 | RLS au niveau base sur toutes les tables + revue systématique des nouvelles tables | 8.3, 8.26 |
 | R2 | Compromission d'un compte à privilèges (fondateur, GitHub, Vercel, Supabase) | 2 | 4 | 8 | MFA partout, gestionnaire de mdp, service_role jamais côté client, rotation en cas de doute | 5.17, 8.2 |
 | R3 | Fuite de secrets (clé service_role, tokens OAuth clients) | 2 | 4 | 8 | Env vars Vercel uniquement, jamais en git, tokens chiffrés en base, scan de secrets | 8.11, 8.28 |
-| R4 | Vulnérabilité dépendance npm exploitée | 2 | 3 | 6 | Épinglage, audit dépendances en CI (à activer), veille CERT-FR | 8.8, 5.21 |
+| R4 | Vulnérabilité dépendance npm exploitée | 2 | 3 | 6 | Audit en CI ACTIF (workflow security-audit, npm audit hebdo + sur PR deps) ; remédiation en cours : mises à jour cassantes en attente (Next.js DoS/middleware, extract-zip/puppeteer, brace-expansion) — planifiées M1 avec build+tests ; Dependabot à activer | 8.8, 5.21 |
 | R5 | Indisponibilité fournisseur (Vercel/Supabase) | 2 | 3 | 6 | Multi-AZ, sauvegardes quotidiennes, PRA documenté, status pages surveillées | 5.30, 8.13/8.14 |
 | R6 | Perte de données (erreur humaine, migration ratée) | 2 | 4 | 8 | Migrations transactionnelles (échec = build bloqué), PITR Supabase, test de restauration périodique | 8.13, 8.32 |
 | R7 | Abus des écritures vers les outils clients | 1 | 3 | 3 | Écritures limitées à 3 actions validées, « champs vides uniquement », journal des actions | 5.15, 8.26 |
