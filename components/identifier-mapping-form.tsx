@@ -555,7 +555,9 @@ export function IdentifierMappingForm({
                     la propriété. En cas de doute, saisissez le nom interne affiché : Revold retrouvera le nom API à la vérification.
                   </p>
                   {status?.exists === true && isDropdownFieldType(status.fieldType) && (
-                    <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[10px] text-sky-800">
+                    // Note d'information FONDUE dans le bloc (fond slate discret,
+                    // comme les autres aides) — pas d'encart clair qui tranche.
+                    <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[10px] text-slate-500">
                       Cette propriété est une <span className="font-semibold">liste déroulante</span> : Revold aligne
                       automatiquement chaque valeur sur ses options existantes (par libellé ou acronyme — « SAS
                       (société par actions simplifiée) » remplit l&apos;option « SAS »). Une valeur sans option
