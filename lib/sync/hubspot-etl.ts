@@ -1166,6 +1166,41 @@ export async function linkCompaniesForOrg(
     if (rows.length < 1000) break;
   }
 
+  // ── Repli ASSOCIATIONS v4 (contacts → companies) : certains portails ne
+  // remplissent pas associatedcompanyid alors que l'association « Primary »
+  // existe. On collecte d'abord TOUS les contacts non reliés (lecture paginée
+  // stable), puis batch v4 par 100 — converge en un run. ──
+  const unlinkedContacts: Array<{ id: string; hubspot_id: string }> = [];
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, hubspot_id")
+      .eq("organization_id", orgId)
+      .is("company_id", null)
+      .not("hubspot_id", "is", null)
+      .order("id")
+      .range(page * 1000, page * 1000 + 999);
+    if (error) break;
+    const rows = (data ?? []) as Array<{ id: string; hubspot_id: string }>;
+    unlinkedContacts.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  for (let i = 0; i < unlinkedContacts.length; i += 1000) {
+    const slice = unlinkedContacts.slice(i, i + 1000);
+    const assoc = await fetchAssociations(
+      token,
+      "/crm/v4/associations/contacts/companies/batch/read",
+      slice.map((r) => r.hubspot_id),
+    );
+    const links = new Map<string, string>();
+    for (const r of slice) {
+      const companyHs = assoc[String(r.hubspot_id)];
+      const cid = companyHs ? compByHs.get(companyHs) : undefined;
+      if (cid) links.set(r.id, cid);
+    }
+    if (links.size > 0) contactsLinked += await applyCompanyLinks(supabase, orgId, "contacts", links);
+  }
+
   // ── Deals : associations HubSpot → company_id, avec REPLI PAR LE CONTACT ──
   // Certains portails n'associent pas les deals aux entreprises : la chaîne
   // réelle est deal → contact (association v4) → entreprise du contact. On
