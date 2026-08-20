@@ -755,6 +755,28 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
 
   // ── Récap d'équipe (Paramètres → Tour de contrôle) : lu à voix haute. ──
+  // Une fois ÉCOUTÉ jusqu'au bout : le texte du récap s'efface (retour au
+  // texte par défaut) et le CTA du jour disparaît (mémorisé par jour —
+  // le prochain récap programmé réaffichera le sien).
+  const [recapDone, setRecapDone] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`revold:recap-done:${new Date().toDateString()}`);
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (arr.length > 0) setRecapDone(new Set(arr));
+    } catch { /* préférence indisponible → CTA affiché */ }
+  }, []);
+  const markRecapDone = useCallback((period: string, scope: string) => {
+    setRecapDone((prev) => {
+      const next = new Set(prev).add(`${period}:${scope}`);
+      try {
+        localStorage.setItem(`revold:recap-done:${new Date().toDateString()}`, JSON.stringify([...next]));
+      } catch { /* rien */ }
+      return next;
+    });
+  }, []);
+
   const runRecap = useCallback(async (period: string, scope: string) => {
     setStatus("thinking");
     setCaption("Je prépare ton récap…");
@@ -765,12 +787,16 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       if (!res.ok || !d.text) throw new Error(d.error || "Récap indisponible.");
       setStatus("idle");
       setCaption(String(d.text));
-      speak(String(d.text));
+      speak(String(d.text), () => {
+        // Écoute terminée : texte par défaut + CTA du jour retiré.
+        setCaption("");
+        markRecapDone(period, scope);
+      });
     } catch (err) {
       setStatus("idle");
       setCaption(err instanceof Error ? err.message : "Récap indisponible — réessaie.");
     }
-  }, []);
+  }, [markRecapDone]);
 
   // ── Appel vocal mains libres (« Hey Revold ») : écoute discrète de la
   // phrase d'appel quand l'onglet est visible, le micro DÉJÀ autorisé et
@@ -831,12 +857,19 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     const now = new Date();
     const day = now.getDay();
     const dom = now.getDate();
-    if (settings.recapWeekly && day === 1) return { label: "Récap de la semaine passée", period: "week", scope: "last" };
-    if (settings.recapWeekly && day === 5) return { label: "Récap de la semaine en cours", period: "week", scope: "current" };
-    if (settings.recapQuarterly && now.getMonth() % 3 === 0 && dom <= 7)
-      return { label: "Récap du trimestre passé", period: "quarter", scope: "last" };
-    if (settings.recapMonthly && dom <= 3) return { label: "Récap du mois passé", period: "month", scope: "last" };
-    return null;
+    const cta =
+      settings.recapWeekly && day === 1
+        ? { label: "Récap de la semaine passée", period: "week", scope: "last" }
+        : settings.recapWeekly && day === 5
+          ? { label: "Récap de la semaine en cours", period: "week", scope: "current" }
+          : settings.recapQuarterly && now.getMonth() % 3 === 0 && dom <= 7
+            ? { label: "Récap du trimestre passé", period: "quarter", scope: "last" }
+            : settings.recapMonthly && dom <= 3
+              ? { label: "Récap du mois passé", period: "month", scope: "last" }
+              : null;
+    // Déjà écouté aujourd'hui → le CTA disparaît jusqu'au prochain récap programmé.
+    if (cta && recapDone.has(`${cta.period}:${cta.scope}`)) return null;
+    return cta;
   })();
 
   const busy = status === "thinking" || status === "redirecting";
