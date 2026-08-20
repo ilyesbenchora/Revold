@@ -570,12 +570,18 @@ export function IdentifierMappingForm({
               ) : (
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="sm:col-span-2">
-                    <label className={fieldLabelClass}>Nom API</label>
+                    {/* Hors HubSpot, un identifiant = un CHEMIN dans les données
+                        de l'outil (ex : metadata.code_client) — pas de couple
+                        libellé/nom API comme une propriété HubSpot. */}
+                    <label className={fieldLabelClass}>
+                      {id.native ? "Champ natif de l'outil" : "Champ dans l'outil (chemin API)"}
+                    </label>
                     <input
                       type="text"
                       value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
                       onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                      className={`${inputClass} mt-1`}
+                      placeholder={id.native ? undefined : "ex : metadata.code_client"}
+                      className={`${inputClass} mt-1 ${id.native ? "" : "font-mono"}`}
                       readOnly={id.native}
                     />
                   </div>
