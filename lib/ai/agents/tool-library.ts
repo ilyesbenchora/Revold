@@ -930,7 +930,7 @@ async function listCompanyCohortAccessors(
       .eq("organization_id", orgId)
       .maybeSingle();
     const mappings = Array.isArray(data?.mappings)
-      ? (data.mappings as Array<{ key?: string; label?: string; api_name?: string; object?: string }>)
+      ? (data.mappings as Array<{ key?: string; label?: string; internal_name?: string; api_name?: string; object?: string }>)
       : [];
     for (const m of mappings) {
       const key = typeof m.key === "string" ? m.key : "";
@@ -938,7 +938,13 @@ async function listCompanyCohortAccessors(
       if (!key || !prop || (m.object && m.object !== "companies")) continue;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ key, label: (typeof m.label === "string" && m.label.trim()) || key, prop, col: null });
+      // Libellé = le nom de propriété saisi par l'utilisateur (son vocabulaire),
+      // repli sur le libellé standard de la ligne de Paramètres.
+      const label =
+        (typeof m.internal_name === "string" && m.internal_name.trim()) ||
+        (typeof m.label === "string" && m.label.trim()) ||
+        key;
+      out.push({ key, label, prop, col: null });
     }
   } catch {
     /* table absente → canoniques seulement */

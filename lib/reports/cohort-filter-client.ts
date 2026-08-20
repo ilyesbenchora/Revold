@@ -21,12 +21,15 @@ export function fetchCohortOptions(): Promise<CohortOption[]> {
   optionsPromise ??= fetch("/api/cohort-mappings?scope=filters")
     .then((r) => (r.ok ? r.json() : { mappings: [] }))
     .then((d) => {
-      const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
+      const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; internal_name?: string; api_name?: string; object?: string }>;
       return mapped
-        .filter((m) => m.key && m.label && (m.api_name ?? "").trim())
+        .filter((m) => m.key && (m.api_name ?? "").trim() && ((m.internal_name ?? "").trim() || m.label))
         .map((m) => ({
           id: m.key as string,
-          label: m.label as string,
+          // Libellé = le NOM DE LA PROPRIÉTÉ saisi dans Paramètres → Cohortes
+          // (« Activité (Storee Retail) »…) : c'est le vocabulaire de
+          // l'utilisateur — repli sur le libellé standard de la ligne.
+          label: ((m.internal_name ?? "").trim() || m.label) as string,
           object: (m.object === "contacts" || m.object === "deals" ? m.object : "companies") as CohortOption["object"],
         }));
     })
