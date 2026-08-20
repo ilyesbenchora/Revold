@@ -27,11 +27,8 @@ export type BlockRowSpec = {
 };
 
 // Options/valeurs de cohortes : helpers partagés (cache module par page).
-import {
-  BASE_COHORT_OPTIONS as BASE_COHORTS,
-  fetchCohortOptions,
-  fetchCohortValues,
-} from "@/lib/reports/cohort-filter-client";
+// Options = UNIQUEMENT les cohortes enregistrées dans Paramètres → Cohortes.
+import { fetchCohortOptions, fetchCohortValues, type CohortOption } from "@/lib/reports/cohort-filter-client";
 
 /**
  * Cellule additionnelle : une valeur brute, ou un lien (deep link HubSpot,
@@ -139,7 +136,7 @@ export function BlockDataTable({
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
   const [cohortKey, setCohortKey] = useState<string | null>(null);
   const [cohortValue, setCohortValue] = useState<string | null>(null);
-  const [cohortOptions, setCohortOptions] = useState(BASE_COHORTS);
+  const [cohortOptions, setCohortOptions] = useState<CohortOption[]>([]);
   const [cohortVals, setCohortVals] = useState<string[]>([]);
   const [recomputing, setRecomputing] = useState(false);
   // Valeurs recalculées par nom de ligne (null = non calculable) — actives
@@ -282,6 +279,7 @@ export function BlockDataTable({
             activeLabel={period?.label ?? "Toutes périodes"}
             applied={period ?? { preset: "all", from: "", to: "", label: "Toutes les données" }}
           />
+          {cohortOptions.length > 0 && (
           <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
             Cohorte
             <select
@@ -309,6 +307,7 @@ export function BlockDataTable({
               </select>
             )}
           </label>
+          )}
           {recomputing && <span className="text-[11px] text-slate-400">Recalcul…</span>}
         </div>
       )}

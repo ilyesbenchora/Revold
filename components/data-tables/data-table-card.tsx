@@ -8,6 +8,7 @@ import { computePeriod, presetLabel, parseStoredPeriod, storedPeriodLabel, seria
 import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
+import { fetchCohortOptions } from "@/lib/reports/cohort-filter-client";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { BrandLogo } from "@/components/brand-logo";
@@ -40,13 +41,8 @@ export type SavedTable = {
   granularity?: string | null;
 };
 
-/** Cohortes standard toujours filtrables (colonnes canoniques companies) —
- * complétées dynamiquement par les cohortes mappées de Paramètres → Cohortes
- * (objet Company), y compris les customs. */
-const COHORT_OPTIONS: { id: string; label: string }[] = [
-  { id: "industry", label: "Secteur d'activité" },
-  { id: "segment", label: "Segment" },
-];
+// Cohortes filtrables = UNIQUEMENT celles enregistrées dans Paramètres →
+// Cohortes (helpers partagés) : sans cohorte enregistrée, pas de sélecteur.
 /** Entités reliées à une entreprise → filtre cohorte disponible. */
 const COHORTABLE_ENTITIES = new Set(["deals", "companies", "contacts", "invoices", "subscriptions", "tickets"]);
 
@@ -116,23 +112,12 @@ export function DataTableCard({
   // Valeurs distinctes par cohorte (chargées à la demande, mises en cache).
   const [cohortValues, setCohortValues] = useState<Record<string, string[]>>({});
   const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
-  // Cohortes proposées : standard + celles de Paramètres → Cohortes (objet Company).
-  const [cohortOptions, setCohortOptions] = useState<{ id: string; label: string }[]>(COHORT_OPTIONS);
+  // Cohortes proposées : celles enregistrées dans Paramètres → Cohortes.
+  const [cohortOptions, setCohortOptions] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
     if (!cohortable) return;
     let alive = true;
-    fetch("/api/cohort-mappings")
-      .then((r) => (r.ok ? r.json() : { mappings: [] }))
-      .then((d) => {
-        if (!alive) return;
-        const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
-        const extras = mapped
-          .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
-          .filter((m) => !COHORT_OPTIONS.some((o) => o.id === m.key))
-          .map((m) => ({ id: m.key as string, label: m.label as string }));
-        if (extras.length > 0) setCohortOptions([...COHORT_OPTIONS, ...extras]);
-      })
-      .catch(() => {});
+    void fetchCohortOptions().then((opts) => { if (alive) setCohortOptions(opts); });
     return () => { alive = false; };
   }, [cohortable]);
 
@@ -575,8 +560,8 @@ export function DataTableCard({
             </label>
           )}
           {/* Cohorte — restreint le rapport aux entreprises de la cohorte
-              (segment / secteur), persisté comme la période et le pipeline. */}
-          {cohortable && (
+              enregistrée dans Paramètres → Cohortes, persisté comme la période. */}
+          {cohortable && cohortOptions.length > 0 && (
             <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
               Cohorte
               <select

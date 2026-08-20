@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  BASE_COHORT_OPTIONS,
   fetchCohortDealIds,
   fetchCohortOptions,
   fetchCohortValues,
@@ -21,7 +20,7 @@ export function CohortDealFilter({
 }: {
   onChange: (cohort: ActiveCohort | null, dealIds: Set<string> | null) => void;
 }) {
-  const [options, setOptions] = useState<CohortOption[]>(BASE_COHORT_OPTIONS);
+  const [options, setOptions] = useState<CohortOption[]>([]);
   const [key, setKey] = useState<string | null>(null);
   const [value, setValue] = useState<string | null>(null);
   const [values, setValues] = useState<string[]>([]);
@@ -53,6 +52,9 @@ export function CohortDealFilter({
       setLoading(false);
     }
   }
+
+  // Aucune cohorte enregistrée dans Paramètres → Cohortes : pas de sélecteur.
+  if (options.length === 0) return null;
 
   return (
     <label className="inline-flex items-center gap-1 text-xs font-medium text-slate-600">

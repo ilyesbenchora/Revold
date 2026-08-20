@@ -9,24 +9,22 @@
 export type CohortOption = { id: string; label: string };
 export type ActiveCohort = { key: string; value: string };
 
-export const BASE_COHORT_OPTIONS: CohortOption[] = [
-  { id: "industry", label: "Secteur d'activité" },
-  { id: "segment", label: "Segment" },
-];
-
 let optionsPromise: Promise<CohortOption[]> | null = null;
+/**
+ * Cohortes filtrables = UNIQUEMENT celles enregistrées dans Paramètres →
+ * Cohortes (propriété mappée, objet Company). Aucune liste codée en dur :
+ * si rien n'est enregistré, la liste est vide et les sélecteurs se masquent.
+ */
 export function fetchCohortOptions(): Promise<CohortOption[]> {
   optionsPromise ??= fetch("/api/cohort-mappings")
     .then((r) => (r.ok ? r.json() : { mappings: [] }))
     .then((d) => {
       const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
-      const extras = mapped
+      return mapped
         .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
-        .filter((m) => !BASE_COHORT_OPTIONS.some((o) => o.id === m.key))
         .map((m) => ({ id: m.key as string, label: m.label as string }));
-      return [...BASE_COHORT_OPTIONS, ...extras];
     })
-    .catch(() => BASE_COHORT_OPTIONS);
+    .catch(() => [] as CohortOption[]);
   return optionsPromise;
 }
 
