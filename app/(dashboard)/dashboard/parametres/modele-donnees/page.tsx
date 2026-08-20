@@ -122,7 +122,7 @@ export default async function ParametresModeleDonneesPage() {
 
   // Configuration & resolution rules restent en Supabase (état app)
   let connectedProviders: string[] = [];
-  let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string> }> = [];
+  let savedRuleConfigs: Array<{ rule_id: string; enabled: boolean; config: Record<string, string>; priority?: number | null }> = [];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string; object_type?: string | null }> = [];
   let savedAuthority: Array<{ entity: string; field: string; priority: string[] }> = [];
 
@@ -135,7 +135,7 @@ export default async function ParametresModeleDonneesPage() {
   try {
     const [integ, ruleConfigs, mappings, authority] = await Promise.all([
       supabase.from("integrations").select("provider").eq("organization_id", orgId).eq("is_active", true),
-      supabase.from("entity_resolution_config").select("rule_id, enabled, config").eq("organization_id", orgId),
+      supabase.from("entity_resolution_config").select("rule_id, enabled, config, priority").eq("organization_id", orgId),
       supabase.from("identifier_field_mapping").select("provider, canonical_field, provider_field, object_type").eq("organization_id", orgId),
       supabase.from("field_authority_config").select("entity, field, priority").eq("organization_id", orgId),
     ]);
@@ -182,12 +182,22 @@ export default async function ParametresModeleDonneesPage() {
     return {
       ...base,
       enabled: saved.enabled,
+      priority: saved.priority ?? null,
       configFields: base.configFields.map((cf) => ({
         ...cf,
         value: (saved.config as Record<string, string>)[cf.label] ?? cf.value,
       })),
     };
   });
+  // Ordre EFFECTIF du matching (matrice de priorités) : priorité enregistrée,
+  // départage par rang canonique (les lignes legacy à priority=0 partout
+  // retombent sur l'ordre fiable d'abord) — même tri que le moteur.
+  const RULE_RANK = Object.fromEntries(DEFAULT_RESOLUTION_RULES.map((r, i) => [r.id, i]));
+  mergedRules.sort(
+    (a, b) =>
+      (a.priority ?? RULE_RANK[a.id] ?? 999) - (b.priority ?? RULE_RANK[b.id] ?? 999) ||
+      (RULE_RANK[a.id] ?? 999) - (RULE_RANK[b.id] ?? 999),
+  );
 
   // Dedup rules: état sauvegardé (dedup_<id>) fusionné dans les défauts.
   const mergedDedupRules: DedupRule[] = DEFAULT_DEDUP_RULES.map((rule) => {

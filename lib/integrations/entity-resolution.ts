@@ -179,7 +179,15 @@ async function loadResolutionConfig(sb: SupabaseClient, orgId: string): Promise<
     };
     const enabled = rows
       .filter((r) => r.enabled)
-      .sort((a, b) => (a.priority ?? RANK[a.rule_id] ?? 999) - (b.priority ?? RANK[b.rule_id] ?? 999));
+      // Priorité enregistrée (matrice de la page Modèle de données), départage
+      // par rang canonique : les lignes legacy (priority = 0 partout, valeur
+      // par défaut) retombent sur l'ordre fiable d'abord au lieu d'un ordre
+      // arbitraire de lecture DB.
+      .sort(
+        (a, b) =>
+          (a.priority ?? RANK[a.rule_id] ?? 999) - (b.priority ?? RANK[b.rule_id] ?? 999) ||
+          (RANK[a.rule_id] ?? 999) - (RANK[b.rule_id] ?? 999),
+      );
     const cfg: ResolutionConfig = {
       company: enabled.map((r) => r.rule_id).filter((id) => COMPANY_RULE_IDS.includes(id)),
       contact: enabled.map((r) => r.rule_id).filter((id) => CONTACT_RULE_IDS.includes(id)),

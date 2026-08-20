@@ -18,6 +18,8 @@ export type Rule = {
   enabled: boolean;
   warning: string | null;
   configFields: ConfigField[];
+  /** Position enregistrée dans la matrice de priorités (null = ordre par défaut). */
+  priority?: number | null;
 };
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
@@ -31,12 +33,29 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
   const [configs, setConfigs] = useState<Record<string, Record<string, string>>>(
     Object.fromEntries(rules.map((r) => [r.id, Object.fromEntries(r.configFields.map((cf) => [cf.label, cf.value]))])),
   );
+  // ── Matrice de priorités : ordre des règles = ordre du matching (repli
+  // par enregistrement : position 1 essayée si l'identifiant est connu,
+  // sinon position 2, etc.). Réordonnable par flèches, persisté. ──
+  const [order, setOrder] = useState<string[]>(rules.map((r) => r.id));
+  const byId = Object.fromEntries(rules.map((r) => [r.id, r]));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   function toggle(id: string) {
     if (id === "external_id_match") return;
     setStates((prev) => ({ ...prev, [id]: !prev[id] }));
+    setSaved(false);
+  }
+
+  function move(id: string, dir: -1 | 1) {
+    setOrder((prev) => {
+      const i = prev.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
     setSaved(false);
   }
 
@@ -51,16 +70,34 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
       const res = await fetch("/api/settings/resolution-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rules: states, configs }),
+        body: JSON.stringify({ rules: states, configs, order }),
       });
       if (res.ok) setSaved(true);
     } catch {}
     setSaving(false);
   }
 
+  // Garde-fou : « nom d'entreprise » actif en TÊTE des règles Company actives →
+  // risque de faux rattachements (homonymes, filiales, variantes).
+  const activeCompanyOrder = order.filter(
+    (id) => byId[id]?.entity.includes("Company") && id !== "external_id_match" && (states[id] ?? byId[id]?.enabled),
+  );
+  const nameFirst = activeCompanyOrder[0] === "name_match";
+
   return (
     <div className="space-y-3">
-      {rules.map((rule, idx) => {
+      {nameFirst && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-medium text-amber-800">
+            ⚠ « Match par nom d&apos;entreprise » est en première position : cette règle peut créer de faux
+            rattachements (homonymes, filiales, variantes d&apos;orthographe). Recommandé : garder un identifiant
+            fort (ID de rapprochement, SIREN, TVA…) devant elle.
+          </p>
+        </div>
+      )}
+      {order.map((ruleId, idx) => {
+        const rule = byId[ruleId];
+        if (!rule) return null;
         const isActive = states[rule.id] ?? rule.enabled;
         const isLocked = rule.id === "external_id_match";
 
@@ -77,6 +114,30 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
               <div className="flex items-center gap-3">
                 {/* Pas de pourcentage ici : les taux par règle sont mesurés sur
                     Audit données → Rapprochement de données (doublon évité). */}
+                {/* ── Matrice de priorités : monter/descendre la règle dans
+                       l'ordre de matching (l'ID technique reste automatique). ── */}
+                {!isLocked && (
+                  <span className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); move(rule.id, -1); }}
+                      disabled={idx === 0}
+                      title="Monter dans l'ordre de rapprochement"
+                      className="flex h-4 w-6 items-center justify-center rounded text-[10px] leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); move(rule.id, 1); }}
+                      disabled={idx === order.length - 1}
+                      title="Descendre dans l'ordre de rapprochement"
+                      className="flex h-4 w-6 items-center justify-center rounded text-[10px] leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    >
+                      ▼
+                    </button>
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); toggle(rule.id); }}
