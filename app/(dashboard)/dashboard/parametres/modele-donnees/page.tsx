@@ -71,8 +71,8 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
   },
   {
     id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: true,
-    description: "Match sur email lowercase normalisé. Fiable entre CRM et support. Entre CRM et billing, l'email facturé ≠ email commercial.",
-    warning: "facturation@acme.com (Stripe) ≠ jean@acme.com (HubSpot).",
+    description: "Match sur email lowercase normalisé. Fiable entre CRM et support. Souvent, entre CRM et billing, l'email facturé ≠ email commercial.",
+    warning: null,
     configFields: [
       { label: "Emails génériques", type: "select", options: ["Bloquer (info@, contact@, support@, facturation@, admin@)", "Avertir seulement", "Autoriser"], value: "Bloquer (info@, contact@, support@, facturation@, admin@)" },
       { label: "Match CRM ↔ Billing", type: "select", options: ["Email + SIREN obligatoire", "Email + domaine obligatoire", "Désactivé entre CRM et billing"], value: "Email + SIREN obligatoire" },
