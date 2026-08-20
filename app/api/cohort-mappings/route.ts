@@ -34,20 +34,36 @@ function cleanMappings(v: unknown): CohortMapping[] | null {
   return out;
 }
 
-/** Liste le mapping des cohortes de l'organisation ([] si aucune / table absente). */
-export async function GET() {
+/**
+ * Liste le mapping des cohortes de l'organisation ([] si aucune / table absente).
+ * `?scope=filters` : périmètre des FILTRES de rapports — uniquement les
+ * cohortes de l'équipe du membre (profiles.pole) + celles de « Toutes les
+ * équipes » (team vide). Admin ou membre sans pôle : tout.
+ */
+export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
+
+  const scope = new URL(request.url).searchParams.get("scope");
   try {
     const { data } = await supabase
       .from("cohort_mappings")
       .select("mappings")
       .eq("organization_id", orgId)
       .maybeSingle();
-    return NextResponse.json({ mappings: Array.isArray(data?.mappings) ? data.mappings : [] });
+    let mappings = Array.isArray(data?.mappings) ? (data.mappings as Array<{ team?: string }>) : [];
+    if (scope === "filters") {
+      const { data: prof } = await supabase.from("profiles").select("role, pole").eq("id", user.id).maybeSingle();
+      const role = (prof?.role as string | null) ?? null;
+      const pole = (prof?.pole as string | null) ?? null;
+      if (role !== "admin" && pole) {
+        mappings = mappings.filter((m) => !(m.team ?? "") || m.team === pole);
+      }
+    }
+    return NextResponse.json({ mappings });
   } catch {
     return NextResponse.json({ mappings: [] });
   }

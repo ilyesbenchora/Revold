@@ -122,10 +122,6 @@ export function CohortMappingsForm({
       : (teamRights[team]?.create ?? false);
   const anyEditable = GROUPS.some((g) => canEdit(g.id));
 
-  // Une cohorte ne peut être déplacée que vers un groupe où le membre peut éditer.
-  const teamOptions = (current: string) =>
-    GROUPS.filter((g) => g.id === current || canEdit(g.id)).map((g) => ({ id: g.id, label: g.label }));
-
   function patch(key: string, p: Partial<CohortMapping>) {
     setRows((r) => r.map((m) => (m.key === key ? { ...m, ...p } : m)));
     // La saisie a changé : le statut vérifié ne vaut plus pour cette cohorte.
@@ -305,20 +301,9 @@ export function CohortMappingsForm({
             </button>
           )}
         </div>
-        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Équipe</label>
-            <select
-              value={m.team}
-              onChange={(e) => patch(m.key, { team: e.target.value })}
-              disabled={!editable}
-              className={field}
-            >
-              {teamOptions(m.team).map((o) => (
-                <option key={o.id} value={o.id}>{o.label}</option>
-              ))}
-            </select>
-          </div>
+        {/* Pas de champ « Équipe » : le groupe qui contient la cohorte porte
+            déjà l'équipe — le partage passe par « Toutes les équipes ». */}
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Objet HubSpot</label>
             <select
@@ -389,15 +374,38 @@ export function CohortMappingsForm({
                   <p className="mt-0.5 text-[11px] text-slate-400">Lecture seule — droits gérés dans Utilisateurs &amp; équipes.</p>
                 )}
               </div>
-              {canCreate(g.id) && (
-                <button
-                  type="button"
-                  onClick={() => addCustom(g.id)}
-                  className="shrink-0 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
-                >
-                  ＋ Ajouter une cohorte custom
-                </button>
-              )}
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {/* « Toutes les équipes » : reprendre une cohorte DÉJÀ enregistrée
+                    dans une équipe (sans la retaper) — elle devient transverse. */}
+                {g.id === "" && editable && (() => {
+                  const candidates = rows.filter((m) => (m.team || "") !== "" && canView(m.team));
+                  if (candidates.length === 0) return null;
+                  return (
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) patch(e.target.value, { team: "" }); }}
+                      title="Rendre une cohorte existante visible par toutes les équipes"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 outline-none focus:border-fuchsia-300"
+                    >
+                      <option value="">↪ Reprendre une cohorte existante…</option>
+                      {candidates.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.label} ({GROUPS.find((g2) => g2.id === m.team)?.label ?? m.team})
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+                {canCreate(g.id) && (
+                  <button
+                    type="button"
+                    onClick={() => addCustom(g.id)}
+                    className="rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
+                  >
+                    ＋ Ajouter une cohorte custom
+                  </button>
+                )}
+              </div>
             </div>
             {groupRows.length === 0 && !(g.id === "sales" && salesExtra) ? (
               <p className="text-xs text-slate-400">Aucune cohorte dans ce groupe pour l&apos;instant.</p>

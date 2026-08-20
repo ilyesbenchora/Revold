@@ -12,11 +12,12 @@ export type ActiveCohort = { key: string; value: string };
 let optionsPromise: Promise<CohortOption[]> | null = null;
 /**
  * Cohortes filtrables = UNIQUEMENT celles enregistrées dans Paramètres →
- * Cohortes (propriété mappée, objet Company). Aucune liste codée en dur :
- * si rien n'est enregistré, la liste est vide et les sélecteurs se masquent.
+ * Cohortes (propriété mappée, objet Company), dans le PÉRIMÈTRE DU MEMBRE :
+ * celles de son équipe + celles de « Toutes les équipes » (scope=filters,
+ * filtré côté serveur). Si rien n'est visible, les sélecteurs se masquent.
  */
 export function fetchCohortOptions(): Promise<CohortOption[]> {
-  optionsPromise ??= fetch("/api/cohort-mappings")
+  optionsPromise ??= fetch("/api/cohort-mappings?scope=filters")
     .then((r) => (r.ok ? r.json() : { mappings: [] }))
     .then((d) => {
       const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;

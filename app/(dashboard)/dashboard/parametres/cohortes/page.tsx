@@ -3,11 +3,10 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { checkHubSpotProperty, checkHubSpotPropertyAcrossObjects, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
-import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
+import { checkHubSpotProperty, checkHubSpotPropertyAcrossObjects } from "@/lib/integrations/hubspot-properties";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { CohortMappingsForm, type CohortMapping, type CohortPropertyStatus, type CohortTeamRights } from "@/components/cohort-mappings-form";
-import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
+import { CohortContractRow, type ContractFieldInit } from "@/components/cohort-contract-row";
 import { getCurrentRole } from "@/lib/auth/rbac";
 import { COHORT_TEAMS, cohortAccessHref, cohortTeamRight, isCohortTeam, type CohortTeamId } from "@/lib/settings/cohort-teams";
 
@@ -101,13 +100,10 @@ export default async function ParametresCohortesPage() {
       }),
   );
 
-  // ── Dates de contrat (groupe Ventes) : propriétés custom du CRM, stockées
-  // dans identifier_field_mapping (la sync et le radar de facturation les
-  // consomment) — le bloc d'édition vit ICI, plus dans le Modèle de données. ──
+  // ── Cohorte « Contrat » (groupe Ventes) : dates de début/fin de contrat,
+  // stockées en identifier_field_mapping (la sync et le radar de facturation
+  // les consomment) — rendue avec la MÊME structure que les lignes de cohortes.
   const CONTRACT_CANONICALS = new Set(["contract_start", "contract_end", "deal_contract_start", "deal_contract_end"]);
-  const contractIdentifiers = (PROVIDER_IDENTIFIERS.hubspot ?? []).filter((id) =>
-    CONTRACT_CANONICALS.has(id.canonicalField),
-  );
   let contractMappings: Array<{ provider: string; canonical_field: string; provider_field: string; object_type?: string | null }> = [];
   try {
     const { data } = await supabase
@@ -119,51 +115,26 @@ export default async function ParametresCohortesPage() {
   } catch {
     /* table absente → défauts */
   }
-  const contractPropertyStatus: HubSpotPropertyStatus = {};
-  if (hsToken) {
-    await Promise.all(
-      contractIdentifiers
-        .filter((id) => !id.native)
-        .map(async (id) => {
-          const mapped = contractMappings.find((m) => m.canonical_field === id.canonicalField);
-          const propName = mapped?.provider_field ?? id.defaultProviderField;
-          // Champ optionnel non mappé : pas de vérification (badge trompeur sinon).
-          if (!propName.trim()) return;
-          const objectType =
-            mapped?.object_type ?? id.defaultObject ?? CANONICAL_TO_HUBSPOT_OBJECT[id.canonicalField] ?? "companies";
-          contractPropertyStatus[id.canonicalField] = await checkHubSpotProperty(hsToken, objectType, propName, id.label);
-        }),
-    );
-  }
-  const contractRows = [
-    { provider: "hubspot", label: "HubSpot", icon: "🟠", domain: "hubspot.com", identifiers: contractIdentifiers },
-  ];
-
-  // Cohorte « Contrat » — rendue DANS le groupe Ventes du formulaire (mêmes
-  // droits que le groupe) : dates de début et de fin de contrat, stockées en
-  // identifier_field_mapping (la sync et le radar de facturation les consomment).
+  const contractField = async (canonical: string, legacy: string): Promise<ContractFieldInit> => {
+    const m =
+      contractMappings.find((x) => x.canonical_field === canonical) ??
+      contractMappings.find((x) => x.canonical_field === legacy);
+    const object = m?.object_type ?? (m?.canonical_field.startsWith("deal_") ? "deals" : "companies");
+    const apiName = m?.provider_field?.trim() ?? "";
+    // Vérification serveur uniquement si un mapping existe (badge honnête).
+    const check = hsToken && apiName ? await checkHubSpotProperty(hsToken, object, apiName) : null;
+    return { object, apiName, label: check?.label ?? "", exists: check?.exists ?? null };
+  };
+  const [contractStart, contractEnd] = await Promise.all([
+    contractField("contract_start", "deal_contract_start"),
+    contractField("contract_end", "deal_contract_end"),
+  ]);
   const contractBlock = (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <p className="text-sm font-semibold text-slate-800">Contrat</p>
-      <p className="text-[11px] text-slate-400">
-        Les propriétés CRM qui portent les dates de début et de fin de contrat — elles alimentent le radar de
-        facturation et les analyses par cohorte de contrat. Revold vérifie qu&apos;elles existent dans ton CRM
-        avant d&apos;appliquer le mapping.
-      </p>
-      <div className="mt-3">
-        {hsToken ? (
-          <IdentifierMappingForm
-            rows={contractRows}
-            savedMappings={contractMappings}
-            disabledProviders={[]}
-            hubspotPropertyStatus={contractPropertyStatus}
-            allowExtraCustomIds={false}
-          />
-        ) : (
-          <p className="text-sm text-slate-500">Connecte ton CRM pour mapper les dates de contrat.</p>
-        )}
-      </div>
-    </div>
+    <CohortContractRow
+      initial={{ start: contractStart, end: contractEnd }}
+      hasCrm={!!hsToken}
+      editable={teamRights.sales?.edit ?? false}
+    />
   );
 
   return (
