@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-presets";
 import { InfoHint } from "@/components/info-hint";
+import { DictationButton } from "@/components/voice/dictation-button";
 import { WiredToolsRow } from "@/components/wired-tools-row";
 
 export type SurgicalUnit = "percent" | "currency" | "count";
@@ -560,7 +561,10 @@ export function SurgicalAlertButton({
                 </div>
 
                 <div>
-                  <label className={lbl}>Description (pour l&apos;agent)</label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={lbl}>Description (pour l&apos;agent)</label>
+                    <DictationButton onText={(t) => setDescription((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
+                  </div>
                   <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex : alerter si cette ligne décroche vs le mois dernier." className={`${inp} resize-none`} />
                 </div>
 

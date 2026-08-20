@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BoardComposition } from "@/lib/boards/board-templates";
+import { DictationButton } from "@/components/voice/dictation-button";
 
 /**
  * « Compose ton tableau avec l'agent » (page Templates) : l'utilisateur décrit
@@ -93,6 +94,7 @@ export function AgentBoardComposer() {
           placeholder="Ex : suivi de ma facturation ERP — CA, impayés, marge par mois…"
           className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100"
         />
+        <DictationButton onText={(t) => setBrief((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} label="Dicter le besoin au micro" />
         <button
           type="button"
           disabled={composing || !brief.trim()}

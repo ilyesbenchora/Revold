@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
+import { DictationButton } from "@/components/voice/dictation-button";
 
 const TEAMS = [
   { id: "sales", label: "Ventes" },
@@ -225,7 +226,13 @@ export function CreateObjectiveModal() {
               </div>
             </div>
 
-            <div><label className={lbl}>Description</label><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} /></div>
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <label className={lbl}>Description</label>
+                <DictationButton onText={(t) => setDescription((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
+              </div>
+              <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
+            </div>
             <div><label className={lbl}>Impact attendu</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
 
             {/* Étape « Vérification » : câblage affiché SYSTÉMATIQUEMENT avant création. */}

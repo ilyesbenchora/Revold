@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
+import { DictationButton } from "@/components/voice/dictation-button";
 import { teams, kpisByTeam, unitLabels, type KpiDef } from "@/lib/alerts/kpi-catalog";
 
 type ToolOption = { key: string; label: string; icon: string; category?: string };
@@ -700,7 +701,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
                       {/* Description transmise à l'agent qui crée l'alerte */}
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Description (optionnel)</label>
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <label className="block text-xs font-medium text-slate-600">Description (optionnel)</label>
+                          <DictationButton onText={(t) => setAgentContext((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
+                        </div>
                         <p className="mb-1.5 text-[10px] text-slate-400">
                           Ce contexte aide l&apos;agent de l&apos;équipe {teams.find((t) => t.id === team)?.label ?? ""} à créer l&apos;alerte et à rapprocher les vraies données.
                         </p>
