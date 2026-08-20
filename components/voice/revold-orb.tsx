@@ -125,7 +125,8 @@ function pickFrenchVoice(): SpeechSynthesisVoice | null {
   return cachedFrVoice;
 }
 
-function speak(text: string, onDone?: () => void) {
+/** Synthèse NAVIGATEUR — repli uniquement (accent robotique) si ElevenLabs indisponible. */
+function speakFallback(text: string, onDone?: () => void) {
   try {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "fr-FR";
@@ -143,6 +144,63 @@ function speak(text: string, onDone?: () => void) {
     }
   } catch {
     onDone?.();
+  }
+}
+
+// Audio ElevenLabs en cours — arrêté avant chaque nouvelle prise de parole.
+let towerAudio: HTMLAudioElement | null = null;
+
+function stopSpeaking() {
+  try {
+    towerAudio?.pause();
+    towerAudio = null;
+  } catch { /* ignore */ }
+  try {
+    window.speechSynthesis?.cancel();
+  } catch { /* ignore */ }
+}
+
+/**
+ * Voix de la tour de contrôle : ElevenLabs (voix FR dédiée « tower », qualité
+ * maximale via /api/tts) — repli sur la synthèse navigateur si la clé est
+ * absente ou l'appel échoue. `onDone` est garanti (une seule fois), avec un
+ * filet temporel si l'audio ne se termine jamais.
+ */
+function speak(text: string, onDone?: () => void) {
+  stopSpeaking();
+  let done = false;
+  const finish = () => {
+    if (!done) {
+      done = true;
+      onDone?.();
+    }
+  };
+  fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, agentKey: "tower" }),
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      if (done) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      towerAudio = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        finish();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        speakFallback(text, finish);
+      };
+      await audio.play();
+    })
+    .catch(() => speakFallback(text, finish));
+  if (onDone) {
+    // Filet global (génération + lecture) — proportionnel à la longueur du texte.
+    setTimeout(finish, Math.min(60000, 8000 + text.length * 90));
   }
 }
 
