@@ -73,10 +73,10 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: true,
     description: "Match sur email lowercase normalisé. Fiable entre CRM et support. Souvent, entre CRM et billing, l'email facturé ≠ email commercial.",
     warning: null,
+    // Pas d'options « email + autre identifiant » ici : la combinaison des
+    // identifiants est déjà pilotée par l'ordre des règles de la matrice.
     configFields: [
       { label: "Emails génériques", type: "select", options: ["Bloquer (info@, contact@, support@, facturation@, admin@)", "Avertir seulement", "Autoriser"], value: "Bloquer (info@, contact@, support@, facturation@, admin@)" },
-      { label: "Match CRM ↔ Billing", type: "select", options: ["Email + SIREN obligatoire", "Email + domaine obligatoire", "Désactivé entre CRM et billing"], value: "Email + SIREN obligatoire" },
-      { label: "Match CRM ↔ Support", type: "select", options: ["Email exact (recommandé)", "Email + domaine", "Désactivé"], value: "Email exact (recommandé)" },
     ],
   },
   {
