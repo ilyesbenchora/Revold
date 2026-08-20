@@ -358,10 +358,12 @@ async function loadCustomIdProperties(supabase: SupabaseClient, orgId: string): 
 
 /**
  * Propriétés des COHORTES mappées (Paramètres → Cohortes) portées par l'objet
- * Company : demandées à l'API pour que leurs valeurs arrivent dans
- * companies.raw_data — c'est là que le filtre cohorte des rapports les lit.
+ * SYNCHRONISÉ (companies / contacts / deals) : demandées à l'API pour que
+ * leurs valeurs arrivent dans le raw_data de l'objet — c'est là que le filtre
+ * et la dimension cohorte des rapports les lisent. Objet vide (legacy) →
+ * companies.
  */
-async function loadCohortProperties(supabase: SupabaseClient, orgId: string): Promise<string[]> {
+async function loadCohortProperties(supabase: SupabaseClient, orgId: string, type: string): Promise<string[]> {
   try {
     const { data } = await supabase
       .from("cohort_mappings")
@@ -372,7 +374,7 @@ async function loadCohortProperties(supabase: SupabaseClient, orgId: string): Pr
       ? (data.mappings as Array<{ api_name?: string; object?: string }>)
       : [];
     const props = mappings
-      .filter((m) => !m.object || m.object === "companies")
+      .filter((m) => (m.object && ["companies", "contacts", "deals"].includes(m.object) ? m.object : "companies") === type)
       .map((m) => (m.api_name ?? "").trim())
       .filter((p) => p && /^[a-z0-9_]+$/i.test(p));
     return [...new Set(props)];
@@ -977,8 +979,11 @@ export async function syncCrmObject(
     // (companies/deals) : les propriétés doivent être demandées à l'API
     // HubSpot pour apparaître dans les payloads.
     const customIdProps = type === "companies" ? await loadCustomIdProperties(supabase, orgId) : [];
-    // Cohortes mappées (objet Company) : valeurs embarquées dans raw_data.
-    const cohortProps = type === "companies" ? await loadCohortProperties(supabase, orgId) : [];
+    // Cohortes mappées : valeurs embarquées dans le raw_data de LEUR objet
+    // (companies, contacts, deals) — filtres/dimensions cohorte des rapports.
+    const cohortProps = ["companies", "contacts", "deals"].includes(type)
+      ? await loadCohortProperties(supabase, orgId, type)
+      : [];
     const contractProps = type === "companies" || type === "deals"
       ? await loadContractProperties(supabase, orgId)
       : null;

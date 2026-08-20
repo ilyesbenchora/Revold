@@ -27,14 +27,48 @@ export async function GET(request: Request) {
   if (!acc.prop && !acc.col) {
     return NextResponse.json({ error: `Cohorte inconnue ou non mappée : ${key}.` }, { status: 400 });
   }
+  const matchVal = (v: unknown) => (value === "inconnu" ? v == null || v === "" : String(v) === value);
 
-  // Entreprises de la cohorte → Set d'ids → deals rattachés (jointure JS).
-  const target = acc.prop ? `raw_data->properties->>${acc.prop}` : acc.col!;
-  let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
-  cq = value === "inconnu" ? cq.is(target, null) : cq.eq(target, value);
-  const { data: comp, error: compErr } = await cq;
-  if (compErr) return NextResponse.json({ error: compErr.message }, { status: 500 });
-  const companyIds = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
+  // ── Cohorte portée par les DEALS eux-mêmes : matching direct sur raw_data. ──
+  if (acc.prop && acc.object === "deals") {
+    const { data: deals, error: dealsErr } = await supabase
+      .from("deals")
+      .select("hubspot_id, raw_data")
+      .eq("organization_id", orgId)
+      .limit(10000);
+    if (dealsErr) return NextResponse.json({ error: dealsErr.message }, { status: 500 });
+    const dealIds = ((deals ?? []) as { hubspot_id: string | null; raw_data: unknown }[])
+      .filter((d) => {
+        if (!d.hubspot_id) return false;
+        const props = (d.raw_data as { properties?: Record<string, unknown> } | null)?.properties;
+        return matchVal(props?.[acc.prop!]);
+      })
+      .map((d) => d.hubspot_id as string);
+    return NextResponse.json({ dealIds });
+  }
+
+  // ── Entreprises de la cohorte → Set d'ids → deals rattachés (jointure JS).
+  // Cohorte CONTACTS : les entreprises des contacts qui matchent. ──
+  let companyIds: Set<string>;
+  if (acc.prop && acc.object === "contacts") {
+    const target = `raw_data->properties->>${acc.prop}`;
+    let oq = supabase.from("contacts").select("company_id").eq("organization_id", orgId).limit(10000);
+    oq = value === "inconnu" ? oq.is(target, null) : oq.eq(target, value);
+    const { data: cts, error: ctsErr } = await oq;
+    if (ctsErr) return NextResponse.json({ error: ctsErr.message }, { status: 500 });
+    companyIds = new Set(
+      ((cts ?? []) as { company_id: string | null }[])
+        .map((c) => c.company_id)
+        .filter((v): v is string => typeof v === "string" && !!v),
+    );
+  } else {
+    const target = acc.prop ? `raw_data->properties->>${acc.prop}` : acc.col!;
+    let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
+    cq = value === "inconnu" ? cq.is(target, null) : cq.eq(target, value);
+    const { data: comp, error: compErr } = await cq;
+    if (compErr) return NextResponse.json({ error: compErr.message }, { status: 500 });
+    companyIds = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
+  }
 
   const { data: deals, error: dealsErr } = await supabase
     .from("deals")

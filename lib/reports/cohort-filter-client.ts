@@ -6,15 +6,16 @@
  * cohorte. Tout est mis en cache au niveau module (une page = un fetch).
  */
 
-export type CohortOption = { id: string; label: string };
+export type CohortOption = { id: string; label: string; object: "companies" | "contacts" | "deals" };
 export type ActiveCohort = { key: string; value: string };
 
 let optionsPromise: Promise<CohortOption[]> | null = null;
 /**
- * Cohortes filtrables = UNIQUEMENT celles enregistrées dans Paramètres →
- * Cohortes (propriété mappée, objet Company), dans le PÉRIMÈTRE DU MEMBRE :
- * celles de son équipe + celles de « Toutes les équipes » (scope=filters,
- * filtré côté serveur). Si rien n'est visible, les sélecteurs se masquent.
+ * Cohortes filtrables = TOUTES celles enregistrées dans Paramètres → Cohortes
+ * (propriété mappée, quel que soit l'objet : Entreprise, Contact, Deal — miroir
+ * exact de la page Paramètres), dans le PÉRIMÈTRE DU MEMBRE : celles de son
+ * équipe + celles de « Toutes les équipes » (scope=filters, filtré côté
+ * serveur). Si rien n'est visible, les sélecteurs se masquent.
  */
 export function fetchCohortOptions(): Promise<CohortOption[]> {
   optionsPromise ??= fetch("/api/cohort-mappings?scope=filters")
@@ -22,8 +23,12 @@ export function fetchCohortOptions(): Promise<CohortOption[]> {
     .then((d) => {
       const mapped = (Array.isArray(d.mappings) ? d.mappings : []) as Array<{ key?: string; label?: string; api_name?: string; object?: string }>;
       return mapped
-        .filter((m) => m.key && m.label && (m.api_name ?? "").trim() && (!m.object || m.object === "companies"))
-        .map((m) => ({ id: m.key as string, label: m.label as string }));
+        .filter((m) => m.key && m.label && (m.api_name ?? "").trim())
+        .map((m) => ({
+          id: m.key as string,
+          label: m.label as string,
+          object: (m.object === "contacts" || m.object === "deals" ? m.object : "companies") as CohortOption["object"],
+        }));
     })
     .catch(() => [] as CohortOption[]);
   return optionsPromise;
@@ -34,12 +39,17 @@ export function fetchCohortValues(key: string): Promise<string[]> {
   if (!valuesCache.has(key)) {
     valuesCache.set(
       key,
-      fetch("/api/reports/recompute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Dimension cohort.<key> : mêmes règles de lecture que le filtre moteur.
-        body: JSON.stringify({ query: { entity: "companies", groupBy: `cohort.${key}`, measure: "count" }, all: true, sources: [] }),
-      })
+      // Les valeurs se lisent sur l'objet PORTEUR de la cohorte (raw_data de
+      // companies / contacts / deals) — mêmes règles que le filtre moteur.
+      fetchCohortOptions()
+        .then((opts) => opts.find((o) => o.id === key)?.object ?? "companies")
+        .then((object) =>
+          fetch("/api/reports/recompute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: { entity: object, groupBy: `cohort.${key}`, measure: "count" }, all: true, sources: [] }),
+          }),
+        )
         .then((r) => r.json())
         .then((d) => (Array.isArray(d.data) ? (d.data as { name: string }[]).map((r) => r.name).filter(Boolean) : []))
         .catch(() => []),
