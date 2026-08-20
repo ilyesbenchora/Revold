@@ -50,6 +50,8 @@ export type HubSpotPropertyStatus = Record<string, HubSpotPropertyState | undefi
 const UNVERIFIED: HubSpotPropertyState = { exists: null, label: null, suggestedName: null, fieldType: null };
 
 const inputClass = "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+/** Libellé de champ — même hiérarchie que le formulaire Cohortes (structure partagée). */
+const fieldLabelClass = "text-[10px] font-semibold uppercase tracking-wide text-slate-400";
 
 // Objet HubSpot porteur de chaque identifiant canonique (côté client, pour les checks).
 const CANONICAL_TO_OBJECT: Record<string, string> = {
@@ -415,99 +417,112 @@ export function IdentifierMappingForm({
         const nativeIds = shown.filter((id) => id.native);
         const customIds = shown.filter((id) => !id.native);
 
+        // ── MÊME STRUCTURE que le formulaire Cohortes (Paramètres → Cohortes) :
+        // une CARTE par champ — en-tête (titre + badges de vérification, avec
+        // l'objet trouvé) et description, puis la grille horizontale
+        // Objet HubSpot → Nom de la propriété (interne) → Nom API, et le
+        // message d'absence sous la carte. ──
         const renderIdentifier = (id: Identifier) => {
           const isHsCustom = isHubSpot && !id.native;
           const status = isHsCustom ? hsStatus[id.canonicalField] : undefined;
-          // Sélecteur d'objet CRM (Contact / Entreprise / Deal) : la propriété
-          // est vérifiée et collectée sur l'objet choisi — une seule ligne par
-          // champ au lieu d'une par objet.
           const objectChoices = isHubSpot ? (id.objectChoices ?? []) : [];
           const selectedObject =
-            objects[id.canonicalField] ?? id.defaultObject ?? objectChoices[0] ?? "companies";
+            objects[id.canonicalField] ??
+            id.defaultObject ??
+            objectChoices[0] ??
+            CANONICAL_TO_OBJECT[id.canonicalField] ??
+            "companies";
           // ID de rapprochement du CRM : supprimable dès qu'il y en a plusieurs.
           const removable = isHubSpot && isCustomIdKey(id.canonicalField) && hubspotCustomIdKeys.length > 1;
           return (
-            <div key={id.canonicalField}>
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                {id.label}
-                {id.native ? (
-                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">NATIF</span>
-                ) : (
-                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">CUSTOM</span>
-                )}
-                {status?.exists === true && (
-                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM</span>
-                )}
-                {status?.exists === true && isDropdownFieldType(status.fieldType) && (
-                  <span
-                    className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold text-sky-700"
-                    title="Propriété à options : les valeurs écrites par Revold sont alignées sur les options existantes de la liste"
-                  >
-                    ▾ LISTE DÉROULANTE
-                  </span>
-                )}
-                {status?.exists === false && (
-                  <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
-                )}
+            <div key={id.canonicalField} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+                    {id.label}
+                    {id.native ? (
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">NATIF</span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">CUSTOM</span>
+                    )}
+                    {status?.exists === true && (
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                        ✓ DANS LE CRM · {OBJECT_LABELS[selectedObject] ?? selectedObject}
+                      </span>
+                    )}
+                    {status?.exists === true && isDropdownFieldType(status.fieldType) && (
+                      <span
+                        className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold text-sky-700"
+                        title="Propriété à options : les valeurs écrites par Revold sont alignées sur les options existantes de la liste"
+                      >
+                        ▾ LISTE DÉROULANTE
+                      </span>
+                    )}
+                    {status?.exists === false && (
+                      <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-slate-400">{id.hint}</p>
+                </div>
                 {removable && (
                   <button
                     type="button"
                     onClick={() => removeCustomIdKey(id.canonicalField)}
-                    className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    className="shrink-0 rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-rose-50 hover:text-rose-500"
                     title="Retirer cet ID de rapprochement"
                     aria-label={`Retirer ${id.label}`}
                   >
-                    ✕ Retirer
+                    Supprimer
                   </button>
                 )}
-              </label>
+              </div>
+
               {isHsCustom ? (
-                // Propriété custom HubSpot : libellé (celui affiché dans HubSpot)
-                // et nom interne (celui utilisé par l'API) sont deux choses
-                // distinctes — deux champs pour éviter toute confusion.
-                <div className="mt-1 space-y-2">
-                  {objectChoices.length > 1 && (
+                <>
+                  {/* Grille horizontale — objet AVANT les noms, comme les cohortes. */}
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
-                      <p className="text-[10px] font-medium text-slate-400">Objet HubSpot porteur de la propriété</p>
+                      <label className={fieldLabelClass}>Objet HubSpot</label>
                       <select
                         value={selectedObject}
+                        disabled={objectChoices.length < 2}
                         onChange={(e) => updateObject(id.canonicalField, e.target.value)}
-                        className={`${inputClass} mt-0.5`}
+                        className={`${inputClass} mt-1 ${objectChoices.length < 2 ? "cursor-default bg-slate-50 text-slate-500" : ""}`}
                       >
-                        {objectChoices.map((obj) => (
+                        {(objectChoices.length > 0 ? objectChoices : [selectedObject]).map((obj) => (
                           <option key={obj} value={obj}>
                             {OBJECT_LABELS[obj] ?? obj}
                           </option>
                         ))}
                       </select>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-[10px] font-medium text-slate-400">Nom de la propriété (libellé affiché dans HubSpot)</p>
-                    <input
-                      type="text"
-                      value={labels[id.canonicalField] ?? ""}
-                      onChange={(e) => updateLabel(id.canonicalField, e.target.value)}
-                      placeholder="ex : Numéro de TVA"
-                      className={`${inputClass} mt-0.5`}
-                    />
+                    <div>
+                      <label className={fieldLabelClass}>Nom de la propriété (interne)</label>
+                      <input
+                        type="text"
+                        value={labels[id.canonicalField] ?? ""}
+                        onChange={(e) => updateLabel(id.canonicalField, e.target.value)}
+                        placeholder="Ex : Numéro de TVA"
+                        className={`${inputClass} mt-1`}
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabelClass}>Nom API</label>
+                      <input
+                        type="text"
+                        value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                        onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                        placeholder="ex : numero_de_tva"
+                        className={`${inputClass} mt-1 font-mono ${status?.exists === false ? "border-rose-300" : ""}`}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-medium text-slate-400">Nom interne (utilisé par l&apos;API — minuscules, sans espaces ni accents)</p>
-                    <input
-                      type="text"
-                      value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
-                      onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                      placeholder="ex : numero_de_tva"
-                      className={`${inputClass} mt-0.5 font-mono ${status?.exists === false ? "border-rose-300" : ""}`}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400">
-                    {id.hint} — le nom interne est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
-                    la propriété. En cas de doute, saisissez le libellé : Revold retrouvera le nom interne à la vérification.
+                  <p className="mt-2 text-[10px] text-slate-400">
+                    Le nom API est visible dans HubSpot via l&apos;icône <code className="rounded bg-slate-100 px-1">&lt;/&gt;</code> de
+                    la propriété. En cas de doute, saisissez le nom interne affiché : Revold retrouvera le nom API à la vérification.
                   </p>
                   {status?.exists === true && isDropdownFieldType(status.fieldType) && (
-                    <p className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[10px] text-sky-800">
+                    <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[10px] text-sky-800">
                       Cette propriété est une <span className="font-semibold">liste déroulante</span> : Revold aligne
                       automatiquement chaque valeur sur ses options existantes (par libellé ou acronyme — « SAS
                       (société par actions simplifiée) » remplit l&apos;option « SAS »). Une valeur sans option
@@ -515,18 +530,27 @@ export function IdentifierMappingForm({
                       jamais d&apos;option à ta liste — et la donnée complète reste disponible dans Revold.
                     </p>
                   )}
-                </div>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
-                    onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
-                    className={`${inputClass} mt-1`}
-                    readOnly={id.native}
-                  />
-                  <p className="mt-0.5 text-[10px] text-slate-400">{id.hint}</p>
+                  {status?.exists === false && (
+                    <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] text-rose-700">
+                      Aucune propriété HubSpot ne correspond à ce nom API ni à ce nom interne sur l&apos;objet{" "}
+                      {OBJECT_LABELS[selectedObject] ?? selectedObject}. Vérifiez l&apos;orthographe, ou créez la
+                      propriété dans HubSpot puis réenregistrez : Revold revérifiera avant d&apos;appliquer le mapping.
+                    </p>
+                  )}
                 </>
+              ) : (
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label className={fieldLabelClass}>Nom API</label>
+                    <input
+                      type="text"
+                      value={values[`${row.provider}__${id.canonicalField}`] ?? id.defaultProviderField}
+                      onChange={(e) => update(row.provider, id.canonicalField, e.target.value)}
+                      className={`${inputClass} mt-1`}
+                      readOnly={id.native}
+                    />
+                  </div>
+                </div>
               )}
             </div>
           );
@@ -570,13 +594,14 @@ export function IdentifierMappingForm({
               </p>
             ) : (
               <>
+                {/* Structure Cohortes : cartes empilées pleine largeur — les
+                    customs portent la grille Objet → Nom interne → Nom API ;
+                    les natifs (courts) restent sur deux colonnes. */}
                 <div className="space-y-4">
                   {nativeIds.length > 0 && (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{nativeIds.map(renderIdentifier)}</div>
                   )}
-                  {customIds.length > 0 && (
-                    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">{customIds.map(renderIdentifier)}</div>
-                  )}
+                  {customIds.length > 0 && <div className="space-y-4">{customIds.map(renderIdentifier)}</div>}
                 </div>
                 {/* Un seul CTA : « Enregistrer le mapping » vérifie les propriétés
                        dans HubSpot puis enregistre — pas de bouton de vérification
