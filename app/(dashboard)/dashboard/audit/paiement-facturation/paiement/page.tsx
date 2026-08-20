@@ -61,8 +61,8 @@ export default async function PaiementPage({
         const churn = data.churnRate;
         const defaults: DefaultTile[] = data.hasData
           ? [
-              { key: "mrr", label: "MRR", value: data.mrr > 0 ? fmtK(data.mrr) : "—", raw: data.mrr > 0 ? Math.round(data.mrr) : null, rawUnit: "currency", tone: "accent", sub: "Revenu mensuel récurrent" },
-              { key: "arr", label: "ARR", value: data.arr > 0 ? fmtK(data.arr) : "—", raw: data.arr > 0 ? Math.round(data.arr) : null, rawUnit: "currency", tone: "neutral", sub: "Annualisé (MRR × 12)" },
+              { key: "mrr", label: "MRR", value: data.mrr > 0 ? fmtK(data.mrr) : "—", raw: Math.round(data.mrr), rawUnit: "currency", tone: "accent", sub: "Revenu mensuel récurrent" },
+              { key: "arr", label: "ARR", value: data.arr > 0 ? fmtK(data.arr) : "—", raw: Math.round(data.arr), rawUnit: "currency", tone: "neutral", sub: "Annualisé (MRR × 12)" },
               {
                 key: "subs_actives",
                 label: "Subscriptions actives",

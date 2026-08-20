@@ -86,8 +86,8 @@ export default async function ComptabilitePage({
               {/* ── Tuiles KPI configurables (1 ligne) : lecture cockpit + KPIs ajoutés ── */}
               {(() => {
                 const defaults: DefaultTile[] = [
-                  { key: "produits", label: "Produits (classe 7)", value: pnl.produits > 0 ? fmtK(pnl.produits) : "—", raw: pnl.produits > 0 ? Math.round(pnl.produits) : null, rawUnit: "currency", tone: "pos", sub: "CA + autres produits comptabilisés" },
-                  { key: "charges", label: "Charges (classe 6)", value: pnl.charges > 0 ? fmtK(pnl.charges) : "—", raw: pnl.charges > 0 ? Math.round(pnl.charges) : null, rawUnit: "currency", tone: "neg", sub: "Charges comptabilisées" },
+                  { key: "produits", label: "Produits (classe 7)", value: pnl.produits > 0 ? fmtK(pnl.produits) : "—", raw: Math.round(pnl.produits), rawUnit: "currency", tone: "pos", sub: "CA + autres produits comptabilisés" },
+                  { key: "charges", label: "Charges (classe 6)", value: pnl.charges > 0 ? fmtK(pnl.charges) : "—", raw: Math.round(pnl.charges), rawUnit: "currency", tone: "neg", sub: "Charges comptabilisées" },
                   {
                     key: "resultat",
                     label: "Résultat",

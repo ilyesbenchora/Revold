@@ -49,7 +49,7 @@ export default async function FiscalPage() {
     ...(schedule.length > 0
       ? [
           { key: "echeances_12m", label: "Échéances (12 mois)", value: fmt(schedule.length), raw: schedule.length, rawUnit: "count", tone: "neutral", sub: "TVA · IS · URSSAF" } as DefaultTile,
-          { key: "total_a_decaisser", label: "Total à décaisser", value: totalSchedule > 0 ? fmtK(totalSchedule) : "—", raw: totalSchedule > 0 ? Math.round(totalSchedule) : null, rawUnit: "currency", tone: "neg", sub: "Sur les 12 prochains mois" } as DefaultTile,
+          { key: "total_a_decaisser", label: "Total à décaisser", value: totalSchedule > 0 ? fmtK(totalSchedule) : "—", raw: Math.round(totalSchedule), rawUnit: "currency", tone: "neg", sub: "Sur les 12 prochains mois" } as DefaultTile,
         ]
       : []),
     ...(tva.hasData

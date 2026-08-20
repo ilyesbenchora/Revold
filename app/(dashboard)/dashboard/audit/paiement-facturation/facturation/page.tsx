@@ -70,7 +70,7 @@ export default async function FacturationPage({
         const defaults: DefaultTile[] = data.hasData
           ? [
               { key: "factures_emises", label: "Factures émises", value: fmt(data.invoices.length), raw: data.invoices.length, rawUnit: "count", tone: "neutral", sub: data.avgInvoice != null && data.avgInvoice > 0 ? `${fmtK(data.avgInvoice)} en moyenne` : "Montant moyen —" },
-              { key: "total_encaisse", label: "Total encaissé", value: data.totalPaid > 0 ? fmtK(data.totalPaid) : "—", raw: data.totalPaid > 0 ? Math.round(data.totalPaid) : null, rawUnit: "currency", tone: "pos", sub: `${fmt(data.paidInvoicesCount)} factures payées` },
+              { key: "total_encaisse", label: "Total encaissé", value: data.totalPaid > 0 ? fmtK(data.totalPaid) : "—", raw: Math.round(data.totalPaid), rawUnit: "currency", tone: "pos", sub: `${fmt(data.paidInvoicesCount)} factures payées` },
               {
                 key: "impayees",
                 label: "Impayées",

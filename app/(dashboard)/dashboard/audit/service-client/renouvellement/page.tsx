@@ -104,7 +104,7 @@ export default async function ServiceClientRenouvellementPage() {
             key: "arr_securise",
             label: "ARR sécurisé",
             value: arrSecured > 0 ? fmtK(arrSecured) : "—",
-            raw: arrSecured > 0 ? Math.round(arrSecured) : null,
+            raw: Math.round(arrSecured),
             rawUnit: "currency",
             tone: "pos",
             sub: `${fmt(billing.activeSubsCount)} subs actives`,
