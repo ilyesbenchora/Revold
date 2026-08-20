@@ -26,6 +26,7 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CashRecoveryBlock } from "@/components/roi/cash-recovery-block";
 import { DealInvoiceLinks } from "@/components/reconciliation/deal-invoice-links";
+import { GapReviewQueue } from "@/components/reconciliation/gap-review-queue";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -658,6 +659,10 @@ export default async function PaiementFacturationOverviewPage({
           factures (propositions montant/date/société confirmées en un clic),
           écart signé − facturé deal par deal. */}
       <DealInvoiceLinks />
+
+      {/* File d'apurement : les écarts signé ↔ facturé statués entreprise par
+          entreprise (justifié / à corriger / corrigé), export CSV. */}
+      <GapReviewQueue />
 
       <PageDataTables pageKey="audit_paiement_facturation" />
 
