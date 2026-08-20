@@ -14,11 +14,14 @@ import type { CompanyGapRow, GapReviewStatus, PeriodGapRow } from "@/lib/reconci
 const fmtEur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
 
+// Pastilles de statut : bordure TEINTÉE assortie au fond (charte des chips) —
+// une bordure grise neutre sur fond pâle ressortait comme un champ blanc.
+// Classes remappées par les thèmes sombres (globals.css) : rien de blanc.
 const STATUS_META: Record<GapReviewStatus, { label: string; cls: string }> = {
-  open: { label: "À traiter", cls: "bg-rose-50 text-rose-700" },
-  justified: { label: "Justifié", cls: "bg-emerald-50 text-emerald-700" },
-  to_fix: { label: "À corriger", cls: "bg-amber-50 text-amber-700" },
-  fixed: { label: "Corrigé", cls: "bg-slate-100 text-slate-600" },
+  open: { label: "À traiter", cls: "border-rose-200 bg-rose-50 text-rose-700" },
+  justified: { label: "Justifié", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  to_fix: { label: "À corriger", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+  fixed: { label: "Corrigé", cls: "border-slate-200 bg-slate-100 text-slate-600" },
 };
 const STATUS_ORDER: GapReviewStatus[] = ["open", "to_fix", "justified", "fixed"];
 
@@ -266,7 +269,7 @@ export function GapReviewQueue() {
                         value={r.status}
                         disabled={busy != null || !reviewsAvailable}
                         onChange={(e) => void setStatus(r, e.target.value as GapReviewStatus)}
-                        className={`rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium outline-none focus:border-accent ${STATUS_META[r.status].cls}`}
+                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-medium outline-none transition focus:border-accent disabled:cursor-default disabled:opacity-60 ${STATUS_META[r.status].cls}`}
                       >
                         {STATUS_ORDER.map((s) => (
                           <option key={s} value={s}>{STATUS_META[s].label}</option>
