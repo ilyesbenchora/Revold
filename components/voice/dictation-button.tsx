@@ -55,7 +55,9 @@ export function DictationButton({
   }, [onText]);
 
   useEffect(() => {
-    // Détection après montage (SSR-safe) : sans support, pas de bouton.
+    // Détection après montage (SSR-safe) : l'API navigateur n'existe pas au
+    // rendu serveur, l'état ne peut être posé qu'ici.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSupported(createRecognition() != null);
     return () => {
       try { recRef.current?.stop(); } catch { /* rien */ }
