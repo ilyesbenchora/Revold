@@ -533,6 +533,30 @@ html[data-theme="silver-dark"] .dashboard-shell *:not(.theme-exempt):not(.theme-
   &.to-fuchsia-100 { --tw-gradient-to: rgba(217, 70, 239, 0.24); }
 }
 
+/* ── Filet de sécurité <select> : un select SANS classe de fond rendait le
+   blanc natif du navigateur en thème sombre (le remap n'agit que sur les
+   classes bg-*). Base = surface du thème ; les selects teintés (bg-rose-50…)
+   gardent leur couleur, leurs règles étant plus spécifiques. ── */
+html[data-theme="violet-dark"] .dashboard-shell select:not(.theme-exempt):not(.theme-exempt *) {
+  background-color: #211237;
+  color: #ece2f8;
+  border-color: #3b2460;
+}
+html[data-theme="gold-dark"] .dashboard-shell select:not(.theme-exempt):not(.theme-exempt *) {
+  background-color: #221a0a;
+  color: #e3d3ab;
+  border-color: #4a3a14;
+}
+html[data-theme="silver-dark"] .dashboard-shell select:not(.theme-exempt):not(.theme-exempt *) {
+  background-color: #1a1f27;
+  color: #cbd4e0;
+  border-color: #333c49;
+}
+/* Les listes déroulantes natives (options) suivent aussi le thème. */
+html[data-theme="violet-dark"] .dashboard-shell select option { background-color: #211237; color: #ece2f8; }
+html[data-theme="gold-dark"] .dashboard-shell select option { background-color: #221a0a; color: #e3d3ab; }
+html[data-theme="silver-dark"] .dashboard-shell select option { background-color: #1a1f27; color: #cbd4e0; }
+
 /* ── Graphiques recharts en mode silver : grilles, axes, labels, tooltips ── */
 html[data-theme="silver-dark"] .dashboard-shell .recharts-wrapper:not(.theme-exempt *) {
   & .recharts-cartesian-grid line { stroke: rgba(150, 165, 185, 0.16) !important; }

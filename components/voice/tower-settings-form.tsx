@@ -348,7 +348,7 @@ function RecapSettings({ settings }: { settings: TowerSettings }) {
           value={effectiveTeam}
           onChange={(e) => setField("recapTeam", e.target.value)}
           disabled={!isAdmin}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-accent focus:outline-none disabled:opacity-60"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-accent focus:outline-none disabled:opacity-60"
         >
           {teamChoices.map((t) => (
             <option key={t.id} value={t.id}>{t.label}</option>
