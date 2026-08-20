@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatBucketLabel, useLocale } from "@/lib/locale";
 import { entityLabel } from "@/lib/reports/data-table-presets";
@@ -75,6 +75,17 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
   // Personnalisation des colonnes affichées (null = défauts du catalogue).
   const [selectedCols, setSelectedCols] = useState<string[] | null>(null);
   const [colsOpen, setColsOpen] = useState(false);
+  // Fermeture du dropdown Colonnes au clic EN DEHORS (n'importe où : en-tête,
+  // table, pied de page…) — pas seulement sur la zone des enregistrements.
+  const colsRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!colsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (colsRef.current && !colsRef.current.contains(e.target as Node)) setColsOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [colsOpen]);
   // Tri + pagination (client : les enregistrements sont déjà chargés).
   const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" } | null>(null);
   const [page, setPage] = useState(0);
@@ -235,7 +246,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
                 : `${new Intl.NumberFormat(locale).format(total)} enregistrement${total > 1 ? "s" : ""}${truncated ? " (200 premiers chargés)" : ""}`}
             </p>
           </div>
-          <div className="relative flex shrink-0 items-center gap-2">
+          <div ref={colsRef} className="relative flex shrink-0 items-center gap-2">
             {/* Personnalisation des colonnes (retirer / ajouter les suggestions de l'entité) */}
             {!loading && !error && columns.length > 0 && (
               <button
@@ -283,7 +294,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" onClick={() => colsOpen && setColsOpen(false)}>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           {loading ? (
             <div className="flex h-40 items-center justify-center text-xs text-slate-400">Chargement du détail…</div>
           ) : error ? (
