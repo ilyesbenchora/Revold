@@ -73,11 +73,10 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: true,
     description: "Match sur email lowercase normalisé. Fiable entre CRM et support. Souvent, entre CRM et billing, l'email facturé ≠ email commercial.",
     warning: null,
-    // Pas d'options « email + autre identifiant » ici : la combinaison des
-    // identifiants est déjà pilotée par l'ordre des règles de la matrice.
-    configFields: [
-      { label: "Emails génériques", type: "select", options: ["Bloquer (info@, contact@, support@, facturation@, admin@)", "Avertir seulement", "Autoriser"], value: "Bloquer (info@, contact@, support@, facturation@, admin@)" },
-    ],
+    // Pas d'options ici : la combinaison des identifiants est pilotée par la
+    // matrice, et la protection anti-emails génériques vit dans la règle de
+    // DÉDUPLICATION contact (le seul endroit où elle a un effet réel).
+    configFields: [],
   },
   {
     id: "external_id_match", rule: "Liaison par ID technique des outils (automatique)", entity: "Contact + Company", confidence: 100, enabled: true,
