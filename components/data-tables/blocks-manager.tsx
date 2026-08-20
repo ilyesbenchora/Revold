@@ -434,7 +434,7 @@ export function BlockSuggestionList({
 
       {/* ── Fenêtre d'aperçu pleine qualité ── */}
       {mounted && modalOpen && createPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4" onClick={closeModal}>
+        <div className="dashboard-shell fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4" onClick={closeModal}>
           <div
             className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}

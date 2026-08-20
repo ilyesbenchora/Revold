@@ -342,7 +342,10 @@ export function SurgicalAlertButton({
       )}
 
       {open && mounted && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => { if (state !== "saving") { setOpen(false); reset(); } }}>
+        /* dashboard-shell : le portal sort du shell → sans ce marqueur, le
+           remap des thèmes sombres ne s'applique pas et la modale reste
+           BLANCHE sur fond violet. */
+        <div className="dashboard-shell fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => { if (state !== "saving") { setOpen(false); reset(); } }}>
           <form onClick={(e) => e.stopPropagation()} onSubmit={step === "form" ? goConfirm : submit} className="max-h-[90vh] w-full max-w-md space-y-3.5 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             {state === "done" ? (
               <div className="py-6 text-center">

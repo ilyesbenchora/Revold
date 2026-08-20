@@ -94,7 +94,7 @@ export function ActionExecutionFunnel({
   const success = finished && (result?.done ?? 0) > 0;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+    <div className="dashboard-shell fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="border-b border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">⚡ Exécution en cours · HubSpot</p>

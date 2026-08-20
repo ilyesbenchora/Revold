@@ -72,7 +72,7 @@ export function BreezePromptDrawer({ item, open, onClose }: Props) {
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex" aria-modal="true" role="dialog">
+    <div className="dashboard-shell fixed inset-0 z-[100] flex" aria-modal="true" role="dialog">
       {/* Backdrop */}
       <button
         type="button"

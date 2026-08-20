@@ -226,7 +226,7 @@ export function DrilldownModal({ target, onClose }: { target: DrilldownTarget | 
   const rangeEnd = Math.min(sorted.length, (safePage + 1) * pageSize);
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="dashboard-shell fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-card-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
