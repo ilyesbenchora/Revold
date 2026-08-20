@@ -284,6 +284,27 @@ export const RECON_RECIPES: Record<string, ReconRecipe> = {
     },
   },
 
+  deal_billing_gap: {
+    id: "deal_billing_gap",
+    label: "Écart deals ↔ factures liées",
+    unit: "currency",
+    desc: "Somme des écarts (montant signé − factures LIÉES au deal) sur les deals gagnés rattachés — la réconciliation au niveau du deal, pas de l'entreprise.",
+    async compute(sb, orgId) {
+      // Import différé : réutilise le moteur de matching (colonnes deal_id).
+      const { computeDealInvoiceState } = await import("@/lib/reconciliation/deal-invoice-matching");
+      const state = await computeDealInvoiceState(sb, orgId);
+      if (!state.available) return { value: 0, coverage: 0, hasData: false };
+      const coverage = state.stats.wonDeals > 0 ? state.stats.linkedDeals / state.stats.wonDeals : 0;
+      return {
+        value: state.stats.gapTotal,
+        coverage,
+        hasData: state.stats.wonDeals > 0,
+        sample: state.stats.linkedDeals,
+        denominator: state.stats.wonDeals,
+      };
+    },
+  },
+
   reconciled_pct: {
     id: "reconciled_pct",
     label: "% de données réconciliées (multi-source)",
