@@ -15,6 +15,7 @@ import { DedupRules } from "@/components/dedup-rules";
 import { DEFAULT_DEDUP_RULES, type DedupRule } from "@/lib/settings/dedup-defaults";
 import Link from "next/link";
 import { FeatureTour } from "@/components/feature-tour";
+import { DismissibleNote } from "@/components/dismissible-note";
 import { isNewUser } from "@/lib/onboarding/is-new-user";
 
 // ── Default field authority ──
@@ -371,17 +372,19 @@ export default async function ParametresModeleDonneesPage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Mapping des identifiants
         </h2>
-        <p className="text-sm text-slate-500">
-          Pour chaque outil connecté, indiquez dans quel champ se trouvent les identifiants d&apos;entreprise. Les
-          propriétés SIREN, SIRET et N° TVA du CRM se gèrent dans{" "}
-          <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
-            Paramètres → Enrichissement
-          </Link>{" "}
-          et les dates de contrat dans{" "}
-          <Link href="/dashboard/parametres/cohortes" className="font-medium text-accent hover:underline">
-            Paramètres → Cohortes
-          </Link>.
-        </p>
+        <DismissibleNote storageKey="mapping-identifiants">
+          <p className="text-sm text-slate-500">
+            Pour chaque outil connecté, indiquez dans quel champ se trouvent les identifiants d&apos;entreprise. Les
+            propriétés SIREN, SIRET et N° TVA du CRM se gèrent dans{" "}
+            <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
+              Paramètres → Enrichissement
+            </Link>{" "}
+            et les dates de contrat dans{" "}
+            <Link href="/dashboard/parametres/cohortes" className="font-medium text-accent hover:underline">
+              Paramètres → Cohortes
+            </Link>.
+          </p>
+        </DismissibleNote>
         {identifierRows.length === 0 ? (
           <div className="card p-8 text-center">
             <p className="text-sm text-slate-500">Aucun outil connecté.</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DismissibleNote } from "@/components/dismissible-note";
 
 // Type + défauts dans lib/settings/dedup-defaults (module serveur-safe) — un
 // module "use client" ne peut pas exporter de VALEURS vers un composant serveur.
@@ -54,7 +55,9 @@ export function DedupRules({ rules }: { rules: DedupRule[] }) {
                   <td className="px-5 py-2.5 text-slate-600">
                     {rule.criteria}
                     {rule.warning && (
-                      <p className="mt-0.5 text-[10px] text-amber-600">⚠ {rule.warning}</p>
+                      <DismissibleNote storageKey={`dedup-warning-${rule.id}`}>
+                        <p className="mt-0.5 text-[10px] text-amber-600">⚠ {rule.warning}</p>
+                      </DismissibleNote>
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-slate-500">{rule.secondaryCriteria}</td>

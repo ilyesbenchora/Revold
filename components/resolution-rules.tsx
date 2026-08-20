@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DismissibleNote } from "@/components/dismissible-note";
 
 export type ConfigField = {
   label: string;
@@ -156,9 +157,9 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
             <div className="border-t border-card-border bg-slate-50/50 p-5 space-y-4">
               <p className="text-sm text-slate-600">{rule.description}</p>
               {rule.warning && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
-                  <p className="text-xs font-medium text-amber-800">⚠ {rule.warning}</p>
-                </div>
+                <DismissibleNote storageKey={`rule-warning-${rule.id}`} variant="warning">
+                  ⚠ {rule.warning}
+                </DismissibleNote>
               )}
               {isActive && rule.configFields.length > 0 && (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
