@@ -1227,7 +1227,9 @@ export async function computeAggregate(
 
     if (wantPipeline) {
       const want = wantPipeline.toLowerCase();
-      scoped = rows.filter(
+      // Depuis SCOPED (jamais rows) : le filtre cohorte appliqué en amont doit
+      // survivre au ciblage de pipeline — repartir de rows l'écrasait.
+      scoped = scoped.filter(
         (r) => (pipelineIdOf(r) ?? "").toLowerCase() === want || pipelineOf(r).toLowerCase() === want,
       );
     }
