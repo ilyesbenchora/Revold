@@ -1064,16 +1064,17 @@ export async function syncCrmObject(
 // morte. Contacts : via la propriété associatedcompanyid. Deals : via l'API
 // associations HubSpot v4 (deals → companies). Idempotent, résilient.
 
-/** deal hubspot_id → company hubspot_id (association primaire). */
-async function fetchDealCompanyAssociations(
+/** hubspot_id source → hubspot_id cible (association v4 primaire, batch). */
+async function fetchAssociations(
   token: string,
-  dealHsIds: string[],
+  path: string,
+  fromHsIds: string[],
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (let i = 0; i < dealHsIds.length; i += 100) {
-    const chunk = dealHsIds.slice(i, i + 100);
+  for (let i = 0; i < fromHsIds.length; i += 100) {
+    const chunk = fromHsIds.slice(i, i + 100);
     try {
-      const res = await hsFetch(token, "/crm/v4/associations/deals/companies/batch/read", {
+      const res = await hsFetch(token, path, {
         method: "POST",
         body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
       });
@@ -1088,6 +1089,16 @@ async function fetchDealCompanyAssociations(
     } catch { /* lot ignoré */ }
   }
   return out;
+}
+
+/** deal hubspot_id → company hubspot_id (association primaire). */
+async function fetchDealCompanyAssociations(token: string, dealHsIds: string[]): Promise<Record<string, string>> {
+  return fetchAssociations(token, "/crm/v4/associations/deals/companies/batch/read", dealHsIds);
+}
+
+/** deal hubspot_id → contact hubspot_id (association primaire). */
+async function fetchDealContactAssociations(token: string, dealHsIds: string[]): Promise<Record<string, string>> {
+  return fetchAssociations(token, "/crm/v4/associations/deals/contacts/batch/read", dealHsIds);
 }
 
 /** Met à jour company_id par lots, groupés par company canonique. */
@@ -1155,27 +1166,76 @@ export async function linkCompaniesForOrg(
     if (rows.length < 1000) break;
   }
 
-  // ── Deals : associations HubSpot → company_id ──
+  // ── Deals : associations HubSpot → company_id, avec REPLI PAR LE CONTACT ──
+  // Certains portails n'associent pas les deals aux entreprises : la chaîne
+  // réelle est deal → contact (association v4) → entreprise du contact. On
+  // pose aussi deals.contact_id (contact primaire) — c'est lui qui permet
+  // d'appliquer les cohortes CONTACT aux tables de deals.
+  // Map contact hubspot_id → { id canonique, company_id } (repli + cohortes).
+  const contactByHs = new Map<string, { id: string; company_id: string | null }>();
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, hubspot_id, company_id")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .range(page * 1000, page * 1000 + 999);
+    if (error) break;
+    const rows = (data ?? []) as Array<{ id: string; hubspot_id: string; company_id: string | null }>;
+    for (const c of rows) contactByHs.set(String(c.hubspot_id), { id: c.id, company_id: c.company_id });
+    if (rows.length < 1000) break;
+  }
+
   let dealsLinked = 0;
+  // Colonne contact_id récente (migration 20260820000001) : repli sans elle.
+  let hasContactCol = true;
   for (let page = 0; page < 100; page++) {
     const { data, error } = await supabase
       .from("deals")
-      .select("id, hubspot_id")
+      .select(hasContactCol ? "id, hubspot_id, company_id, contact_id" : "id, hubspot_id, company_id")
       .eq("organization_id", orgId)
-      .is("company_id", null)
       .not("hubspot_id", "is", null)
       .range(page * 500, page * 500 + 499);
-    if (error) break;
-    const rows = (data ?? []) as Array<{ id: string; hubspot_id: string }>;
-    if (rows.length === 0) break;
-    const assoc = await fetchDealCompanyAssociations(token, rows.map((r) => r.hubspot_id));
-    const links = new Map<string, string>();
-    for (const r of rows) {
-      const companyHs = assoc[String(r.hubspot_id)];
-      const cid = companyHs ? compByHs.get(companyHs) : undefined;
-      if (cid) links.set(r.id, cid);
+    if (error && /contact_id/.test(error.message) && hasContactCol) {
+      hasContactCol = false;
+      page--;
+      continue;
     }
-    if (links.size > 0) dealsLinked += await applyCompanyLinks(supabase, orgId, "deals", links);
+    if (error) break;
+    const rows = (data ?? []) as unknown as Array<{ id: string; hubspot_id: string; company_id: string | null; contact_id?: string | null }>;
+    if (rows.length === 0) break;
+    const todo = rows.filter((r) => !r.company_id || (hasContactCol && !r.contact_id));
+    if (todo.length > 0) {
+      const hsIds = todo.map((r) => r.hubspot_id);
+      const [companyAssoc, contactAssoc] = await Promise.all([
+        fetchDealCompanyAssociations(token, todo.filter((r) => !r.company_id).map((r) => r.hubspot_id)),
+        hasContactCol ? fetchDealContactAssociations(token, hsIds) : Promise.resolve({} as Record<string, string>),
+      ]);
+      const companyLinks = new Map<string, string>();
+      const contactLinks = new Map<string, string>();
+      for (const r of todo) {
+        const contact = contactAssoc[String(r.hubspot_id)] ? contactByHs.get(contactAssoc[String(r.hubspot_id)]) : undefined;
+        if (hasContactCol && !r.contact_id && contact) contactLinks.set(r.id, contact.id);
+        if (!r.company_id) {
+          // Association company directe, sinon l'entreprise du contact associé.
+          const companyHs = companyAssoc[String(r.hubspot_id)];
+          const cid = (companyHs ? compByHs.get(companyHs) : undefined) ?? contact?.company_id ?? undefined;
+          if (cid) companyLinks.set(r.id, cid);
+        }
+      }
+      if (companyLinks.size > 0) dealsLinked += await applyCompanyLinks(supabase, orgId, "deals", companyLinks);
+      if (contactLinks.size > 0) {
+        // Batch par contact (même pattern que applyCompanyLinks).
+        const byContact = new Map<string, string[]>();
+        for (const [rowId, contactId] of contactLinks) {
+          if (!byContact.has(contactId)) byContact.set(contactId, []);
+          byContact.get(contactId)!.push(rowId);
+        }
+        for (const [contactId, rowIds] of byContact) {
+          await supabase.from("deals").update({ contact_id: contactId }).eq("organization_id", orgId).in("id", rowIds);
+        }
+      }
+    }
     if (rows.length < 500) break;
   }
 

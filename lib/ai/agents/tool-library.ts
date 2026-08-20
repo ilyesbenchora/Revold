@@ -1066,6 +1066,9 @@ export async function computeAggregate(
     if (cohortValue && entity !== "companies" && !out.includes("company_id")) out = `${out}, company_id`;
     if (cohortValue && entity === "companies" && !/(^|,\s*)id(\s*,|$)/.test(out)) out = `id, ${out}`;
     if (cohortValue && cohortAcc?.prop && cohortAcc.object === entity && !out.includes("raw_data")) out = `${out}, raw_data`;
+    // Cohorte CONTACT sur les deals : lien direct deal → contact (association
+    // HubSpot) — la colonne peut être absente (migration récente), repli plus bas.
+    if (cohortValue && cohortAcc?.object === "contacts" && entity === "deals" && !out.includes("contact_id")) out = `${out}, contact_id`;
     if (cohortDimKey && !out.includes("raw_data")) out = `${out}, raw_data`;
     return out;
   };
@@ -1085,6 +1088,10 @@ export async function computeAggregate(
   let { data, error } = await buildQuery(detailCols);
   if (error && wantDetail && detailCols !== withDetailLinkCols(withCohortCols(withExtraCols(spec.columns)))) {
     ({ data, error } = await buildQuery(withDetailLinkCols(withCohortCols(withExtraCols(spec.columns)))));
+  }
+  // deals.contact_id d'une migration récente : retente sans la colonne.
+  if (error && /contact_id/.test(error.message) && detailCols.includes(", contact_id")) {
+    ({ data, error } = await buildQuery(detailCols.replace(", contact_id", "")));
   }
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
@@ -1147,20 +1154,27 @@ export async function computeAggregate(
       });
     } else {
       // Cohorte contacts/deals appliquée à une autre entité : objets matchés →
-      // leurs entreprises → jointure.
+      // leurs entreprises → jointure company_id. UNION avec le lien DIRECT
+      // deal → contact (associations HubSpot, deals.contact_id) pour les
+      // cohortes CONTACT sur les tables de deals — indispensable quand le
+      // portail n'associe pas les deals aux entreprises.
       const target = `raw_data->properties->>${acc.prop}`;
-      let oq = supabase.from(acc.object).select("company_id").eq("organization_id", orgId).limit(10000);
+      let oq = supabase.from(acc.object).select("id, company_id").eq("organization_id", orgId).limit(10000);
       oq = cohortValue === "inconnu" ? oq.is(target, null) : oq.eq(target, cohortValue);
       const { data: objRows, error: objErr } = await oq;
       if (objErr) throw new Error(objErr.message);
-      const ids = new Set(
-        ((objRows ?? []) as { company_id: string | null }[])
-          .map((r) => r.company_id)
-          .filter((v): v is string => typeof v === "string" && !!v),
+      const rowsObj = (objRows ?? []) as { id: string; company_id: string | null }[];
+      const companyIds = new Set(
+        rowsObj.map((r) => r.company_id).filter((v): v is string => typeof v === "string" && !!v),
       );
+      const objectIds = new Set(rowsObj.map((r) => r.id));
+      const contactOnDeals = acc.object === "contacts" && entity === "deals";
       scoped = scoped.filter((r) => {
         const cid = entity === "companies" ? r.id : r.company_id;
-        return typeof cid === "string" && ids.has(cid);
+        const byCompany = typeof cid === "string" && companyIds.has(cid);
+        const byContact =
+          contactOnDeals && typeof r.contact_id === "string" && objectIds.has(r.contact_id);
+        return byCompany || byContact;
       });
     }
   }

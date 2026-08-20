@@ -48,18 +48,20 @@ export async function GET(request: Request) {
   }
 
   // ── Entreprises de la cohorte → Set d'ids → deals rattachés (jointure JS).
-  // Cohorte CONTACTS : les entreprises des contacts qui matchent. ──
+  // Cohorte CONTACTS : entreprises des contacts qui matchent + lien DIRECT
+  // deal → contact (deals.contact_id, associations HubSpot). ──
   let companyIds: Set<string>;
+  let contactIds: Set<string> | null = null;
   if (acc.prop && acc.object === "contacts") {
     const target = `raw_data->properties->>${acc.prop}`;
-    let oq = supabase.from("contacts").select("company_id").eq("organization_id", orgId).limit(10000);
+    let oq = supabase.from("contacts").select("id, company_id").eq("organization_id", orgId).limit(10000);
     oq = value === "inconnu" ? oq.is(target, null) : oq.eq(target, value);
     const { data: cts, error: ctsErr } = await oq;
     if (ctsErr) return NextResponse.json({ error: ctsErr.message }, { status: 500 });
+    const rows = (cts ?? []) as { id: string; company_id: string | null }[];
+    contactIds = new Set(rows.map((c) => c.id));
     companyIds = new Set(
-      ((cts ?? []) as { company_id: string | null }[])
-        .map((c) => c.company_id)
-        .filter((v): v is string => typeof v === "string" && !!v),
+      rows.map((c) => c.company_id).filter((v): v is string => typeof v === "string" && !!v),
     );
   } else {
     const target = acc.prop ? `raw_data->properties->>${acc.prop}` : acc.col!;
@@ -70,14 +72,31 @@ export async function GET(request: Request) {
     companyIds = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
   }
 
-  const { data: deals, error: dealsErr } = await supabase
+  // deals.contact_id d'une migration récente : repli sans la colonne.
+  const full = await supabase
     .from("deals")
-    .select("hubspot_id, company_id")
+    .select("hubspot_id, company_id, contact_id")
     .eq("organization_id", orgId)
     .limit(10000);
+  let deals: unknown = full.data;
+  let dealsErr = full.error;
+  if (dealsErr && /contact_id/.test(dealsErr.message)) {
+    const basic = await supabase
+      .from("deals")
+      .select("hubspot_id, company_id")
+      .eq("organization_id", orgId)
+      .limit(10000);
+    deals = basic.data;
+    dealsErr = basic.error;
+  }
   if (dealsErr) return NextResponse.json({ error: dealsErr.message }, { status: 500 });
-  const dealIds = ((deals ?? []) as { hubspot_id: string | null; company_id: string | null }[])
-    .filter((d) => d.hubspot_id && d.company_id && companyIds.has(d.company_id))
+  const dealIds = ((deals ?? []) as unknown as { hubspot_id: string | null; company_id: string | null; contact_id?: string | null }[])
+    .filter((d) => {
+      if (!d.hubspot_id) return false;
+      const byCompany = !!d.company_id && companyIds.has(d.company_id);
+      const byContact = !!contactIds && !!d.contact_id && contactIds.has(d.contact_id);
+      return byCompany || byContact;
+    })
     .map((d) => d.hubspot_id as string);
 
   return NextResponse.json({ dealIds });
