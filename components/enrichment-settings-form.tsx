@@ -1,5 +1,7 @@
 "use client";
 
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -52,7 +54,8 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
     }
   }
 
-  async function save() {
+  /** Enregistre — retourne false en cas d'échec (le verrou reste en édition). */
+  async function save(): Promise<boolean> {
     setState("saving");
     setError(null);
     try {
@@ -65,15 +68,17 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
         const d = await res.json().catch(() => ({}));
         setError(d.error ?? "Enregistrement impossible.");
         setState("error");
-        return;
+        return false;
       }
       const d = await res.json().catch(() => ({}));
       setSavedNewFields(Array.isArray(d.requeuedFields) && d.requeuedFields.length > 0);
       setState("done");
+      return true;
     } catch {
       setError("Enregistrement impossible.");
       setState("error");
     }
+    return false;
   }
 
   return (
@@ -160,13 +165,12 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          onClick={save}
-          disabled={state === "saving"}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-        >
-          {state === "saving" ? "Enregistrement…" : "Enregistrer"}
-        </button>
+        {/* CTA UNIQUE : « ✎ Modifier » (verrouillé) ↔ « Enregistrer ». */}
+        <SettingsSaveButton
+          label={state === "saving" ? "Enregistrement…" : "Enregistrer"}
+          busy={state === "saving"}
+          onSave={save}
+        />
         {state === "done" && (
           <span className="text-xs font-semibold text-emerald-600">
             ✓ Enregistré —{" "}

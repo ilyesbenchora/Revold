@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
 
 type Identifier = {
   canonicalField: string;
@@ -343,8 +344,9 @@ export function IdentifierMappingForm({
     }
   }
 
-  async function handleSave() {
-    if (saving) return;
+  /** Vérifie puis enregistre — retourne false en cas d'échec (le verrou reste en édition). */
+  async function handleSave(): Promise<boolean> {
+    if (saving) return false;
     setSaving(true);
     setError(null);
 
@@ -367,7 +369,7 @@ export function IdentifierMappingForm({
           "(ou son libellé : Revold retrouvera le nom interne) et réenregistrez.",
         );
         setSaving(false);
-        return;
+        return false;
       }
     }
 
@@ -403,18 +405,21 @@ export function IdentifierMappingForm({
     for (const m of legacyDealContract) {
       mappings.push({ provider: "hubspot", canonical_field: m.canonical_field, provider_field: "", object_type: null });
     }
+    let ok = false;
     try {
       const res = await fetch("/api/settings/field-mapping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mappings }),
       });
+      ok = res.ok;
       if (res.ok) setSaved(true);
       else setError("Échec de l'enregistrement du mapping.");
     } catch {
       setError("Échec de l'enregistrement du mapping.");
     }
     setSaving(false);
+    return ok;
   }
 
   return (
@@ -671,14 +676,13 @@ export function IdentifierMappingForm({
       )}
       <div className="flex items-center justify-end gap-3">
         {saved && <span className="text-xs font-medium text-emerald-600">✓ Enregistré — propriétés vérifiées dans le CRM</span>}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {saving ? (checking ? "Vérification CRM..." : "Enregistrement...") : "Enregistrer le mapping"}
-        </button>
+        {/* CTA UNIQUE : « ✎ Modifier le mapping » (verrouillé) ↔ « Enregistrer le mapping ». */}
+        <SettingsSaveButton
+          editLabel="✎ Modifier le mapping"
+          label={saving ? (checking ? "Vérification CRM..." : "Enregistrement...") : "Enregistrer le mapping"}
+          busy={saving}
+          onSave={handleSave}
+        />
       </div>
     </div>
   );

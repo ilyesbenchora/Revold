@@ -1,5 +1,7 @@
 "use client";
 
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
+
 import { useState } from "react";
 
 type AuthorityRow = {
@@ -88,8 +90,10 @@ export function FieldAuthorityEditor({
     dirty();
   }
 
-  async function handleSave() {
+  /** Enregistre — retourne false en cas d'échec (le verrou reste en édition). */
+  async function handleSave(): Promise<boolean> {
     setSaving(true);
+    let ok = false;
     try {
       const res = await fetch("/api/settings/field-authority", {
         method: "POST",
@@ -98,9 +102,11 @@ export function FieldAuthorityEditor({
           authorities: data.map((r) => ({ entity: r.entity, field: r.field, priority: r.priority })),
         }),
       });
+      ok = res.ok;
       if (res.ok) setSaved(true);
     } catch {}
     setSaving(false);
+    return ok;
   }
 
   return (
@@ -206,14 +212,11 @@ export function FieldAuthorityEditor({
 
       <div className="mt-3 flex items-center justify-end gap-3">
         {saved && <span className="text-xs font-medium text-emerald-600">✓ Enregistré</span>}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {saving ? "Enregistrement..." : "Enregistrer la matrice"}
-        </button>
+        <SettingsSaveButton
+          label={saving ? "Enregistrement..." : "Enregistrer la matrice"}
+          busy={saving}
+          onSave={handleSave}
+        />
       </div>
     </div>
   );

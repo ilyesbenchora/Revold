@@ -14,7 +14,7 @@ export default function ParametresTourDeControlePage() {
 
       <ParametresTabs />
 
-      <SettingsEditLock>
+      <SettingsEditLock fallbackCta label="✎ Modifier la tour de contrôle">
         <TowerSettingsForm />
       </SettingsEditLock>
     </section>

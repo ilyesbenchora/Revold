@@ -1,5 +1,7 @@
 "use client";
 
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
+
 import { useState } from "react";
 import { DismissibleNote } from "@/components/dismissible-note";
 
@@ -20,17 +22,21 @@ export function DedupRules({ rules }: { rules: DedupRule[] }) {
     setSaved(false);
   }
 
-  async function handleSave() {
+  /** Enregistre — retourne false en cas d'échec (le verrou reste en édition). */
+  async function handleSave(): Promise<boolean> {
     setSaving(true);
+    let ok = false;
     try {
       const res = await fetch("/api/settings/dedup-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rules: states }),
       });
+      ok = res.ok;
       if (res.ok) setSaved(true);
     } catch {}
     setSaving(false);
+    return ok;
   }
 
   return (
@@ -100,14 +106,11 @@ export function DedupRules({ rules }: { rules: DedupRule[] }) {
       </div>
       <div className="mt-3 flex items-center justify-end gap-3">
         {saved && <span className="text-xs font-medium text-emerald-600">✓ Enregistré</span>}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {saving ? "Enregistrement..." : "Enregistrer"}
-        </button>
+        <SettingsSaveButton
+          label={saving ? "Enregistrement..." : "Enregistrer"}
+          busy={saving}
+          onSave={handleSave}
+        />
       </div>
     </div>
   );

@@ -105,7 +105,7 @@ export default async function ParametresNotificationsPage() {
           de la tour de contrôle : le brief te LIT ces informations quand tu le demandes, les notifications te
           les ENVOIENT quand elles se produisent. La cloche in-app reste le canal par défaut.
         </p>
-        <SettingsEditLock>
+        <SettingsEditLock fallbackCta label="✎ Modifier les notifications">
           <NotificationPreferencesForm
             configuredChannels={(channels ?? []).filter((c) => c.enabled).map((c) => String(c.type))}
             hasPhone={hasPhone}
@@ -126,7 +126,7 @@ export default async function ParametresNotificationsPage() {
           </Link>
           .
         </p>
-        <SettingsEditLock>
+        <SettingsEditLock fallbackCta label="✎ Modifier les canaux">
           <NotificationChannelsForm initialChannels={channels ?? []} />
         </SettingsEditLock>
       </div>

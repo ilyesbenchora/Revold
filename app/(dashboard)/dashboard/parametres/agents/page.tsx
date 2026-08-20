@@ -103,7 +103,7 @@ export default async function ParametresAgentsPage() {
 
       <ParametresTabs />
 
-      <SettingsEditLock>
+      <SettingsEditLock fallbackCta label="✎ Modifier les agents">
         <AgentPrefsSettings agents={rows} />
       </SettingsEditLock>
     </section>

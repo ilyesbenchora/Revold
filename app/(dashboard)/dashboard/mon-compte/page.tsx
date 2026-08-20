@@ -41,7 +41,7 @@ export default async function MonComptePage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Informations personnelles
         </h2>
-        <SettingsEditLock>
+        <SettingsEditLock fallbackCta label="✎ Modifier mes informations">
         <div className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
@@ -79,7 +79,7 @@ export default async function MonComptePage() {
       {/* Langue & format des dates : appliqué dynamiquement aux dates/nombres */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Langue &amp; format des dates</h2>
-        <SettingsEditLock>
+        <SettingsEditLock fallbackCta label="✎ Modifier">
           <LocaleSettings />
         </SettingsEditLock>
       </div>

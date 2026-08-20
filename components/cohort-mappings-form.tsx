@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
 import { useState } from "react";
 import { COHORT_TEAMS, STANDARD_COHORT_TEAMS, type CohortRight } from "@/lib/settings/cohort-teams";
 
@@ -197,8 +198,9 @@ export function CohortMappingsForm({
     }
   }
 
-  async function save() {
-    if (state === "checking" || state === "saving") return;
+  /** Vérifie puis enregistre — retourne false en cas d'échec (le verrou reste en édition). */
+  async function save(): Promise<boolean> {
+    if (state === "checking" || state === "saving") return false;
     setError(null);
 
     // On n'enregistre que les lignes renseignées (au moins un des deux noms).
@@ -221,7 +223,7 @@ export function CohortMappingsForm({
           "ou créez d'abord la propriété dans HubSpot, puis réenregistrez.",
         );
         setState("error");
-        return;
+        return false;
       }
     }
 
@@ -239,13 +241,15 @@ export function CohortMappingsForm({
         const d = await res.json().catch(() => ({}));
         setError(d.error ?? "Enregistrement impossible.");
         setState("error");
-        return;
+        return false;
       }
       setState("done");
       setTimeout(() => setState("idle"), 2500);
+      return true;
     } catch {
       setError("Enregistrement impossible.");
       setState("error");
+      return false;
     }
   }
 
@@ -424,16 +428,16 @@ export function CohortMappingsForm({
       })}
 
       {anyEditable && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={save}
-            disabled={state === "checking" || state === "saving"}
-            className="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-          >
-            {state === "checking" ? "Vérification CRM…" : state === "saving" ? "Enregistrement…" : "Enregistrer les cohortes"}
-          </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {state === "done" && <span className="text-xs font-semibold text-emerald-600">✓ Vérifié et enregistré</span>}
           {state === "error" && <span className="text-xs text-rose-500">{error}</span>}
+          {/* CTA UNIQUE : « ✎ Modifier les cohortes » (verrouillé) ↔ « Enregistrer les cohortes ». */}
+          <SettingsSaveButton
+            editLabel="✎ Modifier les cohortes"
+            label={state === "checking" ? "Vérification CRM…" : state === "saving" ? "Enregistrement…" : "Enregistrer les cohortes"}
+            busy={state === "checking" || state === "saving"}
+            onSave={save}
+          />
         </div>
       )}
     </div>

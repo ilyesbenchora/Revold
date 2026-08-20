@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { updateOrganisation } from "./actions";
-import { SettingsEditLock } from "@/components/settings-edit-lock";
+import { SettingsEditLock, SettingsSaveButton } from "@/components/settings-edit-lock";
 
 const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 const selectClass = inputClass;
@@ -152,9 +152,8 @@ export default async function ParametresGeneralPage({
             </div>
           </div>
           <div className="mt-6 flex justify-end">
-            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500">
-              Enregistrer les modifications
-            </button>
+            {/* CTA UNIQUE : « ✎ Modifier » (verrouillé) ↔ submit « Enregistrer ». */}
+            <SettingsSaveButton submit label="Enregistrer les modifications" />
           </div>
         </form>
         </SettingsEditLock>
