@@ -160,9 +160,16 @@ export default async function ParametresModeleDonneesPage() {
   const hasHubSpot = connectedProviders.includes("hubspot") || !!hsToken;
   const allProviders = hasHubSpot ? ["hubspot", ...connectedProviders.filter((p) => p !== "hubspot")] : connectedProviders;
   // Labels des outils connectés — pour la matrice d'autorité (ajout de sources).
-  const connectedToolLabels = allProviders.map(
-    (p) => CONNECTABLE_TOOLS[p]?.label ?? (p === "hubspot" ? "HubSpot" : p),
-  );
+  // Les canaux de COMMUNICATION (Slack, Teams, Gmail…) sont exclus : ce sont
+  // des canaux de notification, jamais des sources de données — même règle
+  // que « Outil source par page » (Paramètres → Intégrations).
+  const connectedToolLabels = [
+    ...new Set(
+      allProviders
+        .filter((p) => CONNECTABLE_TOOLS[p]?.category !== "communication")
+        .map((p) => CONNECTABLE_TOOLS[p]?.label ?? (p === "hubspot" ? "HubSpot" : p)),
+    ),
+  ];
 
   // Règle « ID de rapprochement » : la description reprend les champs réellement
   // mappés dans le bloc Mapping des identifiants — l'utilisateur voit d'un coup
