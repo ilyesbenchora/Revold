@@ -98,5 +98,34 @@ export async function POST(request: Request) {
     ? await supabase.from("cohort_mappings").update(row).eq("id", existing.id)
     : await supabase.from("cohort_mappings").insert({ organization_id: orgId, ...row });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // ── BACKFILL des valeurs : les propriétés de cohortes ne sont demandées à
+  // HubSpot que pour les fiches modifiées depuis le watermark — une cohorte
+  // fraîchement mappée resterait donc SANS VALEURS (filtres de rapports vides)
+  // tant que les fiches ne bougent pas. On remet le curseur des objets
+  // concernés à zéro : le prochain etl-delta (cron 30 min) ré-importe TOUT
+  // l'objet avec les nouvelles propriétés. Service role : hubspot_sync_state
+  // n'a qu'une policy SELECT en RLS. Best effort — l'enregistrement prime.
+  try {
+    const objects = [
+      ...new Set(
+        mappings
+          .filter((m) => (m.api_name ?? "").trim())
+          .map((m) => (m.object && ["companies", "contacts", "deals"].includes(m.object) ? m.object : "companies")),
+      ),
+    ];
+    if (objects.length > 0 && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { createClient } = await import("@supabase/supabase-js");
+      const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      await admin
+        .from("hubspot_sync_state")
+        .update({ last_modified_cursor: null, updated_at: new Date().toISOString() })
+        .eq("organization_id", orgId)
+        .in("object_type", objects);
+    }
+  } catch {
+    /* backfill non déclenché → le full hebdo rattrapera */
+  }
+
   return NextResponse.json({ ok: true });
 }
