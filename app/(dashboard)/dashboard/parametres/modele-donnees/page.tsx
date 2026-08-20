@@ -45,29 +45,23 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
   },
   {
     id: "siren_match", rule: "Match par SIREN", entity: "Company", confidence: 99, enabled: true,
-    description: "Le SIREN (9 chiffres INSEE) identifie une personne morale française de manière unique et permanente.",
+    // La source prioritaire du SIREN se règle dans la matrice « Autorité par
+    // champ » ci-dessous — pas d'option redondante ici.
+    description: "Le SIREN (9 chiffres INSEE) identifie une personne morale française de manière unique et permanente. 1 SIREN = 1 entreprise (strict).",
     warning: "Un même groupe peut avoir plusieurs SIRENs (1 par entité juridique : holding, filiale, SCI…).",
-    configFields: [
-      { label: "Source SIREN prioritaire", type: "select", options: ["Pennylane (natif)", "Sellsy (natif)", "Axonaut (natif)", "Stripe (customer.metadata.siren)", "HubSpot (champ custom)", "Import CSV"], value: "Pennylane (natif)" },
-      { label: "Gestion multi-entités", type: "select", options: ["1 SIREN = 1 company (strict)", "Grouper par racine SIREN (même groupe)", "Demander confirmation"], value: "1 SIREN = 1 company (strict)" },
-    ],
+    configFields: [],
   },
   {
     id: "vat_match", rule: "Match par n° TVA intracommunautaire", entity: "Company", confidence: 97, enabled: true,
-    description: "Le n° TVA (FR + 11 chiffres) est attribué par l'administration fiscale. Fiable sauf micro-entreprises et restructurations.",
-    warning: "Les micro-entreprises et associations n'ont pas de TVA. Formats incohérents entre outils.",
-    configFields: [
-      { label: "Validation du format", type: "select", options: ["Stricte (regex FR/DE/BE/ES/IT/NL)", "Souple (juste présence)"], value: "Stricte (regex FR/DE/BE/ES/IT/NL)" },
-      { label: "Normalisation", type: "select", options: ["Retirer espaces + tirets", "Format exact"], value: "Retirer espaces + tirets" },
-    ],
+    description: "Le n° TVA (FR + 11 chiffres) est attribué par l'administration fiscale. Format normalisé automatiquement (espaces et tirets retirés). Fiable sauf micro-entreprises et restructurations.",
+    warning: "Les micro-entreprises et associations n'ont pas de TVA.",
+    configFields: [],
   },
   {
     id: "siret_match", rule: "Match par SIRET", entity: "Company", confidence: 90, enabled: true,
-    description: "SIRET (14 chiffres = SIREN + NIC). Moins stable que le SIREN. Utilisé en complément.",
-    warning: "Préférer le SIREN. Le SIRET sert de fallback (9 premiers chiffres = SIREN).",
-    configFields: [
-      { label: "Fallback si SIREN absent", type: "select", options: ["Extraire le SIREN du SIRET (9 premiers chiffres)", "Ignorer"], value: "Extraire le SIREN du SIRET (9 premiers chiffres)" },
-    ],
+    description: "SIRET (14 chiffres = SIREN + NIC). Moins stable que le SIREN, utilisé en complément : les 9 premiers chiffres sont automatiquement extraits comme SIREN si celui-ci est absent.",
+    warning: "Préférer le SIREN quand il est disponible.",
+    configFields: [],
   },
   {
     id: "exact_email", rule: "Match par email exact", entity: "Contact", confidence: 85, enabled: true,
@@ -82,26 +76,19 @@ const DEFAULT_RESOLUTION_RULES: Rule[] = [
     id: "external_id_match", rule: "Liaison par ID technique des outils (automatique)", entity: "Contact + Company", confidence: 100, enabled: true,
     description: "Chaque outil attribue son propre ID technique (hs_object_id, cus_XXXXX…). Après un premier rapprochement, Revold mémorise le lien dans source_links et retrouve l'entité directement aux syncs suivantes. Toujours actif. À ne pas confondre avec votre ID de rapprochement custom (règle dédiée plus haut), qui repose sur VOTRE code client saisi dans les outils.",
     warning: null,
-    configFields: [
-      { label: "Remplissage automatique", type: "select", options: ["Oui — Revold écrit l'ID dans le CRM après le 1er match", "Non — uniquement lecture"], value: "Oui — Revold écrit l'ID dans le CRM après le 1er match" },
-    ],
+    configFields: [],
   },
   {
     id: "domain_match", rule: "Match par domaine web", entity: "Company", confidence: 75, enabled: false,
-    description: "Companies avec le même domaine web normalisé. Fiable à 75% — holding et filiale peuvent avoir des domaines différents.",
-    warning: "Un rebranding change le domaine dans le CRM mais pas dans le billing. Combiner avec SIREN.",
-    configFields: [
-      { label: "Exclure domaines personnels", type: "select", options: ["Oui (gmail, hotmail, yahoo, outlook, orange, free…)", "Non"], value: "Oui (gmail, hotmail, yahoo, outlook, orange, free…)" },
-      { label: "Exiger un second identifiant", type: "select", options: ["Oui (domaine + SIREN ou TVA)", "Non (domaine seul)"], value: "Oui (domaine + SIREN ou TVA)" },
-    ],
+    description: "Companies avec le même domaine web normalisé. Les domaines personnels (gmail, hotmail, yahoo, outlook…) sont exclus automatiquement. Fiable à 75 % — holding et filiale peuvent avoir des domaines différents.",
+    warning: "Un rebranding change le domaine dans le CRM mais pas dans le billing. Garder un identifiant fort (SIREN, TVA) devant dans la matrice.",
+    configFields: [],
   },
   {
     id: "name_match", rule: "Match par nom d'entreprise", entity: "Company", confidence: 65, enabled: false,
-    description: "Match sur le nom d'entreprise normalisé (minuscules, sans forme juridique ni ponctuation). Dernier recours quand aucun identifiant fort n'est disponible.",
-    warning: "Risque de faux positifs (homonymes, filiales). À activer avec prudence, idéalement combiné au domaine.",
-    configFields: [
-      { label: "Exigence de correspondance", type: "select", options: ["Nom normalisé exact", "Nom + domaine", "Nom + pays"], value: "Nom normalisé exact" },
-    ],
+    description: "Match sur le nom d'entreprise normalisé (minuscules, sans forme juridique ni ponctuation ; les noms trop courts sont ignorés). Dernier recours quand aucun identifiant fort n'est disponible.",
+    warning: "Risque de faux positifs (homonymes, filiales). À activer avec prudence.",
+    configFields: [],
   },
 ];
 

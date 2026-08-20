@@ -160,7 +160,7 @@ export function ResolutionRules({ rules }: { rules: Rule[] }) {
                   <p className="text-xs font-medium text-amber-800">⚠ {rule.warning}</p>
                 </div>
               )}
-              {isActive && (
+              {isActive && rule.configFields.length > 0 && (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {rule.configFields.map((cf) => (
                     <div key={cf.label}>
