@@ -14,7 +14,7 @@ import { getCurrentRole } from "@/lib/auth/rbac";
 // publique /legal/rgpd, tenue à jour ici pour les clients connectés.
 const SUBPROCESSORS: Array<{ name: string; role: string; region: string }> = [
   { name: "Supabase", role: "Base de données & authentification", region: "UE (Francfort)" },
-  { name: "Vercel", role: "Hébergement de l'application", region: "UE/US (edge)" },
+  { name: "Vercel", role: "Hébergement de l'application (fonctions exécutées à Paris)", region: "UE (Paris) — CDN edge mondial" },
   { name: "Anthropic", role: "Agents IA (données de contexte à la demande, jamais entraînées)", region: "US — DPA signé" },
   { name: "Resend", role: "Envoi des emails de notification", region: "US — DPA signé" },
 ];

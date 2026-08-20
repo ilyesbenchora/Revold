@@ -45,8 +45,8 @@ export default function RGPDPage() {
         <table className="w-full text-sm">
           <thead><tr className="border-b border-card-border bg-slate-50"><th className="px-4 py-3 text-left font-medium text-slate-500">Sous-traitant</th><th className="px-4 py-3 text-left font-medium text-slate-500">Finalité</th><th className="px-4 py-3 text-left font-medium text-slate-500">Localisation</th></tr></thead>
           <tbody className="text-slate-600">
-            <tr className="border-b border-card-border"><td className="px-4 py-3">Vercel</td><td className="px-4 py-3">Hébergement</td><td className="px-4 py-3">USA (DPF)</td></tr>
-            <tr className="border-b border-card-border"><td className="px-4 py-3">Supabase</td><td className="px-4 py-3">Base de données</td><td className="px-4 py-3">USA (DPF)</td></tr>
+            <tr className="border-b border-card-border"><td className="px-4 py-3">Vercel</td><td className="px-4 py-3">Hébergement (fonctions exécutées à Paris, CDN mondial)</td><td className="px-4 py-3">UE (Paris) — DPF</td></tr>
+            <tr className="border-b border-card-border"><td className="px-4 py-3">Supabase</td><td className="px-4 py-3">Base de données &amp; authentification</td><td className="px-4 py-3">UE (Francfort)</td></tr>
             <tr className="border-b border-card-border"><td className="px-4 py-3">Anthropic</td><td className="px-4 py-3">IA (génération d&apos;insights)</td><td className="px-4 py-3">USA (DPF)</td></tr>
             <tr><td className="px-4 py-3">Stripe</td><td className="px-4 py-3">Paiements</td><td className="px-4 py-3">USA (DPF + SCC)</td></tr>
           </tbody>
