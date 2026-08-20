@@ -3,8 +3,12 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { DataPrivacyBlock } from "@/components/data-privacy-block";
+import { AccountSecurityBlock } from "@/components/security/account-security-block";
+import { ApiKeysBlock } from "@/components/security/api-keys-block";
+import { WebhooksBlock } from "@/components/security/webhooks-block";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentRole } from "@/lib/auth/rbac";
 
 // Sous-traitants effectifs (traitement de données) — la même liste que la page
 // publique /legal/rgpd, tenue à jour ici pour les clients connectés.
@@ -19,11 +23,14 @@ export default async function ParametresSecuriteApiPage() {
   const user = await getAuthUser();
   if (!user) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
 
+  const supabase = await createSupabaseServerClient();
+  const orgId = await getOrgId();
+  const role = await getCurrentRole(supabase, user.id);
+  const isAdmin = role === "admin";
+
   // Demande de suppression en attente (RGPD) — résilient si migration absente.
   let pendingDeletionSince: string | null = null;
   try {
-    const supabase = await createSupabaseServerClient();
-    const orgId = await getOrgId();
     if (orgId) {
       const { data } = await supabase
         .from("data_requests")
@@ -35,6 +42,29 @@ export default async function ParametresSecuriteApiPage() {
       pendingDeletionSince = (data?.created_at as string | undefined) ?? null;
     }
   } catch {}
+
+  // Journal d'audit RÉEL (audit_log, alimenté par l'app) — admins seulement.
+  type AuditRow = { action: string; actor_id: string | null; created_at: string; metadata: Record<string, unknown> | null };
+  let auditRows: AuditRow[] = [];
+  const actorNames = new Map<string, string>();
+  if (isAdmin && orgId) {
+    try {
+      const { data } = await supabase
+        .from("audit_log")
+        .select("action, actor_id, created_at, metadata")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(15);
+      auditRows = (data ?? []) as AuditRow[];
+      const ids = [...new Set(auditRows.map((r) => r.actor_id).filter((x): x is string => !!x))];
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+        for (const p of profs ?? []) actorNames.set(p.id as string, (p.full_name as string) ?? "");
+      }
+    } catch {}
+  }
+  const passwordChangedAt =
+    ((user.user_metadata as { password_changed_at?: string } | null)?.password_changed_at as string | undefined) ?? null;
 
   return (
     <section className="space-y-8">
@@ -81,51 +111,12 @@ export default async function ParametresSecuriteApiPage() {
         </div>
       </div>
 
-      {/* Authentification */}
+      {/* Authentification — câblé au réel (mot de passe, autres sessions) */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Authentification
         </h2>
-        <div className="card p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Email du compte</p>
-                <p className="mt-0.5 text-xs text-slate-500">{user.email}</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                ✓ Vérifié
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Mot de passe</p>
-                <p className="mt-0.5 text-xs text-slate-500">Dernière modification : —</p>
-              </div>
-              <button disabled className="rounded-lg border border-card-border bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400">
-                Modifier
-              </button>
-            </div>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Authentification à 2 facteurs</p>
-                <p className="mt-0.5 text-xs text-slate-500">Sécurise votre compte avec un code généré sur votre téléphone</p>
-              </div>
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                Bientôt disponible
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">SSO (Single Sign-On)</p>
-                <p className="mt-0.5 text-xs text-slate-500">Authentification SAML/Google Workspace pour les équipes Enterprise</p>
-              </div>
-              <span className="rounded-full bg-fuchsia-50 px-2.5 py-0.5 text-xs font-medium text-fuchsia-700">
-                Plan Enterprise
-              </span>
-            </div>
-          </div>
-        </div>
+        <AccountSecurityBlock email={user.email ?? ""} passwordChangedAt={passwordChangedAt} />
       </div>
 
       {/* API Keys */}
@@ -136,21 +127,7 @@ export default async function ParametresSecuriteApiPage() {
         <p className="text-sm text-slate-500">
           Générez des clés API pour interagir avec Revold depuis vos outils internes (workflows, scripts, BI).
         </p>
-        <div className="card p-6">
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm font-medium text-slate-700">Aucune clé d&apos;API générée</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Les clés d&apos;API permettent de lire vos données Revold depuis vos propres outils.
-            </p>
-            <button disabled className="mt-3 inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-slate-400">
-              Générer une nouvelle clé
-            </button>
-          </div>
-          <div className="mt-4 rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-600">
-            <p className="text-[10px] font-semibold uppercase text-slate-500">Endpoint de base</p>
-            <p className="mt-1">https://app.revold.com/api/v1</p>
-          </div>
-        </div>
+        <ApiKeysBlock isAdmin={isAdmin} />
       </div>
 
       {/* Webhooks sortants */}
@@ -161,59 +138,41 @@ export default async function ParametresSecuriteApiPage() {
         <p className="text-sm text-slate-500">
           Recevez en temps réel les événements Revold (nouvelle alerte, rapport activé, score modifié) sur vos endpoints.
         </p>
-        <div className="card p-6">
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm font-medium text-slate-700">Aucun webhook configuré</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Configurez une URL HTTPS qui recevra les événements Revold en POST JSON.
-            </p>
-            <button disabled className="mt-3 inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-slate-400">
-              Ajouter un webhook
-            </button>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">alert.created</div>
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">insight.generated</div>
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">score.changed</div>
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">sync.completed</div>
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">deal.at_risk</div>
-            <div className="rounded bg-slate-50 px-2 py-1.5 font-mono text-slate-600">churn.predicted</div>
-          </div>
-        </div>
+        <WebhooksBlock isAdmin={isAdmin} />
       </div>
 
-      {/* Sessions actives */}
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          Sessions actives
-        </h2>
-        <div className="card overflow-hidden">
-          <div className="divide-y divide-card-border">
-            <div className="flex items-center justify-between px-5 py-3">
-              <div>
-                <p className="text-sm font-medium text-slate-800">Session courante</p>
-                <p className="text-xs text-slate-400">{user.email} · Dernière activité : à l&apos;instant</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Actif</span>
-            </div>
-          </div>
-        </div>
-        <p className="text-xs text-slate-400">
-          Pour vous déconnecter, utilisez le bouton « Déconnexion » dans le header.
-        </p>
-      </div>
-
-      {/* Audit log */}
+      {/* Journal d'audit — RÉEL (table audit_log alimentée par l'app), admins */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Journal d&apos;audit
-          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-medium text-fuchsia-700">Plan Enterprise</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Admin uniquement</span>
         </h2>
-        <div className="card p-6 text-center">
-          <p className="text-sm text-slate-500">
-            Le journal d&apos;audit complet (qui a fait quoi, quand) est disponible sur le plan Enterprise.
-          </p>
-        </div>
+        {!isAdmin ? (
+          <div className="card p-6 text-center text-sm text-slate-500">
+            Le journal d&apos;audit (qui a fait quoi, quand) est visible par les admins de l&apos;organisation.
+          </div>
+        ) : auditRows.length === 0 ? (
+          <div className="card p-6 text-center text-sm text-slate-500">
+            Aucun événement tracé pour l&apos;instant — invitations, changements de rôle, clés d&apos;API,
+            webhooks et changements de mot de passe s&apos;inscrivent ici.
+          </div>
+        ) : (
+          <div className="card overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {auditRows.map((r, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-xs">
+                  <code className="font-mono text-[11px] font-semibold text-slate-700">{r.action}</code>
+                  <span className="min-w-0 flex-1 px-3 text-slate-500">
+                    {r.actor_id ? actorNames.get(r.actor_id) || "Membre" : "Système"}
+                  </span>
+                  <span className="text-slate-400">
+                    {new Date(r.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

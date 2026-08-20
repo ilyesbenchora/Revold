@@ -21,6 +21,7 @@ import { createServerClient } from "@supabase/ssr";
 import { SYNC_REGISTRY, getConnector } from "@/lib/integrations/sync/registry";
 import { fail } from "@/lib/integrations/sync/types";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 function adminClient() {
   return createServerClient(
@@ -139,6 +140,14 @@ async function handler(req: NextRequest) {
       });
       if (result.ok) ran++;
       else failed++;
+      // Webhooks sortants (Sécurité & API) : sync.completed / sync.failed.
+      if (!result.notImplemented) {
+        void dispatchWebhookEvent(supabase, orgId, result.ok ? "sync.completed" : "sync.failed", {
+          provider,
+          records: result.total ?? null,
+          error: result.ok ? null : result.message ?? null,
+        });
+      }
       perRun.push({ orgId, provider, status: result.ok ? "synced" : "failed", durationMs: Date.now() - runStart });
     } catch (err) {
       failed++;

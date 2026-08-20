@@ -8,6 +8,7 @@ import { composeNotification } from "@/lib/notifications/compose";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export const maxDuration = 300;
 
@@ -89,6 +90,14 @@ async function handler(request: Request) {
     if (obj.target != null && isThresholdMet(currentValue, Number(obj.target), direction)) {
       await supabase.from("objectives").update({ resolved_at: new Date().toISOString() }).eq("id", obj.id);
       reached++;
+
+      // Webhooks sortants (Sécurité & API) : objectif atteint.
+      void dispatchWebhookEvent(supabase, obj.organization_id as string, "objective.reached", {
+        objective_id: obj.id,
+        title: (obj.title as string | null) ?? null,
+        target: obj.target ?? null,
+        current_value: currentValue,
+      });
 
       const composed = await composeNotification({
         kind: "objectif",

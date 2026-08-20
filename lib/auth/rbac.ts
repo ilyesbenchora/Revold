@@ -75,7 +75,13 @@ export type AuditAction =
   | "integration.connected"
   | "integration.disconnected"
   | "data.exported"
-  | "settings.changed";
+  | "settings.changed"
+  | "api_key.created"
+  | "api_key.revoked"
+  | "webhook.created"
+  | "webhook.deleted"
+  | "password.changed"
+  | "sessions.revoked_others";
 
 /** Trace une action dans audit_log. Best-effort — ne throw jamais. */
 export async function logAudit(

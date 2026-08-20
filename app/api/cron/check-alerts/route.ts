@@ -8,6 +8,7 @@ import { loadEventPref } from "@/lib/notifications/notify-event";
 import { valueFromAggSpec, type AggSpec } from "@/lib/alerts/agg-value";
 import { computeReconciledMetric } from "@/lib/reconciliation/engine";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export const maxDuration = 300;
 
@@ -143,6 +144,16 @@ async function handler(request: Request) {
         .eq("id", alert.id);
 
       resolved++;
+
+      // Webhooks sortants (Sécurité & API) : l'événement part vers les
+      // endpoints abonnés, indépendamment des canaux de notification.
+      void dispatchWebhookEvent(supabase, alert.organization_id, "alert.created", {
+        alert_id: alert.id,
+        title: alert.title ?? null,
+        threshold: alert.threshold ?? null,
+        current_value: currentValue,
+        direction,
+      });
 
       // L'AGENT responsable rédige la notification (l'app a détecté l'atteinte).
       const composed = await composeNotification({
