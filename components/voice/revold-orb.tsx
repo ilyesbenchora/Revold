@@ -763,7 +763,6 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     try {
       const raw = localStorage.getItem(`revold:recap-done:${new Date().toDateString()}`);
       const arr = raw ? (JSON.parse(raw) as string[]) : [];
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (arr.length > 0) setRecapDone(new Set(arr));
     } catch { /* préférence indisponible → CTA affiché */ }
   }, []);
