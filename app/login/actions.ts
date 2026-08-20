@@ -127,6 +127,35 @@ export async function googleAction() {
   redirect(data.url);
 }
 
+// ── Connexion SSO entreprise (SAML 2.0 : Entra ID, Okta, Google Workspace…) ──
+// Le domaine email détermine le fournisseur d'identité enregistré côté
+// Supabase Auth (un IdP par client, provisionné à l'onboarding — voir
+// docs/ops/sso-entra-id.md). Aucun mot de passe Revold : l'authentification
+// est déléguée à l'annuaire de l'entreprise (exigence type des DSI).
+export async function ssoAction(formData: FormData) {
+  const raw = String(formData.get("email") ?? "").trim().toLowerCase();
+  // Accepte l'email professionnel OU directement le domaine (acme.fr).
+  const domain = raw.includes("@") ? raw.split("@")[1] : raw;
+  if (!domain || !domain.includes(".")) {
+    redirect("/login?mode=sso&error=Renseigne+ton+email+professionnel");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const { data, error } = await supabase.auth.signInWithSSO({
+    domain,
+    options: { redirectTo: `${appUrl}/auth/callback` },
+  });
+  if (error || !data?.url) {
+    redirect(
+      `/login?mode=sso&error=${encodeURIComponent(
+        `Le SSO n'est pas encore activé pour ${domain} — écris-nous pour le brancher (Microsoft Entra ID, Okta, Google Workspace…).`,
+      )}`,
+    );
+  }
+  redirect(data.url);
+}
+
 // ── Connexion par email (code à 6 chiffres) ─────────────────────────────────
 // 1. emailOtpAction : envoie le code (crée le compte si l'email est inconnu).
 // 2. verifyOtpAction : vérifie le code → session ; nouveau compte sans
