@@ -49,6 +49,15 @@ export type TowerSettings = {
   briefActionsDone: boolean;
   /** Contenu du brief — données personnalisées (KPIs câblés, recalculés en direct). */
   briefCustom: BriefCustomItem[];
+  /** Récap d'équipe — période(s) activée(s). */
+  recapWeekly: boolean;
+  recapMonthly: boolean;
+  recapQuarterly: boolean;
+  /** Équipe du récap : "all" (admin) ou un pôle (sales/marketing/cs/finance). */
+  recapTeam: string;
+  /** Appel vocal mains libres (« Hey Revold ») + phrase personnalisable. */
+  wakeWord: boolean;
+  wakePhrase: string;
   /** Réponse directe aux questions KPI simples. */
   quickAnswer: boolean;
   /** Création d'alertes et d'objectifs à la voix (toujours validée par boutons). */
@@ -74,6 +83,12 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefEnrichment: true,
   briefActionsDone: true,
   briefCustom: [],
+  recapWeekly: false,
+  recapMonthly: false,
+  recapQuarterly: false,
+  recapTeam: "all",
+  wakeWord: false,
+  wakePhrase: "Hey Revold",
   quickAnswer: true,
   createActions: true,
   navigation: true,

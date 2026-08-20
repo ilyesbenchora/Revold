@@ -277,6 +277,95 @@ function AddCustomBriefData({ onAdd }: { onAdd: (item: BriefCustomItem) => void 
   );
 }
 
+/** Équipes disponibles pour le récap (mêmes pôles que les espaces de travail). */
+const RECAP_TEAMS: { id: string; label: string }[] = [
+  { id: "all", label: "Toutes les équipes" },
+  { id: "sales", label: "Ventes" },
+  { id: "marketing", label: "Marketing" },
+  { id: "cs", label: "Service client" },
+  { id: "finance", label: "Comptabilité" },
+];
+
+/**
+ * Réglages du récap d'équipe : périodes cochables + équipe. L'ADMIN voit
+ * toutes les équipes (et « toutes ») ; un membre rattaché à un pôle est
+ * verrouillé sur son équipe — le choix est aussi imposé côté serveur
+ * (/api/voice/recap), ce sélecteur n'est qu'un miroir.
+ */
+function RecapSettings({ settings }: { settings: TowerSettings }) {
+  const [me, setMe] = useState<{ role: string | null; pole: string | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setMe({ role: d.role ?? null, pole: d.pole ?? null }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const isAdmin = me?.role === "admin";
+  const ownTeam = me?.pole && ["sales", "marketing", "cs", "finance"].includes(me.pole) ? me.pole : null;
+  const teamChoices = isAdmin ? RECAP_TEAMS : RECAP_TEAMS.filter((t) => t.id === (ownTeam ?? "all"));
+  const effectiveTeam = isAdmin ? settings.recapTeam : (ownTeam ?? "all");
+
+  const setField = <K extends keyof TowerSettings>(key: K, value: TowerSettings[K]) => {
+    writeTowerSettings({ ...readTowerSettings(), [key]: value });
+  };
+
+  const periods: { key: "recapWeekly" | "recapMonthly" | "recapQuarterly"; label: string; hint: string }[] = [
+    { key: "recapWeekly", label: "À la semaine", hint: "CTA sur la tour : lundi = semaine passée, vendredi = semaine en cours" },
+    { key: "recapMonthly", label: "Au mois", hint: "CTA les premiers jours du mois : récap du mois passé" },
+    { key: "recapQuarterly", label: "Au trimestre", hint: "CTA la première semaine du trimestre : récap du trimestre passé" },
+  ];
+
+  return (
+    <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {periods.map((p) => (
+          <label
+            key={p.key}
+            className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition ${
+              settings[p.key] ? "border-accent/40 bg-accent/5" : "border-slate-200 bg-white hover:border-accent/30"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={settings[p.key]}
+              onChange={(e) => setField(p.key, e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-indigo-500"
+            />
+            <span>
+              <span className="block text-xs font-semibold text-slate-800">{p.label}</span>
+              <span className="block text-[10px] leading-snug text-slate-500">{p.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="recap-team" className="text-xs font-medium text-slate-700">Équipe du récap</label>
+        <select
+          id="recap-team"
+          value={effectiveTeam}
+          onChange={(e) => setField("recapTeam", e.target.value)}
+          disabled={!isAdmin}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-accent focus:outline-none disabled:opacity-60"
+        >
+          {teamChoices.map((t) => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
+        <span className="text-[11px] text-slate-400">
+          {isAdmin
+            ? "En tant qu'admin, tu vois toutes les équipes."
+            : ownTeam
+              ? "Rattaché à ton équipe : le récap porte sur elle."
+              : "Sans pôle attribué : récap global."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function TowerSettingsForm() {
   const settings = useTowerSettings();
 
@@ -419,6 +508,50 @@ export function TowerSettingsForm() {
             </div>
             <Toggle on={settings.veille} onClick={() => flip("veille")} label="Mode veille" />
           </div>
+        </div>
+      </FeatureCard>
+
+      {/* ── Récap d'équipe : semaine / mois / trimestre + axes d'amélioration.
+             Admin → choix de l'équipe (ou toutes) ; membre rattaché à un pôle →
+             son équipe uniquement (verrouillé aussi côté serveur). ── */}
+      <FeatureCard
+        icon="🗓️"
+        title="Récap d'équipe (semaine · mois · trimestre)"
+        on={settings.recapWeekly || settings.recapMonthly || settings.recapQuarterly}
+        onToggle={() => {
+          const cur = readTowerSettings();
+          const any = cur.recapWeekly || cur.recapMonthly || cur.recapQuarterly;
+          writeTowerSettings({ ...cur, recapWeekly: !any, recapMonthly: any ? false : cur.recapMonthly, recapQuarterly: any ? false : cur.recapQuarterly });
+        }}
+        description="Un récap chiffré de la période, par équipe, avec les axes d'amélioration dérivés des écarts — lu à voix haute par l'orbe."
+        how="Coche les périodes à suivre. À la semaine : un bouton apparaît sur la tour de contrôle chaque LUNDI pour écouter le récap de la semaine passée, et chaque VENDREDI pour la semaine en cours. Au mois et au trimestre : le bouton apparaît les premiers jours de la période pour le récap de la période écoulée. Chaque récap compare à la période précédente (mêmes calculs déterministes que tes tables de données) et en déduit les axes d'amélioration."
+      >
+        <RecapSettings settings={settings} />
+      </FeatureCard>
+
+      {/* ── Appel vocal mains libres : « Hey Revold » ── */}
+      <FeatureCard
+        icon="🗣️"
+        title="Appel vocal « Hey Revold »"
+        on={settings.wakeWord}
+        onToggle={() => flip("wakeWord")}
+        description="Appelle Revold à la voix, sans cliquer : dis ta phrase d'appel et l'orbe se met à l'écoute."
+        how="Quand la page d'accueil est ouverte (et le micro autorisé), l'orbe écoute en continu ta phrase d'appel — « Hey Revold » par défaut, personnalisable ci-dessous. Dès qu'elle l'entend, elle passe en écoute active : enchaîne directement ta demande. L'écoute mains libres ne fonctionne que sur l'onglet visible, se coupe pendant une dictée en cours, et se désactive ici à tout moment."
+        examples={[settings.wakePhrase || "Hey Revold", "Dis-moi Revold"]}
+      >
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+          <label htmlFor="wake-phrase" className="text-xs font-medium text-slate-700">
+            Phrase d&apos;appel
+          </label>
+          <input
+            id="wake-phrase"
+            type="text"
+            value={settings.wakePhrase}
+            onChange={(e) => set("wakePhrase", e.target.value.slice(0, 40))}
+            onBlur={(e) => { if (!e.target.value.trim()) set("wakePhrase", DEFAULT_TOWER_SETTINGS.wakePhrase); }}
+            placeholder="Hey Revold"
+            className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-accent focus:outline-none"
+          />
         </div>
       </FeatureCard>
 

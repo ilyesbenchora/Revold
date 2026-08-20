@@ -672,6 +672,91 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     recRef.current?.stop();
   }, []);
 
+  // ── Récap d'équipe (Paramètres → Tour de contrôle) : lu à voix haute. ──
+  const runRecap = useCallback(async (period: string, scope: string) => {
+    setStatus("thinking");
+    setCaption("Je prépare ton récap…");
+    try {
+      const params = new URLSearchParams({ period, scope, team: readTowerSettings().recapTeam || "all" });
+      const res = await fetch(`/api/voice/recap?${params}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.text) throw new Error(d.error || "Récap indisponible.");
+      setStatus("idle");
+      setCaption(String(d.text));
+      speak(String(d.text));
+    } catch (err) {
+      setStatus("idle");
+      setCaption(err instanceof Error ? err.message : "Récap indisponible — réessaie.");
+    }
+  }, []);
+
+  // ── Appel vocal mains libres (« Hey Revold ») : écoute discrète de la
+  // phrase d'appel quand l'onglet est visible, le micro DÉJÀ autorisé et
+  // l'orbe au repos — l'entendre déclenche l'écoute active. ──
+  useEffect(() => {
+    if (!settings.wakeWord || !supported) return;
+    let stopped = false;
+    let rec: SpeechRecognitionLike | null = null;
+    const phrase = normalizePhrase(settings.wakePhrase || "Hey Revold");
+    if (!phrase) return;
+
+    const start = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      if (statusRef.current !== "idle") { setTimeout(() => void start(), 2000); return; }
+      // Jamais de prompt micro surprise : l'écoute mains libres ne démarre que
+      // si la permission a déjà été accordée (une dictée cliquée l'accorde).
+      try {
+        const perm = await navigator.permissions?.query?.({ name: "microphone" as PermissionName });
+        if (perm && perm.state !== "granted") return;
+      } catch { /* API permissions absente → on tente, le navigateur arbitre */ }
+      rec = createRecognition();
+      if (!rec) return;
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = (e) => {
+        let heard = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) heard += `${e.results[i][0].transcript} `;
+        if (normalizePhrase(heard).includes(phrase)) {
+          try { rec?.stop(); } catch { /* déjà stoppé */ }
+          rec = null;
+          startListening();
+        }
+      };
+      rec.onerror = () => { /* onend relance */ };
+      rec.onend = () => {
+        rec = null;
+        if (!stopped) setTimeout(() => void start(), 1500);
+      };
+      try { rec.start(); } catch { /* une autre reconnaissance tourne — onend relancera */ }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void start();
+      else { try { rec?.stop(); } catch { /* rien */ } }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    void start();
+    return () => {
+      stopped = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      try { rec?.stop(); } catch { /* rien */ }
+    };
+  }, [settings.wakeWord, settings.wakePhrase, supported, startListening]);
+
+  // ── CTA récap du moment : lundi = semaine passée, vendredi = semaine en
+  // cours ; premiers jours du mois/trimestre = période écoulée. ──
+  // (Horloge du client — recalculée à chaque rendu, pas de dérive serveur.)
+  const recapCta = (() => {
+    const now = new Date();
+    const day = now.getDay();
+    const dom = now.getDate();
+    if (settings.recapWeekly && day === 1) return { label: "🗓️ Récap de la semaine passée", period: "week", scope: "last" };
+    if (settings.recapWeekly && day === 5) return { label: "🗓️ Récap de la semaine en cours", period: "week", scope: "current" };
+    if (settings.recapQuarterly && now.getMonth() % 3 === 0 && dom <= 7)
+      return { label: "🗓️ Récap du trimestre passé", period: "quarter", scope: "last" };
+    if (settings.recapMonthly && dom <= 3) return { label: "🗓️ Récap du mois passé", period: "month", scope: "last" };
+    return null;
+  })();
+
   const busy = status === "thinking" || status === "redirecting";
   // Anneau : écoute > santé critique > contenu du brief accompli (vert) > santé.
   const ringClass =
@@ -773,21 +858,39 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       )}
 
       {/* Brief du jour — le mode veille se règle dans Paramètres → Tour de
-          contrôle (pas de toggle en doublon sur la home). */}
-      {settings.brief && (
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void runBrief()}
-            disabled={busy || status === "listening"}
-            className={`rounded-md border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
-              isLight
-                ? "border-slate-300 bg-white text-slate-700 hover:border-fuchsia-300 hover:text-fuchsia-700"
-                : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
-            }`}
-          >
-            Brief du jour
-          </button>
+          contrôle (pas de toggle en doublon sur la home). Le CTA récap suit
+          les périodes cochées : lundi/vendredi (semaine), début de mois ou de
+          trimestre (période écoulée). */}
+      {(settings.brief || recapCta) && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          {settings.brief && (
+            <button
+              type="button"
+              onClick={() => void runBrief()}
+              disabled={busy || status === "listening"}
+              className={`rounded-md border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
+                isLight
+                  ? "border-slate-300 bg-white text-slate-700 hover:border-fuchsia-300 hover:text-fuchsia-700"
+                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
+              }`}
+            >
+              Brief du jour
+            </button>
+          )}
+          {recapCta && (
+            <button
+              type="button"
+              onClick={() => void runRecap(recapCta.period, recapCta.scope)}
+              disabled={busy || status === "listening"}
+              className={`rounded-md border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 ${
+                isLight
+                  ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100"
+                  : "border-amber-300/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
+              }`}
+            >
+              {recapCta.label}
+            </button>
+          )}
         </div>
       )}
     </div>
