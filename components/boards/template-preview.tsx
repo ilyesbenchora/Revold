@@ -199,6 +199,9 @@ export function TemplatePreview({
   tiles: PreviewTile[];
   tables: PreviewTable[];
 }) {
+  // Garde-fou : quel que soit l'id fourni, on n'injecte que [a-zA-Z0-9_-]
+  // dans les IDs de dégradés SVG (url(#…) est invalide sinon → rendu noir).
+  id = id.replace(/[^a-zA-Z0-9_-]/g, "-");
   const r = makeRand(`${id}:tiles`);
   const shownTiles = tiles.slice(0, 3);
   const shownTables = tables.slice(0, 2);
@@ -218,21 +221,25 @@ export function TemplatePreview({
         ))}
       </div>
 
-      {/* Visualisations du template (les vraies vues : barres, courbe, anneau, table). */}
+      {/* Visualisations du template (les vraies vues : barres, courbe, anneau, table).
+          ⚠ L'identifiant passé aux minis sert d'ID de DÉGRADÉ SVG : il doit
+          rester [a-z0-9-] — un titre avec espaces/accents rendait la référence
+          url(#…) invalide et les barres/courbes retombaient sur un NOIR par
+          défaut au lieu des couleurs indigo/fuchsia des rapports. */}
       {shownTables.length > 0 && (
         <div className={`mt-1.5 grid gap-1.5 ${shownTables.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {shownTables.map((t) => (
+          {shownTables.map((t, i) => (
             <div key={t.title} className="min-w-0 rounded-lg border border-slate-200 bg-white p-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               <p className="mb-1 truncate px-0.5 text-[8px] font-medium leading-tight text-slate-400">{t.title}</p>
               <div className="h-11">
                 {t.view === "line" ? (
-                  <MiniLine id={`${id}-${t.title}`} />
+                  <MiniLine id={`${id}-v${i}`} />
                 ) : t.view === "donut" ? (
-                  <MiniDonut id={`${id}-${t.title}`} />
+                  <MiniDonut id={`${id}-v${i}`} />
                 ) : t.view === "table" ? (
-                  <MiniTable id={`${id}-${t.title}`} />
+                  <MiniTable id={`${id}-v${i}`} />
                 ) : (
-                  <MiniBars id={`${id}-${t.title}`} />
+                  <MiniBars id={`${id}-v${i}`} />
                 )}
               </div>
             </div>
