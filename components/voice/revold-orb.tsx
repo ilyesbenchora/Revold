@@ -698,11 +698,31 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     if (statusRef.current === "listening" || statusRef.current === "thinking" || statusRef.current === "redirecting") return;
     const rec = createRecognition();
     if (!rec) { setSupported(false); return; }
+    // ÉCOUTE CONTINUE : en mode non-continu, le navigateur coupe au premier
+    // silence court — impossible de finir sa phrase. Ici, c'est NOTRE détecteur
+    // de fin qui décide : 2,5 s sans nouveau mot une fois qu'on a parlé
+    // (respirations et hésitations tolérées), 9 s sans rien dire au départ,
+    // 60 s de plafond absolu. Cliquer l'orbe arrête aussi manuellement.
+    rec.continuous = true;
     recRef.current = rec;
     let finalText = "";
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    let capTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimers = () => {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (capTimer) clearTimeout(capTimer);
+      silenceTimer = null;
+      capTimer = null;
+    };
+    const armSilence = (ms: number) => {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => { try { rec.stop(); } catch { /* déjà stoppé */ } }, ms);
+    };
     setStatus("listening");
     setCaption("Je t'écoute…");
     void startAudioLevel();
+    armSilence(9000); // rien dit du tout → on rend la main
+    capTimer = setTimeout(() => { try { rec.stop(); } catch { /* déjà stoppé */ } }, 60000);
     rec.onresult = (e) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -711,19 +731,23 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         else interim += r[0].transcript;
       }
       setCaption(`« ${(finalText + interim).trim()} »`);
+      // Chaque nouveau mot repousse la fin : la phrase se termine sur un VRAI silence.
+      if ((finalText + interim).trim()) armSilence(2500);
     };
     rec.onerror = (e) => {
+      clearTimers();
       stopAudioLevel();
       setStatus(e.error === "no-speech" ? "idle" : "error");
       setCaption(e.error === "not-allowed" ? "Micro refusé — autorise-le dans le navigateur." : e.error === "no-speech" ? "" : "Je n'ai pas pu t'entendre — réessaie.");
     };
     rec.onend = () => {
+      clearTimers();
       stopAudioLevel();
       const text = finalText.trim();
       if (text) void dispatch(text);
       else if (statusRef.current === "listening") { setStatus("idle"); setCaption(""); }
     };
-    try { rec.start(); } catch { setStatus("idle"); }
+    try { rec.start(); } catch { clearTimers(); setStatus("idle"); }
   }, [dispatch, startAudioLevel, stopAudioLevel]);
 
   const stopListening = useCallback(() => {
