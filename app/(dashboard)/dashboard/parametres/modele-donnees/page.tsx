@@ -8,6 +8,7 @@ import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import { ResolutionRules, type Rule } from "@/components/resolution-rules";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { loadSourceLinkStats } from "@/lib/integrations/source-link-stats";
 import { checkHubSpotProperty, CANONICAL_TO_HUBSPOT_OBJECT } from "@/lib/integrations/hubspot-properties";
 import { FieldAuthorityEditor } from "@/components/field-authority-editor";
@@ -391,12 +392,14 @@ export default async function ParametresModeleDonneesPage() {
             <Link href="/dashboard/integration" className="mt-3 inline-flex text-sm font-medium text-accent hover:underline">Connecter un outil →</Link>
           </div>
         ) : (
-          <IdentifierMappingForm
-            rows={identifierRows}
-            savedMappings={savedMappings}
-            disabledProviders={disabledProviders}
-            hubspotPropertyStatus={hubspotPropertyStatus}
-          />
+          <SettingsEditLock label="✎ Modifier le mapping">
+            <IdentifierMappingForm
+              rows={identifierRows}
+              savedMappings={savedMappings}
+              disabledProviders={disabledProviders}
+              hubspotPropertyStatus={hubspotPropertyStatus}
+            />
+          </SettingsEditLock>
         )}
       </div>
 
@@ -420,7 +423,9 @@ export default async function ParametresModeleDonneesPage() {
           Quand deux outils ont une valeur différente pour le même champ, lequel gagne ?
           Utilisez les flèches ▲▼ pour réordonner.
         </p>
-        <FieldAuthorityEditor rows={mergedAuthority} connectedTools={connectedToolLabels} />
+        <SettingsEditLock>
+          <FieldAuthorityEditor rows={mergedAuthority} connectedTools={connectedToolLabels} />
+        </SettingsEditLock>
       </div>
 
       {/* ── Déduplication ── */}
@@ -432,7 +437,9 @@ export default async function ParametresModeleDonneesPage() {
           Ce qui se passe quand deux enregistrements sont détectés comme doublons entre tes outils.
           Les fusions sont désactivées par défaut — rien ne fusionne sans ton accord explicite.
         </p>
-        <DedupRules rules={mergedDedupRules} />
+        <SettingsEditLock>
+          <DedupRules rules={mergedDedupRules} />
+        </SettingsEditLock>
       </div>
 
       {/* Mini-tutoriel — UNIQUEMENT pour un nouvel utilisateur (première

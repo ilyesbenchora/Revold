@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { AgentPrefsSettings, type AgentPrefRow } from "@/components/agent-prefs-settings";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { listAgentsBySection } from "@/lib/ai/agents/registry";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
@@ -102,7 +103,9 @@ export default async function ParametresAgentsPage() {
 
       <ParametresTabs />
 
-      <AgentPrefsSettings agents={rows} />
+      <SettingsEditLock>
+        <AgentPrefsSettings agents={rows} />
+      </SettingsEditLock>
     </section>
   );
 }

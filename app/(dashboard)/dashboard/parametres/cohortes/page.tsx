@@ -5,6 +5,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { checkHubSpotProperty, checkHubSpotPropertyAcrossObjects } from "@/lib/integrations/hubspot-properties";
 import { ParametresTabs } from "@/components/parametres-tabs";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { CohortMappingsForm, type CohortMapping, type CohortPropertyStatus, type CohortTeamRights } from "@/components/cohort-mappings-form";
 import { CohortContractRow, type ContractFieldInit } from "@/components/cohort-contract-row";
 import { getCurrentRole } from "@/lib/auth/rbac";
@@ -150,13 +151,15 @@ export default async function ParametresCohortesPage() {
 
       <ParametresTabs />
 
-      <CohortMappingsForm
-        initial={mappings}
-        initialStatus={propertyStatus}
-        hasCrm={!!hsToken}
-        teamRights={teamRights}
-        salesExtra={contractBlock}
-      />
+      <SettingsEditLock label="✎ Modifier les cohortes">
+        <CohortMappingsForm
+          initial={mappings}
+          initialStatus={propertyStatus}
+          hasCrm={!!hsToken}
+          teamRights={teamRights}
+          salesExtra={contractBlock}
+        />
+      </SettingsEditLock>
     </section>
   );
 }

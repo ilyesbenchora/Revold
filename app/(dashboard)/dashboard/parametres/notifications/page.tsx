@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { NotificationChannelsForm } from "@/components/notification-channels-form";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { NotificationPreferencesForm } from "@/components/notification-preferences-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
@@ -104,10 +105,12 @@ export default async function ParametresNotificationsPage() {
           de la tour de contrôle : le brief te LIT ces informations quand tu le demandes, les notifications te
           les ENVOIENT quand elles se produisent. La cloche in-app reste le canal par défaut.
         </p>
-        <NotificationPreferencesForm
-          configuredChannels={(channels ?? []).filter((c) => c.enabled).map((c) => String(c.type))}
-          hasPhone={hasPhone}
-        />
+        <SettingsEditLock>
+          <NotificationPreferencesForm
+            configuredChannels={(channels ?? []).filter((c) => c.enabled).map((c) => String(c.type))}
+            hasPhone={hasPhone}
+          />
+        </SettingsEditLock>
       </div>
 
       {/* Canaux configurables */}
@@ -123,7 +126,9 @@ export default async function ParametresNotificationsPage() {
           </Link>
           .
         </p>
-        <NotificationChannelsForm initialChannels={channels ?? []} />
+        <SettingsEditLock>
+          <NotificationChannelsForm initialChannels={channels ?? []} />
+        </SettingsEditLock>
       </div>
 
       {/* Digest quotidien — canaux hérités des préférences ci-dessus */}

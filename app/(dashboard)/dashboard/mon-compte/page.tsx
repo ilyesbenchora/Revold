@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/cached";
 import { LocaleSettings } from "@/components/locale-settings";
 import { AccountPhoneForm } from "@/components/account-phone-form";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { MonCompteTabs } from "@/components/mon-compte-tabs";
 
 export default async function MonComptePage() {
@@ -40,6 +41,7 @@ export default async function MonComptePage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
           Informations personnelles
         </h2>
+        <SettingsEditLock>
         <div className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
@@ -71,12 +73,15 @@ export default async function MonComptePage() {
             </div>
           </div>
         </div>
+        </SettingsEditLock>
       </div>
 
       {/* Langue & format des dates : appliqué dynamiquement aux dates/nombres */}
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">Langue &amp; format des dates</h2>
-        <LocaleSettings />
+        <SettingsEditLock>
+          <LocaleSettings />
+        </SettingsEditLock>
       </div>
 
       {/* La souscription et les plans vivent dans l'onglet Facturation. */}

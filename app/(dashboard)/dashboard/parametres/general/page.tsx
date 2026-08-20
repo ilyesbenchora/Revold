@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthUser, getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { updateOrganisation } from "./actions";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 
 const inputClass = "mt-1 w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 const selectClass = inputClass;
@@ -50,6 +51,7 @@ export default async function ParametresGeneralPage({
             Enregistrement impossible. Vérifie que la migration des champs organisation a bien été appliquée.
           </p>
         )}
+        <SettingsEditLock>
         <form action={updateOrganisation} className="card p-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             <div>
@@ -155,6 +157,7 @@ export default async function ParametresGeneralPage({
             </button>
           </div>
         </form>
+        </SettingsEditLock>
       </div>
 
       {/* Le bloc Équipe vit désormais dans Paramètres → Utilisateurs & équipes

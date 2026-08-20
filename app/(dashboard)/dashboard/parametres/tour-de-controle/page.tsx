@@ -1,5 +1,6 @@
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { TowerSettingsForm } from "@/components/voice/tower-settings-form";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 
 export default function ParametresTourDeControlePage() {
   return (
@@ -13,7 +14,9 @@ export default function ParametresTourDeControlePage() {
 
       <ParametresTabs />
 
-      <TowerSettingsForm />
+      <SettingsEditLock>
+        <TowerSettingsForm />
+      </SettingsEditLock>
     </section>
   );
 }

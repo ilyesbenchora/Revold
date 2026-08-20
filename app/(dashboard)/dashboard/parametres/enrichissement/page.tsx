@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
+import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { EnrichmentSettingsForm } from "@/components/enrichment-settings-form";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -142,7 +143,9 @@ export default async function ParametresEnrichissementPage() {
         </p>
       </div>
 
-      <EnrichmentSettingsForm initial={settings} />
+      <SettingsEditLock>
+        <EnrichmentSettingsForm initial={settings} />
+      </SettingsEditLock>
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le
              « Mapping des identifiants » du Modèle de données, restreint aux
@@ -155,13 +158,15 @@ export default async function ParametresEnrichissementPage() {
           la propriété existe bien dans ton CRM — statut juridique, capital social et adresse du siège comprises.
         </p>
         {hubspotToken ? (
-          <IdentifierMappingForm
-            rows={mappingRows}
-            savedMappings={savedMappings}
-            disabledProviders={[]}
-            hubspotPropertyStatus={hubspotPropertyStatus}
-            allowExtraCustomIds={false}
-          />
+          <SettingsEditLock label="✎ Modifier le mapping">
+            <IdentifierMappingForm
+              rows={mappingRows}
+              savedMappings={savedMappings}
+              disabledProviders={[]}
+              hubspotPropertyStatus={hubspotPropertyStatus}
+              allowExtraCustomIds={false}
+            />
+          </SettingsEditLock>
         ) : (
           <div className="card p-6 text-center">
             <p className="text-sm text-slate-500">

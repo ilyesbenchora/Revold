@@ -446,12 +446,11 @@ export function IdentifierMappingForm({
             "companies";
           // ID de rapprochement du CRM : supprimable dès qu'il y en a plusieurs.
           const removable = isHubSpot && isCustomIdKey(id.canonicalField) && hubspotCustomIdKeys.length > 1;
-          // Autres champs CUSTOM : « Retirer » vide le mapping (supprimé à
-          // l'enregistrement) — visible dès qu'un des deux noms est renseigné.
-          const clearable =
-            isHsCustom &&
-            !removable &&
-            !!((values[`hubspot__${id.canonicalField}`] ?? "").trim() || (labels[id.canonicalField] ?? "").trim());
+          // Chaque champ CUSTOM est retirable INDIVIDUELLEMENT : « Retirer »
+          // vide le mapping (supprimé à l'enregistrement). Toujours visible —
+          // seuls les ID de rapprochement multiples gardent « Supprimer »
+          // (retrait de la ligne entière).
+          const clearable = isHsCustom && !removable;
           return (
             <div key={id.canonicalField} className="rounded-xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-2">
