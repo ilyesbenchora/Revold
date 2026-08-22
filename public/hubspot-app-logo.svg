@@ -1,39 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 48 48">
+  <!-- Logo Revold actuel (même marque que RevoldLogo / icon.svg) : avatar rond
+       en dégradé fuchsia → purple → indigo, flocon fin blanc, reflet discret. -->
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d946ef"/>
       <stop offset="50%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#4f46e5"/>
     </linearGradient>
-    <linearGradient id="highlight" x1="100%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.15"/>
+    <linearGradient id="shine" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.2)"/>
     </linearGradient>
-    <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="20" stdDeviation="40" flood-color="#a855f7" flood-opacity="0.30"/>
-    </filter>
-    <filter id="badgeShadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-opacity="0.25"/>
-    </filter>
   </defs>
-
-  <!-- Carré gradient principal -->
-  <rect width="600" height="600" rx="120" fill="url(#grad)" filter="url(#cardShadow)"/>
-  <!-- Highlight intérieur top-left -->
-  <rect width="600" height="600" rx="120" fill="url(#highlight)"/>
-
-  <!-- Lettre R blanche centrée (légèrement décalée à gauche pour équilibrer le badge) -->
-  <text x="280" y="430" text-anchor="middle"
-        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-        font-weight="900" font-size="400" fill="white" letter-spacing="-16">R</text>
-
-  <!-- Badge cercle blanc en haut-droite avec flèche → -->
-  <g filter="url(#badgeShadow)">
-    <circle cx="500" cy="100" r="90" fill="white"/>
-    <!-- Flèche pointant vers le haut-droite (momentum) -->
-    <g stroke="#d946ef" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <line x1="460" y1="140" x2="540" y2="60"/>
-      <polyline points="485,60 540,60 540,115"/>
-    </g>
+  <circle cx="24" cy="24" r="24" fill="url(#bg)"/>
+  <circle cx="24" cy="24" r="24" fill="url(#shine)"/>
+  <circle cx="24" cy="24" r="23.2" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+  <g transform="translate(10.5 10.5) scale(1.125)"
+     fill="none" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="3" x2="12" y2="21"/>
+    <line x1="4.2" y1="7.5" x2="19.8" y2="16.5"/>
+    <line x1="19.8" y1="7.5" x2="4.2" y2="16.5"/>
+    <path d="M12 3l-1.6 1.9M12 3l1.6 1.9M12 21l-1.6-1.9M12 21l1.6-1.9"/>
+    <path d="M4.2 7.5l2.4.3M4.2 16.5l2.4-.3M19.8 7.5l-2.4.3M19.8 16.5l-2.4-.3"/>
   </g>
 </svg>
