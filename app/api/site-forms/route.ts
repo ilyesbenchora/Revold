@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       to: [TO],
       reply_to: email || undefined,
       subject: `[Site] ${FORM_LABELS[formKind]}${email ? ` — ${email}` : ""}`,
-      html: `<img src="https://revold.io/email-logo.png" width="40" height="40" alt="Revold" style="border-radius:50%" /><h2>${FORM_LABELS[formKind]} — nouvelle soumission</h2><table style="font-size:14px">${rowsHtml}</table>`,
+      html: `<img src="https://revold.ai/email-logo.png" width="40" height="40" alt="Revold" style="border-radius:50%" /><h2>${FORM_LABELS[formKind]} — nouvelle soumission</h2><table style="font-size:14px">${rowsHtml}</table>`,
     }),
   });
 
