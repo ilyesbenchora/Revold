@@ -318,6 +318,23 @@ export const getHubspotSnapshot = cache(async (): Promise<HubspotSnapshotResult>
   }
   try {
     const snapshot = await fetchHubSpotSnapshot(token);
+    // PERSISTE le résultat : sans ça, chaque chargement de page d'une org
+    // fraîchement connectée (sync initiale pas encore passée) recalculait le
+    // snapshot en live — des dizaines d'appels HubSpot par page → 429 en
+    // boucle. Écrit en service role (la table n'a qu'une policy SELECT en
+    // RLS) ; le cron sync rafraîchira ensuite comme d'habitude. Best effort.
+    try {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const { createClient } = await import("@supabase/supabase-js");
+        const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY);
+        await admin.from("hubspot_snapshot_cache").upsert(
+          { organization_id: orgId, snapshot, computed_at: new Date().toISOString() },
+          { onConflict: "organization_id" },
+        );
+      }
+    } catch (persistErr) {
+      console.warn("[getHubspotSnapshot] persist live snapshot failed", persistErr);
+    }
     return { ...snapshot, status: "ok" };
   } catch (err) {
     console.error("[getHubspotSnapshot] live fallback failed", { orgId, err });
