@@ -63,7 +63,27 @@ export const MARKETING_NAV: PageNavDef = {
   ],
 };
 
-export const PAGE_NAVS: Record<string, PageNavDef> = { ventes: VENTES_NAV, marketing: MARKETING_NAV };
+/** Page Service Client (Audit → service-client). */
+export const SERVICE_CLIENT_NAV: PageNavDef = {
+  navKey: "service_client",
+  baseHref: "/dashboard/audit/service-client",
+  basePageKey: "audit_service_client",
+  team: "csm",
+  teamLabel: "Service Client",
+  defaults: [
+    { slug: "", label: "Vue d'ensemble" },
+    { slug: "process", label: "Process" },
+    { slug: "churn", label: "Churn" },
+    { slug: "cross-sell-upsell", label: "Cross-sell / Upsell" },
+    { slug: "renouvellement", label: "Renouvellement" },
+  ],
+};
+
+export const PAGE_NAVS: Record<string, PageNavDef> = {
+  ventes: VENTES_NAV,
+  marketing: MARKETING_NAV,
+  service_client: SERVICE_CLIENT_NAV,
+};
 
 /** URL d'un onglet : racine, sous-page standard, ou page custom (/p/slug). */
 export function navItemHref(def: PageNavDef, item: PageNavItem): string {

@@ -10,6 +10,9 @@ import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-fac
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -25,10 +28,11 @@ export default async function ServiceClientRenouvellementPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const [scData, billing, snapshot] = await Promise.all([
-    fetchServiceClientData(token),
+  const [scData, billing, snapshot, custom] = await Promise.all([
+    fetchServiceClientData(supabase, orgId),
     fetchPaiementFacturationFor(supabase, orgId, token),
     getHubspotSnapshot(),
+    getPageCustomization(supabase, orgId, PAGE_KEY),
   ]);
 
   // ── KPIs renouvellement ──
@@ -122,9 +126,26 @@ export default async function ServiceClientRenouvellementPage() {
               : { label: "Exposition forte", tone: "neg" },
           },
         ];
-        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
+        return (
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={tiles}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom, (key) => ({
+              retention: { view: "table", description: "Renewal rate, GRR, churn rate, customers actifs" },
+              cohortes_frequence: { view: "table", description: "Mix subs annuelles / mensuelles" },
+              arr_securise_risque: { view: "table", description: "ARR sécurisé vs à risque, subs exposées" },
+              engagement_pre_renouvellement: { view: "table", description: "Conversations, proxy CSAT, feedback collecté" },
+            }[key]))}
+          />
+        );
       })()}
 
+      {!custom.hiddenBlocks.has("retention") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="retention" label="Taux de renouvellement & rétention">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -150,7 +171,11 @@ export default async function ServiceClientRenouvellementPage() {
           footnote="Unités hétérogènes (taux et volume) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("cohortes_frequence") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="cohortes_frequence" label="Cohortes par fréquence">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -189,7 +214,11 @@ export default async function ServiceClientRenouvellementPage() {
           />
         </div>
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("arr_securise_risque") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="arr_securise_risque" label="ARR sécurisé vs à risque">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -214,7 +243,11 @@ export default async function ServiceClientRenouvellementPage() {
           footnote="Unités hétérogènes (montants et volume) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("engagement_pre_renouvellement") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="engagement_pre_renouvellement" label="Engagement pré-renouvellement">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -245,8 +278,12 @@ export default async function ServiceClientRenouvellementPage() {
           />
         </div>
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       </PageSourcesGate>
+
+      <PageDataTables pageKey={PAGE_KEY} />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>

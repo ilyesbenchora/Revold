@@ -10,6 +10,9 @@ import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-da
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -25,10 +28,11 @@ export default async function ServiceClientChurnPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const [scData, billing, snapshot] = await Promise.all([
-    fetchServiceClientData(token),
+  const [scData, billing, snapshot, custom] = await Promise.all([
+    fetchServiceClientData(supabase, orgId),
     fetchPaiementFacturationFor(supabase, orgId, token),
     getHubspotSnapshot(),
+    getPageCustomization(supabase, orgId, PAGE_KEY),
   ]);
 
   // ── Signaux churn ──
@@ -116,9 +120,25 @@ export default async function ServiceClientChurnPage() {
             sub: "Subs actives / total",
           },
         ];
-        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
+        return (
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={tiles}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom, (key) => ({
+              risque_churn: { view: "table", description: "Score de risque churn : churn rate, subs annulées, past due, NRR" },
+              signaux_faibles: { view: "table", description: "Tickets urgents, tickets/contact, feedback collecté" },
+              impact_revenue: { view: "table", description: "MRR perdu, ARR à risque, MRR sain restant" },
+            }[key]))}
+          />
+        );
       })()}
 
+      {!custom.hiddenBlocks.has("risque_churn") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="risque_churn" label="Score de risque churn">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -158,7 +178,11 @@ export default async function ServiceClientChurnPage() {
           />
         </div>
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("signaux_faibles") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="signaux_faibles" label="Signaux faibles à monitorer">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -184,7 +208,11 @@ export default async function ServiceClientChurnPage() {
           footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("impact_revenue") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="impact_revenue" label="Impact revenue du churn">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -231,8 +259,12 @@ export default async function ServiceClientChurnPage() {
           footnote="Unités hétérogènes (montants et volumes) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       </PageSourcesGate>
+
+      <PageDataTables pageKey={PAGE_KEY} />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>

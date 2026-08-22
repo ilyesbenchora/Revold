@@ -174,6 +174,17 @@ const PROPERTIES_BY_TYPE: Record<string, string[]> = {
     "createdate",
     "hs_lastmodifieddate",
     "hs_lastclosedate",
+    // SLA / temps de traitement — noms RÉELS côté portail (les variantes
+    // hs_time_to_first_response / hs_time_to_close n'existent pas) :
+    "closed_date",
+    "time_to_close",
+    "time_to_first_agent_reply",
+    "first_agent_reply_date",
+    "source_type",
+    "hs_time_to_first_response_sla_status",
+    "hs_time_to_close_sla_status",
+    "hs_last_csat_rating",
+    "hs_feedback_last_nps_rating_number",
   ],
 };
 
@@ -700,13 +711,18 @@ async function upsertTickets(
       hubspot_id: r.id as string,
       subject: pStr(props, "subject"),
       // status + primary_source NOT NULL : status dérivé de la date de
-      // fermeture (hs_pipeline_stage n'est qu'un id numérique, illisible dans
-      // les regroupements) ; la source est hubspot par définition ici.
-      status: pDate(props, "hs_lastclosedate") ? "closed" : "open",
+      // fermeture — closed_date est la propriété réellement peuplée sur les
+      // portails (hs_lastclosedate est souvent vide) ; la source est hubspot
+      // par définition ici.
+      status: pDate(props, "closed_date") ?? pDate(props, "hs_lastclosedate") ? "closed" : "open",
       primary_source: "hubspot",
       priority: pStr(props, "hs_ticket_priority"),
       owner_id: pStr(props, "hubspot_owner_id"),
-      closed_at: pDate(props, "hs_lastclosedate"),
+      channel: pStr(props, "source_type")?.toLowerCase() ?? null,
+      opened_at: pDate(props, "createdate"),
+      resolved_at: pDate(props, "closed_date") ?? pDate(props, "hs_lastclosedate"),
+      first_response_at: pDate(props, "first_agent_reply_date"),
+      closed_at: pDate(props, "closed_date") ?? pDate(props, "hs_lastclosedate"),
       raw_data: r,
       hs_last_modified_at: pDate(props, "hs_lastmodifieddate"),
       updated_at: new Date().toISOString(),

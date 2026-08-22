@@ -10,6 +10,9 @@ import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturat
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -25,10 +28,11 @@ export default async function ServiceClientCrossSellUpsellPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const [scData, billing, snapshot] = await Promise.all([
-    fetchServiceClientData(token),
+  const [scData, billing, snapshot, custom] = await Promise.all([
+    fetchServiceClientData(supabase, orgId),
     fetchPaiementFacturationFor(supabase, orgId, token),
     getHubspotSnapshot(),
+    getPageCustomization(supabase, orgId, PAGE_KEY),
   ]);
 
   // KPIs cross-sell / upsell
@@ -118,9 +122,25 @@ export default async function ServiceClientCrossSellUpsellPage() {
             sub: multiProductRate > 0 ? `${multiProductRate} % d'équipement au-delà de 1` : "1 produit par client",
           },
         ];
-        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
+        return (
+          <ConfigurableKpiTiles
+            supabase={supabase}
+            orgId={orgId}
+            pageKey={PAGE_KEY}
+            defaults={tiles}
+            customization={custom}
+            tablesPageKey={PAGE_KEY}
+            hiddenBlocks={hiddenBlockList(custom, (key) => ({
+              arpu_ltv: { view: "table", description: "ARPU mensuel/annuel, LTV estimée, subs par customer" },
+              potentiel_expansion: { view: "table", description: "Customers healthy, expansion MRR potentielle, multi-produit" },
+              pipeline_expansion: { view: "table", description: "Deals ouverts sur customers, pipeline € et taux d'équipement" },
+            }[key]))}
+          />
+        );
       })()}
 
+      {!custom.hiddenBlocks.has("arpu_ltv") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="arpu_ltv" label="Revenue par client (ARPU & LTV)">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -154,7 +174,11 @@ export default async function ServiceClientCrossSellUpsellPage() {
           footnote="Unités hétérogènes (montants et ratio) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("potentiel_expansion") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="potentiel_expansion" label="Potentiel d'expansion">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -187,7 +211,11 @@ export default async function ServiceClientCrossSellUpsellPage() {
           />
         </div>
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("pipeline_expansion") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="pipeline_expansion" label="Pipeline expansion">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -222,8 +250,12 @@ export default async function ServiceClientCrossSellUpsellPage() {
           footnote="Unités hétérogènes (volume, montant et %) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       </PageSourcesGate>
+
+      <PageDataTables pageKey={PAGE_KEY} />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>

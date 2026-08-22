@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { getToolKeys } from "@/lib/integrations/tool-mappings";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
@@ -26,9 +25,8 @@ export default async function ServiceClientOverviewPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const token = await getHubSpotToken(supabase, orgId);
   const [data, snapshot, allConnectedTools, mappedKeys] = await Promise.all([
-    fetchServiceClientData(token),
+    fetchServiceClientData(supabase, orgId),
     getHubspotSnapshot(),
     getConnectedTools(supabase, orgId),
     getToolKeys(supabase, orgId, "audit_service_client"),

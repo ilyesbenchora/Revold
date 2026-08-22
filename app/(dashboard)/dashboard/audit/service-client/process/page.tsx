@@ -2,13 +2,15 @@ export const dynamic = "force-dynamic";
 
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
+import { fetchServiceClientData, firstResponseMsOf, fmt } from "@/lib/audit/service-client-data";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
+import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -23,10 +25,10 @@ export default async function ServiceClientProcessPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const token = await getHubSpotToken(supabase, orgId);
-  const [data, snapshot] = await Promise.all([
-    fetchServiceClientData(token),
+  const [data, snapshot, custom] = await Promise.all([
+    fetchServiceClientData(supabase, orgId),
     getHubspotSnapshot(),
+    getPageCustomization(supabase, orgId, PAGE_KEY),
   ]);
 
   // Process onboarding KPIs
@@ -44,8 +46,8 @@ export default async function ServiceClientProcessPage() {
 
   // SLA respecté = % de tickets avec 1ère réponse < 4h
   const ticketsWithFirstResponse = data.tickets
-    .map((t) => parseFloat(t.properties.hs_time_to_first_response ?? ""))
-    .filter((n) => !isNaN(n) && n > 0);
+    .map((t) => firstResponseMsOf(t))
+    .filter((n): n is number => n != null);
   const slaRespected = ticketsWithFirstResponse.filter((ms) => ms <= 4 * 3_600_000).length;
   const slaRate = ticketsWithFirstResponse.length > 0
     ? Math.round((slaRespected / ticketsWithFirstResponse.length) * 100)
@@ -55,6 +57,45 @@ export default async function ServiceClientProcessPage() {
   const handoffRate = snapshot.opportunitiesCount > 0
     ? Math.round((snapshot.customersCount / (snapshot.opportunitiesCount + snapshot.customersCount)) * 100)
     : null;
+
+  const tiles: DefaultTile[] = [
+    {
+      key: "sla_respecte",
+      label: "SLA respecté (< 4h)",
+      value: slaRate != null ? `${slaRate} %` : "—",
+      raw: slaRate,
+      rawUnit: "percent",
+      tone: slaRate == null ? "neutral" : slaRate >= 80 ? "pos" : slaRate >= 50 ? "accent" : "neg",
+      sub: "1ère réponse sous 4 h",
+    },
+    {
+      key: "premiere_reponse",
+      label: "1ère réponse moyenne",
+      value: data.avgFirstResponseHours != null ? `${data.avgFirstResponseHours} h` : "—",
+      raw: data.avgFirstResponseHours,
+      rawUnit: "count",
+      tone: data.avgFirstResponseHours == null ? "neutral" : data.avgFirstResponseHours <= 4 ? "pos" : data.avgFirstResponseHours <= 12 ? "accent" : "neg",
+      sub: "SLA cible : ≤ 4 h",
+    },
+    {
+      key: "resolution_onboarding",
+      label: "Résolution onboarding",
+      value: onboardingResolutionRate != null ? `${onboardingResolutionRate} %` : "—",
+      raw: onboardingResolutionRate,
+      rawUnit: "percent",
+      tone: onboardingResolutionRate == null ? "neutral" : onboardingResolutionRate >= 80 ? "pos" : onboardingResolutionRate >= 50 ? "accent" : "neg",
+      sub: `${onboardingResolved} sur ${onboardingTickets.length} tickets onboarding`,
+    },
+    {
+      key: "handoff_sales_csm",
+      label: "Handoff sales → CSM",
+      value: handoffRate != null ? `${handoffRate} %` : "—",
+      raw: handoffRate,
+      rawUnit: "percent",
+      tone: handoffRate == null ? "neutral" : handoffRate >= 50 ? "pos" : "accent",
+      sub: "Customers / (opps + customers)",
+    },
+  ];
 
   return (
     <section className="space-y-6">
@@ -72,49 +113,24 @@ export default async function ServiceClientProcessPage() {
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} categories={["crm", "support"]}>
 
       {/* Lecture cockpit en un coup d'œil, avant les blocs détaillés —
-          tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
-      {(() => {
-        const tiles: DefaultTile[] = [
-          {
-            key: "sla_respecte",
-            label: "SLA respecté (< 4h)",
-            value: slaRate != null ? `${slaRate} %` : "—",
-            raw: slaRate,
-            rawUnit: "percent",
-            tone: slaRate == null ? "neutral" : slaRate >= 80 ? "pos" : slaRate >= 50 ? "accent" : "neg",
-            sub: "1ère réponse sous 4 h",
-          },
-          {
-            key: "premiere_reponse",
-            label: "1ère réponse moyenne",
-            value: data.avgFirstResponseHours != null ? `${data.avgFirstResponseHours} h` : "—",
-            raw: data.avgFirstResponseHours,
-            rawUnit: "count",
-            tone: data.avgFirstResponseHours == null ? "neutral" : data.avgFirstResponseHours <= 4 ? "pos" : data.avgFirstResponseHours <= 12 ? "accent" : "neg",
-            sub: "SLA cible : ≤ 4 h",
-          },
-          {
-            key: "resolution_onboarding",
-            label: "Résolution onboarding",
-            value: onboardingResolutionRate != null ? `${onboardingResolutionRate} %` : "—",
-            raw: onboardingResolutionRate,
-            rawUnit: "percent",
-            tone: onboardingResolutionRate == null ? "neutral" : onboardingResolutionRate >= 80 ? "pos" : onboardingResolutionRate >= 50 ? "accent" : "neg",
-            sub: `${onboardingResolved} sur ${onboardingTickets.length} tickets onboarding`,
-          },
-          {
-            key: "handoff_sales_csm",
-            label: "Handoff sales → CSM",
-            value: handoffRate != null ? `${handoffRate} %` : "—",
-            raw: handoffRate,
-            rawUnit: "percent",
-            tone: handoffRate == null ? "neutral" : handoffRate >= 50 ? "pos" : "accent",
-            sub: "Customers / (opps + customers)",
-          },
-        ];
-        return <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey={PAGE_KEY} defaults={tiles} />;
-      })()}
+          tuiles configurables (CTA unique : le panneau d'ajout contient aussi
+          les blocs masqués de la page). */}
+      <ConfigurableKpiTiles
+        supabase={supabase}
+        orgId={orgId}
+        pageKey={PAGE_KEY}
+        defaults={tiles}
+        customization={custom}
+        tablesPageKey={PAGE_KEY}
+        hiddenBlocks={hiddenBlockList(custom, (key) => ({
+          sla_accueil: { view: "table", description: "1ère réponse, SLA < 4h, résolution moyenne, tickets/contact" },
+          onboarding_livraison: { view: "table", description: "Tickets onboarding, taux de résolution, handoff sales → CSM" },
+          capacite_operationnelle: { view: "table", description: "Tickets ouverts, conversations entrantes, subscriptions actives" },
+        }[key]))}
+      />
 
+      {!custom.hiddenBlocks.has("sla_accueil") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="sla_accueil" label="SLA d'accueil & première réponse">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -141,7 +157,11 @@ export default async function ServiceClientProcessPage() {
           footnote="Unités hétérogènes (heures, % et volumes) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("onboarding_livraison") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="onboarding_livraison" label="Onboarding & livraison">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -167,7 +187,11 @@ export default async function ServiceClientProcessPage() {
           footnote="Unités hétérogènes (volumes et %) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
+      {!custom.hiddenBlocks.has("capacite_operationnelle") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="capacite_operationnelle" label="Capacité opérationnelle">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -192,8 +216,12 @@ export default async function ServiceClientProcessPage() {
           footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
         />
       </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       </PageSourcesGate>
+
+      <PageDataTables pageKey={PAGE_KEY} />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
     </section>
