@@ -2,40 +2,9 @@ import { articles } from "../blog/data";
 
 const BASE = "https://revold.ai";
 
-const STATIC_PAGES = [
-  "",
-  "/pourquoi-revold",
-  "/demo",
-  "/essai-gratuit",
-  "/contact",
-  "/integrations",
-  "/integrations/hubspot",
-  "/integrations/stripe",
-  "/blog",
-  "/produits/synchronisation",
-  "/produits/reporting-cross-source",
-  "/produits/resolution-entites",
-  "/produits/insights-ia",
-  "/produits/audit-crm",
-  "/produits/alertes-previsions",
-  "/solutions/optimiser-revenus",
-  "/solutions/fiabiliser-donnees",
-  "/solutions/accelerer-cycles-vente",
-  "/solutions/piloter-performance",
-  "/solutions/unifier-stack",
-  "/solutions/reduire-churn",
-  "/equipes/direction",
-  "/equipes/marketing",
-  "/equipes/sales",
-  "/equipes/revops",
-  "/equipes/csm",
-  "/equipes/finance",
-  "/legal/confidentialite",
-  "/legal/cgu",
-  "/legal/securite",
-  "/legal/rgpd",
-  "/legal/dpa",
-];
+// Stratégie d'indexation VOLONTAIREMENT resserrée : seule la home et le blog
+// sont indexés (les autres pages sont noindex — layouts/metadata des sections).
+const STATIC_PAGES = ["", "/blog"];
 
 export async function GET() {
   const staticEntries = STATIC_PAGES.map(

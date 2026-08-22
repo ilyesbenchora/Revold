@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
+
+
+// Indexation resserrée : home + blog uniquement — section noindex.
+export const metadata: Metadata = { robots: { index: false, follow: true } };
 
 const TEAMS = [
   { label: "Direction / CEO", href: "/equipes/direction" },

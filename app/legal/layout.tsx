@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { RevoldLogo } from "@/components/revold-logo";
 import { SiteNavbar } from "@/components/site-navbar";
+
+
+// Indexation resserrée : home + blog uniquement — section noindex.
+export const metadata: Metadata = { robots: { index: false, follow: true } };
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
   return (
