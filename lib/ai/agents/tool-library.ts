@@ -3,6 +3,7 @@ import { fetchPaiementFacturationFor } from "@/lib/audit/paiement-facturation-da
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { fetchAdsPerformance } from "@/lib/integrations/sources/ads";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 /**
  * Performance publicité & web (Google Analytics/Ads, Meta Ads, LinkedIn Ads) sur
@@ -315,7 +316,7 @@ export const getPipelineStageBreakdown: AgentTool = {
     let after: string | undefined;
     let page = 0;
     do {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+      const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

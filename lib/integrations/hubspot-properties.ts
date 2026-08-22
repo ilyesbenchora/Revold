@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 // Vérification de l'existence d'une propriété HubSpot (ex : la propriété
 // custom `siren` sur les companies, requise par le mapping des identifiants).
 // Le lookup se fait par nom interne ; à défaut, on tente de retrouver la
@@ -71,7 +72,7 @@ export async function checkHubSpotProperty(
   const wanted = [labelHint ?? "", trimmed].map(normalizeLabel).filter(Boolean);
   if (wanted.length === 0) return NOT_FOUND;
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/properties/${objectType}`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/properties/${objectType}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return NOT_FOUND;

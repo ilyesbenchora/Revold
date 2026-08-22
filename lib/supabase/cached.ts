@@ -17,6 +17,7 @@ import {
   EMPTY_SNAPSHOT,
   type HubSpotSnapshot,
 } from "@/lib/integrations/hubspot-snapshot";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 /**
  * Request-scoped cached helpers.
@@ -187,7 +188,7 @@ export const getHubspotOwnersCount = cache(async (): Promise<number> => {
   const token = await getHubSpotToken(supabase, orgId);
   if (!token) return 0;
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return 0;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ async function listSequences(token: string): Promise<{ sequences: Array<{ id: st
   try {
     // L'API séquences est scopée par utilisateur : on essaie les premiers
     // owners porteurs d'un userId jusqu'à obtenir une liste.
-    const ownersRes = await fetch("https://api.hubapi.com/crm/v3/owners?limit=20", {
+    const ownersRes = await hubFetch("https://api.hubapi.com/crm/v3/owners?limit=20", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!ownersRes.ok) return { sequences: [], error: `Owners inaccessibles (HTTP ${ownersRes.status})` };
@@ -28,7 +29,7 @@ async function listSequences(token: string): Promise<{ sequences: Array<{ id: st
     const userIds = owners.map((o) => o.userId).filter((u): u is number => typeof u === "number");
     let lastError: string | null = "Aucun utilisateur HubSpot trouvé";
     for (const userId of userIds.slice(0, 5)) {
-      const res = await fetch(`https://api.hubapi.com/automation/v4/sequences?userId=${userId}&limit=100`, {
+      const res = await hubFetch(`https://api.hubapi.com/automation/v4/sequences?userId=${userId}&limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 403) {

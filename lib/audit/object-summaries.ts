@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type SummaryMetric = { label: string; pct: number; missing?: boolean };
 
@@ -65,7 +66,7 @@ export async function computeObjectSummaries(
   let dealsOwner = 0;
   if (hubspotToken && dealsTotal > 0) {
     try {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+      const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,7 +111,7 @@ export async function computeObjectSummaries(
           const propName = (hubspotFieldMap[def.canonical] ?? def.defaultField).trim();
           if (!propName) return null;
           try {
-            const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
+            const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
               method: "POST",
               headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
               body: JSON.stringify({

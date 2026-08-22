@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 /**
  * Moteur de la boîte d'actions (Suivi → Actions).
@@ -750,7 +751,7 @@ export async function executeHubspotTask(
       hs_task_type: "TODO",
     };
     if (ownerId) properties.hubspot_owner_id = ownerId;
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/tasks", {
       method: "POST",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties, associations }),
@@ -784,7 +785,7 @@ export async function executeHubspotMerge(
     return { ok: false, detail: "Payload de fusion incomplet." };
   }
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${type}/merge`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/${type}/merge`, {
       method: "POST",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ primaryObjectId: payload.primaryHubspotId, objectIdToMerge: payload.mergeHubspotId }),
@@ -834,7 +835,7 @@ export async function executeHubspotSequenceEnroll(
   let userId: number | null = null;
   let senderEmail: string | null = null;
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/owners/${encodeURIComponent(deal.ownerId)}`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/owners/${encodeURIComponent(deal.ownerId)}`, {
       headers: { Authorization: `Bearer ${hubspotToken}` },
     });
     if (res.ok) {
@@ -895,7 +896,7 @@ export async function executeHubspotCompanyUpdate(
     return { ok: false, detail: "Payload d'enrichissement incomplet." };
   }
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${encodeURIComponent(payload.companyHubspotId)}`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/companies/${encodeURIComponent(payload.companyHubspotId)}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties: payload.hubspotProperties }),
@@ -973,7 +974,7 @@ export async function executeHubspotCreateDeal(
   if (!payload.companyHubspotId || !payload.dealName) return { ok: false, detail: "Payload de deal incomplet." };
   const closeMs = payload.dealCloseDate ? new Date(`${payload.dealCloseDate}T00:00:00Z`).getTime() : Date.now() + 30 * DAY_MS;
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/deals", {
       method: "POST",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1012,7 +1013,7 @@ export async function executeHubspotDealUpdate(
   }
   const ms = new Date(`${payload.dealCloseDate}T00:00:00Z`).getTime();
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/deals/${payload.dealHubspotId}`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/deals/${payload.dealHubspotId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties: { closedate: String(ms) } }),
@@ -1043,7 +1044,7 @@ export async function executeHubspotCreateContact(
     else properties.lastname = payload.subject.trim();
   }
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/contacts", {
       method: "POST",
       headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties, associations }),

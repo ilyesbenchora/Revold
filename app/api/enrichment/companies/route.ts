@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { vatFromSiren, employeeMidpointFromRange } from "@/lib/enrichment/company-enrichment";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -222,7 +223,7 @@ export async function POST(request: Request) {
         const mid = employeeMidpointFromRange(item.employeeRange);
         if (mid != null) properties.numberofemployees = String(mid);
         try {
-          const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
+          const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
             method: "PATCH",
             headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({ properties }),

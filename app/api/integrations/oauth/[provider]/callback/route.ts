@@ -73,7 +73,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     return redirectTo(SETTINGS, { oauth_error: `Échec de l'enregistrement (${p.label})` });
   }
 
-  const res = redirectTo("/dashboard/integration/mes-outils", { connected: provider });
+  // 1er outil de données : auto-sélectionné comme source de toutes les pages
+  // (rien à choisir) → Mes outils. À partir de deux outils : page « Outil
+  // source par page » pour arbitrer les sources.
+  let singleTool = false;
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const { autoMapSingleTool } = await import("@/lib/integrations/tool-mappings");
+    singleTool = await autoMapSingleTool(supabase, orgId, provider, auth.user?.id ?? null);
+  } catch {
+    /* best effort */
+  }
+  const res = singleTool
+    ? redirectTo("/dashboard/integration/mes-outils", { connected: provider })
+    : redirectTo(SETTINGS, { connected: provider });
   res.cookies.set(`oauth_state_${provider}`, "", { path: "/", maxAge: 0 });
   return res;
 }

@@ -13,6 +13,7 @@
 
 import { detectWorkflowIntegrations, type WorkflowIntegrationHit } from "./detect-workflow-integrations";
 import { detectAuditInstalls, type AuditInstall } from "./detect-audit-installs";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 const HS_API = "https://api.hubapi.com";
 
@@ -262,7 +263,7 @@ export type PortalAppForMatching = {
 };
 
 async function fetchProperties(token: string, objectType: string): Promise<RawProperty[]> {
-  const res = await fetch(`${HS_API}/crm/v3/properties/${objectType}`, {
+  const res = await hubFetch(`${HS_API}/crm/v3/properties/${objectType}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return [];
@@ -284,7 +285,7 @@ type RawPropertyGroup = { name: string; label: string; objectType: string };
  */
 async function fetchPropertyGroups(token: string, objectType: string): Promise<RawPropertyGroup[]> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/properties/${objectType}/groups`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/properties/${objectType}/groups`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -301,7 +302,7 @@ async function fetchPropertyGroups(token: string, objectType: string): Promise<R
 
 async function countTotal(token: string, objectType: string): Promise<number> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ filterGroups: [], limit: 1 }),
@@ -316,7 +317,7 @@ async function countTotal(token: string, objectType: string): Promise<number> {
 
 async function countWithProperty(token: string, objectType: string, propertyName: string): Promise<number> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -345,7 +346,7 @@ async function fetchSourceDetails(
     // Sort by createdate DESC so the sample contains the MOST RECENT records
     // — this maximises the chance of catching apps that recently synced data
     // (Mailchimp, Zapier, etc.) instead of always seeing the oldest contacts.
-    const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -385,7 +386,7 @@ async function fetchEngagementSources(
   engagementType: "calls" | "emails" | "meetings" | "notes" | "tasks",
 ): Promise<Record<string, { count: number; owners: Record<string, number> }>> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/objects/${engagementType}/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/${engagementType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -434,7 +435,7 @@ async function fetchOwnersByProperty(
     };
     if (after) body.after = after;
 
-    const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -483,7 +484,7 @@ export async function detectIntegrations(
     countTotal(token, "contacts"),
     countTotal(token, "companies"),
     countTotal(token, "deals"),
-    fetch(`${HS_API}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` } })
+    hubFetch(`${HS_API}/crm/v3/owners?limit=100`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.ok ? r.json() : { results: [] }),
     fetchSourceDetails(token, "contacts"),
     fetchSourceDetails(token, "companies"),
@@ -515,7 +516,7 @@ export async function detectIntegrations(
   for (const needle of TARGETED_SEARCH_NAMES) {
     for (const objectType of ["contacts", "companies", "deals"]) {
       try {
-        const res = await fetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
+        const res = await hubFetch(`${HS_API}/crm/v3/objects/${objectType}/search`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -15,6 +15,7 @@ import {
   type HubSpotDeal,
 } from "./hubspot";
 import { computeAllKpis } from "@/lib/kpi/compute";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 type SyncResult = { count: number; errors: string[] };
 
@@ -166,7 +167,7 @@ function mapContact(hscont: HubSpotContact, orgId: string) {
 type StageInfo = { isWon: boolean; isLost: boolean; probability: number };
 
 async function fetchStageMap(accessToken: string): Promise<Map<string, StageInfo>> {
-  const res = await fetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
+  const res = await hubFetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) return new Map();

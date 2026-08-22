@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchAllKpiData, computeMetricValues } from "@/lib/reports/report-kpis";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export async function GET() {
   const orgId = await getOrgId();
@@ -29,7 +30,7 @@ export async function GET() {
   const tests: Record<string, string> = {};
   for (const objectType of ["contacts", "deals", "calls", "meetings", "emails", "tickets", "companies"]) {
     try {
-      const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}?limit=1`, {
+      const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/${objectType}?limit=1`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });

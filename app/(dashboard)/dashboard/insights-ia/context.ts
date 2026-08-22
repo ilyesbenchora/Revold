@@ -8,6 +8,7 @@ import { filterBusinessIntegrations } from "@/lib/integrations/integration-score
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchHubSpotEcosystemCounts, EMPTY_ECOSYSTEM_COUNTS } from "@/lib/integrations/hubspot";
 import { getHubspotSnapshot } from "@/lib/supabase/cached";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 const PCT = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
 
@@ -73,7 +74,7 @@ export async function getOrgHubspotPortalId(
  */
 async function fetchHubSpotCount(token: string, objectType: string, body?: object): Promise<number> {
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ limit: 1, ...body }),
@@ -106,7 +107,7 @@ async function fetchLifecycleDistribution(token: string): Promise<{
   // 1. Définition de la propriété (inclut les options custom)
   let stages: Array<{ value: string; label: string }> = [];
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/properties/contacts/lifecyclestage", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/properties/contacts/lifecyclestage", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
@@ -737,10 +738,10 @@ export async function fetchWorkflows(
   if (token) {
     try {
       const [wfRes, ownerRes] = await Promise.all([
-        fetch("https://api.hubapi.com/automation/v4/flows?limit=100", {
+        hubFetch("https://api.hubapi.com/automation/v4/flows?limit=100", {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+        hubFetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({

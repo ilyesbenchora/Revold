@@ -19,6 +19,7 @@ import type { ConnectorAuditReport, IdentifierCoverage } from "@/lib/integration
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { PROVIDER_IDENTIFIERS } from "@/lib/integrations/identifier-catalog";
 import type { ConnectedToolOption } from "@/lib/integrations/tool-mappings";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type ToolAuditData = {
   key: string;
@@ -99,7 +100,7 @@ async function hubspotHasPropertyCount(
   property: string,
 ): Promise<number | null> {
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({

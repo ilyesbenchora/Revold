@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Detect HubSpot apps installed on the portal — both public marketplace apps
  * and private apps. Tries several HubSpot endpoints in order of completeness:
@@ -48,7 +49,7 @@ type IntegratorsAppRow = {
 
 async function fetchPortalId(token: string): Promise<string | null> {
   try {
-    const res = await fetch(`${HS_API}/account-info/v3/details`, {
+    const res = await hubFetch(`${HS_API}/account-info/v3/details`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -76,7 +77,7 @@ async function fetchInstalledAppsViaIntegrators(
 
   for (const path of candidatePaths) {
     try {
-      const res = await fetch(`${HS_API}${path}`, {
+      const res = await hubFetch(`${HS_API}${path}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
@@ -112,7 +113,7 @@ async function fetchInstalledAppsViaIntegrators(
 
 async function fetchPrivateAppsDaily(token: string): Promise<PortalApp[]> {
   try {
-    const res = await fetch(`${HS_API}/account-info/v3/api-usage/daily/private-apps`, {
+    const res = await hubFetch(`${HS_API}/account-info/v3/api-usage/daily/private-apps`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -138,7 +139,7 @@ async function fetchAllConsumersDaily(
   token: string,
 ): Promise<Array<{ name: string; usageCount: number }>> {
   try {
-    const res = await fetch(`${HS_API}/account-info/v3/api-usage/daily`, {
+    const res = await hubFetch(`${HS_API}/account-info/v3/api-usage/daily`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];

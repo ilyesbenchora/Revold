@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Detect integrations that hook into HubSpot via workflow webhooks.
  *
@@ -29,7 +30,7 @@ export type WorkflowIntegrationHit = {
 
 export async function detectWorkflowIntegrations(token: string): Promise<WorkflowIntegrationHit[]> {
   try {
-    const res = await fetch(`${HS_API}/automation/v4/flows?limit=100`, {
+    const res = await hubFetch(`${HS_API}/automation/v4/flows?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];

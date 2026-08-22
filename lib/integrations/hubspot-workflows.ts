@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Audit avancé EXHAUSTIF des workflows HubSpot.
  *
@@ -422,7 +423,7 @@ type V4FlowDetail = {
 
 async function fetchV4FlowDetail(token: string, id: string): Promise<V4FlowDetail | null> {
   try {
-    const r = await fetch(`${HS_API}/automation/v4/flows/${id}`, {
+    const r = await hubFetch(`${HS_API}/automation/v4/flows/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return null;
@@ -457,7 +458,7 @@ type V3WorkflowDetail = {
 
 async function fetchV3WorkflowDetail(token: string, id: string): Promise<V3WorkflowDetail | null> {
   try {
-    const r = await fetch(`${HS_API}/automation/v3/workflows/${id}`, {
+    const r = await hubFetch(`${HS_API}/automation/v3/workflows/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return null;
@@ -522,7 +523,7 @@ export async function auditHubSpotWorkflows(
   let portalId: string | undefined = portalIdHint ?? undefined;
   if (!portalId) {
     try {
-      const r = await fetch(`${HS_API}/oauth/v1/access-tokens/${token}`);
+      const r = await hubFetch(`${HS_API}/oauth/v1/access-tokens/${token}`);
       if (r.ok) {
         const info = (await r.json()) as { hub_id?: number };
         if (info.hub_id) portalId = String(info.hub_id);
@@ -543,8 +544,8 @@ export async function auditHubSpotWorkflows(
   };
 
   const [v4Res, v3Res] = await Promise.all([
-    fetch(`${HS_API}/automation/v4/flows?limit=200`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
-    fetch(`${HS_API}/automation/v3/workflows`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
+    hubFetch(`${HS_API}/automation/v4/flows?limit=200`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
+    hubFetch(`${HS_API}/automation/v3/workflows`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
   ]);
 
   const v4: V4Flow[] = v4Res?.ok ? ((await v4Res.json()).results ?? []) : [];

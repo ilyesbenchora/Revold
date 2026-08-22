@@ -124,6 +124,40 @@ export async function getToolKeysBatch(
   return out;
 }
 
+/**
+ * PREMIER outil de données connecté : il devient automatiquement la source de
+ * toutes les pages SANS mapping — avec un seul outil il n'y a rien à choisir,
+ * inutile d'envoyer l'utilisateur sur « Outil source par page ». Renvoie true
+ * si l'org n'a qu'un seul outil de données (→ pas de redirection vers la page
+ * source) ; à partir de deux outils, false (l'utilisateur choisit).
+ */
+export async function autoMapSingleTool(
+  supabase: SupabaseClient,
+  orgId: string,
+  toolKey: string,
+  userId: string | null,
+): Promise<boolean> {
+  const connected = (await listConnectedTools(supabase, orgId)).filter(
+    (t) => t.category !== "communication",
+  );
+  if (connected.length !== 1) return connected.length < 1;
+  if (connected[0].key !== toolKey) return true;
+  try {
+    const { MAPPING_SECTIONS, AGENT_SECTION_IDS } = await import("@/lib/integrations/mapping-pages");
+    const pageKeys = MAPPING_SECTIONS.filter((s) => !AGENT_SECTION_IDS.has(s.id)).flatMap((s) =>
+      s.pages.map((p) => p.key),
+    );
+    const existing = await getToolKeysBatch(supabase, orgId, pageKeys);
+    for (const key of pageKeys) {
+      if ((existing[key] ?? []).length > 0) continue;
+      await setToolKeys(supabase, orgId, key, [toolKey], userId);
+    }
+  } catch {
+    /* best effort — l'utilisateur peut toujours régler manuellement */
+  }
+  return true;
+}
+
 export async function setToolKeys(
   supabase: SupabaseClient,
   orgId: string,

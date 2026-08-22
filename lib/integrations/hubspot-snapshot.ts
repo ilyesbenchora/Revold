@@ -12,6 +12,7 @@ import {
   EMPTY_ECOSYSTEM_COUNTS,
   type HubSpotEcosystemCounts,
 } from "./hubspot";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
@@ -66,7 +67,7 @@ async function searchTotal(
   kpiKey?: string,
 ): Promise<number> {
   try {
-    const res = await fetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ limit: 1, ...body }),
@@ -115,7 +116,7 @@ async function searchSum(
 
   do {
     try {
-      const res = await fetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
+      const res = await hubFetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,7 +172,7 @@ export async function fetchLifecycleDistribution(token: string): Promise<{
   // 1. Définition de la propriété (inclut les options custom)
   let stages: Array<{ value: string; label: string }> = [];
   try {
-    const res = await fetch(`${HUBSPOT_API}/crm/v3/properties/contacts/lifecyclestage`, {
+    const res = await hubFetch(`${HUBSPOT_API}/crm/v3/properties/contacts/lifecyclestage`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
@@ -256,7 +257,7 @@ export type PipelineInfo = {
 
 export async function fetchDealsPipelines(token: string): Promise<PipelineInfo[]> {
   try {
-    const res = await fetch(`${HUBSPOT_API}/crm/v3/pipelines/deals`, {
+    const res = await hubFetch(`${HUBSPOT_API}/crm/v3/pipelines/deals`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -309,7 +310,7 @@ export async function fetchDealsCountByStage(
     let after: string | undefined;
     let page = 0;
     do {
-      const res = await fetch(`${HUBSPOT_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HUBSPOT_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -596,7 +597,7 @@ export async function fetchHubSpotSnapshot(token: string): Promise<HubSpotSnapsh
     // ── Pipelines ──
     fetchDealsPipelines(token),
     // ── Owners ──
-    fetch(`${HUBSPOT_API}/crm/v3/owners?limit=100`, {
+    hubFetch(`${HUBSPOT_API}/crm/v3/owners?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {

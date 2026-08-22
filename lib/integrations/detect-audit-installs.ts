@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Detect HubSpot integration installs via the Audit Logs API.
  *
@@ -50,7 +51,7 @@ export async function detectAuditInstalls(token: string): Promise<AuditInstall[]
   let rows: AuditLogRow[] = [];
   for (const path of candidatePaths) {
     try {
-      const res = await fetch(`${HS_API}${path}`, {
+      const res = await hubFetch(`${HS_API}${path}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       // 403 = plan limitation, 404 = endpoint shape not supported, 401 = scope missing

@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * HubSpot Pipelines helper — fetches the complete pipeline structure
  * (pipeline IDs → labels, stage IDs → labels + probabilities + order)
@@ -71,7 +72,7 @@ export type PipelineAnalytics = {
  */
 export async function fetchPipelines(token: string): Promise<HsPipeline[]> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/pipelines/deals`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/pipelines/deals`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -127,7 +128,7 @@ export async function fetchOpenDeals(token: string): Promise<HsDealRow[]> {
     if (after) body.after = after;
 
     try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -207,7 +208,7 @@ export async function fetchOpenDealsForPipeline(
     if (after) body.after = after;
 
     try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -256,7 +257,7 @@ async function countDealsForPipeline(
   isWon: boolean,
 ): Promise<number> {
   try {
-    const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+    const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -327,7 +328,7 @@ export async function fetchClosedDealsByPipeline(
       };
       if (after) body.after = after;
       try {
-        const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+        const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify(body),

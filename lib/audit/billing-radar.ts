@@ -16,6 +16,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type RadarBasis = "contract" | "rhythm";
 
@@ -414,7 +415,7 @@ export async function computeWonToInvoiceDetail(
     const ownerNames = new Map<string, string>();
     if (hubspotToken && (byOwnerDelays.size > 0 || byOwnerUnbilled.size > 0)) {
       try {
-        const res = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+        const res = await hubFetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
           headers: { Authorization: `Bearer ${hubspotToken}` },
         });
         if (res.ok) {

@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Propriétaires (owners) HubSpot — lecture live de l'API.
  *
@@ -17,7 +18,7 @@ export type Owner = {
 
 /** Owners du portail (100 max) — liste vide si HubSpot refuse la lecture. */
 export async function fetchOwners(token: string): Promise<Owner[]> {
-  const res = await fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+  const res = await hubFetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return [];

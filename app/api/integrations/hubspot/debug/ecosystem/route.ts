@@ -13,6 +13,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchHubSpotEcosystemCounts } from "@/lib/integrations/hubspot";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function GET() {
 
   async function probe(label: string, url: string, init?: RequestInit) {
     try {
-      const res = await fetch(`https://api.hubapi.com${url}`, {
+      const res = await hubFetch(`https://api.hubapi.com${url}`, {
         headers: { Authorization: `Bearer ${token}`, ...init?.headers },
         ...init,
       });

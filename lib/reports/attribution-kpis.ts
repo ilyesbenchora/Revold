@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Attribution KPI Computation
  *
@@ -67,7 +68,7 @@ async function hubspotSearch(
     }
     if (after) body.after = after;
 
-    const res = await fetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
+    const res = await hubFetch(`${HUBSPOT_API}/crm/v3/objects/${objectType}/search`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -91,7 +92,7 @@ async function hubspotSearch(
 }
 
 async function fetchOwners(token: string): Promise<HubSpotOwner[]> {
-  const res = await fetch(`${HUBSPOT_API}/crm/v3/owners?limit=100`, {
+  const res = await hubFetch(`${HUBSPOT_API}/crm/v3/owners?limit=100`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return [];

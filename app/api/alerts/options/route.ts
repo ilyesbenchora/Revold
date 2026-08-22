@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 type HsProperty = {
   name: string;
@@ -23,13 +24,13 @@ export async function GET() {
 
   try {
     const [pipelinesRes, ownersRes, contactPropsRes] = await Promise.all([
-      fetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
+      hubFetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
         headers: { Authorization: `Bearer ${token}` },
       }),
-      fetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
+      hubFetch("https://api.hubapi.com/crm/v3/owners?limit=100", {
         headers: { Authorization: `Bearer ${token}` },
       }),
-      fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
+      hubFetch("https://api.hubapi.com/crm/v3/properties/contacts", {
         headers: { Authorization: `Bearer ${token}` },
       }),
     ]);

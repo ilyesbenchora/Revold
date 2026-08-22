@@ -10,6 +10,7 @@ import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { buildRevenueSimulations } from "@/lib/simulations/revenue-library";
 import type { DealLite } from "@/lib/simulations/cycle-ventes-library";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,7 +23,7 @@ async function fetchAllDealsForPipeline(token: string, pipelineId: string): Prom
   let page = 0;
   do {
     try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

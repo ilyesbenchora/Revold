@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Close Date Management — sortie utilisée dans Forecast Management.
  *
@@ -79,7 +80,7 @@ async function searchDeals(
 
   for (let batch = 0; batch < batches; batch++) {
     try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

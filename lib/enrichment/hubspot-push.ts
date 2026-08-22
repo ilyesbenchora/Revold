@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Poussée des données d'enrichissement vers HubSpot (fiches companies) et
  * gestion des propriétés cibles (siren/siret/TVA). Partagé par le moteur de
@@ -14,7 +15,7 @@ export async function pushHubspot(token: string, hsId: string, properties: Recor
     // jamais d'option dans la liste du client, et les autres données passent.
     const resolved = await alignEnumProperties(token, properties);
     if (Object.keys(resolved).length === 0) return true;
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties: resolved }),
@@ -32,7 +33,7 @@ export async function pushHubspot(token: string, hsId: string, properties: Recor
         for (const [k, v] of Object.entries(resolved)) if (existing.has(k)) kept[k] = v;
         const n = Object.keys(kept).length;
         if (n > 0 && n < Object.keys(resolved).length) {
-          const retry = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
+          const retry = await hubFetch(`https://api.hubapi.com/crm/v3/objects/companies/${hsId}`, {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({ properties: kept }),
@@ -58,7 +59,7 @@ async function companyPropertyMeta(token: string): Promise<Map<string, PropertyM
   const cached = propertyMetaCache.get(token);
   if (cached && Date.now() - cached.at < PROPERTY_CACHE_MS) return cached.meta;
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/properties/companies", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/properties/companies", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -217,7 +218,7 @@ export async function ensureHubSpotIdProperty(
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const wantUnique = opts?.unique !== false;
   try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/properties/companies/${encodeURIComponent(name)}`, { headers });
+    const res = await hubFetch(`https://api.hubapi.com/crm/v3/properties/companies/${encodeURIComponent(name)}`, { headers });
     if (res.ok) {
       const d = (await res.json()) as { hasUniqueValue?: boolean };
       // uniqueValue ne conditionne un avertissement que pour les identifiants
@@ -228,7 +229,7 @@ export async function ensureHubSpotIdProperty(
     if (res.status !== 404) return { name, label, status: "error", uniqueValue: false };
 
     const create = (hasUniqueValue: boolean) =>
-      fetch("https://api.hubapi.com/crm/v3/properties/companies", {
+      hubFetch("https://api.hubapi.com/crm/v3/properties/companies", {
         method: "POST",
         headers,
         body: JSON.stringify({

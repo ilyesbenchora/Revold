@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Récupère les deals "à risque" pour un pipeline donné OU pour tous les
  * pipelines.
@@ -65,7 +66,7 @@ async function fetchOpenDealsForRisk(
   // pipeline B2B PME/mid-market et borné pour respecter le maxDuration Vercel.
   for (let batch = 0; batch < 50; batch++) {
     try {
-      const res = await fetch(`${HS_API}/crm/v3/objects/deals/search`, {
+      const res = await hubFetch(`${HS_API}/crm/v3/objects/deals/search`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

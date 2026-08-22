@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * HubSpot Integration
  * OAuth2 flow + data sync (deals, contacts, companies, activities)
@@ -221,7 +222,7 @@ export type HubSpotAccountInfo = {
 };
 
 export async function fetchHubSpotAccountInfo(accessToken: string): Promise<HubSpotAccountInfo> {
-  const res = await fetch(`${HUBSPOT_API}/oauth/v1/access-tokens/${accessToken}`);
+  const res = await hubFetch(`${HUBSPOT_API}/oauth/v1/access-tokens/${accessToken}`);
   if (!res.ok) throw new Error(`HubSpot account info failed: ${res.status}`);
   return res.json();
 }
@@ -267,7 +268,7 @@ export type HubSpotList = {
 
 export async function fetchHubSpotLists(accessToken: string): Promise<HubSpotList[]> {
   try {
-    const res = await fetch(`${HUBSPOT_API}/crm/v3/lists/search`, {
+    const res = await hubFetch(`${HUBSPOT_API}/crm/v3/lists/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ count: 100 }),
@@ -297,7 +298,7 @@ export async function fetchHubSpotLists(accessToken: string): Promise<HubSpotLis
 }
 
 export async function fetchHubSpotCustomObjects(accessToken: string): Promise<HubSpotCustomObject[]> {
-  const res = await fetch(`${HUBSPOT_API}/crm/v3/schemas`, {
+  const res = await hubFetch(`${HUBSPOT_API}/crm/v3/schemas`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
@@ -328,7 +329,7 @@ export async function fetchHubSpotCustomObjects(accessToken: string): Promise<Hu
 }
 
 export async function exchangeHubSpotCode(code: string): Promise<HubSpotTokens> {
-  const res = await fetch(HUBSPOT_TOKEN_URL, {
+  const res = await hubFetch(HUBSPOT_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -345,7 +346,7 @@ export async function exchangeHubSpotCode(code: string): Promise<HubSpotTokens> 
 }
 
 export async function refreshHubSpotToken(refreshToken: string): Promise<HubSpotTokens> {
-  const res = await fetch(HUBSPOT_TOKEN_URL, {
+  const res = await hubFetch(HUBSPOT_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -639,7 +640,7 @@ async function paginatedCountWithFallback(
   }
   // 2) Fallback legacy
   try {
-    const r = await fetch(`${HUBSPOT_API}${fallbackEndpoint}`, {
+    const r = await hubFetch(`${HUBSPOT_API}${fallbackEndpoint}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!r.ok) {
@@ -699,7 +700,7 @@ export async function fetchHubSpotEcosystemCounts(
   // ── Custom objects : compter UNIQUEMENT les schemas non-standard ──
   // /crm/v3/schemas retourne aussi les standard objects (préfixe "0-").
   // Les custom objects ont objectTypeId qui commence par "2-".
-  const customObjectsCount = await fetch(`${HUBSPOT_API}/crm/v3/schemas`, {
+  const customObjectsCount = await hubFetch(`${HUBSPOT_API}/crm/v3/schemas`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
     .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -761,7 +762,7 @@ export async function fetchHubSpotEcosystemCounts(
     paginatedCount(accessToken, "/settings/v3/users", 10, D("users")),
 
     // Teams
-    fetch(`${HUBSPOT_API}/settings/v3/users/teams`, {
+    hubFetch(`${HUBSPOT_API}/settings/v3/users/teams`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -772,7 +773,7 @@ export async function fetchHubSpotEcosystemCounts(
     safeCount(accessToken, "/crm/v3/lists/search", { count: 1, processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"] }),
 
     // Pipelines
-    fetch(`${HUBSPOT_API}/crm/v3/pipelines/deals`, {
+    hubFetch(`${HUBSPOT_API}/crm/v3/pipelines/deals`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -822,10 +823,10 @@ async function fetchWorkflowsCounts(accessToken: string): Promise<{ total: numbe
   type Wf = { id: string | number; enabled?: boolean; isEnabled?: boolean };
 
   const [v3Res, v4Res] = await Promise.all([
-    fetch(`${HUBSPOT_API}/automation/v3/workflows`, {
+    hubFetch(`${HUBSPOT_API}/automation/v3/workflows`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     }).catch(() => null),
-    fetch(`${HUBSPOT_API}/automation/v4/flows?limit=200`, {
+    hubFetch(`${HUBSPOT_API}/automation/v4/flows?limit=200`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     }).catch(() => null),
   ]);

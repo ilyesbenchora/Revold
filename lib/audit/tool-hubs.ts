@@ -13,6 +13,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { fetchStripeLiveCounts } from "@/lib/integrations/sources/stripe";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type ToolEntityCount = {
   label: string;
@@ -147,7 +148,7 @@ export async function buildToolHubs(
     let ownerPct = 0;
     if (hubspotToken && dealsTotal > 0) {
       try {
-        const res = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
+        const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -191,7 +192,7 @@ export async function buildToolHubs(
           const propName = (fieldMap[def.canonical] ?? def.defaultField).trim();
           if (!propName) return;
           try {
-            const res = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
+            const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
               method: "POST",
               headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
               body: JSON.stringify({

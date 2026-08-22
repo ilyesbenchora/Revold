@@ -1,3 +1,4 @@
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 /**
  * Shared data layer for the Audit > Service Client section.
  *
@@ -35,7 +36,7 @@ async function fetchAllTickets(token: string): Promise<TicketHS[]> {
   let page = 0;
   do {
     try {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/tickets/search", {
+      const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/tickets/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -66,7 +67,7 @@ async function fetchTicketPipeline(
   token: string,
 ): Promise<{ closedStageIds: Set<string>; stagesById: Map<string, string> }> {
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/pipelines/tickets", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/pipelines/tickets", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { closedStageIds: new Set(), stagesById: new Map() };

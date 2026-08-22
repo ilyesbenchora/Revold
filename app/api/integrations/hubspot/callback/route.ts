@@ -171,10 +171,23 @@ export async function GET(req: NextRequest) {
     console.warn("[hubspot oauth callback] CRON_SECRET not set, skipping auto-sync");
   }
 
+  // ── Destination post-connexion ──
+  // 1er outil de données : il est auto-sélectionné comme source de toutes les
+  // pages (rien à choisir) → retour sur Mes outils. À partir de deux outils :
+  // page « Outil source par page » pour arbitrer les sources.
+  let singleTool = false;
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const { autoMapSingleTool } = await import("@/lib/integrations/tool-mappings");
+    singleTool = await autoMapSingleTool(supabase, orgId, "hubspot", auth.user?.id ?? null);
+  } catch {
+    /* best effort */
+  }
+
   // Cleanup cookie
-  const res = redirectTo("/dashboard/parametres/integrations", {
-    hs_connected: info.hub_domain,
-  });
+  const res = singleTool
+    ? redirectTo("/dashboard/integration/mes-outils", { connected: info.hub_domain })
+    : redirectTo("/dashboard/parametres/integrations", { hs_connected: info.hub_domain });
   res.cookies.delete("hs_oauth_state");
   return res;
 }

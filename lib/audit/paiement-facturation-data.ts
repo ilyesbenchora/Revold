@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getToolKeysChain } from "@/lib/integrations/tool-mappings";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type InvoiceHS = {
   id: string;
@@ -47,7 +48,7 @@ async function fetchAllInvoices(token: string): Promise<InvoiceHS[]> {
   let page = 0;
   do {
     try {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/invoices/search", {
+      const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/invoices/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,7 +83,7 @@ async function fetchAllSubscriptions(token: string): Promise<SubscriptionHS[]> {
   let page = 0;
   do {
     try {
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/subscriptions/search", {
+      const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/subscriptions/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({

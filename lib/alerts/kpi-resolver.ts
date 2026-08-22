@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export type AlertFilters = {
   pipeline_id?: string | null;
@@ -113,7 +114,7 @@ async function queryHubSpotContacts(
         limit: 1,
       };
       try {
-        const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify(srcBody),
@@ -128,7 +129,7 @@ async function queryHubSpotContacts(
   }
 
   try {
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),

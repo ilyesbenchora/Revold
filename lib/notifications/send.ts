@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "Revold <noreply@revold.ai>";
 
@@ -276,7 +277,7 @@ async function sendHubSpotNotification(
     // dans la cloche HubSpot.
     if (ownerId) properties.hubspot_owner_id = ownerId;
 
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/tasks", {
+    const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/tasks", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { loadIdentifierAccessor } from "@/lib/integrations/sync/field-mapping";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 const HS_API = "https://api.hubapi.com";
 const PAGE_SIZE = 100;
@@ -70,7 +71,7 @@ async function hsFetch(
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
     try {
-      const res = await fetch(`${HS_API}${path}`, {
+      const res = await hubFetch(`${HS_API}${path}`, {
         ...init,
         headers: {
           Authorization: `Bearer ${token}`,

@@ -41,6 +41,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { hubFetch } from "@/lib/integrations/hub-fetch";
 
 export const maxDuration = 60;
 
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     if (hsRow?.access_token) {
       try {
-        const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        const res = await hubFetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${hsRow.access_token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
