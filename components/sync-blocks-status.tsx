@@ -73,6 +73,15 @@ function buildPages(snapshot: HubspotSnapshotResult): RevoldPage[] {
       evidenceCount: snapshot.totalContacts + snapshot.formsCount + snapshot.marketingCampaignsCount,
     },
     {
+      id: "audit_service_client",
+      label: "Données — Service Client",
+      href: "/dashboard/audit/service-client",
+      description: "Tickets, conversations et feedback — Hub Service",
+      diagKeys: ["tickets", "openTickets", "closedTickets", "conversations", "feedback_submissions"],
+      evidenceCount:
+        snapshot.openTickets + snapshot.closedTickets + snapshot.totalConversations + snapshot.feedbackCount,
+    },
+    {
       id: "audit_paiement_facturation",
       label: "Données — Trésorerie",
       href: "/dashboard/audit/paiement-facturation",

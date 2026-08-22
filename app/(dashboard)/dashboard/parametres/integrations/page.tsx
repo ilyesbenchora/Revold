@@ -220,6 +220,10 @@ export default async function ParametresIntegrationsPage({ searchParams }: { sea
                   <div><p className="text-slate-500">Pipelines</p><p className="font-bold text-slate-900">{snapshot.pipelines.length}</p></div>
                   <div><p className="text-slate-500">Workflows</p><p className="font-bold text-slate-900">{snapshot.workflowsActiveCount}/{snapshot.workflowsCount}</p></div>
                   <div><p className="text-slate-500">Tickets</p><p className="font-bold text-slate-900">{snapshot.totalTickets.toLocaleString("fr-FR")}</p></div>
+                  {/* Hub Service : conversations Inbox + feedback CSAT/NPS — visibles
+                      dès que le portail les porte (certains clients ont le Hub Service). */}
+                  <div><p className="text-slate-500">Conversations</p><p className="font-bold text-slate-900">{snapshot.totalConversations.toLocaleString("fr-FR")}</p></div>
+                  <div><p className="text-slate-500">Feedback</p><p className="font-bold text-slate-900">{snapshot.feedbackCount.toLocaleString("fr-FR")}</p></div>
                   <div><p className="text-slate-500">Invoices</p><p className="font-bold text-slate-900">{snapshot.totalInvoices.toLocaleString("fr-FR")}</p></div>
                   <div><p className="text-slate-500">Subscriptions</p><p className="font-bold text-slate-900">{snapshot.activeSubscriptions}/{snapshot.totalSubscriptions}</p></div>
                   <div><p className="text-slate-500">Quotes</p><p className="font-bold text-slate-900">{snapshot.totalQuotes}</p></div>
