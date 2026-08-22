@@ -57,7 +57,6 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/audit/paiement-facturation/previsionnel", label: "Prévisionnel", indent: true, defaultFrom: "/dashboard/audit/paiement-facturation" },
       { href: "/dashboard/audit/service-client", label: "Service Client" },
       { href: "/dashboard/audit/service-client/process", label: "Process", indent: true, defaultFrom: "/dashboard/audit/service-client" },
-      { href: "/dashboard/audit/service-client/churn", label: "Churn", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/audit/service-client/renouvellement", label: "Renouvellement", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/audit/service-client/cross-sell-upsell", label: "Cross-sell / Upsell", indent: true, defaultFrom: "/dashboard/audit/service-client" },
       { href: "/dashboard/donnees", label: "Rapprochement données" },

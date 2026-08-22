@@ -163,6 +163,9 @@ const PROPERTIES_BY_TYPE: Record<string, string[]> = {
     "notes_next_activity_date",
     "num_notes",
     "num_associated_contacts",
+    // Produits associés au deal (line items) — socle du cross-sell/upsell :
+    // équipement multi-produit mesuré par deal, sans appel associations.
+    "hs_num_of_associated_line_items",
   ],
   tickets: [
     "subject",
@@ -751,6 +754,13 @@ async function upsertTickets(
 //   - /crm/v3/lists/search → data.lists
 //   - sinon → data.results
 
+// Propriétés explicites par type générique — un Search SANS `properties` ne
+// renvoie que des défauts inutilisables (ex : line items sans nom de produit
+// ni prix, donc aucune analyse produit possible côté cross-sell/upsell).
+const GENERIC_SEARCH_PROPERTIES: Partial<Record<HubspotObjectType, string[]>> = {
+  line_items: ["name", "price", "quantity", "amount", "hs_product_id", "hs_sku", "recurringbillingfrequency", "createdate"],
+};
+
 async function syncGenericList(
   token: string,
   endpoint: string,
@@ -758,34 +768,55 @@ async function syncGenericList(
 ): Promise<Array<Record<string, unknown>>> {
   const isSearchEndpoint = endpoint.includes("/search");
   const isListsEndpoint = endpoint.includes("/lists/search");
+  const properties = GENERIC_SEARCH_PROPERTIES[type];
 
-  let body: string | undefined;
-  if (isSearchEndpoint) {
-    if (isListsEndpoint) {
-      // Endpoint Lists v3 attend un body spécifique (count + processingTypes)
-      body = JSON.stringify({
-        count: 100,
-        processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"],
-      });
-    } else {
-      // Search standard CRM (invoices, subscriptions, quotes, ...)
-      body = JSON.stringify({ filterGroups: [], limit: 100 });
+  // Pagination : l'ancienne version s'arrêtait à la première page (100), donc
+  // les portails avec > 100 line items / invoices / quotes étaient tronqués.
+  const all: Array<Record<string, unknown>> = [];
+  let after: string | undefined;
+  for (let page = 0; page < 100; page++) {
+    let body: string | undefined;
+    let url = endpoint;
+    if (isSearchEndpoint) {
+      if (isListsEndpoint) {
+        // Endpoint Lists v3 attend un body spécifique (count + processingTypes)
+        body = JSON.stringify({
+          count: 100,
+          processingTypes: ["MANUAL", "DYNAMIC", "SNAPSHOT"],
+        });
+      } else {
+        // Search standard CRM (invoices, subscriptions, quotes, ...)
+        body = JSON.stringify({
+          filterGroups: [],
+          limit: 100,
+          ...(properties ? { properties } : {}),
+          ...(after ? { after } : {}),
+        });
+      }
+    } else if (after) {
+      url = `${endpoint}${endpoint.includes("?") ? "&" : "?"}after=${encodeURIComponent(after)}`;
     }
-  }
 
-  const res = await hsFetch(token, endpoint, {
-    method: isSearchEndpoint ? "POST" : "GET",
-    body,
-  });
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) return []; // scope manquant → skip
-    if (res.status === 404 || res.status === 405) return []; // endpoint indisponible → skip
-    throw new Error(`HubSpot ${type} ${res.status}`);
+    const res = await hsFetch(token, url, {
+      method: isSearchEndpoint ? "POST" : "GET",
+      body,
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) return all; // scope manquant → skip
+      if (res.status === 404 || res.status === 405) return all; // endpoint indisponible → skip
+      throw new Error(`HubSpot ${type} ${res.status}`);
+    }
+    const data = await res.json();
+    // Lists endpoint renvoie data.lists, tous les autres data.results
+    const records = ((isListsEndpoint ? data.lists : data.results) ?? []) as Array<Record<string, unknown>>;
+    all.push(...records);
+
+    after = data.paging?.next?.after;
+    if (!after || isListsEndpoint) break;
+    // Plafond 10 000 de l'API Search : on s'arrête proprement avant l'erreur.
+    if (isSearchEndpoint && Number(after) >= 9_901) break;
   }
-  const data = await res.json();
-  // Lists endpoint renvoie data.lists, tous les autres data.results
-  const records = (isListsEndpoint ? data.lists : data.results) ?? [];
-  return records as Array<Record<string, unknown>>;
+  return all;
 }
 
 async function upsertGeneric(

@@ -47,10 +47,17 @@ const BILLING_TILES: TileSuggestion[] = [
   { id: "flux_net", label: "Flux net", description: "Encaissements − décaissements sur les transactions synchronisées", unit: "currency", sourceCategory: "billing", aggSpec: { entity: "transactions", groupBy: "direction", measure: "sum", field: "amount" } },
 ];
 
-// ── KPIs support / rétention (agrégats canoniques) ──
+// ── KPIs support : performance & vélocité ticketing (agrégats canoniques,
+// calculés sur le miroir tickets — délais réels HubSpot, SLA, backlog) ──
 const SUPPORT_TILES: TileSuggestion[] = [
   { id: "tickets_total", label: "Tickets (total)", description: "Volume total de tickets synchronisés", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "status", measure: "count" } },
-  { id: "subs_actives", label: "Abonnements actifs", description: "Nombre d'abonnements en cours", unit: "count", sourceCategory: "billing", aggSpec: { entity: "subscriptions", groupBy: "status", measure: "count", target: "active" } },
+  { id: "tickets_backlog", label: "Backlog ouvert", description: "Tickets ouverts / en cours — charge support actuelle", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "status", measure: "count", target: "open" } },
+  { id: "tickets_resolus", label: "Tickets résolus", description: "Tickets fermés — volume traité par l'équipe", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "status", measure: "count", target: "closed" } },
+  { id: "taux_resolution_tickets", label: "Taux de résolution", description: "% de tickets fermés sur le volume total", unit: "percent", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "status", measure: "count", target: "closed", percent_of_total: true } },
+  { id: "premiere_reponse_moy", label: "1ère réponse moyenne (h)", description: "Délai moyen avant la première réponse d'un agent — vélocité d'accueil", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "replied", measure: "avg", field: "first_response_hours", target: "Répondu" } },
+  { id: "resolution_moy", label: "Résolution moyenne (h)", description: "Délai moyen entre ouverture et fermeture d'un ticket — vélocité de traitement", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "status", measure: "avg", field: "resolution_hours", target: "closed" } },
+  { id: "sla_premiere_reponse_4h", label: "SLA 1ère réponse < 4 h", description: "% des tickets répondus dont la première réponse est arrivée sous 4 h", unit: "percent", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "replied", measure: "avg", field: "sla_4h_hit", target: "Répondu", multiplier: 100 } },
+  { id: "tickets_sans_reponse", label: "Tickets sans réponse agent", description: "Tickets sans aucune réponse d'agent enregistrée — angle mort du support", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "replied", measure: "count", target: "Sans réponse" } },
 ];
 
 /** Équipe d'alerte associée aux tuiles de chaque page (KPI personnalisé + création d'alerte). */
@@ -86,9 +93,11 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
     ...BILLING_TILES,
     ...fromKpiDefs(kpisByTeam.revops.filter((k) => ["revenue_won", "weighted_pipeline", "pipeline_value", "closing_rate"].includes(k.id))),
   ],
+  // Ticketing d'abord (performance & vélocité support — cœur de la page),
+  // puis les KPIs comptes/rétention CRM du pôle CS.
   audit_service_client: [
-    ...fromKpiDefs(kpisByTeam.cs),
     ...SUPPORT_TILES,
+    ...fromKpiDefs(kpisByTeam.cs),
   ],
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
 };

@@ -47,7 +47,6 @@ export const MAPPING_SECTIONS: MappingSection[] = [
       { key: "audit_paiement_facturation_fiscal", label: "Fiscal", description: "Échéances TVA, IS, URSSAF", mode: "multi", parentKey: "audit_paiement_facturation" },
       { key: "audit_service_client", label: "Service Client", description: "Tickets, conversations, satisfaction", mode: "multi" },
       { key: "audit_service_client_process", label: "Process", description: "SLA, onboarding, handoff sales → CSM", mode: "multi", parentKey: "audit_service_client" },
-      { key: "audit_service_client_churn", label: "Churn", description: "Signaux churn, risque et impact revenue", mode: "multi", parentKey: "audit_service_client" },
       { key: "audit_service_client_cross_sell", label: "Cross-sell / Upsell", description: "ARPU, potentiel d'expansion, multi-produit", mode: "multi", parentKey: "audit_service_client" },
       { key: "audit_service_client_renouvellement", label: "Renouvellement", description: "Renewal rate, GRR, ARR sécurisé / à risque", mode: "multi", parentKey: "audit_service_client" },
     ],

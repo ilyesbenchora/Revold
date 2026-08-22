@@ -13,10 +13,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * hs_time_to_close n'existent pas. Repli sur les colonnes canoniques
  * (first_response_at / resolved_at − opened_at) pour les sources non-HubSpot.
  *
- * Used by all 5 sub-pages :
+ * Used by the Service Client pages :
  *   - /dashboard/audit/service-client (Vue d'ensemble)
  *   - /dashboard/audit/service-client/process
- *   - /dashboard/audit/service-client/churn
  *   - /dashboard/audit/service-client/cross-sell-upsell
  *   - /dashboard/audit/service-client/renouvellement
  */

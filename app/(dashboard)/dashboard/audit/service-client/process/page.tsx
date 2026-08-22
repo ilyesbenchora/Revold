@@ -127,7 +127,7 @@ export default async function ServiceClientProcessPage() {
           const m = ({
             sla_accueil: { view: "table", description: "1ère réponse, SLA < 4h, résolution moyenne, tickets/contact" },
             onboarding_livraison: { view: "table", description: "Tickets onboarding, taux de résolution, handoff sales → CSM" },
-            capacite_operationnelle: { view: "table", description: "Tickets ouverts, conversations entrantes, subscriptions actives" },
+            capacite_operationnelle: { view: "table", description: "Tickets ouverts, conversations entrantes, tickets sans réponse agent" },
           } as Record<string, { view: string; description: string }>)[key];
           const c = blockPreviewMeta(key);
           return m ? { ...m, preview: c?.preview } : c;
@@ -216,7 +216,7 @@ export default async function ServiceClientProcessPage() {
           rows={[
             { name: "Tickets ouverts", value: data.openTickets, unit: "count", cells: ["Charge actuelle CSM"] },
             { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Volume Inbox"] },
-            { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count", cells: ["Portefeuille à servir"] },
+            { name: "Tickets sans réponse agent", value: data.tickets.filter((t) => !t.properties.first_agent_reply_date).length, unit: "count", tone: "neg", cells: ["À traiter en priorité"] },
           ]}
           footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
         />

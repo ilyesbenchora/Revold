@@ -2,11 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
-import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
-import { fetchPaiementFacturationFor, fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fetchDealProductsData } from "@/lib/audit/deal-products-data";
+import { fmtK } from "@/lib/audit/paiement-facturation-data";
+import { fmt } from "@/lib/audit/service-client-data";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
@@ -14,6 +14,7 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
 import { blockPreviewMeta } from "@/lib/kpi/block-previews";
+import { HBarChart } from "@/components/charts/hbar-chart";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -28,47 +29,33 @@ export default async function ServiceClientCrossSellUpsellPage() {
   }
 
   const supabase = await createSupabaseServerClient();
-  const token = await getHubSpotToken(supabase, orgId);
-  const [scData, billing, snapshot, custom] = await Promise.all([
-    fetchServiceClientData(supabase, orgId),
-    fetchPaiementFacturationFor(supabase, orgId, token),
+  const [products, snapshot, custom] = await Promise.all([
+    fetchDealProductsData(supabase, orgId),
     getHubspotSnapshot(),
     getPageCustomization(supabase, orgId, PAGE_KEY),
   ]);
 
-  // KPIs cross-sell / upsell
-  // ARPU = MRR / active subs (revenu moyen par utilisateur)
-  const arpu = billing.activeSubsCount > 0 ? Math.round(billing.mrr / billing.activeSubsCount) : null;
-  // ARPU annualisé
-  const arpuAnnual = arpu != null ? arpu * 12 : null;
-  // Customers totaux pour potentiel d'expansion
+  // ── KPIs cross-sell / upsell INDEXÉS SUR LES PRODUITS DES DEALS ──
+  // (line items HubSpot associés aux deals — pas sur les abonnements : c'est
+  // là que se lit le multi-produit réel quand l'outil connecté est HubSpot)
   const totalCustomers = snapshot.customersCount;
-  // Healthy customers = clients sans tickets ouverts (proxy candidats expansion)
-  const distinctTicketContacts = scData.distinctContactsCount;
-  const healthyCustomers = Math.max(0, totalCustomers - distinctTicketContacts);
-  const healthyPct = totalCustomers > 0
-    ? Math.round((healthyCustomers / totalCustomers) * 100)
+
+  // Potentiel d'expansion = deals gagnés MONO-produit × panier moyen × 20 %
+  // (hypothèse : 1 deal mono-produit sur 5 peut être équipé d'un produit de plus)
+  const expansionPotential = products.avgWonAmount != null && products.monoProductDeals > 0
+    ? Math.round(products.monoProductDeals * products.avgWonAmount * 0.2)
     : null;
 
-  // Expansion potential = healthy customers × ARPU mensuel × 0.2 (hypothèse 20% d'upsell)
-  const expansionPotentialMrr = arpu != null && healthyCustomers > 0
-    ? Math.round(healthyCustomers * arpu * 0.2)
+  const recurringPct = products.lineItemsTotal > 0
+    ? Math.round((products.recurringLineItems / products.lineItemsTotal) * 100)
     : null;
-
-  // Multi-product : si on a des subscriptions > customers, ça veut dire que certains clients ont 2+ subs
-  const subsPerCustomer = totalCustomers > 0
-    ? Math.round((billing.subscriptions.length / totalCustomers) * 100) / 100
-    : null;
-  const multiProductRate = subsPerCustomer != null && subsPerCustomer > 1
-    ? Math.round((subsPerCustomer - 1) * 100)
-    : 0;
 
   return (
     <section className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Service Client</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Cross-sell &amp; upsell : ARPU, potentiel d&apos;expansion et multi-produit.
+          Cross-sell &amp; upsell : équipement produit des deals, panier moyen et potentiel d&apos;expansion.
         </p>
       </header>
 
@@ -83,44 +70,44 @@ export default async function ServiceClientCrossSellUpsellPage() {
       {(() => {
         const tiles: DefaultTile[] = [
           {
-            key: "arpu_mensuel",
-            label: "ARPU mensuel",
-            value: arpu != null ? fmtK(arpu) : "—",
-            raw: arpu,
+            key: "panier_moyen",
+            label: "Panier moyen (gagnés)",
+            value: products.avgWonAmount != null ? fmtK(products.avgWonAmount) : "—",
+            raw: products.avgWonAmount,
             rawUnit: "currency",
             tone: "accent",
-            sub: "MRR / subs actives",
+            sub: `${fmt(products.wonDeals)} deals gagnés`,
           },
           {
-            key: "clients_sains",
-            label: "Clients sains",
-            value: healthyPct != null ? `${healthyPct} %` : "—",
-            raw: healthyPct,
+            key: "produits_par_deal",
+            label: "Produits par deal",
+            value: products.avgProductsPerDeal != null ? String(products.avgProductsPerDeal) : "—",
+            raw: products.avgProductsPerDeal,
+            rawUnit: "count",
+            tone: products.avgProductsPerDeal != null && products.avgProductsPerDeal > 1 ? "pos" : "neutral",
+            sub: `${fmt(products.dealsWithProducts)} deals avec produits associés`,
+          },
+          {
+            key: "deals_multi_produits",
+            label: "Deals multi-produits",
+            value: products.multiProductPct != null ? `${products.multiProductPct} %` : "—",
+            raw: products.multiProductPct,
             rawUnit: "percent",
-            tone: healthyPct == null ? "neutral" : healthyPct >= 70 ? "pos" : healthyPct >= 40 ? "accent" : "neg",
-            sub: "Sans ticket ouvert — candidats expansion",
-            verdict: healthyPct == null ? undefined
-              : healthyPct >= 70 ? { label: "Terrain favorable", tone: "pos" }
-              : healthyPct >= 40 ? { label: "Mitigé", tone: "warn" }
-              : { label: "Support surchargé", tone: "neg" },
+            tone: products.multiProductPct == null ? "neutral" : products.multiProductPct >= 30 ? "pos" : products.multiProductPct >= 10 ? "accent" : "neg",
+            sub: "≥ 2 produits associés au deal",
+            verdict: products.multiProductPct == null ? undefined
+              : products.multiProductPct >= 30 ? { label: "Bon équipement", tone: "pos" }
+              : products.multiProductPct >= 10 ? { label: "À développer", tone: "warn" }
+              : { label: "Mono-produit dominant", tone: "neg" },
           },
           {
             key: "potentiel_expansion",
             label: "Potentiel d'expansion",
-            value: expansionPotentialMrr != null ? `${fmtK(expansionPotentialMrr)}/mois` : "—",
-            raw: expansionPotentialMrr,
+            value: expansionPotential != null ? fmtK(expansionPotential) : "—",
+            raw: expansionPotential,
             rawUnit: "currency",
             tone: "pos",
-            sub: "Clients sains × ARPU × 20 %",
-          },
-          {
-            key: "multi_produit",
-            label: "Multi-produit",
-            value: subsPerCustomer != null ? `${subsPerCustomer} subs/client` : "—",
-            raw: subsPerCustomer,
-            rawUnit: "count",
-            tone: multiProductRate > 0 ? "pos" : "neutral",
-            sub: multiProductRate > 0 ? `${multiProductRate} % d'équipement au-delà de 1` : "1 produit par client",
+            sub: `${fmt(products.monoProductDeals)} deals mono-produit × panier × 20 %`,
           },
         ];
         return (
@@ -133,8 +120,8 @@ export default async function ServiceClientCrossSellUpsellPage() {
             tablesPageKey={PAGE_KEY}
             hiddenBlocks={hiddenBlockList(custom, (key) => {
               const m = ({
-                arpu_ltv: { view: "table", description: "ARPU mensuel/annuel, LTV estimée, subs par customer" },
-                potentiel_expansion: { view: "table", description: "Customers healthy, expansion MRR potentielle, multi-produit" },
+                revenue_produits: { view: "table", description: "CA par produit vendu (line items) : top produits, catalogue, part récurrente" },
+                equipement_deals: { view: "table", description: "Équipement produit des deals : mono vs multi, produits par deal" },
                 pipeline_expansion: { view: "table", description: "Deals ouverts sur customers, pipeline € et taux d'équipement" },
               } as Record<string, { view: string; description: string }>)[key];
               const c = blockPreviewMeta(key);
@@ -144,73 +131,79 @@ export default async function ServiceClientCrossSellUpsellPage() {
         );
       })()}
 
-      {!custom.hiddenBlocks.has("arpu_ltv") && (
-      <RemovableBlock pageKey={PAGE_KEY} blockKey="arpu_ltv" label="Revenue par client (ARPU & LTV)">
+      {!custom.hiddenBlocks.has("revenue_produits") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="revenue_produits" label="Revenue par produit">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Revenue par client (ARPU & LTV)
+            Revenue par produit (line items des deals)
           </h2>
         }
       >
         {/* Données du bloc + alerte chirurgicale. */}
         <BlockDataTable
-          title="Revenue par client (ARPU & LTV)"
-          subtitle="ARPU / LTV"
+          title="Revenue par produit"
+          subtitle="produits vendus"
           team="csm"
           unit="currency"
           nameLabel="Indicateur"
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "ARPU mensuel", value: arpu, unit: "currency", cells: ["MRR / subs actives"] },
-            { name: "ARPU annuel", value: arpuAnnual, unit: "currency", cells: ["ARPU × 12"] },
-            {
-              name: "LTV (estimée)",
-              value:
-                arpu != null && billing.churnRate != null && billing.churnRate > 0
-                  ? Math.round((arpu * 12) / (billing.churnRate / 100))
-                  : null,
-              unit: "currency",
-              cells: ["ARPU annuel / churn rate"],
-            },
-            { name: "Subs / customer", value: subsPerCustomer, unit: "count", cells: ["> 1 = clients multi-produit"] },
+            { name: "CA signé (deals gagnés)", value: products.wonAmount > 0 ? products.wonAmount : null, unit: "currency", cells: [`${fmt(products.wonDeals)} deals gagnés`] },
+            { name: "Panier moyen", value: products.avgWonAmount, unit: "currency", cells: ["CA signé / deals gagnés"] },
+            { name: "Produits distincts vendus", value: products.distinctProducts, unit: "count", cells: ["Catalogue réellement vendu"] },
+            { name: "Lignes produit (line items)", value: products.lineItemsTotal, unit: "count", cells: ["Produits associés aux deals"] },
+            { name: "Part récurrente", value: recurringPct, unit: "percent", cells: ["Line items avec fréquence de facturation"] },
           ]}
-          footnote="Unités hétérogènes (montants et ratio) : pas de total agrégé."
+          footnote="Source : line items HubSpot associés aux deals. Unités hétérogènes : pas de total agrégé."
         />
+
+        {products.topProducts.length > 0 && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-800">Top produits par CA</p>
+            <p className="mb-3 text-[10px] text-slate-400">Montant cumulé des line items · {fmt(products.distinctProducts)} produits distincts</p>
+            <HBarChart
+              unit="currency"
+              items={products.topProducts.map((p) => ({ label: `${p.name} (${p.count})`, value: p.amount }))}
+            />
+          </div>
+        )}
       </CollapsibleBlock>
       </RemovableBlock>
       )}
 
-      {!custom.hiddenBlocks.has("potentiel_expansion") && (
-      <RemovableBlock pageKey={PAGE_KEY} blockKey="potentiel_expansion" label="Potentiel d'expansion">
+      {!custom.hiddenBlocks.has("equipement_deals") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="equipement_deals" label="Équipement produit des deals">
       <CollapsibleBlock
         title={
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Potentiel d&apos;expansion
+            Équipement produit des deals
           </h2>
         }
       >
         <p className="text-sm text-slate-500">
-          Comptes &laquo; healthy &raquo; (sans ticket ouvert) = candidats expansion prioritaires :
-          activation rapide, NPS positif probable, payment on track.
+          Le multi-produit se lit sur les line items associés aux deals : un deal
+          mono-produit est un candidat naturel au cross-sell, un deal multi-produits
+          valide le motion d&apos;expansion.
         </p>
         {/* Données du bloc + alerte chirurgicale. */}
         <div className="mt-4">
           <BlockDataTable
-            title="Potentiel d'expansion"
-            subtitle="expansion"
+            title="Équipement produit des deals"
+            subtitle="mono vs multi-produit"
             team="csm"
             unit="count"
             nameLabel="Indicateur"
             valueLabel="Valeur"
             extraColumns={["Détail"]}
             rows={[
-              { name: "Customers healthy", value: healthyCustomers, unit: "count", cells: ["Sans ticket ouvert"] },
-              { name: "% du portefeuille healthy", value: healthyPct, unit: "percent", cells: [`${fmt(totalCustomers)} customers totaux`] },
-              { name: "Customers totaux", value: totalCustomers, unit: "count", cells: ["—"] },
-              { name: "Expansion MRR potentiel", value: expansionPotentialMrr, unit: "currency", cells: ["healthy × ARPU × 20% upsell"] },
-              { name: "Multi-produit", value: multiProductRate, unit: "percent", cells: ["% subs additionnelles"] },
+              { name: "Deals avec produits associés", value: products.dealsWithProducts, unit: "count", cells: ["hs_num_of_associated_line_items > 0"] },
+              { name: "Deals mono-produit", value: products.monoProductDeals, unit: "count", cells: ["Candidats cross-sell prioritaires"] },
+              { name: "Deals multi-produits", value: products.multiProductDeals, unit: "count", tone: "pos", cells: ["≥ 2 produits associés"] },
+              { name: "% multi-produits", value: products.multiProductPct, unit: "percent", cells: ["Taux d'équipement au-delà de 1"] },
+              { name: "Produits par deal (moy.)", value: products.avgProductsPerDeal, unit: "count", cells: ["Sur les deals avec produits"] },
+              { name: "Potentiel d'expansion", value: expansionPotential, unit: "currency", cells: ["Mono-produit × panier moyen × 20 %"] },
             ]}
             footnote="Unités hétérogènes (volumes, % et montants) : pas de total agrégé."
           />

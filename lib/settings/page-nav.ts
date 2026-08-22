@@ -73,7 +73,6 @@ export const SERVICE_CLIENT_NAV: PageNavDef = {
   defaults: [
     { slug: "", label: "Vue d'ensemble" },
     { slug: "process", label: "Process" },
-    { slug: "churn", label: "Churn" },
     { slug: "cross-sell-upsell", label: "Cross-sell / Upsell" },
     { slug: "renouvellement", label: "Renouvellement" },
   ],

@@ -435,6 +435,12 @@ function monthOf(v: unknown): string | null {
   const s = String(v ?? "");
   return s.length >= 7 ? s.slice(0, 7) : null;
 }
+/** Écart en heures entre deux timestamps (null si l'un manque ou incohérent). */
+function hoursBetween(from: unknown, to: unknown): number | null {
+  if (!from || !to) return null;
+  const ms = new Date(String(to)).getTime() - new Date(String(from)).getTime();
+  return Number.isFinite(ms) && ms > 0 ? ms / 3_600_000 : null;
+}
 function relName(rel: unknown): string {
   if (!rel) return "Sans étape";
   const o = (Array.isArray(rel) ? rel[0] : rel) as { name?: string } | undefined;
@@ -599,9 +605,34 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
   },
   tickets: {
-    columns: "status",
-    dims: { status: (r) => String(r.status ?? "inconnu") },
-    numeric: {},
+    columns: "status, priority, channel, opened_at, resolved_at, first_response_at",
+    dims: {
+      status: (r) => String(r.status ?? "inconnu"),
+      priority: (r) => String(r.priority ?? "Sans priorité"),
+      channel: (r) => String(r.channel ?? "inconnu"),
+      month_opened: (r) => monthOf(r.opened_at),
+      month_resolved: (r) => monthOf(r.resolved_at),
+      // Répondu = 1ère réponse d'agent enregistrée — porte les moyennes de
+      // délai (les tickets sans réponse n'ont pas de valeur, ils fausseraient
+      // une moyenne globale).
+      replied: (r) => (r.first_response_at ? "Répondu" : "Sans réponse"),
+      // SLA d'accueil : 1ère réponse sous 4 h / au-delà / jamais répondue.
+      sla_first_response: (r) => {
+        const h = hoursBetween(r.opened_at, r.first_response_at);
+        return h == null ? "Sans réponse" : h <= 4 ? "≤ 4 h" : "> 4 h";
+      },
+    },
+    numeric: {
+      // Heures — à utiliser avec target "Répondu" (replied) ou "closed" (status)
+      // pour que la moyenne ne porte que sur les tickets qui ont la valeur.
+      first_response_hours: (r) => hoursBetween(r.opened_at, r.first_response_at) ?? 0,
+      resolution_hours: (r) => hoursBetween(r.opened_at, r.resolved_at) ?? 0,
+      // 1 si 1ère réponse ≤ 4 h, sinon 0 — avg × 100 (target "Répondu") = % SLA.
+      sla_4h_hit: (r) => {
+        const h = hoursBetween(r.opened_at, r.first_response_at);
+        return h != null && h <= 4 ? 1 : 0;
+      },
+    },
   },
   companies: {
     columns: "segment, industry, country_code",
@@ -641,11 +672,11 @@ function dateColumnFor(entity: string, groupBy: string): string | null {
     const m: Record<string, string> = {
       created: "created_date", closed: "close_date", issued: "issued_at",
       paid: "paid_at", started: "started_at", canceled: "canceled_at",
-      transaction: "date",
+      transaction: "date", opened: "opened_at", resolved: "resolved_at",
     };
     return m[suffix] ?? null;
   }
-  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date" };
+  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date", tickets: "opened_at" };
   return def[entity] ?? null;
 }
 
@@ -1395,7 +1426,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date) (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status (count) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date) (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status, priority, channel, month_opened, month_resolved, replied (Répondu/Sans réponse), sla_first_response (≤ 4 h / > 4 h / Sans réponse) (count, sum/avg de first_response_hours/resolution_hours — à moyenner avec target Répondu ou closed) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",

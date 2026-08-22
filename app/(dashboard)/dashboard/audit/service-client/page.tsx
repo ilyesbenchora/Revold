@@ -162,7 +162,7 @@ export default async function ServiceClientOverviewPage() {
         hiddenBlocks={hiddenBlockList(custom, (key) => {
           const m = ({
             tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
-            satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
+            satisfaction: { view: "table", description: "Conversations entrantes, feedback CSAT/NPS, tickets répondus / sans réponse" },
           } as Record<string, { view: string; description: string }>)[key];
           const c = blockPreviewMeta(key);
           return m ? { ...m, preview: c?.preview } : c;
@@ -242,12 +242,12 @@ export default async function ServiceClientOverviewPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "Subscriptions actives", value: snapshot.activeSubscriptions, unit: "count", cells: [`sur ${fmt(snapshot.totalSubscriptions)} au total`] },
-            { name: "Subscriptions totales", value: snapshot.totalSubscriptions, unit: "count", cells: ["—"] },
             { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Inbox HubSpot"] },
             { name: "Feedback (CSAT/NPS)", value: snapshot.feedbackCount, unit: "count", cells: ["feedback_submissions"] },
+            { name: "Tickets répondus (agent)", value: data.hasData ? data.tickets.filter((t) => t.properties.first_agent_reply_date).length : null, unit: "count", tone: "pos", cells: ["1ère réponse d'agent enregistrée"] },
+            { name: "Tickets sans réponse agent", value: data.hasData ? data.tickets.filter((t) => !t.properties.first_agent_reply_date).length : null, unit: "count", tone: "neg", cells: ["Angle mort du support"] },
           ]}
-          footnote="Source : snapshot HubSpot (subscriptions, Inbox, feedback_submissions)."
+          footnote="Source : Inbox + feedback HubSpot (snapshot) et tickets synchronisés (miroir)."
         />
       </CollapsibleBlock>
       </RemovableBlock>
