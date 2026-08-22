@@ -60,6 +60,15 @@ const SUPPORT_TILES: TileSuggestion[] = [
   { id: "tickets_sans_reponse", label: "Tickets sans réponse agent", description: "Tickets sans aucune réponse d'agent enregistrée — angle mort du support", unit: "count", sourceCategory: "support", aggSpec: { entity: "tickets", groupBy: "replied", measure: "count", target: "Sans réponse" } },
 ];
 
+// ── KPIs produits des deals (line items HubSpot) — l'analyse produit est
+// capitale côté Ventes : équipement, profondeur de panier, cross-sell ──
+const PRODUCT_TILES: TileSuggestion[] = [
+  { id: "deals_avec_produits", label: "Deals avec produits", description: "Deals avec au moins un produit (line item) associé — couverture produit du CRM", unit: "count", sourceCategory: "crm", aggSpec: { entity: "deals", groupBy: "has_products", measure: "count", target: "Avec produits" } },
+  { id: "produits_par_deal", label: "Produits par deal", description: "Nombre moyen de produits associés aux deals équipés — profondeur d'équipement", unit: "count", sourceCategory: "crm", aggSpec: { entity: "deals", groupBy: "has_products", measure: "avg", field: "products", target: "Avec produits" } },
+  { id: "deals_multi_produits", label: "Deals multi-produits", description: "% des deals équipés portant ≥ 2 produits — pénétration réelle du cross-sell", unit: "percent", sourceCategory: "crm", aggSpec: { entity: "deals", groupBy: "equipement", measure: "count", target: "Multi-produits (≥ 2)", percent_of_total: true } },
+  { id: "deals_sans_produit", label: "Deals sans produit", description: "Deals sans aucun line item associé — panier non détaillé, analyse produit aveugle", unit: "count", sourceCategory: "crm", aggSpec: { entity: "deals", groupBy: "has_products", measure: "count", target: "Sans produit" } },
+];
+
 /** Équipe d'alerte associée aux tuiles de chaque page (KPI personnalisé + création d'alerte). */
 export const PAGE_TILE_TEAM: Record<string, string> = {
   perf_ventes: "sales",
@@ -87,7 +96,12 @@ export function basePageKey(pageKey: string): string {
 }
 
 const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
-  perf_ventes: fromKpiDefs(kpisByTeam.sales),
+  // Analyse générale des deals en tête (closing, CA, panier), pipeline ensuite
+  // (valeur, pondéré, couverture), puis l'axe PRODUITS (line items des deals).
+  perf_ventes: [
+    ...fromKpiDefs(kpisByTeam.sales),
+    ...PRODUCT_TILES,
+  ],
   perf_marketing: fromKpiDefs(kpisByTeam.marketing),
   audit_paiement_facturation: [
     ...BILLING_TILES,
@@ -109,7 +123,7 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
  */
 export function allTileSuggestions(): (TileSuggestion & { team: string })[] {
   const groups: [string, TileSuggestion[]][] = [
-    ["sales", fromKpiDefs(kpisByTeam.sales)],
+    ["sales", [...fromKpiDefs(kpisByTeam.sales), ...PRODUCT_TILES]],
     ["marketing", fromKpiDefs(kpisByTeam.marketing)],
     ["cs", fromKpiDefs(kpisByTeam.cs)],
     ["revops", fromKpiDefs(kpisByTeam.revops)],

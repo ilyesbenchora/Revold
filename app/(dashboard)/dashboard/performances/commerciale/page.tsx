@@ -18,6 +18,7 @@ import {
 } from "@/lib/integrations/hubspot-pipeline-conversion";
 import { computePipelineAnalyticsFromLocal } from "@/lib/sync/compute-pipeline-analytics";
 import { computeDealsSeries } from "@/lib/audit/deals-series";
+import { fetchDealProductsData } from "@/lib/audit/deal-products-data";
 import { TresoLineChart, SimpleBarsChart } from "@/components/charts/treso-charts";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
@@ -54,6 +55,9 @@ export default async function PerformanceCommercialePage() {
 
   // KPIs + séries mensuelles depuis le miroir canonique (tuiles + graphes).
   const series = await computeDealsSeries(supabase, orgId);
+  // Produits associés aux deals (line items) — axe d'analyse capital : équipement,
+  // profondeur de panier, cross-sell réel.
+  const products = await fetchDealProductsData(supabase, orgId);
   // Personnalisation de la page : tuiles KPI masquées/ajoutées + blocs masqués.
   const custom = await getPageCustomization(supabase, orgId, "perf_ventes");
   const tiles: DefaultTile[] = series.hasData
@@ -85,6 +89,19 @@ export default async function PerformanceCommercialePage() {
             : series.cycleMoyenJours <= 30 ? { label: "Rapide", tone: "pos" }
             : series.cycleMoyenJours <= 90 ? { label: "Dans la norme", tone: "warn" }
             : { label: "Long (> 90 j)", tone: "neg" },
+        },
+        {
+          key: "deals_multi_produits",
+          label: "Deals multi-produits",
+          value: products.multiProductPct != null ? `${products.multiProductPct} %` : "—",
+          raw: products.multiProductPct,
+          rawUnit: "percent",
+          tone: products.multiProductPct == null ? "neutral" : products.multiProductPct >= 30 ? "pos" : products.multiProductPct >= 10 ? "accent" : "neg",
+          sub: `${products.avgProductsPerDeal ?? "—"} produit(s) par deal équipé`,
+          verdict: products.multiProductPct == null ? undefined
+            : products.multiProductPct >= 30 ? { label: "Cross-sell installé", tone: "pos" }
+            : products.multiProductPct >= 10 ? { label: "À développer", tone: "warn" }
+            : { label: "Mono-produit dominant", tone: "neg" },
         },
       ]
     : [];
@@ -141,6 +158,11 @@ export default async function PerformanceCommercialePage() {
             description: "Taux de conversion étape par étape",
             preview: { entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
           },
+          produits_analyse: {
+            view: "chart-bar",
+            description: "Top produits par CA (line items) + équipement mono/multi-produit des deals",
+            preview: { entity: "deals", groupBy: "has_products", measure: "count", unit: "count", view: "bar" },
+          },
         } as Record<string, HiddenBlockMeta>)[key]))}
       />
 
@@ -158,6 +180,42 @@ export default async function PerformanceCommercialePage() {
               <p className="mb-2 text-[10px] text-slate-400">Progression cumulée sur la période</p>
               <TresoLineChart points={series.wonCumul} />
             </div>
+          </div>
+        </RemovableBlock>
+      )}
+
+      {/* ── Analyse PRODUITS : top produits par CA + équipement des deals ── */}
+      {(products.topProducts.length > 0 || products.dealsWithProducts > 0) && !custom.hiddenBlocks.has("produits_analyse") && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="produits_analyse" label="Analyse produits des deals">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {products.topProducts.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Top produits par CA</p>
+                <p className="mb-3 text-[10px] text-slate-400">
+                  Line items associés aux deals · {products.distinctProducts} produits distincts vendus
+                </p>
+                <HBarChart
+                  unit="currency"
+                  items={products.topProducts.map((p) => ({ label: `${p.name} (${p.count})`, value: p.amount }))}
+                />
+              </div>
+            )}
+            {products.dealsWithProducts > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-800">Équipement produit des deals</p>
+                <p className="mb-3 text-[10px] text-slate-400">
+                  {products.avgProductsPerDeal ?? "—"} produit(s) par deal équipé · potentiel cross-sell sur les mono-produit
+                </p>
+                <HBarChart
+                  unit="count"
+                  items={[
+                    { label: "Multi-produits (≥ 2)", value: products.multiProductDeals, color: "#10b981" },
+                    { label: "Mono-produit", value: products.monoProductDeals, color: "#6366f1" },
+                    { label: "Sans produit associé", value: Math.max(0, products.totalDeals - products.dealsWithProducts), color: "#94a3b8" },
+                  ].filter((i) => i.value > 0)}
+                />
+              </div>
+            )}
           </div>
         </RemovableBlock>
       )}

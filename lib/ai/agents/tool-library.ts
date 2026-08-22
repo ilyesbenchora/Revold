@@ -528,8 +528,16 @@ function closeDateStateLabel(closeDate: unknown): string {
 const AGG_SPECS: Record<string, AggSpec> = {
   deals: {
     columns:
-      "amount, created_date, close_date, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability, is_closed_won, is_closed_lost)",
+      "amount, created_date, close_date, stage_external_id, num_products:raw_data->properties->>hs_num_of_associated_line_items, pipeline_stages(name, pipeline_name, pipeline_external_id, probability, is_closed_won, is_closed_lost)",
     dims: {
+      // Équipement PRODUIT du deal (line items associés) : les deals sans
+      // produit sortent de la dimension (null, comme outcome pour les deals en
+      // cours) → percent_of_total sur « Multi-produits » = vrai taux d'équipement.
+      equipement: (r) => {
+        const n = Number(r.num_products) || 0;
+        return n === 0 ? null : n >= 2 ? "Multi-produits (≥ 2)" : "Mono-produit";
+      },
+      has_products: (r) => ((Number(r.num_products) || 0) > 0 ? "Avec produits" : "Sans produit"),
       month_created: (r) => monthOf(r.created_date),
       month_closed: (r) => monthOf(r.close_date),
       // Résolus dynamiquement dans computeAggregate via HubSpot quand le
@@ -555,7 +563,11 @@ const AGG_SPECS: Record<string, AggSpec> = {
       stage_pipeline: (r) =>
         `${relField(r.pipeline_stages, "pipeline_name") ?? "Sans pipeline"} › ${relName(r.pipeline_stages)}`,
     },
-    numeric: { amount: (r) => Number(r.amount) || 0 },
+    numeric: {
+      amount: (r) => Number(r.amount) || 0,
+      // Nombre de line items associés — à moyenner avec target "Avec produits".
+      products: (r) => Number(r.num_products) || 0,
+    },
   },
   invoices: {
     columns: "amount_total, amount_paid, amount_due, status, primary_source, issued_at, paid_at",
@@ -1426,7 +1438,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date) (mesures: count, sum/avg de amount) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status, priority, channel, month_opened, month_resolved, replied (Répondu/Sans réponse), sla_first_response (≤ 4 h / > 4 h / Sans réponse) (count, sum/avg de first_response_hours/resolution_hours — à moyenner avec target Répondu ou closed) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date), equipement (deals avec produits : Mono-produit/Multi-produits (≥ 2)), has_products (Avec produits/Sans produit) (mesures: count, sum/avg de amount, avg de products = line items associés, à moyenner avec target Avec produits) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status, priority, channel, month_opened, month_resolved, replied (Répondu/Sans réponse), sla_first_response (≤ 4 h / > 4 h / Sans réponse) (count, sum/avg de first_response_hours/resolution_hours — à moyenner avec target Répondu ou closed) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",

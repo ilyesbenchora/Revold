@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type TopProduct = { name: string; amount: number; count: number };
 
 export type DealProductsData = {
+  totalDeals: number;
   // Deals gagnés (référentiel revenue)
   wonDeals: number;
   wonAmount: number;
@@ -97,6 +98,7 @@ export async function fetchDealProductsData(
     .slice(0, 8);
 
   return {
+    totalDeals: deals.length,
     wonDeals: won.length,
     wonAmount: Math.round(wonAmount),
     avgWonAmount,
