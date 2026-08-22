@@ -171,10 +171,10 @@ export function OrgSetupModal({ initialName }: { initialName: string }) {
                 required
               >
                 <option value="" disabled hidden={pole !== null}>Sélectionner…</option>
-                {/* CEO / direction : accès à tous les espaces de travail. */}
-                <option value="all">🌐 Tous les espaces (CEO / direction)</option>
+                {/* CEO / direction : accès à tous les espaces de travail. Pas d'icônes. */}
+                <option value="all">Tous les espaces (CEO / direction)</option>
                 {POLE_OPTIONS.map((p) => (
-                  <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                  <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </select>
             </div>
