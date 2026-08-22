@@ -1525,11 +1525,17 @@ export async function syncAllForOrg(
     try {
       const { data: states } = await supabase
         .from("hubspot_sync_state")
-        .select("object_type, parity_drift")
+        .select("object_type, parity_drift, last_full_sync_at")
         .eq("organization_id", orgId)
         .in("object_type", crmTypes);
-      const drifted = ((states ?? []) as Array<{ object_type: string; parity_drift: number | null }>)
+      // Amortisseur : certains portails ont un drift RÉSIDUEL stable (une
+      // poignée d'enregistrements invisibles à l'API Search, ex. sans date de
+      // modif) qu'aucun full ne résorbera — sans ce garde, on relancerait un
+      // full toutes les 30 min pour rien. Un full auto max toutes les 6 h.
+      const FULL_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+      const drifted = ((states ?? []) as Array<{ object_type: string; parity_drift: number | null; last_full_sync_at: string | null }>)
         .filter((s) => (s.parity_drift ?? 0) !== 0)
+        .filter((s) => !s.last_full_sync_at || Date.now() - new Date(s.last_full_sync_at).getTime() > FULL_COOLDOWN_MS)
         .map((s) => s.object_type as "contacts" | "companies" | "deals" | "tickets");
       for (const t of drifted) {
         const idx = crmTypes.indexOf(t);
