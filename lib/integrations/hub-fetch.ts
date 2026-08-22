@@ -17,28 +17,52 @@ const MAX_CONCURRENT = 8;
 const MIN_SPACING_MS = 60;
 const MAX_RETRIES = 3;
 
-let active = 0;
-let lastStart = 0;
-const waiters: Array<() => void> = [];
+// Limiteur PAR PORTAIL (clé = token du header Authorization) : les quotas
+// HubSpot sont par portail — plusieurs portails connectés (une org Revold
+// chacun) ne partagent pas leur fenêtre 100 req/10 s, donc chacun a son
+// propre couloir de 8 requêtes ; le trafic d'un portail ne ralentit pas les
+// autres. Requêtes sans token (OAuth/token exchange) → couloir « default ».
+type Lane = { active: number; lastStart: number; waiters: Array<() => void> };
+const lanes = new Map<string, Lane>();
 
-async function acquire(): Promise<void> {
-  if (active >= MAX_CONCURRENT) {
-    await new Promise<void>((resolve) => waiters.push(resolve));
+function laneKey(init?: RequestInit): string {
+  const h = init?.headers;
+  let auth = "";
+  if (h instanceof Headers) auth = h.get("Authorization") ?? "";
+  else if (h && typeof h === "object") auth = (h as Record<string, string>).Authorization ?? "";
+  // Fin du token : suffit à distinguer les portails sans garder le secret entier.
+  return auth ? auth.slice(-24) : "default";
+}
+
+async function acquire(lane: Lane): Promise<void> {
+  if (lane.active >= MAX_CONCURRENT) {
+    await new Promise<void>((resolve) => lane.waiters.push(resolve));
   }
-  active++;
+  lane.active++;
   // Espacement des départs : lisse les rafales sous la fenêtre 100 req/10 s.
-  const wait = lastStart + MIN_SPACING_MS - Date.now();
-  lastStart = Math.max(Date.now(), lastStart + MIN_SPACING_MS);
+  const wait = lane.lastStart + MIN_SPACING_MS - Date.now();
+  lane.lastStart = Math.max(Date.now(), lane.lastStart + MIN_SPACING_MS);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
 }
 
-function release(): void {
-  active--;
-  waiters.shift()?.();
+function release(lane: Lane): void {
+  lane.active--;
+  lane.waiters.shift()?.();
 }
 
 export async function hubFetch(input: string | URL, init?: RequestInit): Promise<Response> {
-  await acquire();
+  const key = laneKey(init);
+  let lane = lanes.get(key);
+  if (!lane) {
+    lane = { active: 0, lastStart: 0, waiters: [] };
+    lanes.set(key, lane);
+    // Borne mémoire : on ne garde que les ~50 derniers couloirs.
+    if (lanes.size > 50) {
+      const first = lanes.keys().next().value;
+      if (first !== undefined && first !== key) lanes.delete(first);
+    }
+  }
+  await acquire(lane);
   try {
     let res = await fetch(input, init);
     for (let attempt = 0; res.status === 429 && attempt < MAX_RETRIES; attempt++) {
@@ -51,6 +75,6 @@ export async function hubFetch(input: string | URL, init?: RequestInit): Promise
     }
     return res;
   } finally {
-    release();
+    release(lane);
   }
 }
