@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Politique de Confidentialité — Revold",
+  title: "Politique de Confidentialité",
   description: "Politique de confidentialité de Revold. Découvrez comment nous collectons, utilisons et protégeons vos données personnelles.",
 };
 

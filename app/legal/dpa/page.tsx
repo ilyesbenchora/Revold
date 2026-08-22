@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Data Processing Agreement (DPA) — Revold",
+  title: "Data Processing Agreement (DPA)",
   description: "Accord de traitement des données de Revold conforme au RGPD. Définit les rôles, les obligations et les engagements de Revold en tant que sous-traitant.",
 };
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Sécurité & Conformité — Revold",
+  title: "Sécurité & Conformité",
   description: "Pratiques de sécurité de Revold : hébergement EU (Frankfurt), chiffrement, sous-processeurs, RGPD, DPA, plan de continuité et roadmap SOC 2.",
 };
 

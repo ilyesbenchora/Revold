@@ -4,7 +4,7 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Intégrations — Revold",
+  title: "Intégrations",
   description: "HubSpot (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage : des connecteurs natifs câblés en profondeur, plus l'import Excel / Google Sheets et les notifications Slack, Teams et email.",
 };
 

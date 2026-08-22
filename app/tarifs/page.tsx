@@ -4,7 +4,7 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Tarifs — Revold",
+  title: "Tarifs",
   description: "Des tarifs simples et transparents. Starter à 79,90€/mois, Business à 149,90€/mois, Scale à partir de 490,90€/mois. Essai 14 jours, sans carte bancaire.",
 };
 

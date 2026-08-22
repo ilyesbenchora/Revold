@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { computePlatformStatus, type SystemHealth } from "@/lib/status/compute";
 
 export const metadata: Metadata = {
-  title: "Statut de la plateforme — Revold",
+  title: "Statut de la plateforme",
   description:
     "État en temps réel des systèmes Revold : synchronisation des données, calcul des indicateurs, alertes, routines des agents. Transparence totale sur la fraîcheur de vos chiffres.",
 };

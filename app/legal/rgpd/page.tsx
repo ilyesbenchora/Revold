@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Conformité RGPD — Revold",
+  title: "Conformité RGPD",
   description: "Engagements de Revold en matière de conformité RGPD : responsable de traitement, bases légales, droits des personnes, sous-traitants.",
 };
 

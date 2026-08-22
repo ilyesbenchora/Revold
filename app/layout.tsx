@@ -24,7 +24,10 @@ export const metadata: Metadata = {
   description: "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
   metadataBase: new URL("https://revold.ai"),
   alternates: {
-    canonical: "/",
+    // « ./ » = canonical RELATIF À CHAQUE PAGE (Next le résout par route).
+    // ⚠ Ne jamais remettre "/" ici : toutes les pages pointaient leur
+    // canonical vers la home → Google désindexait les sous-pages.
+    canonical: "./",
     types: {
       "application/rss+xml": "/blog/rss.xml",
     },
@@ -34,11 +37,13 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     siteName: "Revold",
     url: "https://revold.ai",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Revold — Plateforme de Revenue Intelligence B2B" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Revold — Plateforme de Revenue Intelligence B2B",
     description: "Pilotez vos revenus avec des insights propulsés par l'IA. CRM, facturation et support connectés.",
+    images: ["/og.png"],
   },
   keywords: [
     "revenue intelligence",
