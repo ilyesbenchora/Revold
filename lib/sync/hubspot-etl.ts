@@ -667,9 +667,11 @@ async function upsertTickets(
       organization_id: orgId,
       hubspot_id: r.id as string,
       subject: pStr(props, "subject"),
-      // status NOT NULL : dérivé de la date de fermeture (hs_pipeline_stage
-      // n'est qu'un id numérique, illisible dans les regroupements).
+      // status + primary_source NOT NULL : status dérivé de la date de
+      // fermeture (hs_pipeline_stage n'est qu'un id numérique, illisible dans
+      // les regroupements) ; la source est hubspot par définition ici.
       status: pDate(props, "hs_lastclosedate") ? "closed" : "open",
+      primary_source: "hubspot",
       priority: pStr(props, "hs_ticket_priority"),
       owner_id: pStr(props, "hubspot_owner_id"),
       closed_at: pDate(props, "hs_lastclosedate"),
@@ -1472,6 +1474,32 @@ export async function syncAllForOrg(
   const crmResults = await Promise.all(
     crmTypes.map((t) => syncCrmObject(token, supabase, orgId, t, mode)),
   );
+
+  // ── AUTO-RÉALIGNEMENT : le delta ne voit jamais les suppressions/fusions
+  // faites dans HubSpot (l'API search ne renvoie que les vivants modifiés) —
+  // la parité dérive (+N local). Dès qu'un type CRM affiche un drift, on
+  // relance IMMÉDIATEMENT sa sync COMPLÈTE (ré-import + purge des orphelins),
+  // sans attendre le full hebdomadaire. Auto-limitant : après la purge le
+  // drift revient à 0, donc pas de re-déclenchement au run suivant. ──
+  if (mode === "delta") {
+    try {
+      const { data: states } = await supabase
+        .from("hubspot_sync_state")
+        .select("object_type, parity_drift")
+        .eq("organization_id", orgId)
+        .in("object_type", crmTypes);
+      const drifted = ((states ?? []) as Array<{ object_type: string; parity_drift: number | null }>)
+        .filter((s) => (s.parity_drift ?? 0) !== 0)
+        .map((s) => s.object_type as "contacts" | "companies" | "deals" | "tickets");
+      for (const t of drifted) {
+        const idx = crmTypes.indexOf(t);
+        const res = await syncCrmObject(token, supabase, orgId, t, "full");
+        if (idx >= 0) crmResults[idx] = res;
+      }
+    } catch {
+      /* non bloquant — le full hebdomadaire reste le filet */
+    }
+  }
 
   // Passe de liaison : relie contacts + deals à leur company canonique
   // (company_id) — socle de toute réconciliation CRM ↔ facturation.
