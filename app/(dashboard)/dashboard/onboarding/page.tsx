@@ -13,26 +13,73 @@ export default async function OnboardingPage() {
   }
   const supabase = await createSupabaseServerClient();
 
-  // Auto-détection : si HubSpot connecté → marque l'étape comme faite
-  // (pour ne pas perdre l'avancement quand l'user passe par /parametres)
-  const { data: hubspotInt } = await supabase
-    .from("integrations")
-    .select("created_at")
-    .eq("organization_id", orgId)
-    .eq("provider", "hubspot")
-    .eq("is_active", true)
-    .maybeSingle();
+  // ── Auto-détection SYNCHRONE de l'état réel — force-dynamic + router.refresh()
+  // du wizard rejouent cette lecture à chaque « Continuer » : l'onboarding suit
+  // donc ce que l'utilisateur fait en direct (connexion d'un 1er, 2e, 3e outil). ──
 
-  // Auto-détection : si premier sync visible
-  const { data: syncState } = await supabase
-    .from("hubspot_sync_state")
-    .select("last_full_sync_at")
+  // TOUT outil connecté compte (pas seulement HubSpot) : le premier connecté
+  // valide l'étape « Connecter vos outils ».
+  const { data: activeInts } = await supabase
+    .from("integrations")
+    .select("provider, created_at")
     .eq("organization_id", orgId)
-    .not("last_full_sync_at", "is", null)
-    .limit(1)
-    .maybeSingle();
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+  const connectedTools = (activeInts ?? []) as Array<{ provider: string; created_at: string | null }>;
+  const connectedToolCount = connectedTools.length;
+  const firstConnectedAt = connectedTools[0]?.created_at ?? null;
+
+  // Premier sync : miroir HubSpot OU tout run de connecteur direct réussi.
+  const [{ data: hsSync }, { data: syncLog }] = await Promise.all([
+    supabase
+      .from("hubspot_sync_state")
+      .select("last_full_sync_at")
+      .eq("organization_id", orgId)
+      .not("last_full_sync_at", "is", null)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("sync_logs")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("status", "success")
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const hasFirstSync = !!hsSync?.last_full_sync_at || !!syncLog?.id;
+
+  // Pôle/équipe de l'utilisateur — collecté par la modale d'accueil OBLIGATOIRE
+  // (OrgSetupModal). L'onboarding ne redemande donc plus l'équipe : il en dérive
+  // les pôles à activer et saute cette étape.
+  const { data: { user } } = await supabase.auth.getUser();
+  let userPole: string | null = null;
+  if (user) {
+    const { data: prof } = await supabase.from("profiles").select("pole").eq("id", user.id).maybeSingle();
+    userPole = (prof?.pole as string | null) ?? null;
+  }
 
   const initialState = await getOnboardingState(supabase, orgId);
+
+  // Persiste la détection dans onboarding_state pour que la barre de complétion
+  // (progress %) reflète la réalité partout, même hors du wizard.
+  const persist: Record<string, unknown> = {};
+  if (connectedToolCount > 0 && !initialState.hubspotConnectedAt) {
+    persist.hubspot_connected_at = firstConnectedAt ?? new Date().toISOString();
+  }
+  if (hasFirstSync && !initialState.firstSyncSeenAt) {
+    persist.first_sync_seen_at = new Date().toISOString();
+  }
+  if (Object.keys(persist).length > 0) {
+    try {
+      await supabase
+        .from("onboarding_state")
+        .upsert({ organization_id: orgId, updated_at: new Date().toISOString(), ...persist }, { onConflict: "organization_id" });
+      Object.assign(initialState, {
+        hubspotConnectedAt: persist.hubspot_connected_at ?? initialState.hubspotConnectedAt,
+        firstSyncSeenAt: persist.first_sync_seen_at ?? initialState.firstSyncSeenAt,
+      });
+    } catch { /* best effort — l'affichage utilise déjà les valeurs détectées */ }
+  }
 
   // Si déjà complete et pas de skip explicite → redirige vers dashboard
   if (initialState.completedAt) {
@@ -42,8 +89,10 @@ export default async function OnboardingPage() {
   return (
     <OnboardingWizard
       initial={initialState}
-      hubspotConnectedAtFromIntegration={hubspotInt?.created_at ?? null}
-      hasFirstSync={!!syncState?.last_full_sync_at}
+      connectedAtFromIntegration={firstConnectedAt}
+      connectedToolCount={connectedToolCount}
+      hasFirstSync={hasFirstSync}
+      userPole={userPole}
     />
   );
 }

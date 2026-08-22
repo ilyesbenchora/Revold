@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { OnboardingState } from "@/lib/onboarding/state";
@@ -12,31 +12,66 @@ const OBJECTIVES = [
   { key: "service", label: "Service Client", emoji: "🎧", desc: "Tickets, satisfaction, signaux churn" },
 ];
 
+/** Pôle (profiles.pole) → pôles/objectifs Revold à pré-activer. */
+function objectivesFromPole(pole: string | null): string[] {
+  switch (pole) {
+    case "sales": return ["sales"];
+    case "marketing": return ["marketing"];
+    case "cs": return ["service"];
+    case "finance": return ["revenue"];
+    case "all": return ["sales", "marketing", "revenue", "service"];
+    default: return [];
+  }
+}
+
 type Props = {
   initial: OnboardingState;
-  hubspotConnectedAtFromIntegration: string | null;
+  connectedAtFromIntegration: string | null;
+  connectedToolCount: number;
   hasFirstSync: boolean;
+  userPole: string | null;
 };
 
-export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, hasFirstSync }: Props) {
+export function OnboardingWizard({ initial, connectedAtFromIntegration, connectedToolCount, hasFirstSync, userPole }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-détection : si HubSpot connecté détecté ailleurs, on considère cette étape OK
-  const hubspotDone = !!(initial.hubspotConnectedAt || hubspotConnectedAtFromIntegration);
+  // Un outil connecté (quel qu'il soit) valide l'étape « Connecter vos outils ».
+  const hasConnectedTool = !!(initial.hubspotConnectedAt || connectedAtFromIntegration) || connectedToolCount > 0;
   const firstSyncDone = !!(initial.firstSyncSeenAt || hasFirstSync);
+  // L'équipe est déjà renseignée dans la modale d'accueil obligatoire : on
+  // dérive les objectifs de ce pôle et on N'AFFICHE PLUS l'étape « équipe ».
+  const derivedObjectives = objectivesFromPole(userPole);
+  const objectivesDone = !!initial.objectivesSetAt || derivedObjectives.length > 0;
 
   const computeStep = (): number => {
     if (!initial.welcomedAt) return 1;
-    if (!hubspotDone) return 2;
-    if (!initial.objectivesSetAt) return 3;
+    if (!hasConnectedTool) return 2;
+    if (!objectivesDone) return 3;
     if (!firstSyncDone) return 4;
     return 5;
   };
   const [step, setStep] = useState<number>(computeStep());
-  const [objectives, setObjectives] = useState<string[]>(initial.objectives);
+  const [objectives, setObjectives] = useState<string[]>(
+    initial.objectives.length > 0 ? initial.objectives : derivedObjectives,
+  );
+
+  // Persiste UNE FOIS les objectifs dérivés du pôle (sans redemander l'équipe) :
+  // la préconfiguration du dashboard reste alimentée comme avant.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (!initial.objectivesSetAt && derivedObjectives.length > 0) {
+      seededRef.current = true;
+      void fetch("/api/onboarding/state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "objectives", objectives: derivedObjectives }),
+      }).catch(() => {});
+    }
+  }, [initial.objectivesSetAt, derivedObjectives]);
 
   async function patch(body: object) {
     const res = await fetch("/api/onboarding/state", {
@@ -126,9 +161,8 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
           </p>
           <ol className="mt-6 space-y-3 text-left text-sm text-slate-700">
             <li className="flex gap-2"><span className="font-semibold text-accent">1.</span> Connecter vos outils — <strong>2 minimum</strong> pour le croisement de données</li>
-            <li className="flex gap-2"><span className="font-semibold text-slate-400">2.</span> Choisir vos équipes & objectifs</li>
-            <li className="flex gap-2"><span className="font-semibold text-slate-400">3.</span> Premier sync de vos données</li>
-            <li className="flex gap-2"><span className="font-semibold text-slate-400">4.</span> Voir votre 1er insight</li>
+            <li className="flex gap-2"><span className="font-semibold text-slate-400">2.</span> Premier sync de vos données</li>
+            <li className="flex gap-2"><span className="font-semibold text-slate-400">3.</span> Voir votre 1er insight</li>
           </ol>
           <p className="mx-auto mt-4 max-w-md rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-left text-xs text-slate-600">
             <strong className="text-fuchsia-700">Pourquoi 2 outils ?</strong> Un outil seul répète ce que vous voyez
@@ -164,6 +198,18 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
               révèle ce qu&apos;aucun ne voit seul — CA signé vs CA facturé, deals gagnés sans facture, MRR à risque.
             </p>
           </div>
+          {/* État LIVE des connexions : détecté à chaque affichage/refresh de la
+              page (force-dynamic). Un outil connecté ailleurs apparaît ici. */}
+          {hasConnectedTool && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-emerald-600"><polyline points="20 6 9 17 4 12" /></svg>
+              <p className="text-xs font-medium text-emerald-800">
+                {connectedToolCount > 1
+                  ? `${connectedToolCount} outils connectés — le croisement est prêt.`
+                  : "1 outil connecté. Ajoute une 2ᵉ source pour débloquer le croisement."}
+              </p>
+            </div>
+          )}
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/dashboard/integration/connect/hubspot"
@@ -175,15 +221,29 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
               href="/dashboard/integration/bibliotheque"
               className="rounded-lg border border-fuchsia-200 bg-white px-5 py-2.5 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-50"
             >
-              ＋ Ajouter une 2ᵉ source
+              ＋ {hasConnectedTool ? "Ajouter une source" : "Ajouter une 2ᵉ source"}
             </Link>
+            {/* Re-vérifie l'état réel (utile après connexion dans un autre onglet). */}
+            <button
+              type="button"
+              onClick={() => startTransition(() => router.refresh())}
+              disabled={busy !== null}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+              title="Vérifier mes connexions"
+            >
+              ↻ Vérifier
+            </button>
             <button
               type="button"
               onClick={() => nextStep("hubspot")}
               disabled={busy !== null}
-              className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              className={`rounded-lg px-5 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+                hasConnectedTool
+                  ? "bg-accent text-white hover:bg-accent/90"
+                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
             >
-              {busy === "hubspot" ? "…" : hubspotDone ? "C'est fait, étape suivante →" : "Sauter pour l'instant"}
+              {busy === "hubspot" ? "…" : hasConnectedTool ? "Étape suivante →" : "Sauter pour l'instant"}
             </button>
           </div>
           <p className="mt-4 text-[11px] text-slate-400">
@@ -192,14 +252,15 @@ export function OnboardingWizard({ initial, hubspotConnectedAtFromIntegration, h
         </div>
       )}
 
-      {/* STEP 3 — Objectives */}
+      {/* STEP 3 — Objectifs (repli : n'apparaît que si aucun pôle n'a été
+             choisi dans la modale d'accueil obligatoire — sinon dérivé et sauté). */}
       {step === 3 && (
         <div className="card p-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Étape 3</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Étape</p>
           <h2 className="mt-2 text-2xl font-bold text-slate-900">Vos équipes & objectifs</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Pour quelles équipes voulez-vous activer Revold ? On pré-configurera votre dashboard
-            en conséquence.
+            Pour quelles équipes activer Revold ? On pré-configurera votre dashboard en conséquence
+            {userPole ? " — pré-sélection issue de ton équipe, ajuste si besoin." : "."}
           </p>
           <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
             {OBJECTIVES.map((o) => {
