@@ -667,6 +667,9 @@ async function upsertTickets(
       organization_id: orgId,
       hubspot_id: r.id as string,
       subject: pStr(props, "subject"),
+      // status NOT NULL : dérivé de la date de fermeture (hs_pipeline_stage
+      // n'est qu'un id numérique, illisible dans les regroupements).
+      status: pDate(props, "hs_lastclosedate") ? "closed" : "open",
       priority: pStr(props, "hs_ticket_priority"),
       owner_id: pStr(props, "hubspot_owner_id"),
       closed_at: pDate(props, "hs_lastclosedate"),
