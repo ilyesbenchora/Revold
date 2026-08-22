@@ -189,8 +189,10 @@ async function syncViaSearch(
   watermark: string | null,
   extraProperties: string[] = [],
 ): Promise<{ records: Array<Record<string, unknown>>; latest: string | null }> {
-  const all: Array<Record<string, unknown>> = [];
-  let after: string | undefined;
+  // Dédup par id : les fenêtres chaînées (voir plus bas) se recouvrent
+  // volontairement sur la date frontière (GTE), l'upsert derrière est idempotent
+  // mais on évite quand même les doublons dans le tableau retourné.
+  const byId = new Map<string, Record<string, unknown>>();
   let latest = watermark;
   const properties = [...new Set([...getProperties(type), ...extraProperties])];
 
@@ -199,42 +201,72 @@ async function syncViaSearch(
     ? "hs_lastmodifieddate"
     : "lastmodifieddate";
 
-  for (let batch = 0; batch < 100; batch++) {
-    const body: Record<string, unknown> = {
-      filterGroups: watermark
-        ? [{ filters: [{ propertyName: watermarkProp, operator: "GT", value: new Date(watermark).getTime().toString() }] }]
-        : [],
-      properties,
-      sorts: [{ propertyName: watermarkProp, direction: "ASCENDING" }],
-      limit: PAGE_SIZE,
-    };
-    if (after) body.after = after;
+  // ⚠ L'API Search HubSpot est PLAFONNÉE à 10 000 résultats par requête
+  // (le paging s'arrête net à offset 10 000). Pour les portails plus gros,
+  // on enchaîne des « fenêtres » triées par date de modif croissante :
+  // quand une fenêtre sature, la suivante repart de la plus grande date vue
+  // (GTE + dédup pour ne pas perdre les ex æquo à la frontière). Sans ça,
+  // un full sync tronquait à 10 000 et la purge d'orphelins supprimait le
+  // reste des enregistrements locaux.
+  let windowFloor = watermark;
+  let firstWindow = true;
+  for (let window = 0; window < 50; window++) {
+    let after: string | undefined;
+    let capped = false;
+    const sizeBefore = byId.size;
 
-    const res = await hsFetch(token, `/crm/v3/objects/${type}/search`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`HubSpot ${type} search ${res.status}: ${err.slice(0, 200)}`);
+    for (let batch = 0; batch < 100; batch++) {
+      const body: Record<string, unknown> = {
+        filterGroups: windowFloor
+          ? [{ filters: [{ propertyName: watermarkProp, operator: firstWindow ? "GT" : "GTE", value: new Date(windowFloor).getTime().toString() }] }]
+          : [],
+        properties,
+        sorts: [{ propertyName: watermarkProp, direction: "ASCENDING" }],
+        limit: PAGE_SIZE,
+      };
+      if (after) body.after = after;
+
+      const res = await hsFetch(token, `/crm/v3/objects/${type}/search`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`HubSpot ${type} search ${res.status}: ${err.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const results = (data.results ?? []) as Array<Record<string, unknown>>;
+      if (results.length === 0) break;
+
+      for (const r of results) {
+        byId.set(r.id as string, r);
+        const props = (r.properties as Record<string, string | null>) ?? {};
+        const mod = props[watermarkProp];
+        if (mod && (!latest || new Date(mod) > new Date(latest))) latest = mod;
+      }
+
+      after = data.paging?.next?.after;
+      if (!after) break;
+      if (Number(after) >= 10_000 - PAGE_SIZE + 1) {
+        capped = true; // prochaine page franchirait le plafond → nouvelle fenêtre
+        break;
+      }
     }
-    const data = await res.json();
-    const results = (data.results ?? []) as Array<Record<string, unknown>>;
-    if (results.length === 0) break;
-    all.push(...results);
 
-    // Update watermark = max hs_lastmodifieddate vu
-    for (const r of results) {
-      const props = (r.properties as Record<string, string | null>) ?? {};
-      const mod = props[watermarkProp];
-      if (mod && (!latest || new Date(mod) > new Date(latest))) latest = mod;
-    }
+    // Sortie de boucle avec de la pagination restante (plafond atteint ou
+    // limite de batchs) → il reste des enregistrements : nouvelle fenêtre.
+    if (after) capped = true;
 
-    after = data.paging?.next?.after;
-    if (!after) break;
+    // Fenêtre épuisée naturellement → tout est lu. Sinon on repart de la
+    // plus grande date vue ; si plus rien de neuf (ou pas de date exploitable),
+    // on s'arrête pour éviter une boucle infinie.
+    if (!capped) break;
+    if (byId.size === sizeBefore || !latest || latest === windowFloor) break;
+    windowFloor = latest;
+    firstWindow = false;
   }
 
-  return { records: all, latest };
+  return { records: [...byId.values()], latest };
 }
 
 // ── Helpers d'extraction de propriétés ───────────────────────────────────
@@ -1016,15 +1048,23 @@ export async function syncCrmObject(
 
     // Cleanup orphans : uniquement en full sync, où `records` contient tout HubSpot
     let cleaned = 0;
+    const hubspotCount = await countHubspot(token, type);
     if (mode === "full") {
-      cleaned = await cleanupCrmOrphans(supabase, orgId, type, records);
+      // Garde-fou : ne JAMAIS purger sur un import incomplet (plafond API,
+      // erreur partielle…) — sinon on supprime des enregistrements légitimes.
+      // Tolérance : total HubSpot qui bouge pendant la lecture (max 1 %, min 10).
+      const slack = hubspotCount === null ? 0 : Math.max(10, Math.ceil(hubspotCount * 0.01));
+      if (hubspotCount !== null && records.length >= hubspotCount - slack) {
+        cleaned = await cleanupCrmOrphans(supabase, orgId, type, records);
+      } else {
+        console.warn(
+          `[sync ${type}] cleanup ignoré : import ${records.length}/${hubspotCount ?? "?"} incomplet`,
+        );
+      }
     }
 
     // Recalcule la parité (après cleanup pour être exact)
-    const [localCount, hubspotCount] = await Promise.all([
-      countLocal(supabase, orgId, type),
-      countHubspot(token, type),
-    ]);
+    const localCount = await countLocal(supabase, orgId, type);
     const drift = hubspotCount !== null ? Math.abs(hubspotCount - localCount) : 0;
     const parity = hubspotCount === null ? "unknown" : drift === 0 ? "ok" : "drift";
 
