@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "RESEND_API_KEY manquante" }, { status: 500 });
   }
 
-  let fields: Record<string, string> = {};
+  const fields: Record<string, string> = {};
   let formKind = "contact";
   try {
     const fd = await request.formData();
