@@ -26,28 +26,44 @@ const monthLabel = (key: string) => {
   return `${MONTHS_FR[Number(mm) - 1]} ${yy.slice(2)}`;
 };
 
+/** Pagine au-delà du plafond serveur (~1000 lignes/requête) — 8000 max. */
+async function pageAll<T>(
+  supabase: SupabaseClient,
+  columns: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  apply: (q: any) => any,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < 8; page++) {
+    const { data, error } = await apply(
+      supabase.from("deals").select(columns).range(page * 1000, page * 1000 + 999),
+    );
+    if (error) break;
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
 export async function computeDealsSeries(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<DealsSeries> {
-  const [{ data: won }, { data: open }, { count: lostCount }] = await Promise.all([
-    supabase
-      .from("deals")
-      // created_date = VRAIE createdate HubSpot ; created_at (insert Supabase)
-      // n'est qu'un repli pour les lignes historiques — même règle que le
-      // resolver d'alertes (sales_cycle_days).
-      .select("amount, close_date, created_date, created_at")
-      .eq("organization_id", orgId)
-      .eq("is_closed_won", true)
-      .limit(5000),
-    supabase
-      .from("deals")
-      .select("amount, win_probability")
-      .eq("organization_id", orgId)
-      .eq("is_closed_won", false)
-      .eq("is_closed_lost", false)
-      .gt("amount", 0)
-      .limit(5000),
+  const [wonRows, openRows, { count: lostCount }] = await Promise.all([
+    // created_date = VRAIE createdate HubSpot ; created_at (insert Supabase)
+    // n'est qu'un repli pour les lignes historiques — même règle que le
+    // resolver d'alertes (sales_cycle_days).
+    pageAll<{ amount: number | null; close_date: string | null; created_date: string | null; created_at: string | null }>(
+      supabase,
+      "amount, close_date, created_date, created_at",
+      (q) => q.eq("organization_id", orgId).eq("is_closed_won", true),
+    ),
+    pageAll<{ amount: number | null; win_probability: number | null }>(
+      supabase,
+      "amount, win_probability",
+      (q) => q.eq("organization_id", orgId).eq("is_closed_won", false).eq("is_closed_lost", false).gt("amount", 0),
+    ),
     supabase
       .from("deals")
       .select("*", { count: "exact", head: true })
@@ -55,8 +71,6 @@ export async function computeDealsSeries(
       .eq("is_closed_lost", true),
   ]);
 
-  const wonRows = won ?? [];
-  const openRows = open ?? [];
   const lost = lostCount ?? 0;
 
   const caSigneTotal = Math.round(wonRows.reduce((s, d) => s + (Number(d.amount) || 0), 0));
