@@ -42,9 +42,23 @@ export function FeatureTour({ tourId, steps }: { tourId: string; steps: TourStep
   const anchorElRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef(0);
 
-  // Premier passage seulement : jamais en SSR, jamais si déjà vu.
+  // Premier passage seulement : jamais en SSR, jamais si déjà vu — et JAMAIS
+  // pendant la modale d'onboarding (formulaire obligatoire du premier accès) :
+  // le tutoriel attend sa disparition du DOM pour démarrer.
   useEffect(() => {
-    if (steps.length > 0 && !isDone(tourId)) setVisible(true);
+    if (steps.length === 0 || isDone(tourId)) return;
+    if (!document.getElementById("org-setup-modal")) {
+      setVisible(true);
+      return;
+    }
+    const obs = new MutationObserver(() => {
+      if (!document.getElementById("org-setup-modal")) {
+        obs.disconnect();
+        setVisible(true);
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
   }, [tourId, steps.length]);
 
   const clearHighlight = useCallback(() => {

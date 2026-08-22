@@ -81,7 +81,9 @@ export function OrgSetupModal({ initialName }: { initialName: string }) {
     "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    // id stable : FeatureTour retient ses tutoriels tant que cette modale est
+    // dans le DOM (ils démarrent une fois le formulaire validé).
+    <div id="org-setup-modal" className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-card-border bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-500">Bienvenue sur Revold</p>
