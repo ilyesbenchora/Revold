@@ -1,5 +1,12 @@
 import { SolutionPage } from "@/components/solution-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Accélérer ses cycles de vente",
+  description: "Deals silencieux détectés tôt, relances priorisées et KPIs par pipeline : vos cycles de vente pilotés sur données réelles, pas au feeling.",
+};
+
 const teamIcon = (d: string) => <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 
 export default function AccelererCyclesVentePage() {

@@ -1,5 +1,12 @@
 import { SolutionPage } from "@/components/solution-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Optimiser ses revenus B2B",
+  description: "Projection pondérée du pipeline croisée avec les encaissements réels : une vision de trésorerie fondée sur la donnée rapprochée, pas sur l'optimisme.",
+};
+
 const teamIcon = (d: string) => <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 
 export default function OptimiserRevenusPage() {

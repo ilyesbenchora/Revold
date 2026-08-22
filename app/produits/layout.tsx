@@ -5,8 +5,8 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 
 
-// Indexation resserrée : home + blog uniquement — section noindex.
-export const metadata: Metadata = { robots: { index: false, follow: true } };
+// Sections INDEXÉES (longue traîne) — chaque page porte son titre/description.
+export const metadata: Metadata = { robots: { index: true, follow: true } };
 
 const PRODUCTS = [
   { label: "Synchronisation de données", href: "/produits/synchronisation" },

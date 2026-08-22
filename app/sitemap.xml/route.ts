@@ -2,9 +2,24 @@ import { articles } from "../blog/data";
 
 const BASE = "https://revold.ai";
 
-// Stratégie d'indexation VOLONTAIREMENT resserrée : seule la home et le blog
-// sont indexés (les autres pages sont noindex — layouts/metadata des sections).
-const STATIC_PAGES = ["", "/blog"];
+// Indexation ciblée : home (requête de marque), blog et pages produits/
+// solutions (longue traîne). Le reste du site est noindex.
+const STATIC_PAGES = [
+  "",
+  "/blog",
+  "/produits/synchronisation",
+  "/produits/reporting-cross-source",
+  "/produits/resolution-entites",
+  "/produits/insights-ia",
+  "/produits/audit-crm",
+  "/produits/alertes-previsions",
+  "/solutions/optimiser-revenus",
+  "/solutions/fiabiliser-donnees",
+  "/solutions/accelerer-cycles-vente",
+  "/solutions/piloter-performance",
+  "/solutions/unifier-stack",
+  "/solutions/reduire-churn",
+];
 
 export async function GET() {
   const staticEntries = STATIC_PAGES.map(

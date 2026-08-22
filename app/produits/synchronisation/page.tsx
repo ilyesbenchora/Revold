@@ -1,5 +1,12 @@
 import { ProductPage } from "@/components/product-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Synchronisation CRM, facturation et support",
+  description: "Connectez HubSpot, Stripe, Pennylane, Chargebee, GoCardless et Sage en lecture seule : vos données revenue synchronisées et rapprochées automatiquement, sans scripts.",
+};
+
 const icon = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />

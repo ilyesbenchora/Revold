@@ -1,5 +1,12 @@
 import { SolutionPage } from "@/components/solution-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Réduire le churn B2B",
+  description: "Tickets, retards de paiement et inactivité CRM croisés en déterministe : les clients à risque détectés avant la résiliation, avec actions concrètes.",
+};
+
 const teamIcon = (d: string) => <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 
 export default function ReduireChurnPage() {

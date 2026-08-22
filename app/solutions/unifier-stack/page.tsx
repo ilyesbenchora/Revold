@@ -1,5 +1,12 @@
 import { SolutionPage } from "@/components/solution-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Unifier sa stack revenue",
+  description: "CRM, facturation, banque et support reliés par identifiants légaux français : une seule vision fiable de vos revenus, sans code ni exports manuels.",
+};
+
 const teamIcon = (d: string) => <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 
 export default function UnifierStackPage() {

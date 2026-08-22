@@ -1,5 +1,12 @@
 import { SolutionPage } from "@/components/solution-page";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Piloter la performance commerciale",
+  description: "Pipeline, conversion, MRR, encaissements, churn : des tableaux de bord câblés sur vos vraies données CRM et facturation, vérifiables chiffre par chiffre.",
+};
+
 const teamIcon = (d: string) => <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 
 export default function PiloterPerformancePage() {
