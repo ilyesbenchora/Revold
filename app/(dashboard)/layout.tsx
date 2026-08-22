@@ -10,6 +10,7 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { ActiveChatBanner } from "@/components/active-chat-banner";
 import { TowerQueue } from "@/components/voice/tower-queue";
 import { EnrichmentBackgroundRunner } from "@/components/enrichment-background-runner";
+import { OrgSetupModal } from "@/components/org-setup-modal";
 
 // Les badges du header reflètent l'état réel des connexions par org →
 // pas de cache.
@@ -118,6 +119,29 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     }
   } catch {}
 
+  // ── Onboarding : fiche organisation INCOMPLÈTE (effectif/secteur manquants)
+  // → modale bloquante dès l'arrivée sur la plateforme, champs obligatoires.
+  // Le NOM est saisi par l'utilisateur : le fallback auto (« Org de x ») n'est
+  // jamais pré-rempli. Résilient : colonnes absentes → pas de modale.
+  let orgSetupName: string | null = null;
+  try {
+    const supa = await createSupabaseServerClient();
+    const orgId = await getOrgId();
+    if (orgId) {
+      const { data: orgRow, error: orgRowErr } = await supa
+        .from("organizations")
+        .select("name, employees_range, industry")
+        .eq("id", orgId)
+        .maybeSingle();
+      if (!orgRowErr && orgRow && (!orgRow.employees_range || !orgRow.industry)) {
+        const n = (orgRow.name as string | null) ?? "";
+        orgSetupName = /^org de /i.test(n) || n === "Mon organisation" ? "" : n;
+      }
+    }
+  } catch {
+    /* migration org_infos non appliquée → pas de modale */
+  }
+
   return (
     // .dashboard-shell : périmètre du mode sombre violet (Paramètres → Apparence).
     <div className="dashboard-shell min-h-screen bg-background">
@@ -126,6 +150,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         <DashboardSidebar role={role} pole={pole} memberCounts={memberCounts} pageAccess={pageAccess} />
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
+      {orgSetupName !== null && <OrgSetupModal initialName={orgSetupName} />}
       <ActiveChatBanner />
       {/* Demandes vocales en attente (tour de contrôle multi-agents) */}
       <TowerQueue />
