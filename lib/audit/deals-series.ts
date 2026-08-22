@@ -33,7 +33,10 @@ export async function computeDealsSeries(
   const [{ data: won }, { data: open }, { count: lostCount }] = await Promise.all([
     supabase
       .from("deals")
-      .select("amount, close_date, created_at")
+      // created_date = VRAIE createdate HubSpot ; created_at (insert Supabase)
+      // n'est qu'un repli pour les lignes historiques — même règle que le
+      // resolver d'alertes (sales_cycle_days).
+      .select("amount, close_date, created_date, created_at")
       .eq("organization_id", orgId)
       .eq("is_closed_won", true)
       .limit(5000),
@@ -66,8 +69,8 @@ export async function computeDealsSeries(
 
   // Cycle moyen (jours création → closing) sur les deals gagnés datés.
   const cycles = wonRows
-    .filter((d) => d.created_at && d.close_date)
-    .map((d) => (new Date(d.close_date as string).getTime() - new Date(d.created_at as string).getTime()) / 86_400_000)
+    .filter((d) => (d.created_date || d.created_at) && d.close_date)
+    .map((d) => (new Date(d.close_date as string).getTime() - new Date((d.created_date ?? d.created_at) as string).getTime()) / 86_400_000)
     .filter((n) => n >= 0 && Number.isFinite(n));
   const cycleMoyenJours = cycles.length > 0 ? Math.round(cycles.reduce((s, n) => s + n, 0) / cycles.length) : null;
 
