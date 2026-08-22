@@ -22,12 +22,24 @@ import {
   type TablePreset,
 } from "@/lib/reports/data-table-presets";
 
+/** Spec d'aperçu RÉEL d'un bloc de la page (option « Revold »). */
+export type HiddenBlockPreviewSpec = {
+  entity: string;
+  groupBy: string;
+  measure: string;
+  field?: string | null;
+  unit: "currency" | "count" | "percent";
+  view: "bar" | "line" | "donut" | "table";
+};
+
 export type HiddenBlock = {
   rowId: string;
   label: string;
   /** Visualisation d'origine : carousel | funnel | chart-line | chart-bar | table | tiles. */
   view?: string;
   description?: string;
+  /** Présent → la fenêtre montre un APERÇU RÉEL (données recalculées), sinon schématique. */
+  preview?: HiddenBlockPreviewSpec;
 };
 
 type PreviewRow = { name: string; value: number };
@@ -297,15 +309,14 @@ export function BlockSuggestionList({
     [tablesPageKey, tools, addedIds],
   );
 
-  function openPresetPreview(p: TablePreset) {
-    setSelectedHidden(null);
-    setSelectedPreset(p);
+  /** Recalcul déterministe partagé (preset OU aperçu réel d'un bloc de page). */
+  function loadRealPreview(query: { entity: string; groupBy: string; measure: string; field?: string | null }) {
     setPreview({ loading: true, rows: null, error: null });
     fetch("/api/reports/recompute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: { entity: p.entity, groupBy: p.groupBy, measure: p.measure, field: p.field ?? undefined },
+        query: { entity: query.entity, groupBy: query.groupBy, measure: query.measure, field: query.field ?? undefined },
         sources: (tools ?? []).map((t) => t.key),
         all: true,
       }),
@@ -316,6 +327,20 @@ export function BlockSuggestionList({
         setPreview({ loading: false, rows: Array.isArray(d.data) ? d.data : [], error: null });
       })
       .catch((e: Error) => setPreview({ loading: false, rows: null, error: e.message }));
+  }
+
+  function openPresetPreview(p: TablePreset) {
+    setSelectedHidden(null);
+    setSelectedPreset(p);
+    loadRealPreview({ entity: p.entity, groupBy: p.groupBy, measure: p.measure, field: p.field });
+  }
+
+  /** Ouvre l'aperçu d'un bloc de page : réel si le bloc porte une spec, sinon schématique. */
+  function openHiddenPreview(h: HiddenBlock) {
+    setSelectedPreset(null);
+    setSelectedHidden(h);
+    if (h.preview) loadRealPreview(h.preview);
+    else setPreview({ loading: false, rows: null, error: null });
   }
 
   function closeModal() {
@@ -388,7 +413,7 @@ export function BlockSuggestionList({
           <button
             key={h.rowId}
             type="button"
-            onClick={() => { setSelectedPreset(null); setSelectedHidden(h); }}
+            onClick={() => openHiddenPreview(h)}
             className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-accent hover:bg-accent/5"
           >
             <span className="min-w-0">
@@ -397,8 +422,14 @@ export function BlockSuggestionList({
                 {h.description ?? "Bloc de la page — visualisation d'origine conservée"}
               </span>
             </span>
-            <span className="shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600">
-              {VIEW_LABELS[h.view ?? "table"] ?? "Bloc"}
+            <span className="flex shrink-0 items-center gap-1.5">
+              {/* Badge « Revold » : bloc natif de la plateforme, aperçu réel. */}
+              <span className="rounded-md bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-600">
+                Revold
+              </span>
+              <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600">
+                {VIEW_LABELS[h.view ?? "table"] ?? "Bloc"}
+              </span>
             </span>
           </button>
         ))}
@@ -446,7 +477,9 @@ export function BlockSuggestionList({
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {selectedHidden
-                    ? selectedHidden.description ?? "Bloc de la page — il revient exactement tel qu'il était."
+                    ? selectedHidden.preview
+                      ? `Aperçu Revold sur tes données réelles — le bloc revient avec sa visualisation d'origine`
+                      : selectedHidden.description ?? "Bloc de la page — il revient exactement tel qu'il était."
                     : `Aperçu sur tes données réelles · ${VIEW_LABELS[selectedPreset?.view ?? "table"]}`}
                 </p>
               </div>
@@ -456,25 +489,34 @@ export function BlockSuggestionList({
             </div>
 
             <div className="mt-4 min-h-36">
-              {selectedHidden && <SchematicPreview view={selectedHidden.view} />}
-              {selectedPreset && preview.loading && (
-                <p className="py-10 text-center text-xs text-slate-400">Calcul de l&apos;aperçu sur tes données…</p>
-              )}
-              {selectedPreset && preview.error && (
-                <p className="py-8 text-center text-xs text-rose-500">{preview.error}</p>
-              )}
-              {selectedPreset && preview.rows && preview.rows.length === 0 && (
-                <p className="py-10 text-center text-xs text-slate-400">Aucune donnée pour ce KPI pour le moment.</p>
-              )}
-              {selectedPreset && preview.rows && preview.rows.length > 0 && (
-                <DataPreview rows={preview.rows} view={selectedPreset.view ?? "table"} unit={selectedPreset.unit} />
+              {/* Bloc de page SANS spec d'aperçu réel → schématique (visualisation dédiée). */}
+              {selectedHidden && !selectedHidden.preview && <SchematicPreview view={selectedHidden.view} />}
+              {/* Preset OU bloc de page AVEC spec → aperçu réel (recalcul déterministe). */}
+              {(selectedPreset || selectedHidden?.preview) && (
+                <>
+                  {preview.loading && (
+                    <p className="py-10 text-center text-xs text-slate-400">Calcul de l&apos;aperçu sur tes données…</p>
+                  )}
+                  {preview.error && <p className="py-8 text-center text-xs text-rose-500">{preview.error}</p>}
+                  {preview.rows && preview.rows.length === 0 && (
+                    <p className="py-10 text-center text-xs text-slate-400">Aucune donnée pour ce KPI pour le moment.</p>
+                  )}
+                  {preview.rows && preview.rows.length > 0 && (
+                    <DataPreview
+                      rows={preview.rows}
+                      view={(selectedHidden?.preview?.view ?? selectedPreset?.view) ?? "table"}
+                      unit={(selectedHidden?.preview?.unit ?? selectedPreset?.unit) ?? "count"}
+                    />
+                  )}
+                </>
               )}
             </div>
 
             {selectedHidden && (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                Aperçu schématique : ce bloc utilise une visualisation dédiée de la page
-                (carrousel, funnel…) — il se réaffiche exactement comme avant son retrait.
+                {selectedHidden.preview
+                  ? "Aperçu Revold sur tes données réelles. Au réaffichage, le bloc revient avec sa visualisation d'origine complète (carrousel, funnel, cartes…), plus riche que cet aperçu."
+                  : "Aperçu schématique : ce bloc utilise une visualisation dédiée de la page (carrousel, funnel…) — il se réaffiche exactement comme avant son retrait."}
               </p>
             )}
 

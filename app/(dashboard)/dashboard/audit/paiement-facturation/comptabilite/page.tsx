@@ -14,6 +14,7 @@ import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/c
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { blockPreviewMeta } from "@/lib/kpi/block-previews";
 
 // Clé de personnalisation propre à la sous-page (tuiles, blocs masqués, tables) —
 // catalogue de KPIs et filtre d'outils hérités de la page Trésorerie parente.
@@ -120,7 +121,7 @@ export default async function ComptabilitePage({
                     defaults={defaults}
                     customization={custom}
                     tablesPageKey={PAGE_KEY}
-                    hiddenBlocks={hiddenBlockList(custom)}
+                    hiddenBlocks={hiddenBlockList(custom, blockPreviewMeta)}
                   />
                 );
               })()}

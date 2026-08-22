@@ -13,6 +13,7 @@ import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-ga
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { blockPreviewMeta } from "@/lib/kpi/block-previews";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -134,12 +135,16 @@ export default async function ServiceClientRenouvellementPage() {
             defaults={tiles}
             customization={custom}
             tablesPageKey={PAGE_KEY}
-            hiddenBlocks={hiddenBlockList(custom, (key) => ({
-              retention: { view: "table", description: "Renewal rate, GRR, churn rate, customers actifs" },
-              cohortes_frequence: { view: "table", description: "Mix subs annuelles / mensuelles" },
-              arr_securise_risque: { view: "table", description: "ARR sécurisé vs à risque, subs exposées" },
-              engagement_pre_renouvellement: { view: "table", description: "Conversations, proxy CSAT, feedback collecté" },
-            }[key]))}
+            hiddenBlocks={hiddenBlockList(custom, (key) => {
+              const m = ({
+                retention: { view: "table", description: "Renewal rate, GRR, churn rate, customers actifs" },
+                cohortes_frequence: { view: "table", description: "Mix subs annuelles / mensuelles" },
+                arr_securise_risque: { view: "table", description: "ARR sécurisé vs à risque, subs exposées" },
+                engagement_pre_renouvellement: { view: "table", description: "Conversations, proxy CSAT, feedback collecté" },
+              } as Record<string, { view: string; description: string }>)[key];
+              const c = blockPreviewMeta(key);
+              return m ? { ...m, preview: c?.preview } : c;
+            })}
           />
         );
       })()}

@@ -11,6 +11,7 @@ import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-ga
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { blockPreviewMeta } from "@/lib/kpi/block-previews";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -122,11 +123,15 @@ export default async function ServiceClientProcessPage() {
         defaults={tiles}
         customization={custom}
         tablesPageKey={PAGE_KEY}
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          sla_accueil: { view: "table", description: "1ère réponse, SLA < 4h, résolution moyenne, tickets/contact" },
-          onboarding_livraison: { view: "table", description: "Tickets onboarding, taux de résolution, handoff sales → CSM" },
-          capacite_operationnelle: { view: "table", description: "Tickets ouverts, conversations entrantes, subscriptions actives" },
-        }[key]))}
+        hiddenBlocks={hiddenBlockList(custom, (key) => {
+          const m = ({
+            sla_accueil: { view: "table", description: "1ère réponse, SLA < 4h, résolution moyenne, tickets/contact" },
+            onboarding_livraison: { view: "table", description: "Tickets onboarding, taux de résolution, handoff sales → CSM" },
+            capacite_operationnelle: { view: "table", description: "Tickets ouverts, conversations entrantes, subscriptions actives" },
+          } as Record<string, { view: string; description: string }>)[key];
+          const c = blockPreviewMeta(key);
+          return m ? { ...m, preview: c?.preview } : c;
+        })}
       />
 
       {!custom.hiddenBlocks.has("sla_accueil") && (

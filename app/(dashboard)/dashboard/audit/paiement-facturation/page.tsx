@@ -31,7 +31,7 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { getPageCustomization, hiddenBlockList, type HiddenBlockMeta } from "@/lib/kpi/page-tiles";
 
 export default async function PaiementFacturationOverviewPage({
   searchParams,
@@ -244,14 +244,14 @@ export default async function PaiementFacturationOverviewPage({
           defaults={defaultTiles}
           customization={custom}
           tablesPageKey="audit_paiement_facturation"
-          hiddenBlocks={hiddenBlockList(custom, (key) => {
-            if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn" };
-            if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen" };
-            if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges" };
-            if (key === "ca_signe") return { view: "table", description: "Chiffre d'affaires : CA signé (et réconciliation encaissé sur un outil de facturation)" };
-            if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)" };
-            if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)" };
-            if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)" };
+          hiddenBlocks={hiddenBlockList(custom, (key): HiddenBlockMeta | undefined => {
+            if (key.startsWith("subs_")) return { view: "table", description: "MRR, ARR, abonnements actifs, churn", preview: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", unit: "currency", view: "bar" } };
+            if (key.startsWith("invoices_")) return { view: "table", description: "Factures émises, encaissé, impayés, montant moyen", preview: { entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" } };
+            if (key.startsWith("cashflow_")) return { view: "chart-line", description: "Trésorerie : flux, solde, runway + graphiques et charges", preview: { entity: "transactions", groupBy: "month_transaction", measure: "sum", field: "amount", unit: "currency", view: "line" } };
+            if (key === "ca_signe") return { view: "table", description: "Chiffre d'affaires : CA signé (et réconciliation encaissé sur un outil de facturation)", preview: { entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" } };
+            if (key === "cross_ca") return { view: "table", description: "CA signé vs encaissé (réconciliation CRM × facturation)", preview: { entity: "invoices", groupBy: "month_issued", measure: "sum", field: "amount_paid", unit: "currency", view: "line" } };
+            if (key === "cross_marge") return { view: "table", description: "Marge brute et taux de marge (encaissé − décaissements)", preview: { entity: "transactions", groupBy: "category", measure: "sum", field: "amount_out", unit: "currency", view: "bar" } };
+            if (key === "cross_previsions") return { view: "table", description: "Prévision de marge (pipeline pondéré × taux de marge)", preview: { entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" } };
             return undefined;
           })}
         />

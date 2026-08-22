@@ -23,7 +23,7 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
-import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { getPageCustomization, hiddenBlockList, type HiddenBlockMeta } from "@/lib/kpi/page-tiles";
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -120,12 +120,28 @@ export default async function PerformanceCommercialePage() {
         defaults={tiles}
         customization={custom}
         tablesPageKey="perf_ventes"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          ca_charts: { view: "chart-line", description: "CA signé par mois + cumul — 2 graphiques" },
-          pipeline_stages_bars: { view: "chart-bar", description: "Montant ouvert par étape, par pipeline" },
-          pipeline_management: { view: "carousel", description: "Carrousel d'analyse par pipeline (volumes, montants, vélocité)" },
-          pipeline_conversion: { view: "funnel", description: "Taux de conversion étape par étape" },
-        }[key]))}
+        hiddenBlocks={hiddenBlockList(custom, (key) => (({
+          ca_charts: {
+            view: "chart-line",
+            description: "CA signé par mois + cumul — 2 graphiques",
+            preview: { entity: "deals", groupBy: "month_closed", measure: "sum", field: "amount", unit: "currency", view: "line" },
+          },
+          pipeline_stages_bars: {
+            view: "chart-bar",
+            description: "Montant ouvert par étape, par pipeline",
+            preview: { entity: "deals", groupBy: "stage", measure: "sum", field: "amount", unit: "currency", view: "bar" },
+          },
+          pipeline_management: {
+            view: "carousel",
+            description: "Carrousel d'analyse par pipeline (volumes, montants, vélocité)",
+            preview: { entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+          },
+          pipeline_conversion: {
+            view: "funnel",
+            description: "Taux de conversion étape par étape",
+            preview: { entity: "deals", groupBy: "stage", measure: "count", unit: "count", view: "bar" },
+          },
+        } as Record<string, HiddenBlockMeta>)[key]))}
       />
 
       {/* ── Graphes : CA signé par mois + cumul ── */}

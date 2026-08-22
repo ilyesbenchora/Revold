@@ -13,6 +13,7 @@ import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-ga
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { blockPreviewMeta } from "@/lib/kpi/block-previews";
 
 // Clé de personnalisation propre à la sous-page (tuiles masquées/renommées,
 // KPIs ajoutés) — catalogue de KPIs service client hérité de la page parente.
@@ -128,11 +129,15 @@ export default async function ServiceClientChurnPage() {
             defaults={tiles}
             customization={custom}
             tablesPageKey={PAGE_KEY}
-            hiddenBlocks={hiddenBlockList(custom, (key) => ({
-              risque_churn: { view: "table", description: "Score de risque churn : churn rate, subs annulées, past due, NRR" },
-              signaux_faibles: { view: "table", description: "Tickets urgents, tickets/contact, feedback collecté" },
-              impact_revenue: { view: "table", description: "MRR perdu, ARR à risque, MRR sain restant" },
-            }[key]))}
+            hiddenBlocks={hiddenBlockList(custom, (key) => {
+              const m = ({
+                risque_churn: { view: "table", description: "Score de risque churn : churn rate, subs annulées, past due, NRR" },
+                signaux_faibles: { view: "table", description: "Tickets urgents, tickets/contact, feedback collecté" },
+                impact_revenue: { view: "table", description: "MRR perdu, ARR à risque, MRR sain restant" },
+              } as Record<string, { view: string; description: string }>)[key];
+              const c = blockPreviewMeta(key);
+              return m ? { ...m, preview: c?.preview } : c;
+            })}
           />
         );
       })()}

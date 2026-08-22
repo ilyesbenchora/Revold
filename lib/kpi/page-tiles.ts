@@ -48,17 +48,34 @@ const EMPTY: PageCustomization = {
   tileOverrides: new Map(),
 };
 
-export type HiddenBlockMeta = { view?: string; description?: string };
+/**
+ * Spec d'APERÇU RÉEL d'un bloc de la page (option « Revold ») : un agrégat
+ * déterministe représentatif du bloc, recalculé sur les vraies données dans la
+ * fenêtre de suggestions (même moteur que les presets). Renseignée par la page
+ * pour ses blocs travaillés (pipeline management, transactions à risque…) ; le
+ * bloc lui-même se réaffiche toujours avec sa visualisation d'origine exacte.
+ */
+export type HiddenBlockPreview = {
+  entity: string;
+  groupBy: string;
+  measure: string;
+  field?: string | null;
+  unit: "currency" | "count" | "percent";
+  /** Vue de l'aperçu réel (bar/line/donut/table) — souvent « bar » pour un bloc riche. */
+  view: "bar" | "line" | "donut" | "table";
+};
+
+export type HiddenBlockMeta = { view?: string; description?: string; preview?: HiddenBlockPreview };
 
 /**
  * Liste des blocs masqués — props directes de BlocksManager. `meta` (optionnel)
- * décrit la visualisation d'origine de chaque bloc (clé → { view, description })
- * pour l'afficher dans la liste de suggestions avec le bon aperçu.
+ * décrit la visualisation d'origine de chaque bloc (clé → { view, description,
+ * preview }) : `view` pilote l'aperçu schématique, `preview` un aperçu RÉEL.
  */
 export function hiddenBlockList(
   cust: PageCustomization,
   meta?: (blockKey: string) => HiddenBlockMeta | undefined,
-): Array<{ key: string; rowId: string; label: string; view?: string; description?: string }> {
+): Array<{ key: string; rowId: string; label: string; view?: string; description?: string; preview?: HiddenBlockPreview }> {
   return [...cust.hiddenBlocks.entries()].map(([key, h]) => ({
     key,
     rowId: h.rowId,

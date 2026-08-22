@@ -17,6 +17,7 @@ import { HBarChart } from "@/components/charts/hbar-chart";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
+import { blockPreviewMeta } from "@/lib/kpi/block-previews";
 
 export default async function ServiceClientOverviewPage() {
   const orgId = await getOrgId();
@@ -158,10 +159,14 @@ export default async function ServiceClientOverviewPage() {
         defaults={defaultTiles}
         customization={custom}
         tablesPageKey="audit_service_client"
-        hiddenBlocks={hiddenBlockList(custom, (key) => ({
-          tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
-          satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
-        }[key]))}
+        hiddenBlocks={hiddenBlockList(custom, (key) => {
+          const m = ({
+            tickets_volume: { view: "table", description: "Volume de tickets : analysés, portail, ouverts, fermés, priorité haute" },
+            satisfaction: { view: "table", description: "Subscriptions, conversations entrantes, feedback CSAT/NPS" },
+          } as Record<string, { view: string; description: string }>)[key];
+          const c = blockPreviewMeta(key);
+          return m ? { ...m, preview: c?.preview } : c;
+        })}
       />
 
       {!custom.hiddenBlocks.has("tickets_volume") && (
