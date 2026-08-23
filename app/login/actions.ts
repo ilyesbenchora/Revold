@@ -248,13 +248,22 @@ export async function completeProfileAction(formData: FormData) {
 
   // Crée l'organisation maintenant, puis y range effectif + secteur (best
   // effort : les infos restent dans user_metadata si la colonne manque).
+  // setup_completed : l'inscription vaut onboarding — la modale « Bienvenue
+  // sur Revold » ne doit pas se rafficher ensuite. Repli sans le marqueur si
+  // la migration n'est pas appliquée (l'écriture entière échouerait sinon).
   try {
     const orgId = await getOrgId();
     if (orgId) {
-      await supabase
+      const { error: orgErr } = await supabase
         .from("organizations")
-        .update({ employees_range: employees, industry })
+        .update({ employees_range: employees, industry, setup_completed: true })
         .eq("id", orgId);
+      if (orgErr && /setup_completed/.test(orgErr.message)) {
+        await supabase
+          .from("organizations")
+          .update({ employees_range: employees, industry })
+          .eq("id", orgId);
+      }
     }
   } catch {}
 

@@ -42,10 +42,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error } = await supabase
+  // setup_completed : la modale ne réapparaîtra plus jamais pour cette org.
+  // Repli sans le marqueur si la migration n'est pas encore appliquée.
+  let { error } = await supabase
     .from("organizations")
-    .update({ name: orgName, employees_range: employees, industry })
+    .update({ name: orgName, employees_range: employees, industry, setup_completed: true })
     .eq("id", orgId);
+  if (error && /setup_completed/.test(error.message)) {
+    ({ error } = await supabase
+      .from("organizations")
+      .update({ name: orgName, employees_range: employees, industry })
+      .eq("id", orgId));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // ── Équipe + rôle sur le profil. GARDE-FOU : si l'utilisateur est le seul

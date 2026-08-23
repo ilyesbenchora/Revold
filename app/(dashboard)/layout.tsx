@@ -119,10 +119,12 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     }
   } catch {}
 
-  // ── Onboarding : fiche organisation INCOMPLÈTE (effectif/secteur manquants)
-  // → modale bloquante dès l'arrivée sur la plateforme, champs obligatoires.
-  // Le NOM est saisi par l'utilisateur : le fallback auto (« Org de x ») n'est
-  // jamais pré-rempli. Résilient : colonnes absentes → pas de modale.
+  // ── Onboarding : modale bloquante réservée à la PREMIÈRE connexion d'un
+  // nouveau compte — jamais pour un compte existant. setup_completed est le
+  // marqueur (backfillé à vrai pour les orgs antérieures) ; les champs
+  // manquants seuls ne suffisent plus à la déclencher. Le NOM est saisi par
+  // l'utilisateur : le fallback auto (« Org de x ») n'est jamais pré-rempli.
+  // Résilient : colonnes absentes → pas de modale.
   let orgSetupName: string | null = null;
   try {
     const supa = await createSupabaseServerClient();
@@ -130,16 +132,16 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     if (orgId) {
       const { data: orgRow, error: orgRowErr } = await supa
         .from("organizations")
-        .select("name, employees_range, industry")
+        .select("name, employees_range, industry, setup_completed")
         .eq("id", orgId)
         .maybeSingle();
-      if (!orgRowErr && orgRow && (!orgRow.employees_range || !orgRow.industry)) {
+      if (!orgRowErr && orgRow && orgRow.setup_completed !== true && (!orgRow.employees_range || !orgRow.industry)) {
         const n = (orgRow.name as string | null) ?? "";
         orgSetupName = /^org de /i.test(n) || n === "Mon organisation" ? "" : n;
       }
     }
   } catch {
-    /* migration org_infos non appliquée → pas de modale */
+    /* migration org_infos/setup_completed non appliquée → pas de modale */
   }
 
   return (
