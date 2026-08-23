@@ -30,7 +30,7 @@ export type PnlData = {
   };
 };
 
-const CLASSE_LABELS: Record<string, string> = {
+export const CLASSE_LABELS: Record<string, string> = {
   "1": "Capitaux",
   "2": "Immobilisations",
   "3": "Stocks",

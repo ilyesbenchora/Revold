@@ -150,8 +150,8 @@ export default async function ServiceClientCrossSellUpsellPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "CA signé (deals gagnés)", value: products.wonAmount > 0 ? products.wonAmount : null, unit: "currency", cells: [`${fmt(products.wonDeals)} deals gagnés`] },
-            { name: "Panier moyen", value: products.avgWonAmount, unit: "currency", cells: ["CA signé / deals gagnés"] },
+            { name: "CA signé (deals gagnés)", value: products.wonAmount > 0 ? products.wonAmount : null, unit: "currency", cells: [`${fmt(products.wonDeals)} deals gagnés`], spec: { entity: "deals", groupBy: "status", measure: "sum", field: "amount", target: "Gagnés" } },
+            { name: "Panier moyen", value: products.avgWonAmount, unit: "currency", cells: ["CA signé / deals gagnés"], spec: { entity: "deals", groupBy: "outcome", measure: "avg", field: "amount", target: "Gagnés" } },
             { name: "Produits distincts vendus", value: products.distinctProducts, unit: "count", cells: ["Catalogue réellement vendu"] },
             { name: "Lignes produit (line items)", value: products.lineItemsTotal, unit: "count", cells: ["Produits associés aux deals"] },
             { name: "Part récurrente", value: recurringPct, unit: "percent", cells: ["Line items avec fréquence de facturation"] },
@@ -198,11 +198,11 @@ export default async function ServiceClientCrossSellUpsellPage() {
             valueLabel="Valeur"
             extraColumns={["Détail"]}
             rows={[
-              { name: "Deals avec produits associés", value: products.dealsWithProducts, unit: "count", cells: ["hs_num_of_associated_line_items > 0"] },
-              { name: "Deals mono-produit", value: products.monoProductDeals, unit: "count", cells: ["Candidats cross-sell prioritaires"] },
-              { name: "Deals multi-produits", value: products.multiProductDeals, unit: "count", tone: "pos", cells: ["≥ 2 produits associés"] },
+              { name: "Deals avec produits associés", value: products.dealsWithProducts, unit: "count", cells: ["hs_num_of_associated_line_items > 0"], spec: { entity: "deals", groupBy: "has_products", measure: "count", target: "Avec produits" } },
+              { name: "Deals mono-produit", value: products.monoProductDeals, unit: "count", cells: ["Candidats cross-sell prioritaires"], spec: { entity: "deals", groupBy: "equipement", measure: "count", target: "Mono-produit" } },
+              { name: "Deals multi-produits", value: products.multiProductDeals, unit: "count", tone: "pos", cells: ["≥ 2 produits associés"], spec: { entity: "deals", groupBy: "equipement", measure: "count", target: "Multi-produits (≥ 2)" } },
               { name: "% multi-produits", value: products.multiProductPct, unit: "percent", cells: ["Taux d'équipement au-delà de 1"] },
-              { name: "Produits par deal (moy.)", value: products.avgProductsPerDeal, unit: "count", cells: ["Sur les deals avec produits"] },
+              { name: "Produits par deal (moy.)", value: products.avgProductsPerDeal, unit: "count", cells: ["Sur les deals avec produits"], spec: { entity: "deals", groupBy: "has_products", measure: "avg", field: "products", target: "Avec produits" } },
               { name: "Potentiel d'expansion", value: expansionPotential, unit: "currency", cells: ["Mono-produit × panier moyen × 20 %"] },
             ]}
             footnote="Unités hétérogènes (volumes, % et montants) : pas de total agrégé."
@@ -231,12 +231,13 @@ export default async function ServiceClientCrossSellUpsellPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "Deals ouverts", value: snapshot.openDeals, unit: "count", cells: ["Tous pipelines confondus"] },
+            { name: "Deals ouverts", value: snapshot.openDeals, unit: "count", cells: ["Tous pipelines confondus"], spec: { entity: "deals", groupBy: "status", measure: "count", target: "En cours" } },
             {
               name: "Pipeline ouvert €",
               value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null,
               unit: "currency",
               cells: ["Inclut new business + expansion"],
+              spec: { entity: "deals", groupBy: "status", measure: "sum", field: "amount", target: "En cours" },
             },
             {
               name: "Taux deals / customer",

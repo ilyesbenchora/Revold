@@ -153,9 +153,9 @@ export default async function ServiceClientProcessPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "1ère réponse moy. (h)", value: data.avgFirstResponseHours ?? null, unit: "count", cells: ["SLA cible : ≤ 4h"] },
-            { name: "SLA respecté (< 4h)", value: slaRate, unit: "percent", cells: ["% tickets < 4h"] },
-            { name: "Résolution moy. (h)", value: data.avgResolutionHours ?? null, unit: "count", cells: ["Cible : ≤ 24h"] },
+            { name: "1ère réponse moy. (h)", value: data.avgFirstResponseHours ?? null, unit: "count", cells: ["SLA cible : ≤ 4h"], spec: { entity: "tickets", groupBy: "replied", measure: "avg", field: "first_response_hours", target: "Répondu" } },
+            { name: "SLA respecté (< 4h)", value: slaRate, unit: "percent", cells: ["% tickets < 4h"], spec: { entity: "tickets", groupBy: "replied", measure: "avg", field: "sla_4h_hit", target: "Répondu", multiplier: 100 } },
+            { name: "Résolution moy. (h)", value: data.avgResolutionHours ?? null, unit: "count", cells: ["Cible : ≤ 24h"], spec: { entity: "tickets", groupBy: "status", measure: "avg", field: "resolution_hours", target: "closed" } },
             { name: "Tickets / contact", value: data.ticketsPerCustomer ?? null, unit: "count", cells: [`${fmt(data.distinctContactsCount)} contacts uniques`] },
             { name: "Contacts uniques", value: data.distinctContactsCount, unit: "count", cells: ["—"] },
           ]}
@@ -214,9 +214,9 @@ export default async function ServiceClientProcessPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "Tickets ouverts", value: data.openTickets, unit: "count", cells: ["Charge actuelle CSM"] },
+            { name: "Tickets ouverts", value: data.openTickets, unit: "count", cells: ["Charge actuelle CSM"], spec: { entity: "tickets", groupBy: "status", measure: "count", target: "open" } },
             { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Volume Inbox"] },
-            { name: "Tickets sans réponse agent", value: data.tickets.filter((t) => !t.properties.first_agent_reply_date).length, unit: "count", tone: "neg", cells: ["À traiter en priorité"] },
+            { name: "Tickets sans réponse agent", value: data.tickets.filter((t) => !t.properties.first_agent_reply_date).length, unit: "count", tone: "neg", cells: ["À traiter en priorité"], spec: { entity: "tickets", groupBy: "replied", measure: "count", target: "Sans réponse" } },
           ]}
           footnote="Volumes de natures différentes (tickets, conversations, subs) : pas de total agrégé."
         />

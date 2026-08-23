@@ -9,6 +9,7 @@ import { entityLabel, dimLabel } from "@/lib/reports/data-table-presets";
 import { currentLocale, formatBucketLabel, useLocale } from "@/lib/locale";
 import { DrilldownModal, type DrilldownTarget } from "@/components/reports/drilldown-modal";
 import { fetchCohortOptions } from "@/lib/reports/cohort-filter-client";
+import { fetchFiscalYearStart } from "@/lib/reports/fiscal-year-client";
 import { getConnectableTool } from "@/lib/integrations/connect-catalog";
 import { toolDomain } from "@/lib/integrations/tool-domains";
 import { BrandLogo } from "@/components/brand-logo";
@@ -340,10 +341,14 @@ export function DataTableCard({
       setPeriod(ap);
       load(ap);
     } else if (stored.preset !== "all") {
-      const { from, to } = computePeriod(stored.preset, new Date());
-      const ap: AppliedPeriod = { preset: stored.preset, from, to, label: presetLabel(stored.preset) };
-      setPeriod(ap);
-      load(ap);
+      // Le début d'exercice (presets « Exercice ») est lu en cache module —
+      // les autres presets ne dépendent pas de la valeur.
+      void fetchFiscalYearStart().then((fs) => {
+        const { from, to } = computePeriod(stored.preset, new Date(), fs);
+        const ap: AppliedPeriod = { preset: stored.preset, from, to, label: presetLabel(stored.preset) };
+        setPeriod(ap);
+        load(ap);
+      });
     } else {
       load(null);
     }

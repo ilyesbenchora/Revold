@@ -4,6 +4,7 @@ import { getConnectedTools } from "@/lib/integrations/connected-tools";
 import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { fetchAdsPerformance } from "@/lib/integrations/sources/ads";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
+import { CLASSE_LABELS as LEDGER_CLASSE_LABELS } from "@/lib/audit/pnl";
 
 /**
  * Performance publicité & web (Google Analytics/Ads, Meta Ads, LinkedIn Ads) sur
@@ -435,6 +436,23 @@ function monthOf(v: unknown): string | null {
   const s = String(v ?? "");
   return s.length >= 7 ? s.slice(0, 7) : null;
 }
+/**
+ * Tranche de balance âgée d'une facture (mêmes règles que computeReceivables) :
+ * ouvertes uniquement (open/uncollectible), reste dû non nul, retard vs
+ * aujourd'hui ; sans échéance → « Non échu ».
+ */
+function agingBucketOf(r: Record<string, unknown>): string | null {
+  const status = String(r.status ?? "");
+  if (status !== "open" && status !== "uncollectible") return null;
+  if (Math.abs(Number(r.amount_due) || 0) === 0) return null;
+  const due = r.due_at ? new Date(String(r.due_at)).getTime() : null;
+  const d = due !== null ? Math.floor((Date.now() - due) / 86_400_000) : 0;
+  if (d <= 0) return "Non échu";
+  if (d <= 30) return "0–30 j";
+  if (d <= 60) return "31–60 j";
+  if (d <= 90) return "61–90 j";
+  return "+90 j";
+}
 /** Écart en heures entre deux timestamps (null si l'un manque ou incohérent). */
 function hoursBetween(from: unknown, to: unknown): number | null {
   if (!from || !to) return null;
@@ -570,18 +588,26 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
   },
   invoices: {
-    columns: "amount_total, amount_paid, amount_due, status, primary_source, issued_at, paid_at",
+    columns: "amount_total, amount_paid, amount_due, status, primary_source, issued_at, paid_at, due_at, direction",
     hasSource: true,
     dims: {
       status: (r) => String(r.status ?? "inconnu"),
       source: (r) => String(r.primary_source ?? "inconnu"),
       month_issued: (r) => monthOf(r.issued_at),
       month_paid: (r) => monthOf(r.paid_at),
+      // Sens de la facture : émise (créance client) ou reçue (dette fournisseur).
+      direction: (r) => (r.direction === "out" ? "Fournisseurs" : "Clients"),
+      // Balance âgée (mêmes tranches que la page Clients & fournisseurs) :
+      // factures OUVERTES uniquement, par retard d'échéance vs aujourd'hui.
+      aging_clients: (r) => (r.direction === "out" ? null : agingBucketOf(r)),
+      aging_fournisseurs: (r) => (r.direction === "out" ? agingBucketOf(r) : null),
     },
     numeric: {
       amount_total: (r) => Number(r.amount_total) || 0,
       amount_paid: (r) => Number(r.amount_paid) || 0,
       amount_due: (r) => Number(r.amount_due) || 0,
+      // Valeur absolue (piège avoirs : reste dû négatif) — balance âgée.
+      amount_due_abs: (r) => Math.abs(Number(r.amount_due) || 0),
     },
   },
   subscriptions: {
@@ -592,6 +618,19 @@ const AGG_SPECS: Record<string, AggSpec> = {
       source: (r) => String(r.primary_source ?? "inconnu"),
       month_started: (r) => monthOf(r.started_at),
       month_canceled: (r) => monthOf(r.canceled_at),
+      // Santé du portefeuille (mêmes segments que la page Paiement) :
+      // Actives / En essai / À risque (past due + canceled / paused / expired).
+      sante: (r) => {
+        const s = String(r.status ?? "").toLowerCase();
+        if (s === "active") return "Actives";
+        if (s === "trialing") return "En essai";
+        return "À risque";
+      },
+      // Subs sorties du portefeuille uniquement (canceled / expired / paused).
+      churn_state: (r) => {
+        const s = String(r.status ?? "").toLowerCase();
+        return ["canceled", "cancelled", "expired", "paused"].includes(s) ? "Annulées" : null;
+      },
     },
     numeric: { mrr: (r) => Number(r.mrr) || 0 },
   },
@@ -621,6 +660,15 @@ const AGG_SPECS: Record<string, AggSpec> = {
     dims: {
       status: (r) => String(r.status ?? "inconnu"),
       priority: (r) => String(r.priority ?? "Sans priorité"),
+      // Niveau regroupé (mêmes règles que la page Service Client : HIGH et
+      // URGENT comptés ensemble comme « priorité haute »).
+      priority_level: (r) => {
+        const p = String(r.priority ?? "").toUpperCase();
+        if (p === "HIGH" || p === "URGENT") return "Haute / urgente";
+        if (p === "MEDIUM") return "Moyenne";
+        if (p === "LOW") return "Basse";
+        return "Sans priorité";
+      },
       channel: (r) => String(r.channel ?? "inconnu"),
       month_opened: (r) => monthOf(r.opened_at),
       month_resolved: (r) => monthOf(r.resolved_at),
@@ -663,6 +711,45 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
     numeric: {},
   },
+  // Écritures comptables agrégées compte × mois (ledger_balances — Pennylane
+  // & co) : P&L, TVA et balance recalculables par période/exercice.
+  // Conventions PCG : classe 7 = crédit − débit, classe 6 = débit − crédit.
+  ledger: {
+    table: "ledger_balances",
+    columns: "account_number, account_label, month, debit, credit, primary_source",
+    hasSource: true,
+    dims: {
+      // « 7 — Produits », « 6 — Charges »… (mêmes libellés que la balance).
+      classe: (r) => {
+        const c = String(r.account_number ?? "")[0];
+        return c ? `${c} — ${LEDGER_CLASSE_LABELS[c] ?? `Classe ${c}`}` : null;
+      },
+      // P&L : uniquement classes 6/7 (les autres classes sortent de la dim) —
+      // sum(solde_crediteur) sans target = produits − charges = résultat.
+      pnl: (r) => {
+        const c = String(r.account_number ?? "")[0];
+        return c === "7" ? "Produits" : c === "6" ? "Charges" : null;
+      },
+      // TVA : 4457x collectée (sur ventes) / 4456x déductible (sur achats) —
+      // sum(solde_crediteur) sans target = TVA nette à provisionner.
+      tva: (r) => {
+        const n = String(r.account_number ?? "");
+        return n.startsWith("4457") ? "TVA collectée" : n.startsWith("4456") ? "TVA déductible" : null;
+      },
+      // Libellé du compte (mêmes noms que le top charges de la page).
+      account: (r) => String(r.account_label ?? `Compte ${r.account_number ?? "?"}`),
+      month_entry: (r) => monthOf(r.month),
+      source: (r) => String(r.primary_source ?? "inconnu"),
+    },
+    numeric: {
+      debit: (r) => Number(r.debit) || 0,
+      credit: (r) => Number(r.credit) || 0,
+      // Convention balance / charges : débit − crédit.
+      solde: (r) => (Number(r.debit) || 0) - (Number(r.credit) || 0),
+      // Convention produits / TVA collectée : crédit − débit.
+      solde_crediteur: (r) => (Number(r.credit) || 0) - (Number(r.debit) || 0),
+    },
+  },
 };
 
 /** Colonne de date à filtrer pour une entité/dimension (recalcul par période). */
@@ -685,10 +772,11 @@ function dateColumnFor(entity: string, groupBy: string): string | null {
       created: "created_date", closed: "close_date", issued: "issued_at",
       paid: "paid_at", started: "started_at", canceled: "canceled_at",
       transaction: "date", opened: "opened_at", resolved: "resolved_at",
+      entry: "month",
     };
     return m[suffix] ?? null;
   }
-  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date", tickets: "opened_at" };
+  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date", tickets: "opened_at", ledger: "month" };
   return def[entity] ?? null;
 }
 

@@ -150,10 +150,11 @@ export default async function ComptabilitePage({
                   unit="currency"
                   nameLabel="Indicateur"
                   extraColumns={["Détail"]}
+                  sources={activeKey ? [activeKey] : []}
                   rows={[
-                    { name: "Produits (classe 7)", value: pnl.produits > 0 ? pnl.produits : null, unit: "currency", tone: "pos", cells: ["CA + autres produits comptabilisés"] },
-                    { name: "Charges (classe 6)", value: pnl.charges > 0 ? pnl.charges : null, unit: "currency", tone: "neg", cells: ["Charges comptabilisées"] },
-                    { name: "Résultat", value: pnl.hasData ? pnl.resultat : null, unit: "currency", tone: "auto", cells: ["Produits − charges"] },
+                    { name: "Produits (classe 7)", value: pnl.produits > 0 ? pnl.produits : null, unit: "currency", tone: "pos", cells: ["CA + autres produits comptabilisés"], spec: { entity: "ledger", groupBy: "pnl", measure: "sum", field: "solde_crediteur", target: "Produits" } },
+                    { name: "Charges (classe 6)", value: pnl.charges > 0 ? pnl.charges : null, unit: "currency", tone: "neg", cells: ["Charges comptabilisées"], spec: { entity: "ledger", groupBy: "pnl", measure: "sum", field: "solde", target: "Charges" } },
+                    { name: "Résultat", value: pnl.hasData ? pnl.resultat : null, unit: "currency", tone: "auto", cells: ["Produits − charges"], spec: { entity: "ledger", groupBy: "pnl", measure: "sum", field: "solde_crediteur" } },
                     { name: "Taux de marge comptable", value: pnl.tauxMarge, unit: "percent", tone: "auto", cells: ["Résultat / produits"] },
                   ]}
                   footnote="Reconstruit depuis les écritures comptables synchronisées — la marge la plus fiable disponible."
@@ -180,10 +181,11 @@ export default async function ComptabilitePage({
                   unit="currency"
                   nameLabel="Indicateur"
                   extraColumns={["Détail"]}
+                  sources={activeKey ? [activeKey] : []}
                   rows={[
-                    { name: "TVA collectée", value: pnl.fiscal.tvaCollectee !== 0 ? pnl.fiscal.tvaCollectee : null, unit: "currency", cells: ["Comptes 4457x (sur ventes)"] },
-                    { name: "TVA déductible", value: pnl.fiscal.tvaDeductible !== 0 ? pnl.fiscal.tvaDeductible : null, unit: "currency", cells: ["Comptes 4456x (sur achats)"] },
-                    { name: "TVA nette à provisionner", value: pnl.fiscal.tvaCollectee !== 0 || pnl.fiscal.tvaDeductible !== 0 ? pnl.fiscal.tvaNette : null, unit: "currency", tone: "auto", cells: ["Collectée − déductible"] },
+                    { name: "TVA collectée", value: pnl.fiscal.tvaCollectee !== 0 ? pnl.fiscal.tvaCollectee : null, unit: "currency", cells: ["Comptes 4457x (sur ventes)"], spec: { entity: "ledger", groupBy: "tva", measure: "sum", field: "solde_crediteur", target: "TVA collectée" } },
+                    { name: "TVA déductible", value: pnl.fiscal.tvaDeductible !== 0 ? pnl.fiscal.tvaDeductible : null, unit: "currency", cells: ["Comptes 4456x (sur achats)"], spec: { entity: "ledger", groupBy: "tva", measure: "sum", field: "solde", target: "TVA déductible" } },
+                    { name: "TVA nette à provisionner", value: pnl.fiscal.tvaCollectee !== 0 || pnl.fiscal.tvaDeductible !== 0 ? pnl.fiscal.tvaNette : null, unit: "currency", tone: "auto", cells: ["Collectée − déductible"], spec: { entity: "ledger", groupBy: "tva", measure: "sum", field: "solde_crediteur" } },
                     { name: "IS estimé", value: pnl.fiscal.isEstime, unit: "currency", tone: "neg", cells: ["15 % ≤ 42 500 € puis 25 % — si bénéfice"] },
                   ]}
                   footnote="Approximations d'aide à la décision depuis vos comptes — pas des déclarations officielles, à confirmer avec votre expert-comptable."
@@ -210,12 +212,14 @@ export default async function ComptabilitePage({
                     unit="currency"
                     nameLabel="Compte"
                     extraColumns={["N°"]}
+                    sources={activeKey ? [activeKey] : []}
                     rows={pnl.topCharges.map((c) => ({
                       name: c.label ?? `Compte ${c.account}`,
                       value: c.total,
                       unit: "currency" as const,
                       tone: "neg" as const,
                       cells: [c.account],
+                      spec: { entity: "ledger", groupBy: "account", measure: "sum" as const, field: "solde", target: c.label ?? `Compte ${c.account}` },
                     }))}
                     footnote="Principaux postes de charges par compte comptable (PCG)."
                   />
@@ -241,12 +245,14 @@ export default async function ComptabilitePage({
                     unit="currency"
                     nameLabel="Classe"
                     extraColumns={["Débit", "Crédit"]}
+                    sources={activeKey ? [activeKey] : []}
                     rows={pnl.balanceParClasse.map((b) => ({
                       name: `${b.classe} — ${b.label}`,
                       value: b.solde,
                       unit: "currency" as const,
                       tone: "auto" as const,
                       cells: [fmtK(b.debit), fmtK(b.credit)],
+                      spec: { entity: "ledger", groupBy: "classe", measure: "sum" as const, field: "solde", target: `${b.classe} — ${b.label}` },
                     }))}
                     footnote="Balance générale synthétique reconstruite (solde = débit − crédit par classe de comptes)."
                   />

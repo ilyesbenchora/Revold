@@ -20,6 +20,8 @@ export type PeriodPreset =
   | "this_year"
   | "last_year"
   | "ytd"
+  | "exercice"
+  | "last_exercice"
   | "custom";
 
 export type Period = { preset: PeriodPreset; from: string; to: string; label: string };
@@ -39,6 +41,8 @@ export const PERIOD_PRESETS: { id: PeriodPreset; label: string }[] = [
   { id: "this_year", label: "Cette année" },
   { id: "last_year", label: "Année dernière" },
   { id: "ytd", label: "Année à ce jour" },
+  { id: "exercice", label: "Exercice en cours" },
+  { id: "last_exercice", label: "Exercice précédent" },
   { id: "custom", label: "Dates personnalisées" },
 ];
 
@@ -106,8 +110,10 @@ function fmt(d: Date): string {
 /**
  * Calcule les bornes (from/to) d'un preset. `now` explicite (l'appelant fournit
  * new Date() dans un handler client) pour rester déterministe et testable.
+ * `fiscalYearStart` (mois 1-12, réglage Paramètres → Général) ne sert qu'aux
+ * presets « exercice » — défaut janvier = année civile.
  */
-export function computePeriod(preset: PeriodPreset, now: Date): { from: string; to: string } {
+export function computePeriod(preset: PeriodPreset, now: Date, fiscalYearStart = 1): { from: string; to: string } {
   const y = now.getFullYear();
   const m = now.getMonth(); // 0-11
   const today = new Date(y, m, now.getDate());
@@ -160,6 +166,18 @@ export function computePeriod(preset: PeriodPreset, now: Date): { from: string; 
       return { from: fmt(new Date(y - 1, 0, 1)), to: fmt(new Date(y - 1, 11, 31)) };
     case "ytd":
       return { from: fmt(new Date(y, 0, 1)), to: fmt(today) };
+    case "exercice": {
+      // Exercice comptable en cours : démarre au dernier mois de début
+      // d'exercice atteint (ex : début juillet → 1er juil. N-1 si on est en mars).
+      const fs = Math.min(12, Math.max(1, fiscalYearStart)) - 1; // 0-11
+      const startYear = m >= fs ? y : y - 1;
+      return { from: fmt(new Date(startYear, fs, 1)), to: fmt(new Date(startYear + 1, fs, 0)) };
+    }
+    case "last_exercice": {
+      const fs = Math.min(12, Math.max(1, fiscalYearStart)) - 1;
+      const startYear = (m >= fs ? y : y - 1) - 1;
+      return { from: fmt(new Date(startYear, fs, 1)), to: fmt(new Date(startYear + 1, fs, 0)) };
+    }
     case "custom":
     default:
       return { from: "", to: "" };

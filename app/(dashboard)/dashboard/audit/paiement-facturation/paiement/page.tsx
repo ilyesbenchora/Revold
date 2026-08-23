@@ -157,9 +157,9 @@ export default async function PaiementPage({
           extraColumns={["Détail"]}
           rows={[
             { name: "Taux de churn", value: data.churnRate ?? null, unit: "percent", cells: ["Annulés / total subs"] },
-            { name: "Subscriptions annulées", value: data.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"] },
-            { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements en échec"] },
-            { name: "En période d'essai", value: trialingSubs, unit: "count", cells: ["Conversion à monitorer"] },
+            { name: "Subscriptions annulées", value: data.canceledSubsCount, unit: "count", cells: ["canceled / expired / paused"], spec: { entity: "subscriptions", groupBy: "churn_state", measure: "count" as const, target: "Annulées" } },
+            { name: "Past due", value: pastDueSubs, unit: "count", cells: ["Paiements en échec"], spec: { entity: "subscriptions", groupBy: "status", measure: "count" as const, target: "past_due" } },
+            { name: "En période d'essai", value: trialingSubs, unit: "count", cells: ["Conversion à monitorer"], spec: { entity: "subscriptions", groupBy: "status", measure: "count" as const, target: "trialing" } },
           ]}
           footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
         />
@@ -195,11 +195,13 @@ export default async function PaiementPage({
                 name: "Actives",
                 value: data.activeSubsCount,
                 cells: [`${Math.round((data.activeSubsCount / data.subscriptions.length) * 100)} %`, "du portefeuille"],
+                spec: { entity: "subscriptions", groupBy: "sante", measure: "count" as const, target: "Actives" },
               },
               {
                 name: "En essai",
                 value: trialingSubs,
                 cells: [`${Math.round((trialingSubs / data.subscriptions.length) * 100)} %`, "à convertir"],
+                spec: { entity: "subscriptions", groupBy: "sante", measure: "count" as const, target: "En essai" },
               },
               {
                 name: "À risque",
@@ -208,6 +210,7 @@ export default async function PaiementPage({
                   `${Math.round(((pastDueSubs + data.canceledSubsCount) / data.subscriptions.length) * 100)} %`,
                   "Past due + canceled / paused / expired",
                 ],
+                spec: { entity: "subscriptions", groupBy: "sante", measure: "count" as const, target: "À risque" },
               },
             ]}
             footnote="Segments composites (past due + canceled / paused / expired) : l'agent Revold rattache l'alerte aux données à la création."

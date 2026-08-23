@@ -212,6 +212,7 @@ function PipelineCard({ pa, settings, onSettings }: {
               `${sa.avgDaysInStage}j`,
               velocityLabel(sa.avgDaysInStage, s),
             ],
+            spec: { entity: "deals", groupBy: "stage", measure: "count" as const, pipeline: pa.pipeline.id, target: sa.stage.label },
           }))}
           footnote={`Alerte rapprochée des vraies données, restreinte au pipeline « ${pa.pipeline.label} » (deals · groupé par étape) — aucune confusion possible avec une étape homonyme d'un autre pipeline. Vélocité : rapide ≤ ${s.effDays}j, stagnant > ${s.stagDays}j (seuils modifiables sur les sous-blocs).`}
           emptyLabel="Aucune étape avec des deals dans ce pipeline."

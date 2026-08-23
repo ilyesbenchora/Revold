@@ -165,9 +165,9 @@ export default async function FiscalPage() {
             valueLabel="Montant"
             extraColumns={["Détail"]}
             rows={[
-              { name: "TVA collectée (estimée)", value: tva.collectee, unit: "currency" as const, tone: "pos" as const, cells: ["20/120 des encaissements TTC"] },
-              { name: "TVA déductible (estimée)", value: tva.deductible, unit: "currency" as const, tone: "neg" as const, cells: ["20/120 des décaissements TTC"] },
-              { name: "À provisionner", value: tva.provision, unit: "currency" as const, tone: "auto" as const, cells: ["Collectée − déductible"] },
+              { name: "TVA collectée (estimée)", value: tva.collectee, unit: "currency" as const, tone: "pos" as const, cells: ["20/120 des encaissements TTC"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount_in", target: "Encaissements", multiplier: 20 / 120 } },
+              { name: "TVA déductible (estimée)", value: tva.deductible, unit: "currency" as const, tone: "neg" as const, cells: ["20/120 des décaissements TTC"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount_out", target: "Décaissements", multiplier: 20 / 120 } },
+              { name: "À provisionner", value: tva.provision, unit: "currency" as const, tone: "auto" as const, cells: ["Collectée − déductible"], spec: { entity: "transactions", groupBy: "direction", measure: "sum" as const, field: "amount", multiplier: 20 / 120 } },
             ]}
             footnote="Approximation à taux unique 20 %, tous flux supposés assujettis (salaires, assurances et frais bancaires réels sont hors champ TVA) : un ordre de grandeur pour provisionner, pas une déclaration. À confirmer avec l'expert-comptable."
           />

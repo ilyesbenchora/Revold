@@ -205,6 +205,14 @@ export async function resolveAddedTiles(
   const token = added.some((r) => !r.forecast_type && r.agg_spec)
     ? await getHubSpotToken(supabase, orgId)
     : null;
+  // Début d'exercice comptable — lu seulement si une tuile utilise un preset
+  // « exercice » (Paramètres → Général, défaut janvier).
+  let fiscalStart = 1;
+  if (added.some((r) => String((r.agg_spec as TileAggSpec | null)?.period_preset ?? "").includes("exercice"))) {
+    const { data: org } = await supabase.from("organizations").select("fiscal_year_start").eq("id", orgId).maybeSingle();
+    const n = Number(org?.fiscal_year_start);
+    if (Number.isInteger(n) && n >= 1 && n <= 12) fiscalStart = n;
+  }
   return Promise.all(
     added.map(async (r) => {
       let value: number | null = null;
@@ -226,7 +234,7 @@ export async function resolveAddedTiles(
               dateTo = stored.to;
               periodLabel = storedPeriodLabel(spec.period_preset);
             } else if (stored.kind !== "description" && stored.preset !== "all") {
-              const p = computePeriod(stored.preset, new Date());
+              const p = computePeriod(stored.preset, new Date(), fiscalStart);
               dateFrom = p.from;
               dateTo = p.to;
               periodLabel = presetLabel(stored.preset);

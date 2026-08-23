@@ -19,7 +19,7 @@ import { ReportPeriodBar, type AppliedPeriod } from "@/components/agents/report-
 export type BlockRowSpec = {
   entity: string;
   groupBy: string;
-  measure: "count" | "sum" | "weighted";
+  measure: "count" | "sum" | "avg" | "weighted";
   field?: string | null;
   target?: string | null;
   multiplier?: number | null;

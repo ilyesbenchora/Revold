@@ -357,7 +357,7 @@ export default async function ServiceClientRenouvellementPage() {
           valueLabel="Valeur"
           extraColumns={["Détail"]}
           rows={[
-            { name: "ARR sécurisé", value: arrSecured > 0 ? arrSecured : null, unit: "currency", cells: ["Subs actives healthy"] },
+            { name: "ARR sécurisé", value: arrSecured > 0 ? arrSecured : null, unit: "currency", cells: ["Subs actives healthy"], spec: { entity: "subscriptions", groupBy: "status", measure: "sum", field: "mrr", target: "active", multiplier: 12 } },
             { name: "ARR à risque", value: arrAtRisk > 0 ? arrAtRisk : null, unit: "currency", cells: ["Past due + tickets urgents"] },
             { name: "Subs à risque", value: renewalAtRisk, unit: "count", cells: ["À traiter en CSM proactif"] },
           ]}

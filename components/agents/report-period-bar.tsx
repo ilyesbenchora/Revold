@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PERIOD_PRESETS, computePeriod, presetLabel, type PeriodPreset } from "@/lib/reports/periods";
+import { fetchFiscalYearStart } from "@/lib/reports/fiscal-year-client";
 
 export type AppliedPeriod = { preset: PeriodPreset; from: string; to: string; label: string };
 
@@ -27,6 +28,9 @@ export function ReportPeriodBar({
   const [preset, setPreset] = useState<PeriodPreset | "">(applied?.preset ?? "");
   const [from, setFrom] = useState(applied?.from ?? "");
   const [to, setTo] = useState(applied?.to ?? "");
+  // Début d'exercice comptable (Paramètres → Général) — presets « Exercice ».
+  const [fiscalStart, setFiscalStart] = useState(1);
+  useEffect(() => { void fetchFiscalYearStart().then(setFiscalStart); }, []);
 
   // La période appliquée en amont (période par défaut du funnel de création)
   // se reflète dans le sélecteur — sans re-déclencher onApply.
@@ -40,7 +44,7 @@ export function ReportPeriodBar({
   function choose(id: PeriodPreset) {
     setPreset(id);
     if (id === "custom") return; // on attend les dates
-    const range = computePeriod(id, new Date());
+    const range = computePeriod(id, new Date(), fiscalStart);
     setFrom(range.from);
     setTo(range.to);
     onApply({ preset: id, from: range.from, to: range.to, label: presetLabel(id) });

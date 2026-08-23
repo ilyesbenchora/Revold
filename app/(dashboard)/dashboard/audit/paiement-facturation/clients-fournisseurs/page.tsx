@@ -58,6 +58,13 @@ function SideBlock({ side, kind }: { side: AgedSide; kind: "clients" | "fourniss
               name: b.label,
               value: b.amount,
               cells: [b.count > 0 ? fmt(b.count) : "—"],
+              spec: {
+                entity: "invoices",
+                groupBy: isClients ? "aging_clients" : "aging_fournisseurs",
+                measure: "sum" as const,
+                field: "amount_due_abs",
+                target: b.label,
+              },
             }))}
             footnote={
               side.draftCount > 0

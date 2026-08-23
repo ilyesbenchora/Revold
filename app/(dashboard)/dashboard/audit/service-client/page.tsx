@@ -191,11 +191,11 @@ export default async function ServiceClientOverviewPage() {
             // « sur N au total » n'était affiché par la tuile que si le portail
             // en contenait davantage que ce qui a été analysé : on garde la
             // condition d'origine plutôt que de l'afficher systématiquement.
-            { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count", cells: [snapshot.totalTickets > data.tickets.length ? `sur ${fmt(snapshot.totalTickets)} au total` : "—"] },
+            { name: "Total tickets analysés", value: data.hasData ? data.tickets.length : null, unit: "count", cells: [snapshot.totalTickets > data.tickets.length ? `sur ${fmt(snapshot.totalTickets)} au total` : "—"], spec: { entity: "tickets", groupBy: "status", measure: "count" } },
             { name: "Tickets portail", value: snapshot.totalTickets, unit: "count", cells: ["Tous tickets du portail"] },
-            { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count", cells: ["—"] },
-            { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count", tone: "pos", cells: ["—"] },
-            { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count", tone: "neg", cells: ["—"] },
+            { name: "Ouverts / en cours", value: data.hasData ? data.openTickets : null, unit: "count", cells: ["—"], spec: { entity: "tickets", groupBy: "status", measure: "count", target: "open" } },
+            { name: "Fermés / résolus", value: data.hasData ? data.closedTickets : null, unit: "count", tone: "pos", cells: ["—"], spec: { entity: "tickets", groupBy: "status", measure: "count", target: "closed" } },
+            { name: "Priorité haute", value: data.hasData ? data.urgentTickets : null, unit: "count", tone: "neg", cells: ["—"], spec: { entity: "tickets", groupBy: "priority_level", measure: "count", target: "Haute / urgente" } },
           ]}
           footnote="Source : tickets HubSpot. Le total portail inclut les tickets hors périmètre analysé."
         />
@@ -244,8 +244,8 @@ export default async function ServiceClientOverviewPage() {
           rows={[
             { name: "Conversations entrantes", value: snapshot.totalConversations, unit: "count", cells: ["Inbox HubSpot"] },
             { name: "Feedback (CSAT/NPS)", value: snapshot.feedbackCount, unit: "count", cells: ["feedback_submissions"] },
-            { name: "Tickets répondus (agent)", value: data.hasData ? data.tickets.filter((t) => t.properties.first_agent_reply_date).length : null, unit: "count", tone: "pos", cells: ["1ère réponse d'agent enregistrée"] },
-            { name: "Tickets sans réponse agent", value: data.hasData ? data.tickets.filter((t) => !t.properties.first_agent_reply_date).length : null, unit: "count", tone: "neg", cells: ["Angle mort du support"] },
+            { name: "Tickets répondus (agent)", value: data.hasData ? data.tickets.filter((t) => t.properties.first_agent_reply_date).length : null, unit: "count", tone: "pos", cells: ["1ère réponse d'agent enregistrée"], spec: { entity: "tickets", groupBy: "replied", measure: "count", target: "Répondu" } },
+            { name: "Tickets sans réponse agent", value: data.hasData ? data.tickets.filter((t) => !t.properties.first_agent_reply_date).length : null, unit: "count", tone: "neg", cells: ["Angle mort du support"], spec: { entity: "tickets", groupBy: "replied", measure: "count", target: "Sans réponse" } },
           ]}
           footnote="Source : Inbox + feedback HubSpot (snapshot) et tickets synchronisés (miroir)."
         />
