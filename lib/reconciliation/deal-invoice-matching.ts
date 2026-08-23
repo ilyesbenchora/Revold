@@ -3,18 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Rapprochement DEAL ↔ FACTURES — la réconciliation au niveau du deal.
  *
- * Le moteur company_id (engine.ts) relie au niveau ENTREPRISE ; ici on relie
- * chaque deal GAGNÉ aux factures qui le concernent :
+ * Le pont entre une facture (souvent émise dans Pennylane, sans référence au
+ * deal HubSpot) et le deal, c'est l'ENTREPRISE CANONIQUE : la résolution
+ * d'entité (SIREN/TVA) pose invoices.company_id à la synchro, donc une facture
+ * Pennylane de « Dupont SAS » devient candidate pour tout deal gagné de Dupont.
+ *
+ * Ici on attribue, entreprise par entreprise, les factures aux bons deals :
  *  - candidates = factures de la MÊME entreprise, non rattachées, émises dans
  *    la fenêtre [close_date − 30 j ; close_date + 365 j] ;
- *  - correspondance EXACTE (une facture = montant du deal ± 1 %) et unique →
- *    proposition « high » (liable en un clic, méthode auto_exact) ;
- *  - somme des candidates = montant du deal ± 1 % → proposition « combo » ;
+ *  - correspondance EXACTE (une facture = montant du deal ± 1 %) → « high » ;
+ *  - sinon on cherche le MEILLEUR SOUS-ENSEMBLE de factures dont la somme fait
+ *    le montant du deal ± 1 % (échéancier : 3 factures + un avoir = le deal) →
+ *    « combo » ; le sous-ensemble choisi est RETIRÉ du pool pour que le deal
+ *    SUIVANT de la même entreprise ne réutilise pas les mêmes factures
+ *    (désambiguïsation multi-deals) ;
  *  - sinon → choix MANUEL parmi les candidates.
  * Rien n'est écrit sans confirmation utilisateur (route deal-invoices).
  *
  * Une fois lié : écart par deal = montant signé − Σ factures liées (les
- * AVOIRS, factures à montant négatif, se déduisent naturellement).
+ * AVOIRS, factures à montant négatif, se déduisent naturellement ; une somme
+ * SUPÉRIEURE au deal = « surfacturé », souvent un avenant non répercuté côté
+ * CRM — exposé pour revue, jamais corrigé en silence).
  */
 
 export type LinkedInvoice = {
@@ -74,8 +83,53 @@ const WINDOW_BEFORE = 30 * DAY;
 const WINDOW_AFTER = 365 * DAY;
 /** Tolérance de correspondance de montant (arrondis, TVA au centime…). */
 const TOLERANCE = 0.01;
+/** Au-delà, la recherche de sous-ensemble devient trop coûteuse : on borne. */
+const MAX_SUBSET_CANDIDATES = 14;
 
 const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * TOLERANCE);
+
+/**
+ * MEILLEUR SOUS-ENSEMBLE de factures dont la somme ≈ montant du deal (± 1 %) —
+ * gère l'échéancier (3 factures) et les avoirs (montants négatifs) : le bon
+ * sous-ensemble peut mêler factures positives et avoirs. Recherche exhaustive
+ * bornée (≤ 14 factures, triées par proximité de date) ; à égalité de somme,
+ * on préfère MOINS de factures, puis les dates les plus proches du closing.
+ * Retourne les ids du sous-ensemble, ou null si aucun ne tombe dans la tolérance.
+ */
+function bestSubset(
+  cands: Array<{ id: string; amount: number; dist: number }>,
+  target: number,
+): string[] | null {
+  const pool = cands.slice(0, MAX_SUBSET_CANDIDATES);
+  const n = pool.length;
+  if (n === 0) return null;
+  let best: { ids: string[]; err: number; size: number; dist: number } | null = null;
+  // 2^n combinaisons (n ≤ 14 → ≤ 16384) : parcours des masques de bits.
+  for (let mask = 1; mask < 1 << n; mask++) {
+    let sum = 0;
+    let size = 0;
+    let dist = 0;
+    for (let i = 0; i < n; i++) {
+      if (mask & (1 << i)) {
+        sum += pool[i].amount;
+        dist += pool[i].dist;
+        size++;
+      }
+    }
+    const err = Math.abs(sum - target);
+    if (err > Math.max(1, Math.abs(target) * TOLERANCE)) continue;
+    if (
+      !best ||
+      err < best.err - 0.5 ||
+      (Math.abs(err - best.err) <= 0.5 && (size < best.size || (size === best.size && dist < best.dist)))
+    ) {
+      const ids: string[] = [];
+      for (let i = 0; i < n; i++) if (mask & (1 << i)) ids.push(pool[i].id);
+      best = { ids, err, size, dist };
+    }
+  }
+  return best?.ids ?? null;
+}
 
 type DealRow = {
   id: string;
@@ -158,7 +212,9 @@ export async function computeDealInvoiceState(
     if (!inv.deal_id) continue;
     (linkedByDeal.get(inv.deal_id) ?? linkedByDeal.set(inv.deal_id, []).get(inv.deal_id))!.push(inv);
   }
-  // Factures LIBRES par entreprise (candidates au rapprochement).
+  // Pool MUTABLE de factures libres par entreprise : chaque proposition retire
+  // les factures qu'elle propose (désambiguïsation quand une entreprise a
+  // plusieurs deals gagnés — sinon les mêmes factures seraient offertes à tous).
   const freeByCompany = new Map<string, InvRow[]>();
   for (const inv of invoices) {
     if (inv.deal_id || !inv.company_id) continue;
@@ -171,63 +227,99 @@ export async function computeDealInvoiceState(
   let leakTotal = 0;
   let solde = 0;
 
+  // ── 1) Deals DÉJÀ liés : état + écart par deal. ──
   for (const d of deals) {
+    const linked = linkedByDeal.get(d.id);
+    if (!linked || linked.length === 0) continue;
     const amount = d.amount ?? 0;
-    const linked = linkedByDeal.get(d.id) ?? [];
+    const billed = linked.reduce((s, i) => s + (i.amount_total ?? 0), 0);
+    const gap = Math.round(amount - billed);
+    const state: DealBillingRow["state"] = near(billed, amount)
+      ? "solde"
+      : billed > amount
+        ? "surfacture"
+        : billed > 0
+          ? "partiel"
+          : "non_facture";
+    if (state === "solde") solde++;
+    else gapTotal += gap;
+    rows.push({
+      dealId: d.id,
+      dealName: d.name ?? "Deal sans nom",
+      companyName: companyNameOf(d.companies),
+      amount,
+      closeDate: d.close_date,
+      billed: Math.round(billed),
+      gap,
+      state,
+      invoices: linked.map((i) => ({
+        id: i.id,
+        number: i.number,
+        amountTotal: Math.round(i.amount_total ?? 0),
+        issuedAt: i.issued_at,
+        status: i.status,
+        method: i.deal_link_method,
+      })),
+    });
+  }
 
-    if (linked.length > 0) {
-      const billed = linked.reduce((s, i) => s + (i.amount_total ?? 0), 0);
-      const gap = Math.round(amount - billed);
-      const state: DealBillingRow["state"] = near(billed, amount)
-        ? "solde"
-        : billed > amount
-          ? "surfacture"
-          : billed > 0
-            ? "partiel"
-            : "non_facture";
-      if (state === "solde") solde++;
-      else gapTotal += gap;
-      rows.push({
-        dealId: d.id,
-        dealName: d.name ?? "Deal sans nom",
-        companyName: companyNameOf(d.companies),
-        amount,
-        closeDate: d.close_date,
-        billed: Math.round(billed),
-        gap,
-        state,
-        invoices: linked.map((i) => ({
-          id: i.id,
-          number: i.number,
-          amountTotal: Math.round(i.amount_total ?? 0),
-          issuedAt: i.issued_at,
-          status: i.status,
-          method: i.deal_link_method,
-        })),
-      });
-      continue;
-    }
+  // ── 2) Deals NON liés : attribution par entreprise, gros deals d'abord, en
+  //       consommant le pool de factures libres de l'entreprise. ──
+  const unlinked = deals
+    .filter((d) => !(linkedByDeal.get(d.id)?.length) && d.company_id)
+    .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
 
-    // ── Deal non rattaché : candidates de la même entreprise, dans la fenêtre. ──
-    if (!d.company_id) continue;
+  for (const d of unlinked) {
+    const amount = d.amount ?? 0;
+    const pool = freeByCompany.get(d.company_id!) ?? [];
     const closeMs = d.close_date ? Date.parse(d.close_date) : NaN;
-    const candidates = (freeByCompany.get(d.company_id) ?? []).filter((i) => {
+    // Candidates = factures libres de l'entreprise dans la fenêtre temporelle.
+    const inWindow = pool.filter((i) => {
       if (Number.isNaN(closeMs) || !i.issued_at) return true; // sans dates : on laisse juger
       const t = Date.parse(i.issued_at);
       return t >= closeMs - WINDOW_BEFORE && t <= closeMs + WINDOW_AFTER;
     });
-    if (candidates.length === 0) {
+    if (inWindow.length === 0) {
       leakTotal += amount;
       continue;
     }
 
-    const exact = candidates.filter((i) => near(i.amount_total ?? 0, amount));
-    const sumAll = candidates.reduce((s, i) => s + (i.amount_total ?? 0), 0);
-    const confidence: DealInvoiceProposal["confidence"] =
-      exact.length === 1 ? "high" : near(sumAll, amount) ? "combo" : "manual";
-    const preselectedIds = new Set(
-      confidence === "high" ? [exact[0].id] : confidence === "combo" ? candidates.map((i) => i.id) : [],
-    );
+    // Tri par proximité de date au closing (les plus proches d'abord).
+    const withDist = inWindow.map((i) => ({
+      inv: i,
+      dist: Number.isNaN(closeMs) || !i.issued_at ? Number.MAX_SAFE_INTEGER : Math.abs(Date.parse(i.issued_at) - closeMs),
+    }));
+    withDist.sort((a, b) => a.dist - b.dist);
+
+    const exact = withDist.filter((x) => near(x.inv.amount_total ?? 0, amount));
+    let confidence: DealInvoiceProposal["confidence"];
+    let chosenIds: Set<string>;
+
+    if (exact.length >= 1) {
+      // Correspondance exacte : la plus proche du closing.
+      confidence = "high";
+      chosenIds = new Set([exact[0].inv.id]);
+    } else {
+      // Meilleur SOUS-ENSEMBLE (échéancier + avoirs) — pas la somme de tout.
+      const subset = bestSubset(
+        withDist.map((x) => ({ id: x.inv.id, amount: x.inv.amount_total ?? 0, dist: x.dist })),
+        amount,
+      );
+      if (subset) {
+        confidence = "combo";
+        chosenIds = new Set(subset);
+      } else {
+        confidence = "manual";
+        chosenIds = new Set();
+      }
+    }
+
+    // Consomme les factures présélectionnées du pool de l'entreprise pour que
+    // le deal suivant de la même entreprise ne les repropose pas.
+    if (chosenIds.size > 0) {
+      freeByCompany.set(d.company_id!, pool.filter((i) => !chosenIds.has(i.id)));
+    }
+
     proposals.push({
       dealId: d.id,
       dealName: d.name ?? "Deal sans nom",
@@ -235,12 +327,12 @@ export async function computeDealInvoiceState(
       amount,
       closeDate: d.close_date,
       confidence,
-      candidates: candidates.slice(0, 8).map((i) => ({
-        id: i.id,
-        number: i.number,
-        amountTotal: Math.round(i.amount_total ?? 0),
-        issuedAt: i.issued_at,
-        preselected: preselectedIds.has(i.id),
+      candidates: withDist.slice(0, 8).map((x) => ({
+        id: x.inv.id,
+        number: x.inv.number,
+        amountTotal: Math.round(x.inv.amount_total ?? 0),
+        issuedAt: x.inv.issued_at,
+        preselected: chosenIds.has(x.inv.id),
       })),
     });
   }
