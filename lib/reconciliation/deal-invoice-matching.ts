@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 
 /**
  * Rapprochement DEAL ↔ FACTURES — la réconciliation au niveau du deal.
@@ -33,6 +34,8 @@ export type LinkedInvoice = {
   issuedAt: string | null;
   status: string | null;
   method: string | null;
+  /** Nom de l'entreprise porteuse de la facture (≠ deal → entité sœur). */
+  companyName?: string | null;
 };
 
 export type DealBillingRow = {
@@ -46,6 +49,8 @@ export type DealBillingRow = {
   /** solde | partiel | surfacture | non_facture */
   state: "solde" | "partiel" | "surfacture" | "non_facture";
   invoices: LinkedInvoice[];
+  /** GARDE-FOU : au moins une facture est sur une ENTITÉ SŒUR du même groupe. */
+  crossEntity?: { groupName: string | null; entities: string[] };
 };
 
 export type DealInvoiceProposal = {
@@ -55,6 +60,8 @@ export type DealInvoiceProposal = {
   amount: number;
   closeDate: string | null;
   confidence: "high" | "combo" | "manual";
+  /** Au moins une candidate est sur une entité SŒUR (facturation groupe ?). */
+  crossEntity?: boolean;
   candidates: Array<{
     id: string;
     number: string | null;
@@ -62,6 +69,10 @@ export type DealInvoiceProposal = {
     issuedAt: string | null;
     /** Présélectionnée dans l'UI (correspondance exacte / combo). */
     preselected: boolean;
+    /** Entreprise porteuse (affichée si ≠ deal → entité sœur du groupe). */
+    companyName?: string | null;
+    /** Facture d'une entité sœur (même groupe, société différente). */
+    sisterEntity?: boolean;
   }>;
 };
 
@@ -75,6 +86,8 @@ export type DealInvoiceState = {
     solde: number;
     gapTotal: number;
     leakTotal: number;
+    /** Nombre de deals dont la facturation touche une entité sœur du groupe. */
+    crossEntity: number;
   };
 };
 
@@ -184,7 +197,7 @@ export async function computeDealInvoiceState(
     available: true,
     rows: [],
     proposals: [],
-    stats: { wonDeals: 0, linkedDeals: 0, solde: 0, gapTotal: 0, leakTotal: 0 },
+    stats: { wonDeals: 0, linkedDeals: 0, solde: 0, gapTotal: 0, leakTotal: 0, crossEntity: 0 },
   };
 
   const dealsRes = await pageAll<DealRow>(
@@ -206,19 +219,28 @@ export async function computeDealInvoiceState(
   const deals = dealsRes.rows.filter((d) => (d.amount ?? 0) > 0);
   const invoices = invRes.rows;
 
+  // GROUPES (multi-entités, cas générique) : racine de groupe par entreprise +
+  // noms. Une facture d'une entité SŒUR (même groupe) est candidate pour un
+  // deal — mais toujours signalée « entité sœur » pour revue (garde-fou : la
+  // facturation groupe est une décision, pas une évidence).
+  const groups = await loadCompanyGroups(sb, orgId);
+  const rootOf = (companyId: string | null): string | null =>
+    companyId ? groups.rootOf.get(companyId) ?? companyId : null;
+
   // Factures liées, groupées par deal.
   const linkedByDeal = new Map<string, InvRow[]>();
   for (const inv of invoices) {
     if (!inv.deal_id) continue;
     (linkedByDeal.get(inv.deal_id) ?? linkedByDeal.set(inv.deal_id, []).get(inv.deal_id))!.push(inv);
   }
-  // Pool MUTABLE de factures libres par entreprise : chaque proposition retire
-  // les factures qu'elle propose (désambiguïsation quand une entreprise a
-  // plusieurs deals gagnés — sinon les mêmes factures seraient offertes à tous).
-  const freeByCompany = new Map<string, InvRow[]>();
+  // Pool MUTABLE de factures libres par RACINE DE GROUPE : chaque proposition
+  // retire ses factures (désambiguïsation multi-deals), et une facture d'une
+  // entité sœur reste candidate pour les deals du groupe.
+  const freeByGroup = new Map<string, InvRow[]>();
   for (const inv of invoices) {
     if (inv.deal_id || !inv.company_id) continue;
-    (freeByCompany.get(inv.company_id) ?? freeByCompany.set(inv.company_id, []).get(inv.company_id))!.push(inv);
+    const root = rootOf(inv.company_id)!;
+    (freeByGroup.get(root) ?? freeByGroup.set(root, []).get(root))!.push(inv);
   }
 
   const rows: DealBillingRow[] = [];
@@ -226,6 +248,7 @@ export async function computeDealInvoiceState(
   let gapTotal = 0;
   let leakTotal = 0;
   let solde = 0;
+  let crossEntityCount = 0;
 
   // ── 1) Deals DÉJÀ liés : état + écart par deal. ──
   for (const d of deals) {
@@ -243,6 +266,17 @@ export async function computeDealInvoiceState(
           : "non_facture";
     if (state === "solde") solde++;
     else gapTotal += gap;
+    // GARDE-FOU : des factures liées sont-elles sur une entité SŒUR du groupe ?
+    const sisterNames = new Set<string>();
+    for (const i of linked) {
+      if (i.company_id && d.company_id && i.company_id !== d.company_id && rootOf(i.company_id) === rootOf(d.company_id)) {
+        sisterNames.add(groups.nameOf.get(i.company_id) ?? "Entité sœur");
+      }
+    }
+    const crossEntity = sisterNames.size > 0
+      ? { groupName: d.company_id ? groups.nameOf.get(rootOf(d.company_id)!) ?? null : null, entities: [...sisterNames] }
+      : undefined;
+    if (crossEntity) crossEntityCount++;
     rows.push({
       dealId: d.id,
       dealName: d.name ?? "Deal sans nom",
@@ -259,7 +293,9 @@ export async function computeDealInvoiceState(
         issuedAt: i.issued_at,
         status: i.status,
         method: i.deal_link_method,
+        companyName: i.company_id ? groups.nameOf.get(i.company_id) ?? null : null,
       })),
+      crossEntity,
     });
   }
 
@@ -271,9 +307,11 @@ export async function computeDealInvoiceState(
 
   for (const d of unlinked) {
     const amount = d.amount ?? 0;
-    const pool = freeByCompany.get(d.company_id!) ?? [];
+    const groupRoot = rootOf(d.company_id)!;
+    const pool = freeByGroup.get(groupRoot) ?? [];
     const closeMs = d.close_date ? Date.parse(d.close_date) : NaN;
-    // Candidates = factures libres de l'entreprise dans la fenêtre temporelle.
+    // Candidates = factures libres du GROUPE (entité + entités sœurs) dans la
+    // fenêtre temporelle.
     const inWindow = pool.filter((i) => {
       if (Number.isNaN(closeMs) || !i.issued_at) return true; // sans dates : on laisse juger
       const t = Date.parse(i.issued_at);
@@ -284,19 +322,21 @@ export async function computeDealInvoiceState(
       continue;
     }
 
-    // Tri par proximité de date au closing (les plus proches d'abord).
+    const sameEntity = (i: InvRow) => i.company_id === d.company_id;
+    // Tri : même entité d'abord, puis proximité de date (préfère la propre
+    // entité du deal ; les entités sœurs ne servent qu'à défaut).
     const withDist = inWindow.map((i) => ({
       inv: i,
       dist: Number.isNaN(closeMs) || !i.issued_at ? Number.MAX_SAFE_INTEGER : Math.abs(Date.parse(i.issued_at) - closeMs),
     }));
-    withDist.sort((a, b) => a.dist - b.dist);
+    withDist.sort((a, b) => (Number(sameEntity(b.inv)) - Number(sameEntity(a.inv))) || a.dist - b.dist);
 
     const exact = withDist.filter((x) => near(x.inv.amount_total ?? 0, amount));
     let confidence: DealInvoiceProposal["confidence"];
     let chosenIds: Set<string>;
 
     if (exact.length >= 1) {
-      // Correspondance exacte : la plus proche du closing.
+      // Correspondance exacte : même entité en priorité, sinon la plus proche.
       confidence = "high";
       chosenIds = new Set([exact[0].inv.id]);
     } else {
@@ -314,11 +354,16 @@ export async function computeDealInvoiceState(
       }
     }
 
-    // Consomme les factures présélectionnées du pool de l'entreprise pour que
-    // le deal suivant de la même entreprise ne les repropose pas.
+    // Consomme les factures présélectionnées du pool du GROUPE.
     if (chosenIds.size > 0) {
-      freeByCompany.set(d.company_id!, pool.filter((i) => !chosenIds.has(i.id)));
+      freeByGroup.set(groupRoot, pool.filter((i) => !chosenIds.has(i.id)));
     }
+    // GARDE-FOU : au moins une présélection est-elle sur une entité sœur ?
+    const crossEntity = [...chosenIds].some((id) => {
+      const inv = inWindow.find((i) => i.id === id);
+      return inv && inv.company_id !== d.company_id;
+    });
+    if (crossEntity) crossEntityCount++;
 
     proposals.push({
       dealId: d.id,
@@ -326,6 +371,7 @@ export async function computeDealInvoiceState(
       companyName: companyNameOf(d.companies),
       amount,
       closeDate: d.close_date,
+      crossEntity: crossEntity || undefined,
       confidence,
       candidates: withDist.slice(0, 8).map((x) => ({
         id: x.inv.id,
@@ -333,6 +379,8 @@ export async function computeDealInvoiceState(
         amountTotal: Math.round(x.inv.amount_total ?? 0),
         issuedAt: x.inv.issued_at,
         preselected: chosenIds.has(x.inv.id),
+        companyName: x.inv.company_id ? groups.nameOf.get(x.inv.company_id) ?? null : null,
+        sisterEntity: x.inv.company_id !== d.company_id || undefined,
       })),
     });
   }
@@ -353,6 +401,7 @@ export async function computeDealInvoiceState(
       solde,
       gapTotal: Math.round(gapTotal),
       leakTotal: Math.round(leakTotal),
+      crossEntity: crossEntityCount,
     },
   };
 }

@@ -132,6 +132,11 @@ export function DealInvoiceLinks() {
                 {fmtEur(stats.gapTotal)} d&apos;écart
               </span>
             )}
+            {stats && stats.crossEntity > 0 && (
+              <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {stats.crossEntity} facturation{stats.crossEntity > 1 ? "s" : ""} inter-entités
+              </span>
+            )}
           </p>
           <p className="mt-0.5 text-[11px] text-slate-400">
             La réconciliation au niveau du deal : chaque deal gagné relié à SES factures — écart signé − facturé,
@@ -169,6 +174,12 @@ export function DealInvoiceLinks() {
                         </p>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>{badge.label}</span>
                       </div>
+                      {p.crossEntity && (
+                        <p className="mt-1.5 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
+                          ⚠ Garde-fou facturation : une facture proposée est sur une <strong>entité sœur</strong> du
+                          groupe (pas la société du deal). Facturation groupe voulue, ou mauvaise entité ? Vérifie avant de lier.
+                        </p>
+                      )}
                       <div className="mt-2 space-y-1">
                         {p.candidates.map((c) => (
                           <label key={c.id} className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
@@ -181,6 +192,11 @@ export function DealInvoiceLinks() {
                             <span className="tabular-nums">{c.number ?? "Facture"}</span>
                             <span className="font-medium tabular-nums text-slate-800">{fmtEur(c.amountTotal)}</span>
                             <span className="text-[10px] text-slate-400">émise le {fmtDate(c.issuedAt)}</span>
+                            {c.sisterEntity && c.companyName && (
+                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                                entité sœur · {c.companyName}
+                              </span>
+                            )}
                           </label>
                         ))}
                       </div>
@@ -238,6 +254,14 @@ export function DealInvoiceLinks() {
                           </td>
                           <td className="px-3 py-2">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>{badge.label}</span>
+                            {r.crossEntity && (
+                              <span
+                                className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700"
+                                title={`Facturé sur une entité sœur du groupe : ${r.crossEntity.entities.join(", ")}${r.crossEntity.groupName ? ` (groupe ${r.crossEntity.groupName})` : ""}`}
+                              >
+                                entité sœur
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <span className="flex flex-wrap gap-1">
