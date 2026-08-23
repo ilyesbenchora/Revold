@@ -508,6 +508,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       // Accomplissements déjà entendus : le digest ne les répète pas, il
       // n'annonce que les NOUVELLES atteintes/exécutions.
       params.set("ack", [...readBriefAck()].join(","));
+      // narrate=1 : ce brief va être LU → le serveur le met en récit (contexte,
+      // transitions, rythme posé) au lieu du texte déterministe télégraphique.
+      params.set("narrate", "1");
       const res = await fetch(`/api/voice/digest?${params.toString()}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error ?? "Brief indisponible");
@@ -780,7 +783,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     setStatus("thinking");
     setCaption("Je prépare ton récap…");
     try {
-      const params = new URLSearchParams({ period, scope, team: readTowerSettings().recapTeam || "all" });
+      // narrate=1 : récap lu à voix haute → mise en récit par l'agent (les
+      // chiffres restent ceux du moteur déterministe).
+      const params = new URLSearchParams({ period, scope, team: readTowerSettings().recapTeam || "all", narrate: "1" });
       const res = await fetch(`/api/voice/recap?${params}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.text) throw new Error(d.error || "Récap indisponible.");

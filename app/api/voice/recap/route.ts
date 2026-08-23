@@ -5,6 +5,7 @@ import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { computeAggregate } from "@/lib/ai/agents/tool-library";
 import { poleToWorkspace } from "@/lib/workspaces";
+import { narrateForVoice, firstNameFromUser } from "@/lib/voice/narrate";
 
 export const dynamic = "force-dynamic";
 
@@ -230,9 +231,17 @@ export async function GET(request: Request) {
   }
 
   const title = `Récap ${TEAM_LABEL[team]} ${PERIOD_LABEL[period][scope]} (du ${dFr(from)} au ${dFr(new Date(to.getTime() - 86_400_000))})`;
-  const text =
+  let text =
     `${title}. ${lines.join(". ")}.` +
     (axes.length > 0 ? ` Axes d'amélioration : ${axes.join(" ")}` : " Aucun axe d'amélioration détecté — continue comme ça.");
+
+  // ── Mise en récit parlée (narrate=1, lecture par l'orbe) : les chiffres
+  // restent 100 % ceux du moteur déterministe, l'agent les raconte posément.
+  // Repli : texte déterministe si clé absente ou appel en échec.
+  if (url.searchParams.get("narrate") === "1") {
+    const narrated = await narrateForVoice({ kind: "recap", firstName: firstNameFromUser(user), facts: text });
+    if (narrated) text = narrated;
+  }
 
   return NextResponse.json({ title, team, period, scope, lines, axes, text });
 }

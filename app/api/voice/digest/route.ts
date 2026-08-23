@@ -7,6 +7,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { computeAggregate } from "@/lib/ai/agents/tool-library";
 import { computeBillingRadar } from "@/lib/audit/billing-radar";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
+import { narrateForVoice, firstNameFromUser } from "@/lib/voice/narrate";
 
 /** Libellé lisible d'un provider (« pennylane » → « Pennylane »). */
 function toolLabel(key: string): string {
@@ -70,6 +71,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const veille = url.searchParams.get("mode") === "veille";
+  // narrate=1 : le brief va être LU → mise en récit par l'agent. Jamais posé
+  // par le polling de statut de l'orbe (anneau de santé), qui doit rester
+  // instantané et gratuit.
+  const narrate = url.searchParams.get("narrate") === "1";
   // Accomplissements DÉJÀ ENTENDUS (clés acquittées par l'orbe) : jamais
   // répétés — le brief n'annonce que les nouvelles atteintes/exécutions.
   const ack = new Set((url.searchParams.get("ack") ?? "").split(",").filter(Boolean));
@@ -413,11 +418,19 @@ export async function GET(request: Request) {
   }
   const achieved = achievedKeys.length > 0;
 
+  // ── Mise en récit parlée (lecture uniquement) : l'app a calculé, l'agent
+  // raconte — contexte, transitions, rythme posé. Repli : texte déterministe.
+  let text = parts.join(" ");
+  if (narrate) {
+    const narrated = await narrateForVoice({ kind: "brief", firstName: firstNameFromUser(user), facts: text });
+    if (narrated) text = narrated;
+  }
+
   return NextResponse.json({
     status,
     achieved,
     achievedKeys,
-    text: parts.join(" "),
+    text,
     counts: {
       tenseAlerts: tense.length,
       criticalAlerts: tenseCritical.length,
