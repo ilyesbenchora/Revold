@@ -231,6 +231,9 @@ const fmtDate = (iso: string) =>
 
 export function ActionsInbox() {
   const [pending, setPending] = useState<ActionItem[] | null>(null);
+  // File « Plus tard » : actions mises de côté par l'utilisateur — ni
+  // exécutées ni refusées, en attente d'un meilleur moment.
+  const [deferred, setDeferred] = useState<ActionItem[]>([]);
   const [history, setHistory] = useState<ActionItem[]>([]);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -268,6 +271,7 @@ export function ActionsInbox() {
       if (!res.ok) throw new Error(d.error || "Chargement impossible");
       setNeedsMigration(Boolean(d.needsMigration));
       setPending(Array.isArray(d.pending) ? d.pending : []);
+      setDeferred(Array.isArray(d.deferred) ? d.deferred : []);
       setHistory(Array.isArray(d.history) ? d.history : []);
       setAutomated(Array.isArray(d.automated) ? d.automated : []);
       setOverrides(d.overrides && typeof d.overrides === "object" ? d.overrides : {});
@@ -381,7 +385,7 @@ export function ActionsInbox() {
     }
   }
 
-  async function decide(id: string, decision: "approve" | "reject") {
+  async function decide(id: string, decision: "approve" | "reject" | "defer" | "requeue") {
     if (busyId) return;
     setBusyId(id);
     setError(null);
@@ -410,13 +414,14 @@ export function ActionsInbox() {
     }
   }
 
-  // Types & outils réellement présents (file + historique) → options des filtres.
-  const all = [...(pending ?? []), ...history];
+  // Types & outils réellement présents (file + plus tard + historique) → options des filtres.
+  const all = [...(pending ?? []), ...deferred, ...history];
   const presentTypes = [...new Set(all.map((a) => a.type))];
   const presentTools = [...new Set(all.map((a) => TYPE_META[a.type]?.tool).filter((t): t is string => !!t))];
   const matches = (a: ActionItem) =>
     (!typeFilter || a.type === typeFilter) && (!toolFilter || TYPE_META[a.type]?.tool === toolFilter);
   const shownPending = (pending ?? []).filter(matches);
+  const shownDeferred = deferred.filter(matches);
   const shownHistory = history.filter(matches);
 
   // Pagination de la file (la préférence 15/20/50 s'applique aussi à l'historique).
@@ -861,6 +866,15 @@ export function ActionsInbox() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {/* Mise de côté : ni exécutée ni refusée — part dans la file « Plus tard ». */}
+                  <button
+                    onClick={() => decide(a.id, "defer")}
+                    disabled={busyId === a.id}
+                    title="Mettre de côté : l'action part dans la file « Plus tard » — rien n'est exécuté ni refusé, tu la retrouveras en bas de page."
+                    className={`rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50 ${doneId === a.id ? "invisible" : ""}`}
+                  >
+                    🕓 Plus tard
+                  </button>
                   <button
                     onClick={() => decide(a.id, "reject")}
                     disabled={busyId === a.id}
@@ -934,6 +948,70 @@ export function ActionsInbox() {
           </div>
         )}
       </section>
+
+      {/* ── File « Plus tard » : actions mises de côté par l'utilisateur —
+          ni exécutées ni refusées, jamais touchées par l'automatisation.
+          Depuis ici : retour en file, validation directe, ou refus. ── */}
+      {shownDeferred.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            🕓 Plus tard
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{shownDeferred.length}</span>
+            <span className="text-[11px] font-normal text-slate-400">mises de côté — rien ne s&apos;exécute sans toi, l&apos;automatisation ne les touche jamais</span>
+          </h2>
+          <div className="card divide-y divide-slate-100">
+            {shownDeferred.map((a) => {
+              const meta = TYPE_META[a.type];
+              return (
+                <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {meta && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          <BrandLogo domain={meta.domain} alt={meta.label} fallback={meta.icon} size={12} />
+                          {meta.label}
+                        </span>
+                      )}
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{sourceLabel(a.source)}</span>
+                      {a.decided_at && <span className="text-[10px] text-slate-400">mise de côté le {fmtDate(a.decided_at)}</span>}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">{a.title}</p>
+                    {a.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-slate-500">{a.description}</p>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => decide(a.id, "requeue")}
+                      disabled={busyId === a.id}
+                      title="Remettre l'action dans la file « À valider »"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
+                    >
+                      ↩ Remettre en file
+                    </button>
+                    <button
+                      onClick={() => decide(a.id, "reject")}
+                      disabled={busyId === a.id}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    >
+                      Refuser
+                    </button>
+                    <button
+                      onClick={() => decide(a.id, "approve")}
+                      disabled={busyId === a.id || needsMigration}
+                      className={
+                        doneId === a.id
+                          ? "rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                          : "rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
+                      }
+                    >
+                      {doneId === a.id ? "✓ Action effectuée" : busyId === a.id ? "Exécution…" : "✓ Valider"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Historique : dépliant (page légère), lignes supprimables ── */}
       {shownHistory.length > 0 && (

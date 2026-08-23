@@ -327,7 +327,7 @@ export async function GET(request: Request) {
       return {
         ...r,
         // Badge « Auto » : action décidée sans utilisateur (automatisation).
-        auto: r.status !== "pending" && !r.decided_by,
+        auto: r.status !== "pending" && r.status !== "deferred" && !r.decided_by,
         // Référence d'entité + état d'exception (liens d'automatisation ciblée).
         entityRef: ref,
         entityIncluded: Boolean(ref && cfg?.include.has(ref.key)),
@@ -337,7 +337,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     needsMigration,
     pending: rows.filter((r) => r.status === "pending"),
-    history: rows.filter((r) => r.status !== "pending").slice(0, 100),
+    // File « Plus tard » : mises de côté par l'utilisateur — ni exécutées ni
+    // refusées, jamais touchées par l'automatisation (qui ne lit que pending).
+    deferred: rows.filter((r) => r.status === "deferred"),
+    history: rows.filter((r) => r.status !== "pending" && r.status !== "deferred").slice(0, 100),
     automated: [...autoCfg.entries()].filter(([, c]) => c.enabled).map(([k]) => k),
     overrides: Object.fromEntries(
       [...autoCfg.entries()].map(([k, c]) => [k, { include: [...c.include], exclude: [...c.exclude] }]),
@@ -376,14 +379,14 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { id?: string; decision?: "approve" | "reject" };
+  let body: { id?: string; decision?: "approve" | "reject" | "defer" | "requeue" };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Corps invalide" }, { status: 400 });
   }
-  if (!body.id || (body.decision !== "approve" && body.decision !== "reject")) {
-    return NextResponse.json({ error: "id et decision (approve | reject) requis" }, { status: 400 });
+  if (!body.id || !["approve", "reject", "defer", "requeue"].includes(body.decision ?? "")) {
+    return NextResponse.json({ error: "id et decision (approve | reject | defer | requeue) requis" }, { status: 400 });
   }
 
   const { data: item } = await supabase
@@ -393,9 +396,26 @@ export async function POST(request: Request) {
     .eq("id", body.id)
     .maybeSingle();
   if (!item) return NextResponse.json({ error: "Action introuvable" }, { status: 404 });
-  if (item.status !== "pending") return NextResponse.json({ error: "Action déjà traitée" }, { status: 409 });
 
   const decided = { decided_at: new Date().toISOString(), decided_by: user.id };
+
+  // ── File « Plus tard » : mise de côté (pending → deferred) et retour en
+  //    file (deferred → pending). Rien n'est exécuté ni écrit dans les outils.
+  if (body.decision === "defer") {
+    if (item.status !== "pending") return NextResponse.json({ error: "Seule une action en attente peut être mise de côté" }, { status: 409 });
+    await supabase.from("action_items").update({ status: "deferred", ...decided }).eq("id", item.id).eq("organization_id", orgId);
+    return NextResponse.json({ ok: true, status: "deferred" });
+  }
+  if (body.decision === "requeue") {
+    if (item.status !== "deferred") return NextResponse.json({ error: "Seule une action mise de côté peut revenir en file" }, { status: 409 });
+    await supabase.from("action_items").update({ status: "pending", decided_at: null, decided_by: null }).eq("id", item.id).eq("organization_id", orgId);
+    return NextResponse.json({ ok: true, status: "pending" });
+  }
+
+  // Valider / refuser : depuis la file OU depuis « Plus tard ».
+  if (item.status !== "pending" && item.status !== "deferred") {
+    return NextResponse.json({ error: "Action déjà traitée" }, { status: 409 });
+  }
 
   if (body.decision === "reject") {
     await supabase.from("action_items").update({ status: "rejected", ...decided }).eq("id", item.id).eq("organization_id", orgId);
