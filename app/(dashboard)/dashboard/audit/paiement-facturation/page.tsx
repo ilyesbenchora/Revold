@@ -27,6 +27,7 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CashRecoveryBlock } from "@/components/roi/cash-recovery-block";
 import { ReconciliationHealthCard } from "@/components/reconciliation/reconciliation-health-card";
 import { DealInvoiceLinks } from "@/components/reconciliation/deal-invoice-links";
+import { EstablishmentBreakdown } from "@/components/reconciliation/establishment-breakdown";
 import { GapReviewQueue } from "@/components/reconciliation/gap-review-queue";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
@@ -665,6 +666,11 @@ export default async function PaiementFacturationOverviewPage({
           écart signé − facturé deal par deal. L'encaissement, lui, vient du
           lettrage natif de la compta (amount_paid) — pas de doublon. */}
       <DealInvoiceLinks />
+
+      {/* Ventilation par établissement (facette SIRET) : une même entité légale
+          qui facture depuis plusieurs SIRET → CA ventilé par site, sans
+          dé-consolider le compte. Ne s'affiche que si ≥ 1 entité multi-SIRET. */}
+      <EstablishmentBreakdown supabase={supabase} orgId={orgId} />
 
       {/* File d'apurement : les écarts signé ↔ facturé statués entreprise par
           entreprise (justifié / à corriger / corrigé), export CSV. */}

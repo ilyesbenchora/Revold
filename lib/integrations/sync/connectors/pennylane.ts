@@ -77,9 +77,15 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
   // des règles de matching configurées — plus fiable que l'héritage CRM.
   const customerIdToContact = new Map<number, string>();
   const customerIdToCompany = new Map<number, string>();
+  // SIRET (14) du client tel que reçu, AVANT que la résolution ne l'écrase en
+  // SIREN : sert la vue par établissement (plusieurs SIRET d'une même entité
+  // légale se distinguent alors sur la facture, pas seulement sur l'entreprise).
+  const customerIdToSiret = new Map<number, string>();
   let contactsImported = 0;
   for (const c of customers) {
     const ids = accessor.extract(c);
+    const siret14 = (ids.siret ?? "").replace(/\D/g, "");
+    if (siret14.length === 14) customerIdToSiret.set(c.id, siret14);
     const email = ids.email ?? c.emails?.[0] ?? null;
     if (email) {
       const resolved = await resolveContact(ctx.supabase, ctx.orgId, PROVIDER, String(c.id), {
@@ -154,6 +160,7 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       organization_id: ctx.orgId,
       contact_id: contactId,
       company_id: companyFor(inv.customer?.id, contactId),
+      siret: inv.customer?.id != null ? customerIdToSiret.get(inv.customer.id) ?? null : null,
       number: inv.invoice_number,
       status,
       currency: (inv.currency || "EUR").toUpperCase(),
