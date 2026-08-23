@@ -47,6 +47,8 @@ export type TowerSettings = {
   briefEnrichment: boolean;
   /** Contenu du brief — actions exécutées dans les outils (24 h). */
   briefActionsDone: boolean;
+  /** Contenu du brief — santé de réconciliation (score + écart signé/facturé). */
+  briefReconciliation: boolean;
   /** Contenu du brief — données personnalisées (KPIs câblés, recalculés en direct). */
   briefCustom: BriefCustomItem[];
   /** Récap d'équipe — période(s) activée(s). */
@@ -82,6 +84,7 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefSyncs: true,
   briefEnrichment: true,
   briefActionsDone: true,
+  briefReconciliation: true,
   briefCustom: [],
   recapWeekly: false,
   recapMonthly: false,
@@ -178,6 +181,7 @@ export function briefSectionsParam(s: TowerSettings): string {
   if (s.briefSyncs) on.push("syncs");
   if (s.briefEnrichment) on.push("enrichment");
   if (s.briefActionsDone) on.push("actions_done");
+  if (s.briefReconciliation) on.push("reconciliation");
   return on.join(",");
 }
 

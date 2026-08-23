@@ -83,7 +83,7 @@ export async function GET(request: Request) {
   const sections = new Set(
     sectionsParam != null
       ? sectionsParam.split(",").filter(Boolean)
-      : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "enrichment", "actions_done"],
+      : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "enrichment", "actions_done", "reconciliation"],
   );
   const now = new Date();
   const in30d = new Date(now.getTime() + 30 * 86400 * 1000).toISOString().slice(0, 10);
@@ -254,6 +254,33 @@ export async function GET(request: Request) {
     } catch {}
   }
 
+  // ── Santé de réconciliation : lue de reconciliation_health (persistée par le
+  //    cron — pas de recalcul lourd dans le brief). Score + tendance + écart
+  //    signé/facturé BRUT (Σ|écart par deal|) qui révèle la compensation. ──
+  let reconScore: number | null = null;
+  let reconTrend: number | null = null;
+  let reconGapGross = 0;
+  let reconDeals = 0;
+  if (sections.has("reconciliation")) {
+    try {
+      const { data } = await supabase
+        .from("reconciliation_health")
+        .select("score, deal_gap_gross, won_deals, deal_solde, day")
+        .eq("organization_id", orgId)
+        .order("day", { ascending: false })
+        .limit(2);
+      const rows = (data ?? []) as Array<{ score: number; deal_gap_gross: number; won_deals: number; deal_solde: number }>;
+      if (rows[0]) {
+        reconScore = rows[0].score;
+        reconGapGross = Number(rows[0].deal_gap_gross) || 0;
+        reconDeals = Math.max(0, (rows[0].won_deals || 0) - (rows[0].deal_solde || 0));
+      }
+      if (rows[1]) reconTrend = (rows[0]?.score ?? 0) - rows[1].score;
+    } catch {
+      /* table absente (cron pas encore passé) → section omise */
+    }
+  }
+
   // ── Données personnalisées du brief (KPIs câblés dans Paramètres → Tour de
   //    contrôle) : recalculées EN DIRECT via le même moteur déterministe que
   //    les tables de données. Best-effort : un KPI en erreur est simplement omis.
@@ -399,6 +426,13 @@ export async function GET(request: Request) {
     }
     // Indicateurs suivis (Paramètres → Tour de contrôle) : valeurs en direct,
     // chaque chiffre porte sa source (« via Pennylane »).
+    if (sections.has("reconciliation") && reconScore != null) {
+      const trendTxt = reconTrend != null && reconTrend !== 0 ? ` (${reconTrend > 0 ? "+" : ""}${reconTrend} pts)` : "";
+      const gapTxt = reconGapGross > 0
+        ? ` Écart signé/facturé réel à traiter : ${fmtCustomValue(reconGapGross, "currency")} sur ${reconDeals} deal${reconDeals > 1 ? "s" : ""}.`
+        : "";
+      parts.push(`Côté réconciliation : santé ${reconScore} sur 100${trendTxt}.${gapTxt}`);
+    }
     if (customParts.length > 0) parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {

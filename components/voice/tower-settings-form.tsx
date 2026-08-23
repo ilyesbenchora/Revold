@@ -452,6 +452,7 @@ export function TowerSettingsForm() {
                 ["briefSyncs", "Syncs en échec", "Outil et date du dernier run en échec"],
                 ["briefEnrichment", "Enrichissement terminé", "Le robot a fini d'enrichir la base (SIREN, effectifs, CA)"],
                 ["briefActionsDone", "Actions faites", "Actions exécutées dans tes outils sur les dernières 24 h"],
+                ["briefReconciliation", "Santé de réconciliation", "Score + écart signé/facturé réel à traiter (compensation révélée)"],
               ] as const).map(([key, label, hint]) => (
                 <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white p-2 transition hover:border-accent/40">
                   <input
