@@ -11,10 +11,12 @@ import {
   detectMissingRenewalDeals,
   detectRevenueLeakage,
   detectMissingBillingContacts,
+  detectUndeclaredGroups,
   executeHubspotTask,
   executeHubspotMerge,
   executeHubspotSequenceEnroll,
   executeHubspotCompanyUpdate,
+  executeHubspotCompanyAssociate,
   executeLinkCompany,
   executeHubspotCreateDeal,
   executeHubspotCreateContact,
@@ -49,7 +51,7 @@ async function executeByType(
   type: string,
   payload: ActionPayload,
 ): Promise<{ ok: boolean; detail: string; contactId?: string; inProgress?: boolean }> {
-  const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_create_deal", "hubspot_create_contact", "hubspot_deal_update"];
+  const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_company_associate", "hubspot_create_deal", "hubspot_create_contact", "hubspot_deal_update"];
   if (needsHubspot.includes(type)) {
     const token = await getHubSpotToken(supabase, orgId);
     if (!token) return { ok: false, detail: "HubSpot non connecté." };
@@ -58,6 +60,7 @@ async function executeByType(
     if (type === "hubspot_sequence_enroll") return executeHubspotSequenceEnroll(token, payload);
     if (type === "hubspot_merge") return executeHubspotMerge(token, payload);
     if (type === "hubspot_company_update") return executeHubspotCompanyUpdate(token, payload);
+    if (type === "hubspot_company_associate") return executeHubspotCompanyAssociate(token, payload);
     if (type === "hubspot_create_deal") return executeHubspotCreateDeal(token, payload);
     if (type === "hubspot_create_contact") return executeHubspotCreateContact(token, payload);
   }
@@ -183,6 +186,7 @@ export async function GET(request: Request) {
       run("renewal_deal", () => detectMissingRenewalDeals(supabase, orgId)),
       run("revenue_leakage", () => detectRevenueLeakage(supabase, orgId)),
       run("billing_contact", () => detectMissingBillingContacts(supabase, orgId)),
+      run("declare_group", () => detectUndeclaredGroups(supabase, orgId)),
     ]);
     const candidates = detected.flat().map((c) => ({
       organization_id: orgId,

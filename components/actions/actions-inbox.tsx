@@ -128,6 +128,17 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     if (s("companyHubspotId")) rows.push(["Rattaché à", "L'entreprise du compte (fiche CRM)"]);
     return { rows, effect: "Crée UN contact dans HubSpot — si l'email existe déjà, rien n'est créé (message explicite). Débloque le rapprochement « email exact » pour ce compte." };
   }
+  if (a.type === "hubspot_company_associate") {
+    return {
+      rows: [
+        ["Entreprise parente", `${s("parentCompanyName") ?? "Entité de facturation"} (celle qui facture)`],
+        ["Entreprise enfant", `${s("childCompanyName") ?? "Entité signataire"} (celle qui a signé le deal)`],
+        ["Association écrite", "Parent / enfant HubSpot (le miroir « enfant » est créé automatiquement côté parent)"],
+        ["Ensuite, côté Revold", "Le deal se rapproche de la facture de l'autre entité, et le garde-fou inter-entités surveille la bonne société de facturation — automatiquement, sans rattachement manuel"],
+      ],
+      effect: "Écrit UNE association de hiérarchie dans HubSpot (aucune autre donnée touchée), déduite d'une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant est inverse, ou s'il ne s'agit pas du même groupe, rejette et corrige dans HubSpot.",
+    };
+  }
   return null;
 }
 
@@ -141,6 +152,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_create_deal: { label: "Deal de renouvellement", domain: "hubspot.com", icon: "🔁", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_create_contact: { label: "Création de contact", domain: "hubspot.com", icon: "👤", tool: "hubspot", toolLabel: "HubSpot" },
   hubspot_deal_update: { label: "Date de closing", domain: "hubspot.com", icon: "📅", tool: "hubspot", toolLabel: "HubSpot" },
+  hubspot_company_associate: { label: "Hiérarchie de groupe", domain: "hubspot.com", icon: "🏢", tool: "hubspot", toolLabel: "HubSpot" },
   link_company: { label: "Rattachement de fiches", domain: "revold.ai", icon: "🔗", tool: "revold", toolLabel: "Revold" },
   stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
 };
@@ -157,6 +169,7 @@ export const ACTION_CATALOG: Array<{ key: string; label: string; description: st
   { key: "renewal_deal", label: "Deals de renouvellement manquants", description: "Abonnement actif se terminant sous 60 jours sans deal ouvert → crée le deal de renouvellement (MRR × 12) : le forecast intègre le récurrent." },
   { key: "revenue_leakage", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
   { key: "billing_contact", label: "Création de contacts facturation", description: "Email de facturation présent côté Stripe/Pennylane mais absent du CRM → crée le contact rattaché à l'entreprise (débloque la règle « email exact »)." },
+  { key: "declare_group", label: "Hiérarchies de groupe à déclarer", description: "Deal signé sur une entité mais facturé, au montant exact, sur une autre société sans lien de groupe déclaré → déclare la hiérarchie parent/enfant dans HubSpot. Ensuite Revold rapproche et surveille la bonne entité de facturation, automatiquement — jamais deviné par le nom." },
 ];
 
 const HIDDEN_KEY = "revold:actions-hidden";
@@ -189,6 +202,7 @@ function sourceLabel(source: string): string {
   if (source === "detector:renewal_deal") return "Détecteur · renouvellements";
   if (source === "detector:revenue_leakage") return "Détecteur · revenue leakage";
   if (source === "detector:billing_contact") return "Détecteur · contacts facturation";
+  if (source === "detector:declare_group") return "Détecteur · hiérarchie de groupe";
   // Action planifiée depuis un chat d'agent (« Plus tard »).
   if (source.startsWith("agent:")) return `Agent · ${AGENT_LABELS[source.slice(6)] ?? source.slice(6)}`;
   return source;

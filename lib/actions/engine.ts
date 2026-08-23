@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
+import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 
 /**
  * Moteur de la boîte d'actions (Suivi → Actions).
@@ -42,6 +43,12 @@ export type ActionPayload = {
   /** Relance par séquence HubSpot (envoi réel au nom de l'owner). */
   sequenceId?: string;
   sequenceName?: string;
+  /** Déclaration de hiérarchie de groupe : associer parent/enfant dans HubSpot
+   *  (l'entité de facturation devient le parent de l'entité qui a signé). */
+  parentHubspotId?: string;
+  childHubspotId?: string;
+  parentCompanyName?: string;
+  childCompanyName?: string;
 };
 
 const DAY_MS = 86_400_000;
@@ -721,6 +728,144 @@ export async function fetchContactOwner(token: string, contactId: string): Promi
 }
 
 /**
+ * Détecteur : GROUPE MULTI-ENTITÉS NON DÉCLARÉ (garde-fou de facturation en
+ * amont). Signal FIABLE, jamais deviné par le nom : un deal gagné n'a AUCUNE
+ * facture sur sa propre société, mais une facture non rattachée d'une AUTRE
+ * société (hors de son groupe déclaré) porte EXACTEMENT son montant, dans la
+ * fenêtre du closing. C'est le motif « signé sur l'entité A, facturé sur
+ * l'entité B du même groupe » — sauf que le lien de groupe n'existe pas encore
+ * dans le CRM, donc Revold ne peut pas rapprocher ni garder le garde-fou.
+ *
+ * L'action RECOMMANDE de déclarer la hiérarchie parent/enfant dans HubSpot (et
+ * peut l'écrire : l'entité de facturation devient le parent). Aucun
+ * rattachement manuel dans Revold : une fois la hiérarchie déclarée, l'ingestion
+ * la reprend et le moteur deal↔facture rapproche + surveille tout seul.
+ */
+export async function detectUndeclaredGroups(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const DAY = 86_400_000;
+  const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * 0.01);
+  const fmt = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+  const [dealsRes, invRes, compRes] = await Promise.all([
+    supabase
+      .from("deals")
+      .select("id, name, amount, close_date, company_id")
+      .eq("organization_id", orgId)
+      .eq("is_closed_won", true)
+      .not("company_id", "is", null)
+      .not("amount", "is", null)
+      .limit(4000),
+    supabase
+      .from("invoices")
+      .select("id, amount_total, issued_at, company_id, deal_id")
+      .eq("organization_id", orgId)
+      .not("company_id", "is", null)
+      .limit(6000),
+    supabase
+      .from("companies")
+      .select("id, name, hubspot_id")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .limit(6000),
+  ]);
+
+  type D = { id: string; name: string | null; amount: number | null; close_date: string | null; company_id: string | null };
+  type I = { id: string; amount_total: number | null; issued_at: string | null; company_id: string | null; deal_id: string | null };
+  const deals = ((dealsRes.data ?? []) as D[]).filter((d) => (d.amount ?? 0) > 0);
+  const invoices = (invRes.data ?? []) as I[];
+  if (deals.length === 0 || invoices.length === 0) return [];
+
+  // Seules les entreprises présentes dans le CRM (hubspot_id) peuvent recevoir
+  // une association de hiérarchie — on ne recommande que des paires écrivables.
+  const comp = new Map<string, { name: string | null; hubspot_id: string }>();
+  for (const c of (compRes.data ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null }>) {
+    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id });
+  }
+  if (comp.size < 2) return [];
+
+  // Groupes DÉJÀ déclarés : on ne propose jamais une paire déjà dans le même
+  // groupe (rien à déclarer) — le garde-fou Stage 2a la couvre déjà.
+  const groups = await loadCompanyGroups(supabase, orgId);
+  const rootOf = (id: string): string => groups.rootOf.get(id) ?? id;
+
+  // Index des factures NON rattachées, par entreprise, avec date.
+  const invByCompany = new Map<string, Array<{ amount: number; at: number }>>();
+  // Ensemble des entreprises qui portent AU MOINS une facture (même montant).
+  for (const inv of invoices) {
+    if (inv.deal_id) continue; // déjà rattachée à un deal
+    const cid = inv.company_id;
+    const amt = Number(inv.amount_total) || 0;
+    if (!cid || amt <= 0) continue;
+    const at = inv.issued_at ? new Date(inv.issued_at).getTime() : NaN;
+    (invByCompany.get(cid) ?? invByCompany.set(cid, []).get(cid))!.push({ amount: amt, at });
+  }
+  // Entreprises qui ont une facture du bon montant, quelle qu'elle soit (pour
+  // écarter les deals normalement facturés sur leur propre société).
+  const hasOwnInvoice = (companyId: string, amount: number): boolean =>
+    (invByCompany.get(companyId) ?? []).some((x) => near(x.amount, amount));
+
+  const seenPairs = new Set<string>();
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+
+  for (const d of deals) {
+    const dealCompanyId = d.company_id!;
+    const amount = d.amount ?? 0;
+    const childC = comp.get(dealCompanyId);
+    if (!childC) continue; // société du deal absente du CRM (non écrivable)
+    // Facturé normalement sur sa propre société → pas un signal de groupe.
+    if (hasOwnInvoice(dealCompanyId, amount)) continue;
+
+    const close = d.close_date ? new Date(d.close_date).getTime() : NaN;
+    const dealRoot = rootOf(dealCompanyId);
+
+    // Cherche une AUTRE société portant une facture du montant exact, en fenêtre.
+    let match: { companyId: string; name: string | null; hubspot_id: string } | null = null;
+    for (const [cid, list] of invByCompany) {
+      if (cid === dealCompanyId) continue;
+      if (rootOf(cid) === dealRoot) continue; // déjà dans le même groupe déclaré
+      const other = comp.get(cid);
+      if (!other) continue; // société de facturation absente du CRM (non écrivable)
+      const inWindow = list.some((x) => {
+        if (!near(x.amount, amount)) return false;
+        if (Number.isNaN(close) || Number.isNaN(x.at)) return true; // dates absentes → on n'exclut pas
+        return x.at >= close - 30 * DAY && x.at <= close + 365 * DAY;
+      });
+      if (inWindow) {
+        match = { companyId: cid, name: other.name, hubspot_id: other.hubspot_id };
+        break;
+      }
+    }
+    if (!match) continue;
+
+    // Paire dédupliquée (indépendante du deal qui a servi de révélateur).
+    const pairKey = [dealCompanyId, match.companyId].sort().join(":");
+    if (seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
+
+    const childName = childC.name ?? "entreprise signataire";
+    const parentName = match.name ?? "entité de facturation";
+    out.push({
+      dedupe_key: `declare_group:${pairKey}`,
+      type: "hubspot_company_associate",
+      title: `Déclarer la hiérarchie : « ${parentName} » (facturation) parent de « ${childName} » (signature)`,
+      description: `Le deal « ${d.name ?? "sans nom"} » (${fmt(amount)}) a été signé sur « ${childName} » mais aucune facture de ce montant n'y figure — une facture du montant exact a été émise sur « ${parentName} », une société sans lien de groupe déclaré. C'est le motif « facturation centralisée par une autre entité du groupe ». Tant que la hiérarchie n'est pas déclarée dans HubSpot, Revold ne peut ni rapprocher ce deal ni surveiller la bonne entité de facturation. Valider écrit l'association parent/enfant dans HubSpot (« ${parentName} » parente de « ${childName} ») — jamais deviné par le nom, uniquement sur cette correspondance de montant. Ensuite le rapprochement et le garde-fou inter-entités se font automatiquement. Si le sens est inverse (ou s'il ne s'agit pas du même groupe), rejette et corrige dans HubSpot.`,
+      source: "detector:declare_group",
+      payload: {
+        parentHubspotId: match.hubspot_id,
+        childHubspotId: childC.hubspot_id,
+        parentCompanyName: parentName,
+        childCompanyName: childName,
+      },
+    });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/**
  * Crée une tâche HubSpot TOUJOURS attribuée : owner du deal, sinon owner de
  * l'entreprise, sinon owner du premier contact associé — une tâche sans
  * propriétaire n'apparaît dans la file de personne dans le CRM. La tâche est
@@ -809,6 +954,49 @@ export async function executeHubspotMerge(
     const err = await res.text();
     if (res.status === 403) {
       return { ok: false, detail: `Scope HubSpot manquant (crm.objects.${type === "contacts" ? "contacts" : "companies"}.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot.` };
+    }
+    return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/**
+ * Écrit l'association de hiérarchie parent/enfant entre deux entreprises dans
+ * HubSpot (associations v4, type par défaut typeId 14 = « parent » côté enfant,
+ * cohérent avec la lecture `fetchCompanyParents` de l'ETL). Validée en amont
+ * (human-in-the-loop) : on ne devine jamais le lien, il vient d'une
+ * correspondance de montant deal↔facture. HubSpot crée le miroir « enfant »
+ * côté parent automatiquement. La synchro suivante repeuple `parent_company_id`
+ * et le moteur deal↔facture rapproche + surveille l'entité de facturation.
+ */
+export async function executeHubspotCompanyAssociate(
+  hubspotToken: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  const { parentHubspotId, childHubspotId } = payload;
+  if (!parentHubspotId || !childHubspotId || parentHubspotId === childHubspotId) {
+    return { ok: false, detail: "Payload de hiérarchie incomplet (parent/enfant HubSpot requis)." };
+  }
+  try {
+    // Du point de vue de l'ENFANT, son parent : typeId 14 (HUBSPOT_DEFINED).
+    const res = await hubFetch(
+      `https://api.hubapi.com/crm/v4/objects/companies/${encodeURIComponent(childHubspotId)}/associations/companies/${encodeURIComponent(parentHubspotId)}`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${hubspotToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify([{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 14 }]),
+      },
+    );
+    if (res.ok) {
+      return {
+        ok: true,
+        detail: `Hiérarchie déclarée dans HubSpot : « ${payload.parentCompanyName ?? parentHubspotId} » parente de « ${payload.childCompanyName ?? childHubspotId} ». Le rapprochement du deal et le garde-fou inter-entités s'activeront à la prochaine synchronisation.`,
+      };
+    }
+    const err = await res.text();
+    if (res.status === 403) {
+      return { ok: false, detail: "Scope HubSpot manquant (crm.objects.companies.write) — ajoute-le à l'app OAuth puis reconnecte HubSpot." };
     }
     return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 180)}` };
   } catch (e) {
