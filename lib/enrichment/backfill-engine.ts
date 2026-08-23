@@ -166,6 +166,10 @@ export async function runEnrichmentBatch(
       continue;
     }
     const st = await caches.settings(c.organization_id);
+    // OPT-IN : l'org n'a jamais cliqué « Enrichir mon CRM » → on ne touche à
+    // RIEN (ni marquage, ni lookup) — la fiche reste en file pour le jour où
+    // l'utilisateur active l'enrichissement.
+    if (!st.activated) continue;
     // SIREN désactivé dans Paramètres → Enrichissement : la clé d'identité ne
     // doit pas être posée — on marque vérifiée et on passe.
     if (!st.fields.siren) {
@@ -341,6 +345,8 @@ export async function runEnrichmentBatch(
       if (budget <= 0) break;
       if (!/^\d{9}$/.test(c.siren)) continue;
       const st = await caches.settings(c.organization_id);
+      // OPT-IN : org jamais activée → aucune écriture, la fiche reste en file.
+      if (!st.activated) continue;
       // Aucun champ évolutif actif → rien à rafraîchir pour cette org.
       if (
         !st.fields.employees && !st.fields.revenue && !st.fields.industry &&

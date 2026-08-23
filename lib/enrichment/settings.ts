@@ -23,25 +23,28 @@ export type EnrichmentSettings = {
   hubspotSearchIds: boolean;
   /** Source LinkedIn (bêta) pour l'effectif. */
   linkedinEnabled: boolean;
+  /** OPT-IN : l'utilisateur a cliqué « Enrichir mon CRM » au moins une fois —
+   * tant que c'est false, AUCUN moteur (backfill, fond, cron) ne tourne. */
+  activated: boolean;
 };
 
 export const DEFAULT_ENRICHMENT_SETTINGS: EnrichmentSettings = {
-  // Les trois derniers champs (statut juridique, capital social, adresse du
-  // siège) sont OPT-IN : livrés décochés pour que les orgs déjà enrichies les
-  // activent depuis Paramètres → Enrichissement (nouvelle passe ciblée).
+  // TOUT est OPT-IN : aucun champ pré-coché — l'utilisateur choisit ce que
+  // Revold enrichit depuis Paramètres → Enrichissement, en partant de zéro.
   fields: {
-    employees: true,
-    revenue: true,
-    siren: true,
-    siret: true,
-    vat: true,
-    industry: true,
+    employees: false,
+    revenue: false,
+    siren: false,
+    siret: false,
+    vat: false,
+    industry: false,
     legalForm: false,
     shareCapital: false,
     headOfficeAddress: false,
   },
   hubspotSearchIds: true,
   linkedinEnabled: false,
+  activated: false,
 };
 
 export const ENRICHMENT_FIELD_LABELS: { id: keyof EnrichmentFields; label: string; hint: string }[] = [
@@ -100,14 +103,22 @@ export const ENRICHMENT_HUBSPOT_PROPERTIES: {
   },
 ];
 
-/** Charge les réglages de l'org — résilient (table absente → défauts). */
+/** Charge les réglages de l'org — résilient (table/colonne absente → défauts). */
 export async function getEnrichmentSettings(sb: SupabaseClient, orgId: string): Promise<EnrichmentSettings> {
   try {
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from("enrichment_settings")
-      .select("fields, hubspot_search_ids, linkedin_enabled")
+      .select("fields, hubspot_search_ids, linkedin_enabled, activated_at")
       .eq("organization_id", orgId)
       .maybeSingle();
+    if (error && /activated_at/.test(error.message)) {
+      // Migration activation pas encore appliquée : relit sans la colonne.
+      ({ data, error } = await sb
+        .from("enrichment_settings")
+        .select("fields, hubspot_search_ids, linkedin_enabled")
+        .eq("organization_id", orgId)
+        .maybeSingle());
+    }
     if (error || !data) return DEFAULT_ENRICHMENT_SETTINGS;
     const raw = (data.fields ?? {}) as Partial<Record<keyof EnrichmentFields, unknown>>;
     const fields = { ...DEFAULT_ENRICHMENT_SETTINGS.fields };
@@ -118,6 +129,7 @@ export async function getEnrichmentSettings(sb: SupabaseClient, orgId: string): 
       fields,
       hubspotSearchIds: data.hubspot_search_ids !== false,
       linkedinEnabled: data.linkedin_enabled === true,
+      activated: Boolean((data as { activated_at?: string | null }).activated_at),
     };
   } catch {
     return DEFAULT_ENRICHMENT_SETTINGS;

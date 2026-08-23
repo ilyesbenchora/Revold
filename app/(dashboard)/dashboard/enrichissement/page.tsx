@@ -6,6 +6,7 @@ import { CompanyEnrichmentBlock } from "@/components/company-enrichment-block";
 import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runner";
 import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
+import { FeatureTour } from "@/components/feature-tour";
 import {
   ENRICHMENT_FIELD_COLUMNS,
   ENRICHMENT_FIELD_LABELS,
@@ -58,14 +59,33 @@ export default async function EnrichissementPage() {
   // Pas de tuile « Rafraîchies < 90 j » : l'entretien est AUTOMATIQUE (cron
   // toutes les 5 min — nouvelles entreprises + rafraîchissement 90 j), ce
   // compteur interne de maintenance n'apprend rien à l'utilisateur.
-  const [total, toReview, ...fieldValues] = await Promise.all([
+  // Filtre « entreprise CLIENTE » : lifecycle stage HubSpot = customer (raw_data).
+  const customerFilter = (q: { eq: (k: string, v: string) => unknown }) =>
+    q.eq("raw_data->properties->>lifecyclestage", "customer");
+  const [total, toReview, customers, customersEnriched, ...fieldValues] = await Promise.all([
     count(supabase, orgId, (q) => q),
     count(supabase, orgId, (q) => q.is("siren", null).not("candidate_siren", "is", null)),
+    count(supabase, orgId, (q) => customerFilter(q)),
+    count(supabase, orgId, (q) => (customerFilter(q) as { not: (k: string, o: string, v: null) => unknown }).not("enriched_at", "is", null)),
     ...activeFields.map((f) => count(supabase, orgId, (q) => q.not(ENRICHMENT_FIELD_COLUMNS[f.id], "is", null))),
   ]);
+  const customerRate =
+    customers != null && customers > 0 && customersEnriched != null
+      ? Math.round((customersEnriched / customers) * 100)
+      : null;
 
   const tiles = [
     { label: "Entreprises", value: total, sub: "dans le modèle de données" },
+    // Clientes enrichies : le cœur de la valeur — les fiches des CLIENTS
+    // (lifecycle customer) passées par le moteur, avec le taux de couverture.
+    {
+      label: "Clientes enrichies",
+      value: customersEnriched,
+      sub:
+        customers != null && customers > 0
+          ? `sur ${customers.toLocaleString("fr-FR")} clientes${customerRate != null ? ` — ${customerRate} %` : ""}`
+          : "aucune entreprise cliente détectée",
+    },
     ...activeFields.map((f, i) => {
       const t = FIELD_TILE[f.id] ?? { label: f.label, sub: "" };
       const v = fieldValues[i];
@@ -84,14 +104,35 @@ export default async function EnrichissementPage() {
           effectifs, chiffre d&apos;affaires, statut juridique, capital social, adresse du siège — puis l&apos;écrit
           dans ton CRM.{" "}
           <span className="font-medium text-slate-700">
-            L&apos;enrichissement tourne automatiquement, en continu, sur toute la base
+            Rien ne se lance sans toi : après ta première passe, l&apos;entretien devient automatique et continu
           </span>{" "}
-          : les correspondances certaines s&apos;appliquent seules, les incertaines t&apos;attendent ci-dessous.
+          — les correspondances certaines s&apos;appliquent seules, les incertaines t&apos;attendent ci-dessous.
         </p>
       </header>
 
+      {/* ── Tutoriel de prise en main (onboarding) ── */}
+      <FeatureTour
+        tourId="enrichissement"
+        steps={[
+          {
+            anchor: "enrichissement-tuiles",
+            title: "Ta couverture de données",
+            text: "Chaque tuile mesure ce que Revold connaît déjà : SIREN, effectifs, CA… et le taux d'entreprises clientes enrichies.",
+          },
+          {
+            anchor: "enrichissement-moteur",
+            title: "Rien ne se lance sans toi",
+            text: "Choisis les données à enrichir dans Paramètres → Enrichissement, puis clique « Enrichir mon CRM » : registre officiel, puis écriture dans HubSpot (champs vides uniquement).",
+          },
+          {
+            title: "Et ensuite, c'est automatique",
+            text: "Après ta première passe, chaque nouvelle entreprise est enrichie en continu — les correspondances incertaines t'attendent en validation.",
+          },
+        ]}
+      />
+
       {/* ── Couverture ── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div data-tour="enrichissement-tuiles" className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         {tiles.map((t) => (
           <article key={t.label} className="card p-4 text-center">
             <p className="text-[10px] font-medium uppercase text-slate-500">{t.label}</p>
@@ -103,7 +144,9 @@ export default async function EnrichissementPage() {
 
       {/* ── 1. ÉTAT du moteur — CTA « Enrichir mon CRM » (fenêtre de
              complétion) puis historique des passes juste en dessous. ── */}
-      <EnrichmentBackfillRunner fields={settings.fields} hubspotSearchIds={settings.hubspotSearchIds} />
+      <div data-tour="enrichissement-moteur">
+        <EnrichmentBackfillRunner fields={settings.fields} hubspotSearchIds={settings.hubspotSearchIds} activated={settings.activated} />
+      </div>
 
       {/* ── 1 bis. Source LinkedIn (bêta), bloc DÉDIÉ sous le moteur : sa
              propre barre de complétion mesure ce que cette source apporte

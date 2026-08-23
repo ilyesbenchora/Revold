@@ -87,9 +87,12 @@ const dateTimeFr = (iso: string) =>
 export function EnrichmentBackfillRunner({
   fields,
   hubspotSearchIds = true,
+  activated = true,
 }: {
   fields: EnrichmentFields;
   hubspotSearchIds?: boolean;
+  /** false = l'org n'a JAMAIS lancé l'enrichissement (état neutre, jamais « enrichi »). */
+  activated?: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
@@ -193,7 +196,13 @@ export function EnrichmentBackfillRunner({
       // 2. Moteur : enchaîne les lots tant qu'il reste du travail.
       for (;;) {
         if (!mountedRef.current) return;
-        const res = await fetch("/api/enrichment/backfill", { method: "POST" });
+        // activate:true — le clic sur le CTA vaut OPT-IN : il active le moteur
+        // (accélérateur de fond + cron) pour cette org, une fois pour toutes.
+        const res = await fetch("/api/enrichment/backfill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activate: true }),
+        });
         const d = (await res.json().catch(() => ({}))) as Partial<Batch>;
         if (!mountedRef.current) return;
         if (!res.ok) {
@@ -314,6 +323,9 @@ export function EnrichmentBackfillRunner({
                   </span>
                   Enrichissement en cours
                 </>
+              ) : !activated ? (
+                // JAMAIS « enrichi » tant que rien n'a été lancé : état neutre.
+                <>Enrichissement pas encore lancé</>
               ) : newFields.length > 0 ? (
                 <>✦ Nouveaux champs à enrichir</>
               ) : (
@@ -327,6 +339,14 @@ export function EnrichmentBackfillRunner({
                 <>
                   Revold traite ta base en continu, application ouverte ou fermée. Dernière avancée{" "}
                   <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
+                </>
+              ) : !activated ? (
+                <>
+                  Rien ne tourne sans ton feu vert : coche les données à enrichir dans{" "}
+                  <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
+                    Paramètres → Enrichissement
+                  </Link>{" "}
+                  puis clique « Enrichir mon CRM ».
                 </>
               ) : newFields.length > 0 ? (
                 <>
@@ -371,10 +391,12 @@ export function EnrichmentBackfillRunner({
                nouveaux champs sont cochés ; sinon état discret. ── */}
         {status != null && runs != null && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-fuchsia-100 pt-3">
-            {needsRun ? (
+            {!activated || needsRun ? (
               <>
                 <p className="text-[11px] text-slate-400">
-                  {newFields.length > 0 ? (
+                  {!activated && activeFieldIds.length === 0 ? (
+                    <>Coche d&apos;abord les données à enrichir dans Paramètres → Enrichissement — rien n&apos;est sélectionné.</>
+                  ) : newFields.length > 0 ? (
                     <>La passe complète la base puis écrit chaque donnée dans ton CRM (champs vides uniquement).</>
                   ) : (
                     <>Lance la passe : identification au registre officiel puis synchronisation de ton CRM, en direct.</>
@@ -382,7 +404,8 @@ export function EnrichmentBackfillRunner({
                 </p>
                 <button
                   type="button"
-                  disabled={runningRef.current}
+                  disabled={runningRef.current || (!activated && activeFieldIds.length === 0)}
+                  title={!activated && activeFieldIds.length === 0 ? "Aucune donnée cochée dans Paramètres → Enrichissement" : undefined}
                   onClick={() => void startPass()}
                   className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
                 >
