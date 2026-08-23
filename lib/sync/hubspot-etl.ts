@@ -1194,6 +1194,47 @@ async function fetchDealContactAssociations(token: string, dealHsIds: string[]):
   return fetchAssociations(token, "/crm/v4/associations/deals/contacts/batch/read", dealHsIds);
 }
 
+/**
+ * company hubspot_id → company hubspot_id PARENT. Lit les associations
+ * entreprise↔entreprise v4 et ne retient que le sens PARENT (type HubSpot natif
+ * « Parent Company », typeId 14, ou libellé contenant « parent ») : depuis
+ * l'entreprise enfant, le `to` de type parent est son groupe. On ne devine
+ * jamais — seule la hiérarchie réellement posée dans HubSpot est ingérée.
+ */
+async function fetchCompanyParents(token: string, companyHsIds: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < companyHsIds.length; i += 100) {
+    const chunk = companyHsIds.slice(i, i + 100);
+    try {
+      const res = await hsFetch(token, "/crm/v4/associations/companies/companies/batch/read", {
+        method: "POST",
+        body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const r of (data.results ?? []) as Array<Record<string, unknown>>) {
+        const from = (r.from as { id?: string } | undefined)?.id;
+        if (!from) continue;
+        const toArr = (r.to as Array<{
+          toObjectId?: string | number;
+          associationTypes?: Array<{ typeId?: number; label?: string | null }>;
+        }> | undefined) ?? [];
+        for (const t of toArr) {
+          const isParent = (t.associationTypes ?? []).some(
+            (a) => a.typeId === 14 || /parent/i.test(a.label ?? ""),
+          );
+          const to = t.toObjectId;
+          if (isParent && to != null && String(to) !== String(from)) {
+            out[String(from)] = String(to);
+            break;
+          }
+        }
+      }
+    } catch { /* lot ignoré */ }
+  }
+  return out;
+}
+
 /** Met à jour company_id par lots, groupés par company canonique. */
 async function applyCompanyLinks(
   supabase: SupabaseClient,
@@ -1219,6 +1260,57 @@ async function applyCompanyLinks(
     }
   }
   return updated;
+}
+
+/**
+ * Ingestion de la HIÉRARCHIE d'entreprises (consolidation groupe) : pose
+ * `companies.parent_company_id` d'après les associations parent/enfant HubSpot.
+ * Le client entretient déjà sa hiérarchie dans HubSpot ; on la lit, on ne la
+ * devine jamais. Idempotent (réécrit le parent à chaque passage). Résilient :
+ * colonne absente (migration non appliquée) → no-op silencieux.
+ */
+export async function linkCompanyHierarchyForOrg(
+  supabase: SupabaseClient,
+  orgId: string,
+  token: string,
+): Promise<{ linked: number }> {
+  const { data: comps, error: colErr } = await supabase
+    .from("companies")
+    .select("id, hubspot_id, parent_company_id")
+    .eq("organization_id", orgId);
+  // Colonne parent_company_id absente → migration non appliquée : on s'arrête.
+  if (colErr && /parent_company_id/.test(colErr.message)) return { linked: 0 };
+  const rows = (comps ?? []) as Array<{ id: string; hubspot_id: string | null; parent_company_id: string | null }>;
+  const compByHs = new Map<string, string>();
+  for (const c of rows) if (c.hubspot_id) compByHs.set(String(c.hubspot_id), c.id);
+  const hsIds = [...compByHs.keys()];
+  if (hsIds.length === 0) return { linked: 0 };
+
+  const parents = await fetchCompanyParents(token, hsIds);
+  const byParent = new Map<string, string[]>(); // parent uuid → child uuids
+  for (const c of rows) {
+    if (!c.hubspot_id) continue;
+    const parentHs = parents[String(c.hubspot_id)];
+    const parentId = parentHs ? compByHs.get(String(parentHs)) : undefined;
+    // parent résolu, différent de soi, et pas déjà posé sur la même valeur.
+    if (parentId && parentId !== c.id && c.parent_company_id !== parentId) {
+      (byParent.get(parentId) ?? byParent.set(parentId, []).get(parentId))!.push(c.id);
+    }
+  }
+
+  let linked = 0;
+  for (const [parentId, childIds] of byParent) {
+    for (let i = 0; i < childIds.length; i += 200) {
+      const ids = childIds.slice(i, i + 200);
+      const { error, count } = await supabase
+        .from("companies")
+        .update({ parent_company_id: parentId, company_group_source: "hubspot" }, { count: "exact" })
+        .eq("organization_id", orgId)
+        .in("id", ids);
+      if (!error) linked += count ?? ids.length;
+    }
+  }
+  return { linked };
 }
 
 /**
@@ -1597,6 +1689,9 @@ export async function syncAllForOrg(
   // Passe de liaison : relie contacts + deals à leur company canonique
   // (company_id) — socle de toute réconciliation CRM ↔ facturation.
   try { await linkCompaniesForOrg(supabase, orgId, token); } catch { /* non bloquant */ }
+  // Hiérarchie d'entreprises (consolidation groupe) — après le peuplement des
+  // companies. Non bloquant : la sync réussit même si la hiérarchie échoue.
+  try { await linkCompanyHierarchyForOrg(supabase, orgId, token); } catch { /* non bloquant */ }
 
   // Workflows : sync enrichi spécifique (list + détail per id)
   const workflowsResult = await syncWorkflowsEnriched(token, supabase, orgId);
