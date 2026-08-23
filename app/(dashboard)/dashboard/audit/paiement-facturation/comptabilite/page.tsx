@@ -1,5 +1,6 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -69,9 +70,15 @@ export default async function ComptabilitePage({
       {ledgerTools.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Aucun outil comptable connecté. Connecte Pennylane pour alimenter cette page
-            depuis vos écritures comptables réelles.
+            Aucun outil comptable connecté : cette page s&apos;alimentera depuis tes écritures comptables réelles
+            dès qu&apos;un outil sera branché.
           </p>
+          <Link
+            href="/dashboard/integration/bibliotheque"
+            className="mt-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Connecter un outil →
+          </Link>
         </div>
       ) : (
         <>

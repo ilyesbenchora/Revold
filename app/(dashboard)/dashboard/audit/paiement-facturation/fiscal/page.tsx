@@ -149,7 +149,11 @@ export default async function FiscalPage() {
       >
         {!tva.hasData ? (
           <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-            Aucun flux bancaire synchronisé cette année — connecte Pennylane pour estimer la TVA à provisionner.
+            Aucun flux bancaire synchronisé cette année — la TVA à provisionner s&apos;estimera dès qu&apos;un outil
+            sera connecté depuis la{" "}
+            <Link href="/dashboard/integration/bibliotheque" className="font-medium text-accent hover:underline">
+              bibliothèque d&apos;outils
+            </Link>.
           </p>
         ) : (
           <BlockDataTable

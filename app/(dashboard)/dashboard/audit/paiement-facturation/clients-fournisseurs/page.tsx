@@ -1,5 +1,6 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { computeReceivables, type AgedSide } from "@/lib/audit/receivables";
@@ -116,9 +117,15 @@ export default async function ClientsFournisseursPage() {
       {!data.hasData ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Aucune facture ouverte dans les sources synchronisées. Dès que des factures clients ou
-            fournisseurs existeront dans Pennylane (ou Stripe), la balance âgée s&apos;alimentera au prochain sync.
+            Aucune facture ouverte dans les sources synchronisées : la balance âgée s&apos;alimentera automatiquement
+            dès qu&apos;un outil de facturation sera connecté et synchronisé.
           </p>
+          <Link
+            href="/dashboard/integration/bibliotheque"
+            className="mt-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Connecter un outil de facturation →
+          </Link>
         </div>
       ) : (
         <>

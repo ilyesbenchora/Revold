@@ -4,6 +4,7 @@ export const maxDuration = 300;
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
 import { CollapsibleBlock } from "@/components/collapsible-block";
+import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { PerformancesTabs } from "@/components/performances-tabs";
 import { VentesTabs } from "@/components/ventes-tabs";
@@ -239,6 +240,36 @@ export default async function PerformanceCommercialePage() {
               </div>
             ))}
           </div>
+        </RemovableBlock>
+      )}
+
+      {/* ── Pipeline revenue & devis — déménagé depuis Trésorerie → Facturation :
+             KPIs 100 % CRM (pipeline ouvert, won, devis, line items), retirable. ── */}
+      {!custom.hiddenBlocks.has("pipeline_devis") && snapshot.pipelines.length > 0 && (
+        <RemovableBlock pageKey="perf_ventes" blockKey="pipeline_devis" label="Pipeline revenue & devis">
+          <CollapsibleBlock
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                Pipeline revenue &amp; devis
+              </h2>
+            }
+          >
+            <BlockDataTable
+              title="Pipeline revenue & devis"
+              subtitle="deals · quotes · line items"
+              team="sales"
+              unit="currency"
+              nameLabel="Indicateur"
+              extraColumns={["Détail"]}
+              rows={[
+                { name: "Pipeline ouvert", value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null, unit: "currency" as const, cells: [`${snapshot.openDeals.toLocaleString("fr-FR")} deals`], spec: { entity: "deals", groupBy: "status", measure: "sum" as const, field: "amount", target: "En cours" } },
+                { name: "Won historique", value: snapshot.wonAmount > 0 ? snapshot.wonAmount : null, unit: "currency" as const, cells: [`${snapshot.wonDeals.toLocaleString("fr-FR")} deals gagnés`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
+                { name: "Devis émis", value: snapshot.totalQuotes, unit: "count" as const, cells: ["HubSpot Quotes"] },
+                { name: "Line items", value: snapshot.totalLineItems, unit: "count" as const, cells: ["SKUs vendus"] },
+              ]}
+              footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
+            />
+          </CollapsibleBlock>
         </RemovableBlock>
       )}
 

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { getOrgId, getHubspotSnapshot } from "@/lib/supabase/cached";
+import Link from "next/link";
+import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
@@ -36,10 +37,7 @@ export default async function FacturationPage({
   const switchableTools = await getSwitchableBillingTools(supabase, orgId, token, ["audit_paiement_facturation_facturation", "audit_paiement_facturation"]);
   const overrideSource = validateSourceParam(typeof sp.source === "string" ? sp.source : null, switchableTools);
 
-  const [data, snapshot] = await Promise.all([
-    fetchPaiementFacturationFor(supabase, orgId, token, overrideSource, ["audit_paiement_facturation_facturation", "audit_paiement_facturation"]),
-    getHubspotSnapshot(),
-  ]);
+  const data = await fetchPaiementFacturationFor(supabase, orgId, token, overrideSource, ["audit_paiement_facturation_facturation", "audit_paiement_facturation"]);
   const activeSourceKey = data.source ?? "hubspot";
 
   // Audit factures > 30 jours impayées (DSO élevé).
@@ -112,7 +110,9 @@ export default async function FacturationPage({
         );
       })()}
 
-      {!custom.hiddenBlocks.has("emission_encaissement") && (
+      {/* Zéro donnée de facturation → AUCUN bloc enrichi : uniquement
+          l'invitation à connecter un outil (en bas de page). */}
+      {data.hasData && !custom.hiddenBlocks.has("emission_encaissement") && (
       <RemovableBlock pageKey={PAGE_KEY} blockKey="emission_encaissement" label="Émission & encaissement">
       <CollapsibleBlock
         title={
@@ -142,7 +142,7 @@ export default async function FacturationPage({
       </RemovableBlock>
       )}
 
-      {!custom.hiddenBlocks.has("recouvrement_dso") && (
+      {data.hasData && !custom.hiddenBlocks.has("recouvrement_dso") && (
       <RemovableBlock pageKey={PAGE_KEY} blockKey="recouvrement_dso" label="Recouvrement & DSO">
       <CollapsibleBlock
         title={
@@ -181,34 +181,8 @@ export default async function FacturationPage({
       </RemovableBlock>
       )}
 
-      {!custom.hiddenBlocks.has("pipeline_devis") && (
-      <RemovableBlock pageKey={PAGE_KEY} blockKey="pipeline_devis" label="Pipeline revenue & devis">
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Pipeline revenue & devis
-          </h2>
-        }
-      >
-        {/* Données du bloc + alerte chirurgicale. */}
-        <BlockDataTable
-          title="Pipeline revenue & devis"
-          subtitle="deals · quotes · line items"
-          team="finance"
-          unit="currency"
-          nameLabel="Indicateur"
-          extraColumns={["Détail"]}
-          rows={[
-            { name: "Pipeline ouvert", value: snapshot.totalPipelineAmount > 0 ? snapshot.totalPipelineAmount : null, unit: "currency" as const, cells: [`${fmt(snapshot.openDeals)} deals`], spec: { entity: "deals", groupBy: "status", measure: "sum" as const, field: "amount", target: "En cours" } },
-            { name: "Won historique", value: snapshot.wonAmount > 0 ? snapshot.wonAmount : null, unit: "currency" as const, cells: [`${fmt(snapshot.wonDeals)} deals gagnés`], spec: { entity: "deals", groupBy: "outcome", measure: "sum" as const, field: "amount", target: "Gagnés" } },
-            { name: "Devis émis", value: snapshot.totalQuotes, unit: "count", cells: ["HubSpot Quotes"] },
-            { name: "Line items", value: snapshot.totalLineItems, unit: "count", cells: ["SKUs vendus"] },
-          ]}
-          footnote="Indicateurs d'unités différentes : l'alerte porte sur une ligne précise, jamais sur un total."
-        />
-      </CollapsibleBlock>
-      </RemovableBlock>
-      )}
+      {/* « Pipeline revenue & devis » a déménagé sur Performances → Ventes
+          (KPIs 100 % CRM, rien à voir avec la facturation). */}
 
       {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
       <PageDataTables pageKey={PAGE_KEY} />
@@ -216,9 +190,15 @@ export default async function FacturationPage({
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Aucune facture dans HubSpot. Activez HubSpot Invoices ou connectez un outil de
-            facturation (Stripe, Pennylane) dans Intégrations pour alimenter cette page.
+            Aucun outil de facturation connecté : cette page s&apos;alimentera automatiquement dès qu&apos;un outil
+            sera branché.
           </p>
+          <Link
+            href="/dashboard/integration/bibliotheque"
+            className="mt-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Connecter un outil de facturation →
+          </Link>
         </div>
       )}
 

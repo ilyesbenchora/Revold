@@ -556,6 +556,16 @@ export async function detectRevenueLeakage(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  // GARDE-FOU onboarding : sans AUCUNE facture synchronisée (pas d'outil de
+  // facturation connecté, ou rien d'importé), « signé vs facturé » est
+  // indécidable — chaque deal gagné serait un faux positif « non facturé ».
+  // On ne détecte rien tant qu'une source de factures n'alimente pas la base.
+  const { count: invoiceCount } = await supabase
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  if ((invoiceCount ?? 0) === 0) return [];
+
   const cutoff = new Date(Date.now() - 30 * DAY_MS).toISOString().slice(0, 10);
   const { data: dealsData } = await supabase
     .from("deals")
