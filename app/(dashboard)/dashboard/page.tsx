@@ -1,8 +1,9 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/supabase/cached";
 import Link from "next/link";
+import { GlobalSearch } from "@/components/global-search";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { AgentsFamily } from "@/components/agents/agents-family";
 import { RevoldControlTower, RevoldControlTowerLocked } from "@/components/voice/revold-orb";
@@ -292,14 +293,17 @@ export default async function DashboardOverviewPage() {
 
   return (
     <section className="space-y-8">
-      {/* Header */}
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Mon tableau de bord</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {hubspotConnected
-            ? "Synthèse globale de votre intelligence revenue."
-            : "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."}
-        </p>
+      {/* Header + recherche globale (pages, rapports, alertes, agents…) */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Mon tableau de bord</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {hubspotConnected
+              ? "Synthèse globale de votre intelligence revenue."
+              : "Bienvenue sur Revold. Connectez votre stack revenue pour démarrer."}
+          </p>
+        </div>
+        <GlobalSearch />
       </header>
 
       {/* Pas d'onglets sur l'accueil : Vue d'ensemble (rapports) et Tableaux

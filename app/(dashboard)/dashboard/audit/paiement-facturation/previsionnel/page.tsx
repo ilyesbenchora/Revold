@@ -1,5 +1,6 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -50,6 +51,21 @@ export default async function PrevisionnelPage() {
 
   const fc = await computeTreasuryForecast(supabase, orgId, cf, (org ?? null) as OrgFiscalParams | null);
 
+  // ── BASE TRÉSORERIE requise : flux bancaires OU factures synchronisées.
+  // Sans elle, le « solde projeté » ne serait que du pipeline CRM cumulé
+  // déguisé en trésorerie — on invite à connecter, on ne projette pas.
+  let invoiceCount = 0;
+  try {
+    const { count } = await supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    invoiceCount = count ?? 0;
+  } catch {
+    /* table absente → 0 */
+  }
+  const hasTreasuryBasis = Boolean(cf?.hasData) || invoiceCount > 0;
+
   // Personnalisation de la page : tuiles masquées/ajoutées + blocs retirés.
   const custom = await getPageCustomization(supabase, orgId, PAGE_KEY);
 
@@ -85,12 +101,25 @@ export default async function PrevisionnelPage() {
 
       <PaiementFacturationTabs />
 
-      {!fc.hasData ? (
+      {!hasTreasuryBasis ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm text-slate-600">
-            Pas encore de matière pour projeter : aucune trésorerie synchronisée, aucune facture ouverte
-            et aucun deal avec montant. Synchronise Pennylane (flux bancaires) et renseigne les montants
-            de tes deals HubSpot pour activer le prévisionnel.
+            Le prévisionnel a besoin d&apos;une base de trésorerie réelle (flux bancaires ou factures) — sans elle,
+            projeter uniquement le pipeline CRM afficherait un faux solde. Connecte un outil de facturation pour
+            l&apos;activer.
+          </p>
+          <Link
+            href="/dashboard/integration/bibliotheque"
+            className="mt-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Connecter un outil de facturation →
+          </Link>
+        </div>
+      ) : !fc.hasData ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+          <p className="text-sm text-slate-600">
+            Pas encore de matière pour projeter : aucune facture ouverte et aucun deal avec montant —
+            le prévisionnel s&apos;activera à la prochaine synchronisation.
           </p>
         </div>
       ) : (
