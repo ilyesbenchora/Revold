@@ -26,6 +26,8 @@ import { quickbooksConnector } from "./connectors/quickbooks";
 import { chargebeeConnector } from "./connectors/chargebee";
 import { gocardlessConnector } from "./connectors/gocardless";
 import { sageConnector } from "./connectors/sage";
+import { qontoConnector } from "./connectors/qonto";
+import { aircallConnector } from "./connectors/aircall";
 
 export const SYNC_REGISTRY: Record<string, SourceConnector> = {
   // ── Billing & ERP ──────────────────────────────────────────────
@@ -37,6 +39,10 @@ export const SYNC_REGISTRY: Record<string, SourceConnector> = {
   chargebee: chargebeeConnector,
   gocardless: gocardlessConnector,
   sage: sageConnector,
+  qonto: qontoConnector,
+
+  // ── Téléphonie ─────────────────────────────────────────────────
+  aircall: aircallConnector,
 
   // ── CRM ────────────────────────────────────────────────────────
   salesforce: salesforceConnector,

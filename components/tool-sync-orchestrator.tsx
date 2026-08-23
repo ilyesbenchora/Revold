@@ -23,6 +23,7 @@ type StatCount = {
   tickets?: number;
   companies?: number;
   deals?: number;
+  calls?: number;
 };
 
 const STAT_LABELS: Record<keyof StatCount, string> = {
@@ -35,6 +36,7 @@ const STAT_LABELS: Record<keyof StatCount, string> = {
   subscriptions: "Abonnements",
   tickets: "Tickets",
   deals: "Deals",
+  calls: "Appels",
 };
 
 export function ToolSyncOrchestrator() {

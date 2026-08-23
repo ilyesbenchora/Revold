@@ -23,6 +23,8 @@ import { pingQuickBooks } from "./sources/quickbooks";
 import { pingChargebee } from "./sources/chargebee";
 import { pingGoCardless } from "./sources/gocardless";
 import { pingSage } from "./sources/sage";
+import { pingQonto } from "./sources/qonto";
+import { pingAircall } from "./sources/aircall";
 import { pingIntercom } from "./sources/intercom";
 import { pingZendesk } from "./sources/zendesk";
 import { pingCrisp } from "./sources/crisp";
@@ -113,9 +115,16 @@ export async function pingTool(
         const ok = await pingSage(creds.access_token);
         return ok ? { ok: true } : { ok: false, reason: "Sage a refusé l'access token (expiré ? les tokens Sage durent ~5 min)." };
       }
+      case "qonto": {
+        const ok = await pingQonto(creds.organization_slug, creds.secret_key);
+        return ok ? { ok: true } : { ok: false, reason: "Qonto a refusé les identifiants (slug d'organisation ou clé secrète invalides)." };
+      }
 
-      // ── Téléphonie (placeholders) ────────────────────────────────
-      case "aircall":
+      // ── Téléphonie ───────────────────────────────────────────────
+      case "aircall": {
+        const ok = await pingAircall(creds.api_id, creds.api_token);
+        return ok ? { ok: true } : { ok: false, reason: "Aircall a refusé les identifiants (API ID ou API Token invalides)." };
+      }
       case "ringover":
         return { ok: false, reason: "Connecteur en cours de développement — disponible bientôt." };
 

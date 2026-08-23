@@ -30,6 +30,8 @@ export type SyncStatCount = {
   subscriptions?: number;
   tickets?: number;
   deals?: number;
+  /** Appels téléphoniques (Aircall & co) importés dans activities. */
+  calls?: number;
 };
 
 export type SyncResult = {

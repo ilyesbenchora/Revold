@@ -130,6 +130,19 @@ export const PROVIDER_IDENTIFIERS: Record<string, IdentifierDef[]> = {
     { canonicalField: "external_id", label: "Contact ID", defaultProviderField: "id", hint: "ID natif Sage (automatique)", native: true },
   ],
 
+  qonto: [
+    { canonicalField: "company_name", label: "Contrepartie", defaultProviderField: "label", hint: "Nom de la contrepartie sur la transaction Qonto", native: true },
+    { canonicalField: "custom_id", label: "ID de rapprochement", defaultProviderField: "reference", hint: "Référence du virement si vos clients l'utilisent comme code (optionnel)", native: false },
+    { canonicalField: "external_id", label: "Transaction ID", defaultProviderField: "transaction_id", hint: "ID natif Qonto (automatique)", native: true },
+  ],
+
+  // ── Téléphonie ──
+  aircall: [
+    { canonicalField: "email", label: "Email du contact", defaultProviderField: "contact.emails.value", hint: "Email du contact Aircall associé à l'appel", native: true },
+    { canonicalField: "company_name", label: "Nom d'entreprise", defaultProviderField: "contact.company_name", hint: "Champ natif du contact Aircall", native: true },
+    { canonicalField: "external_id", label: "Call ID", defaultProviderField: "id", hint: "ID natif Aircall (automatique)", native: true },
+  ],
+
   // ── Support ──
   zendesk: [
     { canonicalField: "external_id", label: "Organization ID", defaultProviderField: "id", hint: "ID natif Zendesk (automatique)", native: true },
