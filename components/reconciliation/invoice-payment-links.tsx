@@ -4,10 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import type { InvoicePaymentState, InvoicePaymentProposal } from "@/lib/reconciliation/payment-invoice-matching";
 
 /**
- * Bloc « Rapprochement facture ↔ paiements » (page Trésorerie) — le dernier
- * maillon du lignage deal → facture → ENCAISSEMENT : les paiements réels
- * (Stripe, GoCardless…) reliés à leurs factures, propositions confirmées en un
- * clic, reste dû réel par facture. Rien n'est écrit sans validation.
+ * Bloc « Encaissements cross-tool » (page Trésorerie).
+ *
+ * Revold ne REFAIT PAS le rapprochement bancaire de ta compta (Pennylane, Sage…
+ * font déjà le lettrage — leur `amount_paid` fait foi). Ce bloc ne traite que le
+ * RÉSIDUEL cross-tool : les encaissements qui arrivent dans un AUTRE outil que
+ * la facturation (paiements Stripe/GoCardless en direct). Il n'apparaît donc que
+ * s'il y a réellement quelque chose à rapprocher entre outils — sinon il reste
+ * masqué (pas de doublon avec la compta).
  */
 
 const fmtEur = (v: number) =>
@@ -100,6 +104,15 @@ export function InvoicePaymentLinks() {
 
   if (state && !state.available) return null; // pas de connecteur paiement → bloc absent
   const stats = state?.stats;
+  // Factures rapprochées par Revold = celles portant des paiements ATTRIBUÉS
+  // (cross-tool) ; les factures soldées nativement par la compta n'y figurent
+  // pas (ce serait dupliquer son lettrage).
+  const attributedRows = (state?.rows ?? []).filter((r) => r.payments.length > 0);
+  const hasProposals = (state?.proposals ?? []).length > 0;
+  const hasCrossToolWork = hasProposals || attributedRows.length > 0 || (stats?.unmatchedPaymentsTotal ?? 0) > 0;
+  // Rien de cross-tool à rapprocher (tout est déjà lettré par la compta) → on
+  // masque le bloc pour ne pas faire doublon avec Pennylane/Sage.
+  if (state && !hasCrossToolWork) return null;
 
   return (
     <div className="card overflow-hidden">
@@ -111,21 +124,21 @@ export function InvoicePaymentLinks() {
       >
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-900">
-            Rapprochement facture ↔ paiements
-            {stats && stats.invoices > 0 && (
-              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                {stats.linkedInvoices}/{stats.invoices} factures rapprochées
+            Encaissements cross-tool
+            {hasProposals && (
+              <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {state!.proposals.length} à rapprocher
               </span>
             )}
-            {stats && stats.dueTotal > 0 && (
-              <span className="ml-2 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
-                {fmtEur(stats.dueTotal)} de reste dû
+            {stats && stats.unmatchedPaymentsTotal > 0 && (
+              <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                {fmtEur(stats.unmatchedPaymentsTotal)} non rattaché
               </span>
             )}
           </p>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            Le dernier maillon : chaque facture reliée à SES paiements réels — reste dû exact, trop-perçus détectés.
-            Le moteur propose, tu confirmes.
+            Les encaissements arrivés dans un autre outil que ta facturation (Stripe, GoCardless…). Revold ne refait pas
+            le lettrage de ta compta — il le complète pour ce qu&apos;elle ne voit pas.
           </p>
         </div>
         <span className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden>▾</span>
@@ -192,11 +205,11 @@ export function InvoicePaymentLinks() {
             </div>
           )}
 
-          {/* ── Factures rapprochées : reste dû réel ── */}
-          {(state?.rows ?? []).length > 0 && (
+          {/* ── Factures avec paiements cross-tool attribués par Revold ── */}
+          {attributedRows.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Factures rapprochées — reste dû réel
+                Factures complétées par un encaissement cross-tool
               </p>
               <div className="mt-2 overflow-x-auto rounded-lg border border-slate-100">
                 <table className="w-full text-left text-xs">
@@ -211,7 +224,7 @@ export function InvoicePaymentLinks() {
                     </tr>
                   </thead>
                   <tbody>
-                    {state!.rows.slice(0, 30).map((r) => {
+                    {attributedRows.slice(0, 30).map((r) => {
                       const badge = STATE_BADGE[r.state];
                       return (
                         <tr key={r.invoiceId} className="border-b border-slate-100 last:border-0">
@@ -249,19 +262,15 @@ export function InvoicePaymentLinks() {
                   </tbody>
                 </table>
               </div>
-              {stats && stats.unmatchedPaymentsTotal > 0 && (
-                <p className="mt-1.5 text-[11px] text-slate-500">
-                  <span className="font-semibold text-violet-600">{fmtEur(stats.unmatchedPaymentsTotal)}</span> de paiements
-                  jamais rattachés à une facture — trop-perçu ou facture manquante à vérifier.
-                </p>
-              )}
             </div>
           )}
 
-          {state && state.proposals.length === 0 && state.rows.length === 0 && (
-            <p className="text-xs text-slate-500">
-              Aucune facture à rapprocher à un paiement pour l&apos;instant — les propositions apparaîtront dès qu&apos;un
-              paiement (Stripe, GoCardless…) sera rattaché à la même entreprise qu&apos;une facture ouverte.
+          {/* Paiements cross-tool jamais rattachés : trop-perçu ou facture
+              manquante — l'exception que la compta seule ne révèle pas. */}
+          {stats && stats.unmatchedPaymentsTotal > 0 && (
+            <p className="text-[11px] text-slate-500">
+              <span className="font-semibold text-violet-600">{fmtEur(stats.unmatchedPaymentsTotal)}</span> d&apos;encaissements
+              (Stripe, GoCardless…) jamais rattachés à une facture — trop-perçu ou facture manquante à vérifier.
             </p>
           )}
         </div>

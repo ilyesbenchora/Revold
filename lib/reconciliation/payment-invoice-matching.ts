@@ -4,25 +4,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Rapprochement FACTURE ↔ PAIEMENTS — le dernier maillon du lignage
  * deal → facture → ENCAISSEMENT.
  *
- * L'« encaissé » lu jusqu'ici sur invoices.amount_paid est un TOTAL déclaré par
- * l'outil de facturation ; il ne dit pas QUEL paiement a soldé QUELLE facture.
- * Ici on relie chaque facture aux enregistrements de paiement réels (Stripe,
- * GoCardless…) : le pont est l'ENTREPRISE canonique (payments.company_id posé
- * par la résolution SIREN/TVA), pas une référence de facture — un paiement
- * GoCardless de « Dupont SAS » devient candidat pour toute facture ouverte de
- * Dupont.
+ * IMPORTANT — on ne refait PAS le rapprochement bancaire natif des outils de
+ * compta (Pennylane, Sage… font déjà le lettrage) : `invoices.amount_paid` /
+ * `amount_due` portent DÉJÀ ce rapprochement, ingéré à la synchro. C'est la
+ * BASE DE VÉRITÉ de l'encaissé. Une facture soldée nativement (amount_due ≈ 0)
+ * n'est donc jamais présentée comme « non encaissée » ni proposée au matching.
  *
- *  - candidates = paiements RÉUSSIS de la même entreprise, non rattachés,
- *    encaissés dans [issued_at − 5 j ; issued_at + 365 j] ;
- *  - un paiement = montant de la facture ± 1 % → « high » ;
- *  - meilleur SOUS-ENSEMBLE de paiements = montant de la facture (paiement
- *    partiel / échéancier prélevé) → « combo », retiré du pool de l'entreprise
- *    (désambiguïsation quand plusieurs factures ouvertes) ;
- *  - sinon → choix MANUEL. Rien n'est écrit sans confirmation utilisateur.
+ * Ce matcher ne traite que le RÉSIDUEL CROSS-TOOL : les encaissements qui
+ * arrivent dans un AUTRE outil que la facture (paiements Stripe/GoCardless en
+ * direct, que la compta ne voit pas) — le pont est l'ENTREPRISE canonique
+ * (payments.company_id via SIREN/TVA), pas une référence de facture.
  *
- * Une fois lié : reste dû réel = montant facture − Σ paiements liés ; un
- * paiement sans facture (surplus) ou une facture « payée » sans aucun paiement
- * rapproché deviennent des exceptions visibles.
+ *  - encaissé = max(amount_paid natif, Σ paiements rapprochés) ;
+ *  - proposition seulement si RESTE DÛ réel (> tolérance) ET paiements libres
+ *    de la même entreprise dans [issued_at − 5 j ; issued_at + 365 j] ;
+ *  - un paiement = résidu ± 1 % → « high » ; meilleur SOUS-ENSEMBLE = résidu
+ *    (échéancier prélevé) → « combo » ; sinon MANUEL. Rien sans confirmation.
+ *
+ * Exceptions exposées : paiement libre jamais rattaché (surplus / facture
+ * manquante). Une facture soldée par la compta reste « encaissée ».
  */
 
 export type LinkedPayment = {
@@ -119,6 +119,9 @@ type InvRow = {
   id: string;
   number: string | null;
   amount_total: number | null;
+  /** Encaissé NATIF (rapprochement bancaire de la compta) — base de vérité. */
+  amount_paid: number | null;
+  amount_due: number | null;
   issued_at: string | null;
   company_id: string | null;
   companies: { name: string | null } | { name: string | null }[] | null;
@@ -168,7 +171,7 @@ export async function computeInvoicePaymentState(sb: SupabaseClient, orgId: stri
   const invRes = await pageAll<InvRow>(
     sb,
     "invoices",
-    "id, number, amount_total, issued_at, company_id, companies(name)",
+    "id, number, amount_total, amount_paid, amount_due, issued_at, company_id, companies(name)",
     (q) => q.eq("organization_id", orgId).gt("amount_total", 0),
   );
   const payRes = await pageAll<PayRow>(
@@ -203,12 +206,26 @@ export async function computeInvoicePaymentState(sb: SupabaseClient, orgId: stri
   let dueTotal = 0;
   let solde = 0;
 
-  // ── 1) Factures déjà rapprochées à des paiements. ──
-  for (const inv of invoices) {
-    const linked = linkedByInvoice.get(inv.id);
-    if (!linked || linked.length === 0) continue;
+  // Encaissé effectif = max(encaissé natif compta, Σ paiements rapprochés) :
+  // on NE contredit PAS le lettrage de la compta (une facture Pennylane payée
+  // reste payée même sans enregistrement de paiement séparé côté Revold).
+  const nativePaidOf = (inv: InvRow): number => {
     const total = inv.amount_total ?? 0;
-    const paid = linked.reduce((s, p) => s + (p.amount ?? 0), 0);
+    if (typeof inv.amount_paid === "number") return inv.amount_paid;
+    if (typeof inv.amount_due === "number") return total - inv.amount_due;
+    return 0;
+  };
+
+  // ── 1) Factures avec un encaissé (natif OU paiements rapprochés). ──
+  for (const inv of invoices) {
+    const linked = linkedByInvoice.get(inv.id) ?? [];
+    const total = inv.amount_total ?? 0;
+    const linkedPaid = linked.reduce((s, p) => s + (p.amount ?? 0), 0);
+    const native = nativePaidOf(inv);
+    const paid = Math.max(native, linkedPaid);
+    // Facture ni rapprochée à un paiement, ni encaissée nativement → rien à
+    // montrer ici (elle passe en proposition si un paiement libre existe).
+    if (linked.length === 0 && paid <= 0) continue;
     const due = Math.round(total - paid);
     const state: InvoicePaymentRow["state"] = near(paid, total)
       ? "solde"
@@ -238,13 +255,24 @@ export async function computeInvoicePaymentState(sb: SupabaseClient, orgId: stri
     });
   }
 
-  // ── 2) Factures non rapprochées : attribution par entreprise, grosses d'abord. ──
+  // ── 2) Factures avec un RÉSIDUEL réel (reste dû > tolérance) et aucun
+  //       paiement rapproché : on cherche des paiements libres cross-tool. Une
+  //       facture soldée nativement (reste dû ≈ 0) n'est PAS proposée. ──
   const unlinked = invoices
-    .filter((inv) => !(linkedByInvoice.get(inv.id)?.length) && inv.company_id)
+    .filter((inv) => {
+      if (linkedByInvoice.get(inv.id)?.length) return false;
+      if (!inv.company_id) return false;
+      const total = inv.amount_total ?? 0;
+      const residual = total - nativePaidOf(inv);
+      return residual > Math.max(1, Math.abs(total) * TOLERANCE);
+    })
     .sort((a, b) => (b.amount_total ?? 0) - (a.amount_total ?? 0));
 
   for (const inv of unlinked) {
     const total = inv.amount_total ?? 0;
+    // Cible du matching = le RÉSIDU (montant − encaissé natif), pas le total :
+    // si Pennylane a déjà encaissé 40k sur 60k, on ne cherche que 20k.
+    const residual = total - nativePaidOf(inv);
     const pool = freeByCompany.get(inv.company_id!) ?? [];
     const issMs = inv.issued_at ? Date.parse(inv.issued_at) : NaN;
     const inWindow = pool.filter((p) => {
@@ -260,14 +288,15 @@ export async function computeInvoicePaymentState(sb: SupabaseClient, orgId: stri
     }));
     withDist.sort((a, b) => a.dist - b.dist);
 
-    const exact = withDist.filter((x) => near(x.pay.amount ?? 0, total));
+    // Matching sur le RÉSIDU (pas le total) : respecte l'encaissé natif compta.
+    const exact = withDist.filter((x) => near(x.pay.amount ?? 0, residual));
     let confidence: InvoicePaymentProposal["confidence"];
     let chosenIds: Set<string>;
     if (exact.length >= 1) {
       confidence = "high";
       chosenIds = new Set([exact[0].pay.id]);
     } else {
-      const subset = bestSubset(withDist.map((x) => ({ id: x.pay.id, amount: x.pay.amount ?? 0, dist: x.dist })), total);
+      const subset = bestSubset(withDist.map((x) => ({ id: x.pay.id, amount: x.pay.amount ?? 0, dist: x.dist })), residual);
       if (subset) {
         confidence = "combo";
         chosenIds = new Set(subset);
