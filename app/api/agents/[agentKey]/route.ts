@@ -22,6 +22,8 @@ type Body = {
   sources?: string[];
   coaching?: { objectives?: string; pains?: string } | null;
   attachments?: unknown;
+  /** La réponse sera LUE à voix haute (question au micro ou mode voix). */
+  spoken?: boolean;
 };
 
 export async function POST(request: Request, { params }: { params: Promise<{ agentKey: string }> }) {
@@ -66,6 +68,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   let system =
     buildSystemPrompt(agent) +
     `\n\nSources sélectionnées pour cette conversation : ${sources.length ? sources.join(", ") : "aucune sélection explicite (utilise la source configurée par défaut)"}.`;
+
+  // Réponse destinée à la VOIX (micro ou mode voix activé) : on parle, on
+  // n'affiche pas — la mise en forme visuelle devient un défaut à l'oral.
+  if (body.spoken === true) {
+    system +=
+      `\n\nIMPORTANT — ta réponse sera lue À VOIX HAUTE par synthèse vocale : ` +
+      `écris comme on parle, en phrases complètes et fluides, avec des transitions. ` +
+      `Aucun tableau, aucune liste à puces, aucun titre, aucun émoji, aucun markdown. ` +
+      `Énonce les chiffres avec leur contexte (« trois deals pour un total de 45 000 euros ») ` +
+      `plutôt qu'en rafale, et termine par l'essentiel à retenir ou la prochaine étape.`;
+  }
 
   // Préférences de l'UTILISATEUR pour cet agent (Paramètres → Agents) :
   // ton + personnalité injectés dans le system prompt — propres à chacun.

@@ -566,6 +566,9 @@ export function PaiementAgentChat({
           coaching: coaching ?? null,
           // Fichiers du coaching (épinglés) + fichiers ajoutés dans le chat.
           attachments: [...contextFiles, ...attachments],
+          // La réponse sera lue à voix haute → l'agent rédige en style parlé
+          // (phrases fluides, pas de tableau/puces/markdown).
+          spoken: viaVoice || voiceReplies,
         }),
       });
       // Réponse non-JSON (page d'erreur Vercel, timeout) → message lisible.

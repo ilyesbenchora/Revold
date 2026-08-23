@@ -110,7 +110,11 @@ function pickFrenchVoice(): SpeechSynthesisVoice | null {
       window.speechSynthesis.addEventListener("voiceschanged", () => { cachedFrVoice = null; });
     } catch { /* ignore */ }
   }
-  const voices = window.speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith("fr"));
+  // Français de FRANCE d'abord : les voix fr-BE / fr-CA / fr-CH ne servent
+  // que s'il n'existe AUCUNE voix fr-FR sur la machine.
+  const allFr = window.speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith("fr"));
+  const frFr = allFr.filter((v) => v.lang.toLowerCase().startsWith("fr-fr"));
+  const voices = frFr.length > 0 ? frFr : allFr;
   if (voices.length === 0) return null;
   const score = (v: SpeechSynthesisVoice): number => {
     let s = 0;

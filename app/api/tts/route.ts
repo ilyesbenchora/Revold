@@ -69,6 +69,11 @@ export async function POST(request: Request) {
         // v2.5 (essayé pour la latence) rendait le français moins fluide, avec
         // des glissements d'accent — inacceptable à l'oreille.
         model_id: "eleven_multilingual_v2",
+        // Normalisation ElevenLabs forcée : « 320 000 € », « 18 % », dates et
+        // sigles sont développés en toutes lettres AVANT la synthèse — sinon le
+        // modèle improvise la lecture des chiffres (source d'accents/hésitations).
+        // Supporté par multilingual v2 (pas par turbo/flash hors entreprise).
+        apply_text_normalization: "on",
         voice_settings: isTower
           ? { stability: 0.55, similarity_boost: 0.8, style: 0.1 }
           : {

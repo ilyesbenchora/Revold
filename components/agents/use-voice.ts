@@ -35,6 +35,31 @@ function getRecognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/**
+ * Prépare une réponse d'agent pour la LECTURE : on lit des phrases, pas du
+ * markdown. Blocs de code et images retirés, liens réduits à leur libellé,
+ * lignes de tableau aplaties en énumération, puces effacées, émojis retirés
+ * (la synthèse les épelle ou bafouille). Les légendes à l'écran, elles,
+ * gardent le texte d'origine.
+ */
+function toSpokenText(t: string): string {
+  return t
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*\|[\s:|-]+\|\s*$/gm, " ") // séparateurs de tableau |---|---|
+    .replace(/^\s*\|(.+)\|\s*$/gm, (_, row: string) => row.split("|").map((c) => c.trim()).filter(Boolean).join(", ") + ".")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/[•▪◦→]/g, ", ")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export function useVoice(agentKey: string) {
   const [micSupported, setMicSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -82,7 +107,7 @@ export function useVoice(agentKey: string) {
   /** Lit `text` avec la voix du persona ; repli navigateur si le TTS échoue. */
   const speak = useCallback(
     async (text: string) => {
-      const clean = text.trim();
+      const clean = toSpokenText(text);
       if (!clean) return;
       stopSpeaking();
       setSpeaking(true);
@@ -102,11 +127,13 @@ export function useVoice(agentKey: string) {
         audio.onerror = () => stopSpeaking();
         await audio.play();
       } catch {
-        // Repli : synthèse du navigateur (voix système fr-FR).
+        // Repli : synthèse du navigateur — français de FRANCE d'abord (une
+        // voix fr-BE/fr-CA ne sert que s'il n'existe aucune fr-FR).
         if (typeof window !== "undefined" && "speechSynthesis" in window) {
           const utter = new SpeechSynthesisUtterance(clean);
           utter.lang = "fr-FR";
-          const fr = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith("fr"));
+          const all = window.speechSynthesis.getVoices();
+          const fr = all.find((v) => v.lang.toLowerCase().startsWith("fr-fr")) ?? all.find((v) => v.lang.toLowerCase().startsWith("fr"));
           if (fr) utter.voice = fr;
           utter.onend = () => setSpeaking(false);
           utter.onerror = () => setSpeaking(false);
