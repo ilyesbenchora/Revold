@@ -17,6 +17,7 @@ type QueuedAction = {
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   pending: { label: "En attente de validation", cls: "bg-amber-50 text-amber-700" },
   executed: { label: "Exécutée ✓", cls: "bg-emerald-50 text-emerald-700" },
+  in_progress: { label: "En cours", cls: "bg-indigo-50 text-indigo-600" },
   failed: { label: "Échouée", cls: "bg-rose-50 text-rose-700" },
   dismissed: { label: "Refusée", cls: "bg-slate-100 text-slate-500" },
 };

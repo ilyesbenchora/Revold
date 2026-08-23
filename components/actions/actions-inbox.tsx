@@ -928,7 +928,7 @@ export function ActionsInbox() {
                   {a.status === "failed" && a.result?.detail && (
                     <p className="mt-0.5 text-[11px] text-rose-500">{a.result.detail}</p>
                   )}
-                  {a.status === "executed" && a.result?.detail && (
+                  {(a.status === "executed" || a.status === "in_progress") && a.result?.detail && (
                     <p className="mt-0.5 text-[11px] text-slate-400">{a.result.detail}</p>
                   )}
                 </div>
@@ -942,12 +942,21 @@ export function ActionsInbox() {
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       a.status === "executed"
                         ? "bg-emerald-50 text-emerald-700"
-                        : a.status === "rejected"
-                          ? "bg-slate-100 text-slate-500"
-                          : "bg-rose-50 text-rose-700"
+                        : a.status === "in_progress"
+                          ? "bg-indigo-50 text-indigo-600"
+                          : a.status === "rejected"
+                            ? "bg-slate-100 text-slate-500"
+                            : "bg-rose-50 text-rose-700"
                     }`}
+                    title={a.status === "in_progress" ? "La séquence tourne encore — passera « Terminée » quand le contact en sortira." : undefined}
                   >
-                    {a.status === "executed" ? "Exécutée" : a.status === "rejected" ? "Refusée" : "Échec"}
+                    {a.status === "executed"
+                      ? (a.type === "hubspot_sequence_enroll" ? "Terminée" : "Exécutée")
+                      : a.status === "in_progress"
+                        ? "En cours"
+                        : a.status === "rejected"
+                          ? "Refusée"
+                          : "Échec"}
                   </span>
                   {a.decided_at && <span className="text-[10px] text-slate-400">{fmtDate(a.decided_at)}</span>}
                   {/* Suppression individuelle de la ligne d'historique */}

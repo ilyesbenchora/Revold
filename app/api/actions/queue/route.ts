@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       createdAt: r.created_at,
       decidedAt: r.decided_at,
       // decided_by null + statut exécuté = décision AUTO-PILOT (automatisation).
-      autoPilot: (r.status === "executed" || r.status === "failed") && r.decided_by == null,
+      autoPilot: (r.status === "executed" || r.status === "in_progress" || r.status === "failed") && r.decided_by == null,
     })),
   });
 }

@@ -825,7 +825,7 @@ export async function executeHubspotMerge(
 export async function executeHubspotSequenceEnroll(
   hubspotToken: string,
   payload: ActionPayload,
-): Promise<{ ok: boolean; detail: string }> {
+): Promise<{ ok: boolean; detail: string; contactId?: string; inProgress?: boolean }> {
   if (!payload.dealHubspotId || !payload.sequenceId) return { ok: false, detail: "Payload de séquence incomplet." };
 
   // 1. Owner + contact du deal.
@@ -878,6 +878,11 @@ export async function executeHubspotSequenceEnroll(
     if (res.ok) {
       return {
         ok: true,
+        // La séquence démarre : l'action reste « En cours » tant que le
+        // contact est inscrit, puis passe « Terminée » (vérifié à chaque
+        // chargement de la boîte via hs_sequences_is_enrolled).
+        inProgress: true,
+        contactId,
         detail: `Contact inscrit dans la séquence « ${payload.sequenceName ?? payload.sequenceId} » au nom de ${senderEmail} — l'email de relance part de sa boîte connectée.`,
       };
     }
@@ -889,6 +894,29 @@ export async function executeHubspotSequenceEnroll(
     return { ok: false, detail: `HubSpot ${res.status} : ${err.slice(0, 200)}` };
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : "Erreur réseau HubSpot" };
+  }
+}
+
+/**
+ * La séquence d'un contact tourne-t-elle encore ? Lit la propriété standard
+ * hs_sequences_is_enrolled du contact : true = séquence active (« En cours »),
+ * false/absente = séquence finie ou désinscrite (« Terminée »). "unknown" en
+ * cas d'erreur réseau/scope — on ne change alors PAS le statut.
+ */
+export async function checkSequenceStillRunning(
+  hubspotToken: string,
+  contactId: string,
+): Promise<"running" | "done" | "unknown"> {
+  try {
+    const res = await hubFetch(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}?properties=hs_sequences_is_enrolled`,
+      { headers: { Authorization: `Bearer ${hubspotToken}` } },
+    );
+    if (!res.ok) return "unknown";
+    const d = (await res.json()) as { properties?: { hs_sequences_is_enrolled?: string | null } };
+    return d.properties?.hs_sequences_is_enrolled === "true" ? "running" : "done";
+  } catch {
+    return "unknown";
   }
 }
 

@@ -6,6 +6,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData } from "@/lib/audit/service-client-data";
+import { fetchRenewalProductsData } from "@/lib/audit/renewal-products-data";
 import { fetchPaiementFacturationFor, fmt, fmtK } from "@/lib/audit/paiement-facturation-data";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
@@ -29,11 +30,12 @@ export default async function ServiceClientRenouvellementPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  const [scData, billing, snapshot, custom] = await Promise.all([
+  const [scData, billing, snapshot, custom, prd] = await Promise.all([
     fetchServiceClientData(supabase, orgId),
     fetchPaiementFacturationFor(supabase, orgId, token),
     getHubspotSnapshot(),
     getPageCustomization(supabase, orgId, PAGE_KEY),
+    fetchRenewalProductsData(supabase, orgId),
   ]);
 
   // ── KPIs renouvellement ──
@@ -69,7 +71,7 @@ export default async function ServiceClientRenouvellementPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Service Client</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Renouvellement : taux de rétention, GRR, ARR sécurisé et exposition annuelle.
+          Renouvellement indexé sur les produits : base renouvelable par produit, rétention, GRR et exposition.
         </p>
       </header>
 
@@ -83,6 +85,24 @@ export default async function ServiceClientRenouvellementPage() {
           tuiles configurables (CTA « Personnaliser les KPIs », ✎, masquage). */}
       {(() => {
         const tiles: DefaultTile[] = [
+          {
+            key: "base_renouvelable_produits",
+            label: "Base renouvelable (produits)",
+            value: prd.recurringAmount > 0 ? fmtK(prd.recurringAmount) : "—",
+            raw: prd.recurringAmount > 0 ? prd.recurringAmount : null,
+            rawUnit: "currency",
+            tone: prd.recurringAmount > 0 ? "pos" : "neutral",
+            sub: prd.recurringPct != null ? `${prd.recurringPct} % du CA produits` : "CA récurrent des line items",
+          },
+          {
+            key: "produits_recurrents",
+            label: "Produits récurrents",
+            value: prd.distinctProducts > 0 ? `${prd.recurringProducts} / ${prd.distinctProducts}` : "—",
+            raw: prd.distinctProducts > 0 ? prd.recurringProducts : null,
+            rawUnit: "count",
+            tone: prd.recurringProducts > 0 ? "accent" : "neutral",
+            sub: prd.oneShotProducts > 0 ? `${prd.oneShotProducts} produit${prd.oneShotProducts > 1 ? "s" : ""} one-shot` : "Catalogue vendu (line items)",
+          },
           {
             key: "renewal_rate",
             label: "Renewal rate",
@@ -137,6 +157,8 @@ export default async function ServiceClientRenouvellementPage() {
             tablesPageKey={PAGE_KEY}
             hiddenBlocks={hiddenBlockList(custom, (key) => {
               const m = ({
+                renouvellement_par_produit: { view: "table", description: "Base renouvelable produit par produit : CA récurrent, ventes, fréquence" },
+                mix_recurrent_one_shot: { view: "table", description: "Mix récurrent vs one-shot du catalogue vendu" },
                 retention: { view: "table", description: "Renewal rate, GRR, churn rate, customers actifs" },
                 cohortes_frequence: { view: "table", description: "Mix subs annuelles / mensuelles" },
                 arr_securise_risque: { view: "table", description: "ARR sécurisé vs à risque, subs exposées" },
@@ -148,6 +170,100 @@ export default async function ServiceClientRenouvellementPage() {
           />
         );
       })()}
+
+      {/* ── Indexation PRODUITS : la base renouvelable se lit produit par
+          produit (line items CRM), avant les vues globales abonnements. ── */}
+      {!custom.hiddenBlocks.has("renouvellement_par_produit") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="renouvellement_par_produit" label="Renouvellement par produit">
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            Renouvellement par produit
+          </h2>
+        }
+      >
+        {prd.lineItemsTotal === 0 ? (
+          <p className="text-sm text-slate-500">
+            Aucun produit (line item) associé aux transactions du CRM pour l&apos;instant.
+            L&apos;analyse par produit s&apos;activera dès que des produits seront rattachés aux deals.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-500">
+              Base renouvelable lue produit par produit : le CA récurrent est celui qui
+              revient à échéance — plus la fréquence est longue (annuelle), plus le
+              renouvellement est critique car il n&apos;offre qu&apos;une fenêtre par an.
+            </p>
+            <div className="mt-4">
+              <BlockDataTable
+                title="Renouvellement par produit"
+                subtitle="base renouvelable"
+                team="csm"
+                unit="currency"
+                nameLabel="Produit"
+                valueLabel="CA récurrent"
+                extraColumns={["CA total", "Ventes", "Récurrentes", "Fréquence"]}
+                rows={prd.products.slice(0, 12).map((p) => ({
+                  name: p.name,
+                  value: p.recurringAmount > 0 ? p.recurringAmount : null,
+                  unit: "currency" as const,
+                  cells: [fmtK(p.amount), p.count, p.recurringCount, p.frequency ?? "One-shot"],
+                }))}
+                showTotal
+                footnote={prd.products.length > 12
+                  ? `Top 12 produits sur ${prd.products.length} — tri par CA récurrent décroissant.`
+                  : "Tri par CA récurrent décroissant ; « — » = produit sans récurrence (one-shot)."}
+              />
+            </div>
+          </>
+        )}
+      </CollapsibleBlock>
+      </RemovableBlock>
+      )}
+
+      {!custom.hiddenBlocks.has("mix_recurrent_one_shot") && (
+      <RemovableBlock pageKey={PAGE_KEY} blockKey="mix_recurrent_one_shot" label="Mix récurrent vs one-shot">
+      <CollapsibleBlock
+        title={
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            Mix récurrent vs one-shot
+          </h2>
+        }
+      >
+        {prd.lineItemsTotal === 0 ? (
+          <p className="text-sm text-slate-500">
+            Aucun produit (line item) associé aux transactions du CRM pour l&apos;instant.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-500">
+              Part du catalogue vendu qui se renouvelle : plus le mix est récurrent,
+              plus le revenu est prévisible — le one-shot doit être re-signé à chaque fois.
+            </p>
+            <div className="mt-4">
+              <BlockDataTable
+                title="Mix récurrent vs one-shot"
+                subtitle="catalogue vendu"
+                team="csm"
+                unit="count"
+                nameLabel="Indicateur"
+                valueLabel="Valeur"
+                extraColumns={["Détail"]}
+                rows={[
+                  { name: "CA récurrent (base renouvelable)", value: prd.recurringAmount > 0 ? prd.recurringAmount : null, unit: "currency", cells: ["Line items avec fréquence de facturation"] },
+                  { name: "CA one-shot", value: prd.totalAmount - prd.recurringAmount > 0 ? prd.totalAmount - prd.recurringAmount : null, unit: "currency", cells: ["À re-signer, non renouvelable"] },
+                  { name: "% récurrent du CA produits", value: prd.recurringPct, unit: "percent", cells: ["+ de récurrent = + de prévisibilité"] },
+                  { name: "CA récurrent annuel", value: prd.annualRecurringAmount > 0 ? prd.annualRecurringAmount : null, unit: "currency", cells: ["Renouvellement critique 1× par an"] },
+                  { name: "Produits récurrents", value: prd.recurringProducts, unit: "count", cells: [`Sur ${prd.distinctProducts} produits vendus`] },
+                ]}
+                footnote="Unités hétérogènes (montants, % et volume) : pas de total agrégé."
+              />
+            </div>
+          </>
+        )}
+      </CollapsibleBlock>
+      </RemovableBlock>
+      )}
 
       {!custom.hiddenBlocks.has("retention") && (
       <RemovableBlock pageKey={PAGE_KEY} blockKey="retention" label="Taux de renouvellement & rétention">

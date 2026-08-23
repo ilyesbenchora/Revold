@@ -20,6 +20,7 @@ import {
   executeHubspotCreateContact,
   executeHubspotDealUpdate,
   executeStripeSendInvoice,
+  checkSequenceStillRunning,
   AUTOMATABLE_KEYS,
   actionEntityRef,
   normalizeCadence,
@@ -47,7 +48,7 @@ async function executeByType(
   orgId: string,
   type: string,
   payload: ActionPayload,
-): Promise<{ ok: boolean; detail: string }> {
+): Promise<{ ok: boolean; detail: string; contactId?: string; inProgress?: boolean }> {
   const needsHubspot = ["hubspot_task", "hubspot_sequence_enroll", "hubspot_merge", "hubspot_company_update", "hubspot_create_deal", "hubspot_create_contact", "hubspot_deal_update"];
   if (needsHubspot.includes(type)) {
     const token = await getHubSpotToken(supabase, orgId);
@@ -228,7 +229,7 @@ export async function GET(request: Request) {
         const outcome = await executeByType(supabase, orgId, item.type, payload);
         await supabase
           .from("action_items")
-          .update({ status: outcome.ok ? "executed" : "failed", result: outcome, decided_at: new Date().toISOString(), decided_by: null })
+          .update({ status: outcome.ok ? (outcome.inProgress ? "in_progress" : "executed") : "failed", result: outcome, decided_at: new Date().toISOString(), decided_by: null })
           .eq("id", item.id)
           .eq("organization_id", orgId)
           .eq("status", "pending");
@@ -251,6 +252,42 @@ export async function GET(request: Request) {
     } catch {
       /* l'automatisation n'empêche jamais l'affichage de la boîte */
     }
+  }
+
+  // ── Séquences « En cours » → « Terminée » : tant que le contact est
+  //    inscrit (hs_sequences_is_enrolled), l'action reste in_progress ;
+  //    dès que la séquence est finie/désinscrite, elle passe executed. ──
+  try {
+    const { data: running } = await supabase
+      .from("action_items")
+      .select("id, result")
+      .eq("organization_id", orgId)
+      .eq("status", "in_progress")
+      .eq("type", "hubspot_sequence_enroll")
+      .limit(15);
+    if (running && running.length > 0) {
+      const token = await getHubSpotToken(supabase, orgId);
+      if (token) {
+        for (const row of running as Array<{ id: string; result: { contactId?: string; detail?: string } | null }>) {
+          const contactId = row.result?.contactId;
+          // Sans contactId mémorisé (anciennes actions), impossible de
+          // vérifier : on clôt pour ne pas laisser un « En cours » éternel.
+          const state = contactId ? await checkSequenceStillRunning(token, contactId) : "done";
+          if (state !== "done") continue;
+          await supabase
+            .from("action_items")
+            .update({
+              status: "executed",
+              result: { ...(row.result ?? {}), ok: true, detail: `${row.result?.detail ?? ""} Séquence terminée.`.trim() },
+            })
+            .eq("id", row.id)
+            .eq("organization_id", orgId)
+            .eq("status", "in_progress");
+        }
+      }
+    }
+  } catch {
+    /* la vérification de fin de séquence n'est jamais bloquante */
   }
 
   const { data, error } = await supabase
@@ -355,9 +392,13 @@ export async function POST(request: Request) {
   const payload = (item.payload ?? {}) as ActionPayload;
   const outcome = await executeByType(supabase, orgId, item.type, payload);
 
+  // Inscription en séquence réussie : « in_progress » (En cours) tant que la
+  // séquence tourne — bascule « executed » (Terminée) au prochain chargement
+  // une fois le contact désinscrit.
+  const newStatus = outcome.ok ? (outcome.inProgress ? "in_progress" : "executed") : "failed";
   await supabase
     .from("action_items")
-    .update({ status: outcome.ok ? "executed" : "failed", result: outcome, ...decided })
+    .update({ status: newStatus, result: outcome, ...decided })
     .eq("id", item.id)
     .eq("organization_id", orgId);
 
@@ -377,5 +418,5 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: outcome.ok, status: outcome.ok ? "executed" : "failed", detail: outcome.detail });
+  return NextResponse.json({ ok: outcome.ok, status: newStatus, detail: outcome.detail });
 }
