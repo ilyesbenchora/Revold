@@ -17,9 +17,6 @@ export const maxDuration = 30;
 const FALLBACK_VOICE = "MtmOw0YCJmdnFGEjqlkh"; // Clarris — FR jeune, douce
 
 // Voix de la TOUR DE CONTRÔLE : Claire — FR conversationnelle, diction nette.
-// Servie avec eleven_multilingual_v2 (le modèle de plus haute qualité — la
-// tour doit être irréprochable) en 128 kbps ; les agents restent sur turbo
-// (latence conversationnelle).
 const TOWER_VOICE = "NEjemlRxgWmL5ZGJetsB"; // Claire — Conversationnel, FR standard
 
 // Longueur max lue à voix haute (coût + latence) : on coupe à la fin de la
@@ -61,16 +58,17 @@ export async function POST(request: Request) {
   const settings = persona?.voiceSettings ?? {};
 
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${isTower ? "mp3_44100_128" : "mp3_44100_96"}`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
     {
       method: "POST",
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
         text: truncateAtSentence(text),
-        // Tour de contrôle : multilingual v2, la meilleure qualité (prononciation
-        // et prosodie) — la latence supplémentaire est acceptée pour l'orbe.
-        // Agents : turbo v2.5, FR natif, latence faible (conversationnel).
-        model_id: isTower ? "eleven_multilingual_v2" : "eleven_turbo_v2_5",
+        // multilingual v2 partout (tour ET agents) : c'est le modèle des vidéos
+        // de bio de la homepage — même voix + même modèle = même rendu. turbo
+        // v2.5 (essayé pour la latence) rendait le français moins fluide, avec
+        // des glissements d'accent — inacceptable à l'oreille.
+        model_id: "eleven_multilingual_v2",
         voice_settings: isTower
           ? { stability: 0.55, similarity_boost: 0.8, style: 0.1 }
           : {
