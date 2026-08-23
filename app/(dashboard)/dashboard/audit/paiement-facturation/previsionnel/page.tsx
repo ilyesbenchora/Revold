@@ -4,7 +4,8 @@ import Link from "next/link";
 import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { getSwitchableBillingTools, capabilitiesOf } from "@/lib/audit/source-switch";
+import { getSwitchableBillingTools, capabilitiesOf, validateSourceParam } from "@/lib/audit/source-switch";
+import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { computeCashflow } from "@/lib/audit/cashflow";
 import { computeTreasuryForecast } from "@/lib/audit/treasury-forecast";
 import type { OrgFiscalParams } from "@/lib/audit/fiscal-schedule";
@@ -29,7 +30,11 @@ const PAGE_KEY = "audit_paiement_facturation_previsionnel";
  * bancaires (Pennylane & co), factures ouvertes, pipeline CRM pondéré et
  * échéances fiscales paramétrées — pas de switcher ici.
  */
-export default async function PrevisionnelPage() {
+export default async function PrevisionnelPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const orgId = await getOrgId();
   if (!orgId) {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
@@ -37,10 +42,17 @@ export default async function PrevisionnelPage() {
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
+  const sp = (await searchParams) ?? {};
 
   // Outil de trésorerie disponible (capacité cashflow) → point de départ réel.
+  // La BASE du prévisionnel est switchable (« Sources des blocs » en bas de
+  // page, comme les pages sœurs) parmi les outils à capacité cashflow ; le
+  // pipeline CRM, les factures et le fiscal restent croisés par nature.
   const tools = await getSwitchableBillingTools(supabase, orgId, token, ["audit_paiement_facturation_previsionnel", "audit_paiement_facturation"]);
-  const cashTool = tools.find((t) => capabilitiesOf(t.key).includes("cashflow"))?.key ?? null;
+  const cashTools = tools.filter((t) => capabilitiesOf(t.key).includes("cashflow"));
+  const requestedSource = validateSourceParam(typeof sp.source === "string" ? sp.source : null, cashTools);
+  const cashTool = requestedSource ?? cashTools[0]?.key ?? null;
+  const cashToolMeta = cashTools.find((t) => t.key === cashTool) ?? null;
   const cf = cashTool ? await computeCashflow(supabase, orgId, cashTool) : null;
 
   const { data: org } = await supabase
@@ -73,7 +85,19 @@ export default async function PrevisionnelPage() {
   const last = fc.points[fc.points.length - 1];
   const defaults: DefaultTile[] = fc.hasData
     ? [
-        { key: "treso_depart", label: "Trésorerie de départ", value: fc.start != null ? fmtK(fc.start) : "—", raw: fc.start != null ? Math.round(fc.start) : null, rawUnit: "currency", tone: "neutral", sub: "Disponible aujourd'hui" },
+        {
+          key: "treso_depart",
+          label: "Trésorerie de départ",
+          value: fc.start != null ? fmtK(fc.start) : "—",
+          raw: fc.start != null ? Math.round(fc.start) : null,
+          rawUnit: "currency",
+          tone: "neutral",
+          // La source est NOMMÉE : solde bancaire réel ou cumul de flux, et
+          // depuis quel outil — le solde projeté part de là, pas des deals.
+          sub: cashToolMeta
+            ? `${cf?.balanceSource === "bank" ? "Solde bancaire réel" : "Cumul des flux"} via ${cashToolMeta.label}`
+            : "Disponible aujourd'hui",
+        },
         {
           key: "solde_12m",
           label: "Solde projeté à 12 mois",
@@ -81,7 +105,7 @@ export default async function PrevisionnelPage() {
           raw: last ? Math.round(last.soldeProbable) : null,
           rawUnit: "currency",
           tone: last && last.soldeProbable >= 0 ? "pos" : "neg",
-          sub: "Scénario probable",
+          sub: `Scénario probable${cashToolMeta ? ` — départ ${cashToolMeta.label} + factures + pipeline pondéré` : ""}`,
           verdict: fc.breakEvenMonth.probable
             ? { label: `Sous zéro en ${fc.breakEvenMonth.probable}`, tone: "neg" }
             : { label: "Pas de passage sous zéro", tone: "pos" },
@@ -239,6 +263,15 @@ export default async function PrevisionnelPage() {
 
       {/* ── Tables & graphiques ajoutés par l'utilisateur (funnel unique) ── */}
       <PageDataTables pageKey={PAGE_KEY} />
+
+      {/* Source de la BASE trésorerie — rappel discret en bas de page (même
+          onglet que les pages sœurs), switch au clic parmi les outils cashflow.
+          Pipeline CRM, factures et échéances fiscales restent croisés. */}
+      <SourceToolSwitcher
+        tools={cashTools.map((t) => ({ key: t.key, label: t.label, domain: t.domain, icon: t.icon }))}
+        activeKey={cashTool ?? undefined}
+        hint="Outil de la base trésorerie (solde de départ + charges réelles). Le pipeline CRM, les factures ouvertes et les échéances fiscales sont toujours croisés dans la projection."
+      />
     </section>
   );
 }

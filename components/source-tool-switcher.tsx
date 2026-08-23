@@ -41,7 +41,7 @@ export function SourceToolSwitcher({
   /** mode multi : outils sélectionnés (≥ 1). */
   activeKeys?: string[];
   mode?: "single" | "multi";
-  /** Phrase d'aide affichée sous les pills (mode multi). */
+  /** Phrase d'aide affichée sous les pills (les deux modes). */
   hint?: string;
   /**
    * Raccourcis croisés (mode multi) : une pill « A × B » sélectionne la paire
@@ -178,7 +178,7 @@ export function SourceToolSwitcher({
         )}
         {pending && <span className="text-[10px] text-slate-400">Chargement…</span>}
       </div>
-      {mode === "multi" && hint && (
+      {hint && (
         <p className="mt-1.5 text-[10px] text-slate-400">{hint}</p>
       )}
       </div>
