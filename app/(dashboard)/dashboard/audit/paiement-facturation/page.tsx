@@ -27,7 +27,6 @@ import { PageDataTables } from "@/components/data-tables/page-data-tables";
 import { CashRecoveryBlock } from "@/components/roi/cash-recovery-block";
 import { ReconciliationHealthCard } from "@/components/reconciliation/reconciliation-health-card";
 import { DealInvoiceLinks } from "@/components/reconciliation/deal-invoice-links";
-import { InvoicePaymentLinks } from "@/components/reconciliation/invoice-payment-links";
 import { GapReviewQueue } from "@/components/reconciliation/gap-review-queue";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
@@ -661,14 +660,11 @@ export default async function PaiementFacturationOverviewPage({
           → encaissement, avec l'écart NET vs BRUT (compensation révélée). */}
       <ReconciliationHealthCard supabase={supabase} orgId={orgId} />
 
-      {/* Réconciliation au niveau du DEAL : chaque deal gagné relié à SES
-          factures (propositions montant/date/société confirmées en un clic),
-          écart signé − facturé deal par deal. */}
+      {/* Réconciliation au niveau du DEAL (le croisement CRM × facturation que
+          la compta ne fait pas) : chaque deal gagné relié à SES factures,
+          écart signé − facturé deal par deal. L'encaissement, lui, vient du
+          lettrage natif de la compta (amount_paid) — pas de doublon. */}
       <DealInvoiceLinks />
-
-      {/* Dernier maillon : chaque facture reliée à SES paiements réels
-          (Stripe/GoCardless…) — reste dû exact, trop-perçus détectés. */}
-      <InvoicePaymentLinks />
 
       {/* File d'apurement : les écarts signé ↔ facturé statués entreprise par
           entreprise (justifié / à corriger / corrigé), export CSV. */}
