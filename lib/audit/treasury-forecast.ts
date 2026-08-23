@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CashflowData } from "./cashflow";
 import { expandFiscalSchedule, type FiscalScheduleItem, type OrgFiscalParams } from "./fiscal-schedule";
+import { getForecastExcludedPipelines } from "@/lib/actions/engine";
 
 /**
  * Prévisionnel de trésorerie glissant (12 mois, 3 scénarios) — adapté du
@@ -55,6 +56,8 @@ export type TreasuryForecast = {
   fiscalTotal: number;
   chargesMensuelles: number | null;
   fiscalItems: FiscalScheduleItem[];
+  /** Pipelines exclus de la projection (validés dans la Boîte Actions). */
+  excludedPipelines: string[];
 };
 
 const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -118,17 +121,21 @@ export async function computeTreasuryForecast(
   const fournisseurs = invoices.filter((i) => i.direction === "out");
 
   // ── Pipeline CRM : deals OUVERTS avec montant, pondérés par la probabilité
-  //    de leur étape réelle × décote d'inactivité. ──
+  //    de leur étape réelle × décote d'inactivité. Les pipelines EXCLUS de la
+  //    projection (Boîte Actions — ex. financement/club deals hors d'échelle)
+  //    sont filtrés ici, et uniquement ici. ──
+  const excludedPipelines = await getForecastExcludedPipelines(supabase, orgId);
+  const excludedSet = new Set(excludedPipelines);
   const { data: dealRows } = await supabase
     .from("deals")
-    .select("name, amount, close_date, last_contacted_at, is_closed_won, is_closed_lost, pipeline_stages(name, probability, is_closed_won, is_closed_lost)")
+    .select("name, amount, close_date, last_contacted_at, is_closed_won, is_closed_lost, pipeline_stages(name, probability, is_closed_won, is_closed_lost, pipeline_name)")
     .eq("organization_id", orgId)
     .not("amount", "is", null)
     .limit(5000);
   type DealRow = {
     name: string | null; amount: number; close_date: string | null; last_contacted_at: string | null;
     is_closed_won: boolean; is_closed_lost: boolean;
-    pipeline_stages: { name: string | null; probability: number | null; is_closed_won: boolean | null; is_closed_lost: boolean | null } | Array<{ name: string | null; probability: number | null; is_closed_won: boolean | null; is_closed_lost: boolean | null }> | null;
+    pipeline_stages: { name: string | null; probability: number | null; is_closed_won: boolean | null; is_closed_lost: boolean | null; pipeline_name: string | null } | Array<{ name: string | null; probability: number | null; is_closed_won: boolean | null; is_closed_lost: boolean | null; pipeline_name: string | null }> | null;
   };
   const rel = (d: DealRow) => (Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages) ?? null;
 
@@ -145,6 +152,7 @@ export async function computeTreasuryForecast(
     const st = rel(d);
     const closed = d.is_closed_won || d.is_closed_lost || st?.is_closed_won || st?.is_closed_lost;
     if (closed) continue; // le gagné est déjà (ou sera) une facture ; le perdu ne rapporte rien
+    if (st?.pipeline_name && excludedSet.has(st.pipeline_name.trim())) continue; // pipeline exclu de la projection
     const amount = Number(d.amount) || 0;
     if (amount <= 0) continue;
     const stageProb = st?.probability != null ? Math.min(100, Math.max(0, Number(st.probability))) / 100 : 0.3;
@@ -223,5 +231,6 @@ export async function computeTreasuryForecast(
     fiscalTotal: Math.round(fiscalItems.reduce((s, f) => s + f.amount, 0)),
     chargesMensuelles: charges !== null ? Math.round(charges) : null,
     fiscalItems,
+    excludedPipelines,
   };
 }

@@ -12,6 +12,10 @@ import {
   detectRevenueLeakage,
   detectMissingBillingContacts,
   detectUndeclaredGroups,
+  detectUnmappedWonStages,
+  detectDuplicateDeals,
+  detectForecastPipelineExclusions,
+  executeForecastExcludePipeline,
   executeHubspotTask,
   executeHubspotMerge,
   executeHubspotSequenceEnroll,
@@ -66,6 +70,7 @@ async function executeByType(
   }
   if (type === "link_company") return executeLinkCompany(supabase, orgId, payload);
   if (type === "stripe_send_invoice") return executeStripeSendInvoice(supabase, orgId, payload);
+  if (type === "forecast_exclude_pipeline") return executeForecastExcludePipeline(supabase, orgId, payload);
   return { ok: false, detail: `Type d'action inconnu : ${type}` };
 }
 
@@ -187,6 +192,11 @@ export async function GET(request: Request) {
       run("revenue_leakage", () => detectRevenueLeakage(supabase, orgId)),
       run("billing_contact", () => detectMissingBillingContacts(supabase, orgId)),
       run("declare_group", () => detectUndeclaredGroups(supabase, orgId)),
+      // Hygiène des projections : réglages CRM à faire par l'utilisateur
+      // (étape gagnée, doublons) + exclusion de pipeline exécutée dans Revold.
+      run("won_stage_mapping", () => detectUnmappedWonStages(supabase, orgId)),
+      run("duplicate_deals", () => detectDuplicateDeals(supabase, orgId)),
+      run("forecast_pipeline", () => detectForecastPipelineExclusions(supabase, orgId)),
     ]);
     const candidates = detected.flat().map((c) => ({
       organization_id: orgId,

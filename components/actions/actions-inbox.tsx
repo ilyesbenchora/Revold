@@ -128,6 +128,17 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     if (s("companyHubspotId")) rows.push(["Rattaché à", "L'entreprise du compte (fiche CRM)"]);
     return { rows, effect: "Crée UN contact dans HubSpot — si l'email existe déjà, rien n'est créé (message explicite). Débloque le rapprochement « email exact » pour ce compte." };
   }
+  if (a.type === "forecast_exclude_pipeline") {
+    return {
+      rows: [
+        ["Pipeline exclu", s("pipelineName") ?? "?"],
+        ["Portée", "Prévisionnel de trésorerie UNIQUEMENT — les autres pages, KPIs et rapports ne changent pas"],
+        ["Effet", "Immédiat : ses deals sortent des scénarios probable/ambitieux et du bloc « Pipeline pris en compte »"],
+        ["Visibilité", "L'exclusion est rappelée en note du bloc pipeline de la page Prévisionnel"],
+      ],
+      effect: "Réglage interne à Revold (rien n'est écrit dans le CRM). Rejeter garde la projection telle quelle.",
+    };
+  }
   if (a.type === "hubspot_company_associate") {
     return {
       rows: [
@@ -155,6 +166,7 @@ const TYPE_META: Record<string, { label: string; domain: string; icon: string; t
   hubspot_company_associate: { label: "Hiérarchie de groupe", domain: "hubspot.com", icon: "🏢", tool: "hubspot", toolLabel: "HubSpot" },
   link_company: { label: "Rattachement de fiches", domain: "revold.ai", icon: "🔗", tool: "revold", toolLabel: "Revold" },
   stripe_send_invoice: { label: "Rappel Stripe", domain: "stripe.com", icon: "💳", tool: "stripe", toolLabel: "Stripe" },
+  forecast_exclude_pipeline: { label: "Réglage du prévisionnel", domain: "revold.ai", icon: "📉", tool: "revold", toolLabel: "Revold" },
 };
 
 /**
@@ -170,6 +182,9 @@ export const ACTION_CATALOG: Array<{ key: string; label: string; description: st
   { key: "revenue_leakage", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
   { key: "billing_contact", label: "Création de contacts facturation", description: "Email de facturation présent côté Stripe/Pennylane mais absent du CRM → crée le contact rattaché à l'entreprise (débloque la règle « email exact »)." },
   { key: "declare_group", label: "Hiérarchies de groupe à déclarer", description: "Deal signé sur une entité mais facturé, au montant exact, sur une autre société sans lien de groupe déclaré → déclare la hiérarchie parent/enfant dans HubSpot. Ensuite Revold rapproche et surveille la bonne entité de facturation, automatiquement — jamais deviné par le nom." },
+  { key: "won_stage_mapping", label: "Étapes « gagnées » à mapper dans le CRM", description: "Étape de pipeline à l'évidence terminale (« encaissé », « gagné », probabilité ≥ 90 %) mais non déclarée « Gagné » dans HubSpot → ses deals comptent comme du pipeline futur dans le prévisionnel (double comptage avec le solde bancaire). Tâche HubSpot pour faire le réglage dans le CRM — la sync sort ensuite ces deals de la projection." },
+  { key: "duplicate_deals", label: "Deals en doublon à trier", description: "Plusieurs deals ouverts au même montant et au même nom (opération dupliquée par contact, club deal…) → le pipeline compte N fois la même affaire et gonfle les projections. Tâche HubSpot pour fusionner/fermer les doublons, ou les isoler dans un pipeline dédié." },
+  { key: "forecast_pipeline", label: "Pipelines hors d'échelle au prévisionnel", description: "Pipeline dont les deals ouverts cumulent ≥ 1 M€ et ≥ 10× les factures clients ouvertes (financement, club deals…) → il écrase le solde projeté. Valider l'exclut du prévisionnel de trésorerie UNIQUEMENT (effet immédiat) — il reste visible partout ailleurs." },
 ];
 
 const HIDDEN_KEY = "revold:actions-hidden";
@@ -203,6 +218,9 @@ function sourceLabel(source: string): string {
   if (source === "detector:revenue_leakage") return "Détecteur · revenue leakage";
   if (source === "detector:billing_contact") return "Détecteur · contacts facturation";
   if (source === "detector:declare_group") return "Détecteur · hiérarchie de groupe";
+  if (source === "detector:won_stage_mapping") return "Détecteur · mapping d'étapes";
+  if (source === "detector:duplicate_deals") return "Détecteur · deals en doublon";
+  if (source === "detector:forecast_pipeline") return "Détecteur · prévisionnel";
   // Action planifiée depuis un chat d'agent (« Plus tard »).
   if (source.startsWith("agent:")) return `Agent · ${AGENT_LABELS[source.slice(6)] ?? source.slice(6)}`;
   return source;

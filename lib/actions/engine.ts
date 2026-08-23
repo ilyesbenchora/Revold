@@ -49,6 +49,9 @@ export type ActionPayload = {
   childHubspotId?: string;
   parentCompanyName?: string;
   childCompanyName?: string;
+  /** Hygiène des projections : étape à mapper « gagnée » / pipeline à exclure du prévisionnel. */
+  stageName?: string;
+  pipelineName?: string;
 };
 
 const DAY_MS = 86_400_000;
@@ -683,6 +686,262 @@ export async function detectMissingBillingContacts(
     if (out.length >= 10) break;
   }
   return out;
+}
+
+// ── Hygiène des projections (prévisionnel de trésorerie) ───────────────────
+// Trois détecteurs nés d'un cas réel : une étape « ENCAISSÉ » non mappée
+// gagnée, des clones de club deal et un pipeline de financement gonflaient le
+// solde projeté de plusieurs millions. L'app DÉTECTE et propose ; la
+// correction des deux premiers se fait DANS le CRM par l'utilisateur (tâche
+// HubSpot) — jamais par Revold, la sync réécrirait de toute façon le mapping.
+
+const fmtEurAct = (v: number) =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(v));
+
+/**
+ * Détecteur : étape de pipeline à l'évidence TERMINALE (nom « encaissé /
+ * gagné / won » ou probabilité ≥ 90 %) mais non marquée « gagnée » dans
+ * HubSpot → ses deals comptent comme du pipeline FUTUR dans le prévisionnel
+ * alors que l'argent est censé être déjà là : double comptage. L'action est
+ * une tâche HubSpot : c'est un réglage du CRM, à corriger par l'utilisateur
+ * (la synchronisation réécrit le mapping depuis HubSpot à chaque passage).
+ */
+export async function detectUnmappedWonStages(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { data: stages } = await supabase
+    .from("pipeline_stages")
+    .select("id, name, probability, pipeline_name")
+    .eq("organization_id", orgId)
+    .eq("is_closed_won", false)
+    .eq("is_closed_lost", false)
+    .limit(200);
+  const wonName = /encaiss|gagn|\bwon\b/i;
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const st of (stages ?? []) as Array<{ id: string; name: string | null; probability: number | null; pipeline_name: string | null }>) {
+    const prob = st.probability != null ? Number(st.probability) : null;
+    if (!((prob != null && prob >= 90) || wonName.test(st.name ?? ""))) continue;
+    const { data: deals } = await supabase
+      .from("deals")
+      .select("hubspot_id, name, amount")
+      .eq("organization_id", orgId)
+      .eq("stage_id", st.id)
+      .eq("is_closed_won", false)
+      .eq("is_closed_lost", false)
+      .not("amount", "is", null)
+      .order("amount", { ascending: false })
+      .limit(200);
+    const rows = ((deals ?? []) as Array<{ hubspot_id: string | null; name: string | null; amount: number | null }>).filter(
+      (d) => (Number(d.amount) || 0) > 0,
+    );
+    if (rows.length === 0) continue;
+    const total = rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const top = rows.find((d) => d.hubspot_id);
+    const stageName = st.name ?? "(étape sans nom)";
+    out.push({
+      dedupe_key: `won_stage:${st.id}`,
+      type: "hubspot_task",
+      title: `Marquer l'étape « ${stageName} » comme « gagnée » dans HubSpot${prob != null ? ` (probabilité ${Math.round(prob)} %)` : ""}`,
+      description:
+        `${rows.length} deal${rows.length > 1 ? "s" : ""} ouvert${rows.length > 1 ? "s" : ""} pour ${fmtEurAct(total)} dorment dans cette étape${st.pipeline_name ? ` du pipeline « ${st.pipeline_name} »` : ""}. ` +
+        `Tant qu'elle n'est pas déclarée « Gagné » dans HubSpot (Paramètres → Objets → Transactions → Pipelines), ces montants comptent comme du pipeline FUTUR dans le prévisionnel de trésorerie — ` +
+        `alors qu'un deal encaissé est déjà dans le solde bancaire : le même argent est compté deux fois. ` +
+        `Valider crée une tâche HubSpot sur le deal principal pour faire ce réglage ; la prochaine synchronisation sortira ces deals de la projection.`,
+      source: "detector:won_stage_mapping",
+      payload: {
+        subject: `Marquer l'étape « ${stageName} » comme « Gagné » dans les réglages du pipeline`,
+        body:
+          `Étape « ${stageName} »${st.pipeline_name ? ` (pipeline « ${st.pipeline_name} »)` : ""}${prob != null ? `, probabilité ${Math.round(prob)} %` : ""} : ` +
+          `${rows.length} deal(s) ouvert(s) pour ${fmtEurAct(total)}. Dans HubSpot : Paramètres → Objets → Transactions → Pipelines → cocher « Gagné » sur cette étape. ` +
+          `Détecté par Revold : sans ce réglage, ces montants gonflent le prévisionnel de trésorerie (double comptage avec le solde bancaire).`,
+        dealHubspotId: top?.hubspot_id ?? null,
+        stageName,
+        pipelineName: st.pipeline_name ?? undefined,
+      },
+    });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+/**
+ * Détecteur : DEALS CLONES — plusieurs deals ouverts au MÊME montant (≥ 10 k€)
+ * avec un même début de nom (≥ 12 caractères). Typique d'une opération
+ * dupliquée par contact (club deal, financement) : le pipeline et les
+ * projections comptent N fois la même affaire. L'action est une tâche
+ * HubSpot : fusionner/fermer les doublons est une décision CRM de
+ * l'utilisateur (parfois les clones sont voulus, un ticket par investisseur).
+ */
+export async function detectDuplicateDeals(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { data } = await supabase
+    .from("deals")
+    .select("hubspot_id, name, amount")
+    .eq("organization_id", orgId)
+    .eq("is_closed_won", false)
+    .eq("is_closed_lost", false)
+    .not("amount", "is", null)
+    .gte("amount", 10_000)
+    .limit(1000);
+  const rows = ((data ?? []) as Array<{ hubspot_id: string | null; name: string | null; amount: number | null }>).filter(
+    (d) => d.name && (Number(d.amount) || 0) > 0,
+  );
+  // Clé de groupe : montant exact + préfixe normalisé du nom (12 caractères).
+  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const groups = new Map<string, typeof rows>();
+  for (const d of rows) {
+    const prefix = norm(d.name!).slice(0, 12);
+    if (prefix.length < 12) continue; // nom trop court pour une clé fiable
+    const key = `${Math.round(Number(d.amount))}:${prefix}`;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(d);
+  }
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const [key, list] of groups) {
+    if (list.length < 2) continue;
+    const amount = Number(list[0].amount) || 0;
+    const cumul = amount * list.length;
+    const top = list.find((d) => d.hubspot_id);
+    const names = list.map((d) => d.name!.trim()).slice(0, 8);
+    out.push({
+      dedupe_key: `dup_deals:${key.replace(/[^a-z0-9:]/gi, "_")}`,
+      type: "hubspot_task",
+      title: `${list.length} deals identiques à ${fmtEurAct(amount)} chacun — doublons probables à trier`,
+      description:
+        `${names[0]}${list.length > 1 ? ` et ${list.length - 1} autre${list.length > 2 ? "s" : ""} deal${list.length > 2 ? "s" : ""} au même montant et au même nom` : ""} : ` +
+        `ils cumulent ${fmtEurAct(cumul)} dans le pipeline et gonflent d'autant le prévisionnel. ` +
+        `S'il s'agit de la même opération dupliquée par contact, fusionne ou ferme les doublons dans HubSpot — s'ils sont voulus (un ticket par investisseur), déplace-les dans un pipeline dédié et exclus-le du prévisionnel. ` +
+        `Valider crée une tâche HubSpot récapitulative sur l'un des deals.`,
+      source: "detector:duplicate_deals",
+      payload: {
+        subject: `Trier ${list.length} deals en doublon à ${fmtEurAct(amount)} chacun`,
+        body:
+          `Deals ouverts au même montant (${fmtEurAct(amount)}) avec le même nom, cumul ${fmtEurAct(cumul)} :\n- ${names.join("\n- ")}${list.length > names.length ? `\n… et ${list.length - names.length} autres` : ""}\n` +
+          `Détecté par Revold : fusionner/fermer les doublons, ou les isoler dans un pipeline dédié hors prévisionnel.`,
+        dealHubspotId: top?.hubspot_id ?? null,
+      },
+    });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+/** Réglage app : pipelines exclus du prévisionnel de trésorerie (noms). */
+export const FORECAST_EXCLUDED_PIPELINES_RULE = "forecast_excluded_pipelines";
+
+export async function getForecastExcludedPipelines(supabase: SupabaseClient, orgId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("enabled, config")
+      .eq("organization_id", orgId)
+      .eq("rule_id", FORECAST_EXCLUDED_PIPELINES_RULE)
+      .maybeSingle();
+    if (!data?.enabled) return [];
+    const names = (data.config as { names?: unknown } | null)?.names;
+    return Array.isArray(names) ? names.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Détecteur : PIPELINE HORS D'ÉCHELLE dans le prévisionnel — un pipeline dont
+ * les deals ouverts cumulent ≥ 1 M€ ET ≥ 10× les factures clients ouvertes
+ * écrase le solde projeté (cas type : pipeline de financement / club deals,
+ * dont les montants ne sont pas du CA encaissable par l'entreprise).
+ * L'action s'exécute DANS Revold : exclusion du pipeline de la projection
+ * uniquement — il reste visible partout ailleurs.
+ */
+export async function detectForecastPipelineExclusions(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const excluded = new Set(await getForecastExcludedPipelines(supabase, orgId));
+  const { data: deals } = await supabase
+    .from("deals")
+    .select("amount, is_closed_won, is_closed_lost, pipeline_stages(pipeline_name, is_closed_won, is_closed_lost)")
+    .eq("organization_id", orgId)
+    .not("amount", "is", null)
+    .limit(5000);
+  type Row = {
+    amount: number | null; is_closed_won: boolean; is_closed_lost: boolean;
+    pipeline_stages: { pipeline_name: string | null; is_closed_won: boolean | null; is_closed_lost: boolean | null } | Array<{ pipeline_name: string | null; is_closed_won: boolean | null; is_closed_lost: boolean | null }> | null;
+  };
+  const byPipeline = new Map<string, { total: number; n: number }>();
+  for (const d of (deals ?? []) as Row[]) {
+    const st = (Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages) ?? null;
+    if (d.is_closed_won || d.is_closed_lost || st?.is_closed_won || st?.is_closed_lost) continue;
+    const amount = Number(d.amount) || 0;
+    const name = st?.pipeline_name?.trim();
+    if (amount <= 0 || !name || excluded.has(name)) continue;
+    const cur = byPipeline.get(name) ?? { total: 0, n: 0 };
+    cur.total += amount;
+    cur.n++;
+    byPipeline.set(name, cur);
+  }
+  if (byPipeline.size === 0) return [];
+
+  // Référence d'échelle : factures clients ouvertes (le « réel » du moment).
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("amount_due, direction")
+    .eq("organization_id", orgId)
+    .in("status", ["open", "uncollectible"])
+    .limit(5000);
+  const invoicesDue = ((inv ?? []) as Array<{ amount_due: number | null; direction: string | null }>)
+    .filter((i) => i.direction !== "out")
+    .reduce((s, i) => s + Math.abs(Number(i.amount_due) || 0), 0);
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const [name, agg] of byPipeline) {
+    if (agg.total < 1_000_000 || agg.total < 10 * Math.max(invoicesDue, 1)) continue;
+    out.push({
+      dedupe_key: `forecast_excl:${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+      type: "forecast_exclude_pipeline",
+      title: `Exclure le pipeline « ${name} » du prévisionnel de trésorerie ?`,
+      description:
+        `Ses ${agg.n} deals ouverts cumulent ${fmtEurAct(agg.total)}, hors d'échelle face aux ${fmtEurAct(invoicesDue)} de factures clients ouvertes : il écrase le solde projeté. ` +
+        `Cas typique : pipeline de financement / club deals dont les montants ne sont pas du CA encaissable par l'entreprise. ` +
+        `Valider l'exclut de la projection UNIQUEMENT (effet immédiat) — il reste visible sur toutes les autres pages. Rejeter garde la projection telle quelle.`,
+      source: "detector:forecast_pipeline",
+      payload: { pipelineName: name },
+    });
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+/** Exécuteur : exclut un pipeline du prévisionnel (réglage app, effet immédiat). */
+export async function executeForecastExcludePipeline(
+  supabase: SupabaseClient,
+  orgId: string,
+  payload: ActionPayload,
+): Promise<{ ok: boolean; detail: string }> {
+  const name = payload.pipelineName?.trim();
+  if (!name) return { ok: false, detail: "Nom de pipeline manquant." };
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("config")
+      .eq("organization_id", orgId)
+      .eq("rule_id", FORECAST_EXCLUDED_PIPELINES_RULE)
+      .maybeSingle();
+    const cur = (data?.config as { names?: unknown } | null)?.names;
+    const names = [...new Set([...(Array.isArray(cur) ? cur.filter((x): x is string => typeof x === "string") : []), name])];
+    const { error } = await supabase
+      .from("entity_resolution_config")
+      .upsert(
+        { organization_id: orgId, rule_id: FORECAST_EXCLUDED_PIPELINES_RULE, enabled: true, config: { names } },
+        { onConflict: "organization_id,rule_id" },
+      );
+    if (error) return { ok: false, detail: error.message };
+    return { ok: true, detail: `Pipeline « ${name} » exclu du prévisionnel de trésorerie — effet immédiat. Les autres pages ne changent pas.` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : "Exclusion impossible." };
+  }
 }
 
 // ── Exécuteurs ──────────────────────────────────────────────────────────────

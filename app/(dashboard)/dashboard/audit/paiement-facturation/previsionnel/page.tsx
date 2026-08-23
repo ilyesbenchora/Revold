@@ -252,7 +252,7 @@ export default async function PrevisionnelPage({
                   unit: "currency" as const,
                   cells: [fmtK(d.amount), `${Math.round(d.probability * 100)} %`, d.stage ?? "—", d.cashMonth],
                 }))}
-                footnote={`Pondération = probabilité de l'étape × décote d'inactivité (plancher 20 % après 60 j sans contact).${fc.dealsSansMontant > 0 ? ` ${fmt(fc.dealsSansMontant)} deals ignorés faute de montant.` : ""}`}
+                footnote={`Pondération = probabilité de l'étape × décote d'inactivité (plancher 20 % après 60 j sans contact).${fc.dealsSansMontant > 0 ? ` ${fmt(fc.dealsSansMontant)} deals ignorés faute de montant.` : ""}${fc.excludedPipelines.length > 0 ? ` Pipeline${fc.excludedPipelines.length > 1 ? "s" : ""} exclu${fc.excludedPipelines.length > 1 ? "s" : ""} de la projection (Boîte Actions) : ${fc.excludedPipelines.join(", ")}.` : ""}`}
               />
             )}
           </CollapsibleBlock>
