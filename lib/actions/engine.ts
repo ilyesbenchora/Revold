@@ -1454,6 +1454,65 @@ export async function detectUndeclaredGroups(
 }
 
 /**
+ * Détecteur : DOUBLONS PAR SIREN → FUSION (pas une hiérarchie). Deux fiches
+ * portent le même SIREN (`duplicate_of_siren`, le SIREN d'une fiche = celui
+ * d'une autre) SANS établissement (SIRET) distinct prouvé → c'est la même
+ * société en double, pas un groupe : le bon geste est la fusion. Quand les deux
+ * SIRET sont connus ET différents, c'est au contraire une hiérarchie
+ * siège/établissement → laissée au détecteur `declare_group`, pas ici.
+ */
+export async function detectSirenDuplicates(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
+  const { data: dupData, error } = await supabase
+    .from("companies")
+    .select("id, name, hubspot_id, siret, candidate_siret, duplicate_of_siren")
+    .eq("organization_id", orgId)
+    .not("duplicate_of_siren", "is", null)
+    .not("hubspot_id", "is", null)
+    .limit(2000);
+  // Colonne absente (migration non appliquée) → rien à proposer.
+  if (error) return [];
+  type Dup = { id: string; name: string | null; hubspot_id: string; siret: string | null; candidate_siret: string | null; duplicate_of_siren: string };
+  const dups = (dupData ?? []) as Dup[];
+  if (dups.length === 0) return [];
+
+  const sirens = [...new Set(dups.map((d) => d.duplicate_of_siren))];
+  const { data: canonData } = await supabase
+    .from("companies")
+    .select("id, name, hubspot_id, siren, siret")
+    .eq("organization_id", orgId)
+    .in("siren", sirens)
+    .not("hubspot_id", "is", null);
+  type Canon = { id: string; name: string | null; hubspot_id: string; siren: string; siret: string | null };
+  const canonBySiren = new Map<string, Canon>();
+  for (const c of (canonData ?? []) as Canon[]) canonBySiren.set(c.siren, c);
+
+  const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
+  for (const d of dups) {
+    const canon = canonBySiren.get(d.duplicate_of_siren);
+    if (!canon || canon.id === d.id || !canon.hubspot_id) continue;
+    // Établissements DISTINCTS prouvés (deux SIRET connus, différents) →
+    // HIÉRARCHIE, pas fusion : on laisse `declare_group` s'en charger.
+    const childSiret = d.candidate_siret ?? d.siret;
+    if (childSiret && canon.siret && childSiret !== canon.siret) continue;
+    const dupName = d.name ?? "fiche en double";
+    const canonName = canon.name ?? "fiche principale";
+    out.push({
+      dedupe_key: `merge_siren:${[canon.id, d.id].sort().join(":")}`,
+      type: "hubspot_merge",
+      title: `Fusionner « ${dupName} » dans « ${canonName} » (même SIREN ${d.duplicate_of_siren})`,
+      description: `Ces deux fiches portent le MÊME SIREN (${d.duplicate_of_siren}) sans établissement (SIRET) distinct prouvé — très probablement la même société en double dans le CRM. Fusionner conserve « ${canonName} » et y absorbe « ${dupName} » (activités et associations transférées). Si ce sont en réalité DEUX établissements différents (siège + agence), refuse : la hiérarchie sera proposée à part.`,
+      source: "detector:duplicate_merge",
+      payload: { mergeObjectType: "companies", primaryHubspotId: canon.hubspot_id, mergeHubspotId: d.hubspot_id },
+    });
+    if (out.length >= 50) break;
+  }
+  return out;
+}
+
+/**
  * Crée une tâche HubSpot TOUJOURS attribuée : owner du deal, sinon owner de
  * l'entreprise, sinon owner du premier contact associé — une tâche sans
  * propriétaire n'apparaît dans la file de personne dans le CRM. La tâche est

@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 type Diag = {
   companies: number | null; withSiren: number | null; withSiret: number | null;
   withDomain: number | null; dupSiren: number | null; wonDeals: number | null; unlinkedInvoices: number | null;
+  nameEnabled?: boolean; bySignal?: Record<string, number>;
 };
 
 const nf = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
@@ -119,6 +120,27 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
           </button>
         </div>
       </div>
+      {/* Répartition des propositions actuelles par signal — montre d'où vient le total. */}
+      {diag?.bySignal && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-600">
+          <p className="font-medium text-slate-700">
+            Propositions en attente par signal :{" "}
+            <span className="font-normal">
+              montant {nf(diag.bySignal.billing_match)} · domaine {nf(diag.bySignal.shared_domain)} · SIREN {nf(diag.bySignal.same_siren)} · nom {nf(diag.bySignal.name_match)}
+            </span>
+          </p>
+          {diag.nameEnabled === false && (
+            <p className="mt-0.5 text-amber-700">
+              ⚠ Le signal « nom » est <strong>désactivé</strong> — active-le ci-dessus (clique « ✎ Modifier » d&apos;abord), puis relance le rapprochement.
+            </p>
+          )}
+          {diag.nameEnabled === true && (diag.bySignal.name_match ?? 0) === 0 && (
+            <p className="mt-0.5 text-amber-700">
+              ⚠ « Nom » est activé mais 0 proposition : soit tu n&apos;as pas encore <strong>relancé le rapprochement</strong> depuis Hiérarchie comptes, soit il manque la fiche « mère » nue (ex. « Banque Populaire » sans ville) dont les autres dérivent.
+            </p>
+          )}
+        </div>
+      )}
       {saved && <p className="text-[11px] text-emerald-600">✓ Enregistré — relance le rapprochement pour l&apos;appliquer.</p>}
     </div>
   );
