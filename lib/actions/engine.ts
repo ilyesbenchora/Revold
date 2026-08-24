@@ -1055,6 +1055,9 @@ export async function detectUndeclaredGroups(
   const DAY = 86_400_000;
   const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * 0.01);
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  // Plafond par SIGNAL FIABLE (montant / domaine / SIREN) : assez haut pour
+  // couvrir la base, borné pour ne pas noyer la file de validation.
+  const MAX_PER_SIGNAL = 50;
 
   const [dealsRes, invRes, compRes] = await Promise.all([
     supabase
@@ -1185,7 +1188,7 @@ export async function detectUndeclaredGroups(
         groupSignal: "billing_match",
       },
     });
-    if (out.length >= 8) break;
+    if (out.length >= MAX_PER_SIGNAL) break;
   }
 
   // ── Passe 2 : DOMAINE PARTAGÉ, sur TOUTE la base d'entreprises ──
@@ -1252,9 +1255,9 @@ export async function detectUndeclaredGroups(
           sharedDomain: domain,
         },
       });
-      if (out.length - domainStart >= 8) break;
+      if (out.length - domainStart >= MAX_PER_SIGNAL) break;
     }
-    if (out.length - domainStart >= 8) break;
+    if (out.length - domainStart >= MAX_PER_SIGNAL) break;
   }
 
   // ── Passe 3 : MÊME SIREN, SIRETs DISTINCTS (registre officiel, toute la
@@ -1298,7 +1301,7 @@ export async function detectUndeclaredGroups(
         sharedSiren: c.duplicate_of_siren,
       },
     });
-    if (out.length - sirenStart >= 8) break;
+    if (out.length - sirenStart >= MAX_PER_SIGNAL) break;
   }
 
   // ── Passe 4 : NOM APPARENTÉ — signal FAIBLE, proposé avec prudence ──
