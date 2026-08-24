@@ -92,6 +92,12 @@ export const ENRICHMENT_HUBSPOT_PROPERTIES: {
   { field: "siren", canonical: "siren", fallback: "siren", label: "SIREN", unique: true },
   { field: "siret", canonical: "siret", fallback: "siret", label: "SIRET", unique: true },
   { field: "vat", canonical: "vat_number", fallback: "vat_number", label: "N° TVA intracommunautaire", unique: true },
+  // Effectif/CA/secteur : propriétés DÉDIÉES (texte tranche, montant, libellé) —
+  // jamais les natives HubSpot (numberofemployees est un nombre, industry une
+  // énumération fermée : nos valeurs officielles ne rentrent pas dedans).
+  { field: "employees", canonical: "official_employee_range", fallback: "effectif_officiel", label: "Effectif officiel (tranche)", unique: false },
+  { field: "revenue", canonical: "official_revenue", fallback: "ca_officiel", label: "Chiffre d'affaires officiel (€)", unique: false },
+  { field: "industry", canonical: "official_industry", fallback: "secteur_officiel", label: "Secteur d'activité officiel", unique: false },
   { field: "legalForm", canonical: "legal_form", fallback: "statut_juridique", label: "Statut juridique", unique: false },
   { field: "shareCapital", canonical: "share_capital", fallback: "capital_social", label: "Capital social", unique: false },
   {

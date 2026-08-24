@@ -63,6 +63,15 @@ export async function POST(request: Request) {
     if (settings.fields.vat) ensures.push(ensureHubSpotIdProperty(token, vatProp, "N° TVA intracommunautaire"));
     // Propriétés descriptives (sans unicité) — vérifiées/créées seulement si
     // le champ est activé dans Paramètres → Enrichissement.
+    if (settings.fields.employees) {
+      ensures.push(ensureHubSpotIdProperty(token, hsProp.employees, "Effectif officiel (tranche)", { unique: false }));
+    }
+    if (settings.fields.revenue) {
+      ensures.push(ensureHubSpotIdProperty(token, hsProp.revenue, "Chiffre d'affaires officiel (€)", { unique: false, type: "number" }));
+    }
+    if (settings.fields.industry) {
+      ensures.push(ensureHubSpotIdProperty(token, hsProp.industry, "Secteur d'activité officiel", { unique: false }));
+    }
     if (settings.fields.legalForm) {
       ensures.push(ensureHubSpotIdProperty(token, hsProp.legalForm, "Statut juridique", { unique: false }));
     }
@@ -84,7 +93,7 @@ export async function POST(request: Request) {
 
   let query = supabase
     .from("companies")
-    .select("id, siren, siret, vat_number, legal_form, share_capital, head_office_address, hubspot_id")
+    .select("id, siren, siret, vat_number, legal_form, share_capital, head_office_address, official_employee_range, official_revenue, naf_code, activity_label, hubspot_id")
     .eq("organization_id", orgId)
     .not("siren", "is", null)
     .not("hubspot_id", "is", null)
@@ -103,6 +112,10 @@ export async function POST(request: Request) {
     legal_form: string | null;
     share_capital: number | null;
     head_office_address: string | null;
+    official_employee_range: string | null;
+    official_revenue: number | null;
+    naf_code: string | null;
+    activity_label: string | null;
     hubspot_id: string;
   }>;
   let pushed = 0;
@@ -111,6 +124,13 @@ export async function POST(request: Request) {
     const props: Record<string, string> = { [sirenProp]: c.siren };
     if (settings.fields.siret && c.siret) props[siretProp] = c.siret;
     if (settings.fields.vat) props[vatProp] = c.vat_number ?? vatFromSiren(c.siren);
+    if (settings.fields.employees && c.official_employee_range) props[hsProp.employees] = c.official_employee_range;
+    if (settings.fields.revenue && typeof c.official_revenue === "number") props[hsProp.revenue] = String(c.official_revenue);
+    if (settings.fields.industry && (c.activity_label || c.naf_code)) {
+      props[hsProp.industry] = c.activity_label
+        ? c.naf_code ? `${c.activity_label} (NAF ${c.naf_code})` : c.activity_label
+        : (c.naf_code as string);
+    }
     if (settings.fields.legalForm && c.legal_form) props[hsProp.legalForm] = c.legal_form;
     if (settings.fields.shareCapital && typeof c.share_capital === "number") props[hsProp.shareCapital] = String(c.share_capital);
     if (settings.fields.headOfficeAddress && c.head_office_address) props[hsProp.headOfficeAddress] = c.head_office_address;

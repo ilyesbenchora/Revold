@@ -157,6 +157,10 @@ export function EnrichmentBackfillRunner({
   const inactiveFieldIds = ENRICHMENT_FIELD_LABELS.filter((f) => !fields[f.id]).map((f) => f.id as string);
   // Nouveaux champs cochés depuis la dernière passe → le CTA principal revient.
   const newFields = runs == null ? [] : activeFieldIds.filter((f) => !covered.includes(f));
+  // Champs qui restent RÉELLEMENT à synchroniser à date (cochés − déjà
+  // couverts par une passe) : c'est eux que le message d'avant-lancement
+  // annonce — pas la liste complète des cases cochées.
+  const pendingFields = runs == null ? activeFieldIds : newFields;
   const remaining = status?.remaining ?? 0;
   const needsRun = remaining > 0 || newFields.length > 0;
 
@@ -341,20 +345,27 @@ export function EnrichmentBackfillRunner({
                   <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
                 </>
               ) : !activated ? (
-                activeFieldIds.length > 0 ? (
-                  // Les champs COCHÉS sont nommés : le message dit exactement ce
-                  // que « Enrichir mon CRM » va synchroniser — jamais un feu
-                  // vert à l'aveugle.
+                pendingFields.length > 0 ? (
+                  // Le message nomme UNIQUEMENT les champs restant à enrichir à
+                  // date (cochés − déjà couverts) : ce que « Enrichir mon CRM »
+                  // va réellement synchroniser — jamais un feu vert à l'aveugle.
                   <>
                     Rien ne tourne sans ton feu vert. Au clic sur « Enrichir mon CRM », Revold enrichira :{" "}
                     <span className="font-medium text-slate-700">
-                      {activeFieldIds.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
+                      {pendingFields.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
                     </span>{" "}
                     — modifiable dans{" "}
                     <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
                       Paramètres → Enrichissement
                     </Link>
                     .
+                  </>
+                ) : activeFieldIds.length > 0 ? (
+                  // Tout ce qui est coché est déjà couvert : le clic sert alors
+                  // à synchroniser le CRM (champs vides uniquement).
+                  <>
+                    Les données cochées sont déjà présentes dans la base Revold — le clic sur « Enrichir mon CRM »
+                    les synchronisera dans ton CRM (champs vides uniquement).
                   </>
                 ) : (
                   <>
