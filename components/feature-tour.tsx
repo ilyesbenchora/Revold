@@ -45,8 +45,12 @@ export function FeatureTour({ tourId, steps }: { tourId: string; steps: TourStep
   // Premier passage seulement : jamais en SSR, jamais si déjà vu — et JAMAIS
   // pendant la modale d'onboarding (formulaire obligatoire du premier accès) :
   // le tutoriel attend sa disparition du DOM pour démarrer.
+  // Gate serveur : le layout ne pose #feature-tours-eligible que pour un
+  // NOUVEAU compte (fenêtre 48 h) — un client existant ne voit jamais de
+  // tutoriel, même avec un localStorage vierge (autre navigateur, cache vidé).
   useEffect(() => {
     if (steps.length === 0 || isDone(tourId)) return;
+    if (!document.getElementById("feature-tours-eligible")) return;
     if (!document.getElementById("org-setup-modal")) {
       setVisible(true);
       return;

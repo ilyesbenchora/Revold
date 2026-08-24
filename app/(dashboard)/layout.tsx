@@ -11,6 +11,7 @@ import { ActiveChatBanner } from "@/components/active-chat-banner";
 import { TowerQueue } from "@/components/voice/tower-queue";
 import { EnrichmentBackgroundRunner } from "@/components/enrichment-background-runner";
 import { OrgSetupModal } from "@/components/org-setup-modal";
+import { isNewUser } from "@/lib/onboarding/is-new-user";
 
 // Les badges du header reflètent l'état réel des connexions par org →
 // pas de cache.
@@ -144,6 +145,15 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     /* migration org_infos/setup_completed non appliquée → pas de modale */
   }
 
+  // ── Mini-tutoriels (FeatureTour) : réservés aux NOUVEAUX comptes (fenêtre
+  // 48 h après création) — un client existant ne les voit jamais, quel que
+  // soit l'état de son localStorage. Le marqueur DOM est lu par FeatureTour.
+  let toursEligible = false;
+  try {
+    const supa = await createSupabaseServerClient();
+    toursEligible = await isNewUser(supa);
+  } catch { /* au moindre doute : pas de tutoriel */ }
+
   return (
     // .dashboard-shell : périmètre du mode sombre violet (Paramètres → Apparence).
     <div className="dashboard-shell min-h-screen bg-background">
@@ -153,6 +163,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
       {orgSetupName !== null && <OrgSetupModal initialName={orgSetupName} />}
+      {/* Marqueur d'éligibilité aux tutoriels — absent = aucun tour ne démarre. */}
+      {toursEligible && <span id="feature-tours-eligible" hidden />}
       <ActiveChatBanner />
       {/* Demandes vocales en attente (tour de contrôle multi-agents) */}
       <TowerQueue />
