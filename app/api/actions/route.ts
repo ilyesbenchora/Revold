@@ -12,6 +12,7 @@ import {
   detectRevenueLeakage,
   detectMissingBillingContacts,
   detectUndeclaredGroups,
+  isHierarchyActivated,
   detectUnmappedWonStages,
   detectDuplicateDeals,
   detectForecastPipelineExclusions,
@@ -191,7 +192,9 @@ export async function GET(request: Request) {
       run("renewal_deal", () => detectMissingRenewalDeals(supabase, orgId)),
       run("revenue_leakage", () => detectRevenueLeakage(supabase, orgId)),
       run("billing_contact", () => detectMissingBillingContacts(supabase, orgId)),
-      run("declare_group", () => detectUndeclaredGroups(supabase, orgId)),
+      // Opt-in : aucune suggestion de hiérarchie avant le premier clic sur
+      // « Lancer le rapprochement » (page Hiérarchie comptes).
+      run("declare_group", async () => ((await isHierarchyActivated(supabase, orgId)) ? detectUndeclaredGroups(supabase, orgId) : [])),
       // Hygiène des projections : réglages CRM à faire par l'utilisateur
       // (étape gagnée, doublons) + exclusion de pipeline exécutée dans Revold.
       run("won_stage_mapping", () => detectUnmappedWonStages(supabase, orgId)),

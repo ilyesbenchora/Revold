@@ -1008,6 +1008,46 @@ export async function fetchContactOwner(token: string, contactId: string): Promi
  * rattachement manuel dans Revold : une fois la hiérarchie déclarée, l'ingestion
  * la reprend et le moteur deal↔facture rapproche + surveille tout seul.
  */
+/**
+ * OPT-IN de la détection de hiérarchies (page Hiérarchie comptes) : aucune
+ * suggestion n'est générée avant le premier clic sur « Lancer le
+ * rapprochement » — sinon un nouvel inscrit voit des propositions apparaître
+ * sans avoir rien lancé (temporalités d'action mélangées). Les orgs qui ont
+ * DÉJÀ des suggestions en base restent actives (pas de régression).
+ */
+export async function isHierarchyActivated(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("enabled")
+      .eq("organization_id", orgId)
+      .eq("rule_id", "hierarchy_reconciliation")
+      .maybeSingle();
+    if (data?.enabled === true) return true;
+    if (data) return false; // flag posé et désactivé → respecté
+    // Pas de flag : activation implicite si la famille a déjà produit des
+    // fiches (orgs antérieures à l'opt-in) — sinon inactif.
+    const { count } = await supabase
+      .from("action_items")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("source", "detector:declare_group");
+    return (count ?? 0) > 0;
+  } catch {
+    return false; // au moindre doute : pas de suggestion non sollicitée
+  }
+}
+
+/** Active la détection de hiérarchies (appelé au premier rapprochement). */
+export async function activateHierarchy(supabase: SupabaseClient, orgId: string): Promise<void> {
+  try {
+    await supabase.from("entity_resolution_config").upsert(
+      { organization_id: orgId, rule_id: "hierarchy_reconciliation", enabled: true, config: { activated_at: new Date().toISOString() } },
+      { onConflict: "organization_id,rule_id" },
+    );
+  } catch { /* réessayé au prochain rapprochement */ }
+}
+
 export async function detectUndeclaredGroups(
   supabase: SupabaseClient,
   orgId: string,

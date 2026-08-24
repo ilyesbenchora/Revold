@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchCompanyParents } from "@/lib/sync/hubspot-etl";
+import { activateHierarchy } from "@/lib/actions/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -69,6 +70,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     if (Number.isInteger(body?.offset) && body.offset >= 0) offset = body.offset;
   } catch { /* offset 0 */ }
+
+  // Premier passage = OPT-IN : la détection de hiérarchies (suggestions à
+  // valider) ne démarre qu'à partir de ce clic — jamais avant.
+  if (offset === 0) await activateHierarchy(supabase, orgId);
 
   const { rows, migrationMissing } = await loadCompanies(supabase, orgId);
   if (migrationMissing || rows === null) {

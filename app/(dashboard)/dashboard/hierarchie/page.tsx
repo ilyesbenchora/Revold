@@ -9,6 +9,7 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { HierarchyConsole } from "@/components/hierarchy-console";
 import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { isHierarchyActivated } from "@/lib/actions/engine";
 import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
 import { FeatureTour } from "@/components/feature-tour";
 
@@ -76,6 +77,9 @@ export default async function HierarchiePage() {
     crmCompaniesCount = count ?? 0;
   } catch { /* non bloquant */ }
   const hubspotToken = await getHubSpotToken(supabase, orgId);
+  // Opt-in : la détection de suggestions ne démarre qu'au premier clic sur
+  // « Lancer le rapprochement » — avant, le bloc à valider reste vide.
+  const hierarchyActivated = await isHierarchyActivated(supabase, orgId);
   const linkedChildrenCount = groups.available
     ? [...groups.rootOf.entries()].filter(([id, root]) => id !== root).length
     : 0;
@@ -158,7 +162,7 @@ export default async function HierarchiePage() {
 
       {/* ── Suggestions à valider + historique (console) ── */}
       <div data-tour="hierarchie-console">
-        <HierarchyConsole hierarchyAvailable={groups.available} wonDealsCount={wonDealsCount} />
+        <HierarchyConsole hierarchyAvailable={groups.available} wonDealsCount={wonDealsCount} activated={hierarchyActivated} />
       </div>
 
       {/* ── Groupes déjà déclarés (synchronisés depuis le CRM) ── */}

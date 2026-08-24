@@ -42,11 +42,14 @@ function payloadStr(p: Record<string, unknown> | null | undefined, key: string):
 export function HierarchyConsole({
   hierarchyAvailable = true,
   wonDealsCount = null,
+  activated = true,
 }: {
   /** false = migration company_hierarchy pas encore appliquée. */
   hierarchyAvailable?: boolean;
   /** Nombre de deals gagnés analysables (pour expliquer un vide). */
   wonDealsCount?: number | null;
+  /** false = premier rapprochement jamais lancé → aucune suggestion générée. */
+  activated?: boolean;
 } = {}) {
   const [pending, setPending] = useState<ActionRow[] | null>(null);
   const [history, setHistory] = useState<ActionRow[]>([]);
@@ -95,6 +98,15 @@ export function HierarchyConsole({
     }
   }
   useEffect(() => { void load(); }, []);
+
+  // Le runner « Lancer le rapprochement » notifie la fin de son passage :
+  // l'activation vient d'avoir lieu → recharge la file (premières suggestions).
+  useEffect(() => {
+    const onSynced = () => void load();
+    window.addEventListener("revold:hierarchy-synced", onSynced);
+    return () => window.removeEventListener("revold:hierarchy-synced", onSynced);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function refresh() {
     if (refreshing || busyId) return;
@@ -200,14 +212,16 @@ export function HierarchyConsole({
                 </button>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              disabled={refreshing || pending === null || busyId !== null || bulkBusy !== null}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50"
-            >
-              {refreshing ? "Analyse en cours…" : "↻ Relancer la détection"}
-            </button>
+            {activated && (
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={refreshing || pending === null || busyId !== null || bulkBusy !== null}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50"
+              >
+                {refreshing ? "Analyse en cours…" : "↻ Relancer la détection"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -217,7 +231,16 @@ export function HierarchyConsole({
           <p className="text-sm text-slate-400">Analyse des correspondances deal↔facture…</p>
         ) : pending.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-            {!hierarchyAvailable ? (
+            {!activated ? (
+              <>
+                <p className="font-medium text-slate-700">Ce bloc se remplira après ton premier rapprochement.</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  Rien ne se lance sans toi : clique <strong>« ⚡ Lancer le rapprochement »</strong> ci-dessus —
+                  il importe d&apos;abord les hiérarchies déjà posées dans HubSpot, puis la détection Revold
+                  (facture croisée, SIREN/SIRET, domaine, nom) propose ici ses suggestions à valider.
+                </p>
+              </>
+            ) : !hierarchyAvailable ? (
               <>
                 <p className="font-medium text-slate-700">La hiérarchie n&apos;est pas encore active.</p>
                 <p className="mt-1 text-xs leading-relaxed">

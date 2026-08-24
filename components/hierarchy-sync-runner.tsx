@@ -56,8 +56,11 @@ export function HierarchySyncRunner({
         offset = Number(d.nextOffset) || offset + 1000;
       }
       setResult({ parentsFound, linked, scanned });
-      // Tuiles + bloc « Groupes déclarés » rechargés avec les nouvelles données.
+      // Tuiles + bloc « Groupes déclarés » rechargés avec les nouvelles données,
+      // et la console de validation relance sa détection (l'opt-in vient d'être
+      // posé au premier passage — les premières suggestions arrivent ici).
       router.refresh();
+      window.dispatchEvent(new Event("revold:hierarchy-synced"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
