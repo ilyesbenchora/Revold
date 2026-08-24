@@ -158,10 +158,12 @@ export default async function HierarchiePage() {
       </CollapsibleBlock>
 
       <p className="text-[11px] text-slate-400">
-        Deux signaux, sur toute la base : correspondance exacte de montant entre un deal gagné d&apos;une entité et
-        une facture d&apos;une autre (sens sûr : le facturier est parent), et domaine web partagé entre fiches CRM
-        (sens proposé, inversable) — Revold ne déduit jamais un groupe d&apos;après la ressemblance des noms.
-        Valider ici ou dans Suivi → Actions est strictement équivalent (même file, même historique).
+        Trois signaux, sur toute la base : correspondance exacte de montant entre un deal gagné d&apos;une entité et
+        une facture d&apos;une autre (sens sûr : le facturier est parent), domaine web partagé entre fiches CRM
+        (sens proposé, inversable), et registre officiel — même SIREN avec des SIRET d&apos;établissements distincts
+        (siège parent, agence enfant, via l&apos;enrichissement Sirene, sans facturation nécessaire) — Revold ne
+        déduit jamais un groupe d&apos;après la ressemblance des noms. Valider ici ou dans Suivi → Actions est
+        strictement équivalent (même file, même historique).
       </p>
     </section>
   );

@@ -50,9 +50,11 @@ export type ActionPayload = {
   parentCompanyName?: string;
   childCompanyName?: string;
   /** Signal qui a révélé la paire : correspondance de montant deal↔facture
-   *  (sens sûr) ou domaine web partagé (sens proposé, inversable). */
-  groupSignal?: "billing_match" | "shared_domain";
+   *  (sens sûr), domaine web partagé (sens proposé, inversable), ou même
+   *  SIREN avec SIRETs distincts (siège parent / établissement enfant). */
+  groupSignal?: "billing_match" | "shared_domain" | "same_siren";
   sharedDomain?: string;
+  sharedSiren?: string;
   /** Hygiène des projections : étape à mapper « gagnée » / pipeline à exclure du prévisionnel. */
   stageName?: string;
   pipelineName?: string;
@@ -1029,7 +1031,7 @@ export async function detectUndeclaredGroups(
       .limit(6000),
     supabase
       .from("companies")
-      .select("id, name, hubspot_id, domain")
+      .select("id, name, hubspot_id, domain, siren, siret, duplicate_of_siren, candidate_siret")
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
       .limit(10000),
@@ -1042,9 +1044,26 @@ export async function detectUndeclaredGroups(
 
   // Seules les entreprises présentes dans le CRM (hubspot_id) peuvent recevoir
   // une association de hiérarchie — on ne recommande que des paires écrivables.
-  const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null }>();
-  for (const c of (compRes.data ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null; domain: string | null }>) {
-    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id, domain: c.domain });
+  type CompRow = {
+    id: string; name: string | null; hubspot_id: string | null; domain: string | null;
+    siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null;
+  };
+  // Colonnes d'enrichissement absentes (migration non appliquée) → repli sur
+  // les colonnes de base : les passes facture/domaine restent fonctionnelles.
+  let compRows = (compRes.data ?? null) as CompRow[] | null;
+  if (compRes.error) {
+    const retry = await supabase
+      .from("companies")
+      .select("id, name, hubspot_id, domain")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .limit(10000);
+    compRows = ((retry.data ?? []) as Array<Omit<CompRow, "siren" | "siret" | "duplicate_of_siren" | "candidate_siret">>)
+      .map((c) => ({ ...c, siren: null, siret: null, duplicate_of_siren: null, candidate_siret: null }));
+  }
+  const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null; siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null }>();
+  for (const c of (compRows ?? []) as CompRow[]) {
+    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id, domain: c.domain, siren: c.siren, siret: c.siret, duplicate_of_siren: c.duplicate_of_siren, candidate_siret: c.candidate_siret });
   }
   if (comp.size < 2) return [];
 
@@ -1193,6 +1212,50 @@ export async function detectUndeclaredGroups(
       if (out.length - domainStart >= 8) break;
     }
     if (out.length - domainStart >= 8) break;
+  }
+
+  // ── Passe 3 : MÊME SIREN, SIRETs DISTINCTS (registre officiel, toute la
+  // base, aucune facturation nécessaire). Le SIREN identifie la société,
+  // le SIRET l'établissement : deux fiches CRM sur la même société avec des
+  // SIRETs différents = siège + établissement (agence) — hiérarchie officielle.
+  // La fiche canonique (qui porte le SIREN, généralement le siège) est parent ;
+  // même SIRET ou SIRET inconnu → probable vrai doublon : la FUSION est le bon
+  // geste, pas la hiérarchie — on ne propose rien.
+  const canonicalBySiren = new Map<string, string>();
+  for (const [cid, c] of comp) {
+    if (c.siren) canonicalBySiren.set(c.siren, cid);
+  }
+  const sirenStart = out.length;
+  for (const [cid, c] of comp) {
+    if (!c.duplicate_of_siren) continue;
+    const parentId = canonicalBySiren.get(c.duplicate_of_siren);
+    if (!parentId || parentId === cid) continue;
+    const parentC = comp.get(parentId)!;
+    // Établissements DISTINCTS prouvés : les deux SIRET connus et différents.
+    const childSiret = c.candidate_siret;
+    if (!childSiret || !parentC.siret || childSiret === parentC.siret) continue;
+    if (rootOf(cid) === rootOf(parentId)) continue; // déjà dans le même groupe
+    const pairKey = [parentId, cid].sort().join(":");
+    if (seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
+    const parentName = parentC.name ?? "siège";
+    const childName = c.name ?? "établissement";
+    out.push({
+      dedupe_key: `declare_group:${pairKey}`,
+      type: "hubspot_company_associate",
+      title: `Déclarer la hiérarchie : « ${parentName} » (siège) parent de « ${childName} » (établissement)`,
+      description: `Ces deux fiches désignent la MÊME société au registre (SIREN ${c.duplicate_of_siren}) mais deux ÉTABLISSEMENTS différents (SIRET ${parentC.siret} vs ${childSiret}) — typiquement le siège et une agence. Signal 100 % registre officiel (Sirene), détecté sur toute la base, sans facturation nécessaire et jamais d'après le nom. Valider écrit l'association parent/enfant dans HubSpot (« ${parentName} » parente) ; si les deux fiches décrivent en réalité le même établissement, c'est une fusion de doublons qu'il faut, pas une hiérarchie — refuse alors.`,
+      source: "detector:declare_group",
+      payload: {
+        parentHubspotId: parentC.hubspot_id,
+        childHubspotId: c.hubspot_id,
+        parentCompanyName: parentName,
+        childCompanyName: childName,
+        groupSignal: "same_siren",
+        sharedSiren: c.duplicate_of_siren,
+      },
+    });
+    if (out.length - sirenStart >= 8) break;
   }
   return out;
 }

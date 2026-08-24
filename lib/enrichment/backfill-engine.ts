@@ -277,6 +277,11 @@ export async function runEnrichmentBatch(
       const fallback: Record<string, unknown> = { ...checked };
       if (isDuplicate) {
         fallback.duplicate_of_siren = found.siren;
+        // SIRET de l'ÉTABLISSEMENT matché conservé (candidate_siret) : il
+        // distingue le vrai doublon (même établissement → fusion) de deux
+        // établissements distincts de la même société (agences → hiérarchie
+        // siège/établissement, page Hiérarchie comptes).
+        if (found.siret) fallback.candidate_siret = found.siret;
         // Les faits n'ont pas de contrainte : la fiche doublon en profite.
         fallback.enriched_at = new Date().toISOString();
         if (found.facts.employeeRange) {
