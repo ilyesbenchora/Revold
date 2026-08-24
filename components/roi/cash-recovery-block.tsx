@@ -81,7 +81,7 @@ export function CashRecoveryBlock() {
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">💶 Relances & cash récupéré</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Relances & cash récupéré</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
             Relance tes impayés depuis Revold : chaque facture relancée puis encaissée alimente le compteur —
             l&apos;impact de Revold en euros, prouvable ligne à ligne.
@@ -119,7 +119,7 @@ export function CashRecoveryBlock() {
         {overdue === null ? (
           <p className="text-xs text-slate-400">Chargement des impayés…</p>
         ) : overdue.length === 0 ? (
-          <p className="text-xs text-slate-500">Aucune facture en retard — rien à relancer. 🎉</p>
+          <p className="text-xs text-slate-500">Aucune facture en retard — rien à relancer.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-100">
             <table className="w-full text-left text-xs">
