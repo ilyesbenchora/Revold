@@ -33,6 +33,7 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
+import { PageSections } from "@/components/data-tables/page-sections";
 import { getPageCustomization, hiddenBlockList, type HiddenBlockMeta } from "@/lib/kpi/page-tiles";
 
 export default async function PaiementFacturationOverviewPage({
@@ -689,6 +690,11 @@ export default async function PaiementFacturationOverviewPage({
         defaultOpen={selectedKeys.length === 0}
         hint="Une option à la fois : un outil affiche ses blocs ; sélectionner deux outils dans les Paramètres affiche leurs vues croisées."
       />
+
+      {/* Sections de page (façon Notion) : bouton flottant « ＋ » discret pour
+          ajouter un en-tête de section à l'endroit du scroll ; titres
+          renommables/supprimables en mode « Personnaliser les KPIs ». */}
+      <PageSections pageKey="audit_paiement_facturation" />
     </section>
   );
 }
