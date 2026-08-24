@@ -138,7 +138,7 @@ export default async function HierarchiePage() {
 
       {/* ── Compteurs à zéro : le dire EXPLICITEMENT (pas un dysfonctionnement,
              la base ne contient simplement pas encore de hiérarchie). ── */}
-      {groups.available && declared.length === 0 && (pendingCount ?? 0) === 0 && (
+      {!hierarchyActivated && groups.available && declared.length === 0 && (pendingCount ?? 0) === 0 && (
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm text-slate-600">
           <p className="font-medium text-slate-800">Les compteurs sont à zéro — c&apos;est normal au premier passage.</p>
           <p className="mt-0.5 text-xs leading-relaxed">
@@ -152,13 +152,16 @@ export default async function HierarchiePage() {
         </div>
       )}
 
-      {/* ── Synchronisation à la demande des hiérarchies HubSpot (barre de
-             complétion, bilan honnête — zéro association trouvée = dit tel quel). ── */}
-      <HierarchySyncRunner
-        total={crmCompaniesCount}
-        linkedChildren={linkedChildrenCount}
-        hubspotConnected={Boolean(hubspotToken)}
-      />
+      {/* ── Lancement initial (onboarding) : une fois le rapprochement lancé une
+             première fois (hiérarchie activée), le bloc disparaît — la relance
+             se fait via « Relancer la détection » de la table ci-dessous. ── */}
+      {!hierarchyActivated && (
+        <HierarchySyncRunner
+          total={crmCompaniesCount}
+          linkedChildren={linkedChildrenCount}
+          hubspotConnected={Boolean(hubspotToken)}
+        />
+      )}
 
       {/* ── Suggestions à valider + historique (console) ── */}
       <div data-tour="hierarchie-console">
