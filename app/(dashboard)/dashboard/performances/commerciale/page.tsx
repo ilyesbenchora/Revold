@@ -12,6 +12,7 @@ import { PipelineManagementCarousel } from "@/components/pipeline-management-car
 import { PipelineConversionBlock } from "@/components/pipeline-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { PageSections } from "@/components/data-tables/page-sections";
 import { type PipelineAnalytics } from "@/lib/integrations/hubspot-pipelines";
 import {
   buildPipelineConversion,
@@ -311,6 +312,8 @@ export default async function PerformanceCommercialePage() {
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" />
 
       <CreateAlertModal hideTrigger />
+
+      <PageSections pageKey="perf_ventes" />
     </section>
   );
 }

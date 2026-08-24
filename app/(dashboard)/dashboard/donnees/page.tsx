@@ -13,6 +13,7 @@ import { ToolAuditCard } from "@/components/tool-audit-card";
 import { RecommendationCard } from "@/components/recommendation-card";
 import { loadToolAudits, buildOnboardingRecommendations } from "@/lib/audit/onboarding-audit";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { PageSections } from "@/components/data-tables/page-sections";
 import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization, hiddenBlockList } from "@/lib/kpi/page-tiles";
@@ -458,6 +459,7 @@ export default async function DonneesPage() {
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_donnees" />
 
+      <PageSections pageKey="audit_donnees" />
     </div>
   );
 }

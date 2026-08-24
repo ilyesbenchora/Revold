@@ -10,6 +10,7 @@ import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { ServiceClientTabs } from "@/components/service-client-tabs";
 import { fetchServiceClientData, fmt } from "@/lib/audit/service-client-data";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { PageSections } from "@/components/data-tables/page-sections";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { SimpleBarsChart } from "@/components/charts/treso-charts";
@@ -268,6 +269,8 @@ export default async function ServiceClientOverviewPage() {
       <PageDataTables pageKey="audit_service_client" />
 
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_service_client" />
+
+      <PageSections pageKey="audit_service_client" />
     </section>
   );
 }

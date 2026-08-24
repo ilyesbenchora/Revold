@@ -10,6 +10,7 @@ import { MarketingTabs } from "@/components/marketing-tabs";
 import { LifecycleConversionBlock } from "@/components/lifecycle-conversion-block";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
+import { PageSections } from "@/components/data-tables/page-sections";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { HBarChart } from "@/components/charts/hbar-chart";
@@ -250,6 +251,8 @@ export default async function PerformanceMarketingPage() {
       <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" />
 
       <CreateAlertModal hideTrigger />
+
+      <PageSections pageKey="perf_marketing" />
     </section>
   );
 }
