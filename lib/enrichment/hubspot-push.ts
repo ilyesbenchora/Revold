@@ -117,10 +117,74 @@ export function matchEnumOption(options: Array<{ label: string; value: string }>
 }
 
 /**
+ * Bornes d'une TRANCHE exprimée en texte — « 10-19 », « 10 à 19 salariés »,
+ * « 20 à 49 », « < 10 », « moins de 50 », « 250+ », « plus de 500 »,
+ * « 1M€ - 10M€ », « 1 000 000 - 5 000 000 », « 500k-1M »… null si le texte
+ * ne décrit pas une plage numérique. Multiplicateurs k / M reconnus.
+ */
+export function parseRangeSpec(raw: string): { min: number; max: number } | null {
+  const s = normalizeOption(raw).replace(/salaries?|employes?|effectifs?|€|eur(os)?/g, " ");
+  const num = (m: string, mult: string | undefined): number => {
+    const n = Number(m.replace(/[\s,]/g, "").replace(",", "."));
+    return n * (mult === "k" ? 1_000 : mult === "m" ? 1_000_000 : 1);
+  };
+  const N = "([\\d][\\d\\s,.]*)\\s*([km])?";
+  // « a - b » · « a à b » · « de a à b » · « entre a et b »
+  let m = new RegExp(`(?:de\\s+|entre\\s+)?${N}\\s*(?:-|–|a|à|et)\\s*${N}`).exec(s);
+  if (m) {
+    const min = num(m[1], m[2]);
+    const max = num(m[3], m[4]);
+    if (Number.isFinite(min) && Number.isFinite(max) && max >= min) return { min, max };
+  }
+  // « < b » · « moins de b » · « jusqu'a b » · « b et moins »
+  m = new RegExp(`(?:<|moins de|jusqu ?a|max(?:imum)?)\\s*${N}`).exec(s) ?? new RegExp(`^${N}\\s*(?:et moins|ou moins)`).exec(s);
+  if (m) {
+    const max = num(m[1], m[2]);
+    if (Number.isFinite(max)) return { min: 0, max };
+  }
+  // « > a » · « plus de a » · « a+ » · « a et plus »
+  m = new RegExp(`(?:>|plus de|min(?:imum)?)\\s*${N}`).exec(s) ?? new RegExp(`^${N}\\s*(?:\\+|et plus|ou plus)`).exec(s);
+  if (m) {
+    const min = num(m[1], m[2]);
+    if (Number.isFinite(min)) return { min, max: Number.POSITIVE_INFINITY };
+  }
+  return null;
+}
+
+/** Valeur numérique d'une donnée enrichie : nombre brut, ou milieu de tranche. */
+function numericOf(raw: string): number | null {
+  const direct = Number(raw.replace(/[\s,]/g, ""));
+  if (Number.isFinite(direct)) return direct;
+  const range = parseRangeSpec(raw);
+  if (!range) return null;
+  return Number.isFinite(range.max) ? (range.min + range.max) / 2 : range.min;
+}
+
+/**
+ * TRANCHE d'un menu déroulant contenant la valeur numérique — pour les
+ * propriétés custom en tranches (effectif « 10-19 », CA « 1M€-10M€ »…) :
+ * l'enrichissement met la valeur officielle dans la bonne tranche. Retenue la
+ * plus SERRÉE si plusieurs contiennent la valeur ; null si aucune ne parse.
+ */
+export function matchRangeOption(options: Array<{ label: string; value: string }>, n: number): string | null {
+  let best: { value: string; width: number } | null = null;
+  for (const o of options) {
+    const r = parseRangeSpec(o.label) ?? parseRangeSpec(o.value);
+    if (!r || n < r.min || n > r.max) continue;
+    const width = (Number.isFinite(r.max) ? r.max : Number.MAX_SAFE_INTEGER) - r.min;
+    if (!best || width < best.width) best = { value: o.value, width };
+  }
+  return best?.value ?? null;
+}
+
+/**
  * Aligne les valeurs sortantes sur les options des propriétés de type liste
  * déroulante (enumeration). Valeur sans option équivalente → propriété retirée
  * du PATCH (on n'écrit jamais une valeur qu'une liste ne connaît pas — sinon
  * HubSpot rejette TOUTES les propriétés de la fiche d'un coup).
+ * Deux étages : correspondance de libellé (matchEnumOption), puis
+ * correspondance de TRANCHE (matchRangeOption) pour les valeurs numériques —
+ * un effectif ou un CA officiel tombe dans la bonne tranche d'un menu custom.
  * Métadonnées indisponibles → valeurs inchangées (comportement historique).
  */
 async function alignEnumProperties(token: string, properties: Record<string, string>): Promise<Record<string, string>> {
@@ -136,7 +200,15 @@ async function alignEnumProperties(token: string, properties: Record<string, str
     }
     if (m.type === "enumeration" && m.options.length > 0) {
       const matched = matchEnumOption(m.options, v);
-      if (matched != null) out[k] = matched;
+      if (matched != null) {
+        out[k] = matched;
+      } else {
+        const n = numericOf(v);
+        const byRange = n != null ? matchRangeOption(m.options, n) : null;
+        if (byRange != null) out[k] = byRange;
+        // Aucune option compatible → propriété retirée (honnête : les options
+        // du portail n'ont rien à voir avec les valeurs Sirene/INPI).
+      }
     } else {
       out[k] = v;
     }

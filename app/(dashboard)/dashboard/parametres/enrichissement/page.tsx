@@ -11,6 +11,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { checkHubSpotProperty } from "@/lib/integrations/hubspot-properties";
 import {
   ENRICHMENT_HUBSPOT_PROPERTIES,
+  ENRICHMENT_CRM_TARGETS,
   getEnrichmentSettings,
   registryForCountry,
 } from "@/lib/enrichment/settings";
@@ -44,7 +45,10 @@ export default async function ParametresEnrichissementPage() {
   // ── Mapping des propriétés CRM de l'enrichissement (mêmes données que le
   // bloc Mapping des identifiants : identifier_field_mapping, provider hubspot,
   // restreint aux champs d'enrichissement). ──
-  const enrichCanonicals = ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => p.canonical);
+  const enrichCanonicals = [
+    ...ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => p.canonical),
+    ...ENRICHMENT_CRM_TARGETS.map((p) => p.canonical),
+  ];
   let savedMappings: Array<{ provider: string; canonical_field: string; provider_field: string; object_type?: string | null }> = [];
   try {
     const { data } = await supabase
@@ -62,7 +66,7 @@ export default async function ParametresEnrichissementPage() {
   const hubspotPropertyStatus: HubSpotPropertyStatus = {};
   if (hubspotToken) {
     await Promise.all(
-      ENRICHMENT_HUBSPOT_PROPERTIES.map(async (p) => {
+      [...ENRICHMENT_HUBSPOT_PROPERTIES, ...ENRICHMENT_CRM_TARGETS].map(async (p) => {
         const saved = savedMappings.find((m) => m.canonical_field === p.canonical);
         const name = saved?.provider_field?.trim() || p.fallback;
         try {
@@ -91,20 +95,18 @@ export default async function ParametresEnrichissementPage() {
       hint: "Propriété custom HubSpot sur les fiches Entreprise (à créer dans HubSpot si inexistante)",
       native: false,
     })),
-    {
-      canonicalField: "official_employee_range",
-      label: "Nombre d'employés",
-      defaultProviderField: "numberofemployees",
-      hint: "Propriété native HubSpot — remplie par l'enrichissement (champs vides uniquement)",
-      native: true,
-    },
-    {
-      canonicalField: "official_revenue",
-      label: "Chiffre d'affaires",
-      defaultProviderField: "annualrevenue",
-      hint: "Propriété native HubSpot — remplie par l'enrichissement (champs vides uniquement)",
-      native: true,
-    },
+    // Cibles CRM remappables de l'effectif et du CA : défaut = propriété
+    // NATIVE HubSpot, remplaçable par une custom — y compris un menu déroulant
+    // de tranches (la valeur officielle tombe alors dans la bonne tranche).
+    // L'enrichissement écrit CETTE cible ET la propriété dédiée ci-dessus.
+    ...ENRICHMENT_CRM_TARGETS.map((p) => ({
+      canonicalField: p.canonical,
+      label: p.label,
+      defaultProviderField: p.fallback,
+      hint:
+        "Défaut : propriété native HubSpot — remplaçable par une propriété custom, y compris un menu déroulant de tranches (la valeur officielle est mise dans la bonne tranche). Champs vides uniquement.",
+      native: false,
+    })),
   ];
   const mappingRows = [
     { provider: "hubspot", label: "HubSpot", icon: "🟠", domain: "hubspot.com", identifiers: enrichmentIdentifiers },
@@ -152,7 +154,16 @@ export default async function ParametresEnrichissementPage() {
           fieldVerified={
             hubspotToken
               ? Object.fromEntries(
-                  ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => [p.field, hubspotPropertyStatus[p.canonical]?.exists === true]),
+                  ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => {
+                    // Effectif / CA : deux cibles possibles (propriété CRM
+                    // remappable OU propriété dédiée) — cochable si l'UNE des
+                    // deux est vérifiée dans le CRM.
+                    const alt = ENRICHMENT_CRM_TARGETS.find((t) => t.field === p.field);
+                    const ok =
+                      hubspotPropertyStatus[p.canonical]?.exists === true ||
+                      (alt ? hubspotPropertyStatus[alt.canonical]?.exists === true : false);
+                    return [p.field, ok];
+                  }),
                 )
               : null
           }

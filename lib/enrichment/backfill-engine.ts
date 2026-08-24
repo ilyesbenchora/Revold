@@ -324,8 +324,21 @@ export async function runEnrichmentBatch(
         if (st.fields.vat) properties[propFor("vat_number", "vat_number")] = vatFromSiren(found.siren);
         if (st.fields.siret && found.siret) properties[propFor("siret", "siret")] = found.siret;
       }
-      if (st.fields.revenue && typeof found.facts.revenue === "number") properties.annualrevenue = String(Math.round(found.facts.revenue));
-      if (st.fields.employees && typeof found.facts.employeeMidpoint === "number") properties.numberofemployees = String(found.facts.employeeMidpoint);
+      // CA / effectif : DEUX cibles — la propriété CRM remappable (défaut
+      // native) ET la propriété dédiée (ca_officiel / effectif_officiel en
+      // tranche). Menu déroulant → valeur alignée sur les options ou la bonne
+      // tranche (alignEnumProperties) ; propriété absente du portail → retirée.
+      if (st.fields.revenue && typeof found.facts.revenue === "number") {
+        const v = String(Math.round(found.facts.revenue));
+        properties[propFor("hs_annual_revenue", "annualrevenue")] = v;
+        properties[propFor(HS_PROP.revenue.canonical, HS_PROP.revenue.fallback)] = v;
+      }
+      if (st.fields.employees) {
+        if (typeof found.facts.employeeMidpoint === "number") properties[propFor("hs_number_of_employees", "numberofemployees")] = String(found.facts.employeeMidpoint);
+        if (found.facts.employeeRange) properties[propFor(HS_PROP.employees.canonical, HS_PROP.employees.fallback)] = found.facts.employeeRange;
+      }
+      const identityNaf = st.fields.industry ? nafSectionLabel(found.facts.nafCode) : null;
+      if (identityNaf) properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = identityNaf;
       const legalLabel = st.fields.legalForm ? legalFormLabel(found.facts.legalFormCode) : null;
       if (legalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = legalLabel;
       if (st.fields.shareCapital && typeof found.facts.shareCapital === "number") {
@@ -426,8 +439,18 @@ export async function runEnrichmentBatch(
           if (st.fields.siret && c.siret) properties[propFor("siret", "siret")] = c.siret;
           if (st.fields.vat) properties[propFor("vat_number", "vat_number")] = c.vat_number ?? vatFromSiren(c.siren);
         }
-        if (st.fields.revenue && typeof facts?.revenue === "number") properties.annualrevenue = String(Math.round(facts.revenue));
-        if (st.fields.employees && typeof facts?.employeeMidpoint === "number") properties.numberofemployees = String(facts.employeeMidpoint);
+        // Mêmes DEUX cibles qu'à la découverte d'identité (remappable + dédiée).
+        if (st.fields.revenue && typeof facts?.revenue === "number") {
+          const v = String(Math.round(facts.revenue));
+          properties[propFor("hs_annual_revenue", "annualrevenue")] = v;
+          properties[propFor(HS_PROP.revenue.canonical, HS_PROP.revenue.fallback)] = v;
+        }
+        if (st.fields.employees) {
+          if (typeof facts?.employeeMidpoint === "number") properties[propFor("hs_number_of_employees", "numberofemployees")] = String(facts.employeeMidpoint);
+          if (facts?.employeeRange) properties[propFor(HS_PROP.employees.canonical, HS_PROP.employees.fallback)] = facts.employeeRange;
+        }
+        const factsNaf = st.fields.industry ? nafSectionLabel(facts?.nafCode ?? null) : null;
+        if (factsNaf) properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = factsNaf;
         if (factsLegalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = factsLegalLabel;
         if (st.fields.shareCapital && typeof facts?.shareCapital === "number") {
           properties[propFor(HS_PROP.shareCapital.canonical, HS_PROP.shareCapital.fallback)] = String(facts.shareCapital);

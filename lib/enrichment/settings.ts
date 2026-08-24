@@ -109,6 +109,24 @@ export const ENRICHMENT_HUBSPOT_PROPERTIES: {
   },
 ];
 
+/**
+ * Cibles CRM SUPPLÉMENTAIRES et REMAPPABLES de l'effectif et du CA : par
+ * défaut les propriétés natives HubSpot (numberofemployees / annualrevenue),
+ * remplaçables par une propriété custom — y compris un menu déroulant de
+ * tranches (l'alignement met alors la valeur officielle dans la bonne
+ * tranche). L'enrichissement écrit les DEUX cibles : celle-ci ET la propriété
+ * dédiée ci-dessus (effectif_officiel / ca_officiel).
+ */
+export const ENRICHMENT_CRM_TARGETS: {
+  field: keyof EnrichmentFields;
+  canonical: string;
+  fallback: string;
+  label: string;
+}[] = [
+  { field: "employees", canonical: "hs_number_of_employees", fallback: "numberofemployees", label: "Nombre d'employés (propriété CRM)" },
+  { field: "revenue", canonical: "hs_annual_revenue", fallback: "annualrevenue", label: "Chiffre d'affaires (propriété CRM)" },
+];
+
 /** Charge les réglages de l'org — résilient (table/colonne absente → défauts). */
 export async function getEnrichmentSettings(sb: SupabaseClient, orgId: string): Promise<EnrichmentSettings> {
   try {
