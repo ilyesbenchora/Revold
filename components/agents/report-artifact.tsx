@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { fetchCohortOptions, fetchCohortValues, type CohortOption, type ActiveCohort } from "@/lib/reports/cohort-filter-client";
 import { AgentReport } from "./agent-report";
 import { ChartPicker } from "./chart-picker";
 import { ChartWiringPanel } from "./chart-wiring-panel";
@@ -55,6 +56,13 @@ export function ReportArtifact({
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ── Cohortes (Paramètres → Cohortes) : filtre au même titre que la période,
+  // recalcul déterministe à la source — uniquement quand le rapport est câblé.
+  const [cohortOptions, setCohortOptions] = useState<CohortOption[]>([]);
+  const [cohortKey, setCohortKey] = useState<string | null>(null);
+  const [cohortValue, setCohortValue] = useState<string | null>(null);
+  const [cohortVals, setCohortVals] = useState<string[]>([]);
+  const activeCohort: ActiveCohort | null = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
   // Alerte de suivi créée depuis le rapport (tracking interactif).
   const [showAlert, setShowAlert] = useState(false);
   // Drill-down : clic sur un chiffre → détail des enregistrements du bucket
@@ -65,6 +73,15 @@ export function ReportArtifact({
   const [toolsLoaded, setToolsLoaded] = useState(false);
 
   const hasReport = !!(curReport || curChart);
+
+  // Rapport DÉTERMINISTE (câblé) : période ET cohorte recalculées à la source.
+  const detBlocks = curReport?.blocks.filter((b) => b.type === "kpi" || (Array.isArray(b.data) && b.data?.length)) ?? [];
+  const reportDeterministic = detBlocks.length > 0 && detBlocks.every((b) => !!b.query);
+  const deterministic = !!curChart?.query || reportDeterministic;
+
+  useEffect(() => {
+    if (deterministic) void fetchCohortOptions().then(setCohortOptions);
+  }, [deterministic]);
 
   function currentData(): { name: string; value: number }[] {
     if (curChart) return curChart.data;
@@ -91,57 +108,78 @@ export function ReportArtifact({
     setToolsLoaded(true);
   }
 
+  /**
+   * Recalcul DÉTERMINISTE (période + cohorte) : ré-exécute chaque requête
+   * câblée à la source avec les bornes de dates ET la cohorte active.
+   * Renvoie true si le rapport a été recalculé par ce chemin.
+   */
+  async function recomputeDeterministic(p: AppliedPeriod | null, co: ActiveCohort | null): Promise<boolean> {
+    const all = !p || p.preset === "all";
+    if (curChart?.query) {
+      const res = await fetch("/api/reports/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: { ...curChart.query, cohort: co },
+          all,
+          date_from: p?.from,
+          date_to: p?.to,
+          sources,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec du recalcul");
+      setCurChart({ ...curChart, data: data.data });
+      setSaved(false);
+      return true;
+    }
+    if (curReport && curReport.blocks.some((b) => b.query)) {
+      const updated = await Promise.all(
+        curReport.blocks.map(async (b) => {
+          if (!b.query) return b;
+          const res = await fetch("/api/reports/recompute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: { ...b.query, cohort: co }, all, date_from: p?.from, date_to: p?.to, sources }),
+          });
+          if (!res.ok) return b; // on garde l'ancien bloc si échec
+          const d = await res.json();
+          const pts = (d.data ?? []) as { name: string; value: number }[];
+          if (b.type === "kpi") {
+            const total = pts.reduce((s, x) => s + (x.value || 0), 0);
+            return { ...b, value: Math.round(total).toLocaleString("fr-FR") };
+          }
+          return { ...b, data: pts };
+        }),
+      );
+      setCurReport({ ...curReport, blocks: updated });
+      setSaved(false);
+      return true;
+    }
+    return false;
+  }
+
+  /** Changement de cohorte : recalcul immédiat avec la période courante. */
+  async function applyCohort(co: ActiveCohort | null) {
+    setLoading(true);
+    setError(null);
+    try {
+      await recomputeDeterministic(period, co);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur de recalcul");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function applyPeriod(p: AppliedPeriod) {
     setLoading(true);
     setError(null);
     try {
-      // ── Chemin DÉTERMINISTE (100 % fiable) : le graphique porte sa requête.
-      // On ré-exécute la même agrégation avec les nouvelles bornes de dates,
-      // sans IA → les chiffres sont exacts et cohérents.
-      if (curChart?.query) {
-        const res = await fetch("/api/reports/recompute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: curChart.query,
-            all: p.preset === "all",
-            date_from: p.from,
-            date_to: p.to,
-            sources,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Échec du recalcul");
-        setCurChart({ ...curChart, data: data.data });
+      // ── Chemin DÉTERMINISTE (100 % fiable) : les requêtes câblées sont
+      // ré-exécutées à la source (aucune IA), cohorte active conservée.
+      if (await recomputeDeterministic(p, activeCohort)) {
         setPeriod(p);
-        setSaved(false);
-        return;
-      }
-
-      // ── Rapport DÉTERMINISTE : chaque bloc porte sa requête → on recalcule
-      // chaque bloc à la source (aucune IA).
-      if (curReport && curReport.blocks.some((b) => b.query)) {
-        const updated = await Promise.all(
-          curReport.blocks.map(async (b) => {
-            if (!b.query) return b;
-            const res = await fetch("/api/reports/recompute", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ query: b.query, all: p.preset === "all", date_from: p.from, date_to: p.to, sources }),
-            });
-            if (!res.ok) return b; // on garde l'ancien bloc si échec
-            const d = await res.json();
-            const pts = (d.data ?? []) as { name: string; value: number }[];
-            if (b.type === "kpi") {
-              const total = pts.reduce((s, x) => s + (x.value || 0), 0);
-              return { ...b, value: Math.round(total).toLocaleString("fr-FR") };
-            }
-            return { ...b, data: pts };
-          }),
-        );
-        setCurReport({ ...curReport, blocks: updated });
-        setPeriod(p);
-        setSaved(false);
         return;
       }
 
@@ -186,7 +224,12 @@ export function ReportArtifact({
   function saveReportOnly() {
     if (!hasReport || saved) return;
     const baseTitle = curReport?.title || curChart?.title || "Projection";
-    const title = period ? `${baseTitle} — ${period.label}` : baseTitle;
+    // Le titre porte les filtres appliqués (période, cohorte) : les données
+    // enregistrées sont celles recalculées avec ces filtres.
+    const cohortSuffix = activeCohort
+      ? ` — ${cohortOptions.find((o) => o.id === activeCohort.key)?.label ?? activeCohort.key} : ${activeCohort.value}`
+      : "";
+    const title = `${period ? `${baseTitle} — ${period.label}` : baseTitle}${cohortSuffix}`;
     addSavedReport({
       agentKey,
       agentLabel,
@@ -211,19 +254,72 @@ export function ReportArtifact({
     <div className="space-y-2">
       <ReportPeriodBar onApply={applyPeriod} loading={loading} activeLabel={period?.label ?? null} applied={period} />
 
-      {(() => {
-        const dataBlocks = curReport?.blocks.filter((b) => b.type === "kpi" || (Array.isArray(b.data) && b.data.length)) ?? [];
-        const reportDeterministic = dataBlocks.length > 0 && dataBlocks.every((b) => !!b.query);
-        const deterministic = !!curChart?.query || reportDeterministic;
-        return deterministic ? (
-          <p className="text-[10px] text-emerald-600">✓ Recalcul exact par période (chiffres recalculés à la source).</p>
-        ) : (
-          <p className="text-[10px] text-amber-600">
-            ⚠ Recalcul de période <strong>approximatif</strong> pour ce rapport (régénéré par l&apos;agent, non garanti
-            100 %). Pour un recalcul exact, demande un graphique à l&apos;agent.
-          </p>
-        );
-      })()}
+      {/* ── Cohorte (Paramètres → Cohortes) : filtre recalculé à la source,
+             au même titre que la période — rapports câblés uniquement. ── */}
+      {deterministic && cohortOptions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-slate-400">Cohorte :</span>
+          <select
+            value={cohortKey ?? ""}
+            disabled={loading}
+            onChange={(e) => {
+              const k = e.target.value || null;
+              setCohortKey(k);
+              setCohortValue(null);
+              setCohortVals([]);
+              if (k) void fetchCohortValues(k).then(setCohortVals);
+              else void applyCohort(null);
+            }}
+            className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-700 outline-none transition focus:border-accent"
+          >
+            <option value="">Toutes</option>
+            {cohortOptions.map((o) => (
+              <option key={o.id} value={o.id}>{o.label}</option>
+            ))}
+          </select>
+          {cohortKey && (
+            <select
+              value={cohortValue ?? ""}
+              disabled={loading}
+              onChange={(e) => {
+                const v = e.target.value || null;
+                setCohortValue(v);
+                void applyCohort(v && cohortKey ? { key: cohortKey, value: v } : null);
+              }}
+              className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-700 outline-none transition focus:border-accent"
+            >
+              <option value="">Choisir une valeur…</option>
+              {cohortVals.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          )}
+          {activeCohort && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setCohortKey(null);
+                setCohortValue(null);
+                setCohortVals([]);
+                void applyCohort(null);
+              }}
+              className="rounded-md px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              ✕ Retirer
+            </button>
+          )}
+        </div>
+      )}
+
+      {deterministic ? (
+        <p className="text-[10px] text-emerald-600">✓ Recalcul exact par période et cohorte (chiffres recalculés à la source).</p>
+      ) : (
+        <p className="text-[10px] text-amber-600">
+          ⚠ Recalcul de période <strong>approximatif</strong> pour ce rapport (régénéré par l&apos;agent, non garanti
+          100 %). Pour un recalcul exact, demande un graphique à l&apos;agent.
+        </p>
+      )}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-600">⚠ {error}</div>}
 

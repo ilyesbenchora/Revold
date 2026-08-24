@@ -159,6 +159,51 @@ export const PAGE_LABELS: Record<string, string> = {
   audit_donnees: "Rapprochement données",
 };
 
+/**
+ * Arborescence COMPLÈTE des pages qui acceptent des blocs ajoutés
+ * (PageDataTables) : pages principales + leurs sous-pages. Sert à
+ * l'affectation d'un rapport enregistré (« Ajouter à une page ») — un rapport
+ * de ventes se range sur Ventes OU une de ses sous-pages, au choix.
+ * N'inscrire ici QUE des page_keys réellement rendues par PageDataTables.
+ */
+export const PAGE_TREE: Array<{ key: string; label: string; children?: Array<{ key: string; label: string }> }> = [
+  { key: "perf_ventes", label: "Ventes" },
+  { key: "perf_marketing", label: "Marketing", children: [{ key: "perf_ads", label: "Publicité" }] },
+  { key: "perf_appels", label: "Appels" },
+  {
+    key: "audit_service_client",
+    label: "Service client",
+    children: [
+      { key: "audit_service_client_renouvellement", label: "Renouvellement" },
+      { key: "audit_service_client_process", label: "Process" },
+      { key: "audit_service_client_cross_sell", label: "Cross-sell / Upsell" },
+    ],
+  },
+  {
+    key: "audit_paiement_facturation",
+    label: "Trésorerie",
+    children: [
+      { key: "audit_paiement_facturation_facturation", label: "Facturation" },
+      { key: "audit_paiement_facturation_paiement", label: "Paiement" },
+      { key: "audit_paiement_facturation_comptabilite", label: "Comptabilité" },
+      { key: "audit_paiement_facturation_clients_fournisseurs", label: "Clients & fournisseurs" },
+      { key: "audit_paiement_facturation_fiscal", label: "Fiscal" },
+      { key: "audit_paiement_facturation_previsionnel", label: "Prévisionnel" },
+    ],
+  },
+  { key: "audit_donnees", label: "Rapprochement données" },
+];
+
+/** Libellé lisible d'une page/sous-page de l'arborescence (repli : PAGE_LABELS puis clé). */
+export function pageTreeLabel(key: string): string {
+  for (const p of PAGE_TREE) {
+    if (p.key === key) return p.label;
+    const child = p.children?.find((c) => c.key === key);
+    if (child) return `${p.label} → ${child.label}`;
+  }
+  return PAGE_LABELS[key] ?? key;
+}
+
 // AUCUNE période / fréquence dans les libellés : la granularité temporelle
 // (jour, semaine, mois…) et la période d'analyse se choisissent aux étapes
 // suivantes (« Fréquence » + « Période » de la table). Les dimensions month_*

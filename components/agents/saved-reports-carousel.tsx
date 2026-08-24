@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ReportArtifact } from "./report-artifact";
 import { RoutineReportCard } from "./routine-report-card";
+import { AssignReportPage } from "./assign-report-page";
 import { stripPeriodFromTitle } from "@/lib/reports/title";
+import { pageTreeLabel } from "@/lib/reports/data-table-presets";
 import { listSavedReports, removeSavedReport, updateSavedReport, REPORTS_UPDATED_EVENT, type SavedReport } from "./saved-reports";
 
 function fmtDate(ts: number): string {
@@ -150,12 +152,26 @@ export function SavedReportsCarousel({ agentKey, title = "Rapports enregistrés"
                     <span>{r.origin === "routine" ? "Généré le" : "Enregistré le"} {fmtDate(r.savedAt)}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => del(r.id)}
-                  className="shrink-0 rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-red-50 hover:text-red-500"
-                >
-                  Supprimer
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* Affectation à une page/sous-page depuis le bloc du bas —
+                      badge une fois le rapport rangé sur sa page. */}
+                  {r.pageKey ? (
+                    <span
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                      title="Les blocs câblés de ce rapport ont été ajoutés à cette page."
+                    >
+                      Sur {pageTreeLabel(r.pageKey)}
+                    </span>
+                  ) : (
+                    <AssignReportPage report={r} onDone={refresh} />
+                  )}
+                  <button
+                    onClick={() => del(r.id)}
+                    className="rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
               <ReportArtifact agentKey={r.agentKey} agentLabel={r.agentLabel} report={r.report} chart={r.chart} />
             </div>
