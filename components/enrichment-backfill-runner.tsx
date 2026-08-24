@@ -341,13 +341,30 @@ export function EnrichmentBackfillRunner({
                   <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
                 </>
               ) : !activated ? (
-                <>
-                  Rien ne tourne sans ton feu vert : coche les données à enrichir dans{" "}
-                  <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
-                    Paramètres → Enrichissement
-                  </Link>{" "}
-                  puis clique « Enrichir mon CRM ».
-                </>
+                activeFieldIds.length > 0 ? (
+                  // Les champs COCHÉS sont nommés : le message dit exactement ce
+                  // que « Enrichir mon CRM » va synchroniser — jamais un feu
+                  // vert à l'aveugle.
+                  <>
+                    Rien ne tourne sans ton feu vert. Au clic sur « Enrichir mon CRM », Revold enrichira :{" "}
+                    <span className="font-medium text-slate-700">
+                      {activeFieldIds.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
+                    </span>{" "}
+                    — modifiable dans{" "}
+                    <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
+                      Paramètres → Enrichissement
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Rien ne tourne sans ton feu vert : coche les données à enrichir dans{" "}
+                    <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
+                      Paramètres → Enrichissement
+                    </Link>{" "}
+                    puis clique « Enrichir mon CRM ».
+                  </>
+                )
               ) : newFields.length > 0 ? (
                 <>
                   <span className="font-medium text-slate-700">
@@ -364,7 +381,10 @@ export function EnrichmentBackfillRunner({
               )}
             </p>
           </div>
-          {status != null && (
+          {/* % et barre de complétion : UNIQUEMENT une fois l'enrichissement
+              lancé — avant le premier « Enrichir mon CRM », un 0 % serait un
+              faux signal d'échec sur un moteur qui n'a jamais tourné. */}
+          {status != null && (activated || inProgress || runningRef.current) && (
             <p className="shrink-0 text-right text-xs text-slate-500">
               <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
@@ -372,12 +392,14 @@ export function EnrichmentBackfillRunner({
           )}
         </div>
 
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
-            style={{ width: `${status == null ? 0 : Math.max(pct, 2)}%` }}
-          />
-        </div>
+        {(activated || inProgress || runningRef.current) && (
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
+              style={{ width: `${status == null ? 0 : Math.max(pct, 2)}%` }}
+            />
+          </div>
+        )}
 
         {/* Le détail chiffré (identités, effectifs, doublons…) vit dans
             l'historique des enrichissements ci-dessous — pas ici. */}
