@@ -64,6 +64,9 @@ export function HierarchyConsole({
   const [bulkBusy, setBulkBusy] = useState<"approve" | "reject" | null>(null);
   const [bulkProgress, setBulkProgress] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  // Identifiants d'entités par hubspot_id (SIREN/SIRET) — colonnes clés du
+  // rapprochement, servies en direct depuis la base.
+  const [idents, setIdents] = useState<Record<string, { siren: string | null; siret: string | null }>>({});
 
   async function load() {
     try {
@@ -74,8 +77,18 @@ export function HierarchyConsole({
       if (!res.ok) throw new Error(d.error || "Chargement impossible");
       const only = (rows: unknown): ActionRow[] =>
         (Array.isArray(rows) ? (rows as ActionRow[]) : []).filter((r) => r.source === "detector:declare_group");
-      setPending(only(d.pending));
+      const nextPending = only(d.pending);
+      setPending(nextPending);
       setHistory(only(d.history));
+      // SIREN/SIRET des deux côtés de chaque paire (1 appel groupé).
+      const hsIds = [...new Set(nextPending.flatMap((r) => [payloadStr(r.payload, "parentHubspotId"), payloadStr(r.payload, "childHubspotId")]).filter((v): v is string => !!v))];
+      if (hsIds.length > 0) {
+        try {
+          const ir = await fetch(`/api/hierarchy/companies?ids=${encodeURIComponent(hsIds.join(","))}`);
+          const idd = await ir.json().catch(() => ({}));
+          if (ir.ok && idd.companies) setIdents(idd.companies);
+        } catch { /* colonnes affichées « — » */ }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
       setPending([]);
@@ -286,7 +299,9 @@ export function HierarchyConsole({
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[var(--accent)]" title="Tout sélectionner" />
                         </th>
                         <th className="px-2.5 py-2 font-semibold">Parent</th>
+                        <th className="px-2.5 py-2 font-semibold">SIREN · SIRET (parent)</th>
                         <th className="px-2.5 py-2 font-semibold">Enfant</th>
+                        <th className="px-2.5 py-2 font-semibold">SIREN · SIRET (enfant)</th>
                         <th className="px-2.5 py-2 font-semibold">Signal</th>
                         <th className="px-2.5 py-2 font-semibold">Sens</th>
                         <th className="px-2.5 py-2 text-right font-semibold">Ligne</th>
@@ -297,6 +312,17 @@ export function HierarchyConsole({
                         const isSwapped = swapped.has(a.id);
                         const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
                         const rawChild = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
+                        const rawParentHs = payloadStr(a.payload, "parentHubspotId");
+                        const rawChildHs = payloadStr(a.payload, "childHubspotId");
+                        const parentIdent = idents[(isSwapped ? rawChildHs : rawParentHs) ?? ""];
+                        const childIdent = idents[(isSwapped ? rawParentHs : rawChildHs) ?? ""];
+                        const identCell = (v?: { siren: string | null; siret: string | null }) => (
+                          <span className="tabular-nums text-slate-600">
+                            {v?.siren ?? "—"}
+                            <span className="text-slate-300"> · </span>
+                            {v?.siret ?? "—"}
+                          </span>
+                        );
                         const badge = signalBadge(a);
                         const busy = busyId === a.id || bulkBusy !== null;
                         return (
@@ -305,7 +331,9 @@ export function HierarchyConsole({
                               <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleOne(a.id)} className="accent-[var(--accent)]" />
                             </td>
                             <td className="px-2.5 py-2 font-medium text-slate-800">{isSwapped ? rawChild : rawParent}</td>
+                            <td className="px-2.5 py-2">{identCell(parentIdent)}</td>
                             <td className="px-2.5 py-2 text-slate-700">{isSwapped ? rawParent : rawChild}</td>
+                            <td className="px-2.5 py-2">{identCell(childIdent)}</td>
                             <td className="px-2.5 py-2">
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>{badge.label}</span>
                             </td>
@@ -386,6 +414,12 @@ export function HierarchyConsole({
             const sharedDomain = payloadStr(a.payload, "sharedDomain");
             const sharedSiren = payloadStr(a.payload, "sharedSiren");
             const sharedName = payloadStr(a.payload, "sharedName");
+            const parentIdent = idents[(isSwapped ? payloadStr(a.payload, "childHubspotId") : payloadStr(a.payload, "parentHubspotId")) ?? ""];
+            const childIdent = idents[(isSwapped ? payloadStr(a.payload, "parentHubspotId") : payloadStr(a.payload, "childHubspotId")) ?? ""];
+            const identLine = (v?: { siren: string | null; siret: string | null }) =>
+              v?.siren || v?.siret ? (
+                <p className="text-[10px] tabular-nums text-slate-500">SIREN {v?.siren ?? "—"} · SIRET {v?.siret ?? "—"}</p>
+              ) : null;
             const busy = busyId === a.id;
             const done = doneId === a.id;
             return (
@@ -411,11 +445,13 @@ export function HierarchyConsole({
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise parente</p>
                     <p className="mt-0.5 font-medium text-slate-800">{parent}</p>
+                    {identLine(parentIdent)}
                     <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "tête de groupe proposée" : signal === "same_siren" ? "siège (porte le SIREN)" : signal === "name_match" ? "maison mère proposée (à vérifier)" : "celle qui facture"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise enfant</p>
                     <p className="mt-0.5 font-medium text-slate-800">{child}</p>
+                    {identLine(childIdent)}
                     <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "entité rattachée" : signal === "same_siren" ? "établissement (agence)" : signal === "name_match" ? "entité au nom dérivé (à vérifier)" : "celle qui a signé le deal"}</p>
                   </div>
                   <div className="md:col-span-2">

@@ -140,9 +140,10 @@ export default async function HierarchiePage() {
           <p className="mt-0.5 text-xs leading-relaxed">
             Aucune hiérarchie parent/enfant n&apos;a encore été déclarée dans ta base (ni dans HubSpot, ni via une
             validation Revold) : la page n&apos;a donc rien à afficher — ce n&apos;est pas un dysfonctionnement.
-            Pour démarrer : <strong>1.</strong> lance la synchronisation HubSpot ci-dessous (elle importe les
-            hiérarchies déjà posées dans le CRM), <strong>2.</strong> puis « Relancer la détection » pour recevoir
-            les suggestions de Revold à valider.
+            Pour démarrer : <strong>1.</strong> lance le rapprochement dans Revold ci-dessous (lecture seule — il
+            importe les hiérarchies « Société mère / Entreprise enfant » déjà posées dans le CRM),{" "}
+            <strong>2.</strong> puis « Relancer la détection » : les suggestions arrivent dans la table de
+            validation, et c&apos;est elle qui écrit dans HubSpot.
           </p>
         </div>
       )}

@@ -72,13 +72,14 @@ export function HierarchySyncRunner({
     <div className="card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900">Synchronisation HubSpot</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Rapprochement dans Revold</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Lit les associations parent/enfant <span className="font-medium text-slate-600">entreprise → entreprise</span>{" "}
-            réellement posées dans HubSpot et les reflète ici — rien n&apos;est deviné.{" "}
+            Lit les associations natives <span className="font-medium text-slate-600">« Société mère / Entreprise enfant »</span>{" "}
+            de HubSpot et les rapproche dans Revold — <span className="font-medium text-slate-600">lecture seule</span>,
+            rien n&apos;est écrit dans le CRM : l&apos;écriture vers HubSpot passe par la table de validation ci-dessous.{" "}
             {linkedChildren > 0
-              ? `${linkedChildren.toLocaleString("fr-FR")} entité${linkedChildren > 1 ? "s" : ""} déjà reliée${linkedChildren > 1 ? "s" : ""} à un parent (${coverage} % de la base CRM).`
-              : "Aucune entité reliée pour l'instant."}
+              ? `${linkedChildren.toLocaleString("fr-FR")} entité${linkedChildren > 1 ? "s" : ""} déjà rapprochée${linkedChildren > 1 ? "s" : ""} (${coverage} % de la base CRM).`
+              : "Aucune entité rapprochée pour l'instant."}
           </p>
         </div>
         <button
@@ -87,7 +88,7 @@ export function HierarchySyncRunner({
           disabled={running || !hubspotConnected || total === 0}
           className="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
         >
-          {running ? "Synchronisation…" : "↺ Synchroniser depuis HubSpot"}
+          {running ? "Rapprochement…" : "⚡ Lancer le rapprochement"}
         </button>
       </div>
 
@@ -121,8 +122,9 @@ export function HierarchySyncRunner({
             </p>
             <p className="mt-0.5 text-slate-500">
               Ce n&apos;est pas un dysfonctionnement : ta base HubSpot ne contient simplement pas encore de
-              hiérarchie entreprise→entreprise. Valide des suggestions ci-dessous (Revold écrira les associations),
-              ou déclare des liens parent/enfant directement dans HubSpot puis relance.
+              hiérarchie « Société mère / Entreprise enfant ». Valide des suggestions dans la table ci-dessous —
+              c&apos;est elle qui écrit les associations dans HubSpot — ou déclare des liens directement dans
+              HubSpot puis relance le rapprochement.
             </p>
           </div>
         ) : (
