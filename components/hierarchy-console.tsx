@@ -39,18 +39,29 @@ function payloadStr(p: Record<string, unknown> | null | undefined, key: string):
   return typeof v === "string" && v.trim() ? v : null;
 }
 
-export function HierarchyConsole() {
+export function HierarchyConsole({
+  hierarchyAvailable = true,
+  wonDealsCount = null,
+}: {
+  /** false = migration company_hierarchy pas encore appliquée. */
+  hierarchyAvailable?: boolean;
+  /** Nombre de deals gagnés analysables (pour expliquer un vide). */
+  wonDealsCount?: number | null;
+} = {}) {
   const [pending, setPending] = useState<ActionRow[] | null>(null);
   const [history, setHistory] = useState<ActionRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [doneId, setDoneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Sens parent/enfant inversé par l'utilisateur avant validation (par fiche).
   const [swapped, setSwapped] = useState<Set<string>>(new Set());
 
   async function load() {
     try {
+      // GET /api/actions RELANCE la détection côté serveur (declare_group non
+      // skippé) : recharger = re-détecter sur les données à jour.
       const res = await fetch(`/api/actions?skip=${OTHER_FAMILIES}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Chargement impossible");
@@ -64,6 +75,14 @@ export function HierarchyConsole() {
     }
   }
   useEffect(() => { void load(); }, []);
+
+  async function refresh() {
+    if (refreshing || busyId) return;
+    setRefreshing(true);
+    setError(null);
+    await load();
+    setRefreshing(false);
+  }
 
   async function decide(id: string, decision: "approve" | "reject") {
     if (busyId) return;
@@ -98,20 +117,67 @@ export function HierarchyConsole() {
 
       {/* ── Suggestions à valider ── */}
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-          Hiérarchies à valider
-          <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
-            {pending?.length ?? "…"}
-          </span>
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            Hiérarchies à valider
+            <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
+              {pending?.length ?? "…"}
+            </span>
+          </h2>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={refreshing || pending === null || busyId !== null}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50"
+          >
+            {refreshing ? "Analyse en cours…" : "↻ Relancer la détection"}
+          </button>
+        </div>
 
         {pending === null ? (
           <p className="text-sm text-slate-400">Analyse des correspondances deal↔facture…</p>
         ) : pending.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-            Aucune hiérarchie à déclarer pour l&apos;instant. Revold propose un lien parent/enfant quand un deal
-            signé sur une entité est facturé, au montant exact, sur une autre société sans lien de groupe déclaré.
-          </p>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+            {!hierarchyAvailable ? (
+              <>
+                <p className="font-medium text-slate-700">La hiérarchie n&apos;est pas encore active.</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  La colonne de hiérarchie s&apos;activera au prochain déploiement (migration{" "}
+                  <code>company_hierarchy</code>). Reviens ensuite ici : les suggestions apparaîtront automatiquement,
+                  ou clique « Relancer la détection ».
+                </p>
+              </>
+            ) : wonDealsCount === 0 ? (
+              <>
+                <p className="font-medium text-slate-700">Aucun deal gagné à analyser pour l&apos;instant.</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  Le croisement part des <strong>deals gagnés</strong> du CRM (facturés sur une autre entité ?).
+                  Lance une synchronisation depuis <strong>Intégrations → Mes outils</strong>, puis « Relancer la
+                  détection ».
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-slate-700">Aucune hiérarchie fiable détectée — rien à déclarer.</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  {wonDealsCount != null && <>{wonDealsCount} deals gagnés analysés. </>}
+                  Revold ne propose un lien que sur un <strong>signal sûr</strong> : un deal facturé au{" "}
+                  <strong>montant exact sur une autre société</strong>, ou deux fiches au{" "}
+                  <strong>même domaine web</strong> — jamais d&apos;après la ressemblance des noms.
+                </p>
+                <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-400">
+                  <li>
+                    Pas encore de suggestion ? Vérifie qu&apos;une <strong>synchro de facturation</strong>{" "}
+                    (Pennylane…) est bien repassée — les factures alimentent le croisement.
+                  </li>
+                  <li>
+                    Un groupe que tu connais déjà ? Déclare le parent/enfant directement dans HubSpot : la
+                    synchronisation le remontera ici.
+                  </li>
+                </ul>
+              </>
+            )}
+          </div>
         ) : (
           pending.map((a) => {
             const isSwapped = swapped.has(a.id);

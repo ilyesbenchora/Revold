@@ -45,6 +45,19 @@ export default async function HierarchiePage() {
     pendingCount = error ? null : (count ?? 0);
   } catch { /* table absente → console vide */ }
 
+  // Deals gagnés analysables (miroir du filtre du détecteur) : explique un vide
+  // dans la console — 0 deal gagné vs deals analysés sans signal fiable.
+  let wonDealsCount: number | null = null;
+  try {
+    const { count, error } = await supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("is_closed_won", true)
+      .not("company_id", "is", null);
+    wonDealsCount = error ? null : (count ?? 0);
+  } catch { /* non bloquant */ }
+
   const tiles = [
     { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 entités reliées" },
     { label: "Entités en groupe", value: entitiesInGroups, sub: "parents + enfants" },
@@ -98,7 +111,7 @@ export default async function HierarchiePage() {
 
       {/* ── Suggestions à valider + historique (console) ── */}
       <div data-tour="hierarchie-console">
-        <HierarchyConsole />
+        <HierarchyConsole hierarchyAvailable={groups.available} wonDealsCount={wonDealsCount} />
       </div>
 
       {/* ── Groupes déjà déclarés (synchronisés depuis le CRM) ── */}
