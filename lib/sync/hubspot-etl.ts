@@ -1194,23 +1194,86 @@ async function fetchDealContactAssociations(token: string, dealHsIds: string[]):
   return fetchAssociations(token, "/crm/v4/associations/deals/contacts/batch/read", dealHsIds);
 }
 
+/** Libellé « parent » (natif FR/EN + variantes courantes), jamais deviné par le nom. */
+const PARENT_LABEL_RE = /parent|soci[ée]t[ée]\s*m[èe]re|maison\s*m[èe]re|holding/i;
+
+/** Diagnostic de la lecture des associations (pourquoi 0 le cas échéant). */
+export type ParentDiag = {
+  batches: number;
+  failedBatches: number;
+  firstErrorStatus: number | null;
+  companiesWithAssoc: number;
+  matched: number;
+  /** typeId d'association réellement rencontrés (aide à identifier le bon parent). */
+  typeIdsSeen: number[];
+  /** Libellés d'association rencontrés (batch read + endpoint labels). */
+  labelsSeen: string[];
+  /** typeId considérés « parent » (natif 14 + ceux dérivés des libellés du portail). */
+  parentTypeIds: number[];
+};
+
+/**
+ * Libellés d'association company↔company DU PORTAIL (typeId → label). Le
+ * batch/read renvoie souvent `label: null` pour les types natifs ; cet endpoint,
+ * lui, donne les libellés → on en dérive le vrai typeId « parent » de CE portail
+ * (les typeId natifs ne sont pas garantis identiques partout / peuvent être
+ * localisés ou custom).
+ */
+async function fetchCompanyAssocLabels(token: string): Promise<Array<{ typeId: number; label: string | null }>> {
+  try {
+    const res = await hsFetch(token, "/crm/v4/associations/companies/companies/labels", { method: "GET" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return ((data.results ?? []) as Array<Record<string, unknown>>)
+      .map((r) => ({ typeId: Number(r.typeId), label: (r.label as string | null) ?? null }))
+      .filter((r) => Number.isFinite(r.typeId));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * company hubspot_id → company hubspot_id PARENT. Lit les associations
- * entreprise↔entreprise v4 et ne retient que le sens PARENT (type HubSpot natif
- * « Parent Company », typeId 14, ou libellé contenant « parent ») : depuis
- * l'entreprise enfant, le `to` de type parent est son groupe. On ne devine
- * jamais — seule la hiérarchie réellement posée dans HubSpot est ingérée.
+ * entreprise↔entreprise v4 et ne retient que le sens PARENT. On NE devine
+ * jamais par le nom d'entreprise — seule la hiérarchie réellement posée dans
+ * HubSpot est ingérée. Le « parent » est reconnu par typeId (14 natif + ceux
+ * dérivés des libellés du portail via l'endpoint labels, car le batch/read
+ * renvoie souvent label:null) OU par libellé explicite. Renvoie aussi un
+ * diagnostic (pourquoi 0 : lots en échec, typeId/labels réellement vus…).
  */
-export async function fetchCompanyParents(token: string, companyHsIds: string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
+export async function fetchCompanyParents(
+  token: string,
+  companyHsIds: string[],
+): Promise<{ parents: Record<string, string>; diag: ParentDiag }> {
+  const parents: Record<string, string> = {};
+  const typeIdsSeen = new Set<number>();
+  const labelsSeen = new Set<string>();
+  const diag: ParentDiag = {
+    batches: 0, failedBatches: 0, firstErrorStatus: null,
+    companiesWithAssoc: 0, matched: 0, typeIdsSeen: [], labelsSeen: [], parentTypeIds: [],
+  };
+
+  // typeId « parent » du portail : natif 14 + ceux dont le libellé est parent-ish.
+  const parentTypeIds = new Set<number>([14]);
+  for (const l of await fetchCompanyAssocLabels(token)) {
+    if (l.label) labelsSeen.add(l.label);
+    if (l.label && PARENT_LABEL_RE.test(l.label)) parentTypeIds.add(l.typeId);
+  }
+  diag.parentTypeIds = [...parentTypeIds].sort((a, b) => a - b);
+
   for (let i = 0; i < companyHsIds.length; i += 100) {
     const chunk = companyHsIds.slice(i, i + 100);
+    diag.batches++;
     try {
       const res = await hsFetch(token, "/crm/v4/associations/companies/companies/batch/read", {
         method: "POST",
         body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        diag.failedBatches++;
+        if (diag.firstErrorStatus == null) diag.firstErrorStatus = res.status;
+        continue;
+      }
       const data = await res.json();
       for (const r of (data.results ?? []) as Array<Record<string, unknown>>) {
         const from = (r.from as { id?: string } | undefined)?.id;
@@ -1219,23 +1282,31 @@ export async function fetchCompanyParents(token: string, companyHsIds: string[])
           toObjectId?: string | number;
           associationTypes?: Array<{ typeId?: number; label?: string | null }>;
         }> | undefined) ?? [];
+        if (toArr.length) diag.companiesWithAssoc++;
         for (const t of toArr) {
-          // Type NATIF HubSpot : 14 = enfant → « Société mère » (le miroir 13
-          // « Entreprise enfant » vit côté parent). Repli sur les libellés
-          // USER_DEFINED français/anglais pour les portails à labels custom.
-          const isParent = (t.associationTypes ?? []).some(
-            (a) => a.typeId === 14 || /parent|soci[ée]t[ée] m[èe]re|maison m[èe]re/i.test(a.label ?? ""),
+          const types = t.associationTypes ?? [];
+          for (const a of types) {
+            if (a.typeId != null) typeIdsSeen.add(a.typeId);
+            if (a.label) labelsSeen.add(a.label);
+          }
+          const isParent = types.some(
+            (a) => (a.typeId != null && parentTypeIds.has(a.typeId)) || PARENT_LABEL_RE.test(a.label ?? ""),
           );
           const to = t.toObjectId;
           if (isParent && to != null && String(to) !== String(from)) {
-            out[String(from)] = String(to);
+            parents[String(from)] = String(to);
+            diag.matched++;
             break;
           }
         }
       }
-    } catch { /* lot ignoré */ }
+    } catch {
+      diag.failedBatches++;
+    }
   }
-  return out;
+  diag.typeIdsSeen = [...typeIdsSeen].sort((a, b) => a - b);
+  diag.labelsSeen = [...labelsSeen].slice(0, 24);
+  return { parents, diag };
 }
 
 /** Met à jour company_id par lots, groupés par company canonique. */
@@ -1289,7 +1360,7 @@ export async function linkCompanyHierarchyForOrg(
   const hsIds = [...compByHs.keys()];
   if (hsIds.length === 0) return { linked: 0 };
 
-  const parents = await fetchCompanyParents(token, hsIds);
+  const { parents } = await fetchCompanyParents(token, hsIds);
   const byParent = new Map<string, string[]>(); // parent uuid → child uuids
   for (const c of rows) {
     if (!c.hubspot_id) continue;

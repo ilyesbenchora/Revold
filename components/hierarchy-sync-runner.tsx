@@ -28,17 +28,29 @@ export function HierarchySyncRunner({
   const [processed, setProcessed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ parentsFound: number; linked: number; scanned: number } | null>(null);
+  const [diag, setDiag] = useState<{
+    failedBatches: number; firstErrorStatus: number | null; companiesWithAssoc: number;
+    typeIdsSeen: number[]; labelsSeen: string[]; parentTypeIds: number[];
+  } | null>(null);
 
   async function run() {
     if (running) return;
     setRunning(true);
     setError(null);
     setResult(null);
+    setDiag(null);
     setProcessed(0);
     let offset = 0;
     let parentsFound = 0;
     let linked = 0;
     let scanned = 0;
+    // Diagnostic agrégé (pourquoi 0 le cas échéant).
+    let failedBatches = 0;
+    let firstErrorStatus: number | null = null;
+    let companiesWithAssoc = 0;
+    const typeIds = new Set<number>();
+    const labels = new Set<string>();
+    let parentTypeIds: number[] = [];
     try {
       for (let guard = 0; guard < 50; guard++) {
         const res = await fetch("/api/hierarchy/sync", {
@@ -51,11 +63,22 @@ export function HierarchySyncRunner({
         parentsFound += Number(d.parentsFound) || 0;
         linked += Number(d.linked) || 0;
         scanned = Number(d.processed) || scanned;
+        const g = d.diag ?? {};
+        failedBatches += Number(g.failedBatches) || 0;
+        if (firstErrorStatus == null && g.firstErrorStatus != null) firstErrorStatus = Number(g.firstErrorStatus);
+        companiesWithAssoc += Number(g.companiesWithAssoc) || 0;
+        for (const t of (g.typeIdsSeen ?? []) as number[]) typeIds.add(t);
+        for (const l of (g.labelsSeen ?? []) as string[]) labels.add(l);
+        if (Array.isArray(g.parentTypeIds)) parentTypeIds = g.parentTypeIds;
         setProcessed(scanned);
         if (d.done) break;
         offset = Number(d.nextOffset) || offset + 1000;
       }
       setResult({ parentsFound, linked, scanned });
+      setDiag({
+        failedBatches, firstErrorStatus, companiesWithAssoc,
+        typeIdsSeen: [...typeIds].sort((a, b) => a - b), labelsSeen: [...labels].slice(0, 24), parentTypeIds,
+      });
       // Tuiles + bloc « Groupes déclarés » rechargés avec les nouvelles données,
       // et la console de validation relance sa détection (l'opt-in vient d'être
       // posé au premier passage — les premières suggestions arrivent ici).
@@ -121,14 +144,32 @@ export function HierarchySyncRunner({
           <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
             <p className="font-medium text-slate-700">
               {result.scanned.toLocaleString("fr-FR")} entreprises vérifiées — aucune association parent/enfant
-              trouvée dans HubSpot.
+              rapprochée.
             </p>
-            <p className="mt-0.5 text-slate-500">
-              Ce n&apos;est pas un dysfonctionnement : ta base HubSpot ne contient simplement pas encore de
-              hiérarchie « Société mère / Entreprise enfant ». Valide des suggestions dans la table ci-dessous —
-              c&apos;est elle qui écrit les associations dans HubSpot — ou déclare des liens directement dans
-              HubSpot puis relance le rapprochement.
-            </p>
+            {/* Diagnostic : distingue « rien de posé » d'un vrai problème de lecture. */}
+            {diag && diag.failedBatches > 0 ? (
+              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-amber-700">
+                ⚠ {diag.failedBatches} lot{diag.failedBatches > 1 ? "s" : ""} d&apos;appels HubSpot en échec
+                {diag.firstErrorStatus ? ` (statut ${diag.firstErrorStatus}` : ""}
+                {diag.firstErrorStatus === 403 ? " — scope d'association manquant sur l'app OAuth" : diag.firstErrorStatus ? ")" : ""}.
+                La lecture des associations n&apos;a pas abouti : ce n&apos;est pas « 0 hiérarchie », c&apos;est un
+                problème d&apos;accès à corriger.
+              </p>
+            ) : diag && diag.companiesWithAssoc > 0 ? (
+              <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-amber-700">
+                ⚠ {diag.companiesWithAssoc.toLocaleString("fr-FR")} entreprises ont bien des associations
+                entreprise↔entreprise, mais aucune n&apos;a été reconnue comme « parent ».
+                {diag.typeIdsSeen.length > 0 && <> Types d&apos;association vus : <span className="font-mono">[{diag.typeIdsSeen.join(", ")}]</span> ; on cherchait le parent parmi <span className="font-mono">[{diag.parentTypeIds.join(", ")}]</span>.</>}
+                {diag.labelsSeen.length > 0 && <> Libellés vus : {diag.labelsSeen.map((l) => `« ${l} »`).join(", ")}.</>}
+                {" "}Envoie-moi cette ligne : j&apos;ajoute le bon type de parent.
+              </p>
+            ) : (
+              <p className="mt-0.5 text-slate-500">
+                Ce n&apos;est pas un dysfonctionnement : ta base HubSpot ne contient pas d&apos;association
+                entreprise↔entreprise lisible. Valide des suggestions dans la table ci-dessous — c&apos;est elle
+                qui écrit les associations dans HubSpot — ou déclare des liens directement dans HubSpot puis relance.
+              </p>
+            )}
           </div>
         ) : (
           <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">

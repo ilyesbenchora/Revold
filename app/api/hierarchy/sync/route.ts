@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   for (const c of rows) if (c.hubspot_id) compByHs.set(String(c.hubspot_id), { id: c.id, parent_company_id: c.parent_company_id });
 
   const slice = rows.slice(offset, offset + SLICE);
-  const parents = await fetchCompanyParents(token, slice.map((c) => String(c.hubspot_id)));
+  const { parents, diag } = await fetchCompanyParents(token, slice.map((c) => String(c.hubspot_id)));
   const parentsFound = Object.keys(parents).length;
 
   // Applique les liens de la tranche (idempotent — parent réécrit à chaque passage).
@@ -117,6 +117,7 @@ export async function POST(request: Request) {
     total,
     parentsFound,
     linked,
+    diag, // diagnostic de lecture (typeId/labels vus, lots en échec…)
     done: processed >= total,
     nextOffset: processed,
   });
