@@ -60,36 +60,41 @@ export function availableWorkspaces(role: string | null | undefined, pole: strin
 // tous les sous-liens, tableau = sous-liens autorisés, absent = groupe masqué.
 // Dashboard et Intégrations sont toujours visibles en entier.
 
-type NavRule = Partial<Record<"audit" | "dashboard" | "integrations" | "alertes", "all" | string[]>>;
+type NavRule = Partial<Record<"audit" | "dashboard" | "integrations" | "alertes" | "enrichissement", "all" | string[]>>;
 
 const WORKSPACE_NAV: Record<WorkspaceId, NavRule> = {
-  all: { audit: "all", dashboard: "all", integrations: "all", alertes: "all" },
+  all: { audit: "all", dashboard: "all", integrations: "all", alertes: "all", enrichissement: "all" },
   // Accessibles dans TOUS les espaces : « Mon équipe IA » (/dashboard/audit,
   // le hub des agents experts de la section Données) et le coach data — la
-  // qualité des données concerne chaque pôle.
+  // qualité des données concerne chaque pôle. Enrichissement (donnée officielle
+  // + hiérarchies de comptes) : transverse, visible partout.
   sales: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/appels", "/dashboard/donnees"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
+    enrichissement: "all",
   },
   marketing: {
     audit: ["/dashboard/audit", "/dashboard/performances", "/dashboard/donnees"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
+    enrichissement: "all",
   },
   cs: {
     audit: ["/dashboard/audit", "/dashboard/audit/service-client"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
+    enrichissement: "all",
   },
   finance: {
     audit: ["/dashboard/audit", "/dashboard/audit/paiement-facturation", "/dashboard/donnees"],
     dashboard: "all",
     integrations: "all",
     alertes: "all",
+    enrichissement: "all",
   },
 };
 

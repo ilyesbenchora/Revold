@@ -29,6 +29,7 @@ export const SEARCH_PAGES: SearchPage[] = [
   { label: "Service Client — Cross-sell / Upsell", href: "/dashboard/audit/service-client/cross-sell-upsell", keywords: "expansion arpu ltv" },
   { label: "Rapprochement données", href: "/dashboard/donnees", keywords: "qualité data matching doublons" },
   { label: "Enrichissement", href: "/dashboard/enrichissement", keywords: "siren siret tva effectifs sirene inpi" },
+  { label: "Hiérarchie comptes", href: "/dashboard/hierarchie", keywords: "parent enfant groupe multi-entités consolidation filiales holding" },
   { label: "Tableaux de bord", href: "/dashboard/tableaux-de-bord", keywords: "boards dashboards" },
   { label: "Mes rapports", href: "/dashboard/mes-rapports", keywords: "rapports sauvegardés routines" },
   { label: "Alertes", href: "/dashboard/mes-alertes", keywords: "seuils notifications suivi" },
