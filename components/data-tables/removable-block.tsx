@@ -5,9 +5,11 @@
  * Le retrait enregistre un masquage (page_tiles, kind=hide_block) — le bloc
  * se réaffiche depuis « ＋ Ajouter un bloc » (BlocksManager).
  *
- * Le contrôle est une pastille « ✕ Retirer » en haut à GAUCHE (la flèche de
- * repli des blocs est en haut à droite — ne pas superposer), avec une étape
- * de confirmation pour éviter les retraits accidentels.
+ * Le contrôle est l'icône CORBEILLE discrète en haut à GAUCHE (la flèche de
+ * repli des blocs est en haut à droite — ne pas superposer) — MÊME icône que
+ * la suppression d'une table de données (une seule visualisation pour la même
+ * action « retirer »). Une étape de confirmation (l'icône passe en rouge) évite
+ * les retraits accidentels.
  *
  * La pastille n'apparaît QUE pendant la personnalisation de la page (bouton
  * « Personnaliser les KPIs ») — pas au simple survol du bloc.
@@ -67,16 +69,17 @@ export function RemovableBlock({
       {editing && (
         <button
           type="button"
-          title={confirming ? "Cliquer à nouveau pour confirmer" : `Retirer le bloc « ${label} »`}
+          title={confirming ? (busy ? "Retrait…" : "Cliquer à nouveau pour confirmer le retrait") : `Retirer le bloc « ${label} »`}
+          aria-label={`Retirer le bloc « ${label} »`}
           disabled={busy}
           onClick={() => (confirming ? hide() : setConfirming(true))}
-          className={`absolute -top-3 left-2 z-10 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm transition disabled:opacity-50 ${
+          className={`absolute -top-3 left-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border bg-white shadow-sm transition disabled:opacity-50 ${
             confirming
-              ? "border-rose-300 bg-rose-50 text-rose-700"
-              : "border-slate-200 bg-white text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+              ? "border-rose-300 bg-rose-50 text-rose-600"
+              : "border-slate-200 text-slate-300 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500"
           }`}
         >
-          {confirming ? (busy ? "Retrait…" : "Confirmer le retrait ?") : "✕ Retirer"}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
         </button>
       )}
       {children}
