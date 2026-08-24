@@ -316,9 +316,9 @@ export async function GET(request: Request) {
     .select("id, type, status, title, description, source, created_at, decided_at, decided_by, result, payload")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
-    // Assez haut pour les grosses files de rapprochements (hiérarchie par le nom
-    // peut en produire des centaines) — la file est paginée côté client.
-    .limit(1200);
+    // Pas de plafond de suggestions : on remonte toute la file (la hiérarchie
+    // par le nom peut en produire des centaines) — paginée côté client.
+    .limit(5000);
   if (error) {
     return NextResponse.json({ needsMigration: true, pending: [], history: [], automated: [] });
   }

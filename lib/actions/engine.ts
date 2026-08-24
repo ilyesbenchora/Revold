@@ -1082,10 +1082,11 @@ export async function detectUndeclaredGroups(
   const DAY = 86_400_000;
   const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * 0.01);
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-  // Plafond par SIGNAL : assez haut pour couvrir la base (ex. ~380 rapprochements
-  // par le nom possibles sur une grosse base), borné pour rester raisonnable ;
-  // la file de validation est paginée + validation en masse.
-  const MAX_PER_SIGNAL = 400;
+  // PAS de plafond de résultats (choix utilisateur : voir TOUTES les
+  // suggestions). Valeur volontairement hors d'atteinte — la file de validation
+  // est paginée + validation en masse. Seuls restent des garde-fous de PERF
+  // (taille de groupe), pas des limites de nombre de propositions.
+  const MAX_PER_SIGNAL = Number.MAX_SAFE_INTEGER;
 
   const [dealsRes, invRes, compRes] = await Promise.all([
     supabase
@@ -1419,7 +1420,7 @@ export async function detectUndeclaredGroups(
 
   for (const [root, cids] of byRoot) {
     if (out.length - nameStart >= MAX_PER_SIGNAL) break;
-    if (cids.length < 2 || cids.length > 200) continue; // garde-fou perf sur un mot ultra-commun
+    if (cids.length < 2 || cids.length > 1500) continue; // garde-fou PERF (O(n²)) sur un mot ultra-commun, pas une limite de résultats
 
     // ── MOTIF A (ton cas Banque Populaire) : nom NU = mère, + ville/région = fille.
     // Pour chaque enfant, sa mère = la base VALIDE la plus courte qui préfixe son nom.
@@ -1508,7 +1509,6 @@ export async function detectSirenDuplicates(
       source: "detector:duplicate_merge",
       payload: { mergeObjectType: "companies", primaryHubspotId: canon.hubspot_id, mergeHubspotId: d.hubspot_id },
     });
-    if (out.length >= 50) break;
   }
   return out;
 }
