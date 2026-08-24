@@ -1075,6 +1075,33 @@ export async function setNameMatchEnabled(supabase: SupabaseClient, orgId: strin
   );
 }
 
+/**
+ * Rapprochement par DOMAINE web partagé : OPT-IN (Paramètres → Enrichissement).
+ * Désactivé par défaut — les domaines de la base sont souvent sales (domaines
+ * mutualisés, hébergeurs, fiches mal renseignées) et créent de faux groupes.
+ */
+export async function isDomainMatchEnabled(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("enabled")
+      .eq("organization_id", orgId)
+      .eq("rule_id", "hierarchy_domain_match")
+      .maybeSingle();
+    return data?.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Active/désactive le signal « rapprochement par domaine » (opt-in utilisateur). */
+export async function setDomainMatchEnabled(supabase: SupabaseClient, orgId: string, enabled: boolean): Promise<void> {
+  await supabase.from("entity_resolution_config").upsert(
+    { organization_id: orgId, rule_id: "hierarchy_domain_match", enabled, config: {} },
+    { onConflict: "organization_id,rule_id" },
+  );
+}
+
 export async function detectUndeclaredGroups(
   supabase: SupabaseClient,
   orgId: string,
@@ -1219,10 +1246,14 @@ export async function detectUndeclaredGroups(
   }
 
   // ── Passe 2 : DOMAINE PARTAGÉ, sur TOUTE la base d'entreprises ──
+  // OPT-IN (Paramètres → Enrichissement), désactivé par défaut : les domaines
+  // de la base sont souvent sales (domaines mutualisés, hébergeurs, fiches mal
+  // renseignées) et créent de faux groupes qui polluent les autres signaux.
   // Deux fiches CRM distinctes qui partagent le même domaine web sans lien de
-  // groupe déclaré = signal de groupe multi-entités (filiales sur le site de
-  // la maison mère). Sens parent/enfant PROPOSÉ (facturier > volume de deals),
-  // inversable à la validation — jamais déduit du nom.
+  // groupe déclaré = signal de groupe multi-entités. Sens parent/enfant PROPOSÉ
+  // (facturier > volume de deals), inversable à la validation — jamais par le nom.
+  const domainMatchOn = await isDomainMatchEnabled(supabase, orgId);
+  if (domainMatchOn) {
   const GENERIC_DOMAINS = new Set([
     "gmail.com", "googlemail.com", "outlook.com", "outlook.fr", "hotmail.com", "hotmail.fr",
     "yahoo.com", "yahoo.fr", "icloud.com", "me.com", "live.com", "live.fr", "msn.com",
@@ -1286,6 +1317,7 @@ export async function detectUndeclaredGroups(
     }
     if (out.length - domainStart >= MAX_PER_SIGNAL) break;
   }
+  } // fin passe « domaine » (opt-in via Paramètres → Enrichissement)
 
   // ── Passe 3 : MÊME SIREN, SIRETs DISTINCTS (registre officiel, toute la
   // base, aucune facturation nécessaire). Le SIREN identifie la société,

@@ -25,20 +25,16 @@ const DEFAULT_SIGNALS: Array<{ title: string; desc: string; coverage: (d: Diag) 
     coverage: (d) => `${nf(d.wonDeals)} deals gagnés · ${nf(d.unlinkedInvoices)} factures non rattachées à croiser`,
   },
   {
-    title: "Domaine web partagé",
-    desc: "Deux fiches CRM au même domaine web (hors domaines génériques) sans lien de groupe déclaré.",
-    coverage: (d) => `${nf(d.withDomain)} / ${nf(d.companies)} entreprises ont un domaine renseigné`,
-  },
-  {
     title: "Même SIREN, SIRET distincts",
     desc: "Se déclenche quand DEUX fiches CRM différentes portent le même SIREN (doublon repéré à l'enrichissement) avec des SIRET différents : c'est la même société légale vue à deux établissements (siège + agence). Rare par nature — il faut ce doublon, pas seulement qu'une fiche ait un SIREN.",
     coverage: (d) => `${nf(d.withSiren)} avec SIREN · ${nf(d.withSiret)} avec SIRET · ${nf(d.dupSiren)} doublons SIREN (établissements)`,
   },
 ];
 
-export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: boolean }) {
+export function GroupSignalsSettings({ initialNameMatch, initialDomainMatch }: { initialNameMatch: boolean; initialDomainMatch: boolean }) {
   const [nameMatch, setNameMatch] = useState(initialNameMatch);
-  const [busy, setBusy] = useState(false);
+  const [domainMatch, setDomainMatch] = useState(initialDomainMatch);
+  const [busy, setBusy] = useState<null | "name" | "domain">(null);
   const [saved, setSaved] = useState(false);
   const [diag, setDiag] = useState<Diag | null>(null);
 
@@ -51,23 +47,24 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
     return () => { alive = false; };
   }, []);
 
-  async function toggle(next: boolean) {
+  async function toggleSignal(signal: "name" | "domain", next: boolean) {
     if (busy) return;
-    setBusy(true);
-    setNameMatch(next); // optimiste
+    setBusy(signal);
+    const setter = signal === "name" ? setNameMatch : setDomainMatch;
+    setter(next); // optimiste
     try {
-      const res = await fetch("/api/hierarchy/name-match", {
+      const res = await fetch("/api/hierarchy/signal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: next }),
+        body: JSON.stringify({ signal, enabled: next }),
       });
       if (!res.ok) throw new Error();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
-      setNameMatch(!next); // rollback
+      setter(!next); // rollback
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -99,13 +96,35 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
           </div>
         ))}
 
-        {/* Opt-in : ressemblance de nom (signal faible). */}
+        {/* Opt-in : domaine web partagé (données souvent sales → faux groupes). */}
+        <div className="flex items-start gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-slate-800">Domaine web partagé <span className="text-[10px] font-normal text-slate-400">(données souvent sales)</span></p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+              Rapproche deux fiches au même domaine web. <strong>Désactivé par défaut</strong> : les domaines de la
+              base sont souvent mutualisés ou mal renseignés et créent de faux groupes qui polluent les autres signaux.
+              {diag && <> {nf(diag.withDomain)} / {nf(diag.companies)} entreprises ont un domaine renseigné.</>}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={domainMatch}
+            disabled={busy !== null}
+            onClick={() => toggleSignal("domain", !domainMatch)}
+            className={`mt-0.5 relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:opacity-50 ${domainMatch ? "bg-accent" : "bg-slate-200"}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${domainMatch ? "translate-x-4" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+
+        {/* Opt-in : ressemblance de nom (nom nu = mère, + ville/région = fille). */}
         <div className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-slate-800">Ressemblance de nom <span className="text-[10px] font-normal text-slate-400">(signal faible)</span></p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-              Rapproche des fiches aux noms structurellement apparentés (préfixe, ou marqueur « holding/groupe »).
-              Désactivé par défaut : deux sociétés au nom proche peuvent être indépendantes (franchises, homonymes).
+              Règle stricte : nom <strong>nu</strong> = société mère (ex. « Banque Populaire »), même nom <strong>+ ville/région</strong> = entité enfant
+              (« Banque Populaire du Nord »). Désactivé par défaut : deux sociétés au nom proche peuvent être indépendantes (franchises, homonymes).
               Une fois activé, relance depuis <a href="/dashboard/hierarchie" className="font-medium text-accent hover:underline">Hiérarchie comptes</a>.
             </p>
           </div>
@@ -113,8 +132,8 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
             type="button"
             role="switch"
             aria-checked={nameMatch}
-            disabled={busy}
-            onClick={() => toggle(!nameMatch)}
+            disabled={busy !== null}
+            onClick={() => toggleSignal("name", !nameMatch)}
             className={`mt-0.5 relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:opacity-50 ${nameMatch ? "bg-accent" : "bg-slate-200"}`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${nameMatch ? "translate-x-4" : "translate-x-0.5"}`} />

@@ -7,7 +7,7 @@ import { ParametresTabs } from "@/components/parametres-tabs";
 import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { EnrichmentSettingsForm } from "@/components/enrichment-settings-form";
 import { GroupSignalsSettings } from "@/components/group-signals-settings";
-import { isNameMatchEnabled } from "@/lib/actions/engine";
+import { isNameMatchEnabled, isDomainMatchEnabled } from "@/lib/actions/engine";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { checkHubSpotProperty } from "@/lib/integrations/hubspot-properties";
@@ -33,7 +33,10 @@ export default async function ParametresEnrichissementPage() {
   const supabase = await createSupabaseServerClient();
 
   const settings = await getEnrichmentSettings(supabase, orgId);
-  const nameMatchEnabled = await isNameMatchEnabled(supabase, orgId);
+  const [nameMatchEnabled, domainMatchEnabled] = await Promise.all([
+    isNameMatchEnabled(supabase, orgId),
+    isDomainMatchEnabled(supabase, orgId),
+  ]);
 
   // Pays de l'organisation (Paramètres → Général) → registre administratif.
   let country: string | null = null;
@@ -177,7 +180,7 @@ export default async function ParametresEnrichissementPage() {
              domaine, SIREN/SIRET) + opt-in « ressemblance de nom ». Verrou
              d'édition (✎ Modifier) comme les autres blocs — réglage auto-enregistré. ── */}
       <SettingsEditLock>
-        <GroupSignalsSettings initialNameMatch={nameMatchEnabled} />
+        <GroupSignalsSettings initialNameMatch={nameMatchEnabled} initialDomainMatch={domainMatchEnabled} />
       </SettingsEditLock>
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le
