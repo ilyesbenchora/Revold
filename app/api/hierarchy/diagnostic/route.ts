@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { isNameMatchEnabled } from "@/lib/actions/engine";
+import { isNameMatchEnabled, detectUndeclaredGroups } from "@/lib/actions/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -47,22 +47,19 @@ export async function GET() {
     isNameMatchEnabled(supabase, orgId),
   ]);
 
-  // Répartition des propositions EN ATTENTE par signal (montre d'où viennent
-  // les N propositions, et si le signal « nom » produit quelque chose).
+  // Run LIVE du détecteur : répartition RÉELLE par signal (pas le stock, qui
+  // peut être périmé) + capture d'erreur si la passe échoue silencieusement.
   const bySignal: Record<string, number> = { billing_match: 0, shared_domain: 0, same_siren: 0, name_match: 0 };
+  let detectError: string | null = null;
   try {
-    const { data } = await supabase
-      .from("action_items")
-      .select("payload")
-      .eq("organization_id", orgId)
-      .eq("source", "detector:declare_group")
-      .eq("status", "pending")
-      .limit(2000);
-    for (const r of (data ?? []) as Array<{ payload: { groupSignal?: string } | null }>) {
-      const sig = r.payload?.groupSignal ?? "billing_match";
+    const proposals = await detectUndeclaredGroups(supabase, orgId);
+    for (const p of proposals) {
+      const sig = (p.payload?.groupSignal as string) ?? "billing_match";
       bySignal[sig] = (bySignal[sig] ?? 0) + 1;
     }
-  } catch { /* table absente → 0 */ }
+  } catch (e) {
+    detectError = e instanceof Error ? e.message : "Erreur détecteur";
+  }
 
-  return NextResponse.json({ companies, withSiren, withSiret, withDomain, dupSiren, wonDeals, unlinkedInvoices, nameEnabled, bySignal });
+  return NextResponse.json({ companies, withSiren, withSiret, withDomain, dupSiren, wonDeals, unlinkedInvoices, nameEnabled, bySignal, detectError });
 }

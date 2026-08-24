@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 type Diag = {
   companies: number | null; withSiren: number | null; withSiret: number | null;
   withDomain: number | null; dupSiren: number | null; wonDeals: number | null; unlinkedInvoices: number | null;
-  nameEnabled?: boolean; bySignal?: Record<string, number>;
+  nameEnabled?: boolean; bySignal?: Record<string, number>; detectError?: string | null;
 };
 
 const nf = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
@@ -124,19 +124,27 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
       {diag?.bySignal && (
         <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-600">
           <p className="font-medium text-slate-700">
-            Propositions en attente par signal :{" "}
+            Propositions détectées (en direct) par signal :{" "}
             <span className="font-normal">
               montant {nf(diag.bySignal.billing_match)} · domaine {nf(diag.bySignal.shared_domain)} · SIREN {nf(diag.bySignal.same_siren)} · nom {nf(diag.bySignal.name_match)}
             </span>
           </p>
+          {diag.detectError && (
+            <p className="mt-0.5 text-rose-700">⚠ Le détecteur a échoué : {diag.detectError}</p>
+          )}
           {diag.nameEnabled === false && (
             <p className="mt-0.5 text-amber-700">
               ⚠ Le signal « nom » est <strong>désactivé</strong> — active-le ci-dessus (clique « ✎ Modifier » d&apos;abord), puis relance le rapprochement.
             </p>
           )}
-          {diag.nameEnabled === true && (diag.bySignal.name_match ?? 0) === 0 && (
+          {diag.nameEnabled === true && !diag.detectError && (diag.bySignal.name_match ?? 0) === 0 && (
             <p className="mt-0.5 text-amber-700">
-              ⚠ « Nom » est activé mais 0 proposition : soit tu n&apos;as pas encore <strong>relancé le rapprochement</strong> depuis Hiérarchie comptes, soit il manque la fiche « mère » nue (ex. « Banque Populaire » sans ville) dont les autres dérivent.
+              ⚠ « Nom » est activé et le détecteur tourne (chiffres en direct), mais 0 par le nom : il manque probablement la fiche « mère » NUE (ex. « Banque Populaire » sans ville), ou les noms ne partagent pas un préfixe EXACT (abréviations, variantes). Dis-le moi, j&apos;adapte la règle.
+            </p>
+          )}
+          {diag.nameEnabled === true && (diag.bySignal.name_match ?? 0) > 0 && (
+            <p className="mt-0.5 text-emerald-700">
+              ✓ Le nom détecte {nf(diag.bySignal.name_match)} rapprochements — clique « Relancer la détection » sur Hiérarchie comptes pour les faire apparaître.
             </p>
           )}
         </div>
