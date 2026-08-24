@@ -98,14 +98,15 @@ export function HierarchySyncRunner({
     <div className="card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900">Rapprochement dans Revold</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Analyser & proposer des rapprochements</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Lit les associations natives <span className="font-medium text-slate-600">« Société mère / Entreprise enfant »</span>{" "}
-            de HubSpot et les rapproche dans Revold — <span className="font-medium text-slate-600">lecture seule</span>,
-            rien n&apos;est écrit dans le CRM : l&apos;écriture vers HubSpot passe par la table de validation ci-dessous.{" "}
+            Analyse ta base pour <span className="font-medium text-slate-600">proposer des rapprochements à valider</span> (table
+            ci-dessous, selon les signaux : montant, domaine, SIRET…). Au passage, reprend les hiérarchies déjà déclarées
+            dans HubSpot pour alimenter les tuiles — <span className="font-medium text-slate-600">lecture seule</span>, l&apos;écriture
+            vers le CRM se fait à la validation d&apos;une proposition.{" "}
             {linkedChildren > 0
-              ? `${linkedChildren.toLocaleString("fr-FR")} entité${linkedChildren > 1 ? "s" : ""} déjà rapprochée${linkedChildren > 1 ? "s" : ""} (${coverage} % de la base CRM).`
-              : "Aucune entité rapprochée pour l'instant."}
+              ? `${linkedChildren.toLocaleString("fr-FR")} entité${linkedChildren > 1 ? "s" : ""} déjà en groupe (${coverage} % de la base CRM).`
+              : ""}
           </p>
         </div>
         <button
@@ -172,10 +173,15 @@ export function HierarchySyncRunner({
             )}
           </div>
         ) : (
-          <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
-            ✓ {result.scanned.toLocaleString("fr-FR")} entreprises vérifiées · {result.parentsFound.toLocaleString("fr-FR")} association{result.parentsFound > 1 ? "s" : ""} parent/enfant trouvée{result.parentsFound > 1 ? "s" : ""}
-            {result.linked > 0 && <> · {result.linked.toLocaleString("fr-FR")} lien{result.linked > 1 ? "s" : ""} mis à jour</>}.
-          </p>
+          <div className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
+            <p className="font-medium">
+              ✓ {result.scanned.toLocaleString("fr-FR")} entreprises analysées.
+            </p>
+            <p className="mt-0.5 text-emerald-600/90">
+              {result.parentsFound.toLocaleString("fr-FR")} hiérarchie{result.parentsFound > 1 ? "s" : ""} déjà déclarée{result.parentsFound > 1 ? "s" : ""} dans HubSpot, reprise{result.parentsFound > 1 ? "s" : ""} pour alimenter les tuiles.
+              {" "}L&apos;essentiel est <span className="font-semibold">en dessous</span> : les rapprochements détectés par les signaux (montant, domaine, SIRET…) t&apos;attendent dans la table à valider.
+            </p>
+          </div>
         )
       )}
     </div>
