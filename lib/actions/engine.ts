@@ -1088,33 +1088,35 @@ export async function detectUndeclaredGroups(
   // (taille de groupe), pas des limites de nombre de propositions.
   const MAX_PER_SIGNAL = Number.MAX_SAFE_INTEGER;
 
-  const [dealsRes, invRes, compRes] = await Promise.all([
-    supabase
-      .from("deals")
-      .select("id, name, amount, close_date, company_id")
-      .eq("organization_id", orgId)
-      .eq("is_closed_won", true)
-      .not("company_id", "is", null)
-      .not("amount", "is", null)
-      .limit(4000),
-    supabase
-      .from("invoices")
-      .select("id, amount_total, issued_at, company_id, deal_id")
-      .eq("organization_id", orgId)
-      .not("company_id", "is", null)
-      .limit(6000),
-    supabase
-      .from("companies")
-      .select("id, name, hubspot_id, domain, siren, siret, duplicate_of_siren, candidate_siret, legal_name")
-      .eq("organization_id", orgId)
-      .not("hubspot_id", "is", null)
-      .limit(10000),
+  // Supabase plafonne CHAQUE requête à 1000 lignes (réglage max-rows par défaut) :
+  // sans pagination on n'analysait que 1000 entreprises sur toute la base — d'où
+  // des rapprochements manquants (bug du « toujours 13 »). On PAGINE.
+  const pageAll = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    build: () => any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<{ rows: any[]; error: string | null }> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    for (let p = 0; p < 30; p++) {
+      const { data, error } = await build().range(p * 1000, p * 1000 + 999);
+      if (error) return { rows, error: error.message as string };
+      const batch = data ?? [];
+      rows.push(...batch);
+      if (batch.length < 1000) break;
+    }
+    return { rows, error: null };
+  };
+
+  const [dealsR, invR] = await Promise.all([
+    pageAll(() => supabase.from("deals").select("id, name, amount, close_date, company_id").eq("organization_id", orgId).eq("is_closed_won", true).not("company_id", "is", null).not("amount", "is", null)),
+    pageAll(() => supabase.from("invoices").select("id, amount_total, issued_at, company_id, deal_id").eq("organization_id", orgId).not("company_id", "is", null)),
   ]);
 
   type D = { id: string; name: string | null; amount: number | null; close_date: string | null; company_id: string | null };
   type I = { id: string; amount_total: number | null; issued_at: string | null; company_id: string | null; deal_id: string | null };
-  const deals = ((dealsRes.data ?? []) as D[]).filter((d) => (d.amount ?? 0) > 0);
-  const invoices = (invRes.data ?? []) as I[];
+  const deals = (dealsR.rows as D[]).filter((d) => (d.amount ?? 0) > 0);
+  const invoices = invR.rows as I[];
 
   // Seules les entreprises présentes dans le CRM (hubspot_id) peuvent recevoir
   // une association de hiérarchie — on ne recommande que des paires écrivables.
@@ -1125,15 +1127,11 @@ export async function detectUndeclaredGroups(
   };
   // Colonnes d'enrichissement absentes (migration non appliquée) → repli sur
   // les colonnes de base : les passes facture/domaine restent fonctionnelles.
-  let compRows = (compRes.data ?? null) as CompRow[] | null;
-  if (compRes.error) {
-    const retry = await supabase
-      .from("companies")
-      .select("id, name, hubspot_id, domain")
-      .eq("organization_id", orgId)
-      .not("hubspot_id", "is", null)
-      .limit(10000);
-    compRows = ((retry.data ?? []) as Array<Omit<CompRow, "siren" | "siret" | "duplicate_of_siren" | "candidate_siret" | "legal_name">>)
+  const compFull = await pageAll(() => supabase.from("companies").select("id, name, hubspot_id, domain, siren, siret, duplicate_of_siren, candidate_siret, legal_name").eq("organization_id", orgId).not("hubspot_id", "is", null));
+  let compRows = compFull.rows as CompRow[];
+  if (compFull.error) {
+    const basic = await pageAll(() => supabase.from("companies").select("id, name, hubspot_id, domain").eq("organization_id", orgId).not("hubspot_id", "is", null));
+    compRows = (basic.rows as Array<Omit<CompRow, "siren" | "siret" | "duplicate_of_siren" | "candidate_siret" | "legal_name">>)
       .map((c) => ({ ...c, siren: null, siret: null, duplicate_of_siren: null, candidate_siret: null, legal_name: null }));
   }
   const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null; siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null; legal_name: string | null }>();
