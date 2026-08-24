@@ -125,6 +125,10 @@ export const ENRICHMENT_CRM_TARGETS: {
 }[] = [
   { field: "employees", canonical: "hs_number_of_employees", fallback: "numberofemployees", label: "Nombre d'employés (propriété CRM)" },
   { field: "revenue", canonical: "hs_annual_revenue", fallback: "annualrevenue", label: "Chiffre d'affaires (propriété CRM)" },
+  // Secteur natif = liste déroulante HubSpot : la valeur NAF n'est écrite que
+  // si elle matche une option (alignement), sinon retirée — la propriété
+  // dédiée secteur_officiel porte de toute façon le libellé officiel complet.
+  { field: "industry", canonical: "hs_industry", fallback: "industry", label: "Secteur d'activité (propriété CRM)" },
 ];
 
 /** Charge les réglages de l'org — résilient (table/colonne absente → défauts). */

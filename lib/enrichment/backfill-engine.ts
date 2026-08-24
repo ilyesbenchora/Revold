@@ -338,7 +338,12 @@ export async function runEnrichmentBatch(
         if (found.facts.employeeRange) properties[propFor(HS_PROP.employees.canonical, HS_PROP.employees.fallback)] = found.facts.employeeRange;
       }
       const identityNaf = st.fields.industry ? nafSectionLabel(found.facts.nafCode) : null;
-      if (identityNaf) properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = identityNaf;
+      if (identityNaf) {
+        properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = identityNaf;
+        // Cible native/remappable en plus : liste déroulante → alignement sur
+        // les options (retirée si aucune ne correspond au libellé NAF).
+        properties[propFor("hs_industry", "industry")] = identityNaf;
+      }
       const legalLabel = st.fields.legalForm ? legalFormLabel(found.facts.legalFormCode) : null;
       if (legalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = legalLabel;
       if (st.fields.shareCapital && typeof found.facts.shareCapital === "number") {
@@ -450,7 +455,10 @@ export async function runEnrichmentBatch(
           if (facts?.employeeRange) properties[propFor(HS_PROP.employees.canonical, HS_PROP.employees.fallback)] = facts.employeeRange;
         }
         const factsNaf = st.fields.industry ? nafSectionLabel(facts?.nafCode ?? null) : null;
-        if (factsNaf) properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = factsNaf;
+        if (factsNaf) {
+          properties[propFor(HS_PROP.industry.canonical, HS_PROP.industry.fallback)] = factsNaf;
+          properties[propFor("hs_industry", "industry")] = factsNaf;
+        }
         if (factsLegalLabel) properties[propFor(HS_PROP.legalForm.canonical, HS_PROP.legalForm.fallback)] = factsLegalLabel;
         if (st.fields.shareCapital && typeof facts?.shareCapital === "number") {
           properties[propFor(HS_PROP.shareCapital.canonical, HS_PROP.shareCapital.fallback)] = String(facts.shareCapital);
