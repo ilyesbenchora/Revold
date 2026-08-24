@@ -6,6 +6,8 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { ParametresTabs } from "@/components/parametres-tabs";
 import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { EnrichmentSettingsForm } from "@/components/enrichment-settings-form";
+import { GroupSignalsSettings } from "@/components/group-signals-settings";
+import { isNameMatchEnabled } from "@/lib/actions/engine";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { checkHubSpotProperty } from "@/lib/integrations/hubspot-properties";
@@ -31,6 +33,7 @@ export default async function ParametresEnrichissementPage() {
   const supabase = await createSupabaseServerClient();
 
   const settings = await getEnrichmentSettings(supabase, orgId);
+  const nameMatchEnabled = await isNameMatchEnabled(supabase, orgId);
 
   // Pays de l'organisation (Paramètres → Général) → registre administratif.
   let country: string | null = null;
@@ -169,6 +172,10 @@ export default async function ParametresEnrichissementPage() {
           }
         />
       </SettingsEditLock>
+
+      {/* ── Signaux de rapprochement de groupe : visibilité des signaux (montant,
+             domaine, SIREN/SIRET) + opt-in « ressemblance de nom ». ── */}
+      <GroupSignalsSettings initialNameMatch={nameMatchEnabled} />
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le
              « Mapping des identifiants » du Modèle de données, restreint aux

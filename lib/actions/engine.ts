@@ -1048,6 +1048,33 @@ export async function activateHierarchy(supabase: SupabaseClient, orgId: string)
   } catch { /* réessayé au prochain rapprochement */ }
 }
 
+/**
+ * Rapprochement par RESSEMBLANCE DE NOM : OPT-IN uniquement (Paramètres →
+ * Enrichissement). Désactivé par défaut — la ressemblance de nom est un signal
+ * faible (franchises, homonymes) qu'on ne veut jamais imposer.
+ */
+export async function isNameMatchEnabled(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("entity_resolution_config")
+      .select("enabled")
+      .eq("organization_id", orgId)
+      .eq("rule_id", "hierarchy_name_match")
+      .maybeSingle();
+    return data?.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Active/désactive le signal « rapprochement par nom » (opt-in utilisateur). */
+export async function setNameMatchEnabled(supabase: SupabaseClient, orgId: string, enabled: boolean): Promise<void> {
+  await supabase.from("entity_resolution_config").upsert(
+    { organization_id: orgId, rule_id: "hierarchy_name_match", enabled, config: {} },
+    { onConflict: "organization_id,rule_id" },
+  );
+}
+
 export async function detectUndeclaredGroups(
   supabase: SupabaseClient,
   orgId: string,
@@ -1311,6 +1338,10 @@ export async function detectUndeclaredGroups(
   //      la fiche au marqueur (groupe/holding…) est parente proposée.
   // Garde-fous : formes juridiques ignorées, premiers mots génériques exclus
   // (garage, agence…), racine ≥ 3 caractères, sens toujours inversable.
+  // Passe « nom » : OPT-IN uniquement (Paramètres → Enrichissement) — jamais
+  // par défaut, la ressemblance de nom étant un signal faible/risqué.
+  const nameMatchOn = await isNameMatchEnabled(supabase, orgId);
+  if (nameMatchOn) {
   const LEGAL_TOKENS = new Set([
     "sas", "sasu", "sarl", "sa", "eurl", "sci", "scop", "scm", "selarl", "snc", "gie",
     "ltd", "inc", "llc", "gmbh", "bv", "srl", "spa", "ag", "co", "cie", "ste",
@@ -1392,6 +1423,7 @@ export async function detectUndeclaredGroups(
     }
     if (out.length - nameStart >= 8) break;
   }
+  } // fin passe « nom » (opt-in via Paramètres → Enrichissement)
   return out;
 }
 
