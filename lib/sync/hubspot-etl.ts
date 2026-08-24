@@ -1220,8 +1220,11 @@ export async function fetchCompanyParents(token: string, companyHsIds: string[])
           associationTypes?: Array<{ typeId?: number; label?: string | null }>;
         }> | undefined) ?? [];
         for (const t of toArr) {
+          // Type NATIF HubSpot : 14 = enfant → « Société mère » (le miroir 13
+          // « Entreprise enfant » vit côté parent). Repli sur les libellés
+          // USER_DEFINED français/anglais pour les portails à labels custom.
           const isParent = (t.associationTypes ?? []).some(
-            (a) => a.typeId === 14 || /parent/i.test(a.label ?? ""),
+            (a) => a.typeId === 14 || /parent|soci[ée]t[ée] m[èe]re|maison m[èe]re/i.test(a.label ?? ""),
           );
           const to = t.toObjectId;
           if (isParent && to != null && String(to) !== String(from)) {
