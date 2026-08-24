@@ -32,6 +32,9 @@ export type PennylaneInvoice = {
   paid_at: string | null;
   /** Facture archivée : son reste dû est un fantôme, à neutraliser (piège connu). */
   archived_at?: string | null;
+  /** Lien public du PDF de la facture (partageable au client — relances). */
+  public_file_url?: string | null;
+  file_url?: string | null;
   customer?: { id: number };
 };
 

@@ -137,6 +137,36 @@ async function sendEmail(
   }
 }
 
+/**
+ * Email direct à un destinataire EXTERNE (ex : relance d'impayé au client
+ * d'une facture) — hors canaux de notification. `replyTo` permet au client de
+ * répondre directement à l'utilisateur Revold plutôt qu'à noreply@.
+ */
+export async function sendDirectEmail(args: {
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
+  replyTo?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!resend) return { ok: false, error: "RESEND_API_KEY not set" };
+  if (args.to.length === 0) return { ok: false, error: "Aucun destinataire" };
+  try {
+    const { error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to: args.to,
+      subject: args.subject,
+      text: args.text,
+      html: args.html,
+      ...(args.replyTo ? { replyTo: args.replyTo } : {}),
+    });
+    if (error) return { ok: false, error: String(error) };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // SLACK / TEAMS via webhook (incoming webhooks)
 // ────────────────────────────────────────────────────────────────────────────

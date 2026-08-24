@@ -171,7 +171,9 @@ export const pennylaneConnector: SourceConnector = async (ctx) => {
       due_at: inv.deadline,
       paid_at: inv.paid_at,
       primary_source: PROVIDER,
-      source_metadata: { pennylane_id: inv.id },
+      // invoice_url : lien public du PDF Pennylane, inclus dans les emails de
+      // relance (bloc Relances & cash récupéré).
+      source_metadata: { pennylane_id: inv.id, invoice_url: inv.public_file_url ?? inv.file_url ?? null },
       updated_at: new Date().toISOString(),
     };
 
