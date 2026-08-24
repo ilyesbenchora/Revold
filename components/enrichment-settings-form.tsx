@@ -21,8 +21,21 @@ import {
  * La règle « JAMAIS écraser une donnée existante du CRM » est structurelle :
  * non désactivable.
  */
-export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSettings }) {
+export function EnrichmentSettingsForm({
+  initial,
+  fieldVerified = null,
+}: {
+  initial: EnrichmentSettings;
+  /**
+   * Vérification de la propriété CRM cible de chaque champ (bloc « Propriétés
+   * CRM de l'enrichissement ») : un champ n'est cochable QUE si sa propriété
+   * est vérifiée (✓ dans le CRM). null = HubSpot non connecté → pas de gate.
+   */
+  fieldVerified?: Partial<Record<keyof EnrichmentFields, boolean>> | null;
+}) {
   const [fields, setFields] = useState<EnrichmentFields>(initial.fields);
+  const isVerified = (id: keyof EnrichmentFields): boolean =>
+    fieldVerified === null || fieldVerified[id] === true;
   const [hubspotSearchIds, setHubspotSearchIds] = useState(initial.hubspotSearchIds);
   const [linkedinEnabled, setLinkedinEnabled] = useState(initial.linkedinEnabled);
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -59,10 +72,16 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
     setState("saving");
     setError(null);
     try {
+      // Un champ dont la propriété CRM n'est pas vérifiée ne peut PAS rester
+      // actif (nettoie aussi un réglage antérieur au verrou, ex : secteur
+      // coché alors que sa propriété n'a jamais été validée).
+      const sanitized = Object.fromEntries(
+        (Object.entries(fields) as Array<[keyof EnrichmentFields, boolean]>).map(([id, v]) => [id, v && isVerified(id)]),
+      ) as EnrichmentFields;
       const res = await fetch("/api/enrichment-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields, hubspot_search_ids: hubspotSearchIds, linkedin_enabled: linkedinEnabled }),
+        body: JSON.stringify({ fields: sanitized, hubspot_search_ids: hubspotSearchIds, linkedin_enabled: linkedinEnabled }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -105,25 +124,40 @@ export function EnrichmentSettingsForm({ initial }: { initial: EnrichmentSetting
 
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Champs à enrichir</p>
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {ENRICHMENT_FIELD_LABELS.map((f) => (
-          <label
-            key={f.id}
-            className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition ${
-              fields[f.id] ? "border-fuchsia-200 bg-fuchsia-50/40" : "border-slate-200 bg-white hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={fields[f.id]}
-              onChange={(e) => setFields((prev) => ({ ...prev, [f.id]: e.target.checked }))}
-              className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-fuchsia-500"
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-slate-800">{f.label}</span>
-              <span className="block text-[11px] text-slate-400">{f.hint}</span>
-            </span>
-          </label>
-        ))}
+        {ENRICHMENT_FIELD_LABELS.map((f) => {
+          const verified = isVerified(f.id);
+          const checked = fields[f.id] && verified;
+          return (
+            <label
+              key={f.id}
+              className={`flex items-start gap-2.5 rounded-xl border p-3 transition ${
+                !verified
+                  ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-75"
+                  : checked
+                    ? "cursor-pointer border-fuchsia-200 bg-fuchsia-50/40"
+                    : "cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
+              }`}
+              title={verified ? undefined : "Propriété CRM cible non vérifiée — valide-la d'abord dans « Propriétés CRM de l'enrichissement » ci-dessous."}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={!verified}
+                onChange={(e) => setFields((prev) => ({ ...prev, [f.id]: e.target.checked }))}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-fuchsia-500 disabled:cursor-not-allowed"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-slate-800">{f.label}</span>
+                <span className="block text-[11px] text-slate-400">{f.hint}</span>
+                {!verified && (
+                  <span className="mt-1 block text-[10px] font-medium text-amber-600">
+                    ⚠ Propriété CRM non vérifiée — valide-la dans « Propriétés CRM de l&apos;enrichissement » ci-dessous pour activer ce champ.
+                  </span>
+                )}
+              </span>
+            </label>
+          );
+        })}
       </div>
 
       <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-4">

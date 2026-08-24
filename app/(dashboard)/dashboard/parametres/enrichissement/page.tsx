@@ -143,8 +143,20 @@ export default async function ParametresEnrichissementPage() {
         </p>
       </div>
 
+      {/* Un champ n'est COCHABLE que si sa propriété CRM cible est vérifiée
+          (✓ dans le CRM) dans le bloc « Propriétés CRM » ci-dessous — sans
+          HubSpot connecté (pas de vérification possible), pas de verrou. */}
       <SettingsEditLock>
-        <EnrichmentSettingsForm initial={settings} />
+        <EnrichmentSettingsForm
+          initial={settings}
+          fieldVerified={
+            hubspotToken
+              ? Object.fromEntries(
+                  ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => [p.field, hubspotPropertyStatus[p.canonical]?.exists === true]),
+                )
+              : null
+          }
+        />
       </SettingsEditLock>
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le
