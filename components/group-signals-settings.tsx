@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Signaux de RAPPROCHEMENT DE GROUPE (Paramètres → Enrichissement) — visibilité
@@ -9,16 +9,45 @@ import { useState } from "react";
  * faible). Après changement, relancer depuis la page Hiérarchie comptes.
  */
 
-const DEFAULT_SIGNALS: Array<{ icon: string; title: string; desc: string }> = [
-  { icon: "🎯", title: "Montant exact (deal ↔ facture)", desc: "Un deal gagné facturé au montant exact sur une AUTRE société non reliée — signal fort de facturation par une entité du groupe." },
-  { icon: "🌐", title: "Domaine web partagé", desc: "Deux fiches CRM au même domaine web (hors domaines génériques) sans lien de groupe déclaré." },
-  { icon: "🏛️", title: "Même SIREN, SIRET distincts", desc: "Même société au registre (SIREN) mais deux établissements (SIRET) — siège + agence, via l'enrichissement Sirene." },
+type Diag = {
+  companies: number | null; withSiren: number | null; withSiret: number | null;
+  withDomain: number | null; dupSiren: number | null; wonDeals: number | null; unlinkedInvoices: number | null;
+};
+
+const nf = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
+
+const DEFAULT_SIGNALS: Array<{ icon: string; title: string; desc: string; coverage: (d: Diag) => string }> = [
+  {
+    icon: "🎯", title: "Montant exact (deal ↔ facture)",
+    desc: "Un deal gagné facturé au montant exact sur une AUTRE société non reliée — signal fort de facturation par une entité du groupe.",
+    coverage: (d) => `${nf(d.wonDeals)} deals gagnés · ${nf(d.unlinkedInvoices)} factures non rattachées à croiser`,
+  },
+  {
+    icon: "🌐", title: "Domaine web partagé",
+    desc: "Deux fiches CRM au même domaine web (hors domaines génériques) sans lien de groupe déclaré.",
+    coverage: (d) => `${nf(d.withDomain)} / ${nf(d.companies)} entreprises ont un domaine renseigné`,
+  },
+  {
+    icon: "🏛️", title: "Même SIREN, SIRET distincts",
+    desc: "Deux fiches CRM = même société au registre (SIREN) mais établissements (SIRET) différents — siège + agence. N'utilise PAS le SIREN enrichi seul, mais les doublons SIREN détectés.",
+    coverage: (d) => `${nf(d.withSiren)} avec SIREN · ${nf(d.withSiret)} avec SIRET · ${nf(d.dupSiren)} doublons SIREN (établissements)`,
+  },
 ];
 
 export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: boolean }) {
   const [nameMatch, setNameMatch] = useState(initialNameMatch);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [diag, setDiag] = useState<Diag | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/hierarchy/diagnostic")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setDiag(d as Diag); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   async function toggle(next: boolean) {
     if (busy) return;
@@ -59,6 +88,11 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-slate-800">{s.title}</p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{s.desc}</p>
+              {diag && (
+                <p className="mt-1 text-[10px] font-medium text-slate-400">
+                  <span className="text-slate-500">Couverture :</span> {s.coverage(diag)}
+                </p>
+              )}
             </div>
             <span className="mt-0.5 shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Actif</span>
           </div>
