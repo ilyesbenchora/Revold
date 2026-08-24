@@ -628,8 +628,9 @@ export default async function PaiementFacturationOverviewPage({
                     Projection de trésorerie · 12 mois
                   </p>
                   <p className="mb-2 text-[10px] text-slate-400">
-                    Prudent = factures ouvertes seules · Probable = + pipeline pondéré · Ambitieux = + pipeline plein —
-                    détail complet dans l&apos;onglet Prévisionnel
+                    Activité récurrente saisonnalisée (médiane × même mois an −1) + factures ouvertes · Prudent = récurrent
+                    ralenti sans pipeline · Probable = + pipeline pondéré · Ambitieux = + pipeline plein — détail dans
+                    l&apos;onglet Prévisionnel
                   </p>
                   <ForecastChart
                     points={forecast.points.map((p) => ({ label: p.label, prudent: p.soldePrudent, probable: p.soldeProbable, ambitieux: p.soldeAmbitieux }))}

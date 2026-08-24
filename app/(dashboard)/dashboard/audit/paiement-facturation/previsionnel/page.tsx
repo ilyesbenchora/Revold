@@ -175,7 +175,9 @@ export default async function PrevisionnelPage({
                 Départ : {fc.start != null ? fmtK(fc.start) : "—"} de trésorerie disponible
               </p>
               <p className="mb-2 text-[10px] text-slate-400">
-                Prudent = factures ouvertes seules · Probable = + pipeline pondéré (probabilité d&apos;étape × inactivité) · Ambitieux = + pipeline plein
+                Activité récurrente saisonnalisée (médiane des encaissements réels × même mois an −1) + factures ouvertes ·
+                Prudent = récurrent ralenti (80 %) sans pipeline · Probable = + pipeline pondéré (probabilité d&apos;étape ×
+                inactivité) · Ambitieux = + pipeline plein
               </p>
               <ForecastChart
                 points={fc.points.map((p) => ({ label: p.label, prudent: p.soldePrudent, probable: p.soldeProbable, ambitieux: p.soldeAmbitieux }))}
@@ -198,7 +200,7 @@ export default async function PrevisionnelPage({
                 unit="currency"
                 nameLabel="Mois"
                 valueLabel="Solde projeté"
-                extraColumns={["Factures", "Pipeline pondéré", "Charges", "Fournisseurs", "Fiscal"]}
+                extraColumns={["Factures", "Récurrent", "Pipeline pondéré", "Charges", "Fournisseurs", "Fiscal"]}
                 rows={fc.points.map((p) => ({
                   name: p.label,
                   value: p.soldeProbable,
@@ -206,13 +208,14 @@ export default async function PrevisionnelPage({
                   tone: "auto" as const,
                   cells: [
                     p.encaissementsFactures > 0 ? fmtK(p.encaissementsFactures) : "—",
+                    p.encaissementsRecurrents > 0 ? fmtK(p.encaissementsRecurrents) : "—",
                     p.encaissementsPipeline > 0 ? fmtK(p.encaissementsPipeline) : "—",
                     p.decaissementsCharges > 0 ? `− ${fmtK(p.decaissementsCharges)}` : "—",
                     p.decaissementsFournisseurs > 0 ? `− ${fmtK(p.decaissementsFournisseurs)}` : "—",
                     p.decaissementsFiscal > 0 ? `− ${fmtK(p.decaissementsFiscal)}` : "—",
                   ],
                 }))}
-                footnote="Hypothèses : encaissement d'un deal au mois de clôture + 1 ; retards ramenés au 1er mois projeté ; charges = médiane des décaissements réels ; fiscal = paramètres de l'organisation. Aide à la décision, pas un engagement."
+                footnote="Hypothèses : récurrent = moyenne (médiane des encaissements réels, même mois an −1), en complément des factures déjà émises ; encaissement d'un deal au mois de clôture + 1 ; retards ramenés au 1er mois projeté ; charges saisonnalisées de la même façon, en complément des fournisseurs et du fiscal connus. Aide à la décision, pas un engagement."
               />
             </div>
           </CollapsibleBlock>

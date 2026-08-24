@@ -28,9 +28,9 @@ export type ForecastChartPoint = {
 };
 
 const SCENARIOS: Array<{ key: keyof Omit<ForecastChartPoint, "label">; label: string; color: string }> = [
-  { key: "ambitieux", label: "Ambitieux (pipeline plein)", color: "#059669" },
-  { key: "probable", label: "Probable (pipeline pondéré)", color: "#4f46e5" },
-  { key: "prudent", label: "Prudent (factures seules)", color: "#e11d48" },
+  { key: "ambitieux", label: "Ambitieux (récurrent + pipeline plein)", color: "#059669" },
+  { key: "probable", label: "Probable (récurrent + pipeline pondéré)", color: "#4f46e5" },
+  { key: "prudent", label: "Prudent (récurrent ralenti, sans pipeline)", color: "#e11d48" },
 ];
 
 const fmtCompact = (v: number) => {

@@ -7,13 +7,21 @@ import { getForecastExcludedPipelines } from "@/lib/actions/engine";
  * Prévisionnel de trésorerie glissant (12 mois, 3 scénarios) — adapté du
  * template Lomed Cockpit au modèle canonique multi-tenant de Revold :
  *
- *  - encaissements = factures clients OUVERTES à leur échéance
+ *  - encaissements = activité RÉCURRENTE saisonnalisée (médiane des
+ *    encaissements réels mêlée au même mois de l'an passé — c'est elle qui
+ *    donne aux courbes leur relief mois par mois, au lieu d'une rampe droite)
+ *    + factures clients OUVERTES à leur échéance
  *    + pipeline CRM pondéré (probabilité d'étape × décote d'inactivité),
- *    projeté au mois de clôture + 1 (on encaisse APRÈS avoir livré) ;
- *  - décaissements = charges fixes mensuelles (médiane des flux réels)
- *    + factures fournisseurs ouvertes à leur échéance
+ *    projeté au mois de clôture + 1 (on encaisse APRÈS avoir livré).
+ *    Anti double compte : le récurrent est un COMPLÉMENT — il ne s'ajoute que
+ *    pour la part au-dessus des factures déjà émises pour le mois ;
+ *  - décaissements = charges saisonnalisées (même principe, médiane × an −1)
+ *    en complément des factures fournisseurs ouvertes à leur échéance
  *    + échéances fiscales (paramètres de l'organisation, Paramètres → Organisation) ;
  *  - point de départ = trésorerie disponible réelle (continuité avec la courbe réelle).
+ *
+ * Scénarios : Prudent = récurrent ralenti (80 %) SANS pipeline ·
+ * Probable = récurrent + pipeline pondéré · Ambitieux = récurrent + pipeline plein.
  *
  * Contrairement au template (hypothèses d'une seule entreprise codées en dur),
  * TOUT est piloté par les données synchronisées et les paramètres de l'org.
@@ -23,6 +31,8 @@ export type ForecastPoint = {
   month: string; // YYYY-MM
   label: string; // "juil. 2026"
   encaissementsFactures: number;
+  /** Activité récurrente projetée (complément saisonnalisé, hors factures déjà émises). */
+  encaissementsRecurrents: number;
   encaissementsPipeline: number; // scénario probable
   decaissementsCharges: number;
   decaissementsFournisseurs: number;
@@ -173,6 +183,30 @@ export async function computeTreasuryForecast(
   // ── Échéances fiscales sur l'horizon (paramètres org, occurrences étendues). ──
   const fiscalItems = expandFiscalSchedule(org, now, horizon);
 
+  // ── Activité récurrente saisonnalisée (le relief des courbes) ──
+  // Base mensuelle = moyenne (médiane des encaissements réels, même mois an −1).
+  // Sans historique du mois miroir → médiane seule. C'est un COMPLÉMENT : il
+  // ne compte que pour la part au-dessus des factures/échéances déjà connues
+  // du mois (sinon on compterait deux fois le même euro).
+  const histo = new Map((cf?.monthlyFlows ?? []).map((f) => [f.month, { in: f.in, out: f.out }]));
+  const medianOf = (values: number[]): number | null => {
+    if (values.length === 0) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  // Mois en cours exclu (partiel) — il fausserait la médiane vers le bas.
+  const fullMonths = (cf?.monthlyFlows ?? []).filter((f) => f.month !== currentMonth);
+  const medianeEnc = medianOf(fullMonths.map((f) => f.in).filter((v) => v > 0));
+  const seasonalBase = (m: string, mediane: number | null, pick: (h: { in: number; out: number }) => number): number => {
+    const mirror = histo.get(addMonths(m, -12));
+    const lastYear = mirror ? pick(mirror) : null;
+    if (mediane != null && lastYear != null && lastYear > 0) return (mediane + lastYear) / 2;
+    return mediane ?? (lastYear != null && lastYear > 0 ? lastYear : 0);
+  };
+  // Prudent : activité récurrente ralentie (80 %), zéro pipeline.
+  const PRUDENT_RECURRENT = 0.8;
+
   // ── Construction des points mensuels ──
   const charges = cf?.chargesFixesMensuelles ?? null;
   const start = cf?.tresorerieDisponible ?? null;
@@ -189,12 +223,16 @@ export async function computeTreasuryForecast(
     const encPipelinePlein = sumBy(dealsRetenus, m, (r) => r.cashMonth, (r) => r.amount);
     const decFournisseurs = sumBy(fournisseurs, m, (r) => dueMonth(r.due_at, r.issued_at, currentMonth), (r) => Math.abs(Number(r.amount_due) || 0));
     const decFiscal = sumBy(fiscalItems, m, (r) => r.month, (r) => r.amount);
-    const decCharges = charges ?? 0;
+
+    // Récurrent (complément au-dessus des factures émises) et charges
+    // saisonnalisées (complément au-dessus des fournisseurs + fiscal connus).
+    const encRecurrent = Math.max(0, seasonalBase(m, medianeEnc, (h) => h.in) - encFactures);
+    const decCharges = Math.max(0, seasonalBase(m, charges, (h) => h.out) - decFournisseurs - decFiscal);
     const outflows = decCharges + decFournisseurs + decFiscal;
 
-    prudent += encFactures - outflows; // factures seules, zéro pipeline
-    probable += encFactures + encPipelineProbable - outflows;
-    ambitieux += encFactures + encPipelinePlein - outflows;
+    prudent += encFactures + encRecurrent * PRUDENT_RECURRENT - outflows; // sans pipeline
+    probable += encFactures + encRecurrent + encPipelineProbable - outflows;
+    ambitieux += encFactures + encRecurrent + encPipelinePlein - outflows;
 
     if (breakEvenMonth.prudent === null && prudent < 0) breakEvenMonth.prudent = m;
     if (breakEvenMonth.probable === null && probable < 0) breakEvenMonth.probable = m;
@@ -204,6 +242,7 @@ export async function computeTreasuryForecast(
       month: m,
       label: monthLabel(m),
       encaissementsFactures: Math.round(encFactures),
+      encaissementsRecurrents: Math.round(encRecurrent),
       encaissementsPipeline: Math.round(encPipelineProbable),
       decaissementsCharges: Math.round(decCharges),
       decaissementsFournisseurs: Math.round(decFournisseurs),

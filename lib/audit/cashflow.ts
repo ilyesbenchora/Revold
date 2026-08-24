@@ -38,8 +38,9 @@ export type CashflowData = {
   pctChargesNonCategorisees: number | null;
   /** Balance du mois EN COURS (encaissé − décaissé), null si aucun flux ce mois-ci. */
   balanceMoisCourant: number | null;
-  /** Flux mensuels (12 derniers mois, ordre chronologique) pour le graphe enc/déc. */
-  monthlyFlows: Array<{ label: string; in: number; out: number }>;
+  /** Flux mensuels (12 derniers mois, ordre chronologique) pour le graphe enc/déc.
+   *  `month` (YYYY-MM) sert au prévisionnel : saisonnalité = même mois an −1. */
+  monthlyFlows: Array<{ month: string; label: string; in: number; out: number }>;
   /** Solde de trésorerie mois par mois (ancré sur le solde bancaire réel si dispo). */
   balanceSeries: Array<{ label: string; value: number }>;
 };
@@ -202,6 +203,7 @@ export async function computeCashflow(
   }
   const sortedMonths = [...byMonthFlows.keys()].sort().slice(-12);
   const monthlyFlows = sortedMonths.map((key) => ({
+    month: key,
     label: monthLabel(key),
     in: Math.round(byMonthFlows.get(key)!.in),
     out: Math.round(byMonthFlows.get(key)!.out),
