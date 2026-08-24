@@ -174,8 +174,11 @@ export default async function ParametresEnrichissementPage() {
       </SettingsEditLock>
 
       {/* ── Signaux de rapprochement de groupe : visibilité des signaux (montant,
-             domaine, SIREN/SIRET) + opt-in « ressemblance de nom ». ── */}
-      <GroupSignalsSettings initialNameMatch={nameMatchEnabled} />
+             domaine, SIREN/SIRET) + opt-in « ressemblance de nom ». Verrou
+             d'édition (✎ Modifier) comme les autres blocs — réglage auto-enregistré. ── */}
+      <SettingsEditLock fallbackCta label="✎ Modifier">
+        <GroupSignalsSettings initialNameMatch={nameMatchEnabled} />
+      </SettingsEditLock>
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le
              « Mapping des identifiants » du Modèle de données, restreint aux

@@ -29,7 +29,7 @@ const DEFAULT_SIGNALS: Array<{ title: string; desc: string; coverage: (d: Diag) 
   },
   {
     title: "Même SIREN, SIRET distincts",
-    desc: "Deux fiches CRM = même société au registre (SIREN) mais établissements (SIRET) différents — siège + agence. N'utilise PAS le SIREN enrichi seul, mais les doublons SIREN détectés.",
+    desc: "Se déclenche quand DEUX fiches CRM différentes portent le même SIREN (doublon repéré à l'enrichissement) avec des SIRET différents : c'est la même société légale vue à deux établissements (siège + agence). Rare par nature — il faut ce doublon, pas seulement qu'une fiche ait un SIREN.",
     coverage: (d) => `${nf(d.withSiren)} avec SIREN · ${nf(d.withSiret)} avec SIRET · ${nf(d.dupSiren)} doublons SIREN (établissements)`,
   },
 ];
