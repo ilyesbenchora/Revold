@@ -1201,7 +1201,7 @@ async function fetchDealContactAssociations(token: string, dealHsIds: string[]):
  * l'entreprise enfant, le `to` de type parent est son groupe. On ne devine
  * jamais — seule la hiérarchie réellement posée dans HubSpot est ingérée.
  */
-async function fetchCompanyParents(token: string, companyHsIds: string[]): Promise<Record<string, string>> {
+export async function fetchCompanyParents(token: string, companyHsIds: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (let i = 0; i < companyHsIds.length; i += 100) {
     const chunk = companyHsIds.slice(i, i + 100);

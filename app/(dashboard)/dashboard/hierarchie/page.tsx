@@ -7,6 +7,8 @@ import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establis
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { HierarchyConsole } from "@/components/hierarchy-console";
+import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
 import { FeatureTour } from "@/components/feature-tour";
 
@@ -63,6 +65,21 @@ export default async function HierarchiePage() {
     wonDealsCount = error ? null : (count ?? 0);
   } catch { /* non bloquant */ }
 
+  // Périmètre de la synchronisation HubSpot (runner) : entreprises CRM + état.
+  let crmCompaniesCount = 0;
+  try {
+    const { count } = await supabase
+      .from("companies")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null);
+    crmCompaniesCount = count ?? 0;
+  } catch { /* non bloquant */ }
+  const hubspotToken = await getHubSpotToken(supabase, orgId);
+  const linkedChildrenCount = groups.available
+    ? [...groups.rootOf.entries()].filter(([id, root]) => id !== root).length
+    : 0;
+
   const tiles = [
     { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 sociétés reliées" },
     { label: "Entités en groupe", value: entitiesInGroups, sub: "parents + enfants" },
@@ -114,6 +131,29 @@ export default async function HierarchiePage() {
           </article>
         ))}
       </div>
+
+      {/* ── Compteurs à zéro : le dire EXPLICITEMENT (pas un dysfonctionnement,
+             la base ne contient simplement pas encore de hiérarchie). ── */}
+      {groups.available && declared.length === 0 && (pendingCount ?? 0) === 0 && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm text-slate-600">
+          <p className="font-medium text-slate-800">Les compteurs sont à zéro — c&apos;est normal au premier passage.</p>
+          <p className="mt-0.5 text-xs leading-relaxed">
+            Aucune hiérarchie parent/enfant n&apos;a encore été déclarée dans ta base (ni dans HubSpot, ni via une
+            validation Revold) : la page n&apos;a donc rien à afficher — ce n&apos;est pas un dysfonctionnement.
+            Pour démarrer : <strong>1.</strong> lance la synchronisation HubSpot ci-dessous (elle importe les
+            hiérarchies déjà posées dans le CRM), <strong>2.</strong> puis « Relancer la détection » pour recevoir
+            les suggestions de Revold à valider.
+          </p>
+        </div>
+      )}
+
+      {/* ── Synchronisation à la demande des hiérarchies HubSpot (barre de
+             complétion, bilan honnête — zéro association trouvée = dit tel quel). ── */}
+      <HierarchySyncRunner
+        total={crmCompaniesCount}
+        linkedChildren={linkedChildrenCount}
+        hubspotConnected={Boolean(hubspotToken)}
+      />
 
       {/* ── Suggestions à valider + historique (console) ── */}
       <div data-tour="hierarchie-console">

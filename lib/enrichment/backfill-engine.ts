@@ -120,6 +120,12 @@ export async function runEnrichmentBatch(
   const now = Date.now();
   const recheckBefore = new Date(now - RECHECK_DAYS * 86_400_000).toISOString();
   const refreshBefore = new Date(now - REFRESH_DAYS * 86_400_000).toISOString();
+  // Fiches même-SIREN sans SIRET d'établissement conservé (données antérieures
+  // au correctif candidate_siret) : re-passage IMMÉDIAT — le SIRET alimente le
+  // signal siège/établissement de la page Hiérarchie comptes. Garde anti-boucle
+  // 24 h : si le registre ne rend pas de SIRET, on ne retente pas en continu.
+  const dupRecheckBefore = new Date(now - 86_400_000).toISOString();
+  const dupSiretClause = `and(duplicate_of_siren.not.is.null,candidate_siret.is.null,sirene_checked_at.lt.${dupRecheckBefore})`;
 
   let budget = Math.max(1, opts.budget);
   const perOrg: Record<string, BackfillCounts> = {};
@@ -141,7 +147,7 @@ export async function runEnrichmentBatch(
       .is("siren", null)
       .not("name", "is", null)
       .is("candidate_siren", null)
-      .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore}`),
+      .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore},${dupSiretClause}`),
   )
     .order("sirene_checked_at", { ascending: true, nullsFirst: true })
     .limit(Math.max(1, Math.floor(opts.budget * 0.6)));
@@ -448,7 +454,7 @@ export async function runEnrichmentBatch(
               .is("siren", null)
               .not("name", "is", null)
               .is("candidate_siren", null)
-              .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore}`)
+              .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore},${dupSiretClause}`)
           : scoped(base).not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`);
       const { count } = await q;
       return count ?? 0;
