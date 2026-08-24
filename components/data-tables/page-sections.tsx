@@ -246,8 +246,7 @@ export function PageSections({ pageKey }: { pageKey: string }) {
   const renderAddedHeader = (s: Section) => {
     const isEdit = editId === s.id;
     return (
-      <div className="flex items-center gap-2 pt-3">
-        <span className="h-5 w-1 shrink-0 rounded-full bg-accent/60" />
+      <div className="flex items-center gap-2">
         {isEdit ? (
           <input
             autoFocus
