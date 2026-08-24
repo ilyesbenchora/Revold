@@ -67,6 +67,9 @@ export function HierarchyConsole({
   const [bulkBusy, setBulkBusy] = useState<"approve" | "reject" | null>(null);
   const [bulkProgress, setBulkProgress] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  // Pagination de la file (grosses files de rapprochements par le nom).
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
   // Identifiants d'entités par hubspot_id (SIREN/SIRET) — colonnes clés du
   // rapprochement, servies en direct depuis la base.
   const [idents, setIdents] = useState<Record<string, { siren: string | null; siret: string | null }>>({});
@@ -179,6 +182,24 @@ export function HierarchyConsole({
     setBulkProgress(null);
     await load();
   }
+
+  // Tranche affichée (pagination) — la sélection en masse reste sur toute la file.
+  const totalPages = pending ? Math.max(1, Math.ceil(pending.length / PAGE_SIZE)) : 1;
+  const curPage = Math.min(page, totalPages - 1);
+  const pageItems = pending ? pending.slice(curPage * PAGE_SIZE, curPage * PAGE_SIZE + PAGE_SIZE) : [];
+  const Pager = () =>
+    pending && pending.length > PAGE_SIZE ? (
+      <div className="flex items-center justify-between gap-2 pt-1 text-xs text-slate-500">
+        <span className="tabular-nums">
+          {curPage * PAGE_SIZE + 1}–{Math.min((curPage + 1) * PAGE_SIZE, pending.length)} sur {pending.length}
+        </span>
+        <span className="flex items-center gap-1">
+          <button type="button" disabled={curPage === 0} onClick={() => setPage(curPage - 1)} className="rounded-md border border-slate-200 px-2 py-1 font-medium transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40">← Précédent</button>
+          <span className="tabular-nums">Page {curPage + 1}/{totalPages}</span>
+          <button type="button" disabled={curPage >= totalPages - 1} onClick={() => setPage(curPage + 1)} className="rounded-md border border-slate-200 px-2 py-1 font-medium transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40">Suivant →</button>
+        </span>
+      </div>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -331,7 +352,7 @@ export function HierarchyConsole({
                       </tr>
                     </thead>
                     <tbody>
-                      {pending.map((a) => {
+                      {pageItems.map((a) => {
                         const isSwapped = swapped.has(a.id);
                         const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
                         const rawChild = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
@@ -427,7 +448,7 @@ export function HierarchyConsole({
             );
           })()
         ) : (
-          pending.map((a) => {
+          pageItems.map((a) => {
             const isSwapped = swapped.has(a.id);
             const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
             const rawChild = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
@@ -533,6 +554,8 @@ export function HierarchyConsole({
             );
           })
         )}
+
+        <Pager />
       </section>
 
       {/* ── Historique des validations ── */}

@@ -1082,9 +1082,10 @@ export async function detectUndeclaredGroups(
   const DAY = 86_400_000;
   const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * 0.01);
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-  // Plafond par SIGNAL FIABLE (montant / domaine / SIREN) : assez haut pour
-  // couvrir la base, borné pour ne pas noyer la file de validation.
-  const MAX_PER_SIGNAL = 50;
+  // Plafond par SIGNAL : assez haut pour couvrir la base (ex. ~380 rapprochements
+  // par le nom possibles sur une grosse base), borné pour rester raisonnable ;
+  // la file de validation est paginée + validation en masse.
+  const MAX_PER_SIGNAL = 400;
 
   const [dealsRes, invRes, compRes] = await Promise.all([
     supabase
