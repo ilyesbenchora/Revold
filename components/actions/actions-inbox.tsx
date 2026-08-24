@@ -226,6 +226,13 @@ function sourceLabel(source: string): string {
   return source;
 }
 
+/** Libellé court d'une sous-catégorie (rangée de filtres) — sans le préfixe « Détecteur · ». */
+function subCategoryLabel(source: string): string {
+  const full = sourceLabel(source);
+  const short = full.replace(/^Détecteur · /, "");
+  return short.charAt(0).toUpperCase() + short.slice(1);
+}
+
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -241,8 +248,11 @@ export function ActionsInbox() {
   // le temps que l'utilisateur voie la confirmation, avant le départ en historique.
   const [doneId, setDoneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Filtres : type d'action + outil ("" = tous) — appliqués à la file ET à l'historique.
+  // Filtres : type d'action + outil ("" = tous) — appliqués à la file ET à
+  // l'historique. Sous-catégorie = source (détecteur/agent) DANS le type
+  // sélectionné (ex : type de tâche pour les tâches HubSpot).
   const [typeFilter, setTypeFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
   const [toolFilter, setToolFilter] = useState("");
   // Catalogue : familles de détecteurs masquées (préférence locale).
   const [hidden, setHidden] = useState<string[]>([]);
@@ -418,8 +428,16 @@ export function ActionsInbox() {
   const all = [...(pending ?? []), ...deferred, ...history];
   const presentTypes = [...new Set(all.map((a) => a.type))];
   const presentTools = [...new Set(all.map((a) => TYPE_META[a.type]?.tool).filter((t): t is string => !!t))];
+  // Sous-catégories du type sélectionné : les sources (détecteurs/agents)
+  // réellement présentes parmi ses fiches — affichées seulement s'il y en a
+  // plusieurs (sinon la rangée n'apporte rien).
+  const presentSources = typeFilter
+    ? [...new Set(all.filter((a) => a.type === typeFilter).map((a) => a.source))]
+    : [];
   const matches = (a: ActionItem) =>
-    (!typeFilter || a.type === typeFilter) && (!toolFilter || TYPE_META[a.type]?.tool === toolFilter);
+    (!typeFilter || a.type === typeFilter) &&
+    (!sourceFilter || a.source === sourceFilter) &&
+    (!toolFilter || TYPE_META[a.type]?.tool === toolFilter);
   const shownPending = (pending ?? []).filter(matches);
   const shownDeferred = deferred.filter(matches);
   const shownHistory = history.filter(matches);
@@ -675,7 +693,7 @@ export function ActionsInbox() {
             <span className="text-[11px] font-medium text-slate-500">Action :</span>
             <button
               type="button"
-              onClick={() => setTypeFilter("")}
+              onClick={() => { setTypeFilter(""); setSourceFilter(""); }}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${!typeFilter ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
             >
               Toutes
@@ -684,7 +702,7 @@ export function ActionsInbox() {
               <button
                 key={t}
                 type="button"
-                onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
+                onClick={() => { setTypeFilter(typeFilter === t ? "" : t); setSourceFilter(""); }}
                 className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${typeFilter === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
                 {TYPE_META[t]?.label ?? t}
@@ -715,6 +733,32 @@ export function ActionsInbox() {
                   </button>
                 );
               })}
+            </div>
+          )}
+          {/* ── Sous-catégories du type sélectionné (ex : type de tâche) —
+                 dérivées de la source (détecteur/agent) de chaque fiche. ── */}
+          {typeFilter && presentSources.length > 1 && (
+            <div className="flex w-full flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-slate-400">
+                {typeFilter === "hubspot_task" ? "Type de tâche :" : "Sous-catégorie :"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSourceFilter("")}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${!sourceFilter ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
+              >
+                Toutes
+              </button>
+              {presentSources.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSourceFilter(sourceFilter === s ? "" : s)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${sourceFilter === s ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
+                >
+                  {subCategoryLabel(s)}
+                </button>
+              ))}
             </div>
           )}
         </div>
