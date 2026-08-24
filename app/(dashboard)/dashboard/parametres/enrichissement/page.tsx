@@ -176,7 +176,7 @@ export default async function ParametresEnrichissementPage() {
       {/* ── Signaux de rapprochement de groupe : visibilité des signaux (montant,
              domaine, SIREN/SIRET) + opt-in « ressemblance de nom ». Verrou
              d'édition (✎ Modifier) comme les autres blocs — réglage auto-enregistré. ── */}
-      <SettingsEditLock fallbackCta label="✎ Modifier">
+      <SettingsEditLock>
         <GroupSignalsSettings initialNameMatch={nameMatchEnabled} />
       </SettingsEditLock>
 

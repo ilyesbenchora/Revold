@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SettingsSaveButton } from "@/components/settings-edit-lock";
 
 /**
  * Signaux de RAPPROCHEMENT DE GROUPE (Paramètres → Enrichissement) — visibilité
@@ -150,6 +151,11 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
         </div>
       )}
       {saved && <p className="text-[11px] text-emerald-600">✓ Enregistré — relance le rapprochement pour l&apos;appliquer.</p>}
+
+      {/* CTA UNIQUE identique aux autres blocs de réglages (verrou d'édition). */}
+      <div className="flex justify-end pt-1">
+        <SettingsSaveButton editLabel="✎ Modifier" label="Enregistrer" onSave={() => true} />
+      </div>
     </div>
   );
 }
