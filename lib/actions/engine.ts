@@ -1364,64 +1364,90 @@ export async function detectUndeclaredGroups(
   const isPrefixOf = (a: string[], b: string[]): boolean =>
     a.length > 0 && a.length < b.length && a.every((t, i) => b[i] === t);
 
-  // Racine = premier mot significatif (ni générique, ni marqueur de groupe).
-  const byRoot = new Map<string, Array<{ cid: string; tokens: string[] }>>();
+  // Tokens significatifs par entreprise ; on ne retient que les fiches dont le
+  // 1er mot est significatif (ni forme juridique, ni générique, ni marqueur).
+  const tokensOf = new Map<string, string[]>();
   for (const [cid, c] of comp) {
     const tokens = nameTokens(c);
-    const root = tokens.find((t) => !GENERIC_FIRST.has(t) && !GROUP_TOKENS.has(t));
-    if (!root || root.length < 3 || tokens.indexOf(root) > 0) continue; // racine = 1er mot uniquement
-    (byRoot.get(root) ?? byRoot.set(root, []).get(root))!.push({ cid, tokens });
+    if (tokens.length === 0) continue;
+    const first = tokens[0];
+    if (first.length < 3 || GENERIC_FIRST.has(first) || GROUP_TOKENS.has(first)) continue;
+    tokensOf.set(cid, tokens);
+  }
+  // Base valide comme SOCIÉTÉ MÈRE : ≥ 2 mots significatifs (« banque populaire »)
+  // ou 1 mot distinctif ≥ 5 lettres (« decathlon ») — évite les mères d'un seul
+  // mot trop générique.
+  const validBase = (t: string[]) => t.length >= 2 || (t.length === 1 && t[0].length >= 5);
+  // Groupe par 1er mot (le préfixe exact écarte ensuite les homonymes non liés :
+  // « banque populaire » n'est pas préfixe de « banque de france »).
+  const byRoot = new Map<string, string[]>();
+  for (const [cid, tokens] of tokensOf) {
+    (byRoot.get(tokens[0]) ?? byRoot.set(tokens[0], []).get(tokens[0]))!.push(cid);
   }
 
   const nameStart = out.length;
-  for (const [root, members] of byRoot) {
-    if (members.length < 2 || members.length > 5) continue; // > 5 homonymes → trop ambigu
-    for (let i = 0; i < members.length && out.length - nameStart < 8; i++) {
-      for (let j = i + 1; j < members.length && out.length - nameStart < 8; j++) {
-        const a = members[i];
-        const b = members[j];
-        const aHasGroup = a.tokens.some((t) => GROUP_TOKENS.has(t));
-        const bHasGroup = b.tokens.some((t) => GROUP_TOKENS.has(t));
-        // Motif retenu ? A. l'un est préfixe de l'autre · B. un seul porte le marqueur.
-        let parentEntry: typeof a | null = null;
-        let childEntry: typeof a | null = null;
-        if (aHasGroup !== bHasGroup) {
-          parentEntry = aHasGroup ? a : b;
-          childEntry = aHasGroup ? b : a;
-        } else if (isPrefixOf(a.tokens, b.tokens)) {
-          parentEntry = a;
-          childEntry = b;
-        } else if (isPrefixOf(b.tokens, a.tokens)) {
-          parentEntry = b;
-          childEntry = a;
-        }
-        if (!parentEntry || !childEntry) continue;
-        if (rootOf(parentEntry.cid) === rootOf(childEntry.cid)) continue; // déjà reliées
-        const pairKey = [parentEntry.cid, childEntry.cid].sort().join(":");
-        if (seenPairs.has(pairKey)) continue;
-        seenPairs.add(pairKey);
-        const parentC = comp.get(parentEntry.cid)!;
-        const childC = comp.get(childEntry.cid)!;
-        const parentName = parentC.name ?? parentC.legal_name ?? "entité principale";
-        const childName = childC.name ?? childC.legal_name ?? "entité liée";
-        out.push({
-          dedupe_key: `declare_group:${pairKey}`,
-          type: "hubspot_company_associate",
-          title: `Hiérarchie possible (nom apparenté) : « ${parentName} » parent de « ${childName} »`,
-          description: `Signal FAIBLE, à vérifier avant de valider : les noms de ces fiches sont structurellement apparentés (racine « ${root} »${aHasGroup !== bHasGroup ? ", et une seule porte un marqueur de groupe type « holding/groupe »" : ", l'un étant le préfixe de l'autre"}) — aucun autre lien (facture, domaine, SIREN) ne les relie pour l'instant. Deux sociétés au nom proche peuvent être indépendantes (franchises, homonymes) : confirme que c'est bien le même groupe, inverse le sens si besoin, et refuse au moindre doute. Valider écrit l'association parent/enfant dans HubSpot.`,
-          source: "detector:declare_group",
-          payload: {
-            parentHubspotId: parentC.hubspot_id,
-            childHubspotId: childC.hubspot_id,
-            parentCompanyName: parentName,
-            childCompanyName: childName,
-            groupSignal: "name_match",
-            sharedName: root,
-          },
-        });
+  const emitName = (parentId: string, childId: string, base: string, kind: "prefix" | "marker") => {
+    if (rootOf(parentId) === rootOf(childId)) return; // déjà dans le même groupe
+    const pairKey = [parentId, childId].sort().join(":");
+    if (seenPairs.has(pairKey)) return;
+    seenPairs.add(pairKey);
+    const parentC = comp.get(parentId)!;
+    const childC = comp.get(childId)!;
+    const parentName = parentC.name ?? parentC.legal_name ?? "société mère";
+    const childName = childC.name ?? childC.legal_name ?? "entité liée";
+    const reason =
+      kind === "prefix"
+        ? `« ${childName} » reprend le nom de « ${parentName} » en y ajoutant une précision (ville, région, agence) — motif classique société mère → entité locale ; « ${parentName} », sans complément, est proposée comme mère.`
+        : `« ${parentName} » porte un marqueur de groupe (« holding/groupe ») que « ${childName} » n'a pas — proposée comme mère.`;
+    out.push({
+      dedupe_key: `declare_group:${pairKey}`,
+      type: "hubspot_company_associate",
+      title: `Hiérarchie possible (nom) : « ${parentName} » (mère) parent de « ${childName} »`,
+      description: `${reason} Signal par le NOM (opt-in) : deux sociétés au nom proche peuvent être indépendantes (franchises, homonymes). Vérifie, inverse le sens si besoin, refuse au moindre doute. Valider écrit l'association parent/enfant dans HubSpot.`,
+      source: "detector:declare_group",
+      payload: {
+        parentHubspotId: parentC.hubspot_id,
+        childHubspotId: childC.hubspot_id,
+        parentCompanyName: parentName,
+        childCompanyName: childName,
+        groupSignal: "name_match",
+        sharedName: base,
+      },
+    });
+  };
+
+  for (const [root, cids] of byRoot) {
+    if (out.length - nameStart >= MAX_PER_SIGNAL) break;
+    if (cids.length < 2 || cids.length > 200) continue; // garde-fou perf sur un mot ultra-commun
+
+    // ── MOTIF A (ton cas Banque Populaire) : nom NU = mère, + ville/région = fille.
+    // Pour chaque enfant, sa mère = la base VALIDE la plus courte qui préfixe son nom.
+    for (const childId of cids) {
+      if (out.length - nameStart >= MAX_PER_SIGNAL) break;
+      const ct = tokensOf.get(childId)!;
+      let parentId: string | null = null;
+      let plen = Infinity;
+      for (const pid of cids) {
+        if (pid === childId) continue;
+        const pt = tokensOf.get(pid)!;
+        if (validBase(pt) && isPrefixOf(pt, ct) && pt.length < plen) { parentId = pid; plen = pt.length; }
+      }
+      if (parentId) emitName(parentId, childId, tokensOf.get(parentId)!.join(" "), "prefix");
+    }
+
+    // ── MOTIF B : un SEUL membre porte un marqueur de groupe (« holding/groupe ») →
+    // il est la mère des autres fiches de même racine sans marqueur.
+    if (out.length - nameStart >= MAX_PER_SIGNAL) break;
+    const marked = cids.filter((id) => tokensOf.get(id)!.some((t) => GROUP_TOKENS.has(t)));
+    if (marked.length === 1) {
+      const parentId = marked[0];
+      for (const childId of cids) {
+        if (out.length - nameStart >= MAX_PER_SIGNAL) break;
+        if (childId === parentId) continue;
+        if (tokensOf.get(childId)!.some((t) => GROUP_TOKENS.has(t))) continue;
+        emitName(parentId, childId, root, "marker");
       }
     }
-    if (out.length - nameStart >= 8) break;
   }
   } // fin passe « nom » (opt-in via Paramètres → Enrichissement)
   return out;
