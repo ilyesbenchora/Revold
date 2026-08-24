@@ -1,14 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
+import { loadCompanyEstablishments, type CompanyEstablishments } from "@/lib/reconciliation/company-establishments";
 
 /**
- * Carte « Ventilation par établissement » (facette SIRET) — Trésorerie.
+ * Carte « Établissements » (facette SIRET) — sur TOUTE la base de factures.
  *
  * La consolidation Revold reste au niveau de l'entité LÉGALE (SIREN) : on ne
  * fragmente pas les comptes. Mais quand une même entité légale facture depuis
- * PLUSIEURS établissements (SIRET distincts sur ses factures), on ventile son
- * CA par établissement — la vue « par club / par site » sans dé-consolider.
- * Ne s'affiche que si au moins une entité a ≥ 2 établissements facturants.
+ * PLUSIEURS établissements (SIRET distincts), on ventile par site — la vue
+ * « par club / par agence » sans dé-consolider. Ne s'affiche que si au moins
+ * une entité a ≥ 2 établissements.
+ *
+ * Deux contextes de lecture (même donnée) :
+ *  - `treasury` (Trésorerie) : le CA ventilé par site ;
+ *  - `hierarchy` (Hiérarchie comptes) : la cartographie multi-établissements,
+ *    à côté des groupes multi-sociétés.
  */
 
 const fmtEur = (v: number) =>
@@ -23,34 +28,47 @@ function fmtSiret(siret: string): { siren: string; nic: string } {
   };
 }
 
-export async function EstablishmentBreakdown({ supabase, orgId }: { supabase: SupabaseClient; orgId: string }) {
-  const est = await loadCompanyEstablishments(supabase, orgId);
-  if (!est.available || est.multiSiret.size === 0) return null;
+type Variant = "treasury" | "hierarchy";
+
+/** Rendu (présentation pure) à partir des établissements déjà chargés. */
+export function EstablishmentList({
+  data,
+  variant = "treasury",
+  limit = 12,
+}: {
+  data: CompanyEstablishments;
+  variant?: Variant;
+  limit?: number;
+}) {
+  if (!data.available || data.multiSiret.size === 0) return null;
 
   // Entités triées par CA total décroissant (les plus gros comptes d'abord).
-  const entities = [...est.byCompany.entries()]
+  const entities = [...data.byCompany.entries()]
     .map(([companyId, ests]) => ({
       companyId,
-      name: est.nameOf.get(companyId) ?? "Entreprise sans nom",
+      name: data.nameOf.get(companyId) ?? "Entreprise sans nom",
       ests,
       total: ests.reduce((s, e) => s + e.total, 0),
     }))
     .sort((a, b) => b.total - a.total)
-    .slice(0, 12);
+    .slice(0, limit);
+
+  const subtitle =
+    variant === "hierarchy"
+      ? "Une même entité légale (SIREN) qui facture depuis plusieurs établissements (SIRET) — déjà consolidée en UN compte Revold. Voici le détail par site : aucun rattachement à faire, c'est le niveau « en dessous » du groupe."
+      : "Même entité légale (SIREN), plusieurs établissements facturants (SIRET) — le CA ventilé par site, sans dé-consolider le compte.";
 
   return (
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900">
-            Ventilation par établissement
+            Établissements
             <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-              {est.multiSiret.size} entité{est.multiSiret.size > 1 ? "s" : ""} multi-établissements
+              {data.multiSiret.size} entité{data.multiSiret.size > 1 ? "s" : ""} multi-établissements
             </span>
           </p>
-          <p className="mt-0.5 text-[11px] text-slate-400">
-            Même entité légale (SIREN), plusieurs établissements facturants (SIRET) — le CA ventilé par site, sans dé-consolider le compte.
-          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">{subtitle}</p>
         </div>
       </div>
 
@@ -91,4 +109,18 @@ export async function EstablishmentBreakdown({ supabase, orgId }: { supabase: Su
       </div>
     </div>
   );
+}
+
+/** Wrapper async : charge les établissements de l'org puis rend la carte. */
+export async function EstablishmentBreakdown({
+  supabase,
+  orgId,
+  variant,
+}: {
+  supabase: SupabaseClient;
+  orgId: string;
+  variant?: Variant;
+}) {
+  const est = await loadCompanyEstablishments(supabase, orgId);
+  return <EstablishmentList data={est} variant={variant} />;
 }

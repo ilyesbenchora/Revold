@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
+import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { HierarchyConsole } from "@/components/hierarchy-console";
+import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
 import { FeatureTour } from "@/components/feature-tour";
 
 /**
@@ -21,7 +23,10 @@ export default async function HierarchiePage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
   const supabase = await createSupabaseServerClient();
 
-  const groups = await loadCompanyGroups(supabase, orgId);
+  const [groups, establishments] = await Promise.all([
+    loadCompanyGroups(supabase, orgId),
+    loadCompanyEstablishments(supabase, orgId),
+  ]);
 
   // Groupes déclarés (≥ 2 entités) triés par taille décroissante.
   const declared = [...groups.groupRoots]
@@ -59,9 +64,10 @@ export default async function HierarchiePage() {
   } catch { /* non bloquant */ }
 
   const tiles = [
-    { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 entités reliées" },
+    { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 sociétés reliées" },
     { label: "Entités en groupe", value: entitiesInGroups, sub: "parents + enfants" },
     { label: "À valider", value: pendingCount, sub: "hiérarchies proposées en attente" },
+    { label: "Multi-établissements", value: establishments.available ? establishments.multiSiret.size : null, sub: "1 SIREN, plusieurs SIRET" },
   ];
 
   return (
@@ -99,7 +105,7 @@ export default async function HierarchiePage() {
       />
 
       {/* ── Tuiles ── */}
-      <div data-tour="hierarchie-tuiles" className="grid grid-cols-3 gap-4">
+      <div data-tour="hierarchie-tuiles" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {tiles.map((t) => (
           <article key={t.label} className="card p-4 text-center">
             <p className="text-[10px] font-medium uppercase text-slate-500">{t.label}</p>
@@ -156,6 +162,31 @@ export default async function HierarchiePage() {
           />
         )}
       </CollapsibleBlock>
+
+      {/* ── Établissements (facette SIRET) : le niveau EN DESSOUS du groupe —
+             un même SIREN qui facture depuis plusieurs SIRET. Déjà consolidé en
+             un compte (aucune action) ; séparé des groupes pour la lisibilité.
+             Ne s'affiche que si ≥ 1 entité multi-établissements sur la base. */}
+      {establishments.available && establishments.multiSiret.size > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              Établissements
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+                {establishments.multiSiret.size} entité{establishments.multiSiret.size > 1 ? "s" : ""}
+              </span>
+            </h2>
+          }
+        >
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+            L&apos;autre visage du multi-entités : une <strong>même entité légale</strong> (SIREN) qui facture depuis
+            <strong> plusieurs sites</strong> (SIRET). Contrairement aux groupes de sociétés ci-dessus, ces
+            établissements sont <strong>déjà rapprochés</strong> dans un seul compte Revold — rien à déclarer, tu vois
+            juste le détail par site (club, agence…), sur toute la base.
+          </p>
+          <EstablishmentList data={establishments} variant="hierarchy" />
+        </CollapsibleBlock>
+      )}
 
       <p className="text-[11px] text-slate-400">
         Trois signaux, sur toute la base : correspondance exacte de montant entre un deal gagné d&apos;une entité et
