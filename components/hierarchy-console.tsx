@@ -57,6 +57,13 @@ export function HierarchyConsole({
   const [refreshing, setRefreshing] = useState(false);
   // Sens parent/enfant inversé par l'utilisateur avant validation (par fiche).
   const [swapped, setSwapped] = useState<Set<string>>(new Set());
+  // Vue « Fiches » (détail complet) ou « Table » (ligne par ligne + bulk,
+  // même mécanique que les identités à valider de la page Enrichissement).
+  const [view, setView] = useState<"cards" | "table">("cards");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<"approve" | "reject" | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -111,6 +118,43 @@ export function HierarchyConsole({
     }
   }
 
+  // Validation / refus EN MASSE : chaque ligne passe par le même POST
+  // /api/actions (écriture réelle, séquentielle — API HubSpot) avec son sens
+  // éventuellement inversé. Bilan honnête : succès et échecs comptés.
+  async function decideBulk(decision: "approve" | "reject") {
+    const ids = (pending ?? []).filter((a) => selected.has(a.id)).map((a) => a.id);
+    if (ids.length === 0 || bulkBusy || busyId) return;
+    setBulkBusy(decision);
+    setError(null);
+    setBulkResult(null);
+    let ok = 0;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      setBulkProgress(`${i + 1}/${ids.length}`);
+      try {
+        const res = await fetch("/api/actions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: ids[i], decision, swap: decision === "approve" && swapped.has(ids[i]) ? true : undefined }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && (decision === "reject" || d.status !== "failed")) ok++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setBulkResult(
+      decision === "approve"
+        ? `✓ ${ok} hiérarchie${ok > 1 ? "s" : ""} déclarée${ok > 1 ? "s" : ""} dans HubSpot${failed > 0 ? ` — ${failed} en échec (détail dans l'historique)` : ""}.`
+        : `${ok} suggestion${ok > 1 ? "s" : ""} refusée${ok > 1 ? "s" : ""}${failed > 0 ? ` — ${failed} en échec` : ""}.`,
+    );
+    setSelected(new Set());
+    setBulkBusy(null);
+    setBulkProgress(null);
+    await load();
+  }
+
   return (
     <div className="space-y-6">
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
@@ -124,15 +168,37 @@ export function HierarchyConsole({
               {pending?.length ?? "…"}
             </span>
           </h2>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={refreshing || pending === null || busyId !== null}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50"
-          >
-            {refreshing ? "Analyse en cours…" : "↻ Relancer la détection"}
-          </button>
+          <div className="flex items-center gap-2">
+            {(pending?.length ?? 0) > 0 && (
+              <div className="flex overflow-hidden rounded-lg border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setView("cards")}
+                  className={`px-2.5 py-1.5 transition ${view === "cards" ? "bg-accent/10 font-semibold text-accent" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Fiches
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("table")}
+                  className={`px-2.5 py-1.5 transition ${view === "table" ? "bg-accent/10 font-semibold text-accent" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Table (en masse)
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing || pending === null || busyId !== null || bulkBusy !== null}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50"
+            >
+              {refreshing ? "Analyse en cours…" : "↻ Relancer la détection"}
+            </button>
+          </div>
         </div>
+
+        {bulkResult && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{bulkResult}</p>}
 
         {pending === null ? (
           <p className="text-sm text-slate-400">Analyse des correspondances deal↔facture…</p>
@@ -178,6 +244,132 @@ export function HierarchyConsole({
               </>
             )}
           </div>
+        ) : view === "table" ? (
+          (() => {
+            const allSelected = pending.length > 0 && pending.every((a) => selected.has(a.id));
+            const toggleAll = () =>
+              setSelected(allSelected ? new Set() : new Set(pending.map((a) => a.id)));
+            const toggleOne = (id: string) =>
+              setSelected((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              });
+            const toggleSwap = (id: string) =>
+              setSwapped((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              });
+            const signalBadge = (a: ActionRow) => {
+              const signal = payloadStr(a.payload, "groupSignal");
+              const dom = payloadStr(a.payload, "sharedDomain");
+              const sir = payloadStr(a.payload, "sharedSiren");
+              if (signal === "shared_domain") return { label: dom ? `Domaine · ${dom}` : "Domaine partagé", cls: "bg-sky-50 text-sky-600" };
+              if (signal === "same_siren") return { label: sir ? `SIREN · ${sir}` : "Même SIREN", cls: "bg-violet-50 text-violet-600" };
+              return { label: "Facture croisée", cls: "bg-emerald-50 text-emerald-600" };
+            };
+            return (
+              <div className="card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-500">
+                        <th className="w-8 px-2.5 py-2">
+                          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[var(--accent)]" title="Tout sélectionner" />
+                        </th>
+                        <th className="px-2.5 py-2 font-semibold">Parent</th>
+                        <th className="px-2.5 py-2 font-semibold">Enfant</th>
+                        <th className="px-2.5 py-2 font-semibold">Signal</th>
+                        <th className="px-2.5 py-2 font-semibold">Sens</th>
+                        <th className="px-2.5 py-2 text-right font-semibold">Ligne</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pending.map((a) => {
+                        const isSwapped = swapped.has(a.id);
+                        const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
+                        const rawChild = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
+                        const badge = signalBadge(a);
+                        const busy = busyId === a.id || bulkBusy !== null;
+                        return (
+                          <tr key={a.id} className="border-b border-slate-100 transition last:border-0 hover:bg-indigo-50/40">
+                            <td className="px-2.5 py-2">
+                              <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleOne(a.id)} className="accent-[var(--accent)]" />
+                            </td>
+                            <td className="px-2.5 py-2 font-medium text-slate-800">{isSwapped ? rawChild : rawParent}</td>
+                            <td className="px-2.5 py-2 text-slate-700">{isSwapped ? rawParent : rawChild}</td>
+                            <td className="px-2.5 py-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>{badge.label}</span>
+                            </td>
+                            <td className="px-2.5 py-2">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => toggleSwap(a.id)}
+                                title="Inverser parent et enfant"
+                                className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium transition disabled:opacity-50 ${isSwapped ? "border-indigo-200 bg-indigo-50 text-indigo-600" : "border-slate-200 text-slate-400 hover:text-indigo-600"}`}
+                              >
+                                ⇄{isSwapped ? " inversé" : ""}
+                              </button>
+                            </td>
+                            <td className="px-2.5 py-2 text-right">
+                              <span className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void decide(a.id, "approve")}
+                                  title="Valider cette hiérarchie"
+                                  className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                                >
+                                  {doneId === a.id ? "✓" : busyId === a.id ? "…" : "Valider"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void decide(a.id, "reject")}
+                                  title="Refuser cette suggestion"
+                                  className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600 disabled:opacity-50"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
+                  <p className="text-[11px] text-slate-400">
+                    {selected.size} sélectionnée{selected.size > 1 ? "s" : ""} sur {pending.length} — vérifie le sens
+                    (⇄) avant de valider : chaque ligne écrit une vraie association parent/enfant dans HubSpot.
+                  </p>
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={bulkBusy !== null || selected.size === 0 || busyId !== null}
+                      onClick={() => void decideBulk("reject")}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600 disabled:opacity-50"
+                    >
+                      {bulkBusy === "reject" ? `Refus… ${bulkProgress ?? ""}` : "Refuser la sélection"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={bulkBusy !== null || selected.size === 0 || busyId !== null}
+                      onClick={() => void decideBulk("approve")}
+                      className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      {bulkBusy === "approve" ? `Écriture… ${bulkProgress ?? ""}` : `✓ Valider la sélection (${selected.size})`}
+                    </button>
+                  </span>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           pending.map((a) => {
             const isSwapped = swapped.has(a.id);
