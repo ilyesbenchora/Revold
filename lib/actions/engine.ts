@@ -50,11 +50,13 @@ export type ActionPayload = {
   parentCompanyName?: string;
   childCompanyName?: string;
   /** Signal qui a révélé la paire : correspondance de montant deal↔facture
-   *  (sens sûr), domaine web partagé (sens proposé, inversable), ou même
-   *  SIREN avec SIRETs distincts (siège parent / établissement enfant). */
-  groupSignal?: "billing_match" | "shared_domain" | "same_siren";
+   *  (sens sûr), domaine web partagé (sens proposé, inversable), même SIREN
+   *  avec SIRETs distincts (siège/établissement), ou nom apparenté (signal
+   *  FAIBLE : préfixe ou racine + marqueur de groupe, jamais du flou). */
+  groupSignal?: "billing_match" | "shared_domain" | "same_siren" | "name_match";
   sharedDomain?: string;
   sharedSiren?: string;
+  sharedName?: string;
   /** Hygiène des projections : étape à mapper « gagnée » / pipeline à exclure du prévisionnel. */
   stageName?: string;
   pipelineName?: string;
@@ -796,7 +798,7 @@ export async function detectDuplicateDeals(
     (d) => d.name && (Number(d.amount) || 0) > 0,
   );
   // Clé de groupe : montant exact + préfixe normalisé du nom (12 caractères).
-  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
   const groups = new Map<string, typeof rows>();
   for (const d of rows) {
     const prefix = norm(d.name!).slice(0, 12);
@@ -1031,7 +1033,7 @@ export async function detectUndeclaredGroups(
       .limit(6000),
     supabase
       .from("companies")
-      .select("id, name, hubspot_id, domain, siren, siret, duplicate_of_siren, candidate_siret")
+      .select("id, name, hubspot_id, domain, siren, siret, duplicate_of_siren, candidate_siret, legal_name")
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
       .limit(10000),
@@ -1047,6 +1049,7 @@ export async function detectUndeclaredGroups(
   type CompRow = {
     id: string; name: string | null; hubspot_id: string | null; domain: string | null;
     siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null;
+    legal_name: string | null;
   };
   // Colonnes d'enrichissement absentes (migration non appliquée) → repli sur
   // les colonnes de base : les passes facture/domaine restent fonctionnelles.
@@ -1058,12 +1061,12 @@ export async function detectUndeclaredGroups(
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
       .limit(10000);
-    compRows = ((retry.data ?? []) as Array<Omit<CompRow, "siren" | "siret" | "duplicate_of_siren" | "candidate_siret">>)
-      .map((c) => ({ ...c, siren: null, siret: null, duplicate_of_siren: null, candidate_siret: null }));
+    compRows = ((retry.data ?? []) as Array<Omit<CompRow, "siren" | "siret" | "duplicate_of_siren" | "candidate_siret" | "legal_name">>)
+      .map((c) => ({ ...c, siren: null, siret: null, duplicate_of_siren: null, candidate_siret: null, legal_name: null }));
   }
-  const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null; siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null }>();
+  const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null; siren: string | null; siret: string | null; duplicate_of_siren: string | null; candidate_siret: string | null; legal_name: string | null }>();
   for (const c of (compRows ?? []) as CompRow[]) {
-    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id, domain: c.domain, siren: c.siren, siret: c.siret, duplicate_of_siren: c.duplicate_of_siren, candidate_siret: c.candidate_siret });
+    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id, domain: c.domain, siren: c.siren, siret: c.siret, duplicate_of_siren: c.duplicate_of_siren, candidate_siret: c.candidate_siret, legal_name: c.legal_name });
   }
   if (comp.size < 2) return [];
 
@@ -1256,6 +1259,95 @@ export async function detectUndeclaredGroups(
       },
     });
     if (out.length - sirenStart >= 8) break;
+  }
+
+  // ── Passe 4 : NOM APPARENTÉ — signal FAIBLE, proposé avec prudence ──
+  // Jamais de ressemblance floue : uniquement deux motifs structurels.
+  //   A. PRÉFIXE : « Acme » ⊂ « Acme Consulting » → « Acme » parente proposée.
+  //   B. RACINE + MARQUEUR DE GROUPE : « Acme Holding » vs « Acme France » →
+  //      la fiche au marqueur (groupe/holding…) est parente proposée.
+  // Garde-fous : formes juridiques ignorées, premiers mots génériques exclus
+  // (garage, agence…), racine ≥ 3 caractères, sens toujours inversable.
+  const LEGAL_TOKENS = new Set([
+    "sas", "sasu", "sarl", "sa", "eurl", "sci", "scop", "scm", "selarl", "snc", "gie",
+    "ltd", "inc", "llc", "gmbh", "bv", "srl", "spa", "ag", "co", "cie", "ste",
+  ]);
+  const GROUP_TOKENS = new Set([
+    "groupe", "group", "holding", "holdings", "participations", "invest",
+    "investissement", "investissements", "financiere", "finances",
+  ]);
+  const GENERIC_FIRST = new Set([
+    "societe", "entreprise", "ets", "etablissement", "etablissements", "agence", "cabinet",
+    "garage", "atelier", "boulangerie", "pharmacie", "institut", "clinique", "centre",
+    "maison", "studio", "transport", "transports", "menuiserie", "plomberie", "restaurant",
+    "hotel", "boutique", "librairie", "imprimerie", "laboratoire", "compagnie",
+    "le", "la", "les", "l", "au", "aux", "du", "de", "des", "d", "et",
+  ]);
+  const nameTokens = (c: { name: string | null; legal_name: string | null }): string[] => {
+    const raw = (c.legal_name ?? c.name ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return raw.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter((t) => t && !LEGAL_TOKENS.has(t));
+  };
+  const isPrefixOf = (a: string[], b: string[]): boolean =>
+    a.length > 0 && a.length < b.length && a.every((t, i) => b[i] === t);
+
+  // Racine = premier mot significatif (ni générique, ni marqueur de groupe).
+  const byRoot = new Map<string, Array<{ cid: string; tokens: string[] }>>();
+  for (const [cid, c] of comp) {
+    const tokens = nameTokens(c);
+    const root = tokens.find((t) => !GENERIC_FIRST.has(t) && !GROUP_TOKENS.has(t));
+    if (!root || root.length < 3 || tokens.indexOf(root) > 0) continue; // racine = 1er mot uniquement
+    (byRoot.get(root) ?? byRoot.set(root, []).get(root))!.push({ cid, tokens });
+  }
+
+  const nameStart = out.length;
+  for (const [root, members] of byRoot) {
+    if (members.length < 2 || members.length > 5) continue; // > 5 homonymes → trop ambigu
+    for (let i = 0; i < members.length && out.length - nameStart < 8; i++) {
+      for (let j = i + 1; j < members.length && out.length - nameStart < 8; j++) {
+        const a = members[i];
+        const b = members[j];
+        const aHasGroup = a.tokens.some((t) => GROUP_TOKENS.has(t));
+        const bHasGroup = b.tokens.some((t) => GROUP_TOKENS.has(t));
+        // Motif retenu ? A. l'un est préfixe de l'autre · B. un seul porte le marqueur.
+        let parentEntry: typeof a | null = null;
+        let childEntry: typeof a | null = null;
+        if (aHasGroup !== bHasGroup) {
+          parentEntry = aHasGroup ? a : b;
+          childEntry = aHasGroup ? b : a;
+        } else if (isPrefixOf(a.tokens, b.tokens)) {
+          parentEntry = a;
+          childEntry = b;
+        } else if (isPrefixOf(b.tokens, a.tokens)) {
+          parentEntry = b;
+          childEntry = a;
+        }
+        if (!parentEntry || !childEntry) continue;
+        if (rootOf(parentEntry.cid) === rootOf(childEntry.cid)) continue; // déjà reliées
+        const pairKey = [parentEntry.cid, childEntry.cid].sort().join(":");
+        if (seenPairs.has(pairKey)) continue;
+        seenPairs.add(pairKey);
+        const parentC = comp.get(parentEntry.cid)!;
+        const childC = comp.get(childEntry.cid)!;
+        const parentName = parentC.name ?? parentC.legal_name ?? "entité principale";
+        const childName = childC.name ?? childC.legal_name ?? "entité liée";
+        out.push({
+          dedupe_key: `declare_group:${pairKey}`,
+          type: "hubspot_company_associate",
+          title: `Hiérarchie possible (nom apparenté) : « ${parentName} » parent de « ${childName} »`,
+          description: `Signal FAIBLE, à vérifier avant de valider : les noms de ces fiches sont structurellement apparentés (racine « ${root} »${aHasGroup !== bHasGroup ? ", et une seule porte un marqueur de groupe type « holding/groupe »" : ", l'un étant le préfixe de l'autre"}) — aucun autre lien (facture, domaine, SIREN) ne les relie pour l'instant. Deux sociétés au nom proche peuvent être indépendantes (franchises, homonymes) : confirme que c'est bien le même groupe, inverse le sens si besoin, et refuse au moindre doute. Valider écrit l'association parent/enfant dans HubSpot.`,
+          source: "detector:declare_group",
+          payload: {
+            parentHubspotId: parentC.hubspot_id,
+            childHubspotId: childC.hubspot_id,
+            parentCompanyName: parentName,
+            childCompanyName: childName,
+            groupSignal: "name_match",
+            sharedName: root,
+          },
+        });
+      }
+    }
+    if (out.length - nameStart >= 8) break;
   }
   return out;
 }

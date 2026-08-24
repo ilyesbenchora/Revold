@@ -189,12 +189,13 @@ export default async function HierarchiePage() {
       )}
 
       <p className="text-[11px] text-slate-400">
-        Trois signaux, sur toute la base : correspondance exacte de montant entre un deal gagné d&apos;une entité et
-        une facture d&apos;une autre (sens sûr : le facturier est parent), domaine web partagé entre fiches CRM
-        (sens proposé, inversable), et registre officiel — même SIREN avec des SIRET d&apos;établissements distincts
-        (siège parent, agence enfant, via l&apos;enrichissement Sirene, sans facturation nécessaire) — Revold ne
-        déduit jamais un groupe d&apos;après la ressemblance des noms. Valider ici ou dans Suivi → Actions est
-        strictement équivalent (même file, même historique).
+        Quatre signaux, sur toute la base, du plus sûr au plus faible : correspondance exacte de montant entre un
+        deal gagné d&apos;une entité et une facture d&apos;une autre (sens sûr : le facturier est parent), même SIREN
+        avec des SIRET d&apos;établissements distincts (registre officiel via l&apos;enrichissement — siège parent,
+        agence enfant), domaine web partagé entre fiches CRM (sens proposé, inversable), et noms structurellement
+        apparentés — préfixe ou marqueur « groupe/holding », jamais de ressemblance floue (signal faible, badge
+        ambre, à confirmer avant validation). Valider ici ou dans Suivi → Actions est strictement équivalent
+        (même file, même historique).
       </p>
     </section>
   );

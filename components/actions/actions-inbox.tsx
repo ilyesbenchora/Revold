@@ -142,15 +142,18 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
   if (a.type === "hubspot_company_associate") {
     const domainSignal = s("groupSignal") === "shared_domain";
     const sirenSignal = s("groupSignal") === "same_siren";
+    const nameSignal = s("groupSignal") === "name_match";
     return {
       rows: [
-        ["Entreprise parente", `${s("parentCompanyName") ?? "Entité de facturation"} (${domainSignal ? "tête de groupe proposée" : sirenSignal ? "siège — porte le SIREN" : "celle qui facture"})`],
-        ["Entreprise enfant", `${s("childCompanyName") ?? "Entité signataire"} (${domainSignal ? "entité rattachée" : sirenSignal ? "établissement (agence)" : "celle qui a signé le deal"})`],
+        ["Entreprise parente", `${s("parentCompanyName") ?? "Entité de facturation"} (${domainSignal ? "tête de groupe proposée" : sirenSignal ? "siège — porte le SIREN" : nameSignal ? "maison mère proposée — à vérifier" : "celle qui facture"})`],
+        ["Entreprise enfant", `${s("childCompanyName") ?? "Entité signataire"} (${domainSignal ? "entité rattachée" : sirenSignal ? "établissement (agence)" : nameSignal ? "entité au nom dérivé — à vérifier" : "celle qui a signé le deal"})`],
         ["Signal", domainSignal
           ? `Domaine web partagé${s("sharedDomain") ? ` (${s("sharedDomain")})` : ""} — détecté sur toute la base`
           : sirenSignal
             ? `Même société au registre (SIREN ${s("sharedSiren") ?? "?"}), établissements distincts (SIRETs différents) — registre officiel, toute la base`
-            : "Facture du montant exact émise par l'autre entité"],
+            : nameSignal
+              ? `Noms structurellement apparentés (racine « ${s("sharedName") ?? "?"} ») — signal FAIBLE, confirme avant de valider`
+              : "Facture du montant exact émise par l'autre entité"],
         ["Association écrite", "Parent / enfant HubSpot (le miroir « enfant » est créé automatiquement côté parent)"],
         ["Ensuite, côté Revold", "La consolidation par groupe et le garde-fou inter-entités surveillent la bonne société de facturation — automatiquement, sans rattachement manuel"],
       ],

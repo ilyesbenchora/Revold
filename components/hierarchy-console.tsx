@@ -227,9 +227,10 @@ export function HierarchyConsole({
                 <p className="font-medium text-slate-700">Aucune hiérarchie fiable détectée — rien à déclarer.</p>
                 <p className="mt-1 text-xs leading-relaxed">
                   {wonDealsCount != null && <>{wonDealsCount} deals gagnés analysés. </>}
-                  Revold ne propose un lien que sur un <strong>signal sûr</strong> : un deal facturé au{" "}
-                  <strong>montant exact sur une autre société</strong>, ou deux fiches au{" "}
-                  <strong>même domaine web</strong> — jamais d&apos;après la ressemblance des noms.
+                  Quatre signaux sont balayés : deal facturé au <strong>montant exact sur une autre société</strong>,{" "}
+                  <strong>même domaine web</strong>, <strong>même SIREN avec SIRETs distincts</strong> (via
+                  l&apos;enrichissement), et <strong>noms structurellement apparentés</strong> (préfixe ou marqueur
+                  « groupe/holding » — signal faible, jamais de ressemblance floue).
                 </p>
                 <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-400">
                   <li>
@@ -269,6 +270,10 @@ export function HierarchyConsole({
               const sir = payloadStr(a.payload, "sharedSiren");
               if (signal === "shared_domain") return { label: dom ? `Domaine · ${dom}` : "Domaine partagé", cls: "bg-sky-50 text-sky-600" };
               if (signal === "same_siren") return { label: sir ? `SIREN · ${sir}` : "Même SIREN", cls: "bg-violet-50 text-violet-600" };
+              if (signal === "name_match") {
+                const nm = payloadStr(a.payload, "sharedName");
+                return { label: nm ? `Nom · ${nm} (faible)` : "Nom apparenté (faible)", cls: "bg-amber-50 text-amber-700" };
+              }
               return { label: "Facture croisée", cls: "bg-emerald-50 text-emerald-600" };
             };
             return (
@@ -380,6 +385,7 @@ export function HierarchyConsole({
             const signal = payloadStr(a.payload, "groupSignal");
             const sharedDomain = payloadStr(a.payload, "sharedDomain");
             const sharedSiren = payloadStr(a.payload, "sharedSiren");
+            const sharedName = payloadStr(a.payload, "sharedName");
             const busy = busyId === a.id;
             const done = doneId === a.id;
             return (
@@ -387,12 +393,14 @@ export function HierarchyConsole({
                 <div>
                   <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
                     {a.title}
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${signal === "shared_domain" ? "bg-sky-50 text-sky-600" : signal === "same_siren" ? "bg-violet-50 text-violet-600" : "bg-emerald-50 text-emerald-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${signal === "shared_domain" ? "bg-sky-50 text-sky-600" : signal === "same_siren" ? "bg-violet-50 text-violet-600" : signal === "name_match" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-600"}`}>
                       {signal === "shared_domain"
                         ? `Domaine partagé${sharedDomain ? ` · ${sharedDomain}` : ""}`
                         : signal === "same_siren"
                           ? `Même SIREN · établissements${sharedSiren ? ` · ${sharedSiren}` : ""}`
-                          : "Facture croisée (montant exact)"}
+                          : signal === "name_match"
+                            ? `Nom apparenté${sharedName ? ` · ${sharedName}` : ""} — signal faible`
+                            : "Facture croisée (montant exact)"}
                     </span>
                   </p>
                   {a.description && <p className="mt-1 text-xs leading-relaxed text-slate-500">{a.description}</p>}
@@ -403,12 +411,12 @@ export function HierarchyConsole({
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise parente</p>
                     <p className="mt-0.5 font-medium text-slate-800">{parent}</p>
-                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "tête de groupe proposée" : signal === "same_siren" ? "siège (porte le SIREN)" : "celle qui facture"}</p>
+                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "tête de groupe proposée" : signal === "same_siren" ? "siège (porte le SIREN)" : signal === "name_match" ? "maison mère proposée (à vérifier)" : "celle qui facture"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise enfant</p>
                     <p className="mt-0.5 font-medium text-slate-800">{child}</p>
-                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "entité rattachée" : signal === "same_siren" ? "établissement (agence)" : "celle qui a signé le deal"}</p>
+                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "entité rattachée" : signal === "same_siren" ? "établissement (agence)" : signal === "name_match" ? "entité au nom dérivé (à vérifier)" : "celle qui a signé le deal"}</p>
                   </div>
                   <div className="md:col-span-2">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Association écrite</p>
@@ -424,7 +432,9 @@ export function HierarchyConsole({
                     ? "Détecté sur toute la base : ces fiches partagent le même domaine web — jamais déduit du nom. Le sens parent/enfant est une proposition : inverse-le ci-dessous si besoin avant de valider."
                     : signal === "same_siren"
                       ? "Registre officiel (Sirene) : même société (SIREN), deux établissements distincts (SIRETs différents) — aucune facturation nécessaire, jamais déduit du nom. Si les deux fiches décrivent le même établissement, c'est une fusion qu'il faut : refuse."
-                      : "Déduit d'une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant est inverse, utilise « Inverser le sens » avant de valider ; s'il ne s'agit pas du même groupe, refuse."}
+                      : signal === "name_match"
+                        ? "Signal FAIBLE : noms structurellement apparentés (préfixe ou marqueur « groupe/holding »), sans autre lien connu. Des sociétés au nom proche peuvent être indépendantes (franchises, homonymes) — confirme avant de valider, et refuse au moindre doute."
+                        : "Déduit d'une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant est inverse, utilise « Inverser le sens » avant de valider ; s'il ne s'agit pas du même groupe, refuse."}
                 </p>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
