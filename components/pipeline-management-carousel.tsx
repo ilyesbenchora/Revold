@@ -387,6 +387,8 @@ export function PipelineManagementCarousel({
   // Réglages par sous-bloc, partagés entre pipelines — chargés après montage
   // (localStorage) pour éviter tout écart d'hydratation SSR.
   const [settings, setSettings] = useState<PMSettings>(DEFAULT_PM_SETTINGS);
+  // Panneau entonnoir « Sous-blocs » : cases afficher/masquer par sous-bloc.
+  const [subBlocksOpen, setSubBlocksOpen] = useState(false);
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PM_STORAGE_KEY);
@@ -418,23 +420,28 @@ export function PipelineManagementCarousel({
             <strong className="text-slate-700">{pipelines[safePage]?.pipeline.label ?? "—"}</strong> ·
             pipeline {safePage + 1} sur {pipelines.length}
           </p>
-          {/* Sous-blocs masqués : restauration en un clic (réglage partagé). */}
-          {settings.hidden.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-slate-400">Sous-blocs masqués :</span>
-              {settings.hidden.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => patchSettings({ hidden: settings.hidden.filter((k) => k !== key) })}
-                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600 transition hover:border-accent hover:text-accent"
-                  title="Réafficher ce sous-bloc"
-                >
-                  {SUB_BLOCK_LABELS[key]} +
-                </button>
-              ))}
-            </div>
-          )}
+          {/* ── Entonnoir « Sous-blocs » : TOUJOURS visible (même icône que les
+                 filtres des autres blocs) — c'est LE point unique pour masquer
+                 ET réafficher chaque sous-bloc, y compris quand tout est masqué. ── */}
+          <button
+            type="button"
+            onClick={() => setSubBlocksOpen((o) => !o)}
+            aria-expanded={subBlocksOpen}
+            title="Afficher / masquer les sous-blocs de la carte"
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-medium transition ${
+              subBlocksOpen || settings.hidden.length > 0
+                ? "border-accent/40 bg-accent/5 text-accent"
+                : "border-slate-200 bg-white text-slate-500 hover:border-accent/40 hover:text-accent"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+            Sous-blocs
+            {settings.hidden.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                {settings.hidden.length} masqué{settings.hidden.length > 1 ? "s" : ""}
+              </span>
+            )}
+          </button>
         </div>
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
@@ -478,6 +485,38 @@ export function PipelineManagementCarousel({
           </div>
         )}
       </div>
+
+      {/* ── Panneau entonnoir : une case par sous-bloc — cocher réaffiche,
+             décocher masque. Réglage partagé entre tous les pipelines. ── */}
+      {subBlocksOpen && (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {(Object.keys(SUB_BLOCK_LABELS) as SubBlockKey[]).map((key) => {
+              const visible = !settings.hidden.includes(key);
+              return (
+                <label key={key} className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={visible}
+                    onChange={() =>
+                      patchSettings({
+                        hidden: visible
+                          ? [...settings.hidden.filter((k) => k !== key), key]
+                          : settings.hidden.filter((k) => k !== key),
+                      })
+                    }
+                    className="h-3.5 w-3.5 rounded border-slate-300 accent-fuchsia-500"
+                  />
+                  {SUB_BLOCK_LABELS[key]}
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[10px] text-slate-400">
+            Réglage mémorisé sur ce navigateur, partagé entre tous les pipelines du carrousel.
+          </p>
+        </div>
+      )}
 
       {/* Carrousel : 1 pipeline par page, pleine largeur. Glissement
           horizontal via translateX. */}
