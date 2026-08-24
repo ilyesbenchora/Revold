@@ -46,6 +46,8 @@ export function HierarchyConsole() {
   const [doneId, setDoneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Sens parent/enfant inversé par l'utilisateur avant validation (par fiche).
+  const [swapped, setSwapped] = useState<Set<string>>(new Set());
 
   async function load() {
     try {
@@ -71,7 +73,7 @@ export function HierarchyConsole() {
       const res = await fetch("/api/actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, decision }),
+        body: JSON.stringify({ id, decision, swap: decision === "approve" && swapped.has(id) ? true : undefined }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Décision impossible");
@@ -112,14 +114,24 @@ export function HierarchyConsole() {
           </p>
         ) : (
           pending.map((a) => {
-            const parent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
-            const child = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
+            const isSwapped = swapped.has(a.id);
+            const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
+            const rawChild = payloadStr(a.payload, "childCompanyName") ?? "Entité signataire";
+            const parent = isSwapped ? rawChild : rawParent;
+            const child = isSwapped ? rawParent : rawChild;
+            const signal = payloadStr(a.payload, "groupSignal");
+            const sharedDomain = payloadStr(a.payload, "sharedDomain");
             const busy = busyId === a.id;
             const done = doneId === a.id;
             return (
               <article key={a.id} className="card space-y-3 p-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{a.title}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                    {a.title}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${signal === "shared_domain" ? "bg-sky-50 text-sky-600" : "bg-emerald-50 text-emerald-600"}`}>
+                      {signal === "shared_domain" ? `Domaine partagé${sharedDomain ? ` · ${sharedDomain}` : ""}` : "Facture croisée (montant exact)"}
+                    </span>
+                  </p>
                   {a.description && <p className="mt-1 text-xs leading-relaxed text-slate-500">{a.description}</p>}
                 </div>
 
@@ -128,12 +140,12 @@ export function HierarchyConsole() {
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise parente</p>
                     <p className="mt-0.5 font-medium text-slate-800">{parent}</p>
-                    <p className="text-[10px] text-slate-400">celle qui facture</p>
+                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "tête de groupe proposée" : "celle qui facture"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Entreprise enfant</p>
                     <p className="mt-0.5 font-medium text-slate-800">{child}</p>
-                    <p className="text-[10px] text-slate-400">celle qui a signé le deal</p>
+                    <p className="text-[10px] text-slate-400">{signal === "shared_domain" ? "entité rattachée" : "celle qui a signé le deal"}</p>
                   </div>
                   <div className="md:col-span-2">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Association écrite</p>
@@ -145,11 +157,27 @@ export function HierarchyConsole() {
                   </div>
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-400">
-                  Déduit d&apos;une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant
-                  est inverse, ou s&apos;il ne s&apos;agit pas du même groupe, refuse et corrige dans HubSpot.
+                  {signal === "shared_domain"
+                    ? "Détecté sur toute la base : ces fiches partagent le même domaine web — jamais déduit du nom. Le sens parent/enfant est une proposition : inverse-le ci-dessous si besoin avant de valider."
+                    : "Déduit d'une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant est inverse, utilise « Inverser le sens » avant de valider ; s'il ne s'agit pas du même groupe, refuse."}
                 </p>
 
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      setSwapped((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(a.id)) next.delete(a.id);
+                        else next.add(a.id);
+                        return next;
+                      })
+                    }
+                    className={`mr-auto rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${isSwapped ? "border-indigo-200 bg-indigo-50 text-indigo-600" : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"}`}
+                  >
+                    ⇄ Inverser le sens{isSwapped ? " (inversé)" : ""}
+                  </button>
                   <button
                     type="button"
                     disabled={busy}

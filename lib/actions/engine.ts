@@ -49,6 +49,10 @@ export type ActionPayload = {
   childHubspotId?: string;
   parentCompanyName?: string;
   childCompanyName?: string;
+  /** Signal qui a révélé la paire : correspondance de montant deal↔facture
+   *  (sens sûr) ou domaine web partagé (sens proposé, inversable). */
+  groupSignal?: "billing_match" | "shared_domain";
+  sharedDomain?: string;
   /** Hygiène des projections : étape à mapper « gagnée » / pipeline à exclure du prévisionnel. */
   stageName?: string;
   pipelineName?: string;
@@ -1025,23 +1029,22 @@ export async function detectUndeclaredGroups(
       .limit(6000),
     supabase
       .from("companies")
-      .select("id, name, hubspot_id")
+      .select("id, name, hubspot_id, domain")
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
-      .limit(6000),
+      .limit(10000),
   ]);
 
   type D = { id: string; name: string | null; amount: number | null; close_date: string | null; company_id: string | null };
   type I = { id: string; amount_total: number | null; issued_at: string | null; company_id: string | null; deal_id: string | null };
   const deals = ((dealsRes.data ?? []) as D[]).filter((d) => (d.amount ?? 0) > 0);
   const invoices = (invRes.data ?? []) as I[];
-  if (deals.length === 0 || invoices.length === 0) return [];
 
   // Seules les entreprises présentes dans le CRM (hubspot_id) peuvent recevoir
   // une association de hiérarchie — on ne recommande que des paires écrivables.
-  const comp = new Map<string, { name: string | null; hubspot_id: string }>();
-  for (const c of (compRes.data ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null }>) {
-    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id });
+  const comp = new Map<string, { name: string | null; hubspot_id: string; domain: string | null }>();
+  for (const c of (compRes.data ?? []) as Array<{ id: string; name: string | null; hubspot_id: string | null; domain: string | null }>) {
+    if (c.hubspot_id) comp.set(c.id, { name: c.name, hubspot_id: c.hubspot_id, domain: c.domain });
   }
   if (comp.size < 2) return [];
 
@@ -1117,9 +1120,79 @@ export async function detectUndeclaredGroups(
         childHubspotId: childC.hubspot_id,
         parentCompanyName: parentName,
         childCompanyName: childName,
+        groupSignal: "billing_match",
       },
     });
     if (out.length >= 8) break;
+  }
+
+  // ── Passe 2 : DOMAINE PARTAGÉ, sur TOUTE la base d'entreprises ──
+  // Deux fiches CRM distinctes qui partagent le même domaine web sans lien de
+  // groupe déclaré = signal de groupe multi-entités (filiales sur le site de
+  // la maison mère). Sens parent/enfant PROPOSÉ (facturier > volume de deals),
+  // inversable à la validation — jamais déduit du nom.
+  const GENERIC_DOMAINS = new Set([
+    "gmail.com", "googlemail.com", "outlook.com", "outlook.fr", "hotmail.com", "hotmail.fr",
+    "yahoo.com", "yahoo.fr", "icloud.com", "me.com", "live.com", "live.fr", "msn.com",
+    "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net", "protonmail.com", "proton.me",
+  ]);
+  const rootDomain = (raw: string | null): string | null => {
+    if (!raw) return null;
+    const d = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#]/)[0];
+    if (!d || !d.includes(".") || GENERIC_DOMAINS.has(d)) return null;
+    return d;
+  };
+  const byDomain = new Map<string, string[]>();
+  for (const [cid, c] of comp) {
+    const d = rootDomain(c.domain);
+    if (d) (byDomain.get(d) ?? byDomain.set(d, []).get(d))!.push(cid);
+  }
+  // Volume de deals gagnés par entreprise → heuristique de sens.
+  const wonCount = new Map<string, number>();
+  for (const d of deals) {
+    if (d.company_id) wonCount.set(d.company_id, (wonCount.get(d.company_id) ?? 0) + 1);
+  }
+  const invoiceCount = (cid: string): number => (invByCompany.get(cid) ?? []).length;
+
+  const domainStart = out.length;
+  for (const [domain, ids] of byDomain) {
+    if (ids.length < 2) continue;
+    // > 6 entités sur un même domaine : probablement une agence / domiciliation
+    // ou un domaine générique non listé — trop ambigu pour proposer.
+    if (ids.length > 6) continue;
+    // Parent proposé : d'abord celle qui FACTURE, sinon la plus active en deals,
+    // sinon ordre stable (id) — déterministe, et inversable à la validation.
+    const sorted = [...ids].sort((a, b) =>
+      (invoiceCount(b) - invoiceCount(a)) || ((wonCount.get(b) ?? 0) - (wonCount.get(a) ?? 0)) || a.localeCompare(b),
+    );
+    const parentId = sorted[0];
+    const parentC = comp.get(parentId)!;
+    for (const childId of sorted.slice(1)) {
+      if (rootOf(childId) === rootOf(parentId)) continue; // déjà dans le même groupe
+      const pairKey = [parentId, childId].sort().join(":");
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
+      const childC2 = comp.get(childId)!;
+      const parentName = parentC.name ?? "entité principale";
+      const childName = childC2.name ?? "entité liée";
+      out.push({
+        dedupe_key: `declare_group:${pairKey}`,
+        type: "hubspot_company_associate",
+        title: `Déclarer la hiérarchie : « ${parentName} » parent de « ${childName} » (domaine ${domain})`,
+        description: `Les fiches « ${parentName} » et « ${childName} » partagent le même domaine web (${domain}) sans lien de groupe déclaré dans HubSpot — signal de groupe multi-entités, détecté sur toute la base (pas seulement les deals). Le sens proposé (« ${parentName} » parente) vient de l'activité facturation/deals des deux fiches : inverse-le avant de valider si besoin. Valider écrit l'association parent/enfant dans HubSpot ; ensuite la consolidation par groupe et le garde-fou inter-entités s'appuient dessus automatiquement.`,
+        source: "detector:declare_group",
+        payload: {
+          parentHubspotId: parentC.hubspot_id,
+          childHubspotId: childC2.hubspot_id,
+          parentCompanyName: parentName,
+          childCompanyName: childName,
+          groupSignal: "shared_domain",
+          sharedDomain: domain,
+        },
+      });
+      if (out.length - domainStart >= 8) break;
+    }
+    if (out.length - domainStart >= 8) break;
   }
   return out;
 }

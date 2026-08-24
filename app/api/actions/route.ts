@@ -379,7 +379,7 @@ export async function POST(request: Request) {
   const orgId = await getOrgId();
   if (!orgId) return NextResponse.json({ error: "Organisation introuvable" }, { status: 400 });
 
-  let body: { id?: string; decision?: "approve" | "reject" | "defer" | "requeue" };
+  let body: { id?: string; decision?: "approve" | "reject" | "defer" | "requeue"; swap?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -423,7 +423,20 @@ export async function POST(request: Request) {
   }
 
   // ── Exécution réelle dans l'outil ──
-  const payload = (item.payload ?? {}) as ActionPayload;
+  let payload = (item.payload ?? {}) as ActionPayload;
+  // Hiérarchie de comptes : sens parent/enfant INVERSÉ à la demande de
+  // l'utilisateur (signal domaine partagé = sens proposé, pas certain).
+  // Le payload persistant est mis à jour pour que l'historique dise vrai.
+  if (body.swap === true && item.type === "hubspot_company_associate") {
+    payload = {
+      ...payload,
+      parentHubspotId: payload.childHubspotId,
+      childHubspotId: payload.parentHubspotId,
+      parentCompanyName: payload.childCompanyName,
+      childCompanyName: payload.parentCompanyName,
+    };
+    await supabase.from("action_items").update({ payload }).eq("id", item.id).eq("organization_id", orgId);
+  }
   const outcome = await executeByType(supabase, orgId, item.type, payload);
 
   // Inscription en séquence réussie : « in_progress » (En cours) tant que la

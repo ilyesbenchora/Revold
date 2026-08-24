@@ -140,14 +140,16 @@ function buildDetail(a: ActionItem): { rows: Array<[string, string]>; effect: st
     };
   }
   if (a.type === "hubspot_company_associate") {
+    const domainSignal = s("groupSignal") === "shared_domain";
     return {
       rows: [
-        ["Entreprise parente", `${s("parentCompanyName") ?? "Entité de facturation"} (celle qui facture)`],
-        ["Entreprise enfant", `${s("childCompanyName") ?? "Entité signataire"} (celle qui a signé le deal)`],
+        ["Entreprise parente", `${s("parentCompanyName") ?? "Entité de facturation"} (${domainSignal ? "tête de groupe proposée" : "celle qui facture"})`],
+        ["Entreprise enfant", `${s("childCompanyName") ?? "Entité signataire"} (${domainSignal ? "entité rattachée" : "celle qui a signé le deal"})`],
+        ["Signal", domainSignal ? `Domaine web partagé${s("sharedDomain") ? ` (${s("sharedDomain")})` : ""} — détecté sur toute la base` : "Facture du montant exact émise par l'autre entité"],
         ["Association écrite", "Parent / enfant HubSpot (le miroir « enfant » est créé automatiquement côté parent)"],
-        ["Ensuite, côté Revold", "Le deal se rapproche de la facture de l'autre entité, et le garde-fou inter-entités surveille la bonne société de facturation — automatiquement, sans rattachement manuel"],
+        ["Ensuite, côté Revold", "La consolidation par groupe et le garde-fou inter-entités surveillent la bonne société de facturation — automatiquement, sans rattachement manuel"],
       ],
-      effect: "Écrit UNE association de hiérarchie dans HubSpot (aucune autre donnée touchée), déduite d'une correspondance de montant deal↔facture — jamais du nom. Si le sens parent/enfant est inverse, ou s'il ne s'agit pas du même groupe, rejette et corrige dans HubSpot.",
+      effect: "Écrit UNE association de hiérarchie dans HubSpot (aucune autre donnée touchée) — jamais déduite du nom. Si le sens parent/enfant est inverse, valide plutôt depuis la page Hiérarchie comptes (bouton « Inverser le sens ») ; s'il ne s'agit pas du même groupe, rejette.",
     };
   }
   return null;
@@ -181,7 +183,7 @@ export const ACTION_CATALOG: Array<{ key: string; label: string; description: st
   { key: "renewal_deal", label: "Deals de renouvellement manquants", description: "Abonnement actif se terminant sous 60 jours sans deal ouvert → crée le deal de renouvellement (MRR × 12) : le forecast intègre le récurrent." },
   { key: "revenue_leakage", label: "Écarts signé vs facturé (leakage)", description: "Deal gagné dont les factures couvrent moins de 90 % du montant signé → tâche chiffrée pour l'owner : du cash vendu jamais facturé." },
   { key: "billing_contact", label: "Création de contacts facturation", description: "Email de facturation présent côté Stripe/Pennylane mais absent du CRM → crée le contact rattaché à l'entreprise (débloque la règle « email exact »)." },
-  { key: "declare_group", label: "Hiérarchies de groupe à déclarer", description: "Deal signé sur une entité mais facturé, au montant exact, sur une autre société sans lien de groupe déclaré → déclare la hiérarchie parent/enfant dans HubSpot. Ensuite Revold rapproche et surveille la bonne entité de facturation, automatiquement — jamais deviné par le nom." },
+  { key: "declare_group", label: "Hiérarchies de groupe à déclarer", description: "Sur toute la base : deal signé sur une entité mais facturé, au montant exact, sur une autre société — ou deux fiches CRM partageant le même domaine web — sans lien de groupe déclaré → déclare la hiérarchie parent/enfant dans HubSpot. Ensuite Revold rapproche et surveille la bonne entité de facturation, automatiquement — jamais deviné par le nom. Console dédiée : page Hiérarchie comptes." },
   { key: "won_stage_mapping", label: "Étapes « gagnées » à mapper dans le CRM", description: "Étape de pipeline à l'évidence terminale (« encaissé », « gagné », probabilité ≥ 90 %) mais non déclarée « Gagné » dans HubSpot → ses deals comptent comme du pipeline futur dans le prévisionnel (double comptage avec le solde bancaire). Tâche HubSpot pour faire le réglage dans le CRM — la sync sort ensuite ces deals de la projection." },
   { key: "duplicate_deals", label: "Deals en doublon à trier", description: "Plusieurs deals ouverts au même montant et au même nom (opération dupliquée par contact, club deal…) → le pipeline compte N fois la même affaire et gonfle les projections. Tâche HubSpot pour fusionner/fermer les doublons, ou les isoler dans un pipeline dédié." },
   { key: "forecast_pipeline", label: "Pipelines hors d'échelle au prévisionnel", description: "Pipeline dont les deals ouverts cumulent ≥ 1 M€ et ≥ 10× les factures clients ouvertes (financement, club deals…) → il écrase le solde projeté. Valider l'exclut du prévisionnel de trésorerie UNIQUEMENT (effet immédiat) — il reste visible partout ailleurs." },

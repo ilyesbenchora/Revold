@@ -56,9 +56,10 @@ export default async function HierarchiePage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Hiérarchie comptes</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Les groupes multi-sociétés de ton portefeuille : Revold détecte qu&apos;un deal signé sur une entité est
-          facturé sur une autre (correspondance de montant, jamais le nom) et te propose de déclarer le lien
-          parent/enfant dans le CRM.{" "}
+          Les groupes multi-sociétés de ton portefeuille, détectés sur <span className="font-medium text-slate-700">toute la base</span> :
+          facture émise par une autre entité que celle qui a signé (correspondance de montant) et fiches qui
+          partagent le même domaine web — jamais déduits du nom. Revold propose le lien parent/enfant à déclarer
+          dans le CRM, sens inversable avant validation.{" "}
           <span className="font-medium text-slate-700">
             Une hiérarchie validée alimente automatiquement la consolidation par groupe et le garde-fou
             inter-entités du rapprochement
@@ -144,8 +145,9 @@ export default async function HierarchiePage() {
       </CollapsibleBlock>
 
       <p className="text-[11px] text-slate-400">
-        Les suggestions viennent d&apos;une correspondance exacte de montant entre un deal gagné d&apos;une entité et
-        une facture d&apos;une autre — Revold ne déduit jamais un groupe d&apos;après la ressemblance des noms.
+        Deux signaux, sur toute la base : correspondance exacte de montant entre un deal gagné d&apos;une entité et
+        une facture d&apos;une autre (sens sûr : le facturier est parent), et domaine web partagé entre fiches CRM
+        (sens proposé, inversable) — Revold ne déduit jamais un groupe d&apos;après la ressemblance des noms.
         Valider ici ou dans Suivi → Actions est strictement équivalent (même file, même historique).
       </p>
     </section>
