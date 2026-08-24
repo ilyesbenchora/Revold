@@ -16,19 +16,19 @@ type Diag = {
 
 const nf = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
 
-const DEFAULT_SIGNALS: Array<{ icon: string; title: string; desc: string; coverage: (d: Diag) => string }> = [
+const DEFAULT_SIGNALS: Array<{ title: string; desc: string; coverage: (d: Diag) => string }> = [
   {
-    icon: "🎯", title: "Montant exact (deal ↔ facture)",
+    title: "Montant exact (deal ↔ facture)",
     desc: "Un deal gagné facturé au montant exact sur une AUTRE société non reliée — signal fort de facturation par une entité du groupe.",
     coverage: (d) => `${nf(d.wonDeals)} deals gagnés · ${nf(d.unlinkedInvoices)} factures non rattachées à croiser`,
   },
   {
-    icon: "🌐", title: "Domaine web partagé",
+    title: "Domaine web partagé",
     desc: "Deux fiches CRM au même domaine web (hors domaines génériques) sans lien de groupe déclaré.",
     coverage: (d) => `${nf(d.withDomain)} / ${nf(d.companies)} entreprises ont un domaine renseigné`,
   },
   {
-    icon: "🏛️", title: "Même SIREN, SIRET distincts",
+    title: "Même SIREN, SIRET distincts",
     desc: "Deux fiches CRM = même société au registre (SIREN) mais établissements (SIRET) différents — siège + agence. N'utilise PAS le SIREN enrichi seul, mais les doublons SIREN détectés.",
     coverage: (d) => `${nf(d.withSiren)} avec SIREN · ${nf(d.withSiret)} avec SIRET · ${nf(d.dupSiren)} doublons SIREN (établissements)`,
   },
@@ -84,7 +84,6 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
       <div className="card divide-y divide-slate-100">
         {DEFAULT_SIGNALS.map((s) => (
           <div key={s.title} className="flex items-start gap-3 px-4 py-3">
-            <span aria-hidden className="mt-0.5 text-base">{s.icon}</span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-slate-800">{s.title}</p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{s.desc}</p>
@@ -100,7 +99,6 @@ export function GroupSignalsSettings({ initialNameMatch }: { initialNameMatch: b
 
         {/* Opt-in : ressemblance de nom (signal faible). */}
         <div className="flex items-start gap-3 px-4 py-3">
-          <span aria-hidden className="mt-0.5 text-base">🔤</span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-slate-800">Ressemblance de nom <span className="text-[10px] font-normal text-slate-400">(signal faible)</span></p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
