@@ -56,7 +56,7 @@ export default async function AppelsPage() {
 
       <PageDataTables pageKey="perf_appels" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_appels" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_appels" categories={["phone"]} />
 
       <CreateAlertModal hideTrigger />
     </section>

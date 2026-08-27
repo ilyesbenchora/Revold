@@ -60,12 +60,17 @@ export default async function PaiementFacturationOverviewPage({
   }
   // Sans sélection d'URL : ISO avec les Paramètres — les outils choisis dans
   // « Outil source par page » (Paramètres → Intégrations) sont présélectionnés.
-  // Sans mapping non plus : état neutre, l'utilisateur choisit ses sources.
   if (selectedKeys.length === 0) {
     const mappedKeys = await getToolKeys(supabase, orgId, "audit_paiement_facturation");
     if (mappedKeys.length > 0) {
       selectedKeys = switchableTools.filter((t) => mappedKeys.includes(t.key)).map((t) => t.key);
     }
+  }
+  // Sans mapping non plus : TOUS les outils connectés pertinents font foi —
+  // un outil connecté (ex : Pennylane) doit alimenter la page sans étape de
+  // config supplémentaire. L'invite ne reste que s'il n'y a RIEN de connecté.
+  if (selectedKeys.length === 0) {
+    selectedKeys = switchableTools.map((t) => t.key);
   }
 
   // ── Règle d'affichage dynamique (déclarative, cf. source-switch.ts) ──
@@ -220,13 +225,13 @@ export default async function PaiementFacturationOverviewPage({
 
       <PaiementFacturationTabs />
 
-      {/* ── 0 outil : invite — rien ne s'affiche tant qu'aucune source n'est choisie ── */}
+      {/* ── 0 outil : invite — ne s'affiche que si AUCUN outil pertinent n'est connecté ── */}
       {selectedKeys.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-sm font-medium text-slate-700">Choisis ta source pour activer les blocs.</p>
+          <p className="text-sm font-medium text-slate-700">Connecte un outil pour activer les blocs.</p>
           <p className="mt-1.5 text-xs text-slate-500">
-            Sélectionne un outil via « Sources des blocs » en bas de page, ou dans
-            Paramètres → Intégrations → Outil source par page.
+            Connecte ton outil de facturation ou ta banque (Pennylane, Stripe, Qonto…) depuis
+            Intégrations → Bibliothèque : la page s&apos;alimente automatiquement.
           </p>
         </div>
       )}

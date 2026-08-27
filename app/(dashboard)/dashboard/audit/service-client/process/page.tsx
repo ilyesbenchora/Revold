@@ -228,7 +228,7 @@ export default async function ServiceClientProcessPage() {
 
       <PageDataTables pageKey={PAGE_KEY} />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey={SOURCE_KEYS} categories={["crm", "support"]} />
     </section>
   );
 }

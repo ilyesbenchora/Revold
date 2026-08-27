@@ -309,7 +309,7 @@ export default async function PerformanceCommercialePage() {
 
       <PageDataTables pageKey="perf_ventes" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ventes" categories={["crm"]} />
 
       <CreateAlertModal hideTrigger />
 

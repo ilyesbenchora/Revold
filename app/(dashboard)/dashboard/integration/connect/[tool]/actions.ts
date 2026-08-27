@@ -112,6 +112,18 @@ export async function connectToolAction(toolKey: string, formData: FormData) {
     }
   }
 
+  // ── 1er outil de données : auto-sélectionné comme source de toutes les
+  //    pages (même comportement que le flux OAuth) — sinon les pages Données
+  //    restent sur l'invite « choisis ta source » alors qu'un outil est
+  //    connecté. Best effort : réglable manuellement dans les Paramètres. ──
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const { autoMapSingleTool } = await import("@/lib/integrations/tool-mappings");
+    await autoMapSingleTool(supabase, orgId, toolKey, auth.user?.id ?? null);
+  } catch {
+    /* best effort */
+  }
+
   // After saving credentials, trigger an initial sync via the orchestrator UI.
   redirect(`/dashboard/integration?connected=${toolKey}&sync=${toolKey}`);
 }

@@ -60,7 +60,7 @@ export default async function PerformancePublicitePage() {
 
       <PageDataTables pageKey="perf_ads" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ads" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_ads" categories={["ads"]} />
 
       <CreateAlertModal hideTrigger />
     </section>

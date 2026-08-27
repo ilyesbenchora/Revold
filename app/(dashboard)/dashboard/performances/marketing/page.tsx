@@ -248,7 +248,7 @@ export default async function PerformanceMarketingPage() {
 
       <PageDataTables pageKey="perf_marketing" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_perf_marketing" categories={["crm", "ads"]} />
 
       <CreateAlertModal hideTrigger />
 

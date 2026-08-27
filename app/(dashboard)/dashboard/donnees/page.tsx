@@ -457,7 +457,7 @@ export default async function DonneesPage() {
 
       <PageDataTables pageKey="audit_donnees" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_donnees" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_donnees" categories={["crm", "billing", "support"]} />
 
       <PageSections pageKey="audit_donnees" />
     </div>

@@ -268,7 +268,7 @@ export default async function ServiceClientOverviewPage() {
 
       <PageDataTables pageKey="audit_service_client" />
 
-      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_service_client" />
+      <PageSourcesFooter supabase={supabase} orgId={orgId} pageKey="audit_service_client" categories={["crm", "support"]} />
 
       <PageSections pageKey="audit_service_client" />
     </section>

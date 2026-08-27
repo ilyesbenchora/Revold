@@ -51,10 +51,13 @@ export async function PageSourcesGate({
   // par catégorie ici — un outil explicitement choisi dans les paramètres doit
   // apparaître sur la page, sinon l'utilisateur voit « rien » alors qu'il a
   // configuré ses sources. Seule la communication (Slack, Teams…) est exclue.
-  void categories;
-  const tools = connected.filter(
-    (t) => t.category !== "communication" && mapped.includes(t.key),
-  );
+  // SANS mapping : les outils connectés des catégories pertinentes font foi —
+  // un outil connecté doit alimenter la page sans étape de config. L'invite ne
+  // reste que s'il n'y a rien de connecté pour cette page.
+  const tools =
+    mapped.length > 0
+      ? connected.filter((t) => t.category !== "communication" && mapped.includes(t.key))
+      : connected.filter((t) => categories.includes(t.category));
 
   if (tools.length === 0) return <NoPageSourcesNotice />;
 
@@ -70,19 +73,24 @@ export async function PageSourcesFooter({
   supabase,
   orgId,
   pageKey,
+  categories,
 }: {
   supabase: SupabaseClient;
   orgId: string;
   /** Clé tool_mappings de la page — ou chaîne de fallback (cf. PageSourcesGate). */
   pageKey: string | string[];
+  /** Mêmes catégories que le gate de la page : sans mapping, le footer liste
+   *  les outils connectés de ces catégories (le fallback qui alimente les blocs). */
+  categories?: Array<ConnectableTool["category"]>;
 }) {
   const [connected, mapped] = await Promise.all([
     getConnectedTools(supabase, orgId),
     getToolKeysChain(supabase, orgId, Array.isArray(pageKey) ? pageKey : [pageKey]),
   ]);
-  const tools = connected.filter(
-    (t) => t.category !== "communication" && mapped.includes(t.key),
-  );
+  const tools =
+    mapped.length > 0
+      ? connected.filter((t) => t.category !== "communication" && mapped.includes(t.key))
+      : connected.filter((t) => (categories ?? []).includes(t.category));
   if (tools.length === 0) return null;
 
   return (
