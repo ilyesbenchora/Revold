@@ -247,8 +247,38 @@ export async function fetchPaiementFacturationFor(
     orgId,
     Array.isArray(pageKey) ? pageKey : [pageKey],
   );
-  const sourceKey = overrideSource || mappedKeys[0]; // mode "single" → 1 seul outil
 
+  // Override (clic sur le switcher) : l'outil demandé fait foi, sans repli.
+  if (overrideSource) return fetchForSource(supabase, orgId, hubspotToken, overrideSource);
+
+  // Mapping multi-outils (ex : [hubspot, pennylane]) : prendre AVEUGLÉMENT le
+  // premier laissait la page facturation vide quand c'était le CRM (HubSpot
+  // sans module Invoices) alors que l'outil de facturation mappé (Pennylane)
+  // avait les données. On essaie les outils FACTURATION d'abord, puis le
+  // reste, et on sert le premier qui a réellement des données.
+  const ordered = [...mappedKeys].sort((a, b) => {
+    const billingA = a !== "hubspot" ? 0 : 1;
+    const billingB = b !== "hubspot" ? 0 : 1;
+    return billingA - billingB;
+  });
+  let first: PaiementFacturationData | null = null;
+  for (const key of ordered) {
+    const result = await fetchForSource(supabase, orgId, hubspotToken, key);
+    if (result.hasData) return result;
+    first = first ?? result;
+  }
+  if (first) return first;
+
+  // Aucun mapping → fallback HubSpot (comportement historique).
+  return fetchForSource(supabase, orgId, hubspotToken, "hubspot");
+}
+
+async function fetchForSource(
+  supabase: SupabaseClient,
+  orgId: string,
+  hubspotToken: string | null,
+  sourceKey: string,
+): Promise<PaiementFacturationData> {
   if (sourceKey === "stripe") {
     const { data: stripeInt } = await supabase
       .from("integrations")
