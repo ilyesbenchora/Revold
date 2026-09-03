@@ -189,15 +189,32 @@ export default async function FacturationPage({
 
       {!data.hasData && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-          <p className="text-sm text-slate-600">
-            Aucun outil de facturation connecté : cette page s&apos;alimentera automatiquement dès qu&apos;un outil
-            sera branché.
-          </p>
+          {switchableTools.length > 0 ? (
+            <>
+              {/* Outil connecté mais zéro facture côté API : dire « aucun outil
+                  connecté » ici serait faux et fait chercher le bug au mauvais
+                  endroit — on nomme l'outil et la vraie cause probable. */}
+              <p className="text-sm text-slate-600">
+                Aucune facture trouvée dans {switchableTools.map((t) => t.label).join(" / ")} : la connexion
+                fonctionne, mais l&apos;API ne renvoie aucune facture émise.
+              </p>
+              <p className="mt-1.5 text-xs text-slate-500">
+                Si tes factures vivent dans un autre outil, connecte-le ; si elles sont bien dans{" "}
+                {switchableTools[0].label}, vérifie le périmètre de la clé API (accès Facturation) puis relance une
+                synchronisation depuis Intégrations → Mes outils.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Aucun outil de facturation connecté : cette page s&apos;alimentera automatiquement dès qu&apos;un outil
+              sera branché.
+            </p>
+          )}
           <Link
             href="/dashboard/integration/bibliotheque"
             className="mt-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
           >
-            Connecter un outil de facturation →
+            {switchableTools.length > 0 ? "Voir la bibliothèque d'outils →" : "Connecter un outil de facturation →"}
           </Link>
         </div>
       )}
