@@ -70,6 +70,10 @@ export function HierarchyConsole({
   // Pagination de la file (grosses files de rapprochements par le nom).
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
+  // Recherche dans la vue Table (en masse) : filtre sur les noms parent/enfant,
+  // le domaine partagé et le SIREN/SIRET — pour retrouver un compte sans
+  // parcourir les pages.
+  const [search, setSearch] = useState("");
   // Identifiants d'entités par hubspot_id (SIREN/SIRET) — colonnes clés du
   // rapprochement, servies en direct depuis la base.
   const [idents, setIdents] = useState<Record<string, { siren: string | null; siret: string | null }>>({});
@@ -183,15 +187,37 @@ export function HierarchyConsole({
     await load();
   }
 
-  // Tranche affichée (pagination) — la sélection en masse reste sur toute la file.
-  const totalPages = pending ? Math.max(1, Math.ceil(pending.length / PAGE_SIZE)) : 1;
+  // File visible : en vue Table, la recherche filtre la file complète (les
+  // matchs couvrent noms, domaine, SIREN/SIRET des deux entités).
+  const q = search.trim().toLowerCase();
+  const visible =
+    pending && view === "table" && q
+      ? pending.filter((a) => {
+          const pHs = payloadStr(a.payload, "parentHubspotId") ?? "";
+          const cHs = payloadStr(a.payload, "childHubspotId") ?? "";
+          const hay = [
+            payloadStr(a.payload, "parentCompanyName"),
+            payloadStr(a.payload, "childCompanyName"),
+            payloadStr(a.payload, "sharedDomain"),
+            payloadStr(a.payload, "sharedSiren"),
+            payloadStr(a.payload, "sharedName"),
+            idents[pHs]?.siren, idents[pHs]?.siret,
+            idents[cHs]?.siren, idents[cHs]?.siret,
+          ];
+          return hay.some((v) => v && v.toLowerCase().includes(q));
+        })
+      : pending;
+
+  // Tranche affichée (pagination) — la sélection en masse reste sur toute la
+  // file VISIBLE (filtrée quand une recherche est active).
+  const totalPages = visible ? Math.max(1, Math.ceil(visible.length / PAGE_SIZE)) : 1;
   const curPage = Math.min(page, totalPages - 1);
-  const pageItems = pending ? pending.slice(curPage * PAGE_SIZE, curPage * PAGE_SIZE + PAGE_SIZE) : [];
+  const pageItems = visible ? visible.slice(curPage * PAGE_SIZE, curPage * PAGE_SIZE + PAGE_SIZE) : [];
   const Pager = () =>
-    pending && pending.length > PAGE_SIZE ? (
+    visible && visible.length > PAGE_SIZE ? (
       <div className="flex items-center justify-between gap-2 pt-1 text-xs text-slate-500">
         <span className="tabular-nums">
-          {curPage * PAGE_SIZE + 1}–{Math.min((curPage + 1) * PAGE_SIZE, pending.length)} sur {pending.length}
+          {curPage * PAGE_SIZE + 1}–{Math.min((curPage + 1) * PAGE_SIZE, visible.length)} sur {visible.length}
         </span>
         <span className="flex items-center gap-1">
           <button type="button" disabled={curPage === 0} onClick={() => setPage(curPage - 1)} className="rounded-md border border-slate-200 px-2 py-1 font-medium transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40">← Précédent</button>
@@ -304,9 +330,12 @@ export function HierarchyConsole({
           </div>
         ) : view === "table" ? (
           (() => {
-            const allSelected = pending.length > 0 && pending.every((a) => selected.has(a.id));
+            const rows = visible ?? [];
+            // « Tout sélectionner » porte sur la file FILTRÉE : une recherche
+            // active borne la sélection en masse à ce qu'elle affiche.
+            const allSelected = rows.length > 0 && rows.every((a) => selected.has(a.id));
             const toggleAll = () =>
-              setSelected(allSelected ? new Set() : new Set(pending.map((a) => a.id)));
+              setSelected(allSelected ? new Set() : new Set(rows.map((a) => a.id)));
             const toggleOne = (id: string) =>
               setSelected((prev) => {
                 const next = new Set(prev);
@@ -335,6 +364,23 @@ export function HierarchyConsole({
             };
             return (
               <div className="card overflow-hidden">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(0);
+                    }}
+                    placeholder="Rechercher un compte (nom, domaine, SIREN/SIRET)…"
+                    className="w-full max-w-sm rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
+                  />
+                  {q && (
+                    <span className="text-[11px] tabular-nums text-slate-400">
+                      {rows.length} résultat{rows.length > 1 ? "s" : ""} sur {pending.length}
+                    </span>
+                  )}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
@@ -352,6 +398,13 @@ export function HierarchyConsole({
                       </tr>
                     </thead>
                     <tbody>
+                      {pageItems.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-3 py-6 text-center text-xs text-slate-400">
+                            Aucun compte ne correspond à « {search} ».
+                          </td>
+                        </tr>
+                      )}
                       {pageItems.map((a) => {
                         const isSwapped = swapped.has(a.id);
                         const rawParent = payloadStr(a.payload, "parentCompanyName") ?? "Entité de facturation";
