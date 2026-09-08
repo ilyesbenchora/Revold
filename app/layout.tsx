@@ -118,7 +118,7 @@ export default function RootLayout({
             marketing ne sont pas affectées par l'attribut. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark"||t==="silver-dark")document.documentElement.dataset.theme=t;else if(t!=="light")document.documentElement.dataset.theme="violet-dark"}catch(e){document.documentElement.dataset.theme="violet-dark"}`,
+            __html: `try{var t=localStorage.getItem("revold:theme");if(t==="violet-dark"||t==="gold-dark"||t==="silver-dark"||t==="cobalt-light")document.documentElement.dataset.theme=t;else if(t!=="light")document.documentElement.dataset.theme="violet-dark"}catch(e){document.documentElement.dataset.theme="violet-dark"}`,
           }}
         />
         <script

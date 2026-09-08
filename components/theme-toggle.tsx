@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 
 const THEME_KEY = "revold:theme";
-type Theme = "light" | "violet-dark" | "gold-dark" | "silver-dark";
+type Theme = "light" | "cobalt-light" | "violet-dark" | "gold-dark" | "silver-dark";
 const DARK_THEMES: Theme[] = ["violet-dark", "gold-dark", "silver-dark"];
+/** Thèmes portés par un attribut data-theme (tout sauf le clair par défaut). */
+const ATTR_THEMES: Theme[] = ["cobalt-light", ...DARK_THEMES];
 
 /**
  * Paramètres → Apparence : choix du thème de la plateforme. DÉFAUT = sombre
@@ -21,7 +23,7 @@ export function ThemeToggle() {
     try {
       const saved = localStorage.getItem(THEME_KEY) as Theme | null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved === "light" || (saved && DARK_THEMES.includes(saved))) setTheme(saved);
+      if (saved === "light" || (saved && ATTR_THEMES.includes(saved))) setTheme(saved);
     } catch {
       /* stockage indisponible → défaut violet-dark */
     }
@@ -31,7 +33,7 @@ export function ThemeToggle() {
   // Applique le thème au DOM (attribut sur <html>) — EN DIRECT, via effet.
   useEffect(() => {
     if (!hydrated) return;
-    if (DARK_THEMES.includes(theme)) document.documentElement.setAttribute("data-theme", theme);
+    if (ATTR_THEMES.includes(theme)) document.documentElement.setAttribute("data-theme", theme);
     else document.documentElement.removeAttribute("data-theme");
   }, [theme, hydrated]);
 
@@ -55,6 +57,25 @@ export function ThemeToggle() {
           <div className="mt-2 flex items-end gap-1.5">
             {[10, 16, 8, 20, 13].map((h, i) => (
               <div key={i} className="w-4 rounded-t bg-gradient-to-t from-indigo-400 to-fuchsia-400" style={{ height: h * 2 }} />
+            ))}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "cobalt-light",
+      label: "Clair cobalt",
+      hint: "Fond clair azuré, accents bleu cobalt et aquamarine — frais et contrasté.",
+      preview: (
+        <div className="h-20 w-full overflow-hidden rounded-lg border border-[#a8caf1] bg-[#f3f8fb] p-2">
+          <div className="h-2 w-1/3 rounded-full bg-[#a8caf1]" />
+          <div className="mt-2 flex items-end gap-1.5">
+            {[10, 16, 8, 20, 13].map((h, i) => (
+              <div
+                key={i}
+                className="w-4 rounded-t bg-gradient-to-t from-[#0f52ba] to-[#40cdab]"
+                style={{ height: h * 2 }}
+              />
             ))}
           </div>
         </div>
@@ -121,7 +142,7 @@ export function ThemeToggle() {
 
   return (
     <div className="card p-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-5xl lg:grid-cols-3 xl:grid-cols-5">
         {options.map((o) => {
           const active = hydrated && theme === o.key;
           return (
@@ -142,6 +163,11 @@ export function ThemeToggle() {
                   {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                 </span>
                 <span className="text-sm font-semibold text-slate-900">{o.label}</span>
+                {o.key === "cobalt-light" && (
+                  <span className="rounded-full bg-gradient-to-r from-[#0f52ba] to-[#40cdab] px-2 py-0.5 text-[10px] font-bold text-white">
+                    Nouveau
+                  </span>
+                )}
                 {o.key === "silver-dark" && (
                   <span className="rounded-full bg-gradient-to-r from-slate-400 to-slate-600 px-2 py-0.5 text-[10px] font-bold text-white">
                     Nouveau
