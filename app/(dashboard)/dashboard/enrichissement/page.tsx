@@ -7,6 +7,7 @@ import { EnrichmentBackfillRunner } from "@/components/enrichment-backfill-runne
 import { LinkedinEnrichmentBlock } from "@/components/linkedin-enrichment-block";
 import { EnrichmentSuggestions } from "@/components/enrichment-suggestions";
 import { FeatureTour } from "@/components/feature-tour";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import {
   ENRICHMENT_FIELD_COLUMNS,
   ENRICHMENT_FIELD_LABELS,
@@ -74,25 +75,33 @@ export default async function EnrichissementPage() {
       ? Math.round((customersEnriched / customers) * 100)
       : null;
 
-  const tiles = [
-    { label: "Entreprises", value: total, sub: "dans le modèle de données" },
+  // Tuiles PAR DÉFAUT — désormais configurables (retrait, réajout depuis le
+  // panneau, suggestions du catalogue) via le même CTA « Personnaliser les
+  // KPIs » que les pages données. Clés STABLES par champ.
+  const fmtCount = (v: number | null) => (v != null ? v.toLocaleString("fr-FR") : "—");
+  const tiles: DefaultTile[] = [
+    { key: "entreprises", label: "Entreprises", value: fmtCount(total), raw: total, rawUnit: "count", tone: "neutral", sub: "dans le modèle de données" },
     // Clientes enrichies : le cœur de la valeur — les fiches des CLIENTS
     // (lifecycle customer) passées par le moteur, avec le taux de couverture.
     {
+      key: "clientes_enrichies",
       label: "Clientes enrichies",
-      value: customersEnriched,
+      value: fmtCount(customersEnriched),
+      raw: customersEnriched,
+      rawUnit: "count",
+      tone: "accent",
       sub:
         customers != null && customers > 0
           ? `sur ${customers.toLocaleString("fr-FR")} clientes${customerRate != null ? ` — ${customerRate} %` : ""}`
           : "aucune entreprise cliente détectée",
     },
-    ...activeFields.map((f, i) => {
+    ...activeFields.map((f, i): DefaultTile => {
       const t = FIELD_TILE[f.id] ?? { label: f.label, sub: "" };
       const v = fieldValues[i];
       const pctOf = total && v != null ? ` — ${Math.round((v / total) * 100)} %` : "";
-      return { label: t.label, value: v, sub: `${t.sub}${f.id === "siren" ? pctOf : ""}` };
+      return { key: `champ_${f.id}`, label: t.label, value: fmtCount(v), raw: v, rawUnit: "count", tone: "neutral", sub: `${t.sub}${f.id === "siren" ? pctOf : ""}` };
     }),
-    { label: "À valider", value: toReview, sub: "correspondances plausibles en attente" },
+    { key: "a_valider", label: "À valider", value: fmtCount(toReview), raw: toReview, rawUnit: "count", tone: toReview != null && toReview > 0 ? "accent" : "neutral", sub: "correspondances plausibles en attente" },
   ];
 
   return (
@@ -131,15 +140,11 @@ export default async function EnrichissementPage() {
         ]}
       />
 
-      {/* ── Couverture ── */}
-      <div data-tour="enrichissement-tuiles" className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        {tiles.map((t) => (
-          <article key={t.label} className="card p-4 text-center">
-            <p className="text-[10px] font-medium uppercase text-slate-500">{t.label}</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{t.value ?? "—"}</p>
-            {t.sub && <p className="mt-0.5 text-[9px] leading-tight text-slate-400">{t.sub}</p>}
-          </article>
-        ))}
+      {/* ── Couverture : tuiles configurables (retrait, réajout des tuiles
+             retirées, suggestions liées aux réglages d'enrichissement) — même
+             CTA « Personnaliser les KPIs » que les pages données. ── */}
+      <div data-tour="enrichissement-tuiles">
+        <ConfigurableKpiTiles supabase={supabase} orgId={orgId} pageKey="enrichissement" defaults={tiles} />
       </div>
 
       {/* ── 1. ÉTAT du moteur — CTA « Enrichir mon CRM » (fenêtre de

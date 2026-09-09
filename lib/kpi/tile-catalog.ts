@@ -69,6 +69,19 @@ const PRODUCT_TILES: TileSuggestion[] = [
   { id: "deals_sans_produit", label: "Deals sans produit", description: "Deals sans aucun line item associé — panier non détaillé, analyse produit aveugle", unit: "count", sourceCategory: "crm", aggSpec: { entity: "deals", groupBy: "has_products", measure: "count", target: "Sans produit" } },
 ];
 
+// ── KPIs d'enrichissement (état de la donnée officielle des entreprises) —
+// suggestions de la page Enrichissement : ce que le moteur produit et que les
+// tuiles par défaut ne montrent pas (doublons, vérifications, LinkedIn…) ──
+const ENRICHMENT_TILES: TileSuggestion[] = [
+  { id: "fiches_enrichies", label: "Fiches enrichies", description: "Entreprises passées par le moteur d'enrichissement (identité officielle posée)", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "enrichie", measure: "count", target: "Enrichies" } },
+  { id: "taux_enrichissement", label: "Taux d'enrichissement", description: "% de la base passée par le moteur — couverture globale", unit: "percent", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "enrichie", measure: "count", target: "Enrichies", percent_of_total: true } },
+  { id: "sans_siren", label: "Sans SIREN", description: "Entreprises encore sans identifiant officiel — reste à identifier au registre", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "siren_connu", measure: "count", target: "Sans SIREN" } },
+  { id: "doublons_siren", label: "Doublons même SIREN", description: "Fiches désignant la même société au registre (SIREN identique) — à fusionner ou relier en établissements", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "doublon_siren", measure: "count", target: "Doublons même SIREN" } },
+  { id: "verifiees_registre", label: "Vérifiées au registre", description: "Fiches confrontées au registre officiel (Sirene), avec ou sans correspondance", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "verif_registre", measure: "count", target: "Vérifiées au registre" } },
+  { id: "identites_a_valider", label: "Identités à valider", description: "Correspondances plausibles en attente de ta validation (bloc « Identités à valider »)", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "identite_a_valider", measure: "count", target: "À valider" } },
+  { id: "effectif_linkedin", label: "Effectifs via LinkedIn", description: "Entreprises dont l'effectif vient de la source LinkedIn (bêta) — complément du registre", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "effectif_linkedin", measure: "count", target: "Effectif LinkedIn connu" } },
+];
+
 /** Équipe d'alerte associée aux tuiles de chaque page (KPI personnalisé + création d'alerte). */
 export const PAGE_TILE_TEAM: Record<string, string> = {
   perf_ventes: "sales",
@@ -76,6 +89,7 @@ export const PAGE_TILE_TEAM: Record<string, string> = {
   audit_paiement_facturation: "revops",
   audit_service_client: "cs",
   audit_donnees: "ops",
+  enrichissement: "ops",
 };
 
 // Pages « racines » du système de tuiles. Les sous-pages (Trésorerie → Paiement,
@@ -114,6 +128,7 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
     ...fromKpiDefs(kpisByTeam.cs),
   ],
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
+  enrichissement: ENRICHMENT_TILES,
 };
 
 /**

@@ -695,11 +695,20 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
   },
   companies: {
-    columns: "segment, industry, country_code",
+    columns: "segment, industry, country_code, enriched_at, siren, duplicate_of_siren, sirene_checked_at, candidate_siren, linkedin_employee_range",
     dims: {
       segment: (r) => String(r.segment ?? "inconnu"),
       industry: (r) => String(r.industry ?? "inconnu"),
       country: (r) => String(r.country_code ?? "inconnu"),
+      // ── État d'ENRICHISSEMENT (tuiles de la page Enrichissement + alertes) ──
+      enrichie: (r) => (r.enriched_at ? "Enrichies" : "Non enrichies"),
+      siren_connu: (r) => (r.siren || r.duplicate_of_siren ? "Avec SIREN" : "Sans SIREN"),
+      // Doublons même SIREN détectés par le moteur (hors dimension sinon).
+      doublon_siren: (r) => (r.duplicate_of_siren ? "Doublons même SIREN" : null),
+      verif_registre: (r) => (r.sirene_checked_at ? "Vérifiées au registre" : "Jamais vérifiées"),
+      // Correspondance plausible en attente de validation humaine.
+      identite_a_valider: (r) => (!r.siren && r.candidate_siren ? "À valider" : null),
+      effectif_linkedin: (r) => (r.linkedin_employee_range ? "Effectif LinkedIn connu" : null),
     },
     numeric: {},
   },
