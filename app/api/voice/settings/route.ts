@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { sanitizeBriefTeam } from "@/lib/voice/brief-team";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,10 @@ export const dynamic = "force-dynamic";
 const BOOL_KEYS = [
   "healthRing", "brief", "veille", "quickAnswer", "createActions", "navigation", "queue", "memory",
   "briefAlerts", "briefObjectives", "briefObjectivesReached", "briefSyncs", "briefMeetings", "briefRadar",
+  "briefEnrichment", "briefActionsDone", "briefReconciliation",
+  "recapWeekly", "recapMonthly", "recapQuarterly", "wakeWord",
 ] as const;
+const RECAP_TEAMS = new Set(["all", "sales", "marketing", "cs", "finance"]);
 
 /** Donnée personnalisée du brief : KPI câblé (label + query déterministe). */
 function sanitizeCustomItems(raw: unknown): unknown[] {
@@ -56,7 +60,12 @@ function sanitize(raw: unknown): Record<string, unknown> | null {
   const r = raw as Record<string, unknown>;
   for (const k of BOOL_KEYS) if (typeof r[k] === "boolean") out[k] = r[k] as boolean;
   if (typeof r.briefPhrase === "string") out.briefPhrase = r.briefPhrase.slice(0, 60);
+  if (typeof r.wakePhrase === "string") out.wakePhrase = r.wakePhrase.slice(0, 40);
+  if (typeof r.recapTeam === "string" && RECAP_TEAMS.has(r.recapTeam)) out.recapTeam = r.recapTeam;
   if (Array.isArray(r.briefCustom)) out.briefCustom = sanitizeCustomItems(r.briefCustom);
+  // Brief d'équipe personnalisé : structure normalisée (équipe, blocs,
+  // propriétés CRM vérifiées, suggestions validées) — jamais stockée brute.
+  if (r.briefTeam && typeof r.briefTeam === "object") out.briefTeam = sanitizeBriefTeam(r.briefTeam);
   return Object.keys(out).length > 0 ? out : null;
 }
 

@@ -8,6 +8,9 @@ import { computeAggregate } from "@/lib/ai/agents/tool-library";
 import { computeBillingRadar } from "@/lib/audit/billing-radar";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { narrateForVoice, firstNameFromUser } from "@/lib/voice/narrate";
+import { sanitizeBriefTeam, isBriefTeamId } from "@/lib/voice/brief-team";
+import { computeTeamBrief } from "@/lib/voice/brief-team-engine";
+import { poleToWorkspace } from "@/lib/workspaces";
 
 /** Libellé lisible d'un provider (« pennylane » → « Pennylane »). */
 function toolLabel(key: string): string {
@@ -83,7 +86,7 @@ export async function GET(request: Request) {
   const sections = new Set(
     sectionsParam != null
       ? sectionsParam.split(",").filter(Boolean)
-      : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "enrichment", "actions_done", "reconciliation"],
+      : ["alerts", "radar", "objectives", "objectives_reached", "syncs", "enrichment", "actions_done", "reconciliation", "team"],
   );
   const now = new Date();
   const in30d = new Date(now.getTime() + 30 * 86400 * 1000).toISOString().slice(0, 10);
@@ -291,12 +294,35 @@ export async function GET(request: Request) {
     query?: { entity?: string; groupBy?: string; measure?: string; field?: string | null };
   };
   let customParts: string[] = [];
+  // Brief d'équipe personnalisé (section « team ») : lu depuis les mêmes
+  // réglages du compte, calculé par le moteur déterministe par pôle.
+  let teamParts: string[] = [];
+  let teamLabel: string | null = null;
   try {
     const { data: settingsRow } = await supabase
       .from("voice_tower_settings")
       .select("settings")
       .eq("user_id", user.id)
       .maybeSingle();
+    if (sections.has("team") && !veille) {
+      try {
+        const teamSettings = sanitizeBriefTeam((settingsRow?.settings as { briefTeam?: unknown } | null)?.briefTeam);
+        if (teamSettings.enabled) {
+          // Verrou d'équipe côté serveur : un membre rattaché à un pôle n'entend
+          // que le brief de SON équipe (même règle que le récap d'équipe).
+          const { data: profile } = await supabase.from("profiles").select("role, pole").eq("id", user.id).maybeSingle();
+          const ownTeam = poleToWorkspace(profile?.pole as string | null);
+          if (profile?.role !== "admin" && isBriefTeamId(ownTeam)) teamSettings.team = ownTeam;
+          const res = await computeTeamBrief(supabase, orgId, await getHubSpotToken(supabase, orgId), teamSettings, crmLabel, now);
+          if (res) {
+            teamParts = res.parts;
+            teamLabel = res.label;
+          }
+        }
+      } catch {
+        /* moteur d'équipe indisponible → brief sans section équipe */
+      }
+    }
     const rawItems = (settingsRow?.settings as { briefCustom?: unknown } | null)?.briefCustom;
     const enabled = (Array.isArray(rawItems) ? (rawItems as CustomItem[]) : [])
       .filter((i) => i?.enabled !== false && i?.label && i?.query?.entity && i?.query?.groupBy && i?.query?.measure)
@@ -434,6 +460,9 @@ export async function GET(request: Request) {
       parts.push(`Côté réconciliation : santé ${reconScore} sur 100${trendTxt}.${gapTxt}`);
     }
     if (customParts.length > 0) parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
+    // Brief d'équipe personnalisé : annoncé comme une famille à part
+    // (« Côté Ventes… »), phrases déjà chiffrées et sourcées par le moteur.
+    if (teamParts.length > 0) parts.push(`Côté ${teamLabel ?? "équipe"} : ${teamParts.join(" ")}`);
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
@@ -477,6 +506,7 @@ export async function GET(request: Request) {
       reachedObjectives: reached.length,
       failedSyncs: failedSyncs.length,
       customData: customParts.length,
+      teamBrief: teamParts.length,
       overdueExpectedInvoices: radarOverdue,
       enrichmentRemaining,
       /** Contenu « enrichissement » FINALISÉ : plus rien en attente, base identifiée. */

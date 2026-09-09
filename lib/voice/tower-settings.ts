@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { DEFAULT_BRIEF_TEAM, sanitizeBriefTeam, type BriefTeamSettings } from "@/lib/voice/brief-team";
 
 /**
  * Donnée personnalisée du brief : un KPI câblé via le funnel de vérification
@@ -51,6 +52,12 @@ export type TowerSettings = {
   briefReconciliation: boolean;
   /** Contenu du brief — données personnalisées (KPIs câblés, recalculés en direct). */
   briefCustom: BriefCustomItem[];
+  /**
+   * Brief PERSONNALISÉ par équipe : pipelines, suggestions du pôle avec leurs
+   * périodes/seuils, propriétés CRM personnalisées vérifiées et suggestions
+   * personnalisées validées par rapprochement (voir lib/voice/brief-team.ts).
+   */
+  briefTeam: BriefTeamSettings;
   /** Récap d'équipe — période(s) activée(s). */
   recapWeekly: boolean;
   recapMonthly: boolean;
@@ -86,6 +93,7 @@ export const DEFAULT_TOWER_SETTINGS: TowerSettings = {
   briefActionsDone: true,
   briefReconciliation: true,
   briefCustom: [],
+  briefTeam: DEFAULT_BRIEF_TEAM,
   recapWeekly: false,
   recapMonthly: false,
   recapQuarterly: false,
@@ -120,6 +128,7 @@ export function readTowerSettings(): TowerSettings {
             (typeof v === "boolean" || typeof v === "string" || (k === "briefCustom" && Array.isArray(v))),
         ),
       ),
+      briefTeam: sanitizeBriefTeam(parsed.briefTeam),
     } as TowerSettings;
   } catch {
     return DEFAULT_TOWER_SETTINGS;
@@ -182,6 +191,9 @@ export function briefSectionsParam(s: TowerSettings): string {
   if (s.briefEnrichment) on.push("enrichment");
   if (s.briefActionsDone) on.push("actions_done");
   if (s.briefReconciliation) on.push("reconciliation");
+  // Brief d'équipe personnalisé (pipelines, suggestions du pôle, propriétés
+  // CRM) : le digest le lit depuis les réglages du compte.
+  if (s.briefTeam?.enabled) on.push("team");
   return on.join(",");
 }
 

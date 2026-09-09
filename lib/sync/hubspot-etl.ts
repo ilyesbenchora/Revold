@@ -430,6 +430,36 @@ async function loadCohortProperties(supabase: SupabaseClient, orgId: string, typ
   }
 }
 
+/**
+ * Propriétés CRM personnalisées déclarées dans le brief d'équipe de la tour de
+ * contrôle (Paramètres → Tour de contrôle → Brief personnalisé, table
+ * voice_tower_settings de chaque utilisateur de l'org) : demandées à l'API
+ * pour être embarquées dans raw_data — le brief les lit ensuite sans appel
+ * direct (avant la synchro suivante, il se replie sur HubSpot en direct).
+ */
+async function loadBriefProperties(supabase: SupabaseClient, orgId: string, type: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from("voice_tower_settings")
+      .select("settings")
+      .eq("organization_id", orgId)
+      .limit(200);
+    const props = new Set<string>();
+    for (const row of (data ?? []) as Array<{ settings: { briefTeam?: { configs?: Record<string, { customProperties?: Array<{ name?: string; object?: string }> }> } } | null }>) {
+      const configs = row.settings?.briefTeam?.configs ?? {};
+      for (const cfg of Object.values(configs)) {
+        for (const p of cfg?.customProperties ?? []) {
+          const name = (p?.name ?? "").trim();
+          if (p?.object === type && name && /^[a-z0-9_]+$/i.test(name)) props.add(name);
+        }
+      }
+    }
+    return [...props];
+  } catch {
+    return [];
+  }
+}
+
 type ContractProps = { start: string | null; end: string | null };
 
 /**
@@ -1078,7 +1108,9 @@ export async function syncCrmObject(
         ? contractProps?.deal ?? { start: null, end: null }
         : { start: null, end: null };
     const contractExtra = [contractForType.start, contractForType.end].filter((p): p is string => !!p);
-    const { records, latest } = await syncViaSearch(token, type, watermark, [...customIdProps, ...cohortProps, ...contractExtra]);
+    // Propriétés personnalisées du brief d'équipe (tour de contrôle), tous objets.
+    const briefProps = await loadBriefProperties(supabase, orgId, type);
+    const { records, latest } = await syncViaSearch(token, type, watermark, [...customIdProps, ...cohortProps, ...contractExtra, ...briefProps]);
 
     let upserted = 0;
     if (type === "contacts") upserted = await upsertContacts(supabase, orgId, records);

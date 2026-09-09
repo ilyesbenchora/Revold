@@ -5,7 +5,7 @@ import { hubFetch } from "@/lib/integrations/hub-fetch";
 // propriété par son libellé (celui affiché dans l'UI HubSpot) pour suggérer
 // le bon nom interne au lieu d'un simple « n'existe pas ».
 
-const VALID_OBJECTS = new Set(["companies", "contacts", "deals"]);
+const VALID_OBJECTS = new Set(["companies", "contacts", "deals", "tickets"]);
 
 /** Nom interne HubSpot : lettres/chiffres/underscore uniquement. */
 const INTERNAL_NAME_RE = /^[a-z0-9_]+$/i;

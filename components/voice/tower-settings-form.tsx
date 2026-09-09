@@ -17,6 +17,7 @@ import {
   type BriefCustomItem,
 } from "@/lib/voice/tower-settings";
 import { entityLabel, dimLabel, ENTITY_SOURCE_CATEGORY } from "@/lib/reports/data-table-presets";
+import { BriefTeamSettingsPanel } from "@/components/voice/brief-team-settings";
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
@@ -498,6 +499,10 @@ export function TowerSettingsForm() {
             </div>
             <AddCustomBriefData onAdd={addCustom} />
           </div>
+          {/* Brief personnalisé par équipe : pipelines, suggestions du pôle,
+              propriétés CRM vérifiées, suggestions personnalisées validées
+              par rapprochement, périodes en multi-cases. */}
+          <BriefTeamSettingsPanel settings={settings.briefTeam} />
           <div className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 p-3">
             <div>
               <p className="text-xs font-semibold text-slate-700">🌙 Mode veille</p>
