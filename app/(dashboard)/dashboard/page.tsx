@@ -1,7 +1,7 @@
 ﻿export const dynamic = "force-dynamic";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgId, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/supabase/cached";
+import { getOrgId, getProfile, getHubspotSnapshot, getDetectedIntegrations } from "@/lib/supabase/cached";
 import Link from "next/link";
 import { GlobalSearch } from "@/components/global-search";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
@@ -34,6 +34,14 @@ export default async function DashboardOverviewPage() {
     return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
   }
   const supabase = await createSupabaseServerClient();
+
+  // Prénom pour le titre — 1er mot du full_name du profil (fallback email
+  // géré à la création du profil), capitalisé. Sans profil : titre générique.
+  const profile = await getProfile();
+  const rawFirstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "";
+  const firstName = rawFirstName
+    ? rawFirstName.charAt(0).toLocaleUpperCase("fr-FR") + rawFirstName.slice(1)
+    : null;
 
   // Onboarding : si pas complete et pas skipped, on affiche un banner d'invitation
   const onboardingState = await getOnboardingState(supabase, orgId);
@@ -296,7 +304,9 @@ export default async function DashboardOverviewPage() {
       {/* Header + recherche globale (pages, rapports, alertes, agents…) */}
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Mon tableau de bord</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {firstName ? `${firstName}, voici ton tableau de bord` : "Mon tableau de bord"}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
             {hubspotConnected
               ? "Synthèse globale de votre intelligence revenue."
