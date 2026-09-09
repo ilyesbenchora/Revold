@@ -14,7 +14,7 @@ import {
   type WorkspaceId,
 } from "@/lib/workspaces";
 
-type LeafLink = { href: string; label: string; icon: React.ReactNode; ai?: boolean };
+type LeafLink = { href: string; label: string; icon: React.ReactNode; ai?: boolean; zap?: boolean };
 type GroupLink = { id: string; label: string; icon: React.ReactNode; children: LeafLink[]; ai?: boolean };
 type SidebarItem = LeafLink | GroupLink;
 
@@ -146,6 +146,7 @@ const alertesChildren: LeafLink[] = [
   {
     href: "/dashboard/mes-alertes/actions",
     label: "Actions",
+    zap: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>
     ),
@@ -513,11 +514,14 @@ export function DashboardSidebar({
                           key={child.href}
                           href={child.href}
                           onClick={() => setOpenGroupId(null)}
-                          className={`flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
+                          className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-[13px] font-medium transition ${
                             active ? "bg-accent-soft text-accent" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                           }`}
                         >
                           {child.label}
+                          {child.zap && (
+                            <svg aria-hidden className="ml-auto text-amber-500" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                          )}
                         </Link>
                       );
                     })}
