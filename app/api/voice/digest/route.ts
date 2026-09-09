@@ -448,7 +448,12 @@ export async function GET(request: Request) {
   if (sections.has("objectives_reached")) for (const o of reached) achievedKeys.push(`obj:${o.id}`);
   if (sections.has("actions_done") && actionsDone > 0 && actionsLatestAt) achievedKeys.push(`actions:${actionsLatestAt}`);
   if (sections.has("enrichment") && enrichmentRemaining === 0 && enrichmentDone > 0) {
-    achievedKeys.push(`enrichment:${enrichmentDone}`);
+    // Clé STABLE par jour (et non par compteur) : l'entretien continu (cron
+    // 5 min) incrémente enrichmentDone en permanence — une clé par valeur ne
+    // serait jamais retrouvée dans les acquittements et l'orbe restait verte
+    // après l'écoute du brief. Au plus une annonce « enrichissement terminé »
+    // par jour.
+    achievedKeys.push(`enrichment:${new Date().toISOString().slice(0, 10)}`);
   }
   const achieved = achievedKeys.length > 0;
 

@@ -203,8 +203,10 @@ function speak(text: string, onDone?: () => void) {
     })
     .catch(() => speakFallback(text, finish));
   if (onDone) {
-    // Filet global (génération + lecture) — proportionnel à la longueur du texte.
-    setTimeout(finish, Math.min(60000, 8000 + text.length * 90));
+    // Filet global (génération + lecture) — proportionnel à la longueur du
+    // texte. Plafond large : un brief narré dépasse la minute — la fin réelle
+    // vient de onended, le filet ne sert qu'aux audios qui ne finissent jamais.
+    setTimeout(finish, Math.min(180000, 8000 + text.length * 90));
   }
 }
 
@@ -322,6 +324,26 @@ function hasUnackedAchievement(keys: string[]): boolean {
   return keys.some((k) => !ack.has(k));
 }
 
+// Dernier brief ÉCOUTÉ (texte + horodatage) : une fois le brief du jour
+// entendu et sans rien de nouveau, le CTA se replie en icône ↺ épurée
+// (réécouter) — il ne réapparaît en plein que s'il y a du nouveau (orbe verte).
+const LAST_BRIEF_KEY = "revold:tower-last-brief";
+const LAST_BRIEF_TTL_MS = 24 * 3600 * 1000;
+
+function readLastBrief(): { text: string; at: number } | null {
+  try {
+    const raw = localStorage.getItem(LAST_BRIEF_KEY);
+    const v = raw ? (JSON.parse(raw) as { text?: unknown; at?: unknown }) : null;
+    if (v && typeof v.text === "string" && typeof v.at === "number") return { text: v.text, at: v.at };
+  } catch {}
+  return null;
+}
+function writeLastBrief(text: string) {
+  try {
+    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ text, at: Date.now() }));
+  } catch {}
+}
+
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -337,6 +359,13 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const [health, setHealth] = useState<Health | null>(null);
   // Vert émeraude : un contenu du brief est finalisé/exécuté/atteint.
   const [achieved, setAchieved] = useState(false);
+  // Horodatage du dernier brief écouté (localStorage, posé après montage) :
+  // pilote le repli du CTA « Brief du jour » en icône ↺ de réécoute.
+  const [lastBriefAt, setLastBriefAt] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLastBriefAt(readLastBrief()?.at ?? null);
+  }, []);
   // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
   // activables/désactivables + phrase de brief, synchronisées en direct.
   const settings = useTowerSettings();
@@ -529,14 +558,37 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       } else {
         setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
       }
+      // Brief écouté : mémorisé (texte + horodatage) pour la réécoute — le CTA
+      // plein se replie en icône ↺ tant qu'il n'y a rien de nouveau.
+      if (d.text) {
+        writeLastBrief(d.text);
+        setLastBriefAt(Date.now());
+      }
       setStatus("idle");
       setCaption(d.text ?? "");
-      speak(d.text ?? "");
+      // Lecture terminée : le texte du brief disparaît (retour au texte par
+      // défaut sous l'orbe), comme pour le récap d'équipe.
+      speak(d.text ?? "", () => setCaption(""));
     } catch (e) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Brief indisponible — réessaie.");
     }
   }, [veille, settings.healthRing]);
+
+  /* ── Réécoute du brief du jour (icône ↺) : rejoue le DERNIER brief entendu
+        (même contenu, depuis le cache local) — un brief frais n'est régénéré
+        que si le cache a expiré. Aucune nouvelle annonce ici : les nouveautés
+        repassent par le CTA plein + l'orbe verte. ── */
+  const replayBrief = useCallback(async () => {
+    const cached = readLastBrief();
+    if (!cached || Date.now() - cached.at > LAST_BRIEF_TTL_MS || !cached.text) {
+      await runBrief();
+      return;
+    }
+    setStatus("idle");
+    setCaption(cached.text);
+    speak(cached.text, () => setCaption(""));
+  }, [runBrief]);
 
   /* ── Exécution des actions renvoyées par le routeur vocal ── */
   const runActions = useCallback((transcript: string, actions: DispatchAction[]) => {
@@ -986,7 +1038,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
           trimestre (période écoulée). */}
       {(settings.brief || recapCta) && (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          {settings.brief && (
+          {/* CTA plein tant que le brief du jour n'a pas été écouté OU qu'il y a
+              du NOUVEAU (orbe verte) ; sinon il se replie en icône ↺ épurée de
+              réécoute — le CTA plein réapparaît avec la prochaine nouveauté. */}
+          {settings.brief && (achieved || !lastBriefAt || Date.now() - lastBriefAt > LAST_BRIEF_TTL_MS ? (
             <button
               type="button"
               onClick={() => void runBrief()}
@@ -999,7 +1054,23 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             >
               Brief du jour
             </button>
-          )}
+          ) : (
+            <button
+              type="button"
+              onClick={() => void replayBrief()}
+              disabled={busy || status === "listening"}
+              title="Réécouter le brief du jour"
+              aria-label="Réécouter le brief du jour"
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition disabled:opacity-50 ${
+                isLight ? "text-slate-400 hover:bg-slate-100 hover:text-fuchsia-600" : "text-slate-500 hover:bg-slate-800 hover:text-amber-200"
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <polyline points="3 4 3 9 8 9" />
+              </svg>
+            </button>
+          ))}
           {recapCta && (
             <button
               type="button"
