@@ -99,8 +99,10 @@ export async function GET() {
   let processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
   let pct: number;
   let newFieldScope = 0;
+  // Opt-in : tant que « Enrichir mon CRM » n'a jamais été cliqué, AUCUN moteur
+  // ne traite la file — l'état ne doit jamais dire « en cours ».
+  const settings = await getEnrichmentSettings(supabase, orgId);
   try {
-    const settings = await getEnrichmentSettings(supabase, orgId);
     const fieldIdsAll = Object.keys(ENRICHMENT_FIELD_COLUMNS) as (keyof EnrichmentFields)[];
     const active = fieldIdsAll.filter((f) => settings.fields[f]);
     // Champs couverts = ceux de la dernière passe terminée ; repli : défauts
@@ -159,9 +161,9 @@ export async function GET() {
     processed,
     pct,
     lastActivityAt,
-    /** Travail en FILE (remis en file) → le robot le traite : « en cours ».
-     *  Les champs jamais couverts (newFieldsRemaining) attendent le clic
-     *  « Enrichir mon CRM » : la jauge baisse mais l'état reste « à lancer ». */
-    inProgress: (identitiesRemaining ?? 0) + (factsRemaining ?? 0) > 0,
+    /** Travail en FILE (remis en file) → le robot le traite : « en cours » —
+     *  UNIQUEMENT une fois l'enrichissement activé (opt-in) : avant le premier
+     *  clic sur « Enrichir mon CRM », rien ne tourne, l'état reste « à lancer ». */
+    inProgress: settings.activated && (identitiesRemaining ?? 0) + (factsRemaining ?? 0) > 0,
   });
 }

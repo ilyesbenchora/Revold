@@ -302,7 +302,9 @@ export function EnrichmentBackfillRunner({
   const catsDone = phase === "engine" ? Math.floor(engineProgress * nCats) : nCats;
 
   const pct = status?.pct ?? 0;
-  const inProgress = status?.inProgress ?? false;
+  // « En cours » n'existe qu'après activation (opt-in) : ceinture client en
+  // plus de la garde serveur — jamais d'état actif avant le premier CTA.
+  const inProgress = activated && (status?.inProgress ?? false);
   const sessionTotal = session.identities + session.facts + session.candidates + session.duplicates;
   const historyRuns = (runs ?? []).slice(0, 8);
 
@@ -346,20 +348,23 @@ export function EnrichmentBackfillRunner({
                 </>
               ) : !activated ? (
                 pendingFields.length > 0 ? (
-                  // Le message nomme UNIQUEMENT les champs restant à enrichir à
-                  // date (cochés − déjà couverts) : ce que « Enrichir mon CRM »
-                  // va réellement synchroniser — jamais un feu vert à l'aveugle.
-                  <>
-                    Rien ne tourne sans ton feu vert. Au clic sur « Enrichir mon CRM », Revold enrichira :{" "}
-                    <span className="font-medium text-slate-700">
-                      {pendingFields.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
-                    </span>{" "}
-                    — modifiable dans{" "}
-                    <Link href="/dashboard/parametres/enrichissement" className="font-medium text-accent hover:underline">
-                      Paramètres → Enrichissement
+                  // Champs restant à enrichir à date (cochés − déjà couverts),
+                  // affichés en TAGS : lecture immédiate de ce que « Enrichir
+                  // mon CRM » va réellement synchroniser.
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <span>Rien ne tourne sans ton feu vert. Au clic, Revold enrichira :</span>
+                    {pendingFields.map((f) => (
+                      <span
+                        key={f}
+                        className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-[10px] font-medium text-fuchsia-700"
+                      >
+                        {FIELD_LABEL[f] ?? f}
+                      </span>
+                    ))}
+                    <Link href="/dashboard/parametres/enrichissement" className="text-[11px] font-medium text-accent hover:underline">
+                      modifier
                     </Link>
-                    .
-                  </>
+                  </span>
                 ) : activeFieldIds.length > 0 ? (
                   // Tout ce qui est coché est déjà couvert : le clic sert alors
                   // à synchroniser le CRM (champs vides uniquement).
@@ -395,7 +400,7 @@ export function EnrichmentBackfillRunner({
           {/* % et barre de complétion : UNIQUEMENT une fois l'enrichissement
               lancé — avant le premier « Enrichir mon CRM », un 0 % serait un
               faux signal d'échec sur un moteur qui n'a jamais tourné. */}
-          {status != null && (activated || inProgress || runningRef.current) && (
+          {status != null && (activated || runningRef.current) && (
             <p className="shrink-0 text-right text-xs text-slate-500">
               <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
@@ -403,7 +408,7 @@ export function EnrichmentBackfillRunner({
           )}
         </div>
 
-        {(activated || inProgress || runningRef.current) && (
+        {(activated || runningRef.current) && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
@@ -442,7 +447,7 @@ export function EnrichmentBackfillRunner({
                   onClick={() => void startPass()}
                   className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
                 >
-                  🔁 Enrichir mon CRM
+                  Enrichir mon CRM
                 </button>
               </>
             ) : (
