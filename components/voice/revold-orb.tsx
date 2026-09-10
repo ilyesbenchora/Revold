@@ -132,7 +132,7 @@ function pickFrenchVoice(): SpeechSynthesisVoice | null {
 }
 
 /** Synthèse NAVIGATEUR — repli uniquement (accent robotique) si ElevenLabs indisponible. */
-function speakFallback(text: string, onDone?: () => void) {
+function speakFallback(text: string, onDone?: () => void, onProgress?: (charIndex: number) => void) {
   try {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "fr-FR";
@@ -142,6 +142,9 @@ function speakFallback(text: string, onDone?: () => void) {
     const voice = pickFrenchVoice();
     if (voice) u.voice = voice;
     if (onDone) u.onend = onDone;
+    // Position de lecture EXACTE (frontières de mots) → synchronisation des
+    // tuiles KPI avec la voix.
+    if (onProgress) u.onboundary = (e) => onProgress(e.charIndex ?? 0);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
     if (onDone) {
@@ -172,7 +175,7 @@ function stopSpeaking() {
  * absente ou l'appel échoue. `onDone` est garanti (une seule fois), avec un
  * filet temporel si l'audio ne se termine jamais.
  */
-function speak(text: string, onDone?: () => void) {
+function speak(text: string, onDone?: () => void, onProgress?: (charIndex: number) => void) {
   stopSpeaking();
   let done = false;
   const finish = () => {
@@ -195,15 +198,23 @@ function speak(text: string, onDone?: () => void) {
       towerAudio = audio;
       audio.onended = () => {
         URL.revokeObjectURL(url);
+        onProgress?.(text.length);
         finish();
       };
       audio.onerror = () => {
         URL.revokeObjectURL(url);
-        speakFallback(text, finish);
+        speakFallback(text, finish, onProgress);
       };
+      // Position de lecture ESTIMÉE (proportionnelle au temps audio) →
+      // synchronisation des tuiles KPI avec la voix, sans dépendre du modèle.
+      if (onProgress) {
+        audio.ontimeupdate = () => {
+          if (audio.duration > 0) onProgress(Math.round((audio.currentTime / audio.duration) * text.length));
+        };
+      }
       await audio.play();
     })
-    .catch(() => speakFallback(text, finish));
+    .catch(() => speakFallback(text, finish, onProgress));
   if (onDone) {
     // Filet global (génération + lecture) — proportionnel à la longueur du
     // texte. Plafond large : un brief narré dépasse la minute — la fin réelle
@@ -364,6 +375,37 @@ function writeLastBrief(text: string, todos: BriefTodo[]) {
   } catch {}
 }
 
+/** Tuile KPI du brief — affichée à droite AU MOMENT où la voix l'annonce. */
+type BriefKpi = { key: string; label: string; value: string; sub?: string };
+
+function kpisOf(d: unknown): BriefKpi[] {
+  const raw = (d as { kpis?: unknown } | null)?.kpis;
+  return Array.isArray(raw)
+    ? raw.filter((k): k is BriefKpi => !!k && typeof k.key === "string" && typeof k.label === "string" && typeof k.value === "string")
+    : [];
+}
+
+/**
+ * Position (index de caractère) où la VALEUR d'un KPI est prononcée dans le
+ * texte lu : on cherche la suite de chiffres de la valeur dans le flux de
+ * chiffres du texte — robuste aux espaces/format retouchés par la narration.
+ */
+function anchorIndex(text: string, value: string): number | null {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 0) return null;
+  const positions: number[] = [];
+  let stream = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      positions.push(i);
+      stream += text[i];
+    }
+  }
+  const at = stream.indexOf(digits);
+  return at >= 0 ? positions[at] : null;
+}
+
 export function RevoldOrb({ size = 210 }: { size?: number }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -394,9 +436,14 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   // L'action d'enrichissement affiche DIRECTEMENT ses fiches (une par une),
   // sans bouton intermédiaire.
   const [todoIndex, setTodoIndex] = useState(0);
+  // Tuiles KPI du brief : révélées UNE PAR UNE pendant la lecture, au moment
+  // où la voix prononce chaque chiffre (ancres posées sur le texte lu).
+  const [briefKpis, setBriefKpis] = useState<BriefKpi[]>([]);
+  const pendingKpisRef = useRef<Array<BriefKpi & { at: number }>>([]);
   // La home réorganise sa rangée quand le panneau est ouvert (bloc agents
-  // réduit, tour élargie) : signal écouté par HomeTowerRow.
-  const todosOpen = !!(briefTodos && briefTodos.length > 0);
+  // réduit, tour élargie) : signal écouté par HomeTowerRow — les tuiles KPI
+  // en lecture ouvrent la rangée comme les actions.
+  const todosOpen = !!(briefTodos && briefTodos.length > 0) || briefKpis.length > 0;
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("revold:tower-panel", { detail: { open: todosOpen } }));
   }, [todosOpen]);
@@ -600,12 +647,42 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         writeLastBrief(d.text, todos);
         setLastBriefAt(Date.now());
       }
-      setBriefTodos(todos.length > 0 ? todos : null);
       setStatus("idle");
-      setCaption(d.text ?? "");
-      // Lecture terminée : le texte du brief disparaît (retour au texte par
-      // défaut sous l'orbe), comme pour le récap d'équipe.
-      speak(d.text ?? "", () => setCaption(""));
+      const text: string = d.text ?? "";
+      setCaption(text);
+      // ── Tuiles KPI synchronisées : chaque chiffre du brief a son ancre dans
+      // le texte lu (repli : réparties dans l'ordre) — la tuile apparaît à
+      // droite au moment où la voix la prononce, une par une.
+      const kpis = kpisOf(d);
+      pendingKpisRef.current = kpis
+        .map((k, i) => ({ ...k, at: anchorIndex(text, k.value) ?? Math.round(((i + 1) / (kpis.length + 1)) * text.length) }))
+        .sort((a, b) => a.at - b.at);
+      setBriefKpis([]);
+      // La fenêtre « à traiter » n'apparaît qu'À LA FIN de la lecture — pendant
+      // la lecture, la zone de droite appartient aux tuiles KPI.
+      speak(
+        text,
+        () => {
+          setCaption("");
+          pendingKpisRef.current = [];
+          if (todos.length > 0) {
+            setBriefKpis([]);
+            setBriefTodos(todos);
+          } else {
+            setBriefTodos(null);
+          }
+        },
+        (charIndex) => {
+          const pend = pendingKpisRef.current;
+          if (pend.length === 0) return;
+          // Légère avance (~15 caractères ≈ un mot) : la tuile surgit avec le mot.
+          const limit = charIndex + 15;
+          if (pend[0].at > limit) return;
+          const ready = pend.filter((k) => k.at <= limit);
+          pendingKpisRef.current = pend.filter((k) => k.at > limit);
+          setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
+        },
+      );
     } catch (e) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Brief indisponible — réessaie.");
@@ -1029,6 +1106,29 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
              flux de la carte (jamais coupé). ✕ pour fermer, ‹ › pour naviguer.
              L'aperçu des fiches à enrichir s'affiche DEDANS (une par une,
              animation d'entrée) — plus de surimpression de la home. ── */}
+      {/* ── Tuiles KPI du brief : apparaissent UNE PAR UNE au moment où la
+             voix les annonce — façon rapport, fondues dans la carte. À la fin
+             de la lecture, la fenêtre « à traiter » prend la place. ── */}
+      {briefKpis.length > 0 && !(briefTodos && briefTodos.length > 0) && (
+        <div className="order-last w-full max-w-md text-left xl:w-96 xl:shrink-0">
+          <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+            Chiffres du brief
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {briefKpis.map((k) => (
+              <div key={k.key} className={`fiche-slide-in rounded-lg p-2.5 ${isLight ? "bg-slate-50" : "bg-slate-800/60"}`}>
+                <p className={`truncate text-[10px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-400" : "text-slate-500"}`} title={k.label}>
+                  {k.label}
+                </p>
+                <p className={`mt-0.5 text-lg font-bold leading-tight tabular-nums ${isLight ? "text-slate-900" : "text-slate-100"}`}>
+                  {k.value}
+                </p>
+                {k.sub && <p className={`mt-0.5 text-[10px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>{k.sub}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {briefTodos && briefTodos.length > 0 && todoCurrent && (
         // FONDU total avec la carte pour TOUT le panneau (fiches comme
         // actions) : ni bordure, ni ombre, ni fond — le contenu repose sur la

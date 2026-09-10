@@ -294,6 +294,12 @@ export async function GET(request: Request) {
     query?: { entity?: string; groupBy?: string; measure?: string; field?: string | null };
   };
   let customParts: string[] = [];
+  // ── Tuiles KPI du brief : chaque chiffre annoncé à voix haute existe aussi
+  // en version VISUELLE (façon rapport) — l'orbe les affiche à droite AU
+  // MOMENT où la voix les prononce (synchronisation côté client).
+  type KpiTile = { key: string; label: string; value: string; sub?: string };
+  const kpiTiles: KpiTile[] = [];
+  let customTiles: KpiTile[] = [];
   // Brief d'équipe personnalisé (section « team ») : lu depuis les mêmes
   // réglages du compte, calculé par le moteur déterministe par pôle.
   let teamParts: string[] = [];
@@ -366,13 +372,23 @@ export async function GET(request: Request) {
             const src = await entitySource(i.query!.entity!);
             // PÉRIODE toujours dite : ces KPIs sont calculés sans filtre de
             // date → cumul historique, à contextualiser à l'écoute.
-            return `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}, en cumul toutes périodes confondues`;
+            return {
+              text: `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}, en cumul toutes périodes confondues`,
+              tile: {
+                key: `custom:${i.label}`,
+                label: src ? `${i.label} · via ${src}` : i.label!,
+                value: fmtCustomValue(total, i.unit ?? null),
+                sub: "Cumul toutes périodes",
+              },
+            };
           } catch {
             return null;
           }
         }),
       );
-      customParts = computed.filter((p): p is string => p !== null);
+      const ok = computed.filter((p): p is NonNullable<(typeof computed)[number]> => p !== null);
+      customParts = ok.map((c) => c.text);
+      customTiles = ok.map((c) => c.tile);
     }
   } catch {
     /* réglages absents (migration) ou moteur indisponible → brief sans custom */
@@ -397,6 +413,14 @@ export async function GET(request: Request) {
       .slice(0, 3)
       .map((a) => `${a.title} à ${fmtCustomValue(a.current_value!, a.unit_mode)} pour un seuil à ${fmtCustomValue(a.threshold!, a.unit_mode)}`)
       .join(" ; ");
+    for (const a of tense.slice(0, 3)) {
+      kpiTiles.push({
+        key: `alert:${a.title}`,
+        label: a.title,
+        value: fmtCustomValue(a.current_value!, a.unit_mode),
+        sub: `Seuil ${fmtCustomValue(a.threshold!, a.unit_mode)}`,
+      });
+    }
     const qualif = [
       tenseCritical.length > 0 ? `${tenseCritical.length} critique${tenseCritical.length > 1 ? "s" : ""}` : null,
       tenseTechnical.length > 0 ? `${tenseTechnical.length} technique${tenseTechnical.length > 1 ? "s" : ""}` : null,
@@ -409,6 +433,12 @@ export async function GET(request: Request) {
     parts.push(
       `Sur la facturation : ${radarOverdue} facture${radarOverdue > 1 ? "s" : ""} attendue${radarOverdue > 1 ? "s" : ""} non émise${radarOverdue > 1 ? "s" : ""}${radarAmount > 0 ? `, environ ${fmtCustomValue(radarAmount, "currency")} à facturer` : ""}${radarTop.length > 0 ? ` — en premier ${radarTop.join(" et ")}` : ""}. Le détail est sur la page Trésorerie.`,
     );
+    kpiTiles.push({
+      key: "radar",
+      label: "Factures attendues non émises",
+      value: radarAmount > 0 ? fmtCustomValue(radarAmount, "currency") : String(radarOverdue),
+      sub: radarAmount > 0 ? `${radarOverdue} facture${radarOverdue > 1 ? "s" : ""}` : undefined,
+    });
   }
   if (sections.has("syncs") && failedSyncs.length > 0) {
     const list = failedSyncs
@@ -427,6 +457,15 @@ export async function GET(request: Request) {
         })
         .join(" ; ");
       parts.push(`Côté objectifs : ${offTrack.length} en retard à moins de 30 jours de l'échéance — ${details}.`);
+      for (const o of offTrack.slice(0, 2)) {
+        const pct = objectivePct(o);
+        kpiTiles.push({
+          key: `obj:${o.id}`,
+          label: o.title,
+          value: fmtCustomValue(o.current_value!, o.unit_mode),
+          sub: `sur ${fmtCustomValue(o.target!, o.unit_mode)} visé${pct != null ? ` · ${Math.round(pct)} %` : ""}`,
+        });
+      }
     }
     // Atteintes/exécutions : SEULEMENT les nouvelles — un accomplissement déjà
     // entendu (clé acquittée par l'orbe) n'est jamais répété.
@@ -437,6 +476,14 @@ export async function GET(request: Request) {
         .map((o) => `${o.title} (${fmtCustomValue(o.current_value!, o.unit_mode)} pour ${fmtCustomValue(o.target!, o.unit_mode)} visé)`)
         .join(", ");
       parts.push(`Bonne nouvelle côté objectifs : ${newReached.length} atteint${newReached.length > 1 ? "s" : ""} — ${details}.`);
+      for (const o of newReached.slice(0, 3)) {
+        kpiTiles.push({
+          key: `reached:${o.id}`,
+          label: o.title,
+          value: fmtCustomValue(o.current_value!, o.unit_mode),
+          sub: `✓ Atteint · ${fmtCustomValue(o.target!, o.unit_mode)} visé`,
+        });
+      }
     }
     // Enrichissement : on ne parle que des deux états qui appellent une
     // décision — c'est fini (annoncé UNE fois), ou il reste du travail en cours.
@@ -461,7 +508,10 @@ export async function GET(request: Request) {
         : "";
       parts.push(`Côté réconciliation : santé ${reconScore} sur 100 à ce jour${trendTxt}.${gapTxt}`);
     }
-    if (customParts.length > 0) parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
+    if (customParts.length > 0) {
+      parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
+      kpiTiles.push(...customTiles);
+    }
     // Brief d'équipe personnalisé : annoncé comme une famille à part
     // (« Côté Ventes… »), phrases déjà chiffrées et sourcées par le moteur.
     if (teamParts.length > 0) parts.push(`Côté ${teamLabel ?? "équipe"} : ${teamParts.join(" ")}`);
@@ -560,6 +610,9 @@ export async function GET(request: Request) {
     achievedKeys,
     todos,
     text,
+    // Tuiles KPI (ordre du texte parlé) : l'orbe les fait apparaître à droite
+    // au moment où la voix prononce chaque chiffre.
+    kpis: kpiTiles,
     counts: {
       tenseAlerts: tense.length,
       criticalAlerts: tenseCritical.length,
