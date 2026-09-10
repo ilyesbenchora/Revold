@@ -107,8 +107,23 @@ export function EnrichmentPreviewOverlay({
   const current = fiches?.[index] ?? null;
   const doneCount = Object.keys(outcomes).length;
 
+  // DÉFILEMENT AUTOMATIQUE du carrousel : les fiches avancent seules (6 s
+  // chacune) tant que l'utilisateur n'a pas pris la main — toute interaction
+  // (flèches, « Plus tard », enrichissement) rend la navigation manuelle.
+  // Pause pendant une exécution et sur une fiche dont le résultat s'affiche.
+  const [auto, setAuto] = useState(true);
+  useEffect(() => {
+    if (!auto || busy || !fiches || fiches.length <= 1) return;
+    if (index >= fiches.length - 1) return;
+    const cur = fiches[index];
+    if (cur && outcomes[cur.id]) return; // laisse lire le résultat
+    const t = setTimeout(() => setIndex((i) => Math.min(fiches.length - 1, i + 1)), 6000);
+    return () => clearTimeout(t);
+  }, [auto, busy, index, fiches, outcomes]);
+
   async function enrichNow(fiche: PendingCompany) {
     if (busy) return;
+    setAuto(false); // l'utilisateur a pris la main : plus de défilement auto
     setBusy(true);
     setError(null);
     try {
@@ -133,8 +148,8 @@ export function EnrichmentPreviewOverlay({
     }
   }
 
-  const next = () => setIndex((i) => Math.min((fiches?.length ?? 1) - 1, i + 1));
-  const prev = () => setIndex((i) => Math.max(0, i - 1));
+  const next = () => { setAuto(false); setIndex((i) => Math.min((fiches?.length ?? 1) - 1, i + 1)); };
+  const prev = () => { setAuto(false); setIndex((i) => Math.max(0, i - 1)); };
   const isLast = fiches != null && index >= fiches.length - 1;
 
   const card = (

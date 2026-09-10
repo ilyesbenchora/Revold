@@ -514,7 +514,30 @@ export async function GET(request: Request) {
     }
     // Brief d'équipe personnalisé : annoncé comme une famille à part
     // (« Côté Ventes… »), phrases déjà chiffrées et sourcées par le moteur.
-    if (teamParts.length > 0) parts.push(`Côté ${teamLabel ?? "équipe"} : ${teamParts.join(" ")}`);
+    if (teamParts.length > 0) {
+      parts.push(`Côté ${teamLabel ?? "équipe"} : ${teamParts.join(" ")}`);
+      // Tuiles KPI de la section équipe (encaissements, pipeline, signés…) :
+      // le chiffre fort de chaque phrase — montant € en priorité (séparateurs
+      // fr-FR : espace, insécable, fine insécable), sinon le premier nombre —
+      // copié TEL QUEL depuis le texte prononcé, aucune re-computation.
+      // Sans chiffre dans la phrase → pas de tuile.
+      let teamTiles = 0;
+      for (const [i, p] of teamParts.entries()) {
+        if (teamTiles >= 8) break;
+        const amount = p
+          .match(new RegExp("\\d[\\d \\u00a0\\u202f]*(?:,\\d+)?[ \\u00a0\\u202f]?€"))?.[0]
+          ?.replace(new RegExp("[\\u00a0\\u202f]", "g"), " ")
+          .replace(/ +/g, " ")
+          .trim() ?? null;
+        const firstNumber =
+          amount ?? p.match(new RegExp("(?:^|[\\s:—])(\\d[\\d \\u00a0\\u202f]*)(?=[\\s.,;:—]|$)"))?.[1]?.trim() ?? null;
+        if (!firstNumber) continue;
+        const head = p.split(" : ")[0].replace(/[.…]+\s*$/, "").trim();
+        const label = head.length >= 4 && head.length <= 60 ? head : `${p.slice(0, 57).trim()}…`;
+        kpiTiles.push({ key: `team:${i}`, label, value: firstNumber, sub: teamLabel ?? undefined });
+        teamTiles++;
+      }
+    }
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
