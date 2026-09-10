@@ -195,16 +195,20 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
-  // 5 — Objectifs & alertes par équipe
+  // 5 — Objectifs par équipe (distinct des alertes : ici on suit un CAP)
   {
-    tag: "Objectifs & alertes par équipe",
-    title: "Un cap précis pour chaque équipe",
-    impact: "Sales, CSM, Finance : objectifs et seuils de suivi sur mesure, en direct.",
+    tag: "Objectifs par équipe",
+    title: "Un cap chiffré pour chaque équipe",
+    impact: "Sales, CSM, Finance : chacun son objectif, suivi en direct vers la cible.",
     render: () => (
       <div className="grid w-full gap-2.5">
-        <Goal team="Sales" goal="Pipeline +20 % · 78 %" pct={78} tone="ok" delay={0} />
-        <Goal team="Service client" goal="Rétention > 92 % · 94 %" pct={94} tone="ok" delay={150} />
-        <Goal team="Finance" goal="DSO < 40 j · 43 j ⚠" pct={62} tone="warn" delay={300} />
+        <Goal team="Sales" goal="Objectif pipeline · 78 % de la cible" pct={78} tone="ok" delay={0} />
+        <Goal team="Service client" goal="Objectif rétention 92 % · atteint (94 %)" pct={94} tone="ok" delay={150} />
+        <Goal team="Finance" goal="Objectif DSO 40 j · en cours (43 j)" pct={62} tone="warn" delay={300} />
+        <p className="text-center text-[10px] leading-relaxed text-slate-500">
+          Un <span className="text-slate-300">objectif</span> mesure l&apos;atteinte d&apos;un cap (progression) ·
+          une <span className="text-slate-300">alerte</span> prévient d&apos;un seuil franchi — deux mécaniques distinctes.
+        </p>
       </div>
     ),
   },
