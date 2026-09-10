@@ -357,26 +357,28 @@ function todosOf(d: unknown): BriefTodo[] {
 // (nouvelles sections, fenêtre « à traiter », périodes…) — un cache d'une
 // version antérieure est ignoré et la réécoute régénère un brief FRAIS, pour
 // que l'utilisateur voie les évolutions sans attendre l'expiration 24 h.
-const LAST_BRIEF_VERSION = 2;
+// v3 : les tuiles KPI du rapport sont mémorisées avec le brief — la réécoute
+// ↺ rejoue AUSSI le rapport visuel, pas seulement la voix et les actions.
+const LAST_BRIEF_VERSION = 3;
 
-function readLastBrief(): { text: string; at: number; todos: BriefTodo[] } | null {
+/** Tuile KPI du brief — affichée à droite AU MOMENT où la voix l'annonce. */
+type BriefKpi = { key: string; label: string; value: string; sub?: string };
+
+function readLastBrief(): { text: string; at: number; todos: BriefTodo[]; kpis: BriefKpi[] } | null {
   try {
     const raw = localStorage.getItem(LAST_BRIEF_KEY);
     const v = raw ? (JSON.parse(raw) as { text?: unknown; at?: unknown; v?: unknown }) : null;
     if (v && typeof v.text === "string" && typeof v.at === "number" && v.v === LAST_BRIEF_VERSION) {
-      return { text: v.text, at: v.at, todos: todosOf(v) };
+      return { text: v.text, at: v.at, todos: todosOf(v), kpis: kpisOf(v) };
     }
   } catch {}
   return null;
 }
-function writeLastBrief(text: string, todos: BriefTodo[]) {
+function writeLastBrief(text: string, todos: BriefTodo[], kpis: BriefKpi[]) {
   try {
-    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ v: LAST_BRIEF_VERSION, text, at: Date.now(), todos }));
+    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ v: LAST_BRIEF_VERSION, text, at: Date.now(), todos, kpis }));
   } catch {}
 }
-
-/** Tuile KPI du brief — affichée à droite AU MOMENT où la voix l'annonce. */
-type BriefKpi = { key: string; label: string; value: string; sub?: string };
 
 function kpisOf(d: unknown): BriefKpi[] {
   const raw = (d as { kpis?: unknown } | null)?.kpis;
@@ -643,8 +645,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       // réécoute — le CTA plein se replie en icône ↺ tant qu'il n'y a rien
       // de nouveau. La fenêtre « à traiter » s'ouvre à côté de l'orbe.
       const todos = todosOf(d);
+      const kpis = kpisOf(d);
       if (d.text) {
-        writeLastBrief(d.text, todos);
+        // Tuiles KPI mémorisées AVEC le brief : la réécoute ↺ rejoue aussi le
+        // rapport visuel, pas seulement la voix et les actions.
+        writeLastBrief(d.text, todos, kpis);
         setLastBriefAt(Date.now());
       }
       setStatus("idle");
@@ -653,7 +658,6 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       // ── Tuiles KPI synchronisées : chaque chiffre du brief a son ancre dans
       // le texte lu (repli : réparties dans l'ordre) — la tuile apparaît à
       // droite au moment où la voix la prononce, une par une.
-      const kpis = kpisOf(d);
       pendingKpisRef.current = kpis
         .map((k, i) => ({ ...k, at: anchorIndex(text, k.value) ?? Math.round(((i + 1) / (kpis.length + 1)) * text.length) }))
         .sort((a, b) => a.at - b.at);
@@ -701,9 +705,33 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     }
     setStatus("idle");
     setCaption(cached.text);
-    // La fenêtre « à traiter » du dernier brief est réouverte avec lui.
-    setBriefTodos(cached.todos.length > 0 ? cached.todos : null);
-    speak(cached.text, () => setCaption(""));
+    // Le RAPPORT du dernier brief est rejoué avec lui : tuiles re-révélées en
+    // synchronisation avec la voix (mêmes ancres), actions réouvertes À LA FIN
+    // de la lecture — même déroulé qu'à la première écoute.
+    pendingKpisRef.current = cached.kpis
+      .map((k, i) => ({ ...k, at: anchorIndex(cached.text, k.value) ?? Math.round(((i + 1) / (cached.kpis.length + 1)) * cached.text.length) }))
+      .sort((a, b) => a.at - b.at);
+    setBriefKpis([]);
+    setBriefTodos(null);
+    speak(
+      cached.text,
+      () => {
+        setCaption("");
+        const rest = pendingKpisRef.current;
+        pendingKpisRef.current = [];
+        if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
+        setBriefTodos(cached.todos.length > 0 ? cached.todos : null);
+      },
+      (charIndex) => {
+        const pend = pendingKpisRef.current;
+        if (pend.length === 0) return;
+        const limit = charIndex + 15;
+        if (pend[0].at > limit) return;
+        const ready = pend.filter((k) => k.at <= limit);
+        pendingKpisRef.current = pend.filter((k) => k.at > limit);
+        setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
+      },
+    );
   }, [runBrief]);
 
   /* ── Fenêtre « à traiter » : exécuter maintenant ou remettre à plus tard ── */
