@@ -1031,9 +1031,15 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
              animation d'entrée) — plus de surimpression de la home. ── */}
       {briefTodos && briefTodos.length > 0 && todoCurrent && (
         <div
-          className={`order-last w-full rounded-xl border p-4 text-left shadow-lg xl:shrink-0 ${
-            todoCurrent.action === "enrichment_run" ? "max-w-md xl:w-96" : "max-w-sm xl:w-80"
-          } ${isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"}`}
+          className={`order-last w-full text-left xl:shrink-0 ${
+            todoCurrent.action === "enrichment_run"
+              ? // Fiches à enrichir : FONDU total avec la carte — ni bordure,
+                // ni ombre, ni fond (comme un rapport posé sur sa page).
+                "max-w-md xl:w-96"
+              : `max-w-sm rounded-xl border p-4 shadow-lg xl:w-80 ${
+                  isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"
+                }`
+          }`}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
