@@ -364,7 +364,9 @@ export async function GET(request: Request) {
             const rows = ((result.rows as { value?: number }[] | undefined) ?? []);
             const total = rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
             const src = await entitySource(i.query!.entity!);
-            return `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}`;
+            // PÉRIODE toujours dite : ces KPIs sont calculés sans filtre de
+            // date → cumul historique, à contextualiser à l'écoute.
+            return `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}, en cumul toutes périodes confondues`;
           } catch {
             return null;
           }
@@ -439,7 +441,7 @@ export async function GET(request: Request) {
     // Enrichissement : on ne parle que des deux états qui appellent une
     // décision — c'est fini (annoncé UNE fois), ou il reste du travail en cours.
     if (sections.has("enrichment") && enrichmentRemaining != null) {
-      if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${enrichmentDone}`)) {
+      if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${new Date().toISOString().slice(0, 10)}`)) {
         parts.push(`Sur la donnée : enrichissement terminé sur ${crmLabel ?? "ton CRM"}, ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} via l'API Sirene — plus rien en attente.`);
       } else if (enrichmentRemaining > 0) {
         parts.push(`Sur la donnée : enrichissement en cours, ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} ${crmLabel ? `${crmLabel} ` : ""}encore à traiter.`);
@@ -453,11 +455,11 @@ export async function GET(request: Request) {
     // Indicateurs suivis (Paramètres → Tour de contrôle) : valeurs en direct,
     // chaque chiffre porte sa source (« via Pennylane »).
     if (sections.has("reconciliation") && reconScore != null) {
-      const trendTxt = reconTrend != null && reconTrend !== 0 ? ` (${reconTrend > 0 ? "+" : ""}${reconTrend} pts)` : "";
+      const trendTxt = reconTrend != null && reconTrend !== 0 ? ` (${reconTrend > 0 ? "+" : ""}${reconTrend} pts par rapport à la veille)` : "";
       const gapTxt = reconGapGross > 0
-        ? ` Écart signé/facturé réel à traiter : ${fmtCustomValue(reconGapGross, "currency")} sur ${reconDeals} deal${reconDeals > 1 ? "s" : ""}.`
+        ? ` Écart signé/facturé réel à traiter : ${fmtCustomValue(reconGapGross, "currency")} sur ${reconDeals} deal${reconDeals > 1 ? "s" : ""}, en cumul à date.`
         : "";
-      parts.push(`Côté réconciliation : santé ${reconScore} sur 100${trendTxt}.${gapTxt}`);
+      parts.push(`Côté réconciliation : santé ${reconScore} sur 100 à ce jour${trendTxt}.${gapTxt}`);
     }
     if (customParts.length > 0) parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
     // Brief d'équipe personnalisé : annoncé comme une famille à part
@@ -466,6 +468,64 @@ export async function GET(request: Request) {
     if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
+  }
+
+  // ── À TRAITER (fenêtre d'aperçu de l'orbe) : chaque action dictée par le
+  //    brief devient un item structuré — l'utilisateur choisit d'exécuter
+  //    maintenant (lien vers la bonne page, ou passe d'enrichissement lancée
+  //    directement) ou plus tard. Aligné sur les sections réellement LUES. ──
+  type BriefTodo = { key: string; label: string; detail?: string; href: string; action?: "enrichment_run" };
+  const todos: BriefTodo[] = [];
+  if (!veille) {
+    if (sections.has("alerts") && tense.length > 0) {
+      todos.push({
+        key: "alerts",
+        label: `${tense.length} alerte${tense.length > 1 ? "s" : ""} en tension`,
+        detail: tense[0] ? `${tense[0].title} à ${fmtCustomValue(tense[0].current_value!, tense[0].unit_mode)}` : undefined,
+        href: "/dashboard/mes-alertes",
+      });
+    }
+    if (sections.has("radar") && radarOverdue > 0) {
+      todos.push({
+        key: "radar",
+        label: `${radarOverdue} facture${radarOverdue > 1 ? "s" : ""} attendue${radarOverdue > 1 ? "s" : ""} non émise${radarOverdue > 1 ? "s" : ""}`,
+        detail: radarAmount > 0 ? `≈ ${fmtCustomValue(radarAmount, "currency")} à facturer` : undefined,
+        href: "/dashboard/audit/paiement-facturation",
+      });
+    }
+    if (sections.has("syncs") && failedSyncs.length > 0) {
+      todos.push({
+        key: "syncs",
+        label: `Synchronisation en échec : ${failedSyncs.map((s) => toolLabel(s.source)).join(", ")}`,
+        detail: "Données figées — à relancer",
+        href: "/dashboard/integration/mes-outils",
+      });
+    }
+    if (sections.has("objectives") && offTrack.length > 0) {
+      todos.push({
+        key: "objectives",
+        label: `${offTrack.length} objectif${offTrack.length > 1 ? "s" : ""} en retard`,
+        detail: offTrack[0] ? offTrack[0].title : undefined,
+        href: "/dashboard/mes-alertes/objectifs",
+      });
+    }
+    if (sections.has("enrichment") && (enrichmentRemaining ?? 0) > 0) {
+      todos.push({
+        key: "enrichment",
+        label: `${enrichmentRemaining} fiche${(enrichmentRemaining ?? 0) > 1 ? "s" : ""} ${crmLabel ?? "CRM"} à enrichir`,
+        detail: "Une passe peut être lancée immédiatement",
+        href: "/dashboard/enrichissement",
+        action: "enrichment_run",
+      });
+    }
+    if (sections.has("reconciliation") && reconGapGross > 0) {
+      todos.push({
+        key: "reconciliation",
+        label: `Écart signé/facturé de ${fmtCustomValue(reconGapGross, "currency")} à traiter`,
+        detail: `${reconDeals} deal${reconDeals > 1 ? "s" : ""} concerné${reconDeals > 1 ? "s" : ""}`,
+        href: "/dashboard/donnees",
+      });
+    }
   }
 
   // ── Contenus du brief COCHÉS finalisés/exécutés/atteints (orbe verte) ──
@@ -498,6 +558,7 @@ export async function GET(request: Request) {
     status,
     achieved,
     achievedKeys,
+    todos,
     text,
     counts: {
       tenseAlerts: tense.length,
