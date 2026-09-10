@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
+import { ProductDemo } from "@/components/site/product-demo";
 import { PLANS } from "@/lib/billing/plans";
 
 /**
@@ -152,6 +153,19 @@ export default function HomePage() {
               <span className="rounded-full border border-dashed border-white/15 px-4 py-1.5 text-sm text-slate-500">Excel / Sheets · Slack · Teams…</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ═══ DÉMO PRODUIT (animée, ~45 s) ═══ */}
+      <section className="relative border-t border-white/10 py-16">
+        <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-fuchsia-600/10 blur-3xl" />
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mx-auto mb-8 max-w-2xl text-center">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-fuchsia-300/80">Démo produit</p>
+            <h2 className="mt-2 text-3xl font-bold text-white md:text-4xl">Voyez Revold en action</h2>
+            <p className="mt-3 text-slate-400">Les features qui déplacent le revenue — en 45 secondes, sans inscription.</p>
+          </div>
+          <ProductDemo />
         </div>
       </section>
 
