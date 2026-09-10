@@ -102,7 +102,22 @@ export function periodWindow(p: BriefPeriod, now: Date = new Date()): { from: Da
 }
 
 // ── Propriétés CRM personnalisées ───────────────────────────────────────────
-export type BriefPropertyRole = "close_date" | "tracking";
+export type BriefPropertyRole = "close_date" | "tracking" | "billing_start" | "billing_end";
+
+export const BRIEF_PROPERTY_ROLES: BriefPropertyRole[] = ["close_date", "tracking", "billing_start", "billing_end"];
+
+/** Libellés des rôles — sélecteur d'ajout + rappel sur la propriété validée. */
+export const BRIEF_PROPERTY_ROLE_LABELS: Record<BriefPropertyRole, string> = {
+  close_date: "date de fermeture",
+  tracking: "suivi",
+  billing_start: "date de début de facturation",
+  billing_end: "date de fin de facturation",
+};
+
+/** Rôles qui exigent une propriété de type DATE pour être exploitables. */
+export function roleNeedsDate(role: BriefPropertyRole): boolean {
+  return role === "close_date" || role === "billing_start" || role === "billing_end";
+}
 export type BriefCustomProperty = {
   /** Nom API HubSpot (a-z0-9_). */
   name: string;
@@ -113,7 +128,8 @@ export type BriefCustomProperty = {
   fieldType: string | null;
   /** type HubSpot (date, datetime, enumeration, number, string, bool). */
   type: string | null;
-  /** close_date = fait office de date de fermeture ; tracking = suivi important. */
+  /** close_date = fait office de date de fermeture ; tracking = suivi important ;
+   *  billing_start / billing_end = dates de début / fin de facturation. */
   role: BriefPropertyRole;
   /** Rapprochement au moment de la validation : fiches renseignées / total. */
   coverage: { withValue: number; total: number } | null;
@@ -313,7 +329,7 @@ export function sanitizeBriefTeam(raw: unknown): BriefTeamSettings {
           object: p.object as BriefCrmObject,
           fieldType: typeof p.fieldType === "string" ? p.fieldType.slice(0, 40) : null,
           type: typeof p.type === "string" ? p.type.slice(0, 40) : null,
-          role: p.role === "close_date" ? "close_date" : "tracking",
+          role: BRIEF_PROPERTY_ROLES.includes(p.role as BriefPropertyRole) ? (p.role as BriefPropertyRole) : "tracking",
           coverage:
             cov && typeof cov.withValue === "number" && typeof cov.total === "number"
               ? { withValue: cov.withValue, total: cov.total }

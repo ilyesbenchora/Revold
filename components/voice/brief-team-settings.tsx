@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { readTowerSettings, writeTowerSettings } from "@/lib/voice/tower-settings";
 import {
   BRIEF_PERIODS,
+  BRIEF_PROPERTY_ROLE_LABELS,
   BRIEF_TEAMS,
   CRM_OBJECT_LABELS,
   TEAM_BLOCKS,
@@ -31,8 +32,10 @@ import {
   emptyTeamConfig,
   isDateProperty,
   periodsFor,
+  roleNeedsDate,
   suggestionsForProperty,
   type BriefBlockDef,
+  type BriefPropertyRole,
   type BriefCrmObject,
   type BriefCustomProperty,
   type BriefCustomSuggestion,
@@ -132,7 +135,7 @@ function AddCustomProperty({
   const [open, setOpen] = useState(false);
   const [object, setObject] = useState<BriefCrmObject>(objects[0]);
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"close_date" | "tracking">(team === "sales" || team === "finance" ? "close_date" : "tracking");
+  const [role, setRole] = useState<BriefPropertyRole>(team === "sales" || team === "finance" ? "close_date" : "tracking");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState<BriefCustomProperty | null>(null);
@@ -198,9 +201,11 @@ function AddCustomProperty({
           placeholder="Ex : date_signature_prevue ou « Date de signature prévue »"
           className={`${input} min-w-0 flex-1`}
         />
-        <select value={role} onChange={(e) => { setRole(e.target.value as "close_date" | "tracking"); setVerified((v) => (v ? { ...v, role: e.target.value as "close_date" | "tracking" } : v)); }} className={input}>
+        <select value={role} onChange={(e) => { setRole(e.target.value as BriefPropertyRole); setVerified((v) => (v ? { ...v, role: e.target.value as BriefPropertyRole } : v)); }} className={input}>
           <option value="close_date">Fait office de date de fermeture</option>
           <option value="tracking">Suivi important</option>
+          <option value="billing_start">Fait office de date de début de facturation</option>
+          <option value="billing_end">Fait office de date de fin de facturation</option>
         </select>
         <button type="button" onClick={verify} disabled={loading || !name.trim() || !hasToken} className={btnPrimary}>
           {loading ? "Vérification…" : "Vérifier"}
@@ -222,8 +227,11 @@ function AddCustomProperty({
               </>
             )}
           </p>
-          {verified.role === "close_date" && !isDateProperty(verified) && (
-            <p className="mt-1 text-[10px] text-amber-700">Cette propriété n&apos;est pas une date : elle ne pourra pas remplacer la date de fermeture des prévisions.</p>
+          {roleNeedsDate(verified.role) && !isDateProperty(verified) && (
+            <p className="mt-1 text-[10px] text-amber-700">
+              Cette propriété n&apos;est pas une date : elle ne pourra pas servir de{" "}
+              {BRIEF_PROPERTY_ROLE_LABELS[verified.role]}.
+            </p>
           )}
           <div className="mt-1.5 flex justify-end">
             <button type="button" onClick={() => { onAdd({ ...verified, role }); reset(); }} className={btnPrimary}>
@@ -423,7 +431,7 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
           className={`${input} disabled:opacity-60`}
         >
           {BRIEF_TEAMS.filter((t) => isAdmin || !ownTeam || t.id === ownTeam).map((t) => (
-            <option key={t.id} value={t.id}>{t.icon} {t.label}</option>
+            <option key={t.id} value={t.id}>{t.label}</option>
           ))}
         </select>
         <span className="text-[10px] text-slate-400">
@@ -527,7 +535,7 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
                 <p className="text-[11px] text-slate-700">
                   <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ CRM</span>{" "}
                   <span className="font-medium">{p.label}</span> <span className="text-slate-400">({p.name})</span> · {CRM_OBJECT_LABELS[p.object]} ·{" "}
-                  {p.role === "close_date" ? "date de fermeture" : "suivi"}
+                  {BRIEF_PROPERTY_ROLE_LABELS[p.role]}
                   {p.coverage && <span className="text-slate-500"> · {p.coverage.withValue}/{p.coverage.total} renseignés</span>}
                 </p>
                 <button
