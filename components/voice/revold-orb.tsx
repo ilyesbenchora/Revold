@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTowerSettings, readTowerSettings, disabledDispatchTools, normalizePhrase, briefSectionsParam } from "@/lib/voice/tower-settings";
+import { briefTeamLabel } from "@/lib/voice/brief-team";
 
 type OrbStatus = "idle" | "listening" | "thinking" | "redirecting" | "error";
 type Health = "ok" | "warn" | "critical";
@@ -330,17 +331,27 @@ function hasUnackedAchievement(keys: string[]): boolean {
 const LAST_BRIEF_KEY = "revold:tower-last-brief";
 const LAST_BRIEF_TTL_MS = 24 * 3600 * 1000;
 
-function readLastBrief(): { text: string; at: number } | null {
+/** Action dictée par le brief (fenêtre d'aperçu « à traiter ») — cf. digest. */
+type BriefTodo = { key: string; label: string; detail?: string; href: string; action?: "enrichment_run" };
+
+function todosOf(d: unknown): BriefTodo[] {
+  const raw = (d as { todos?: unknown } | null)?.todos;
+  return Array.isArray(raw)
+    ? raw.filter((t): t is BriefTodo => !!t && typeof t.key === "string" && typeof t.label === "string" && typeof t.href === "string")
+    : [];
+}
+
+function readLastBrief(): { text: string; at: number; todos: BriefTodo[] } | null {
   try {
     const raw = localStorage.getItem(LAST_BRIEF_KEY);
     const v = raw ? (JSON.parse(raw) as { text?: unknown; at?: unknown }) : null;
-    if (v && typeof v.text === "string" && typeof v.at === "number") return { text: v.text, at: v.at };
+    if (v && typeof v.text === "string" && typeof v.at === "number") return { text: v.text, at: v.at, todos: todosOf(v) };
   } catch {}
   return null;
 }
-function writeLastBrief(text: string) {
+function writeLastBrief(text: string, todos: BriefTodo[]) {
   try {
-    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ text, at: Date.now() }));
+    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ text, at: Date.now(), todos }));
   } catch {}
 }
 
@@ -366,6 +377,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastBriefAt(readLastBrief()?.at ?? null);
   }, []);
+  // Fenêtre d'aperçu « à traiter » : les actions dictées par le brief,
+  // exécutables maintenant (lien / passe d'enrichissement) ou remises à plus tard.
+  const [briefTodos, setBriefTodos] = useState<BriefTodo[] | null>(null);
+  const [todoBusy, setTodoBusy] = useState<string | null>(null);
   // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
   // activables/désactivables + phrase de brief, synchronisées en direct.
   const settings = useTowerSettings();
@@ -558,12 +573,15 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       } else {
         setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
       }
-      // Brief écouté : mémorisé (texte + horodatage) pour la réécoute — le CTA
-      // plein se replie en icône ↺ tant qu'il n'y a rien de nouveau.
+      // Brief écouté : mémorisé (texte + horodatage + actions) pour la
+      // réécoute — le CTA plein se replie en icône ↺ tant qu'il n'y a rien
+      // de nouveau. La fenêtre « à traiter » s'ouvre à côté de l'orbe.
+      const todos = todosOf(d);
       if (d.text) {
-        writeLastBrief(d.text);
+        writeLastBrief(d.text, todos);
         setLastBriefAt(Date.now());
       }
+      setBriefTodos(todos.length > 0 ? todos : null);
       setStatus("idle");
       setCaption(d.text ?? "");
       // Lecture terminée : le texte du brief disparaît (retour au texte par
@@ -587,8 +605,53 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     }
     setStatus("idle");
     setCaption(cached.text);
+    // La fenêtre « à traiter » du dernier brief est réouverte avec lui.
+    setBriefTodos(cached.todos.length > 0 ? cached.todos : null);
     speak(cached.text, () => setCaption(""));
   }, [runBrief]);
+
+  /* ── Fenêtre « à traiter » : exécuter maintenant ou remettre à plus tard ── */
+  const dismissTodo = useCallback((key: string) => {
+    setBriefTodos((prev) => {
+      const next = (prev ?? []).filter((t) => t.key !== key);
+      return next.length > 0 ? next : null;
+    });
+  }, []);
+  const runTodoNow = useCallback(async (t: BriefTodo) => {
+    if (t.action === "enrichment_run") {
+      // Exécution RÉELLE immédiate : une passe d'enrichissement part tout de
+      // suite (même moteur que la page Enrichissement) — repli sur la page si
+      // le moteur n'est pas encore activé (opt-in respecté).
+      setTodoBusy(t.key);
+      try {
+        const res = await fetch("/api/enrichment/backfill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.inactive) {
+          router.push(t.href);
+          return;
+        }
+        const treated = (Number(d.identities) || 0) + (Number(d.facts) || 0) + (Number(d.candidates) || 0);
+        const remaining = (Number(d.remainingIdentities) || 0) + (Number(d.remainingFacts) || 0);
+        setCaption(
+          treated > 0
+            ? `Passe d'enrichissement lancée : ${treated} fiche${treated > 1 ? "s" : ""} traitée${treated > 1 ? "s" : ""}${remaining > 0 ? `, ${remaining} restante${remaining > 1 ? "s" : ""} (l'entretien continue tout seul)` : " — plus rien en attente"}.`
+            : "Passe d'enrichissement lancée — l'entretien automatique continue en arrière-plan.",
+        );
+      } catch {
+        router.push(t.href);
+      } finally {
+        setTodoBusy(null);
+        dismissTodo(t.key);
+      }
+    } else {
+      dismissTodo(t.key);
+      router.push(t.href);
+    }
+  }, [router, dismissTodo]);
 
   /* ── Exécution des actions renvoyées par le routeur vocal ── */
   const runActions = useCallback((transcript: string, actions: DispatchAction[]) => {
@@ -858,6 +921,24 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     }
   }, [markRecapDone]);
 
+  /** Chiffres d'équipe SEULS (brief personnalisé) — lecture directe, sans mise
+   *  en récit ni autres sections : le « droit au but » des managers/CEO. */
+  const runTeamBrief = useCallback(async () => {
+    setStatus("thinking");
+    setCaption("Je prépare tes chiffres d'équipe…");
+    try {
+      const res = await fetch(`/api/voice/digest?sections=team`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.text) throw new Error(d.error ?? "Chiffres d'équipe indisponibles");
+      setStatus("idle");
+      setCaption(String(d.text));
+      speak(String(d.text), () => setCaption(""));
+    } catch (e) {
+      setStatus("idle");
+      setCaption(e instanceof Error ? e.message : "Chiffres d'équipe indisponibles — réessaie.");
+    }
+  }, []);
+
   // ── Appel vocal mains libres (« Hey Revold ») : écoute discrète de la
   // phrase d'appel quand l'onglet est visible, le micro DÉJÀ autorisé et
   // l'orbe au repos — l'entendre déclenche l'écoute active. ──
@@ -946,7 +1027,59 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             : "border-amber-200/0 group-hover:border-amber-200/30";
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="relative flex flex-col items-center">
+      {/* ── Fenêtre « à traiter » : s'ouvre À CÔTÉ de l'orbe pendant le brief
+             (sous l'orbe sur petit écran). Chaque action dictée est exécutable
+             maintenant ou remise à plus tard — fermeture libre. ── */}
+      {briefTodos && briefTodos.length > 0 && (
+        <div
+          className={`z-40 order-last mt-3 w-full max-w-[18rem] rounded-xl border p-3 text-left shadow-xl xl:absolute xl:left-[calc(100%+20px)] xl:top-4 xl:order-none xl:mt-0 xl:w-72 ${
+            isLight ? "border-slate-200 bg-white" : "border-slate-700 bg-slate-900"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+              À traiter · {briefTodos.length}
+            </p>
+            <button
+              type="button"
+              onClick={() => setBriefTodos(null)}
+              aria-label="Fermer la fenêtre à traiter"
+              className={`rounded p-0.5 text-xs transition ${isLight ? "text-slate-300 hover:text-slate-500" : "text-slate-600 hover:text-slate-300"}`}
+            >
+              ✕
+            </button>
+          </div>
+          <ul className="mt-2 space-y-2">
+            {briefTodos.map((t) => (
+              <li key={t.key} className={`rounded-lg border p-2 ${isLight ? "border-slate-100 bg-slate-50/60" : "border-slate-800 bg-slate-950/40"}`}>
+                <p className={`text-[11px] font-medium leading-snug ${isLight ? "text-slate-800" : "text-slate-200"}`}>{t.label}</p>
+                {t.detail && <p className={`mt-0.5 text-[10px] leading-snug ${isLight ? "text-slate-400" : "text-slate-500"}`}>{t.detail}</p>}
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void runTodoNow(t)}
+                    disabled={todoBusy !== null}
+                    className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {todoBusy === t.key ? "Lancement…" : t.action === "enrichment_run" ? "⚡ Exécuter maintenant" : "Traiter maintenant →"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => dismissTodo(t.key)}
+                    disabled={todoBusy !== null}
+                    className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition disabled:opacity-50 ${
+                      isLight ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-slate-700 text-slate-400 hover:bg-slate-800"
+                    }`}
+                  >
+                    Plus tard
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => (status === "listening" ? stopListening() : startListening())}
@@ -1036,7 +1169,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
           contrôle (pas de toggle en doublon sur la home). Le CTA récap suit
           les périodes cochées : lundi/vendredi (semaine), début de mois ou de
           trimestre (période écoulée). */}
-      {(settings.brief || recapCta) && (
+      {(settings.brief || recapCta || settings.briefTeam?.enabled) && (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
           {/* CTA plein tant que le brief du jour n'a pas été écouté OU qu'il y a
               du NOUVEAU (orbe verte) ; sinon il se replie en icône ↺ épurée de
@@ -1071,6 +1204,23 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
               </svg>
             </button>
           ))}
+          {/* Chiffres d'équipe : visible UNIQUEMENT quand le brief personnalisé
+              par équipe est configuré et activé — droit au but, KPIs seuls. */}
+          {settings.briefTeam?.enabled && (
+            <button
+              type="button"
+              onClick={() => void runTeamBrief()}
+              disabled={busy || status === "listening"}
+              title="Lire uniquement les chiffres de ton brief d'équipe (sans les autres sections)"
+              className={`rounded-md border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
+                isLight
+                  ? "border-slate-300 bg-white text-slate-700 hover:border-fuchsia-300 hover:text-fuchsia-700"
+                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
+              }`}
+            >
+              Chiffres {briefTeamLabel(settings.briefTeam.team)}
+            </button>
+          )}
           {recapCta && (
             <button
               type="button"
