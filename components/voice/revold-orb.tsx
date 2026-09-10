@@ -1036,12 +1036,13 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
   return (
     <div className="relative flex flex-col items-center">
-      {/* ── Fenêtre « à traiter » : s'ouvre À CÔTÉ de l'orbe pendant le brief
-             (sous l'orbe sur petit écran). Chaque action dictée est exécutable
-             maintenant ou remise à plus tard — fermeture libre. ── */}
+      {/* ── Fenêtre « à traiter » : flottante (position fixe) à côté de la
+             carte de l'orbe — jamais coupée par l'overflow de la carte, reste
+             visible au scroll pendant le brief. Feuille basse sur mobile.
+             Chaque action dictée est exécutable maintenant ou plus tard. ── */}
       {briefTodos && briefTodos.length > 0 && (
         <div
-          className={`z-40 order-last mt-3 w-full max-w-[18rem] rounded-xl border p-3 text-left shadow-xl xl:absolute xl:left-[calc(100%+20px)] xl:top-4 xl:order-none xl:mt-0 xl:w-72 ${
+          className={`fixed inset-x-4 bottom-4 z-50 max-h-[70vh] overflow-y-auto rounded-xl border p-3 text-left shadow-2xl sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-24 sm:w-72 ${
             isLight ? "border-slate-200 bg-white" : "border-slate-700 bg-slate-900"
           }`}
         >
