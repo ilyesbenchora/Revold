@@ -278,9 +278,10 @@ export function EnrichmentPreviewOverlay({
   );
 
   if (variant === "inline") {
-    // Dans le panneau de la tour : carte blanche (DA app), dans le flux — pas
-    // de surimpression ni de fond estompé.
-    return <div className="rounded-xl bg-white p-3.5">{card}</div>;
+    // Dans le panneau de la tour : le contenu se FOND dans le fond du panneau
+    // (comme les rapports dans les pages — pas de carte dans la carte). Le
+    // thème sombre remappe les utilitaires clairs comme partout ailleurs.
+    return card;
   }
 
   return (
