@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * Orbe vocale « Revold » — la tour de contrôle de la home (style Jarvis).
@@ -175,8 +175,14 @@ function stopSpeaking() {
  * absente ou l'appel échoue. `onDone` est garanti (une seule fois), avec un
  * filet temporel si l'audio ne se termine jamais.
  */
+// Génération de prise de parole : une phrase d'intro lancée pendant la
+// préparation du brief ne doit JAMAIS jouer par-dessus le brief si sa synthèse
+// arrive en retard — seule la DERNIÈRE demande de parole a le droit de jouer.
+let speakGeneration = 0;
+
 function speak(text: string, onDone?: () => void, onProgress?: (charIndex: number) => void) {
   stopSpeaking();
+  const gen = ++speakGeneration;
   let done = false;
   const finish = () => {
     if (!done) {
@@ -192,7 +198,7 @@ function speak(text: string, onDone?: () => void, onProgress?: (charIndex: numbe
     .then(async (res) => {
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
-      if (done) return;
+      if (done || gen !== speakGeneration) return; // une parole plus récente a pris la main
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       towerAudio = audio;
@@ -203,7 +209,7 @@ function speak(text: string, onDone?: () => void, onProgress?: (charIndex: numbe
       };
       audio.onerror = () => {
         URL.revokeObjectURL(url);
-        speakFallback(text, finish, onProgress);
+        if (gen === speakGeneration) speakFallback(text, finish, onProgress);
       };
       // Position de lecture ESTIMÉE (proportionnelle au temps audio) →
       // synchronisation des tuiles KPI avec la voix, sans dépendre du modèle.
@@ -214,7 +220,9 @@ function speak(text: string, onDone?: () => void, onProgress?: (charIndex: numbe
       }
       await audio.play();
     })
-    .catch(() => speakFallback(text, finish, onProgress));
+    .catch(() => {
+      if (gen === speakGeneration) speakFallback(text, finish, onProgress);
+    });
   if (onDone) {
     // Filet global (génération + lecture) — proportionnel à la longueur du
     // texte. Plafond large : un brief narré dépasse la minute — la fin réelle
@@ -364,6 +372,27 @@ const LAST_BRIEF_VERSION = 3;
 /** Tuile KPI du brief — affichée à droite AU MOMENT où la voix l'annonce. */
 type BriefKpi = { key: string; label: string; value: string; sub?: string };
 
+/**
+ * Ancre d'une ACTION dans le texte lu : première occurrence du mot-clé de sa
+ * famille (accents ignorés) — la fiche apparaît quand la voix aborde le sujet
+ * (« ...quatre fiches HubSpot... » → l'action enrichissement surgit là).
+ */
+const TODO_ANCHOR_KEYWORDS: Record<string, string> = {
+  enrichment: "fiche",
+  alerts: "alerte",
+  radar: "facture",
+  syncs: "synchronis",
+  objectives: "objectif",
+  reconciliation: "reconciliation",
+};
+function todoAnchor(text: string, key: string): number | null {
+  const kw = TODO_ANCHOR_KEYWORDS[key];
+  if (!kw) return null;
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const i = norm(text).indexOf(norm(kw));
+  return i >= 0 ? i : null;
+}
+
 function readLastBrief(): { text: string; at: number; todos: BriefTodo[]; kpis: BriefKpi[] } | null {
   try {
     const raw = localStorage.getItem(LAST_BRIEF_KEY);
@@ -442,6 +471,37 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   // où la voix prononce chaque chiffre (ancres posées sur le texte lu).
   const [briefKpis, setBriefKpis] = useState<BriefKpi[]>([]);
   const pendingKpisRef = useRef<Array<BriefKpi & { at: number }>>([]);
+  // Actions « à traiter » en attente de révélation : chacune apparaît quand la
+  // voix ABORDE son sujet (ancre mot-clé), plus seulement à la fin.
+  const pendingTodosRef = useRef<Array<BriefTodo & { at: number }>>([]);
+
+  /** Révèle tuiles KPI et actions dont l'ancre est atteinte par la lecture. */
+  const revealAt = useCallback((charIndex: number) => {
+    // Légère avance (~15 caractères ≈ un mot) : l'élément surgit avec le mot.
+    const limit = charIndex + 15;
+    const pendK = pendingKpisRef.current;
+    if (pendK.length > 0 && pendK[0].at <= limit) {
+      const ready = pendK.filter((k) => k.at <= limit);
+      pendingKpisRef.current = pendK.filter((k) => k.at > limit);
+      setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
+    }
+    const pendT = pendingTodosRef.current;
+    if (pendT.length > 0 && pendT[0].at <= limit) {
+      const ready = pendT.filter((t) => t.at <= limit);
+      pendingTodosRef.current = pendT.filter((t) => t.at > limit);
+      setBriefTodos((prev) => [...(prev ?? []), ...ready.map(({ at: _at, ...t }) => t)]);
+    }
+  }, []);
+
+  /** Fin de lecture : tout ce qui n'a pas été révélé s'affiche (rapport complet). */
+  const revealRest = useCallback(() => {
+    const restK = pendingKpisRef.current;
+    pendingKpisRef.current = [];
+    if (restK.length > 0) setBriefKpis((prev) => [...prev, ...restK.map(({ at: _at, ...k }) => k)]);
+    const restT = pendingTodosRef.current;
+    pendingTodosRef.current = [];
+    if (restT.length > 0) setBriefTodos((prev) => [...(prev ?? []), ...restT.map(({ at: _at, ...t }) => t)]);
+  }, []);
   // La home réorganise sa rangée quand le panneau est ouvert (bloc agents
   // réduit, tour élargie) : signal écouté par HomeTowerRow — les tuiles KPI
   // en lecture ouvrent la rangée comme les actions.
@@ -616,6 +676,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const runBrief = useCallback(async () => {
     setStatus("thinking");
     setCaption(veille ? "Brief (mode veille)…" : "Je prépare ton brief…");
+    // La voix démarre TOUT DE SUITE (phrase courte, générée en ~1 s) pendant
+    // que le brief se prépare (narration + synthèse longue) — plus de silence
+    // de plusieurs secondes après le clic. Coupée net quand le brief est prêt.
+    speak(veille ? "Je vérifie les exceptions." : "Je te prépare ton brief du jour.");
     try {
       // Contenu du brief personnalisé (Paramètres → Tour de contrôle).
       const params = new URLSearchParams();
@@ -661,37 +725,26 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       pendingKpisRef.current = kpis
         .map((k, i) => ({ ...k, at: anchorIndex(text, k.value) ?? Math.round(((i + 1) / (kpis.length + 1)) * text.length) }))
         .sort((a, b) => a.at - b.at);
+      // Les ACTIONS apparaissent quand la voix ABORDE leur sujet (ancre
+      // mot-clé) — plus seulement à la fin ; le filet complète en fin de lecture.
+      pendingTodosRef.current = todos
+        .map((t) => ({ ...t, at: todoAnchor(text, t.key) ?? text.length }))
+        .sort((a, b) => a.at - b.at);
       setBriefKpis([]);
-      // La fenêtre « à traiter » n'apparaît qu'À LA FIN de la lecture — pendant
-      // la lecture, la zone de droite appartient aux tuiles KPI.
+      setBriefTodos(null);
       speak(
         text,
         () => {
           setCaption("");
-          // Filet : les tuiles pas encore révélées s'affichent à la fin — le
-          // RAPPORT du brief reste complet et visible, les actions arrivent
-          // EN DESSOUS dans la même colonne (pas à sa place).
-          const rest = pendingKpisRef.current;
-          pendingKpisRef.current = [];
-          if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
-          setBriefTodos(todos.length > 0 ? todos : null);
+          revealRest();
         },
-        (charIndex) => {
-          const pend = pendingKpisRef.current;
-          if (pend.length === 0) return;
-          // Légère avance (~15 caractères ≈ un mot) : la tuile surgit avec le mot.
-          const limit = charIndex + 15;
-          if (pend[0].at > limit) return;
-          const ready = pend.filter((k) => k.at <= limit);
-          pendingKpisRef.current = pend.filter((k) => k.at > limit);
-          setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
-        },
+        revealAt,
       );
     } catch (e) {
       setStatus("error");
       setCaption(e instanceof Error ? e.message : "Brief indisponible — réessaie.");
     }
-  }, [veille, settings.healthRing]);
+  }, [veille, settings.healthRing, revealAt, revealRest]);
 
   /* ── Réécoute du brief du jour (icône ↺) : rejoue le DERNIER brief entendu
         (même contenu, depuis le cache local) — un brief frais n'est régénéré
@@ -705,11 +758,14 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     }
     setStatus("idle");
     setCaption(cached.text);
-    // Le RAPPORT du dernier brief est rejoué avec lui : tuiles re-révélées en
-    // synchronisation avec la voix (mêmes ancres), actions réouvertes À LA FIN
-    // de la lecture — même déroulé qu'à la première écoute.
+    // Le RAPPORT du dernier brief est rejoué avec lui : tuiles ET actions
+    // re-révélées en synchronisation avec la voix — même déroulé qu'à la
+    // première écoute, filet de fin pour un rapport complet.
     pendingKpisRef.current = cached.kpis
       .map((k, i) => ({ ...k, at: anchorIndex(cached.text, k.value) ?? Math.round(((i + 1) / (cached.kpis.length + 1)) * cached.text.length) }))
+      .sort((a, b) => a.at - b.at);
+    pendingTodosRef.current = cached.todos
+      .map((t) => ({ ...t, at: todoAnchor(cached.text, t.key) ?? cached.text.length }))
       .sort((a, b) => a.at - b.at);
     setBriefKpis([]);
     setBriefTodos(null);
@@ -717,22 +773,11 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       cached.text,
       () => {
         setCaption("");
-        const rest = pendingKpisRef.current;
-        pendingKpisRef.current = [];
-        if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
-        setBriefTodos(cached.todos.length > 0 ? cached.todos : null);
+        revealRest();
       },
-      (charIndex) => {
-        const pend = pendingKpisRef.current;
-        if (pend.length === 0) return;
-        const limit = charIndex + 15;
-        if (pend[0].at > limit) return;
-        const ready = pend.filter((k) => k.at <= limit);
-        pendingKpisRef.current = pend.filter((k) => k.at > limit);
-        setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
-      },
+      revealAt,
     );
-  }, [runBrief]);
+  }, [runBrief, revealAt, revealRest]);
 
   /* ── Fenêtre « à traiter » : exécuter maintenant ou remettre à plus tard ── */
   const dismissTodo = useCallback((key: string) => {
@@ -1021,6 +1066,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const runTeamBrief = useCallback(async () => {
     setStatus("thinking");
     setCaption("Je prépare tes chiffres d'équipe…");
+    // Voix immédiate pendant la préparation (générations serveur ~qq secondes).
+    speak("Je récupère tes chiffres d'équipe.");
     try {
       const res = await fetch(`/api/voice/digest?sections=team`);
       const d = await res.json().catch(() => ({}));
@@ -1037,31 +1084,20 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         .sort((a, b) => a.at - b.at);
       setBriefKpis([]);
       setBriefTodos(null);
+      pendingTodosRef.current = [];
       speak(
         text,
         () => {
           setCaption("");
-          // Filet : tout ce qui n'a pas été révélé pendant la lecture s'affiche
-          // à la fin — le rapport est TOUJOURS complet après l'annonce.
-          const rest = pendingKpisRef.current;
-          pendingKpisRef.current = [];
-          if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
+          revealRest();
         },
-        (charIndex) => {
-          const pend = pendingKpisRef.current;
-          if (pend.length === 0) return;
-          const limit = charIndex + 15;
-          if (pend[0].at > limit) return;
-          const ready = pend.filter((k) => k.at <= limit);
-          pendingKpisRef.current = pend.filter((k) => k.at > limit);
-          setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
-        },
+        revealAt,
       );
     } catch (e) {
       setStatus("idle");
       setCaption(e instanceof Error ? e.message : "Chiffres d'équipe indisponibles — réessaie.");
     }
-  }, []);
+  }, [revealAt, revealRest]);
 
   // ── Appel vocal mains libres (« Hey Revold ») : écoute discrète de la
   // phrase d'appel quand l'onglet est visible, le micro DÉJÀ autorisé et
@@ -1184,16 +1220,16 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             </button>
           </div>
           <div className="mt-2 grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
+            {/* MÊME rendu que les tuiles KPI des pages données (.card + textes
+                slate remappés par le thème) — aucune différence visuelle. */}
             {briefKpis.map((k) => (
-              <div key={k.key} className={`fiche-slide-in rounded-lg p-3 ${isLight ? "bg-slate-50" : "bg-slate-800/60"}`}>
-                <p className={`text-[10px] font-semibold uppercase leading-tight tracking-wide ${isLight ? "text-slate-400" : "text-slate-500"}`} title={k.label}>
+              <article key={k.key} className="fiche-slide-in card p-4 text-center">
+                <p className="text-[10px] font-medium uppercase leading-tight text-slate-500" title={k.label}>
                   {k.label}
                 </p>
-                <p className={`mt-1 text-xl font-bold leading-tight tabular-nums ${isLight ? "text-slate-900" : "text-slate-100"}`}>
-                  {k.value}
-                </p>
-                {k.sub && <p className={`mt-0.5 text-[10px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>{k.sub}</p>}
-              </div>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{k.value}</p>
+                {k.sub && <p className="mt-0.5 text-[9px] leading-tight text-slate-400">{k.sub}</p>}
+              </article>
             ))}
           </div>
         </div>
