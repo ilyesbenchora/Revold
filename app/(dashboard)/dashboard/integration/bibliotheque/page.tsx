@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { BrandLogo } from "@/components/brand-logo";
 import { CONNECTABLE_TOOLS, type ConnectableTool } from "@/lib/integrations/connect-catalog";
+import { getOAuthProvider } from "@/lib/integrations/oauth-providers";
 import { CATEGORY_META, CATEGORY_ORDER } from "@/lib/integrations/category-meta";
 import { CrossSourceNudge } from "@/components/integrations/cross-source-nudge";
 import { checkConnectorLimit } from "@/lib/billing/connector-limit";
@@ -86,13 +87,27 @@ export default async function BibliothequeOutilsPage({
         </div>
       )}
 
-      {oauthEnvMissing && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ⚙️ La connexion <strong>{oauthEnvMissing.replace(/_/g, " ")}</strong> nécessite d&apos;abord la configuration de
-          l&apos;app OAuth (identifiants client dans les variables d&apos;environnement <code>SLACK_CLIENT_ID</code> /
-          <code>SLACK_CLIENT_SECRET</code>). Une fois ajoutées, le bouton « Se connecter avec Slack » fonctionne en un clic.
-        </div>
-      )}
+      {oauthEnvMissing && (() => {
+        // Variables d'environnement RÉELLES du fournisseur concerné (registre
+        // OAuth générique ; Slack et HubSpot ont leur propre flow) — le bandeau
+        // ne parle jamais d'un autre outil que celui qu'on a tenté de connecter.
+        const oauthProvider = getOAuthProvider(oauthEnvMissing);
+        const envVars: Record<string, [string, string]> = {
+          slack: ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"],
+          hubspot: ["HUBSPOT_CLIENT_ID", "HUBSPOT_CLIENT_SECRET"],
+        };
+        const [idEnv, secretEnv] = oauthProvider
+          ? [oauthProvider.clientIdEnv, oauthProvider.clientSecretEnv]
+          : envVars[oauthEnvMissing] ?? [`${oauthEnvMissing.toUpperCase()}_CLIENT_ID`, `${oauthEnvMissing.toUpperCase()}_CLIENT_SECRET`];
+        const label = oauthProvider?.label ?? CONNECTABLE_TOOLS[oauthEnvMissing]?.label ?? oauthEnvMissing.replace(/_/g, " ");
+        return (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            ⚙️ La connexion <strong>{label}</strong> nécessite d&apos;abord la configuration de l&apos;app OAuth
+            {" "}(identifiants client dans les variables d&apos;environnement <code>{idEnv}</code> / <code>{secretEnv}</code>).
+            Une fois ajoutées sur Vercel et l&apos;app redéployée, le bouton « Se connecter avec {label} » fonctionne en un clic.
+          </div>
+        );
+      })()}
       {errParam && errParam.startsWith("slack_") && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           La connexion Slack a échoué (<code>{errParam.replace("slack_", "")}</code>). Réessaie ; si ça persiste,
