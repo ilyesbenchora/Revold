@@ -14,7 +14,8 @@
  *  5. Suggestions personnalisées dérivées de ces propriétés : chacune est
  *     calculée sur les vraies données (phrase exacte du brief) et n'entre dans
  *     le brief qu'après validation.
- *  6. Aperçu complet + activation dans le brief du jour.
+ *  6. Activation dans le brief du jour (l'écoute se fait depuis l'orbe de la
+ *     home, pas d'aperçu en doublon ici).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -334,7 +335,6 @@ function ProposedSuggestion({
 export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettings }) {
   const [open, setOpen] = useState(settings.enabled);
   const [options, setOptions] = useState<Options | null>(null);
-  const [preview, setPreview] = useState<{ loading: boolean; parts: string[] | null; error: string | null }>({ loading: false, parts: null, error: null });
 
   useEffect(() => {
     if (!open || options) return;
@@ -370,22 +370,6 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
 
   const blockDefs = TEAM_BLOCKS[team];
   const active = activeBlockCount(cfg);
-
-  async function runPreview() {
-    setPreview({ loading: true, parts: null, error: null });
-    try {
-      const res = await fetch("/api/voice/brief-team/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "preview", briefTeam: { ...readTowerSettings().briefTeam, team } }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || !d.ok) throw new Error(d.error || "Aperçu indisponible.");
-      setPreview({ loading: false, parts: d.parts ?? [], error: null });
-    } catch (e) {
-      setPreview({ loading: false, parts: null, error: e instanceof Error ? e.message : "Erreur inconnue" });
-    }
-  }
 
   if (!open) {
     return (
@@ -615,23 +599,13 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
         </div>
       )}
 
-      {/* 6. Aperçu */}
+      {/* Pas d'aperçu ici : le brief d'équipe s'écoute depuis l'orbe de la
+          home (CTA « Chiffres <équipe> ») — un aperçu dans les réglages ferait
+          doublon. */}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-fuchsia-100 pt-3">
-        <button type="button" onClick={runPreview} disabled={preview.loading || active === 0} className={btnPrimary}>
-          {preview.loading ? "Calcul…" : "Aperçu de mon brief d'équipe"}
-        </button>
         <button type="button" onClick={() => setOpen(false)} className={btnGhost}>Replier</button>
         {active === 0 && <span className="text-[10px] text-slate-400">Coche au moins une suggestion.</span>}
       </div>
-      {preview.error && <p className="mt-1.5 rounded bg-rose-50 px-2 py-1.5 text-[10px] text-rose-600">{preview.error}</p>}
-      {preview.parts && (
-        <div className="mt-2 rounded-md border border-slate-200 bg-white p-2">
-          <p className="text-[10px] font-semibold text-slate-600">Côté {briefTeamLabel(team)} :</p>
-          {preview.parts.length === 0
-            ? <p className="mt-0.5 text-[11px] text-slate-500">Rien à lire avec cette configuration (périodes non cochées ou aucune donnée).</p>
-            : preview.parts.map((p, i) => <p key={i} className="mt-0.5 text-[11px] italic text-slate-700">« {p} »</p>)}
-        </div>
-      )}
     </div>
   );
 }
