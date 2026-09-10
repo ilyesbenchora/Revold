@@ -67,9 +67,12 @@ function outcomeOf(before: PendingCompany, after: PendingCompany | null): FicheO
 export function EnrichmentPreviewOverlay({
   onClose,
   variant = "overlay",
+  showClose = true,
 }: {
   onClose: () => void;
   variant?: "overlay" | "inline";
+  /** false = pas de ✕ propre (le conteneur hôte fournit déjà le sien). */
+  showClose?: boolean;
 }) {
   const router = useRouter();
   const [fiches, setFiches] = useState<PendingCompany[] | null>(null);
@@ -140,15 +143,17 @@ export function EnrichmentPreviewOverlay({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Fiches à enrichir{fiches && fiches.length > 0 ? ` · ${Math.min(index + 1, fiches.length)}/${fiches.length}` : ""}
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={variant === "inline" ? "Revenir aux actions" : "Fermer l'aperçu"}
-            title={variant === "inline" ? "Revenir aux actions à traiter" : undefined}
-            className="rounded p-1 text-slate-300 transition hover:text-slate-500"
-          >
-            ✕
-          </button>
+          {showClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={variant === "inline" ? "Revenir aux actions" : "Fermer l'aperçu"}
+              title={variant === "inline" ? "Revenir aux actions à traiter" : undefined}
+              className="rounded p-1 text-slate-300 transition hover:text-slate-500"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {fiches === null ? (

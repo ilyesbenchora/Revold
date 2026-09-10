@@ -390,14 +390,13 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   // exécutables maintenant (lien / passe d'enrichissement) ou remises à plus tard.
   const [briefTodos, setBriefTodos] = useState<BriefTodo[] | null>(null);
   const [todoBusy, setTodoBusy] = useState<string | null>(null);
-  // Aperçu fiche par fiche des entreprises à enrichir (surimpression home).
-  const [enrichPreviewOpen, setEnrichPreviewOpen] = useState(false);
   // Panneau « à traiter » : UNE action à la fois (carrousel) — index courant.
+  // L'action d'enrichissement affiche DIRECTEMENT ses fiches (une par une),
+  // sans bouton intermédiaire.
   const [todoIndex, setTodoIndex] = useState(0);
   // La home réorganise sa rangée quand le panneau est ouvert (bloc agents
-  // réduit, tour élargie) : signal écouté par HomeTowerRow. L'aperçu des
-  // fiches à enrichir vit DANS ce même panneau → il le tient ouvert aussi.
-  const todosOpen = !!(briefTodos && briefTodos.length > 0) || enrichPreviewOpen;
+  // réduit, tour élargie) : signal écouté par HomeTowerRow.
+  const todosOpen = !!(briefTodos && briefTodos.length > 0);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("revold:tower-panel", { detail: { open: todosOpen } }));
   }, [todosOpen]);
@@ -638,14 +637,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     });
   }, []);
   const runTodoNow = useCallback(async (t: BriefTodo) => {
-    if (t.action === "enrichment_run") {
-      // Aperçu DYNAMIQUE : les fiches en attente s'affichent une par une en
-      // surimpression de la home (infos clés + exécution réelle par fiche).
-      setEnrichPreviewOpen(true);
-    } else {
-      dismissTodo(t.key);
-      router.push(t.href);
-    }
+    // (enrichment_run n'a plus de bouton : ses fiches s'affichent directement
+    // dans le panneau — ce chemin ne concerne que les actions à lien.)
+    dismissTodo(t.key);
+    router.push(t.href);
   }, [router, dismissTodo]);
 
   /* ── Exécution des actions renvoyées par le routeur vocal ── */
@@ -1034,16 +1029,12 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
              flux de la carte (jamais coupé). ✕ pour fermer, ‹ › pour naviguer.
              L'aperçu des fiches à enrichir s'affiche DEDANS (une par une,
              animation d'entrée) — plus de surimpression de la home. ── */}
-      {(enrichPreviewOpen || (briefTodos && briefTodos.length > 0 && todoCurrent)) && (
+      {briefTodos && briefTodos.length > 0 && todoCurrent && (
         <div
           className={`order-last w-full rounded-xl border p-4 text-left shadow-lg xl:shrink-0 ${
-            enrichPreviewOpen ? "max-w-md xl:w-96" : "max-w-sm xl:w-80"
+            todoCurrent.action === "enrichment_run" ? "max-w-md xl:w-96" : "max-w-sm xl:w-80"
           } ${isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"}`}
         >
-          {enrichPreviewOpen ? (
-            <EnrichmentPreviewOverlay variant="inline" onClose={() => setEnrichPreviewOpen(false)} />
-          ) : briefTodos && briefTodos.length > 0 && todoCurrent ? (
-            <>
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
               À traiter · {todoI + 1}/{briefTodos.length}
@@ -1082,33 +1073,47 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             </span>
           </div>
 
-          <p className={`mt-3 text-sm font-semibold leading-snug ${isLight ? "text-slate-900" : "text-slate-100"}`}>{todoCurrent.label}</p>
-          {todoCurrent.detail && (
-            <p className={`mt-1 text-xs leading-snug ${isLight ? "text-slate-500" : "text-slate-400"}`}>{todoCurrent.detail}</p>
-          )}
+          {todoCurrent.action === "enrichment_run" ? (
+            // Action d'enrichissement : PAS de bouton intermédiaire — les
+            // fiches s'affichent directement, une par une (animation d'entrée).
+            // Fermer/terminer l'aperçu = action traitée (retirée du panneau).
+            <div className="mt-3">
+              <EnrichmentPreviewOverlay
+                key={todoCurrent.key}
+                variant="inline"
+                showClose={false}
+                onClose={() => dismissTodo(todoCurrent.key)}
+              />
+            </div>
+          ) : (
+            <>
+              <p className={`mt-3 text-sm font-semibold leading-snug ${isLight ? "text-slate-900" : "text-slate-100"}`}>{todoCurrent.label}</p>
+              {todoCurrent.detail && (
+                <p className={`mt-1 text-xs leading-snug ${isLight ? "text-slate-500" : "text-slate-400"}`}>{todoCurrent.detail}</p>
+              )}
 
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void runTodoNow(todoCurrent)}
-              disabled={todoBusy !== null}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              {todoBusy === todoCurrent.key ? "Lancement…" : todoCurrent.action === "enrichment_run" ? "⚡ Voir et exécuter" : "Traiter maintenant →"}
-            </button>
-            <button
-              type="button"
-              onClick={() => dismissTodo(todoCurrent.key)}
-              disabled={todoBusy !== null}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
-                isLight ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-slate-700 text-slate-400 hover:bg-slate-800"
-              }`}
-            >
-              Plus tard
-            </button>
-          </div>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runTodoNow(todoCurrent)}
+                  disabled={todoBusy !== null}
+                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {todoBusy === todoCurrent.key ? "Lancement…" : "Traiter maintenant →"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dismissTodo(todoCurrent.key)}
+                  disabled={todoBusy !== null}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+                    isLight ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-slate-700 text-slate-400 hover:bg-slate-800"
+                  }`}
+                >
+                  Plus tard
+                </button>
+              </div>
             </>
-          ) : null}
+          )}
         </div>
       )}
       <div className="flex min-w-0 flex-col items-center">
