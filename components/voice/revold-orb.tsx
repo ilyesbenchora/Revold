@@ -392,6 +392,14 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const [todoBusy, setTodoBusy] = useState<string | null>(null);
   // Aperçu fiche par fiche des entreprises à enrichir (surimpression home).
   const [enrichPreviewOpen, setEnrichPreviewOpen] = useState(false);
+  // Panneau « à traiter » : UNE action à la fois (carrousel) — index courant.
+  const [todoIndex, setTodoIndex] = useState(0);
+  // La home réorganise sa rangée quand le panneau est ouvert (bloc agents
+  // réduit, tour élargie) : signal écouté par HomeTowerRow.
+  const todosOpen = !!(briefTodos && briefTodos.length > 0);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("revold:tower-panel", { detail: { open: todosOpen } }));
+  }, [todosOpen]);
   // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
   // activables/désactivables + phrase de brief, synchronisées en direct.
   const settings = useTowerSettings();
@@ -1012,64 +1020,92 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             ? HEALTH_RING[health]
             : "border-amber-200/0 group-hover:border-amber-200/30";
 
+  // Action courante du panneau « à traiter » (une à la fois).
+  const todoI = briefTodos ? Math.min(todoIndex, briefTodos.length - 1) : 0;
+  const todoCurrent = briefTodos?.[todoI] ?? null;
+
   return (
-    <div className="relative flex flex-col items-center">
+    // RANGÉE dynamique : colonne de l'orbe + (panneau « à traiter » à droite
+    // quand le brief dicte des actions — en dessous sur mobile). La home
+    // réduit le bloc agents en parallèle (HomeTowerRow) : rien ne se chevauche.
+    <div className="relative flex w-full flex-col items-center gap-4 xl:flex-row xl:items-center xl:justify-center xl:gap-6">
       {/* ── Aperçu fiche par fiche des entreprises à enrichir : surimpression
              de la home (fond estompé), exécution réelle par fiche. ── */}
       {enrichPreviewOpen && <EnrichmentPreviewOverlay onClose={() => setEnrichPreviewOpen(false)} />}
-      {/* ── Fenêtre « à traiter » : flottante (position fixe) à côté de la
-             carte de l'orbe — jamais coupée par l'overflow de la carte, reste
-             visible au scroll pendant le brief. Feuille basse sur mobile.
-             Chaque action dictée est exécutable maintenant ou plus tard. ── */}
-      {briefTodos && briefTodos.length > 0 && (
+      {/* ── Panneau « à traiter » : UNE action à la fois, en grand, dans le
+             flux de la carte (jamais coupé). ✕ pour fermer, ‹ › pour naviguer. ── */}
+      {briefTodos && briefTodos.length > 0 && todoCurrent && (
         <div
-          className={`fixed inset-x-4 bottom-4 z-50 max-h-[70vh] overflow-y-auto rounded-xl border p-3 text-left shadow-2xl sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-24 sm:w-72 ${
-            isLight ? "border-slate-200 bg-white" : "border-slate-700 bg-slate-900"
+          className={`order-last w-full max-w-sm rounded-xl border p-4 text-left shadow-lg xl:w-80 xl:shrink-0 ${
+            isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"
           }`}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-              À traiter · {briefTodos.length}
+              À traiter · {todoI + 1}/{briefTodos.length}
             </p>
+            <span className="flex items-center gap-1">
+              {briefTodos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTodoIndex((i) => Math.max(0, i - 1))}
+                    disabled={todoI === 0}
+                    aria-label="Action précédente"
+                    className={`flex h-6 w-6 items-center justify-center rounded-md border text-xs transition disabled:opacity-30 ${isLight ? "border-slate-200 text-slate-500 hover:bg-slate-50" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTodoIndex((i) => Math.min(briefTodos.length - 1, i + 1))}
+                    disabled={todoI >= briefTodos.length - 1}
+                    aria-label="Action suivante"
+                    className={`flex h-6 w-6 items-center justify-center rounded-md border text-xs transition disabled:opacity-30 ${isLight ? "border-slate-200 text-slate-500 hover:bg-slate-50" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setBriefTodos(null)}
+                aria-label="Fermer la fenêtre à traiter"
+                className={`ml-1 rounded p-0.5 text-xs transition ${isLight ? "text-slate-300 hover:text-slate-500" : "text-slate-600 hover:text-slate-300"}`}
+              >
+                ✕
+              </button>
+            </span>
+          </div>
+
+          <p className={`mt-3 text-sm font-semibold leading-snug ${isLight ? "text-slate-900" : "text-slate-100"}`}>{todoCurrent.label}</p>
+          {todoCurrent.detail && (
+            <p className={`mt-1 text-xs leading-snug ${isLight ? "text-slate-500" : "text-slate-400"}`}>{todoCurrent.detail}</p>
+          )}
+
+          <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setBriefTodos(null)}
-              aria-label="Fermer la fenêtre à traiter"
-              className={`rounded p-0.5 text-xs transition ${isLight ? "text-slate-300 hover:text-slate-500" : "text-slate-600 hover:text-slate-300"}`}
+              onClick={() => void runTodoNow(todoCurrent)}
+              disabled={todoBusy !== null}
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              ✕
+              {todoBusy === todoCurrent.key ? "Lancement…" : todoCurrent.action === "enrichment_run" ? "⚡ Voir et exécuter" : "Traiter maintenant →"}
+            </button>
+            <button
+              type="button"
+              onClick={() => dismissTodo(todoCurrent.key)}
+              disabled={todoBusy !== null}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+                isLight ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-slate-700 text-slate-400 hover:bg-slate-800"
+              }`}
+            >
+              Plus tard
             </button>
           </div>
-          <ul className="mt-2 space-y-2">
-            {briefTodos.map((t) => (
-              <li key={t.key} className={`rounded-lg border p-2 ${isLight ? "border-slate-100 bg-slate-50/60" : "border-slate-800 bg-slate-950/40"}`}>
-                <p className={`text-[11px] font-medium leading-snug ${isLight ? "text-slate-800" : "text-slate-200"}`}>{t.label}</p>
-                {t.detail && <p className={`mt-0.5 text-[10px] leading-snug ${isLight ? "text-slate-400" : "text-slate-500"}`}>{t.detail}</p>}
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void runTodoNow(t)}
-                    disabled={todoBusy !== null}
-                    className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-                  >
-                    {todoBusy === t.key ? "Lancement…" : t.action === "enrichment_run" ? "⚡ Voir et exécuter" : "Traiter maintenant →"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => dismissTodo(t.key)}
-                    disabled={todoBusy !== null}
-                    className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition disabled:opacity-50 ${
-                      isLight ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-slate-700 text-slate-400 hover:bg-slate-800"
-                    }`}
-                  >
-                    Plus tard
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
+      <div className="flex min-w-0 flex-col items-center">
       <button
         type="button"
         onClick={() => (status === "listening" ? stopListening() : startListening())}
@@ -1227,6 +1263,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

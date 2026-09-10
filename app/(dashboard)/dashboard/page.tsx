@@ -7,6 +7,7 @@ import { GlobalSearch } from "@/components/global-search";
 import { InsightLockedBlock } from "@/components/insight-locked-block";
 import { AgentsFamily } from "@/components/agents/agents-family";
 import { RevoldControlTower, RevoldControlTowerLocked } from "@/components/voice/revold-orb";
+import { HomeTowerRow } from "@/components/home/tower-row";
 import { getOrgPlan, featureLocked } from "@/lib/billing/org-plan";
 import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 import {
@@ -366,12 +367,10 @@ export default async function DashboardOverviewPage() {
       {/* Photo de famille des agents IA + tour de contrôle vocale « Jarvis » :
           l'orbe route une demande dictée vers le bon agent, chat pré-exécuté.
           Réservée aux plans Growth et Scale — verrouillée sur Starter. */}
-      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <AgentsFamily />
-        </div>
-        {controlTowerLocked ? <RevoldControlTowerLocked /> : <RevoldControlTower />}
-      </div>
+      <HomeTowerRow
+        agents={<AgentsFamily />}
+        tower={controlTowerLocked ? <RevoldControlTowerLocked /> : <RevoldControlTower />}
+      />
 
       {/* Hero — KPIs essentiels PERSONNALISABLES (retrait/ajout, 5 max) */}
       <div className="card overflow-hidden">
