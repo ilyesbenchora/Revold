@@ -44,6 +44,24 @@ function MiniBars({ values }: { values: number[] }) {
   );
 }
 
+/** Courbe animée (tracé SVG progressif) + aire dégradée. */
+function MiniLine() {
+  const line = "M2,34 L16,29 L30,31 L44,20 L58,23 L72,12 L86,15 L98,6";
+  const area = `${line} L98,40 L2,40 Z`;
+  return (
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-full w-full">
+      <defs>
+        <linearGradient id="demoLineFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(217,70,239,0.35)" />
+          <stop offset="100%" stopColor="rgba(99,102,241,0)" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#demoLineFill)" className="demo-fade" style={{ animationDelay: "300ms" }} />
+      <path d={line} fill="none" stroke="rgb(232,121,249)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="demo-draw" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 /** Barre d'objectif (label + progression + statut). */
 function Goal({ team, goal, pct, tone, delay }: { team: string; goal: string; pct: number; tone: "ok" | "warn"; delay: number }) {
   return (
@@ -146,17 +164,24 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
-  // 4 — Alertes (détection)
+  // 4 — Alertes (posables sur chaque tuile / rapport)
   {
     tag: "Alertes intelligentes",
-    title: "Le problème détecté avant qu'il coûte",
-    impact: "Un seuil franchi côté cash ou pipe → vous êtes prévenu, pas surpris.",
+    title: "Une alerte sur chaque tuile ou rapport",
+    impact: "Posez un seuil sur n'importe quel KPI ou rapport — franchi, vous êtes prévenu, pas surpris.",
     render: () => (
       <div className="grid w-full gap-3">
-        <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="flex items-center justify-between text-[11px] text-slate-400">
-            <span>DSO (délai de paiement)</span>
-            <span className="font-semibold text-rose-300">47 j · seuil 45 j</span>
+        {/* Tuile KPI avec cloche d'alerte attachée. */}
+        <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-slate-500">DSO · Finance</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums text-rose-300">47 j</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+              Alerte &gt; 45 j
+            </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
             <div className="h-full origin-left rounded-full bg-gradient-to-r from-amber-400 to-rose-500 demo-grow-x" style={{ width: "88%" }} />
@@ -164,8 +189,9 @@ const SCENES: Scene[] = [
         </div>
         <div className="demo-slide flex items-center gap-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3" style={{ animationDelay: "500ms" }}>
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-200">⚠</span>
-          <p className="text-sm text-rose-100">Impayés &gt; 45 j sur <span className="font-semibold">3 comptes</span> · 41 200 € — relance recommandée.</p>
+          <p className="text-sm text-rose-100">Seuil franchi · impayés &gt; 45 j sur <span className="font-semibold">3 comptes</span> · 41 200 €.</p>
         </div>
+        <p className="text-center text-[10px] text-slate-500">Cloche activable sur chaque tuile KPI et chaque rapport — un seuil, un canal, une équipe.</p>
       </div>
     ),
   },
@@ -260,29 +286,47 @@ const SCENES: Scene[] = [
   {
     tag: "Dashboards personnalisables",
     title: "Vos tableaux de bord, à votre main",
-    impact: "Depuis un modèle prêt à l'emploi ou de zéro — vos KPIs, votre mise en page.",
+    impact: "Depuis un modèle prêt à l'emploi ou de zéro — courbes, barres, KPIs, votre mise en page.",
     render: () => (
       <div className="grid w-full gap-3">
-        <div className="grid grid-cols-4 gap-2">
+        {/* Galerie de modèles (vignettes façon mini-dashboard). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Modèles</span>
           {[
-            { n: "Direction", hot: true },
-            { n: "Sales", hot: false },
-            { n: "Finance", hot: false },
-            { n: "De zéro", hot: false, dashed: true },
+            { n: "Direction", on: true },
+            { n: "Sales", on: false },
+            { n: "Finance", on: false },
           ].map((t, i) => (
-            <div key={t.n} className={`demo-pop rounded-xl px-2 py-3 text-center text-[11px] font-medium ${t.dashed ? "border border-dashed border-white/20 text-slate-400" : t.hot ? "border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100" : "border border-white/10 bg-white/[0.04] text-slate-300"}`} style={{ animationDelay: `${i * 120}ms` }}>
-              {t.dashed ? "＋ De zéro" : t.n}
+            <div key={t.n} className={`demo-pop flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${t.on ? "border-fuchsia-400/50 bg-fuchsia-500/10" : "border-white/10 bg-white/[0.04]"}`} style={{ animationDelay: `${i * 110}ms` }}>
+              <span className="flex h-4 items-end gap-0.5">
+                {[5, 9, 6, 11].map((h, j) => <span key={j} className={`w-1 rounded-sm ${t.on ? "bg-fuchsia-300/70" : "bg-slate-400/50"}`} style={{ height: `${h}px` }} />)}
+              </span>
+              <span className={`text-[11px] font-medium ${t.on ? "text-fuchsia-100" : "text-slate-300"}`}>{t.n}{t.on ? " ✓" : ""}</span>
             </div>
           ))}
+          <span className="demo-pop rounded-lg border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] text-slate-400" style={{ animationDelay: "330ms" }}>＋ De zéro</span>
         </div>
-        <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.03] p-3" style={{ animationDelay: "480ms" }}>
-          <div className="grid grid-cols-3 gap-2">
-            {["MRR", "Marge", "Churn"].map((k, i) => (
-              <div key={k} className="demo-pop rounded-lg border border-white/10 bg-white/[0.04] p-2 text-center" style={{ animationDelay: `${600 + i * 130}ms` }}>
-                <p className="text-[9px] uppercase tracking-wide text-slate-500">{k}</p>
-                <p className="mt-0.5 h-2 rounded bg-gradient-to-r from-fuchsia-500/60 to-indigo-400/60" />
+
+        {/* Tableau de bord assemblé : courbe + KPI + barres. */}
+        <div className="grid grid-cols-5 gap-2">
+          <div className="demo-fade col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-3" style={{ animationDelay: "420ms" }}>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-medium text-slate-300">Revenu réconcilié · 6 mois</span>
+              <span className="font-semibold text-emerald-300">+24 %</span>
+            </div>
+            <div className="mt-2 h-[72px]"><MiniLine /></div>
+          </div>
+          <div className="col-span-2 grid grid-rows-2 gap-2">
+            <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-2.5" style={{ animationDelay: "520ms" }}>
+              <p className="text-[9px] uppercase tracking-wide text-slate-500">MRR</p>
+              <p className="mt-0.5 text-sm font-bold tabular-nums text-white"><CountUp to={84000} suffix=" €" /></p>
+            </div>
+            <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.03] p-2.5" style={{ animationDelay: "600ms" }}>
+              <p className="mb-1 text-[9px] uppercase tracking-wide text-slate-500">CA par pôle</p>
+              <div className="flex h-8 items-end gap-1">
+                {[46, 62, 54, 72].map((h, j) => <span key={j} className="flex-1 origin-bottom rounded-t bg-gradient-to-t from-fuchsia-500/70 to-indigo-400/70 demo-grow-y" style={{ height: `${h}%`, animationDelay: `${680 + j * 90}ms` }} />)}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -416,6 +460,7 @@ export function ProductDemo() {
         @keyframes demoBtn { 0%,55% { box-shadow: 0 0 0 0 rgba(232,121,249,0); } 60% { box-shadow: 0 0 0 4px rgba(232,121,249,0.35); } 75%,100% { box-shadow: 0 0 0 0 rgba(232,121,249,0); } }
         @keyframes demoCheck { 0%,60% { opacity: 0; transform: translateX(6px); } 78%,100% { opacity: 1; transform: none; } }
         @keyframes demoProgress { from { width: 0; } to { width: 100%; } }
+        @keyframes demoDraw { to { stroke-dashoffset: 0; } }
         .demo-scene { animation: demoScene 0.5s ease-out both; }
         .demo-fade { animation: demoFade 0.5s ease-out both; }
         .demo-grow-x { animation: demoGrowX 1s ease-out both; }
@@ -427,9 +472,11 @@ export function ProductDemo() {
         .demo-btn { animation: demoBtn 3.2s ease-out both; }
         .demo-check { animation: demoCheck 3.2s ease-out both; }
         .demo-progress { animation: demoProgress ${SCENE_MS}ms linear both; }
+        .demo-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: demoDraw 1.5s ease-out 0.2s forwards; }
         @media (prefers-reduced-motion: reduce) {
-          .demo-scene, .demo-fade, .demo-grow-x, .demo-grow-y, .demo-pop, .demo-ping, .demo-type, .demo-slide, .demo-btn, .demo-check, .demo-progress { animation: none !important; }
+          .demo-scene, .demo-fade, .demo-grow-x, .demo-grow-y, .demo-pop, .demo-ping, .demo-type, .demo-slide, .demo-btn, .demo-check, .demo-progress, .demo-draw { animation: none !important; }
           .demo-type { width: 100%; border-right: 0; }
+          .demo-draw { stroke-dashoffset: 0; }
         }
       `}</style>
     </div>
