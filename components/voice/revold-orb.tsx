@@ -1030,17 +1030,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
              L'aperçu des fiches à enrichir s'affiche DEDANS (une par une,
              animation d'entrée) — plus de surimpression de la home. ── */}
       {briefTodos && briefTodos.length > 0 && todoCurrent && (
-        <div
-          className={`order-last w-full text-left xl:shrink-0 ${
-            todoCurrent.action === "enrichment_run"
-              ? // Fiches à enrichir : FONDU total avec la carte — ni bordure,
-                // ni ombre, ni fond (comme un rapport posé sur sa page).
-                "max-w-md xl:w-96"
-              : `max-w-sm rounded-xl border p-4 shadow-lg xl:w-80 ${
-                  isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"
-                }`
-          }`}
-        >
+        // FONDU total avec la carte pour TOUT le panneau (fiches comme
+        // actions) : ni bordure, ni ombre, ni fond — le contenu repose sur la
+        // carte de la tour, comme un rapport sur sa page. Affichage homogène.
+        <div className="order-last w-full max-w-md text-left xl:w-96 xl:shrink-0">
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
               À traiter · {todoI + 1}/{briefTodos.length}
