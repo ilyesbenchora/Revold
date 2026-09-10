@@ -395,8 +395,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   // Panneau « à traiter » : UNE action à la fois (carrousel) — index courant.
   const [todoIndex, setTodoIndex] = useState(0);
   // La home réorganise sa rangée quand le panneau est ouvert (bloc agents
-  // réduit, tour élargie) : signal écouté par HomeTowerRow.
-  const todosOpen = !!(briefTodos && briefTodos.length > 0);
+  // réduit, tour élargie) : signal écouté par HomeTowerRow. L'aperçu des
+  // fiches à enrichir vit DANS ce même panneau → il le tient ouvert aussi.
+  const todosOpen = !!(briefTodos && briefTodos.length > 0) || enrichPreviewOpen;
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("revold:tower-panel", { detail: { open: todosOpen } }));
   }, [todosOpen]);
@@ -1029,17 +1030,20 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
     // quand le brief dicte des actions — en dessous sur mobile). La home
     // réduit le bloc agents en parallèle (HomeTowerRow) : rien ne se chevauche.
     <div className="relative flex w-full flex-col items-center gap-4 xl:flex-row xl:items-center xl:justify-center xl:gap-6">
-      {/* ── Aperçu fiche par fiche des entreprises à enrichir : surimpression
-             de la home (fond estompé), exécution réelle par fiche. ── */}
-      {enrichPreviewOpen && <EnrichmentPreviewOverlay onClose={() => setEnrichPreviewOpen(false)} />}
       {/* ── Panneau « à traiter » : UNE action à la fois, en grand, dans le
-             flux de la carte (jamais coupé). ✕ pour fermer, ‹ › pour naviguer. ── */}
-      {briefTodos && briefTodos.length > 0 && todoCurrent && (
+             flux de la carte (jamais coupé). ✕ pour fermer, ‹ › pour naviguer.
+             L'aperçu des fiches à enrichir s'affiche DEDANS (une par une,
+             animation d'entrée) — plus de surimpression de la home. ── */}
+      {(enrichPreviewOpen || (briefTodos && briefTodos.length > 0 && todoCurrent)) && (
         <div
-          className={`order-last w-full max-w-sm rounded-xl border p-4 text-left shadow-lg xl:w-80 xl:shrink-0 ${
-            isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"
-          }`}
+          className={`order-last w-full rounded-xl border p-4 text-left shadow-lg xl:shrink-0 ${
+            enrichPreviewOpen ? "max-w-md xl:w-96" : "max-w-sm xl:w-80"
+          } ${isLight ? "border-slate-200 bg-white/90" : "border-slate-700 bg-slate-900/90"}`}
         >
+          {enrichPreviewOpen ? (
+            <EnrichmentPreviewOverlay variant="inline" onClose={() => setEnrichPreviewOpen(false)} />
+          ) : briefTodos && briefTodos.length > 0 && todoCurrent ? (
+            <>
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
               À traiter · {todoI + 1}/{briefTodos.length}
@@ -1103,6 +1107,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
               Plus tard
             </button>
           </div>
+            </>
+          ) : null}
         </div>
       )}
       <div className="flex min-w-0 flex-col items-center">

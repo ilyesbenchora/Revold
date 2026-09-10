@@ -5,10 +5,16 @@ import { useRouter } from "next/navigation";
 
 /**
  * APERÇU DYNAMIQUE des fiches à enrichir — ouvert depuis la fenêtre
- * « à traiter » du brief : la home reste visible en fond (estompée), les
- * fiches défilent UNE PAR UNE avec leurs informations clés, et chacune peut
+ * « à traiter » du brief : les fiches défilent UNE PAR UNE avec leurs
+ * informations clés (animation d'entrée à chaque fiche), et chacune peut
  * être enrichie immédiatement (exécution réelle, résultat honnête affiché)
  * ou remise à plus tard.
+ *
+ * Deux variantes :
+ *  - "inline" (défaut d'usage) : rendue DANS le panneau élargi à droite de
+ *    l'orbe — les fiches vivent dans le flux de la carte, pas en surimpression ;
+ *  - "overlay" : surimpression de la home (fond estompé) — conservée pour un
+ *    usage hors panneau.
  */
 
 type PendingCompany = {
@@ -58,7 +64,13 @@ function outcomeOf(before: PendingCompany, after: PendingCompany | null): FicheO
   return { tone: "neutral", label: "Fiche vérifiée — aucun changement à écrire." };
 }
 
-export function EnrichmentPreviewOverlay({ onClose }: { onClose: () => void }) {
+export function EnrichmentPreviewOverlay({
+  onClose,
+  variant = "overlay",
+}: {
+  onClose: () => void;
+  variant?: "overlay" | "inline";
+}) {
   const router = useRouter();
   const [fiches, setFiches] = useState<PendingCompany[] | null>(null);
   const [activated, setActivated] = useState(true);
@@ -81,12 +93,13 @@ export function EnrichmentPreviewOverlay({ onClose }: { onClose: () => void }) {
     return () => { alive = false; };
   }, []);
 
-  // Échap = fermer.
+  // Échap = fermer (surimpression uniquement — en inline, ✕ suffit).
   useEffect(() => {
+    if (variant !== "overlay") return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, variant]);
 
   const current = fiches?.[index] ?? null;
   const doneCount = Object.keys(outcomes).length;
@@ -121,20 +134,21 @@ export function EnrichmentPreviewOverlay({ onClose }: { onClose: () => void }) {
   const prev = () => setIndex((i) => Math.max(0, i - 1));
   const isLast = fiches != null && index >= fiches.length - 1;
 
-  return (
-    // Fond : la home reste visible, simplement estompée — l'aperçu est au centre.
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-2xl border border-card-border bg-white p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Fiches à enrichir"
-      >
+  const card = (
+    <>
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Fiches à enrichir{fiches && fiches.length > 0 ? ` · ${Math.min(index + 1, fiches.length)}/${fiches.length}` : ""}
           </p>
-          <button type="button" onClick={onClose} aria-label="Fermer l'aperçu" className="rounded p-1 text-slate-300 transition hover:text-slate-500">✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={variant === "inline" ? "Revenir aux actions" : "Fermer l'aperçu"}
+            title={variant === "inline" ? "Revenir aux actions à traiter" : undefined}
+            className="rounded p-1 text-slate-300 transition hover:text-slate-500"
+          >
+            ✕
+          </button>
         </div>
 
         {fiches === null ? (
@@ -144,7 +158,9 @@ export function EnrichmentPreviewOverlay({ onClose }: { onClose: () => void }) {
             Plus aucune fiche en attente — l&apos;entretien automatique a rattrapé la file.
           </p>
         ) : current ? (
-          <div className="mt-3">
+          // key = la fiche courante : chaque changement remonte le DOM et rejoue
+          // l'animation d'entrée (une par une, glissement depuis la droite).
+          <div key={current.id} className="fiche-slide-in mt-3">
             {/* ── Informations clés de la fiche ── */}
             <p className="text-lg font-semibold text-slate-900">{current.name ?? "Entreprise sans nom"}</p>
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -253,6 +269,25 @@ export function EnrichmentPreviewOverlay({ onClose }: { onClose: () => void }) {
             )}
           </div>
         ) : null}
+    </>
+  );
+
+  if (variant === "inline") {
+    // Dans le panneau de la tour : carte blanche (DA app), dans le flux — pas
+    // de surimpression ni de fond estompé.
+    return <div className="rounded-xl bg-white p-3.5">{card}</div>;
+  }
+
+  return (
+    // Fond : la home reste visible, simplement estompée — l'aperçu est au centre.
+    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl border border-card-border bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Fiches à enrichir"
+      >
+        {card}
       </div>
     </div>
   );

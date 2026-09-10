@@ -31,6 +31,14 @@ body {
   border-radius: 0.875rem;
 }
 
+/* Fiches de l'aperçu d'enrichissement (panneau de la tour) : entrée UNE PAR
+   UNE — fondu + glissement depuis la droite à chaque changement de fiche. */
+@keyframes fiche-slide-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.fiche-slide-in { animation: fiche-slide-in 0.28s ease-out; }
+
 /* ═══════════════════════════════════════════════════════════════════════
    MODE SOMBRE « VIOLET FUCHSIA » — activé depuis Paramètres → Apparence.
    L'attribut data-theme="violet-dark" est posé sur <html> (script anti-flash
