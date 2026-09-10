@@ -341,17 +341,25 @@ function todosOf(d: unknown): BriefTodo[] {
     : [];
 }
 
+// Version du FORMAT du brief mémorisé : à incrémenter quand le brief évolue
+// (nouvelles sections, fenêtre « à traiter », périodes…) — un cache d'une
+// version antérieure est ignoré et la réécoute régénère un brief FRAIS, pour
+// que l'utilisateur voie les évolutions sans attendre l'expiration 24 h.
+const LAST_BRIEF_VERSION = 2;
+
 function readLastBrief(): { text: string; at: number; todos: BriefTodo[] } | null {
   try {
     const raw = localStorage.getItem(LAST_BRIEF_KEY);
-    const v = raw ? (JSON.parse(raw) as { text?: unknown; at?: unknown }) : null;
-    if (v && typeof v.text === "string" && typeof v.at === "number") return { text: v.text, at: v.at, todos: todosOf(v) };
+    const v = raw ? (JSON.parse(raw) as { text?: unknown; at?: unknown; v?: unknown }) : null;
+    if (v && typeof v.text === "string" && typeof v.at === "number" && v.v === LAST_BRIEF_VERSION) {
+      return { text: v.text, at: v.at, todos: todosOf(v) };
+    }
   } catch {}
   return null;
 }
 function writeLastBrief(text: string, todos: BriefTodo[]) {
   try {
-    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ text, at: Date.now(), todos }));
+    localStorage.setItem(LAST_BRIEF_KEY, JSON.stringify({ v: LAST_BRIEF_VERSION, text, at: Date.now(), todos }));
   } catch {}
 }
 
