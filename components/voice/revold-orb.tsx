@@ -664,13 +664,13 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         text,
         () => {
           setCaption("");
+          // Filet : les tuiles pas encore révélées s'affichent à la fin — le
+          // RAPPORT du brief reste complet et visible, les actions arrivent
+          // EN DESSOUS dans la même colonne (pas à sa place).
+          const rest = pendingKpisRef.current;
           pendingKpisRef.current = [];
-          if (todos.length > 0) {
-            setBriefKpis([]);
-            setBriefTodos(todos);
-          } else {
-            setBriefTodos(null);
-          }
+          if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
+          setBriefTodos(todos.length > 0 ? todos : null);
         },
         (charIndex) => {
           const pend = pendingKpisRef.current;
@@ -998,8 +998,37 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.text) throw new Error(d.error ?? "Chiffres d'équipe indisponibles");
       setStatus("idle");
-      setCaption(String(d.text));
-      speak(String(d.text), () => setCaption(""));
+      const text = String(d.text);
+      setCaption(text);
+      // MÊME rapport visuel que le brief complet : les tuiles KPI (encaissements,
+      // pipeline, signés…) apparaissent à droite au moment où la voix prononce
+      // chaque chiffre — texte déterministe ici, donc ancres exactes.
+      const kpis = kpisOf(d);
+      pendingKpisRef.current = kpis
+        .map((k, i) => ({ ...k, at: anchorIndex(text, k.value) ?? Math.round(((i + 1) / (kpis.length + 1)) * text.length) }))
+        .sort((a, b) => a.at - b.at);
+      setBriefKpis([]);
+      setBriefTodos(null);
+      speak(
+        text,
+        () => {
+          setCaption("");
+          // Filet : tout ce qui n'a pas été révélé pendant la lecture s'affiche
+          // à la fin — le rapport est TOUJOURS complet après l'annonce.
+          const rest = pendingKpisRef.current;
+          pendingKpisRef.current = [];
+          if (rest.length > 0) setBriefKpis((prev) => [...prev, ...rest.map(({ at: _at, ...k }) => k)]);
+        },
+        (charIndex) => {
+          const pend = pendingKpisRef.current;
+          if (pend.length === 0) return;
+          const limit = charIndex + 15;
+          if (pend[0].at > limit) return;
+          const ready = pend.filter((k) => k.at <= limit);
+          pendingKpisRef.current = pend.filter((k) => k.at > limit);
+          setBriefKpis((prev) => [...prev, ...ready.map(({ at: _at, ...k }) => k)]);
+        },
+      );
     } catch (e) {
       setStatus("idle");
       setCaption(e instanceof Error ? e.message : "Chiffres d'équipe indisponibles — réessaie.");
@@ -1109,18 +1138,30 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       {/* ── Tuiles KPI du brief : apparaissent UNE PAR UNE au moment où la
              voix les annonce — façon rapport, fondues dans la carte. À la fin
              de la lecture, la fenêtre « à traiter » prend la place. ── */}
-      {briefKpis.length > 0 && !(briefTodos && briefTodos.length > 0) && (
-        <div className="order-last w-full max-w-md text-left xl:w-96 xl:shrink-0">
-          <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-            Chiffres du brief
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+      {(briefKpis.length > 0 || (briefTodos && briefTodos.length > 0 && todoCurrent)) && (
+      <div className="order-last w-full max-w-md space-y-5 text-left xl:w-[26rem] xl:shrink-0">
+      {briefKpis.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+              Rapport du brief
+            </p>
+            <button
+              type="button"
+              onClick={() => setBriefKpis([])}
+              aria-label="Fermer le rapport du brief"
+              className={`rounded p-0.5 text-xs transition ${isLight ? "text-slate-300 hover:text-slate-500" : "text-slate-600 hover:text-slate-300"}`}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-2 grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
             {briefKpis.map((k) => (
-              <div key={k.key} className={`fiche-slide-in rounded-lg p-2.5 ${isLight ? "bg-slate-50" : "bg-slate-800/60"}`}>
-                <p className={`truncate text-[10px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-400" : "text-slate-500"}`} title={k.label}>
+              <div key={k.key} className={`fiche-slide-in rounded-lg p-3 ${isLight ? "bg-slate-50" : "bg-slate-800/60"}`}>
+                <p className={`text-[10px] font-semibold uppercase leading-tight tracking-wide ${isLight ? "text-slate-400" : "text-slate-500"}`} title={k.label}>
                   {k.label}
                 </p>
-                <p className={`mt-0.5 text-lg font-bold leading-tight tabular-nums ${isLight ? "text-slate-900" : "text-slate-100"}`}>
+                <p className={`mt-1 text-xl font-bold leading-tight tabular-nums ${isLight ? "text-slate-900" : "text-slate-100"}`}>
                   {k.value}
                 </p>
                 {k.sub && <p className={`mt-0.5 text-[10px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>{k.sub}</p>}
@@ -1133,7 +1174,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         // FONDU total avec la carte pour TOUT le panneau (fiches comme
         // actions) : ni bordure, ni ombre, ni fond — le contenu repose sur la
         // carte de la tour, comme un rapport sur sa page. Affichage homogène.
-        <div className="order-last w-full max-w-md text-left xl:w-96 xl:shrink-0">
+        <div>
           <div className="flex items-center justify-between gap-2">
             <p className={`text-[11px] font-semibold uppercase tracking-wide ${isLight ? "text-slate-500" : "text-slate-400"}`}>
               À traiter · {todoI + 1}/{briefTodos.length}
@@ -1214,6 +1255,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
             </>
           )}
         </div>
+      )}
+      </div>
       )}
       <div className="flex min-w-0 flex-col items-center">
       <button
