@@ -163,7 +163,7 @@ export default function HomePage() {
           <div className="mx-auto mb-8 max-w-2xl text-center">
             <p className="text-[11px] font-bold uppercase tracking-widest text-fuchsia-300/80">Démo produit</p>
             <h2 className="mt-2 text-3xl font-bold text-white md:text-4xl">Voyez Revold en action</h2>
-            <p className="mt-3 text-slate-400">Les features qui déplacent le revenue — en 45 secondes, sans inscription.</p>
+            <p className="mt-3 text-slate-400">Les features qui déplacent le revenue — en 1 minute, sans inscription.</p>
           </div>
           <ProductDemo />
         </div>

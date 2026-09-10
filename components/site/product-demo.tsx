@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * DÉMO PRODUIT animée (home marketing) — auto-play ~45 s, 6 scènes en boucle,
+ * DÉMO PRODUIT animée (home marketing) — auto-play ~70 s, scènes en boucle,
  * chaque scène met en scène une VRAIE feature à impact. Pas une vidéo MP4 :
  * une animation 100 % code (comme Linear/Vercel) — nette, légère, sans lecteur.
- * Respecte prefers-reduced-motion (pas d'auto-play, navigation par points).
+ * L'auto-play ne démarre QUE lorsque la démo entre à l'écran (elle part donc
+ * proprement de la 1re scène) et se met en pause hors écran / au survol.
+ * Respecte prefers-reduced-motion (navigation par points).
  */
 
 type Scene = { tag: string; title: string; impact: string; render: () => React.ReactNode };
@@ -14,7 +16,7 @@ type Scene = { tag: string; title: string; impact: string; render: () => React.R
 const fmtEur = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n));
 
 /** Compteur animé (rAF) — remonté à chaque scène active via `key`. */
-function CountUp({ to, dur = 1100, prefix = "", suffix = "" }: { to: number; dur?: number; prefix?: string; suffix?: string }) {
+function CountUp({ to, dur = 1100, suffix = "" }: { to: number; dur?: number; suffix?: string }) {
   const [v, setV] = useState(0);
   useEffect(() => {
     let raf = 0;
@@ -22,17 +24,15 @@ function CountUp({ to, dur = 1100, prefix = "", suffix = "" }: { to: number; dur
     const step = (t: number) => {
       if (!start) start = t;
       const p = Math.min(1, (t - start) / dur);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setV(to * eased);
+      setV(to * (1 - Math.pow(1 - p, 3)));
       if (p < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [to, dur]);
-  return <>{prefix}{fmtEur(v)}{suffix}</>;
+  return <>{fmtEur(v)}{suffix}</>;
 }
 
-/** Petit graphe en barres qui « pousse ». */
 function MiniBars({ values }: { values: number[] }) {
   const max = Math.max(...values, 1);
   return (
@@ -44,7 +44,23 @@ function MiniBars({ values }: { values: number[] }) {
   );
 }
 
+/** Barre d'objectif (label + progression + statut). */
+function Goal({ team, goal, pct, tone, delay }: { team: string; goal: string; pct: number; tone: "ok" | "warn"; delay: number }) {
+  return (
+    <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-3" style={{ animationDelay: `${delay}ms` }}>
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-semibold text-slate-200">{team}</span>
+        <span className={tone === "ok" ? "text-emerald-300" : "text-amber-300"}>{goal}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
+        <div className={`h-full origin-left rounded-full demo-grow-x ${tone === "ok" ? "bg-gradient-to-r from-emerald-400 to-emerald-500" : "bg-gradient-to-r from-amber-400 to-rose-500"}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 const SCENES: Scene[] = [
+  // 1 — Réconciliation
   {
     tag: "Réconciliation CRM × facturation",
     title: "L'écart signé vs encaissé, révélé",
@@ -59,12 +75,12 @@ const SCENES: Scene[] = [
           ].map((s, i) => (
             <div key={s.k} className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-3" style={{ animationDelay: `${i * 140}ms` }}>
               <p className="text-[10px] uppercase tracking-wide text-slate-500">{s.k}</p>
-              <p className={`mt-1 text-lg font-bold tabular-nums ${s.c}`}><CountUp to={s.v} prefix="" suffix=" €" /></p>
+              <p className={`mt-1 text-lg font-bold tabular-nums ${s.c}`}><CountUp to={s.v} suffix=" €" /></p>
             </div>
           ))}
         </div>
         <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.03] p-3" style={{ animationDelay: "420ms" }}>
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
             <span className="rounded bg-indigo-500/20 px-2 py-0.5 text-indigo-200">Deal #4472</span>
             <span className="text-slate-500">→</span>
             <span className="rounded bg-fuchsia-500/20 px-2 py-0.5 text-fuchsia-200">3 factures</span>
@@ -79,6 +95,38 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
+  // 2 — Synchronisation multi-outils
+  {
+    tag: "Synchronisation multi-outils",
+    title: "Tous vos outils, croisés",
+    impact: "CRM, facturation, compta, service client, téléphonie — reliés et croisés en une seule vérité.",
+    render: () => {
+      const cats = [
+        { c: "CRM", t: "HubSpot" },
+        { c: "Facturation", t: "Stripe · Pennylane" },
+        { c: "Compta", t: "Sage" },
+        { c: "Service client", t: "Zendesk · Intercom" },
+        { c: "Téléphonie", t: "Aircall · Ringover" },
+        { c: "Outils métiers", t: "API · Sheets" },
+      ];
+      return (
+        <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {cats.map((x, i) => (
+            <div key={x.c} className="demo-pop flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5" style={{ animationDelay: `${i * 130}ms` }}>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-300">
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-semibold text-white">{x.c}</p>
+                <p className="truncate text-[10px] text-slate-400">{x.t}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    },
+  },
+  // 3 — Tour de contrôle vocal
   {
     tag: "Tour de contrôle vocal",
     title: "Votre brief business, à la voix",
@@ -98,6 +146,7 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
+  // 4 — Alertes (détection)
   {
     tag: "Alertes intelligentes",
     title: "Le problème détecté avant qu'il coûte",
@@ -120,6 +169,20 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
+  // 5 — Objectifs & alertes par équipe
+  {
+    tag: "Objectifs & alertes par équipe",
+    title: "Un cap précis pour chaque équipe",
+    impact: "Sales, CSM, Finance : objectifs et seuils de suivi sur mesure, en direct.",
+    render: () => (
+      <div className="grid w-full gap-2.5">
+        <Goal team="Sales" goal="Pipeline +20 % · 78 %" pct={78} tone="ok" delay={0} />
+        <Goal team="Service client" goal="Rétention > 92 % · 94 %" pct={94} tone="ok" delay={150} />
+        <Goal team="Finance" goal="DSO < 40 j · 43 j ⚠" pct={62} tone="warn" delay={300} />
+      </div>
+    ),
+  },
+  // 6 — Boîte d'actions
   {
     tag: "Boîte d'actions",
     title: "Valider, c'est fait — dans vos outils",
@@ -146,6 +209,7 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
+  // 7 — Groupes multi-entités
   {
     tag: "Groupes multi-entités",
     title: "Vos groupes consolidés, automatiquement",
@@ -162,6 +226,69 @@ const SCENES: Scene[] = [
       </div>
     ),
   },
+  // 8 — Enrichissement automatique SIREN / SIRET
+  {
+    tag: "Enrichissement automatique",
+    title: "SIREN & SIRET complétés tout seuls",
+    impact: "Les identifiants manquants récupérés au registre officiel — la clé pour tout réconcilier.",
+    render: () => (
+      <div className="grid w-full gap-3">
+        <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.04] p-4">
+          <p className="text-sm font-semibold text-white">Dupont SAS</p>
+          <div className="mt-3 grid gap-2">
+            {[
+              { k: "SIREN", before: "—", after: "552 100 554" },
+              { k: "SIRET (siège)", before: "—", after: "552 100 554 00013" },
+            ].map((f, i) => (
+              <div key={f.k} className="flex items-center gap-3 text-[12px]">
+                <span className="w-28 shrink-0 text-slate-500">{f.k}</span>
+                <span className="text-slate-500 line-through">{f.before}</span>
+                <span className="text-slate-500">→</span>
+                <span className="demo-fade font-mono font-semibold text-emerald-300" style={{ animationDelay: `${400 + i * 250}ms` }}>{f.after}</span>
+              </div>
+            ))}
+          </div>
+          <div className="demo-check mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            Fiche réconciliable — CRM × facturation × compta
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  // 9 — Dashboards personnalisables (templates)
+  {
+    tag: "Dashboards personnalisables",
+    title: "Vos tableaux de bord, à votre main",
+    impact: "Depuis un modèle prêt à l'emploi ou de zéro — vos KPIs, votre mise en page.",
+    render: () => (
+      <div className="grid w-full gap-3">
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { n: "Direction", hot: true },
+            { n: "Sales", hot: false },
+            { n: "Finance", hot: false },
+            { n: "De zéro", hot: false, dashed: true },
+          ].map((t, i) => (
+            <div key={t.n} className={`demo-pop rounded-xl px-2 py-3 text-center text-[11px] font-medium ${t.dashed ? "border border-dashed border-white/20 text-slate-400" : t.hot ? "border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100" : "border border-white/10 bg-white/[0.04] text-slate-300"}`} style={{ animationDelay: `${i * 120}ms` }}>
+              {t.dashed ? "＋ De zéro" : t.n}
+            </div>
+          ))}
+        </div>
+        <div className="demo-fade rounded-xl border border-white/10 bg-white/[0.03] p-3" style={{ animationDelay: "480ms" }}>
+          <div className="grid grid-cols-3 gap-2">
+            {["MRR", "Marge", "Churn"].map((k, i) => (
+              <div key={k} className="demo-pop rounded-lg border border-white/10 bg-white/[0.04] p-2 text-center" style={{ animationDelay: `${600 + i * 130}ms` }}>
+                <p className="text-[9px] uppercase tracking-wide text-slate-500">{k}</p>
+                <p className="mt-0.5 h-2 rounded bg-gradient-to-r from-fuchsia-500/60 to-indigo-400/60" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  // 10 — Cockpit cross-source
   {
     tag: "Cockpit cross-source",
     title: "CRM × facturation × trésorerie",
@@ -189,17 +316,16 @@ const SCENES: Scene[] = [
   },
 ];
 
-const SCENE_MS = 7500; // 6 × 7,5 s = 45 s
+const SCENE_MS = 7000; // 10 × 7 s = 70 s
 
 export function ProductDemo() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reduced, setReduced] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [inView, setInView] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Lecture de la préférence système au montage (SSR-safe : initial = false,
-    // synchronisé ici) + abonnement aux changements.
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setReduced(mq.matches);
@@ -208,17 +334,27 @@ export function ProductDemo() {
     return () => mq.removeEventListener("change", on);
   }, []);
 
+  // Auto-play UNIQUEMENT quand la démo est visible → elle démarre proprement
+  // à la 1re scène quand on la scrolle (fin du « mal à démarrer »).
   useEffect(() => {
-    if (paused || reduced) return;
-    timer.current = setTimeout(() => setActive((a) => (a + 1) % SCENES.length), SCENE_MS);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [active, paused, reduced]);
+    const el = rootRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (paused || reduced || !inView) return;
+    const id = setTimeout(() => setActive((a) => (a + 1) % SCENES.length), SCENE_MS);
+    return () => clearTimeout(id);
+  }, [active, paused, reduced, inView]);
 
   const scene = SCENES[active];
+  const playing = inView && !paused && !reduced;
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      {/* Fenêtre app façon navigateur */}
+    <div ref={rootRef} className="mx-auto w-full max-w-4xl">
       <div
         className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 shadow-2xl shadow-indigo-950/40 backdrop-blur"
         onMouseEnter={() => setPaused(true)}
@@ -234,12 +370,12 @@ export function ProductDemo() {
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
           <span className="ml-3 flex-1 truncate rounded-md bg-white/5 px-3 py-1 text-center text-[11px] text-slate-500">app.revold.ai — {scene.tag}</span>
           <span className="hidden items-center gap-1 text-[10px] font-medium text-slate-400 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Démo · 45 s
+            <span className={`h-1.5 w-1.5 rounded-full ${playing ? "bg-emerald-400" : "bg-slate-500"}`} /> Démo · 1 min
           </span>
         </div>
 
         {/* Scène */}
-        <div className="relative min-h-[248px] px-5 py-6 sm:px-8">
+        <div className="relative min-h-[268px] px-5 py-6 sm:px-8">
           <div key={active} className="demo-scene flex h-full flex-col">
             <div className="mb-4 flex items-center gap-2">
               <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-200">{scene.tag}</span>
@@ -252,30 +388,22 @@ export function ProductDemo() {
           </div>
         </div>
 
-        {/* Frise / timeline (segments = scènes) */}
+        {/* Timeline (segments = scènes) */}
         <div className="flex gap-1.5 px-5 pb-4 sm:px-8">
           {SCENES.map((s, i) => (
-            <button
-              key={s.tag}
-              type="button"
-              aria-label={`Voir : ${s.tag}`}
-              onClick={() => setActive(i)}
-              className="group relative h-1 flex-1 overflow-hidden rounded-full bg-white/10"
-            >
+            <button key={s.tag} type="button" aria-label={`Voir : ${s.tag}`} onClick={() => setActive(i)} className="group relative h-1 flex-1 overflow-hidden rounded-full bg-white/10">
               <span
-                className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-fuchsia-400 to-indigo-400 ${i < active ? "w-full" : "w-0"} ${i === active && !paused && !reduced ? "demo-progress" : ""}`}
-                style={i === active && (paused || reduced) ? { width: "100%" } : undefined}
+                key={`${i}-${active}-${playing}`}
+                className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-fuchsia-400 to-indigo-400 ${i < active ? "w-full" : "w-0"} ${i === active && playing ? "demo-progress" : ""}`}
+                style={i === active && !playing ? { width: "100%" } : undefined}
               />
             </button>
           ))}
         </div>
       </div>
 
-      <p className="mt-3 text-center text-[11px] text-slate-500">
-        Démo interactive — survolez pour mettre en pause, cliquez un segment pour naviguer.
-      </p>
+      <p className="mt-3 text-center text-[11px] text-slate-500">Démo interactive — survolez pour mettre en pause, cliquez un segment pour naviguer.</p>
 
-      {/* Animations (scopées par les classes demo-*). */}
       <style>{`
         @keyframes demoScene { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes demoFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -284,6 +412,7 @@ export function ProductDemo() {
         @keyframes demoPop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
         @keyframes demoPing { 0% { transform: scale(0.9); opacity: 0.6; } 70%,100% { transform: scale(1.6); opacity: 0; } }
         @keyframes demoType { from { width: 0; } to { width: 100%; } }
+        @keyframes demoSlide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
         @keyframes demoBtn { 0%,55% { box-shadow: 0 0 0 0 rgba(232,121,249,0); } 60% { box-shadow: 0 0 0 4px rgba(232,121,249,0.35); } 75%,100% { box-shadow: 0 0 0 0 rgba(232,121,249,0); } }
         @keyframes demoCheck { 0%,60% { opacity: 0; transform: translateX(6px); } 78%,100% { opacity: 1; transform: none; } }
         @keyframes demoProgress { from { width: 0; } to { width: 100%; } }
@@ -294,11 +423,12 @@ export function ProductDemo() {
         .demo-pop { animation: demoPop 0.45s ease-out both; }
         .demo-ping { animation: demoPing 2s ease-out infinite; }
         .demo-type { animation: demoType 2.6s steps(48) both; }
+        .demo-slide { animation: demoSlide 0.5s ease-out both; }
         .demo-btn { animation: demoBtn 3.2s ease-out both; }
         .demo-check { animation: demoCheck 3.2s ease-out both; }
         .demo-progress { animation: demoProgress ${SCENE_MS}ms linear both; }
         @media (prefers-reduced-motion: reduce) {
-          .demo-scene, .demo-fade, .demo-grow-x, .demo-grow-y, .demo-pop, .demo-ping, .demo-type, .demo-btn, .demo-check, .demo-progress { animation: none !important; }
+          .demo-scene, .demo-fade, .demo-grow-x, .demo-grow-y, .demo-pop, .demo-ping, .demo-type, .demo-slide, .demo-btn, .demo-check, .demo-progress { animation: none !important; }
           .demo-type { width: 100%; border-right: 0; }
         }
       `}</style>
