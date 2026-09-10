@@ -114,7 +114,12 @@ function orgCaches(sb: SupabaseClient) {
 
 export async function runEnrichmentBatch(
   sb: SupabaseClient,
-  opts: { orgId?: string; budget: number },
+  opts: {
+    orgId?: string;
+    budget: number;
+    /** Traite UNE fiche précise (aperçu fiche par fiche de la tour de contrôle). */
+    companyId?: string;
+  },
 ): Promise<BackfillResult> {
   const caches = orgCaches(sb);
   const now = Date.now();
@@ -136,7 +141,10 @@ export async function runEnrichmentBatch(
 
   const scoped = <T>(q: T): T => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return opts.orgId ? (q as any).eq("organization_id", opts.orgId) : q;
+    let out: any = q;
+    if (opts.orgId) out = out.eq("organization_id", opts.orgId);
+    if (opts.companyId) out = out.eq("id", opts.companyId);
+    return out as T;
   };
 
   // ── 1. Identités manquantes ──

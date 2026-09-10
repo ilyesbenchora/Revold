@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { EnrichmentPreviewOverlay } from "@/components/voice/enrichment-preview-overlay";
 import { useTowerSettings, readTowerSettings, disabledDispatchTools, normalizePhrase, briefSectionsParam } from "@/lib/voice/tower-settings";
 import { briefTeamLabel } from "@/lib/voice/brief-team";
 
@@ -389,6 +390,8 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   // exécutables maintenant (lien / passe d'enrichissement) ou remises à plus tard.
   const [briefTodos, setBriefTodos] = useState<BriefTodo[] | null>(null);
   const [todoBusy, setTodoBusy] = useState<string | null>(null);
+  // Aperçu fiche par fiche des entreprises à enrichir (surimpression home).
+  const [enrichPreviewOpen, setEnrichPreviewOpen] = useState(false);
   // Personnalisation (Paramètres → Tour de contrôle) : fonctionnalités
   // activables/désactivables + phrase de brief, synchronisées en direct.
   const settings = useTowerSettings();
@@ -627,34 +630,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
   const runTodoNow = useCallback(async (t: BriefTodo) => {
     if (t.action === "enrichment_run") {
-      // Exécution RÉELLE immédiate : une passe d'enrichissement part tout de
-      // suite (même moteur que la page Enrichissement) — repli sur la page si
-      // le moteur n'est pas encore activé (opt-in respecté).
-      setTodoBusy(t.key);
-      try {
-        const res = await fetch("/api/enrichment/backfill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        const d = await res.json().catch(() => ({}));
-        if (!res.ok || d.inactive) {
-          router.push(t.href);
-          return;
-        }
-        const treated = (Number(d.identities) || 0) + (Number(d.facts) || 0) + (Number(d.candidates) || 0);
-        const remaining = (Number(d.remainingIdentities) || 0) + (Number(d.remainingFacts) || 0);
-        setCaption(
-          treated > 0
-            ? `Passe d'enrichissement lancée : ${treated} fiche${treated > 1 ? "s" : ""} traitée${treated > 1 ? "s" : ""}${remaining > 0 ? `, ${remaining} restante${remaining > 1 ? "s" : ""} (l'entretien continue tout seul)` : " — plus rien en attente"}.`
-            : "Passe d'enrichissement lancée — l'entretien automatique continue en arrière-plan.",
-        );
-      } catch {
-        router.push(t.href);
-      } finally {
-        setTodoBusy(null);
-        dismissTodo(t.key);
-      }
+      // Aperçu DYNAMIQUE : les fiches en attente s'affichent une par une en
+      // surimpression de la home (infos clés + exécution réelle par fiche).
+      setEnrichPreviewOpen(true);
     } else {
       dismissTodo(t.key);
       router.push(t.href);
@@ -1036,6 +1014,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
 
   return (
     <div className="relative flex flex-col items-center">
+      {/* ── Aperçu fiche par fiche des entreprises à enrichir : surimpression
+             de la home (fond estompé), exécution réelle par fiche. ── */}
+      {enrichPreviewOpen && <EnrichmentPreviewOverlay onClose={() => setEnrichPreviewOpen(false)} />}
       {/* ── Fenêtre « à traiter » : flottante (position fixe) à côté de la
              carte de l'orbe — jamais coupée par l'overflow de la carte, reste
              visible au scroll pendant le brief. Feuille basse sur mobile.
@@ -1071,7 +1052,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
                     disabled={todoBusy !== null}
                     className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {todoBusy === t.key ? "Lancement…" : t.action === "enrichment_run" ? "⚡ Exécuter maintenant" : "Traiter maintenant →"}
+                    {todoBusy === t.key ? "Lancement…" : t.action === "enrichment_run" ? "⚡ Voir et exécuter" : "Traiter maintenant →"}
                   </button>
                   <button
                     type="button"
