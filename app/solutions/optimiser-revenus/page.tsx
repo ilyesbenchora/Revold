@@ -21,13 +21,13 @@ export default function OptimiserRevenusPage() {
       shot={<ShotReconciliation />}
       keyBenefits={[
         { title: "Projection pondérée du pipeline", desc: "Vos deals pondérés par étape, croisés avec vos encaissements réels — une vision de trésorerie qui repose sur la donnée, pas sur l'optimisme." },
-        { title: "Revenue réel vs prévu", desc: "Croisement pipeline CRM × factures Stripe / Pennylane pour mesurer l'écart entre le CA promis et le CA réellement facturé." },
-        { title: "Actions qui ferment la boucle", desc: "Deal silencieux → tâche HubSpot, impayé → rappel Stripe officiel. Vous validez, l'action s'exécute, le cash récupéré est attribué en euros." },
+        { title: "Revenue réel vs prévu", desc: "Croisement pipeline CRM × factures pour mesurer l'écart entre le CA promis et le CA réellement facturé." },
+        { title: "Actions qui ferment la boucle", desc: "Deal silencieux → tâche CRM, impayé → rappel officiel de facturation. Vous validez, l'action s'exécute, le cash récupéré est attribué en euros." },
       ]}
       teams={[
         { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Aucune visibilité fiable sur les revenus. Les chiffres changent selon qui les présente.", solution: "KPIs câblés et vérifiés, projection pondérée du pipeline, brief du jour à la voix.", result: "Décisions stratégiques basées sur des données prouvées, pas sur des estimations optimistes." },
-        { team: "Sales", icon: teamIcon("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"), pain: "Deals qui meurent en silence, relances oubliées, pipeline gonflé.", solution: "Détection des deals silencieux → tâche HubSpot créée après validation + projection pondérée du pipeline.", result: "Aucun deal oublié. Un pipeline qui reflète la réalité, pas les promesses." },
-        { team: "Finance", icon: teamIcon("M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 1-4 4v14a3 3 0 0 0 3-3h7z"), pain: "Écart permanent entre le pipeline CRM et le cash réellement encaissé.", solution: "Trésorerie temps réel : projection pondérée, échéances fiscales, relances d'impayés exécutées via Stripe.", result: "Écart prévu / encaissé mesuré et réduit. Cash récupéré attribué en euros." },
+        { team: "Sales", icon: teamIcon("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"), pain: "Deals qui meurent en silence, relances oubliées, pipeline gonflé.", solution: "Détection des deals silencieux → tâche CRM créée après validation + projection pondérée du pipeline.", result: "Aucun deal oublié. Un pipeline qui reflète la réalité, pas les promesses." },
+        { team: "Finance", icon: teamIcon("M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 1-4 4v14a3 3 0 0 0 3-3h7z"), pain: "Écart permanent entre le pipeline CRM et le cash réellement encaissé.", solution: "Trésorerie temps réel : projection pondérée, échéances fiscales, relances d'impayés exécutées via votre outil de facturation.", result: "Écart prévu / encaissé mesuré et réduit. Cash récupéré attribué en euros." },
       ]}
       relatedProducts={[
         { label: "Reporting cross-source", href: "/produits/reporting-cross-source" },

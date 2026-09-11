@@ -21,32 +21,32 @@ export default function AlertesObjectifsActionsPage() {
       badge="Alertes, objectifs & actions"
       title="Détecter ne suffit pas."
       titleAccent="Revold agit avec vous."
-      subtitle="Des alertes et objectifs au câblage vérifié — la preuve chiffrée avant création — et une boîte d'actions human-in-the-loop : deal silencieux → tâche HubSpot, impayé → rappel Stripe officiel. Chaque euro récupéré est attribué."
+      subtitle="Des alertes et objectifs au câblage vérifié — la preuve chiffrée avant création — et une boîte d'actions human-in-the-loop : deal silencieux → tâche CRM, impayé → rappel officiel de facturation. Chaque euro récupéré est attribué."
       heroIcon={icon}
       shots={[
         { node: <ShotAlertes />, caption: "Alertes : seuil, valeur actuelle calculée, outil source et canal — le câblage se voit." },
         { node: <ShotObjectifs />, caption: "Objectifs : un cap chiffré par équipe, suivi en continu vers la cible." },
-        { node: <ShotActions />, caption: "Boîte d'actions : Revold propose, vous validez, l'action s'exécute dans HubSpot ou Stripe." },
+        { node: <ShotActions />, caption: "Boîte d'actions : Revold propose, vous validez, l'action s'exécute dans le CRM ou votre outil de facturation." },
         { node: <ShotCashRecupere />, caption: "Cash récupéré : chaque euro encaissé après une action validée, attribué ligne par ligne." },
       ]}
       features={[
         { title: "Câblage vérifié avant création", desc: "Avant de créer une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve chiffrée d'abord, le suivi ensuite." },
         { title: "Détection déterministe", desc: "Le seuil est détecté par le moteur sur vos données réelles ; l'agent IA rédige la notification. Jamais l'inverse." },
         { title: "Boîte d'actions human-in-the-loop", desc: "Revold propose, vous validez, l'action s'exécute dans vos outils. Rien ne part sans votre accord explicite." },
-        { title: "Deal silencieux → tâche HubSpot", desc: "Un deal sans activité depuis 21 jours ? Une tâche est créée dans HubSpot pour le bon owner, avec le contexte du deal." },
-        { title: "Impayé → rappel Stripe officiel", desc: "Facture en retard ? Revold déclenche le rappel officiel Stripe après votre validation — pas un email bricolé." },
+        { title: "Deal silencieux → tâche CRM", desc: "Un deal sans activité depuis 21 jours ? Une tâche est créée dans le CRM pour le bon owner, avec le contexte du deal." },
+        { title: "Impayé → rappel officiel de facturation", desc: "Facture en retard ? Revold déclenche le rappel officiel de facturation après votre validation — pas un email bricolé." },
         { title: "Cash récupéré, attribué en euros", desc: "Chaque relance qui aboutit est tracée : vous voyez, ligne par ligne, les euros réellement récupérés grâce aux actions exécutées." },
       ]}
       howItWorks={[
         { step: "Créez une alerte ou un objectif, preuve à l'appui", desc: "Revold affiche la source, l'outil et la valeur actuelle calculée avant la création. Vous savez exactement ce qui sera suivi." },
         { step: "Le moteur surveille en déterministe", desc: "Les seuils sont contrôlés automatiquement sur vos données synchronisées ; l'agent rédige des notifications claires (email, Slack, Teams)." },
         { step: "Une action vous est proposée", desc: "Deal silencieux, impayé, objectif en dérive : l'action adaptée arrive dans votre boîte d'actions, prête à être validée." },
-        { step: "Vous validez, l'impact est mesuré", desc: "L'action s'exécute dans HubSpot ou Stripe, et le résultat — dont le cash récupéré — est attribué en euros, ligne par ligne." },
+        { step: "Vous validez, l'impact est mesuré", desc: "L'action s'exécute dans le CRM ou votre outil de facturation, et le résultat — dont le cash récupéré — est attribué en euros, ligne par ligne." },
       ]}
       stats={[
         { value: "100%", label: "des alertes au câblage vérifié" },
         { value: "0", label: "action exécutée sans votre validation" },
-        { value: "21 j", label: "de silence → tâche HubSpot proposée" },
+        { value: "21 j", label: "de silence → tâche CRM proposée" },
         { value: "€", label: "cash récupéré attribué, ligne par ligne" },
       ]}
       crmSetups={[

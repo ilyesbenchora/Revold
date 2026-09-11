@@ -37,7 +37,7 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Des actions, pas des dashboards",
-    desc: "Deal silencieux → tâche HubSpot créée. Facture en retard → rappel Stripe officiel envoyé. Revold détecte, vous validez, l'action s'exécute dans vos outils — et chaque euro récupéré est attribué, ligne par ligne.",
+    desc: "Deal silencieux → tâche créée dans votre CRM. Facture en retard → rappel officiel envoyé depuis votre outil de facturation. Revold détecte, vous validez, l'action s'exécute dans vos outils — et chaque euro récupéré est attribué, ligne par ligne.",
     stat: "€",
     statLabel: "cash récupéré, mesuré",
   },
@@ -55,21 +55,11 @@ const DIFFERENTIATORS = [
   },
 ];
 
-const VS_OTHERS = [
-  { label: "Données analysées", revold: "CRM + facturation + compta (multi-sources)", others: "CRM seul (mono-source)" },
-  { label: "Rapprochement d'entités", revold: "SIREN, SIRET, TVA + enrichissement Sirene validé", others: "Email uniquement" },
-  { label: "Fiabilité des chiffres", revold: "Câblage vérifié : source, outil et valeur prouvés avant création", others: "Boîte noire" },
-  { label: "Passage à l'action", revold: "Actions exécutées dans vos outils (tâche HubSpot, rappel Stripe), cash récupéré en €", others: "Constat sans exécution" },
-  { label: "Langue", revold: "Français natif", others: "Anglais (traduction partielle)" },
-  { label: "Pilotage quotidien", revold: "Tour de contrôle vocale, routines & récaps programmés", others: "Dashboards statiques" },
-  { label: "Pricing d'entrée", revold: "79,90 € HT/mois", others: "800$+ /mois" },
-  { label: "Connecteurs", revold: "HubSpot (1 clic), Stripe, Pennylane, Chargebee, GoCardless, Sage + Excel/Sheets", others: "Verrouillé sur 1 écosystème" },
-];
 
 const PRINCIPLES = [
   {
     title: "Croisement > Résumé",
-    desc: "La valeur n'est pas dans la donnée. Elle est dans le croisement entre les données. Un deal HubSpot n'a de sens que croisé avec la facture Stripe et l'écriture Pennylane du même client — rapprochés par SIREN.",
+    desc: "La valeur n'est pas dans la donnée, mais dans le croisement entre les données. Un deal n'a de sens que croisé avec la facture et l'écriture comptable du même client — rapprochés par SIREN, quels que soient vos outils.",
   },
   {
     title: "Preuve > Promesse",
@@ -80,8 +70,8 @@ const PRINCIPLES = [
     desc: "Revold n'est pas un CRM. On ne vous enferme pas : accès en lecture seule, révocable à tout moment. Vous changez d'outil ? Revold continue. Votre intelligence revenue vous appartient.",
   },
   {
-    title: "PME-first > Enterprise-down",
-    desc: "On ne construit pas pour le Fortune 500 en espérant que ça ruisselle. On construit pour les PME et ETI françaises, avec un pricing, une UX et un accompagnement adaptés.",
+    title: "Exécution > Constat",
+    desc: "Les outils de pilotage s'arrêtent au tableau de bord. Revold détecte, vous validez, et l'action s'exécute directement dans vos outils — relance d'impayé, tâche CRM, mise à jour — avec l'impact mesuré en euros.",
   },
 ];
 
@@ -229,46 +219,6 @@ export default function PourquoiRevoldPage() {
               <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
             </svg>
           </Link>
-        </div>
-      </section>
-
-      {/* ═══ VS OTHERS TABLE ═══ */}
-      <section className="border-t border-white/10 py-20 md:py-24">
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white md:text-4xl">
-              Revold vs les outils existants
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-slate-400">
-              Comment Revold se différencie des approches traditionnelles
-            </p>
-          </div>
-          <div className="mt-14 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-lg shadow-black/40">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.02]">
-                    <th className="px-6 py-4 text-left font-medium text-slate-500" />
-                    <th className="px-6 py-4 text-left">
-                      <span className="font-bold text-fuchsia-300">Revold</span>
-                    </th>
-                    <th className="px-6 py-4 text-left">
-                      <span className="font-medium text-slate-500">Outils traditionnels</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {VS_OTHERS.map((row) => (
-                    <tr key={row.label} className="border-b border-white/10 last:border-0">
-                      <td className="px-6 py-4 font-medium text-slate-300">{row.label}</td>
-                      <td className="px-6 py-4 text-white">{row.revold}</td>
-                      <td className="px-6 py-4 text-slate-500">{row.others}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       </section>
 

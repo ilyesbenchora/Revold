@@ -42,7 +42,7 @@ const FEATURES = [
   {
     icon: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
     title: "Actions exécutées dans vos outils",
-    desc: "Deal silencieux depuis 21 jours → tâche HubSpot. Facture en retard → rappel Stripe officiel. Revold détecte, vous validez, l'action s'exécute — et chaque euro récupéré est attribué, ligne par ligne.",
+    desc: "Deal silencieux depuis 21 jours → tâche créée dans votre CRM. Facture en retard → rappel officiel depuis votre outil de facturation. Revold détecte, vous validez, l'action s'exécute — et chaque euro récupéré est attribué, ligne par ligne.",
     href: "/produits/alertes-previsions",
   },
   {
