@@ -10,6 +10,7 @@ import { CollapsibleBlock } from "@/components/collapsible-block";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization } from "@/lib/kpi/page-tiles";
+import { CALL_KEYWORD_GROUPS } from "@/lib/integrations/call-keywords";
 
 /**
  * Page « Appels » (section Données) — même squelette que Performances mais
@@ -114,6 +115,46 @@ export default async function AppelsPage() {
   const jamaisAppeles = dealCalls.filter((d) => d.calls.n === 0 && (d.amount ?? 0) > 0).slice(0, 8);
   const fmtEur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   const fmtDay = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+
+  // ── CONVERSATIONS À SIGNAUX (transcriptions Aircall AI) : appels des 30
+  // derniers jours dont la conversation mentionne un mot-clé business —
+  // devis, facturation, prix, résiliation… Résilient : table absente → null.
+  type CallInsight = { id: string; contact_id: string | null; occurred_at: string | null; transcript_available: boolean; keywords: string[]; snippet: string | null };
+  let insights: CallInsight[] | null = null;
+  let transcriptsChecked = 0;
+  let transcriptsAvailable = 0;
+  try {
+    const { data, error } = await supabase
+      .from("call_insights")
+      .select("id, contact_id, occurred_at, transcript_available, keywords, snippet")
+      .eq("organization_id", orgId)
+      .gte("occurred_at", since30)
+      .order("occurred_at", { ascending: false })
+      .limit(200);
+    if (!error) {
+      const rows = (data ?? []) as CallInsight[];
+      transcriptsChecked = rows.length;
+      transcriptsAvailable = rows.filter((r) => r.transcript_available).length;
+      insights = rows.filter((r) => (r.keywords?.length ?? 0) > 0).slice(0, 10);
+    }
+  } catch { /* migration pas encore appliquée */ }
+  // Noms des contacts des conversations affichées (1 requête groupée).
+  const insightContactNames = new Map<string, string>();
+  try {
+    const ids = [...new Set((insights ?? []).map((i) => i.contact_id).filter((v): v is string => !!v))];
+    if (ids.length > 0) {
+      const { data } = await supabase.from("contacts").select("id, full_name, email").in("id", ids);
+      for (const c of (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
+        insightContactNames.set(c.id, c.full_name?.trim() || c.email || "Contact");
+      }
+    }
+  } catch { /* noms absents → « Contact » */ }
+  const KEYWORD_LABELS = Object.fromEntries(CALL_KEYWORD_GROUPS.map((g) => [g.key, g.label]));
+  const keywordCounts = CALL_KEYWORD_GROUPS.map((g) => ({
+    key: g.key,
+    label: g.label,
+    n: (insights ?? []).filter((i) => i.keywords.includes(g.key)).length,
+  })).filter((k) => k.n > 0);
 
   const defaultTiles: DefaultTile[] = [
     { key: "appels_30j", label: "Appels", value: fmtN(calls30), raw: calls30, rawUnit: "count", tone: "accent", sub: "30 derniers jours" },
@@ -231,6 +272,71 @@ export default async function AppelsPage() {
                 footnote={`Triés par montant décroissant — l'argent sans effort téléphonique.${dealsSansContact > 0 ? ` ${dealsSansContact.toLocaleString("fr-FR")} deal${dealsSansContact > 1 ? "s" : ""} sans contact lié : non croisables (associer un contact dans HubSpot).` : ""}`}
               />
             </div>
+          </CollapsibleBlock>
+          </RemovableBlock>
+        )}
+
+        {/* ── Conversations à signaux (transcriptions — mots-clés business) ── */}
+        {insights !== null && (calls30 ?? 0) > 0 && !custom.hiddenBlocks.has("conversations_signaux") && (
+          <RemovableBlock pageKey="perf_appels" blockKey="conversations_signaux" label="Conversations à signaux">
+          <CollapsibleBlock
+            title={
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                Conversations à signaux
+                <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-xs font-medium text-fuchsia-700">
+                  30 derniers jours
+                </span>
+              </h2>
+            }
+          >
+            <p className="text-sm text-slate-500">
+              La mine d&apos;or des conversations : les appels dont la transcription mentionne un sujet business —
+              devis, facturation, prix, contrat, résiliation — rattachés au contact CRM. Détection déterministe
+              par mots-clés, aucun contenu inventé.
+            </p>
+            {keywordCounts.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {keywordCounts.map((k) => (
+                  <span key={k.key} className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-600">
+                    {k.label} · {k.n}
+                  </span>
+                ))}
+              </div>
+            )}
+            {(insights?.length ?? 0) > 0 ? (
+              <ul className="mt-4 space-y-2.5">
+                {(insights ?? []).map((i) => (
+                  <li key={i.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {i.keywords.map((k) => (
+                        <span key={k} className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-700">
+                          {KEYWORD_LABELS[k] ?? k}
+                        </span>
+                      ))}
+                      <span className="ml-auto text-[10px] text-slate-400">
+                        {i.contact_id ? insightContactNames.get(i.contact_id) ?? "Contact" : "Contact non relié"}
+                        {i.occurred_at ? ` · ${fmtDay(new Date(i.occurred_at).getTime())}` : ""}
+                      </span>
+                    </div>
+                    {i.snippet && <p className="mt-1.5 text-xs italic leading-relaxed text-slate-600">« {i.snippet} »</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                {transcriptsChecked === 0
+                  ? "Les transcriptions s'analysent au fil des synchronisations (10 appels par passage) — reviens après le prochain passage."
+                  : transcriptsAvailable === 0
+                    ? "Aucune transcription disponible sur les appels analysés — la transcription nécessite l'add-on Aircall AI (conversation intelligence) sur ton compte Aircall."
+                    : "Aucun mot-clé business détecté dans les conversations transcrites des 30 derniers jours."}
+              </p>
+            )}
+            <p className="mt-3 text-[11px] text-slate-400">
+              {transcriptsChecked > 0
+                ? `${transcriptsAvailable.toLocaleString("fr-FR")} conversation${transcriptsAvailable > 1 ? "s" : ""} transcrite${transcriptsAvailable > 1 ? "s" : ""} sur ${transcriptsChecked.toLocaleString("fr-FR")} appel${transcriptsChecked > 1 ? "s" : ""} analysé${transcriptsChecked > 1 ? "s" : ""} (30 j). `
+                : ""}
+              Mots-clés surveillés : {CALL_KEYWORD_GROUPS.map((g) => g.label.toLowerCase()).join(", ")}.
+            </p>
           </CollapsibleBlock>
           </RemovableBlock>
         )}

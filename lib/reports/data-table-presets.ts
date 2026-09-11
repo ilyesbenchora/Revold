@@ -60,6 +60,8 @@ export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]>
   // Pseudo-entité « fiscal » : échéances TVA/IS/URSSAF, rattachées au pôle
   // facturation/compta (donc proposées dès qu'un outil billing est connecté).
   fiscal: "billing",
+  // Appels téléphoniques (miroir activities type call — Aircall & co).
+  calls: "phone",
 };
 
 // Dimensions disponibles par entité → le paramètre « Grouper par » façon Notion.
@@ -102,6 +104,12 @@ export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
     { id: "industry", label: "Industrie" },
     { id: "country", label: "Pays" },
   ],
+  calls: [
+    { id: "direction", label: "Sens (entrants / sortants)" },
+    { id: "statut", label: "Statut (aboutis / manqués)" },
+    { id: "rattachement", label: "Rattachement CRM (reliés / sans contact)" },
+    { id: "month_call", label: "Date de l'appel" },
+  ],
 };
 
 // Libellés humains des entités canoniques — sous-titres de cartes, funnel, alertes.
@@ -114,6 +122,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   transactions: "Transactions bancaires",
   tickets: "Tickets",
   fiscal: "Échéances fiscales",
+  calls: "Appels",
 };
 
 export function entityLabel(entity: string): string {
@@ -144,6 +153,7 @@ export const ENTITY_FIELDS: Record<string, { id: string; label: string; unit: Ta
     { id: "amount_out", label: "décaissements (sorties)", unit: "currency" },
     { id: "amount", label: "flux net (encaissements − décaissements)", unit: "currency" },
   ],
+  calls: [{ id: "duration_minutes", label: "durée des appels (minutes)", unit: "count" }],
 };
 
 export function fieldLabel(entity: string, field: string | null): string {
@@ -157,6 +167,7 @@ export const PAGE_LABELS: Record<string, string> = {
   audit_service_client: "Service client",
   audit_paiement_facturation: "Trésorerie",
   audit_donnees: "Rapprochement données",
+  perf_appels: "Appels",
 };
 
 /**
@@ -279,6 +290,18 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "subs_started_month", label: "Évolution des abonnements démarrés", entity: "subscriptions", groupBy: "month_started", measure: "count", unit: "count", view: "line" },
     { id: "mrr_canceled_month", label: "Évolution du MRR annulé", entity: "subscriptions", groupBy: "month_canceled", measure: "sum", field: "mrr", unit: "currency", view: "line" },
   ],
+  // Appels (outil de phoning — Aircall & co) : volume, direction, décroché,
+  // durées et rattachement CRM — tous recalculables par période.
+  perf_appels: [
+    { id: "calls_direction", label: "Appels entrants / sortants", entity: "calls", groupBy: "direction", measure: "count", unit: "count", view: "donut" },
+    { id: "calls_statut", label: "Appels aboutis / manqués", entity: "calls", groupBy: "statut", measure: "count", unit: "count", view: "donut" },
+    { id: "calls_month", label: "Évolution du volume d'appels", entity: "calls", groupBy: "month_call", measure: "count", unit: "count", view: "line" },
+    { id: "calls_duration_month", label: "Évolution du temps en ligne (minutes)", entity: "calls", groupBy: "month_call", measure: "sum", field: "duration_minutes", unit: "count", view: "line" },
+    { id: "calls_avg_duration", label: "Durée moyenne des appels aboutis (min)", entity: "calls", groupBy: "statut", measure: "avg", field: "duration_minutes", unit: "count", view: "bloc", target: "Aboutis", tileOnly: true },
+    { id: "calls_decroche", label: "Taux de décroché", entity: "calls", groupBy: "statut", measure: "count", unit: "percent", view: "bloc", target: "Aboutis", percentOfTotal: true, tileOnly: true },
+    { id: "calls_manques", label: "Appels manqués", entity: "calls", groupBy: "statut", measure: "count", unit: "count", view: "bloc", target: "Manqués", tileOnly: true },
+    { id: "calls_rattachement", label: "Rattachement des appels au CRM", entity: "calls", groupBy: "rattachement", measure: "count", unit: "count", view: "donut" },
+  ],
   // Rapprochement données (agent qualité des données) : câblage et provenance
   // multi-outils — quels documents viennent de quel outil, volumes synchronisés
   // dans le temps, complétude des champs qui servent au rapprochement.
@@ -303,6 +326,7 @@ export const PAGE_AGENT_KEY: Record<string, string> = {
   // L'agent Rapprochement de données a été retiré : ses outils d'audit qualité
   // sont passés à l'agent Performances, qui câble donc aussi cette page.
   audit_donnees: "proprietes",
+  perf_appels: "performance",
 };
 
 /**

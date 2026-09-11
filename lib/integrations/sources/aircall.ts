@@ -94,3 +94,29 @@ export async function listAircallCalls(
     apiToken,
   );
 }
+
+/**
+ * Transcription d'un appel (Aircall AI — « conversation intelligence ») :
+ * texte complet reconstitué depuis les répliques. Renvoie null si l'appel n'a
+ * pas de transcription (add-on absent, appel trop court, 404/403) — l'appelant
+ * distingue « pas de transcription » d'une erreur réseau (throw).
+ */
+export async function fetchAircallTranscription(
+  apiId: string,
+  apiToken: string,
+  callId: number | string,
+): Promise<string | null> {
+  const res = await fetch(`${AIRCALL_API}/calls/${callId}/transcription`, {
+    headers: { Authorization: authHeader(apiId, apiToken) },
+  });
+  if (res.status === 404 || res.status === 403) return null;
+  if (!res.ok) throw new Error(`Aircall transcription ${res.status}`);
+  const json = (await res.json()) as {
+    transcription?: {
+      content?: { utterances?: Array<{ text?: string | null }> } | null;
+    } | null;
+  };
+  const utterances = json.transcription?.content?.utterances ?? [];
+  const text = utterances.map((u) => (u.text ?? "").trim()).filter(Boolean).join(" ");
+  return text.length > 0 ? text : null;
+}

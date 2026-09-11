@@ -7,7 +7,8 @@
  * existants (jamais de création à partir d'un simple numéro).
  */
 
-import { listAircallCalls, type AircallCall } from "@/lib/integrations/sources/aircall";
+import { listAircallCalls, fetchAircallTranscription, type AircallCall } from "@/lib/integrations/sources/aircall";
+import { extractCallKeywords } from "@/lib/integrations/call-keywords";
 import { resolveContact, upsertSourceLink } from "@/lib/integrations/entity-resolution";
 import { loadIdentifierAccessor, newAuditCounters, recordConnectorAudit } from "../field-mapping";
 import { fail, ok, type SourceConnector } from "../types";
@@ -74,6 +75,8 @@ export const aircallConnector: SourceConnector = async (ctx) => {
 
   let callsImported = 0;
   let contactsMatched = 0;
+  // Appels importés ce passage (pour la passe transcriptions).
+  const importedCalls: Array<{ call: AircallCall; activityId: string; contactId: string | null }> = [];
   for (const call of calls) {
     // 1) Contact : email Aircall (mapping-first) sinon numéro de téléphone.
     let contactId: string | null = null;
@@ -121,17 +124,69 @@ export const aircallConnector: SourceConnector = async (ctx) => {
 
     const externalId = String(call.id);
     const known = activityLinks.get(externalId) ?? null;
+    let activityId: string | null = known;
     if (known) {
       await ctx.supabase.from("activities").update(payload).eq("id", known);
       callsImported++;
     } else {
       const { data: created } = await ctx.supabase.from("activities").insert(payload).select("id").single();
       if (created?.id) {
+        activityId = created.id as string;
         await upsertSourceLink(ctx.supabase, ctx.orgId, PROVIDER, externalId, "activity", created.id);
         callsImported++;
       }
     }
+    if (activityId) importedCalls.push({ call, activityId, contactId });
   }
+
+  // ── 3) CONVERSATIONS (Aircall AI) : transcriptions des appels parlés →
+  // mots-clés business (devis, facturation, résiliation…) dans call_insights.
+  // Bornée (10 appels/passage, du plus récent au plus ancien) et idempotente :
+  // un appel vérifié SANS transcription est marqué (jamais re-testé). Table
+  // absente (migration pas encore appliquée) → étape sautée sans erreur.
+  let insightsFound = 0;
+  try {
+    const candidates = importedCalls
+      .filter((c) => (c.call.duration ?? 0) >= 30)
+      .sort((a, b) => b.call.started_at - a.call.started_at)
+      .slice(0, 60);
+    if (candidates.length > 0) {
+      const { data: existing, error: tableErr } = await ctx.supabase
+        .from("call_insights")
+        .select("external_call_id")
+        .eq("organization_id", ctx.orgId)
+        .eq("provider", PROVIDER)
+        .in("external_call_id", candidates.map((c) => String(c.call.id)));
+      if (!tableErr) {
+        const seen = new Set(((existing ?? []) as Array<{ external_call_id: string }>).map((e) => e.external_call_id));
+        const todo = candidates.filter((c) => !seen.has(String(c.call.id))).slice(0, 10);
+        for (const { call, activityId, contactId } of todo) {
+          let transcript: string | null = null;
+          try {
+            transcript = await fetchAircallTranscription(apiId, apiToken, call.id);
+          } catch {
+            continue; // erreur réseau/quota : on retentera au prochain passage
+          }
+          const { keywords, snippet } = transcript ? extractCallKeywords(transcript) : { keywords: [], snippet: null };
+          if (keywords.length > 0) insightsFound++;
+          await ctx.supabase.from("call_insights").upsert(
+            {
+              organization_id: ctx.orgId,
+              provider: PROVIDER,
+              external_call_id: String(call.id),
+              activity_id: activityId,
+              contact_id: contactId,
+              occurred_at: new Date(call.started_at * 1000).toISOString(),
+              transcript_available: transcript != null,
+              keywords,
+              snippet,
+            },
+            { onConflict: "organization_id,provider,external_call_id" },
+          );
+        }
+      }
+    }
+  } catch { /* conversations best-effort — la sync des appels reste valide */ }
 
   await recordConnectorAudit(ctx.supabase, ctx.orgId, PROVIDER, {
     ran_at: new Date().toISOString(),
@@ -145,5 +200,6 @@ export const aircallConnector: SourceConnector = async (ctx) => {
   return ok("Synchronisation Aircall terminée.", {
     contacts: contactsMatched,
     calls: callsImported,
+    conversations_signaux: insightsFound,
   });
 };

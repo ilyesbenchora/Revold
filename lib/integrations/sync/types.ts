@@ -32,6 +32,8 @@ export type SyncStatCount = {
   deals?: number;
   /** Appels téléphoniques (Aircall & co) importés dans activities. */
   calls?: number;
+  /** Conversations transcrites où un mot-clé business a été détecté. */
+  conversations_signaux?: number;
 };
 
 export type SyncResult = {
