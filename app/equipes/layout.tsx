@@ -5,8 +5,9 @@ import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 
 
-// Indexation resserrée : home + blog uniquement — section noindex.
-export const metadata: Metadata = { robots: { index: false, follow: true } };
+// Pages INDEXÉES : « revenue intelligence pour RevOps / CEO / finance… » —
+// pages persona qui portent chacune leur titre et leur description.
+export const metadata: Metadata = { robots: { index: true, follow: true } };
 
 const TEAMS = [
   { label: "Direction / CEO", href: "/equipes/direction" },
