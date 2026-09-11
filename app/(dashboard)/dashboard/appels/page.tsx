@@ -174,8 +174,9 @@ export default async function AppelsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Appels</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Performance du phoning : volume d&apos;appels, durée moyenne, taux de décroché, activité par commercial —
-            dédiée à ton outil d&apos;appels (Aircall, Ringover, CloudTalk…).
+            Vos appels et conversations, croisés avec le reste de vos outils : volume, durée et taux de décroché
+            reliés aux deals, aux comptes et aux tickets — pour voir ce que le phoning déclenche vraiment (pipeline
+            créé, réactivation, rétention), pas seulement l&apos;activité.
           </p>
         </div>
       </header>
