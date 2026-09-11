@@ -11,6 +11,7 @@ import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { RemovableBlock } from "@/components/data-tables/removable-block";
 import { getPageCustomization } from "@/lib/kpi/page-tiles";
 import { CALL_KEYWORD_GROUPS } from "@/lib/integrations/call-keywords";
+import { PhoneWorkBlock } from "@/components/appels/phone-work-block";
 
 /**
  * Page « Appels » (section Données) — même squelette que Performances mais
@@ -73,47 +74,21 @@ export default async function AppelsPage() {
   // ouverts JAMAIS APPELÉS — via le contact primaire du deal. Les deals sans
   // contact lié sont comptés à part (impossible à croiser, dit honnêtement).
   const custom = await getPageCustomization(supabase, orgId, "perf_appels");
-  type OpenDeal = { id: string; name: string | null; amount: number | null; contact_id: string | null; last_contacted_at: string | null };
-  let openDeals: OpenDeal[] = [];
+  // Le calcul du croisement vit dans /api/appels/phone-work (période au choix,
+  // composant client PhoneWorkBlock) — ici seulement le GATE : y a-t-il des
+  // deals ouverts avec un contact lié à croiser ?
+  let linkedDeals: Array<{ id: string }> = [];
   try {
     const { data } = await supabase
       .from("deals")
-      .select("id, name, amount, contact_id, last_contacted_at")
+      .select("id")
       .eq("organization_id", orgId)
       .eq("is_closed_won", false)
       .eq("is_closed_lost", false)
-      .order("amount", { ascending: false, nullsFirst: false })
-      .limit(300);
-    openDeals = (data ?? []) as OpenDeal[];
+      .not("contact_id", "is", null)
+      .limit(1);
+    linkedDeals = (data ?? []) as Array<{ id: string }>;
   } catch { /* CRM absent → bloc masqué */ }
-  const callAgg = new Map<string, { n: number; last: number }>();
-  try {
-    const ids = [...new Set(openDeals.map((d) => d.contact_id).filter((v): v is string => !!v))];
-    if (ids.length > 0) {
-      const { data } = await supabase
-        .from("activities")
-        .select("contact_id, occurred_at")
-        .eq("organization_id", orgId)
-        .eq("type", "call")
-        .in("contact_id", ids)
-        .gte("occurred_at", since30)
-        .limit(5000);
-      for (const c of (data ?? []) as Array<{ contact_id: string | null; occurred_at: string | null }>) {
-        if (!c.contact_id) continue;
-        const t = c.occurred_at ? new Date(c.occurred_at).getTime() : 0;
-        const cur = callAgg.get(c.contact_id) ?? { n: 0, last: 0 };
-        cur.n += 1;
-        if (t > cur.last) cur.last = t;
-        callAgg.set(c.contact_id, cur);
-      }
-    }
-  } catch { /* pas d'appels → listes vides */ }
-  const linkedDeals = openDeals.filter((d) => d.contact_id);
-  const dealsSansContact = openDeals.length - linkedDeals.length;
-  const dealCalls = linkedDeals.map((d) => ({ ...d, calls: callAgg.get(d.contact_id!) ?? { n: 0, last: 0 } }));
-  const bienTravailles = dealCalls.filter((d) => d.calls.n >= 2).sort((a, b) => b.calls.n - a.calls.n).slice(0, 8);
-  const jamaisAppeles = dealCalls.filter((d) => d.calls.n === 0 && (d.amount ?? 0) > 0).slice(0, 8);
-  const fmtEur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   const fmtDay = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 
   // ── CONVERSATIONS À SIGNAUX (transcriptions Aircall AI) : appels des 30
@@ -217,16 +192,15 @@ export default async function AppelsPage() {
           tablesPageKey="perf_appels"
         />
 
-        {/* ── Croisement deals ↔ téléphonie (30 derniers jours) ── */}
+        {/* ── Croisement deals ↔ téléphonie : PÉRIODE au choix (même barre que
+               les tables de données — presets, exercice, dates custom), tables
+               enrichies (temps en ligne, contact, dates). ── */}
         {(calls30 ?? 0) > 0 && linkedDeals.length > 0 && !custom.hiddenBlocks.has("travail_telephonique") && (
           <RemovableBlock pageKey="perf_appels" blockKey="travail_telephonique" label="Travail téléphonique des deals">
           <CollapsibleBlock
             title={
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 Travail téléphonique des deals
-                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-                  30 derniers jours
-                </span>
               </h2>
             }
           >
@@ -234,43 +208,8 @@ export default async function AppelsPage() {
               Le croisement que ni l&apos;outil d&apos;appels ni le CRM ne montrent seuls : quels deals ouverts sont
               réellement travaillés au téléphone — et lesquels n&apos;ont jamais été appelés malgré leur montant.
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <BlockDataTable
-                title="Deals bien travaillés au téléphone"
-                subtitle="≥ 2 appels sur 30 j"
-                team="sales"
-                unit="count"
-                nameLabel="Deal"
-                valueLabel="Appels (30 j)"
-                extraColumns={["Montant", "Dernier appel"]}
-                rows={bienTravailles.map((d) => ({
-                  name: d.name?.trim() || "Deal sans nom",
-                  value: d.calls.n,
-                  unit: "count" as const,
-                  tone: "pos" as const,
-                  cells: [d.amount ? fmtEur(d.amount) : "—", d.calls.last > 0 ? fmtDay(d.calls.last) : "—"],
-                }))}
-                emptyLabel="Aucun deal ouvert avec au moins 2 appels sur les 30 derniers jours."
-                footnote="Appels rattachés via le contact primaire du deal — plus il y a d'appels, plus le deal est réellement travaillé."
-              />
-              <BlockDataTable
-                title="Deals ouverts jamais appelés"
-                subtitle="0 appel sur 30 j"
-                team="sales"
-                unit="currency"
-                nameLabel="Deal"
-                valueLabel="Montant"
-                extraColumns={["Dernier contact CRM"]}
-                rows={jamaisAppeles.map((d) => ({
-                  name: d.name?.trim() || "Deal sans nom",
-                  value: d.amount,
-                  unit: "currency" as const,
-                  tone: "neg" as const,
-                  cells: [d.last_contacted_at ? fmtDay(new Date(d.last_contacted_at).getTime()) : "jamais"],
-                }))}
-                emptyLabel="Tous les deals ouverts (avec contact lié) ont été appelés sur les 30 derniers jours."
-                footnote={`Triés par montant décroissant — l'argent sans effort téléphonique.${dealsSansContact > 0 ? ` ${dealsSansContact.toLocaleString("fr-FR")} deal${dealsSansContact > 1 ? "s" : ""} sans contact lié : non croisables (associer un contact dans HubSpot).` : ""}`}
-              />
+            <div className="mt-4">
+              <PhoneWorkBlock />
             </div>
           </CollapsibleBlock>
           </RemovableBlock>
