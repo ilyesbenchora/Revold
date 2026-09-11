@@ -6,13 +6,16 @@
  * (/dashboard/parametres/cohortes#sales…) — aucune migration nécessaire.
  */
 
-export type CohortTeamId = "sales" | "marketing" | "cs" | "finance";
+export type CohortTeamId = "sales" | "marketing" | "cs" | "finance" | "appels";
 
 export const COHORT_TEAMS: { id: CohortTeamId; label: string; icon: string }[] = [
   { id: "sales", label: "Ventes", icon: "💼" },
   { id: "marketing", label: "Marketing", icon: "📣" },
   { id: "cs", label: "Service client", icon: "🤝" },
   { id: "finance", label: "Comptabilité", icon: "💳" },
+  // Cohortes propres aux APPELS : définies sur le CONTACT CRM (persona, segment
+  // contact, propriétaire…), elles alimentent le sélecteur de la page Appels.
+  { id: "appels", label: "Appels", icon: "📞" },
 ];
 
 export const COHORT_TEAM_IDS = COHORT_TEAMS.map((t) => t.id);

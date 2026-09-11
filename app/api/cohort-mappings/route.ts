@@ -10,7 +10,7 @@ type CohortMapping = { key: string; label: string; internal_name: string; api_na
 const VALID_OBJECTS = new Set(["contacts", "companies", "deals"]);
 
 /** Équipes propriétaires valides ("" = cohorte transverse, toutes équipes). */
-const VALID_TEAMS = new Set(["sales", "marketing", "cs", "finance"]);
+const VALID_TEAMS = new Set(["sales", "marketing", "cs", "finance", "appels"]);
 
 /** Nettoie la liste de mappings (clés/labels/champs texte, 30 max). */
 function cleanMappings(v: unknown): CohortMapping[] | null {
@@ -65,7 +65,10 @@ export async function GET(request: Request) {
       const role = (prof?.role as string | null) ?? null;
       const pole = (prof?.pole as string | null) ?? null;
       if (role !== "admin" && pole) {
-        mappings = mappings.filter((m) => !(m.team ?? "") || m.team === pole);
+        // Le groupe « appels » est un CONTEXTE transverse (les appels touchent
+        // plusieurs pôles) : ses cohortes restent visibles dans les filtres,
+        // en plus de celles du pôle du membre et des transverses.
+        mappings = mappings.filter((m) => !(m.team ?? "") || m.team === pole || m.team === "appels");
       }
     }
     return NextResponse.json({ mappings });
