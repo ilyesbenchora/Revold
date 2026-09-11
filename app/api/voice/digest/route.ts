@@ -8,7 +8,7 @@ import { computeAggregate } from "@/lib/ai/agents/tool-library";
 import { computeBillingRadar } from "@/lib/audit/billing-radar";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { narrateForVoice, firstNameFromUser } from "@/lib/voice/narrate";
-import { getEnrichmentSettings, ENRICHMENT_FIELD_LABELS } from "@/lib/enrichment/settings";
+import { getEnrichmentSettings } from "@/lib/enrichment/settings";
 import { sanitizeBriefTeam, isBriefTeamId } from "@/lib/voice/brief-team";
 import { computeTeamBrief } from "@/lib/voice/brief-team-engine";
 import { poleToWorkspace } from "@/lib/workspaces";
@@ -204,15 +204,13 @@ export async function GET(request: Request) {
   let enrichmentRemaining: number | null = null;
   let enrichmentDone = 0;
   // OPT-IN : tant que « Enrichir mon CRM » n'a jamais été cliqué, AUCUN moteur
-  // ne traite la file — le brief ne doit jamais annoncer des fiches « à
-  // traiter » ; il rappelle plutôt les données COCHÉES dans les paramètres.
+  // ne traite la file — le brief se TAIT sur la donnée (pas de fiches « à
+  // traiter », pas de renvoi aux paramètres d'enrichissement : le contenu du
+  // brief ne se cale QUE sur les sections de la Tour de contrôle).
   let enrichmentActivated = false;
-  let enrichmentCheckedCount = 0;
   if (sections.has("enrichment")) {
     try {
-      const enrichSettings = await getEnrichmentSettings(supabase, orgId);
-      enrichmentActivated = enrichSettings.activated;
-      enrichmentCheckedCount = ENRICHMENT_FIELD_LABELS.filter((f) => enrichSettings.fields[f.id]).length;
+      enrichmentActivated = (await getEnrichmentSettings(supabase, orgId)).activated;
     } catch { /* défauts : non activé */ }
     try {
       const recheckBefore = new Date(now.getTime() - 30 * 86400 * 1000).toISOString();
@@ -498,16 +496,11 @@ export async function GET(request: Request) {
     }
     // Enrichissement : on ne parle que des deux états qui appellent une
     // décision — c'est fini (annoncé UNE fois), ou il reste du travail en cours.
-    if (sections.has("enrichment") && enrichmentRemaining != null) {
-      if (!enrichmentActivated) {
-        // Moteur jamais lancé : rien « en cours », rien « à traiter ». Le
-        // brief renvoie aux PARAMÈTRES (données cochées) et au CTA de lancement.
-        if (enrichmentCheckedCount > 0) {
-          parts.push(
-            `Sur la donnée : l'enrichissement n'est pas encore lancé — ${enrichmentCheckedCount} donnée${enrichmentCheckedCount > 1 ? "s" : ""} cochée${enrichmentCheckedCount > 1 ? "s" : ""} dans tes paramètres attend${enrichmentCheckedCount > 1 ? "ent" : ""} ton feu vert sur la page Enrichissement.`,
-          );
-        }
-      } else if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${new Date().toISOString().slice(0, 10)}`)) {
+    // Moteur jamais lancé (opt-in) : le brief se TAIT sur la donnée — le
+    // contenu du brief ne se cale QUE sur les sections de la Tour de contrôle,
+    // jamais sur les paramètres d'enrichissement.
+    if (sections.has("enrichment") && enrichmentActivated && enrichmentRemaining != null) {
+      if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${new Date().toISOString().slice(0, 10)}`)) {
         parts.push(`Sur la donnée : enrichissement terminé sur ${crmLabel ?? "ton CRM"}, ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} via l'API Sirene — plus rien en attente.`);
       } else if (enrichmentRemaining > 0) {
         parts.push(`Sur la donnée : enrichissement en cours, ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} ${crmLabel ? `${crmLabel} ` : ""}encore à traiter.`);
@@ -601,26 +594,17 @@ export async function GET(request: Request) {
         href: "/dashboard/mes-alertes/objectifs",
       });
     }
-    if (sections.has("enrichment") && (enrichmentRemaining ?? 0) > 0) {
-      if (enrichmentActivated) {
-        // Moteur actif : l'aperçu fiche par fiche est proposé.
-        todos.push({
-          key: "enrichment",
-          label: `${enrichmentRemaining} fiche${(enrichmentRemaining ?? 0) > 1 ? "s" : ""} ${crmLabel ?? "CRM"} à enrichir`,
-          detail: "Une passe peut être lancée immédiatement",
-          href: "/dashboard/enrichissement",
-          action: "enrichment_run",
-        });
-      } else if (enrichmentCheckedCount > 0) {
-        // Opt-in jamais donné : PAS d'aperçu de fiches (rien ne tourne) —
-        // simple lien vers la page pour lancer la première passe.
-        todos.push({
-          key: "enrichment",
-          label: "Lancer l'enrichissement de ton CRM",
-          detail: `${enrichmentCheckedCount} donnée${enrichmentCheckedCount > 1 ? "s" : ""} cochée${enrichmentCheckedCount > 1 ? "s" : ""} dans les paramètres — première passe à lancer`,
-          href: "/dashboard/enrichissement",
-        });
-      }
+    // Opt-in jamais donné : aucune action d'enrichissement — le panneau ne
+    // reflète que ce que le brief a réellement annoncé (sections de la Tour
+    // de contrôle), jamais les paramètres d'enrichissement.
+    if (sections.has("enrichment") && enrichmentActivated && (enrichmentRemaining ?? 0) > 0) {
+      todos.push({
+        key: "enrichment",
+        label: `${enrichmentRemaining} fiche${(enrichmentRemaining ?? 0) > 1 ? "s" : ""} ${crmLabel ?? "CRM"} à enrichir`,
+        detail: "Une passe peut être lancée immédiatement",
+        href: "/dashboard/enrichissement",
+        action: "enrichment_run",
+      });
     }
     if (sections.has("reconciliation") && reconGapGross > 0) {
       todos.push({
