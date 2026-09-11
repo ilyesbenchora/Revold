@@ -109,7 +109,7 @@ export async function detectSilentDeals(
 ): Promise<Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }>> {
   const { data } = await supabase
     .from("deals")
-    .select("id, hubspot_id, name, amount, last_contacted_at, hs_last_modified_at")
+    .select("id, hubspot_id, name, amount, contact_id, last_contacted_at, hs_last_modified_at")
     .eq("organization_id", orgId)
     .eq("is_closed_won", false)
     .eq("is_closed_lost", false)
@@ -117,12 +117,40 @@ export async function detectSilentDeals(
     .limit(100);
 
   const cutoff = Date.now() - settings.silentDays * DAY_MS;
+
+  // ── Croisement TÉLÉPHONIE (Aircall & co) : un deal appelé récemment n'est
+  // PAS silencieux, même si le CRM ne l'a pas vu — dernier appel par contact
+  // lu dans le miroir activities (type call). Résilient : colonne/table
+  // absente → détection CRM inchangée.
+  const lastCallByContact = new Map<string, number>();
+  try {
+    const contactIds = [...new Set(((data ?? []) as Array<{ contact_id: string | null }>).map((d) => d.contact_id).filter((v): v is string => !!v))];
+    if (contactIds.length > 0) {
+      const { data: calls } = await supabase
+        .from("activities")
+        .select("contact_id, occurred_at")
+        .eq("organization_id", orgId)
+        .eq("type", "call")
+        .in("contact_id", contactIds)
+        .gte("occurred_at", new Date(Date.now() - 180 * DAY_MS).toISOString())
+        .limit(5000);
+      for (const c of (calls ?? []) as Array<{ contact_id: string | null; occurred_at: string | null }>) {
+        if (!c.contact_id || !c.occurred_at) continue;
+        const t = new Date(c.occurred_at).getTime();
+        if (Number.isFinite(t) && t > (lastCallByContact.get(c.contact_id) ?? 0)) lastCallByContact.set(c.contact_id, t);
+      }
+    }
+  } catch { /* téléphonie non branchée → critère CRM seul */ }
+
   const out: Array<{ dedupe_key: string; type: string; title: string; description: string; source: string; payload: ActionPayload }> = [];
-  for (const d of (data ?? []) as Array<{ id: string; hubspot_id: string | null; name: string | null; amount: number | null; last_contacted_at: string | null; hs_last_modified_at: string | null }>) {
+  for (const d of (data ?? []) as Array<{ id: string; hubspot_id: string | null; name: string | null; amount: number | null; contact_id: string | null; last_contacted_at: string | null; hs_last_modified_at: string | null }>) {
     if (!d.hubspot_id) continue;
-    const lastTouch = d.last_contacted_at ?? d.hs_last_modified_at;
-    if (!lastTouch || new Date(lastTouch).getTime() > cutoff) continue;
-    const days = Math.floor((Date.now() - new Date(lastTouch).getTime()) / DAY_MS);
+    const lastCrmTouch = d.last_contacted_at ?? d.hs_last_modified_at;
+    // Dernier contact RÉEL = max(contact CRM, dernier appel téléphonique).
+    const lastCallAt = d.contact_id ? lastCallByContact.get(d.contact_id) ?? null : null;
+    const lastTouchMs = Math.max(lastCrmTouch ? new Date(lastCrmTouch).getTime() : 0, lastCallAt ?? 0);
+    if (lastTouchMs === 0 || lastTouchMs > cutoff) continue;
+    const days = Math.floor((Date.now() - lastTouchMs) / DAY_MS);
     const dealName = d.name?.trim() || "Deal sans nom";
     const amountTxt = d.amount ? ` de ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(d.amount)}` : "";
     if (sequence) {
@@ -130,7 +158,7 @@ export async function detectSilentDeals(
         dedupe_key: `silent_deal:${d.id}`,
         type: "hubspot_sequence_enroll",
         title: `Relancer « ${dealName} » par email — silencieux depuis ${days} j`,
-        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours. Valider inscrit le contact du deal dans la séquence « ${sequence.name} » au nom du propriétaire : l'email de relance part réellement de sa boîte.`,
+        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours (activité CRM et appels téléphoniques confondus). Valider inscrit le contact du deal dans la séquence « ${sequence.name} » au nom du propriétaire : l'email de relance part réellement de sa boîte.`,
         source: "detector:silent_deal",
         payload: { dealHubspotId: d.hubspot_id, sequenceId: sequence.id, sequenceName: sequence.name },
       });
@@ -139,7 +167,7 @@ export async function detectSilentDeals(
         dedupe_key: `silent_deal:${d.id}`,
         type: "hubspot_task",
         title: `Relancer « ${dealName} » — silencieux depuis ${days} j`,
-        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours. Valider crée une tâche HubSpot pour le propriétaire du deal.`,
+        description: `Deal ouvert${amountTxt} sans contact depuis ${days} jours (activité CRM et appels téléphoniques confondus). Valider crée une tâche HubSpot pour le propriétaire du deal.`,
         source: "detector:silent_deal",
         payload: {
           subject: `Relancer le deal « ${dealName} » (silencieux depuis ${days} j)`,
