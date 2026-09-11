@@ -469,8 +469,8 @@ export const KEYWORD_PAGES: KeywordPage[] = [
   {
     slug: "forecast-commercial",
     keyword: "Forecast commercial",
-    secondaryKeywords: ["prévision des ventes", "forecast de vente", "prévision commerciale B2B", "forecast pondéré"],
-    title: "Forecast commercial : méthode de prévision des ventes fiable en B2B",
+    secondaryKeywords: ["prévision des ventes", "forecast de vente", "prévision commerciale B2B", "forecast pondéré", "logiciel de prévision des ventes", "forecast HubSpot"],
+    title: "Forecast commercial et prévision des ventes : méthode fiable en B2B (2026)",
     description:
       "Comment construire un forecast commercial fiable : pondération par étape, dates de fermeture, propriétés personnalisées, données réconciliées avec la facturation. Méthode et outil Revold.",
     h1: "Forecast commercial :",
@@ -642,6 +642,506 @@ export const KEYWORD_PAGES: KeywordPage[] = [
       { q: "Revold écrit-il dans mon CRM ou ma facturation ?", a: "Uniquement après validation humaine explicite d'une action (par exemple associer un contact à une entreprise). La synchronisation elle-même est en lecture seule." },
     ],
     related: ["plateforme-revenue", "plateforme-revenue-intelligence", "forecast-commercial", "plateforme-revops"],
+  },
+
+  // ── Vague 2 (2026-09-11) : requêtes à fort potentiel repérées sur les SERP
+  //    françaises — peu ou pas de contenu français en face (résultats
+  //    anglophones ou agences), intention proche de l'achat. ──
+  {
+    slug: "fuite-de-revenus",
+    keyword: "Fuite de revenus (revenue leakage)",
+    secondaryKeywords: ["revenue leakage", "fuite de revenu B2B", "revenus non facturés", "deals signés non facturés", "perte de revenus facturation"],
+    title: "Fuite de revenus (revenue leakage) : la détecter et la colmater en B2B",
+    description:
+      "La fuite de revenus, ou revenue leakage, est le revenu gagné mais jamais facturé ou encaissé : deals signés sans facture, renouvellements oubliés, retards de paiement. Causes, ordre de grandeur, méthode de détection et outil.",
+    h1: "Fuite de revenus :",
+    h1Accent: "le revenu gagné que vous n'encaissez jamais",
+    answer:
+      "La fuite de revenus (revenue leakage) désigne le revenu contractuellement gagné par une entreprise mais jamais facturé ou jamais encaissé, à cause de ruptures entre les ventes, la facturation et le recouvrement. Les estimations publiées la situent entre 1 et 5 % du chiffre d'affaires. Revold la détecte en réconciliant le CRM avec la facturation et la banque : chaque deal signé sans facture, chaque facture sans paiement et chaque écart de montant sont listés client par client.",
+    intro:
+      "Personne ne décide de perdre du revenu. Il s'échappe dans les interstices : un deal signé dans le CRM que la comptabilité n'a jamais vu, une augmentation annuelle prévue au contrat et jamais appliquée, une facture émise mais jamais relancée. Chaque cas est petit ; leur somme ne l'est pas.",
+    sections: [
+      {
+        h2: "Les cinq fuites les plus fréquentes",
+        paragraphs: ["Les fuites de revenus se logent toujours entre deux outils ou entre deux équipes."],
+        bullets: [
+          "Deals signés jamais facturés : le commercial a clôturé l'opportunité, personne n'a créé la facture.",
+          "Montants différents entre le deal et la facture : remise non tracée, avenant oublié, erreur de saisie.",
+          "Renouvellements et indexations non appliqués : la hausse annuelle prévue au contrat n'est jamais facturée.",
+          "Factures émises non encaissées : retards de paiement non relancés, avoirs accordés sans contrôle.",
+          "Usage au-delà du forfait non facturé : dépassements, options, utilisateurs supplémentaires.",
+        ],
+      },
+      {
+        h2: "Pourquoi la fuite est invisible",
+        paragraphs: [
+          "Le CRM connaît le signé, la facturation connaît le facturé, la banque connaît l'encaissé. Aucun des trois ne compare avec les deux autres, et les entreprises qui parlent d'un même client avec trois identifiants différents ne peuvent pas rapprocher ces montants sans travail manuel.",
+          "Le second masque est la compensation : un écart net faible (par exemple + 2 000 € facturés de plus ici, − 2 100 € là) cache deux erreurs qui s'annulent. Seul l'écart brut, calculé deal par deal, révèle le problème.",
+        ],
+      },
+      {
+        h2: "Méthode de détection en quatre étapes",
+        paragraphs: ["La détection est mécanique dès que les données sont rapprochées."],
+        bullets: [
+          "1. Identifier chaque client de façon stable dans tous les outils (en France : SIREN, SIRET, numéro de TVA).",
+          "2. Associer chaque facture à son deal (entreprise, montant, période) et chaque paiement à sa facture.",
+          "3. Calculer, deal par deal, l'écart signé / facturé et facturé / encaissé, en valeur absolue.",
+          "4. Classer par montant, relancer, corriger la source (CRM ou facturation), puis surveiller par alerte.",
+        ],
+      },
+      {
+        h2: "Ce que Revold mesure",
+        paragraphs: [
+          "Revold rapproche automatiquement HubSpot avec Pennylane, Stripe, Chargebee, GoCardless ou Sage par identifiant légal, puis calcule un score de santé de réconciliation et un écart signé / facturé brut. Le brief du jour lit les deals signés sans facture, les factures en retard et les échéances à venir, avec le montant à récupérer et les clients concernés.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Écart brut par deal", desc: "Σ des écarts absolus signé / facturé, pour que les compensations ne masquent rien." },
+      { title: "Deals signés à facturer", desc: "Listés par période avec le montant à facturer et le client, lus dans le brief Comptabilité." },
+      { title: "Factures en retard priorisées", desc: "Par montant et par client, avec échéances à venir et projection d'encaissement." },
+      { title: "Rapprochement par SIREN", desc: "Un même client reconnu dans le CRM, la facturation et la banque, sans référentiel manuel." },
+    ],
+    faq: [
+      { q: "Qu'est-ce que la fuite de revenus ?", a: "Le revenu contractuellement gagné mais jamais facturé ou encaissé, à cause de ruptures entre ventes, facturation et recouvrement : deals signés sans facture, indexations oubliées, retards de paiement non relancés." },
+      { q: "Combien une entreprise perd-elle en fuite de revenus ?", a: "Les études publiées sur le sujet situent la fuite entre 1 et 5 % du chiffre d'affaires, davantage dans les modèles à abonnement avec options et dépassements. Le seul chiffre fiable est celui mesuré sur vos propres données réconciliées." },
+      { q: "Comment détecter une fuite de revenus ?", a: "En rapprochant les deals signés du CRM avec les factures et les paiements, client par client, puis en calculant l'écart brut par deal. Revold automatise ce rapprochement pour HubSpot et les outils de facturation français." },
+      { q: "Quelle différence entre fuite de revenus et churn ?", a: "Le churn est une perte de clients ou d'abonnements décidée par le client. La fuite de revenus est une perte non décidée, due à un défaut de process : le client aurait payé, l'entreprise n'a pas facturé ou pas encaissé." },
+    ],
+    related: ["reconciliation-crm-facturation", "plateforme-revenue", "pilotage-revops", "kpi-revops"],
+  },
+  {
+    slug: "kpi-revops",
+    keyword: "KPI RevOps",
+    secondaryKeywords: ["indicateurs RevOps", "métriques revenue operations", "KPI revenue operations", "revops metrics"],
+    title: "KPI RevOps : les 20 indicateurs à suivre, par équipe (avec formules)",
+    description:
+      "Les KPI RevOps à suivre en 2026 : acquisition, pipeline, forecast, facturation, rétention. Formules, source de données de chaque indicateur et fréquence de suivi. Guide en français.",
+    h1: "KPI RevOps :",
+    h1Accent: "20 indicateurs, leurs formules et leurs sources",
+    answer:
+      "Les KPI RevOps sont les indicateurs qui mesurent le revenu sur toute sa chaîne, partagés entre marketing, ventes, service client et finance : MQL et coût par lead, pipeline pondéré et forecast, taux de conversion par étape, cycle de vente, signé, facturé, encaissé, MRR, churn et rétention nette. Revold calcule ces indicateurs à partir des données réconciliées du CRM, de la facturation et du support.",
+    intro:
+      "Un KPI RevOps ne vaut que s'il est calculé de la même façon chaque semaine, à partir d'une source connue, et lu par les quatre équipes. Voici les vingt indicateurs qui tiennent sur une page, avec leur formule et l'outil qui les alimente.",
+    sections: [
+      {
+        h2: "Acquisition (marketing)",
+        paragraphs: ["Source : CRM (contacts, cycle de vie), régies publicitaires."],
+        bullets: [
+          "Nouveaux contacts par période et par source d'origine.",
+          "MQL : contacts passés « marketing qualified » sur la période.",
+          "Taux MQL → SQL = SQL de la période ÷ MQL de la période.",
+          "Coût par lead = dépense publicitaire ÷ leads générés.",
+          "Vélocité lead → opportunité = délai moyen entre la date MQL et la création du deal.",
+        ],
+      },
+      {
+        h2: "Pipeline et forecast (ventes)",
+        paragraphs: ["Source : CRM (deals, étapes, dates de fermeture, propriétaires)."],
+        bullets: [
+          "Pipeline en cours = Σ montant des deals ouverts (par pipeline).",
+          "Forecast pondéré = Σ montant × probabilité d'étape, pour les deals dont la date de fermeture tombe dans la période.",
+          "Taux de conversion par étape = deals passés à l'étape suivante ÷ deals entrés dans l'étape.",
+          "Cycle de vente = délai moyen création → signature des deals gagnés.",
+          "Deals stagnants = deals ouverts dans la même étape depuis plus de N jours.",
+          "Signé par propriétaire = Σ montant des deals gagnés par commercial sur la période.",
+          "Précision du forecast = signé réel ÷ forecast annoncé en début de période.",
+        ],
+      },
+      {
+        h2: "Facturation et encaissement (finance)",
+        paragraphs: ["Source : outil de facturation et banque, rapprochés avec le CRM."],
+        bullets: [
+          "Facturé = Σ montant TTC ou HT des factures émises sur la période.",
+          "Encaissé = Σ paiements reçus sur la période.",
+          "Écart signé / facturé = Σ |montant deal − montant facturé| par deal (brut, jamais net).",
+          "Retards de paiement = Σ amount_due des factures échues, par client.",
+          "DSO (délai moyen de paiement) = créances clients ÷ CA × nombre de jours.",
+        ],
+      },
+      {
+        h2: "Rétention (service client)",
+        paragraphs: ["Source : abonnements, tickets support, CRM."],
+        bullets: [
+          "MRR = Σ revenu mensuel récurrent des abonnements actifs ; ARR = MRR × 12.",
+          "Churn client = clients perdus ÷ clients en début de période ; churn revenu = MRR perdu ÷ MRR initial.",
+          "Rétention nette (NRR) = (MRR initial + expansion − contraction − churn) ÷ MRR initial.",
+          "Tickets ouverts, délai de première réponse, SLA dépassés, CSAT moyen.",
+        ],
+      },
+      {
+        h2: "Comment les faire vivre",
+        paragraphs: [
+          "Choisissez au plus douze indicateurs pour la direction, trois à cinq par équipe. Attachez un objectif ou un seuil d'alerte à chacun, et lisez-les à fréquence fixe : brief quotidien pour les exceptions, récap hebdomadaire par pôle, revue mensuelle. Revold produit ces trois niveaux automatiquement, avec la source de chaque chiffre nommée.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Catalogue de KPIs par pôle", desc: "Ventes, marketing, service client, comptabilité : indicateurs prêts à câbler, vérifiés sur vos données." },
+      { title: "Formules déterministes", desc: "Chaque KPI est recalculable ; l'IA n'intervient jamais dans le calcul." },
+      { title: "Sources nommées", desc: "« via Pennylane », « dans HubSpot » : chaque chiffre porte son outil d'origine." },
+      { title: "Objectifs et alertes", desc: "Un seuil par KPI, détecté automatiquement, notifié sur Slack, Teams, e-mail, SMS ou WhatsApp." },
+    ],
+    faq: [
+      { q: "Quels sont les principaux KPI RevOps ?", a: "MQL et taux MQL → SQL, pipeline pondéré, forecast, taux de conversion par étape, cycle de vente, signé, facturé, encaissé, écart signé / facturé, MRR, churn et rétention nette." },
+      { q: "Combien de KPI suivre en RevOps ?", a: "Au plus une douzaine pour la direction et trois à cinq par équipe. Au-delà, personne ne les lit et aucun n'est actionné." },
+      { q: "Quelle différence entre KPI commerciaux et KPI RevOps ?", a: "Les KPI commerciaux s'arrêtent à la signature. Les KPI RevOps couvrent toute la chaîne, du lead à l'encaissement, et surtout les écarts entre les étapes (signé vs facturé, facturé vs encaissé)." },
+      { q: "Comment calculer le forecast pondéré ?", a: "Pour chaque deal ouvert dont la date de fermeture tombe dans la période : montant × probabilité de l'étape, puis somme. Revold le calcule par pipeline, avec la propriété de date de votre choix." },
+    ],
+    related: ["tableau-de-bord-revops", "pilotage-revops", "forecast-commercial", "fuite-de-revenus"],
+  },
+  {
+    slug: "revops-vs-sales-ops",
+    keyword: "RevOps vs Sales Ops",
+    secondaryKeywords: ["différence RevOps Sales Ops", "sales operations vs revenue operations", "RevOps ou Sales Ops", "revenue operations définition"],
+    title: "RevOps vs Sales Ops : quelle différence, et lequel mettre en place ?",
+    description:
+      "Sales Ops optimise l'équipe commerciale ; RevOps aligne ventes, marketing, service client et finance sur un revenu commun. Différences de périmètre, d'indicateurs, d'outils et de rattachement, et quand passer de l'un à l'autre.",
+    h1: "RevOps vs Sales Ops :",
+    h1Accent: "deux périmètres, un seul revenu",
+    answer:
+      "Le Sales Ops rend l'équipe commerciale plus efficace : processus de vente, outillage du CRM, reporting du pipeline. Le RevOps élargit ce périmètre à toute la chaîne de revenu, en alignant marketing, ventes, service client et finance sur des données, des indicateurs et des objectifs communs. Le Sales Ops est une composante du RevOps, pas un synonyme.",
+    intro:
+      "La question revient dans toutes les entreprises qui structurent leur croissance : faut-il un Sales Ops ou un RevOps ? La réponse dépend du problème à résoudre. Si le pipeline est le seul sujet, un Sales Ops suffit. Si le revenu se perd entre les équipes, c'est un sujet RevOps.",
+    sections: [
+      {
+        h2: "Les différences en un tableau",
+        paragraphs: ["Cinq axes séparent les deux fonctions."],
+        bullets: [
+          "Périmètre : Sales Ops = équipe commerciale ; RevOps = marketing, ventes, service client, finance.",
+          "Rattachement : Sales Ops = direction commerciale ; RevOps = direction générale ou COO.",
+          "Indicateurs : Sales Ops = taux de closing, vélocité, atteinte des quotas ; RevOps = ARR, rétention nette, précision du forecast, écart signé / facturé.",
+          "Données : Sales Ops = une source de vérité pour les ventes (le CRM) ; RevOps = une source de vérité pour tout le revenu (CRM × facturation × support).",
+          "Outils : Sales Ops = CRM, séquences, prospection ; RevOps = plateforme de réconciliation et de pilotage au-dessus des outils.",
+        ],
+      },
+      {
+        h2: "Quand le Sales Ops suffit",
+        paragraphs: [
+          "Une équipe commerciale de moins de dix personnes, un cycle de vente court, une facturation simple et automatisée : le Sales Ops couvre le besoin. Le pipeline est le seul point de friction et le CRM en est la source unique.",
+        ],
+      },
+      {
+        h2: "Quand passer au RevOps",
+        paragraphs: ["Trois signaux indiquent que le problème a changé de nature."],
+        bullets: [
+          "Les chiffres de la direction commerciale et ceux de la finance ne se réconcilient plus.",
+          "Le marketing, les ventes et le service client se renvoient la responsabilité du churn ou des leads non convertis.",
+          "Le forecast est régulièrement faux sans que personne ne puisse expliquer l'écart.",
+        ],
+      },
+      {
+        h2: "Le RevOps sans recruter",
+        paragraphs: [
+          "Une PME n'a pas toujours un poste RevOps à ouvrir. Une plateforme RevOps comme Revold porte l'essentiel du travail : connexion des outils, rapprochement des comptes, indicateurs partagés, briefs et alertes par équipe. Le dirigeant ou le responsable commercial pilote, l'outil réconcilie.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Une source de vérité pour le revenu", desc: "CRM, facturation, banque et support réconciliés par SIREN, pas seulement le CRM." },
+      { title: "Indicateurs RevOps prêts à l'emploi", desc: "Précision du forecast, écart signé / facturé, rétention nette, cycle de vente, par équipe." },
+      { title: "Quatre pôles servis", desc: "Ventes, marketing, service client et comptabilité ont chacun leur brief, leurs KPIs et leurs alertes." },
+      { title: "Pour les PME sans poste RevOps", desc: "Déploiement en une matinée, sans équipe data, tarif public." },
+    ],
+    faq: [
+      { q: "Quelle est la différence entre RevOps et Sales Ops ?", a: "Le Sales Ops optimise l'équipe commerciale (processus, CRM, reporting du pipeline). Le RevOps aligne marketing, ventes, service client et finance sur un revenu commun, avec des données et des indicateurs partagés. Le Sales Ops est une composante du RevOps." },
+      { q: "Le RevOps remplace-t-il le Sales Ops ?", a: "Non. Une fonction RevOps mature contient toujours un volet Sales Ops. Elle y ajoute le marketing ops, le service client et la finance." },
+      { q: "Faut-il recruter un RevOps dans une PME ?", a: "Pas nécessairement. Une plateforme RevOps prend en charge la réconciliation des données et le pilotage par équipe ; un responsable existant peut porter la fonction." },
+      { q: "Quels indicateurs distinguent le RevOps ?", a: "La précision du forecast, l'écart entre signé et facturé, la rétention nette et le cycle complet lead → encaissement. Ce sont des indicateurs qu'aucune équipe seule ne peut produire." },
+    ],
+    related: ["plateforme-revops", "kpi-revops", "pilotage-revops", "logiciel-revops"],
+  },
+  {
+    slug: "tableau-de-bord-commercial",
+    keyword: "Tableau de bord commercial",
+    secondaryKeywords: ["dashboard commercial", "tableau de bord des ventes", "KPI commerciaux", "tableau de bord commercial exemple", "modèle tableau de bord commercial"],
+    title: "Tableau de bord commercial : KPI, exemples et modèle prêt à l'emploi",
+    description:
+      "Construire un tableau de bord commercial qui sert vraiment : les 7 KPI à afficher, un exemple par niveau (commercial, manager, direction), les erreurs d'Excel et du CRM seul, et un modèle prêt dans Revold.",
+    h1: "Tableau de bord commercial :",
+    h1Accent: "les 7 KPI qui font vendre, sur une page",
+    answer:
+      "Un tableau de bord commercial rassemble sur une page les indicateurs de l'activité de vente : pipeline en cours, forecast pondéré, taux de conversion par étape, cycle de vente, deals signés par commercial, deals stagnants et activité. Revold fournit des tableaux de bord commerciaux prêts à l'emploi, alimentés par HubSpot et rapprochés de la facturation, avec alertes et objectifs.",
+    intro:
+      "La plupart des tableaux de bord commerciaux échouent pour une raison simple : ils affichent ce que le CRM sait, pas ce que l'entreprise a réellement encaissé. Un bon tableau part du pipeline et va jusqu'à la facture.",
+    sections: [
+      {
+        h2: "Les 7 KPI d'un tableau de bord commercial",
+        paragraphs: ["Ces sept indicateurs suffisent à piloter une équipe de vente B2B."],
+        bullets: [
+          "Pipeline en cours : nombre et montant des deals ouverts, par pipeline.",
+          "Forecast pondéré : montant × probabilité d'étape sur l'échéance (mois, trimestre).",
+          "Taux de conversion par étape : là où les deals se perdent.",
+          "Cycle de vente moyen : délai création → signature.",
+          "Signé par commercial : montant et nombre sur la période.",
+          "Deals stagnants : ouverts sans mouvement au-delà d'un seuil de jours.",
+          "Écart signé / facturé : ce qui a été vendu mais pas encore facturé.",
+        ],
+      },
+      {
+        h2: "Trois exemples selon le lecteur",
+        paragraphs: ["Le même tableau ne sert pas le commercial, le manager et la direction."],
+        bullets: [
+          "Commercial : ses deals ouverts, ses prochaines activités, ses deals prêts à signer ce mois-ci.",
+          "Manager : pipeline par commercial, conversion par étape, stagnants, forecast du trimestre.",
+          "Direction : signé vs objectif, forecast vs réalisé des trimestres précédents, facturé et encaissé.",
+        ],
+      },
+      {
+        h2: "Excel, CRM ou plateforme ?",
+        paragraphs: [
+          "Excel est rapide à démarrer et faux dès la semaine suivante : les données sont figées à l'export. Le tableau de bord du CRM est à jour mais aveugle à la facturation et à l'encaissement. Une plateforme comme Revold lit le CRM en continu, le rapproche des factures et des paiements, et vérifie chaque KPI sur les données réelles avant de l'afficher.",
+        ],
+      },
+      {
+        h2: "Le modèle Revold",
+        paragraphs: [
+          "Revold propose des templates de tableaux de bord par métier et par outil, ou une construction de zéro : tuiles KPI, blocs ajoutables, périodes préréglées (semaine, mois, trimestre, exercice), filtre par pipeline, partage par lien en lecture seule. Chaque KPI personnalisé est décrit en langage naturel, câblé par l'agent, recalculé sur les vraies données et validé avant enregistrement.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Templates commerciaux prêts", desc: "Par métier (ventes, direction) et par outil (HubSpot), activables en un clic." },
+      { title: "Du pipeline à la facture", desc: "Le seul tableau commercial qui montre aussi ce qui a été facturé et encaissé." },
+      { title: "Alertes sur chaque KPI", desc: "Seuil détecté automatiquement, notification sur le canal de votre choix." },
+      { title: "Brief Ventes lu à voix haute", desc: "Deals en cours, signés par propriétaire, stagnants et prêts à signer, chaque matin." },
+    ],
+    faq: [
+      { q: "Quels KPI mettre dans un tableau de bord commercial ?", a: "Pipeline en cours, forecast pondéré, taux de conversion par étape, cycle de vente, signé par commercial, deals stagnants et écart signé / facturé. Sept indicateurs suffisent." },
+      { q: "Comment faire un tableau de bord commercial sur Excel ?", a: "En exportant le CRM, en construisant un tableau croisé par étape et par commercial, puis en le refaisant à chaque export. C'est le principal défaut d'Excel : la donnée est figée. Revold lit le CRM en continu." },
+      { q: "Le tableau de bord HubSpot suffit-il ?", a: "Pour le pipeline, oui. Il ne voit ni la facturation ni l'encaissement, et ses rapports personnalisés sont limités selon l'abonnement. Revold le complète avec les données de facturation rapprochées." },
+      { q: "Revold propose-t-il un modèle de tableau de bord commercial ?", a: "Oui, des templates par métier et par outil, personnalisables, avec des KPIs vérifiés sur vos données et partageables par lien." },
+    ],
+    related: ["tableau-de-bord-revops", "kpi-revops", "forecast-commercial", "pilotage-performance-entreprise"],
+  },
+  {
+    slug: "hubspot-pennylane",
+    keyword: "HubSpot et Pennylane",
+    secondaryKeywords: ["intégration HubSpot Pennylane", "connecter HubSpot à Pennylane", "HubSpot Pennylane réconciliation", "CRM et comptabilité Pennylane"],
+    title: "HubSpot et Pennylane : connecter le CRM à la facturation et réconcilier le revenu",
+    description:
+      "Connecter HubSpot et Pennylane ne suffit pas : il faut réconcilier les deals signés avec les factures émises et les paiements. Ce que fait l'intégration native, ce qu'elle ne fait pas, et comment Revold mesure l'écart signé / facturé / encaissé.",
+    h1: "HubSpot et Pennylane :",
+    h1Accent: "du deal signé à la facture encaissée",
+    answer:
+      "L'intégration native entre HubSpot et Pennylane permet de créer des factures Pennylane depuis HubSpot et d'en suivre le statut. Elle ne réconcilie pas le revenu : elle ne compare pas ce qui a été signé à ce qui a été facturé et encaissé, client par client. Revold se connecte aux deux outils en lecture seule, rapproche les entreprises par SIREN et mesure l'écart signé / facturé / encaissé, avec les deals signés sans facture et les factures en retard.",
+    intro:
+      "HubSpot pour le CRM, Pennylane pour la comptabilité : c'est le duo le plus courant des PME françaises. Les deux outils se parlent, mais la question du dirigeant reste sans réponse : combien de ce que nous avons signé a-t-il été facturé, puis payé ?",
+    sections: [
+      {
+        h2: "Ce que fait l'intégration native HubSpot – Pennylane",
+        paragraphs: [
+          "D'après la documentation de Pennylane, le connecteur permet de créer des factures ou des abonnements Pennylane sans quitter HubSpot, de suivre leurs changements de statut depuis le CRM, et d'associer les factures aux transactions HubSpot. C'est une intégration de flux : elle fait circuler des objets d'un outil à l'autre.",
+        ],
+      },
+      {
+        h2: "Ce qu'elle ne fait pas",
+        paragraphs: ["Trois questions restent sans réponse avec le seul connecteur natif."],
+        bullets: [
+          "Quels deals signés n'ont aucune facture, et pour quel montant ?",
+          "Quelles factures diffèrent du montant du deal (remise, avenant, erreur) ?",
+          "Quels clients sont en retard de paiement, et quelle est la projection d'encaissement du mois ?",
+        ],
+      },
+      {
+        h2: "Comment Revold réconcilie HubSpot et Pennylane",
+        paragraphs: ["Revold ne remplace pas le connecteur natif ; il lit les deux outils et les rapproche."],
+        bullets: [
+          "Connexion à HubSpot en un clic (OAuth) et à Pennylane par clé API, en lecture seule.",
+          "Enrichissement des entreprises par SIREN, SIRET et TVA via l'API Sirene, puis rapprochement automatique.",
+          "Association des factures aux deals par entreprise, montant et période ; suggestions à valider.",
+          "Écart signé / facturé brut par deal, factures en retard, échéances, projection pondérée d'encaissement.",
+          "Brief Comptabilité chaque matin : facturé, encaissé, retards, deals signés à facturer, via Pennylane.",
+        ],
+      },
+      {
+        h2: "Résultat attendu",
+        paragraphs: [
+          "Une seule ligne par client : signé dans HubSpot, facturé dans Pennylane, encaissé en banque, et l'écart entre les trois. Les deals signés sans facture deviennent une liste à traiter, pas une découverte de fin de trimestre.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Lecture seule, sans doublon", desc: "Revold n'écrit ni dans HubSpot ni dans Pennylane sans validation ; le connecteur natif reste en place." },
+      { title: "Rapprochement par SIREN", desc: "Les entreprises HubSpot et les clients Pennylane sont reconnus par identifiant légal." },
+      { title: "Écart chiffré", desc: "Signé / facturé / encaissé par deal et au global, avec score de santé de réconciliation." },
+      { title: "Sources nommées", desc: "Chaque chiffre du brief dit « via Pennylane » ou « dans HubSpot »." },
+    ],
+    faq: [
+      { q: "Comment connecter HubSpot à Pennylane ?", a: "Via le connecteur natif de Pennylane (installation depuis le marketplace HubSpot, puis connexion dans les paramètres Pennylane) pour créer et suivre les factures depuis le CRM. Pour réconcilier le revenu, Revold se connecte aux deux outils en lecture seule." },
+      { q: "L'intégration HubSpot – Pennylane réconcilie-t-elle les deals et les factures ?", a: "Elle associe des factures à des transactions mais ne calcule pas l'écart signé / facturé / encaissé ni ne liste les deals sans facture. C'est le rôle de Revold." },
+      { q: "Revold remplace-t-il le connecteur natif ?", a: "Non. Le connecteur natif fait circuler les factures ; Revold lit les deux outils et mesure les écarts. Les deux coexistent." },
+      { q: "Quels autres outils de facturation Revold connecte-t-il ?", a: "Stripe, Chargebee, GoCardless et Sage, en plus de Pennylane ; Salesforce, Pipedrive et Zendesk sont en développement." },
+    ],
+    related: ["reconciliation-crm-facturation", "fuite-de-revenus", "hubspot-stripe", "plateforme-revenue"],
+  },
+  {
+    slug: "hubspot-stripe",
+    keyword: "HubSpot et Stripe",
+    secondaryKeywords: ["intégration HubSpot Stripe", "connecter HubSpot à Stripe", "MRR HubSpot Stripe", "abonnements Stripe CRM"],
+    title: "HubSpot et Stripe : réconcilier les deals du CRM avec les abonnements et paiements",
+    description:
+      "Connecter HubSpot et Stripe pour lire MRR, churn et encaissements avec les deals du CRM : ce que fait l'intégration native, ses limites, et comment Revold rapproche les deux outils par entreprise.",
+    h1: "HubSpot et Stripe :",
+    h1Accent: "MRR, churn et encaissements lus avec le CRM",
+    answer:
+      "HubSpot et Stripe s'intègrent nativement pour les paiements et la facturation depuis le CRM. Ce que l'intégration ne fournit pas, c'est la lecture croisée : quel MRR Stripe correspond à quels deals HubSpot, quels clients ont churné sans que le CRM le sache, quels deals signés n'ont pas d'abonnement actif. Revold connecte les deux outils en lecture seule, rapproche les entreprises et restitue MRR, churn, encaissements et écarts par client.",
+    intro:
+      "Pour un SaaS ou une entreprise à abonnement, Stripe détient la vérité du revenu récurrent et HubSpot celle de la relation commerciale. Tant que les deux ne sont pas rapprochés, le churn est découvert en comptabilité et le forecast ignore les renouvellements.",
+    sections: [
+      {
+        h2: "Ce que fait l'intégration native HubSpot – Stripe",
+        paragraphs: [
+          "HubSpot propose des paiements et des factures propulsés par Stripe, et une synchronisation des données de paiement vers le CRM. C'est efficace pour encaisser depuis un devis HubSpot. Cela ne répond pas aux entreprises dont les abonnements vivent dans Stripe indépendamment des deals.",
+        ],
+      },
+      {
+        h2: "Les questions qui restent ouvertes",
+        paragraphs: ["Quatre lectures croisées manquent."],
+        bullets: [
+          "MRR par client rapproché du deal signé : le montant vendu correspond-il au montant récurrent ?",
+          "Churn Stripe remonté au CRM : quels comptes ont résilié, et le commercial le sait-il ?",
+          "Deals gagnés sans abonnement Stripe actif : revenu signé jamais mis en production.",
+          "Paiements échoués et retards, par client, avec le montant à recouvrer.",
+        ],
+      },
+      {
+        h2: "Comment Revold réconcilie HubSpot et Stripe",
+        paragraphs: ["Revold lit les deux outils et les rapproche par entreprise."],
+        bullets: [
+          "Connexion à HubSpot par OAuth et à Stripe par clé API, en lecture seule.",
+          "Rapprochement des entreprises par SIREN / TVA (enrichis via Sirene) et par e-mail de facturation.",
+          "MRR, churn, factures et paiements Stripe lus avec les deals HubSpot, sur une même ligne par client.",
+          "Alertes de churn et de paiement échoué, brief Comptabilité (encaissé, retards, MRR via Stripe).",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "MRR et churn croisés avec le CRM", desc: "Le revenu récurrent Stripe est rapproché des deals et des comptes HubSpot." },
+      { title: "Alertes de rétention", desc: "Churn, contraction, paiement échoué : seuil détecté, notification envoyée." },
+      { title: "Réconciliation signé / facturé / encaissé", desc: "Écart brut par deal, score de santé, deals signés sans abonnement." },
+      { title: "Multi-outils", desc: "Stripe et Pennylane, Chargebee ou GoCardless peuvent coexister dans la même réconciliation." },
+    ],
+    faq: [
+      { q: "Comment connecter HubSpot à Stripe ?", a: "Nativement via les paiements HubSpot propulsés par Stripe, ou par des connecteurs tiers. Pour la lecture croisée du revenu (MRR, churn, écarts), Revold se connecte aux deux outils en lecture seule." },
+      { q: "Peut-on voir le MRR Stripe dans HubSpot ?", a: "Pas nativement par client rapproché du deal. Revold restitue MRR, churn et encaissements Stripe avec les deals HubSpot, par entreprise." },
+      { q: "Revold gère-t-il les abonnements Stripe ?", a: "Il les lit (statut, MRR, dates) pour les rapprocher du CRM et calculer MRR, churn et rétention nette. Il n'écrit pas dans Stripe." },
+    ],
+    related: ["hubspot-pennylane", "reconciliation-crm-facturation", "plateforme-revenue", "fuite-de-revenus"],
+  },
+  {
+    slug: "hubspot-sage",
+    keyword: "HubSpot et Sage",
+    secondaryKeywords: ["intégration HubSpot Sage", "connecter HubSpot à Sage", "HubSpot Sage 100 facturation", "CRM ERP réconciliation"],
+    title: "HubSpot et Sage : rapprocher le CRM et la comptabilité sans intégrateur",
+    description:
+      "Connecter HubSpot et Sage demande souvent un connecteur ou un intégrateur. Revold lit les deux outils en lecture seule, rapproche les clients par SIREN et mesure l'écart entre deals signés, factures Sage et encaissements.",
+    h1: "HubSpot et Sage :",
+    h1Accent: "le CRM et la compta rapprochés par SIREN",
+    answer:
+      "HubSpot et Sage ne s'intègrent pas nativement : la synchronisation passe par des connecteurs tiers ou un intégrateur. Pour piloter le revenu, l'enjeu n'est pas de copier des objets d'un outil à l'autre mais de rapprocher les deals signés dans HubSpot des factures émises dans Sage et des paiements. Revold le fait en lecture seule, par identifiant légal (SIREN, SIRET, TVA), et restitue l'écart signé / facturé / encaissé par client.",
+    intro:
+      "Sage équipe une grande partie des PME et ETI françaises pour la comptabilité et la facturation ; HubSpot progresse comme CRM dans les mêmes entreprises. Entre les deux, un projet d'intégration qui prend des mois, ou une réconciliation en lecture seule qui prend une matinée.",
+    sections: [
+      {
+        h2: "Intégrer ou réconcilier ?",
+        paragraphs: [
+          "Intégrer, c'est synchroniser des contacts, des devis et des factures entre HubSpot et Sage : utile, mais coûteux à mettre en place et à maintenir, et cela ne dit pas si le revenu signé a bien été facturé. Réconcilier, c'est lire les deux outils et mesurer les écarts, sans rien écrire. C'est le périmètre de Revold.",
+        ],
+      },
+      {
+        h2: "Ce que Revold fait avec Sage",
+        paragraphs: ["Le connecteur Sage de Revold lit les factures et leur statut, puis les rapproche du CRM."],
+        bullets: [
+          "Lecture des factures Sage (montant, statut, échéance, client) en lecture seule.",
+          "Rapprochement des clients Sage et des entreprises HubSpot par SIREN, SIRET et TVA.",
+          "Association des factures aux deals signés, écart brut par deal, deals signés sans facture.",
+          "Factures en retard et échéances à venir, projection d'encaissement, brief Comptabilité via Sage.",
+        ],
+      },
+      {
+        h2: "Pour qui",
+        paragraphs: [
+          "Les entreprises qui ont HubSpot côté ventes et Sage côté comptabilité, sans intégration ou avec une intégration partielle, et qui veulent une réponse hebdomadaire à « qu'a-t-on signé, facturé, encaissé ? » sans lancer un projet d'intégration.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Sans intégrateur", desc: "Connexion en lecture seule, rapprochement automatique, opérationnel en une matinée." },
+      { title: "Identifiants légaux", desc: "SIREN, SIRET, TVA : le rapprochement s'appuie sur ce que Sage et HubSpot ont en commun." },
+      { title: "Écart signé / facturé", desc: "Deal par deal, brut, avec les deals signés sans facture à traiter." },
+      { title: "Coexistence", desc: "Un connecteur de synchronisation existant peut rester en place ; Revold ne l'entrave pas." },
+    ],
+    faq: [
+      { q: "HubSpot et Sage s'intègrent-ils nativement ?", a: "Non. La synchronisation passe par des connecteurs tiers ou un intégrateur. Revold n'est pas un connecteur de synchronisation : il lit les deux outils pour réconcilier le revenu." },
+      { q: "Quelles versions de Sage Revold lit-il ?", a: "Le connecteur Sage de Revold lit les factures et leur statut via l'API Sage ; contactez-nous pour vérifier la compatibilité de votre édition." },
+      { q: "Revold écrit-il dans Sage ?", a: "Non. La synchronisation est en lecture seule ; les actions proposées concernent le CRM et sont validées par un utilisateur avant exécution." },
+    ],
+    related: ["hubspot-pennylane", "reconciliation-crm-facturation", "fuite-de-revenus", "plateforme-revenue"],
+  },
+  {
+    slug: "audit-crm-hubspot",
+    keyword: "Audit CRM HubSpot",
+    secondaryKeywords: ["nettoyer CRM HubSpot", "doublons HubSpot", "qualité des données HubSpot", "audit de données CRM", "contacts sans entreprise HubSpot"],
+    title: "Audit CRM HubSpot : la checklist en 12 points et l'audit automatique",
+    description:
+      "Auditer son CRM HubSpot : complétude des propriétés, doublons, contacts sans entreprise, deals sans montant ou sans date, pipelines stagnants. Checklist en 12 points et audit automatique continu avec Revold.",
+    h1: "Audit CRM HubSpot :",
+    h1Accent: "12 points à vérifier, puis un audit qui tourne seul",
+    answer:
+      "Un audit CRM HubSpot vérifie la qualité des données qui alimentent le pipeline et le forecast : complétude des propriétés clés, doublons de contacts et d'entreprises, contacts sans entreprise, deals sans montant, sans date de fermeture ou sans prochaine activité, deals stagnants. Revold réalise cet audit automatiquement et en continu, propose les corrections (fusion, association, enrichissement par SIREN) et les exécute dans HubSpot après validation.",
+    intro:
+      "Un forecast n'est jamais meilleur que le CRM qui l'alimente. Avant de piloter, il faut mesurer l'état de la donnée. Cette checklist couvre les douze points qui dégradent le plus souvent les chiffres d'un portail HubSpot.",
+    sections: [
+      {
+        h2: "La checklist en 12 points",
+        paragraphs: ["À vérifier sur les contacts, les entreprises et les deals."],
+        bullets: [
+          "1. Taux de complétude des propriétés clés (e-mail, entreprise, cycle de vie, propriétaire).",
+          "2. Doublons de contacts (e-mail, nom + entreprise).",
+          "3. Doublons d'entreprises (domaine, nom normalisé, SIREN).",
+          "4. Contacts sans entreprise associée.",
+          "5. Entreprises sans SIREN / SIRET (impossible à rapprocher avec la facturation).",
+          "6. Deals sans montant.",
+          "7. Deals sans date de fermeture, ou à date de fermeture dépassée.",
+          "8. Deals ouverts sans prochaine activité planifiée.",
+          "9. Deals stagnants dans la même étape au-delà du seuil.",
+          "10. Étapes de pipeline sans probabilité cohérente avec les conversions observées.",
+          "11. Propriétaires inactifs ou deals sans propriétaire.",
+          "12. Propriétés personnalisées non renseignées mais utilisées dans les rapports.",
+        ],
+      },
+      {
+        h2: "Pourquoi un audit ponctuel ne suffit pas",
+        paragraphs: [
+          "Un nettoyage manuel est vrai le jour où il est fait. Les commerciaux créent des contacts chaque jour, les imports ajoutent des doublons, les deals vieillissent. L'audit doit être continu, avec des indicateurs de qualité suivis comme des KPIs et des corrections proposées au fil de l'eau.",
+        ],
+      },
+      {
+        h2: "L'audit automatique Revold",
+        paragraphs: ["Revold audite le portail HubSpot en continu et propose des actions."],
+        bullets: [
+          "Score de complétude et de qualité par objet, évolution dans le temps.",
+          "Doublons et hiérarchies d'entreprises (maison mère, filiales) détectés et proposés à la fusion.",
+          "Contacts sans entreprise : association en masse à l'entreprise HubSpot, validée avant exécution.",
+          "Enrichissement SIREN / SIRET / effectifs / CA via l'API Sirene, poussé dans HubSpot après validation.",
+          "Deals sans montant, sans date, stagnants : listés dans l'audit et lus dans le brief Ventes.",
+        ],
+      },
+    ],
+    whyRevold: [
+      { title: "Audit continu, pas ponctuel", desc: "Indicateurs de qualité suivis comme des KPIs, avec tendance." },
+      { title: "Corrections exécutées dans HubSpot", desc: "Fusions, associations, enrichissements : proposés par Revold, validés par vous, appliqués dans le CRM." },
+      { title: "Rapprochement par SIREN", desc: "Les entreprises sans identifiant légal sont enrichies automatiquement." },
+      { title: "Rien ne se lance sans vous", desc: "Chaque moteur (enrichissement, hiérarchie) est activé explicitement par un clic." },
+    ],
+    faq: [
+      { q: "Comment auditer un CRM HubSpot ?", a: "En mesurant la complétude des propriétés clés, les doublons de contacts et d'entreprises, les contacts sans entreprise, les deals sans montant, sans date ou stagnants, et la cohérence des étapes de pipeline. Revold produit cet audit automatiquement." },
+      { q: "HubSpot détecte-t-il les doublons ?", a: "HubSpot propose un outil de gestion des doublons sur les contacts et les entreprises. Revold ajoute le rapprochement par SIREN, les hiérarchies de comptes et l'association en masse des contacts sans entreprise." },
+      { q: "L'audit Revold modifie-t-il mon CRM ?", a: "Uniquement après validation explicite de chaque action. La lecture est continue, l'écriture est toujours validée." },
+      { q: "À quelle fréquence auditer son CRM ?", a: "En continu : les données changent chaque jour. Revold suit les indicateurs de qualité en permanence et propose les corrections au fil de l'eau." },
+    ],
+    related: ["reconciliation-crm-facturation", "forecast-commercial", "tableau-de-bord-commercial", "hubspot-pennylane"],
   },
 ];
 

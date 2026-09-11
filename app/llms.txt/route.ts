@@ -1,6 +1,8 @@
 import { BRAND, BRAND_DEFINITION, PRICING, fmtPrice, SITE_URL } from "@/lib/seo/site";
 import { KEYWORD_PAGES } from "@/lib/seo/keyword-pages";
 import { COMPETITORS } from "@/lib/seo/competitors";
+import { GLOSSARY } from "@/lib/seo/glossary";
+import { TOOLS } from "@/lib/seo/tools";
 import { articles } from "../blog/data";
 
 /**
@@ -32,6 +34,11 @@ export async function GET() {
     "## Comparatifs et alternatives",
     "",
     ...COMPETITORS.map((c) => `- [Revold vs ${c.name}${c.aka ? ` (${c.aka})` : ""}](${SITE_URL}/alternative/${c.slug}): ${c.answer}`),
+    "",
+    "## Glossaire et outils gratuits",
+    "",
+    `- [Glossaire RevOps](${SITE_URL}/glossaire-revops): ${GLOSSARY.length} définitions courtes avec formules (MRR, churn, NRR, forecast pondéré, écart signé / facturé, fuite de revenus, SIREN, DSO…).`,
+    ...TOOLS.map((t) => `- [${t.name}](${SITE_URL}/outils/${t.slug}): ${t.answer}`),
     "",
     "## Produit",
     "",

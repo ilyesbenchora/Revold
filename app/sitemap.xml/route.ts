@@ -1,6 +1,7 @@
 import { articles } from "../blog/data";
 import { KEYWORD_PAGES } from "@/lib/seo/keyword-pages";
 import { COMPETITORS } from "@/lib/seo/competitors";
+import { TOOLS } from "@/lib/seo/tools";
 
 const BASE = "https://revold.ai";
 
@@ -15,6 +16,9 @@ const STATIC_PAGES = [
   "/comparatif",
   ...KEYWORD_PAGES.map((p) => `/${p.slug}`),
   ...COMPETITORS.map((c) => `/alternative/${c.slug}`),
+  "/glossaire-revops",
+  "/outils",
+  ...TOOLS.map((t) => `/outils/${t.slug}`),
   "/docs/hubspot",
   "/blog",
   "/produits/synchronisation",

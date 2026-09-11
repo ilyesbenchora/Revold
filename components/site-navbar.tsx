@@ -36,6 +36,23 @@ const TEAM_LINKS = [
   { label: "Finance", href: "/equipes/finance" },
 ];
 
+/** Ressources SEO / GEO : guides, comparatifs, glossaire, calculateurs (lib/seo). */
+const RESOURCE_LINKS = [
+  { label: "Plateforme RevOps", href: "/plateforme-revops", desc: "Définition, fonctions, critères de choix" },
+  { label: "Pilotage RevOps", href: "/pilotage-revops", desc: "Méthode en 5 étapes, KPIs, rituels" },
+  { label: "Revenue Intelligence", href: "/plateforme-revenue-intelligence", desc: "Définition, acteurs, IA déterministe" },
+  { label: "Forecast commercial", href: "/forecast-commercial", desc: "Prévision des ventes pondérée et fiable" },
+  { label: "Fuite de revenus", href: "/fuite-de-revenus", desc: "Détecter le revenu signé jamais encaissé" },
+  { label: "KPI RevOps", href: "/kpi-revops", desc: "20 indicateurs, formules et sources" },
+];
+const RESOURCE_TOOLS = [
+  { label: "Comparatifs & alternatives", href: "/comparatif" },
+  { label: "Glossaire RevOps", href: "/glossaire-revops" },
+  { label: "Calculateurs gratuits", href: "/outils" },
+  { label: "Blog", href: "/blog" },
+  { label: "À propos", href: "/a-propos" },
+];
+
 function ChevronDown({ open }: { open: boolean }) {
   return (
     <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -50,13 +67,17 @@ export function SiteNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileProduct, setMobileProduct] = useState(false);
   const [mobileSolution, setMobileSolution] = useState(false);
+  const [resourceMenuOpen, setResourceMenuOpen] = useState(false);
+  const [mobileResource, setMobileResource] = useState(false);
 
   function closeAll() {
     setMobileOpen(false);
     setMobileProduct(false);
     setMobileSolution(false);
+    setMobileResource(false);
     setProductMenuOpen(false);
     setSolutionMenuOpen(false);
+    setResourceMenuOpen(false);
   }
 
   return (
@@ -111,6 +132,36 @@ export function SiteNavbar() {
                       {TEAM_LINKS.map((t) => (
                         <Link key={t.href} href={t.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={() => setSolutionMenuOpen(false)}>
                           {t.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Ressources dropdown : guides mots-clés, comparatifs, glossaire, outils */}
+            <div className="relative" onMouseEnter={() => setResourceMenuOpen(true)} onMouseLeave={() => setResourceMenuOpen(false)}>
+              <button className="flex items-center gap-1 text-sm font-medium text-slate-300 transition hover:text-white" onClick={() => setResourceMenuOpen(!resourceMenuOpen)}>
+                Ressources <ChevronDown open={resourceMenuOpen} />
+              </button>
+              {resourceMenuOpen && (
+                <div className="absolute left-0 top-full pt-2">
+                  <div className="flex w-[600px] rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/50">
+                    <div className="flex-[1.3] border-r border-white/10 p-3">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Guides</p>
+                      {RESOURCE_LINKS.map((r) => (
+                        <Link key={r.href} href={r.href} className="flex flex-col rounded-lg px-4 py-2.5 transition hover:bg-white/5" onClick={() => setResourceMenuOpen(false)}>
+                          <span className="text-sm font-semibold text-slate-100">{r.label}</span>
+                          <span className="mt-0.5 text-xs text-slate-400">{r.desc}</span>
+                        </Link>
+                      ))}
+                    </div>
+                    <div className="flex-1 p-3">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Explorer</p>
+                      {RESOURCE_TOOLS.map((r) => (
+                        <Link key={r.href} href={r.href} className="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={() => setResourceMenuOpen(false)}>
+                          {r.label}
                         </Link>
                       ))}
                     </div>
@@ -194,11 +245,31 @@ export function SiteNavbar() {
                 )}
               </div>
 
+              {/* Ressources accordion */}
+              <div>
+                <button onClick={() => setMobileResource(!mobileResource)} className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5">
+                  Ressources <ChevronDown open={mobileResource} />
+                </button>
+                {mobileResource && (
+                  <div className="ml-4 border-l-2 border-fuchsia-500/30 pl-3">
+                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Guides</p>
+                    {RESOURCE_LINKS.map((r) => (
+                      <Link key={r.href} href={r.href} className="block rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={closeAll}>
+                        {r.label}
+                      </Link>
+                    ))}
+                    <p className="mt-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Explorer</p>
+                    {RESOURCE_TOOLS.map((r) => (
+                      <Link key={r.href} href={r.href} className="block rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-fuchsia-300" onClick={closeAll}>
+                        {r.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Link href="/tarifs" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
                 Tarifs
-              </Link>
-              <Link href="/blog" className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5" onClick={closeAll}>
-                Blog
               </Link>
             </div>
 

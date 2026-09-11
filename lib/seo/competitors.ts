@@ -370,6 +370,120 @@ export const COMPETITORS: Competitor[] = [
     ],
     related: ["tableau-de-bord-revops", "reconciliation-crm-facturation", "plateforme-revenue"],
   },
+
+  // ── Vague 2 : concurrents directs sur HubSpot et « faux concurrents » que
+  //    les prospects utilisent aujourd'hui (l'outil Prévisions de HubSpot, Excel). ──
+  {
+    slug: "forecastio",
+    name: "Forecastio",
+    category: "Forecast IA natif HubSpot (États-Unis)",
+    summary:
+      "Forecastio est une application de prévision des ventes et d'intelligence du pipeline conçue pour HubSpot : forecast par IA entraîné sur l'historique du portail, suivi de la précision, analyse des changements de pipeline. Le tarif public démarre autour de 199 $ par mois en facturation annuelle pour deux utilisateurs, avec des sièges supplémentaires payants (d'après sa page tarifs et les annuaires logiciels).",
+    title: "Alternative à Forecastio : Revold vs Forecastio pour HubSpot",
+    description:
+      "Forecastio ou Revold pour HubSpot ? Forecastio se concentre sur le forecast commercial par IA ; Revold réconcilie HubSpot avec la facturation et la banque, et pilote quatre équipes. Comparatif factuel, tarifs, cas d'usage.",
+    answer:
+      "Forecastio est un outil de forecast par IA natif HubSpot, centré sur le pipeline commercial et facturé par utilisateur. Revold est une alternative française à Forecastio pour HubSpot : forecast pondéré déterministe, mais aussi réconciliation avec Pennylane, Stripe, Chargebee, GoCardless ou Sage, audit CRM, briefs par équipe et alertes, avec un tarif public par organisation à partir de 79,90 € HT par mois.",
+    table: [
+      { criterion: "Fonction centrale", them: "Forecast commercial par IA, précision du forecast, analyse du pipeline HubSpot", revold: "Forecast pondéré déterministe + réconciliation signé / facturé / encaissé + audit CRM + briefs par équipe" },
+      { criterion: "Périmètre des données", them: "HubSpot (deals, pipeline, historique)", revold: "HubSpot × facturation × banque × support" },
+      { criterion: "Rapprochement des comptes", them: "Objets HubSpot", revold: REVOLD_RECON },
+      { criterion: "Équipes couvertes", them: "Ventes, RevOps", revold: "Ventes, marketing, service client, comptabilité" },
+      { criterion: "Approche IA", them: "Modèles prédictifs entraînés sur l'historique", revold: "Calculs déterministes recalculables ; IA pour rédiger, expliquer, proposer" },
+      { criterion: "Langue", them: "Anglais", revold: "Français" },
+      { criterion: "Tarification", them: "Par utilisateur, à partir d'environ 199 $/mois (annuel) pour 2 sièges, d'après leur page tarifs", revold: `${REVOLD_PRICING} — par organisation, utilisateurs illimités` },
+      { criterion: "Hébergement", them: "Voir leur documentation", revold: REVOLD_HOSTING },
+    ],
+    chooseThem: [
+      "Votre seul besoin est un forecast commercial prédictif sur HubSpot, avec un historique de deals conséquent.",
+      "Votre équipe de vente est anglophone et n'a pas besoin de la facturation dans le même outil.",
+    ],
+    chooseRevold: [
+      "Vous voulez que le forecast soit confronté au facturé et à l'encaissé, pas seulement au CRM.",
+      "Vous voulez un forecast explicable (montant × probabilité, propriété de date au choix) plutôt qu'un modèle opaque.",
+      "Vous pilotez quatre équipes, en français, avec des données en Europe et un tarif par organisation.",
+    ],
+    faq: [
+      { q: "Forecastio et Revold fonctionnent-ils tous les deux avec HubSpot ?", a: "Oui. Forecastio est natif HubSpot et se concentre sur le forecast ; Revold se connecte à HubSpot par OAuth et y ajoute la facturation, la banque et le support pour réconcilier le revenu." },
+      { q: "Quel est le moins cher ?", a: "Forecastio est facturé par utilisateur (autour de 199 $/mois pour deux sièges en annuel, sièges supplémentaires payants). Revold est facturé par organisation, utilisateurs illimités, à partir de 79,90 € HT par mois." },
+      { q: "Le forecast Revold est-il prédictif ?", a: "Il est déterministe : montant × probabilité d'étape sur l'échéance choisie, par pipeline, avec la propriété de date de votre choix. Il est ensuite comparé au facturé et à l'encaissé réels." },
+    ],
+    related: ["forecast-commercial", "hubspot-pennylane", "audit-crm-hubspot"],
+  },
+  {
+    slug: "hubspot-previsions",
+    name: "l'outil Prévisions de HubSpot",
+    aka: "HubSpot Forecast",
+    category: "Fonction native de HubSpot Sales Hub",
+    summary:
+      "L'outil Prévisions de HubSpot (Sales Hub) permet aux équipes commerciales de classer les deals par catégorie (Pipeline, Best case, Commit, Closed), de pondérer automatiquement par probabilité d'étape, de suivre la précision des prévisions et, en bêta, d'obtenir des prévisions IA. Il est inclus dans les abonnements Sales Hub selon le niveau.",
+    title: "Prévisions HubSpot : ce que l'outil natif ne voit pas, et l'alternative Revold",
+    description:
+      "L'outil Prévisions de HubSpot suffit-il ? Il pondère le pipeline mais ignore la facturation, l'encaissement et les propriétés de date personnalisées. Comparatif avec Revold, qui rapproche le forecast HubSpot du revenu réellement facturé.",
+    answer:
+      "L'outil Prévisions de HubSpot pondère le pipeline par catégorie et par probabilité d'étape, à partir des seules données du CRM. Revold complète HubSpot : il calcule le forecast pondéré par échéance avec la propriété de date de votre choix, signale les deals prêts à signer et stagnants, puis rapproche ce forecast des factures et des paiements dans Pennylane, Stripe, Chargebee, GoCardless ou Sage.",
+    table: [
+      { criterion: "Source", them: "CRM HubSpot uniquement", revold: "HubSpot × facturation × banque × support" },
+      { criterion: "Pondération", them: "Catégories de forecast + probabilité d'étape", revold: "Montant × probabilité d'étape, par pipeline, par échéance (semaine, mois, mois prochain, trimestre, trimestre suivant, année)" },
+      { criterion: "Date de fermeture", them: "Propriété closedate", revold: "closedate ou toute propriété de date personnalisée, vérifiée dans le CRM" },
+      { criterion: "Après la signature", them: "Rien (le CRM s'arrête au deal gagné)", revold: "Facturé, encaissé, écart signé / facturé, deals signés sans facture" },
+      { criterion: "Signaux de risque", them: "Selon les rapports configurés", revold: "Deals stagnants (seuil de jours), dates dépassées, deals sans montant, lus chaque matin dans le brief Ventes" },
+      { criterion: "Restitution", them: "Vues de prévision dans HubSpot", revold: "Tableaux, brief vocal, récaps d'équipe, alertes Slack / Teams / e-mail / SMS / WhatsApp" },
+      { criterion: "Tarification", them: "Inclus dans Sales Hub selon le niveau d'abonnement", revold: REVOLD_PRICING },
+    ],
+    chooseThem: [
+      "Votre besoin se limite au pipeline commercial et vous avez déjà le niveau Sales Hub qui inclut l'outil.",
+      "Vos commerciaux maintiennent les catégories de forecast avec discipline.",
+    ],
+    chooseRevold: [
+      "Vous voulez confronter le forecast au facturé et à l'encaissé réels.",
+      "Vous pilotez sur une autre date que closedate (date de signature prévue, de démarrage…).",
+      "Vous voulez des alertes, un brief quotidien par équipe et des récaps comparés à la période précédente.",
+    ],
+    faq: [
+      { q: "Revold remplace-t-il l'outil Prévisions de HubSpot ?", a: "Il le complète. Vous pouvez garder les catégories de forecast HubSpot ; Revold ajoute la pondération par échéance avec la propriété de date de votre choix et le rapprochement avec la facturation." },
+      { q: "Pourquoi le forecast HubSpot est-il souvent faux ?", a: "Parce que les dates de fermeture ne sont pas maintenues, que les probabilités d'étape ne reflètent pas les conversions réelles et que les deals stagnants restent comptés. Revold surveille ces trois signaux." },
+      { q: "Revold lit-il les catégories de forecast HubSpot ?", a: "Revold lit les deals, leurs étapes, leurs dates et leurs propriétés personnalisées. Le forecast Revold repose sur la probabilité d'étape et la date choisie, ce qui le rend recalculable et comparable au réalisé." },
+    ],
+    related: ["forecast-commercial", "kpi-revops", "audit-crm-hubspot"],
+  },
+  {
+    slug: "excel",
+    name: "Excel",
+    aka: "Google Sheets",
+    category: "Tableur",
+    summary:
+      "Excel et Google Sheets restent l'outil de pilotage commercial le plus répandu : export du CRM, tableau croisé par étape et par commercial, graphiques. Gratuit ou déjà payé, immédiat, mais figé au moment de l'export et sans lien vivant avec la facturation.",
+    title: "Tableau de bord commercial sur Excel : limites et alternative Revold",
+    description:
+      "Pourquoi le tableau de bord commercial sur Excel ou Google Sheets finit toujours par être faux, et comment Revold lit le CRM en continu, le rapproche de la facturation et vérifie chaque KPI. Comparatif honnête.",
+    answer:
+      "Excel et Google Sheets permettent de construire un tableau de bord commercial en quelques heures à partir d'un export du CRM, mais la donnée est figée à l'export, les jointures avec la facturation sont manuelles et chaque mise à jour est un nouveau chantier. Revold est l'alternative à Excel pour le pilotage du revenu : lecture continue du CRM et de la facturation, rapprochement des comptes par SIREN, KPIs vérifiés, alertes et briefs par équipe.",
+    table: [
+      { criterion: "Fraîcheur des données", them: "Figée à l'export ; à refaire à chaque mise à jour", revold: "Synchronisation continue en lecture seule" },
+      { criterion: "Jointure CRM × facturation", them: "RECHERCHEV manuel sur des noms d'entreprises", revold: REVOLD_RECON },
+      { criterion: "Fiabilité des KPIs", them: "Dépend des formules et de l'export", revold: "Chaque KPI recalculé et vérifié sur les données réelles avant affichage" },
+      { criterion: "Alertes et objectifs", them: "Mise en forme conditionnelle, pas de notification", revold: "Seuils détectés, notifications Slack / Teams / e-mail / SMS / WhatsApp, objectifs suivis" },
+      { criterion: "Partage", them: "Fichier envoyé, versions multiples", revold: "Tableaux par équipe, lien de partage en lecture seule, brief vocal" },
+      { criterion: "Compétences", them: "Formules, tableaux croisés, discipline de mise à jour", revold: "Aucune compétence data" },
+      { criterion: "Coût", them: "Licence bureautique + temps de maintenance", revold: REVOLD_PRICING },
+    ],
+    chooseThem: [
+      "Vous avez moins de 30 deals ouverts et un seul commercial.",
+      "Vous avez besoin d'un calcul ponctuel, pas d'un pilotage récurrent.",
+    ],
+    chooseRevold: [
+      "Vous refaites le même tableau chaque semaine à partir d'un export.",
+      "Vos chiffres ventes et finance ne se réconcilient plus.",
+      "Vous voulez des alertes et un brief plutôt qu'un fichier à ouvrir.",
+    ],
+    faq: [
+      { q: "Peut-on importer un fichier Excel dans Revold ?", a: "Oui. Revold accepte l'import Excel et Google Sheets pour les données qui ne viennent pas d'un connecteur natif, avec mapping des colonnes." },
+      { q: "Revold exporte-t-il vers Excel ?", a: "Les tables de données et rapports sont exportables ; les rapports se partagent aussi par lien en lecture seule." },
+      { q: "Un tableau Excel bien construit ne suffit-il pas ?", a: "Pour un instantané, si. Pour un pilotage récurrent, la donnée figée et les jointures manuelles finissent par produire des chiffres que plus personne ne croit. Revold maintient la donnée à jour et vérifie chaque KPI." },
+    ],
+    related: ["tableau-de-bord-commercial", "tableau-de-bord-revops", "kpi-revops"],
+  },
 ];
 
 export function getCompetitor(slug: string): Competitor | undefined {

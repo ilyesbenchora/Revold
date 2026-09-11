@@ -83,7 +83,7 @@ export default async function ArticlePage({ params }: Props) {
         <div className="relative mt-4 flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-sm font-bold text-white">IB</div>
           <div>
-            <p className="text-sm font-medium text-white">{article.author}</p>
+            <p className="text-sm font-medium text-white"><Link href="/a-propos" rel="author" className="hover:text-fuchsia-300">{article.author}</Link></p>
             <p className="text-xs text-slate-500">{article.authorRole} — {new Date(article.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</p>
           </div>
         </div>
@@ -93,6 +93,25 @@ export default async function ArticlePage({ params }: Props) {
           className="prose-revold prose-dark relative mt-12"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
+
+        {/* Auteur (E-E-A-T) : qui écrit, d'où vient l'expertise, où vérifier. */}
+        <aside className="relative mt-12 flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-sm font-bold text-white">IB</div>
+          <div>
+            <p className="text-sm font-semibold text-white">{article.author} — {article.authorRole}</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">
+              Fondateur de Revold, plateforme française de Revenue Intelligence et de pilotage RevOps. Les articles s&apos;appuient sur les données réconciliées
+              (CRM × facturation × banque) des entreprises B2B françaises qui utilisent la plateforme.
+            </p>
+            <p className="mt-2 text-xs">
+              <Link href="/a-propos" className="text-fuchsia-300 hover:text-fuchsia-200">À propos de Revold</Link>
+              <span className="mx-2 text-slate-600">·</span>
+              <Link href="/glossaire-revops" className="text-fuchsia-300 hover:text-fuchsia-200">Glossaire RevOps</Link>
+              <span className="mx-2 text-slate-600">·</span>
+              <Link href="/outils" className="text-fuchsia-300 hover:text-fuchsia-200">Calculateurs gratuits</Link>
+            </p>
+          </div>
+        </aside>
       </article>
 
       {/* Related */}
