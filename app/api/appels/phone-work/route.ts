@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
+import { resolveCohortAccessor } from "@/lib/ai/agents/tool-library";
 
 export const dynamic = "force-dynamic";
 
@@ -26,15 +27,17 @@ export async function GET(request: Request) {
   const toP = url.searchParams.get("to");
   const from = !all && fromP && dateRe.test(fromP) ? `${fromP}T00:00:00Z` : null;
   const to = !all && toP && dateRe.test(toP) ? `${toP}T23:59:59Z` : null;
+  const cohortKey = (url.searchParams.get("cohortKey") ?? "").trim() || null;
+  const cohortValue = (url.searchParams.get("cohortValue") ?? "").trim() || null;
 
   // Deals OUVERTS avec contact primaire (le pont vers la téléphonie).
-  type DealRow = { id: string; name: string | null; amount: number | null; contact_id: string | null; last_contacted_at: string | null; created_date: string | null };
+  type DealRow = { id: string; name: string | null; amount: number | null; contact_id: string | null; company_id: string | null; last_contacted_at: string | null; created_date: string | null };
   let deals: DealRow[] = [];
   let dealsSansContact = 0;
   try {
     const { data } = await supabase
       .from("deals")
-      .select("id, name, amount, contact_id, last_contacted_at, created_date")
+      .select("id, name, amount, contact_id, company_id, last_contacted_at, created_date")
       .eq("organization_id", orgId)
       .eq("is_closed_won", false)
       .eq("is_closed_lost", false)
@@ -45,6 +48,29 @@ export async function GET(request: Request) {
     deals = rows.filter((d) => d.contact_id);
   } catch {
     return NextResponse.json({ worked: [], neverCalled: [], dealsSansContact: 0, totalLinked: 0 });
+  }
+
+  // ── Filtre COHORTE (mêmes cohortes enregistrées que partout) : la cohorte
+  // vit sur l'entreprise ou le contact — les deals sont filtrés par jointure.
+  if (cohortKey && cohortValue) {
+    try {
+      const acc = await resolveCohortAccessor(supabase, orgId, cohortKey);
+      if (acc.prop || acc.col) {
+        const table = acc.object === "contacts" ? "contacts" : "companies";
+        const sel = acc.prop ? "id, raw_data" : `id, ${acc.col}`;
+        const { data: rows } = await supabase.from(table).select(sel).eq("organization_id", orgId).limit(10000);
+        const wanted = new Set<string>();
+        for (const r of (rows ?? []) as unknown as Array<Record<string, unknown>>) {
+          const raw = acc.prop
+            ? ((r.raw_data as { properties?: Record<string, unknown> } | null)?.properties?.[acc.prop] ?? null)
+            : r[acc.col as string];
+          if (raw != null && String(raw).trim() === cohortValue) wanted.add(String(r.id));
+        }
+        deals = deals.filter((d) =>
+          acc.object === "contacts" ? (d.contact_id ? wanted.has(d.contact_id) : false) : d.company_id ? wanted.has(d.company_id) : false,
+        );
+      }
+    } catch { /* cohorte inconnue → aucun filtre plutôt qu'un résultat faux ? Non : filtre vide */ }
   }
 
   // Appels de la PÉRIODE par contact : volume, dernier appel, temps en ligne.

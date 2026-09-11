@@ -110,6 +110,7 @@ export function BlockDataTable({
   showTotal = false,
   emptyLabel = "Aucune donnée à afficher pour ce bloc.",
   sources = [],
+  externalConsult,
 }: {
   title: string;
   subtitle?: string;
@@ -129,16 +130,28 @@ export function BlockDataTable({
   emptyLabel?: string;
   /** Outils sources du bloc (filtre appliqué au recalcul période/cohorte). */
   sources?: string[];
+  /**
+   * Consultation PILOTÉE PAR LE PARENT (tables composites multi-entités,
+   * ex : croisement deals × appels) : même barre intégrée (période + cohorte
+   * + entonnoir) que partout, mais le recalcul des lignes est fait par le
+   * parent — il reçoit les filtres et fournit de nouvelles `rows`.
+   */
+  externalConsult?: {
+    onChange: (p: AppliedPeriod | null, cohort: { key: string; value: string } | null) => void;
+    loading?: boolean;
+  };
 }) {
-  // ── Consultation : période + cohorte quand au moins une ligne a un spec.
-  // Sans filtre actif : les valeurs SERVEUR d'origine, à l'identique.
-  const filterable = rows.some((r) => r.spec);
+  // ── Consultation : période + cohorte quand au moins une ligne a un spec,
+  // ou quand le parent pilote le recalcul (externalConsult).
+  const filterable = externalConsult != null || rows.some((r) => r.spec);
   const [period, setPeriod] = useState<AppliedPeriod | null>(null);
   const [cohortKey, setCohortKey] = useState<string | null>(null);
   const [cohortValue, setCohortValue] = useState<string | null>(null);
   const [cohortOptions, setCohortOptions] = useState<CohortOption[]>([]);
   const [cohortVals, setCohortVals] = useState<string[]>([]);
   const [recomputing, setRecomputing] = useState(false);
+  // Recalcul en cours : interne (recompute) ou piloté par le parent.
+  const busyConsult = recomputing || externalConsult?.loading === true;
   // Valeurs recalculées par nom de ligne (null = non calculable) — actives
   // uniquement quand un filtre l'est.
   const [override, setOverride] = useState<Map<string, number | null> | null>(null);
@@ -207,17 +220,29 @@ export function BlockDataTable({
   function applyPeriod(p: AppliedPeriod) {
     const normalized = p.preset === "all" ? null : p;
     setPeriod(normalized);
+    if (externalConsult) {
+      externalConsult.onChange(normalized, activeCohort);
+      return;
+    }
     void recompute(normalized, activeCohort);
   }
   function applyCohortKey(key: string | null) {
     setCohortKey(key);
     setCohortValue(null);
     if (key) void fetchCohortValues(key).then(setCohortVals);
-    if (!key || cohortValue) void recompute(period, null);
+    if (!key || cohortValue) {
+      if (externalConsult) externalConsult.onChange(period, null);
+      else void recompute(period, null);
+    }
   }
   function applyCohortValue(v: string | null) {
     setCohortValue(v);
-    void recompute(period, cohortKey && v ? { key: cohortKey, value: v } : null);
+    const co = cohortKey && v ? { key: cohortKey, value: v } : null;
+    if (externalConsult) {
+      externalConsult.onChange(period, co);
+      return;
+    }
+    void recompute(period, co);
   }
 
   // Lignes affichées : valeurs serveur, remplacées par le recalcul si filtre actif.
@@ -275,7 +300,7 @@ export function BlockDataTable({
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2">
           <ReportPeriodBar
             onApply={applyPeriod}
-            loading={recomputing}
+            loading={busyConsult}
             activeLabel={period?.label ?? "Toutes périodes"}
             applied={period ?? { preset: "all", from: "", to: "", label: "Toutes les données" }}
           />
@@ -284,7 +309,7 @@ export function BlockDataTable({
             Cohorte
             <select
               value={cohortKey ?? ""}
-              disabled={recomputing}
+              disabled={busyConsult}
               onChange={(e) => applyCohortKey(e.target.value || null)}
               className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
             >
@@ -296,7 +321,7 @@ export function BlockDataTable({
             {cohortKey && (
               <select
                 value={cohortValue ?? ""}
-                disabled={recomputing}
+                disabled={busyConsult}
                 onChange={(e) => applyCohortValue(e.target.value || null)}
                 className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
               >
@@ -308,7 +333,7 @@ export function BlockDataTable({
             )}
           </label>
           )}
-          {recomputing && <span className="text-[11px] text-slate-400">Recalcul…</span>}
+          {busyConsult && <span className="text-[11px] text-slate-400">Recalcul…</span>}
         </div>
       )}
 
@@ -345,7 +370,7 @@ export function BlockDataTable({
         </div>
       )}
 
-      {filtersActive && shownRows.some((r) => !r.spec) && (
+      {!externalConsult && filtersActive && shownRows.some((r) => !r.spec) && (
         <p className="border-t border-slate-100 px-4 py-2 text-[10px] text-amber-600">
           Les lignes « — » sont des indicateurs composites, non recalculables sur la période/cohorte choisie.
         </p>
