@@ -96,9 +96,9 @@ export default function PourquoiRevoldPage() {
               Pourquoi Revold
             </div>
             <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
-              Vos outils montrent des chiffres.{" "}
+              Reliez CRM, facturation et compta par SIREN,{" "}
               <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-                Revold montre la vérité — et agit.
+                un revenue vérifiable au centime.
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
