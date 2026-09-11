@@ -91,6 +91,125 @@ export function formatBlockValue(v: number | null, unit: SurgicalUnit): string {
 }
 
 /**
+ * Consultation CANONIQUE des blocs (période + cohortes enregistrées + icône
+ * entonnoir repliable) — LE seul endroit où cette barre existe. Utilisée par
+ * BlockDataTable et par tout bloc non tabulaire (ex. conversations à signaux)
+ * pour garantir une UX strictement identique partout. Le bloc appelant reçoit
+ * les filtres via `onChange` et recalcule son contenu.
+ */
+export function useBlockConsult({
+  storageId,
+  enabled = true,
+  loading = false,
+  onChange,
+}: {
+  /** Clé de mémorisation du repli (localStorage), unique par bloc. */
+  storageId: string;
+  /** false = bloc non filtrable (aucune barre ni icône rendues). */
+  enabled?: boolean;
+  /** Recalcul en cours côté appelant : désactive les contrôles + « Recalcul… ». */
+  loading?: boolean;
+  onChange: (p: AppliedPeriod | null, cohort: { key: string; value: string } | null) => void;
+}) {
+  const [period, setPeriod] = useState<AppliedPeriod | null>(null);
+  const [cohortKey, setCohortKey] = useState<string | null>(null);
+  const [cohortValue, setCohortValue] = useState<string | null>(null);
+  const [cohortOptions, setCohortOptions] = useState<CohortOption[]>([]);
+  const [cohortVals, setCohortVals] = useState<string[]>([]);
+  // Barre repliable, mémorisée par bloc et par navigateur (localStorage).
+  const storageKey = `revold:block-filters:${storageId}`;
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem(storageKey) === "0") setShowFilters(false); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function toggleFilters() {
+    setShowFilters((v) => {
+      try { localStorage.setItem(storageKey, v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+  useEffect(() => {
+    if (enabled) void fetchCohortOptions().then(setCohortOptions);
+  }, [enabled]);
+
+  const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
+  const filtersActive = (period !== null && period.preset !== "all") || activeCohort !== null;
+
+  function applyPeriod(p: AppliedPeriod) {
+    const normalized = p.preset === "all" ? null : p;
+    setPeriod(normalized);
+    onChange(normalized, activeCohort);
+  }
+  function applyCohortKey(key: string | null) {
+    setCohortKey(key);
+    setCohortValue(null);
+    if (key) void fetchCohortValues(key).then(setCohortVals);
+    if (!key || cohortValue) onChange(period, null);
+  }
+  function applyCohortValue(v: string | null) {
+    setCohortValue(v);
+    onChange(period, cohortKey && v ? { key: cohortKey, value: v } : null);
+  }
+
+  const toggleButton = enabled ? (
+    <button
+      onClick={toggleFilters}
+      title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
+      aria-pressed={!showFilters}
+      className={`rounded-lg p-1.5 transition ${
+        showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+    </button>
+  ) : null;
+
+  const bar = enabled && showFilters ? (
+    <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2">
+      <ReportPeriodBar
+        onApply={applyPeriod}
+        loading={loading}
+        activeLabel={period?.label ?? "Toutes périodes"}
+        applied={period ?? { preset: "all", from: "", to: "", label: "Toutes les données" }}
+      />
+      {cohortOptions.length > 0 && (
+      <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+        Cohorte
+        <select
+          value={cohortKey ?? ""}
+          disabled={loading}
+          onChange={(e) => applyCohortKey(e.target.value || null)}
+          className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+        >
+          <option value="">Aucune</option>
+          {cohortOptions.map((c) => (
+            <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
+        {cohortKey && (
+          <select
+            value={cohortValue ?? ""}
+            disabled={loading}
+            onChange={(e) => applyCohortValue(e.target.value || null)}
+            className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+          >
+            <option value="">Toutes les valeurs</option>
+            {(cohortVals.length > 0 ? cohortVals : cohortValue ? [cohortValue] : []).map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+        )}
+      </label>
+      )}
+      {loading && <span className="text-[11px] text-slate-400">Recalcul…</span>}
+    </div>
+  ) : null;
+
+  return { toggleButton, bar, filtersActive, period, cohort: activeCohort };
+}
+
+/**
  * Rend n'importe quel bloc métier (pipeline, funnel de conversion, synthèse
  * facturation…) sous forme de table {libellé, valeur} normalisée, avec le CTA
  * d'alerte chirurgicale. Les données ne sont PAS recalculées : le bloc passe
@@ -144,36 +263,22 @@ export function BlockDataTable({
   // ── Consultation : période + cohorte quand au moins une ligne a un spec,
   // ou quand le parent pilote le recalcul (externalConsult).
   const filterable = externalConsult != null || rows.some((r) => r.spec);
-  const [period, setPeriod] = useState<AppliedPeriod | null>(null);
-  const [cohortKey, setCohortKey] = useState<string | null>(null);
-  const [cohortValue, setCohortValue] = useState<string | null>(null);
-  const [cohortOptions, setCohortOptions] = useState<CohortOption[]>([]);
-  const [cohortVals, setCohortVals] = useState<string[]>([]);
   const [recomputing, setRecomputing] = useState(false);
   // Recalcul en cours : interne (recompute) ou piloté par le parent.
   const busyConsult = recomputing || externalConsult?.loading === true;
   // Valeurs recalculées par nom de ligne (null = non calculable) — actives
   // uniquement quand un filtre l'est.
   const [override, setOverride] = useState<Map<string, number | null> | null>(null);
-  // Barre repliable, mémorisée par bloc et par navigateur (localStorage).
-  const storageKey = `revold:block-filters:${blockSourceKey(title, subtitle)}`;
-  const [showFilters, setShowFilters] = useState(true);
-  useEffect(() => {
-    try { if (localStorage.getItem(storageKey) === "0") setShowFilters(false); } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  function toggleFilters() {
-    setShowFilters((v) => {
-      try { localStorage.setItem(storageKey, v ? "0" : "1"); } catch { /* ignore */ }
-      return !v;
-    });
-  }
-  useEffect(() => {
-    if (filterable) void fetchCohortOptions().then(setCohortOptions);
-  }, [filterable]);
-
-  const activeCohort = cohortKey && cohortValue ? { key: cohortKey, value: cohortValue } : null;
-  const filtersActive = (period !== null && period.preset !== "all") || activeCohort !== null;
+  const consult = useBlockConsult({
+    storageId: blockSourceKey(title, subtitle),
+    enabled: filterable,
+    loading: busyConsult,
+    onChange: (p, co) => {
+      if (externalConsult) externalConsult.onChange(p, co);
+      else void recompute(p, co);
+    },
+  });
+  const filtersActive = consult.filtersActive;
 
   async function recompute(p: AppliedPeriod | null, co: { key: string; value: string } | null) {
     const active = (p !== null && p.preset !== "all") || co !== null;
@@ -217,34 +322,6 @@ export function BlockDataTable({
     }
   }
 
-  function applyPeriod(p: AppliedPeriod) {
-    const normalized = p.preset === "all" ? null : p;
-    setPeriod(normalized);
-    if (externalConsult) {
-      externalConsult.onChange(normalized, activeCohort);
-      return;
-    }
-    void recompute(normalized, activeCohort);
-  }
-  function applyCohortKey(key: string | null) {
-    setCohortKey(key);
-    setCohortValue(null);
-    if (key) void fetchCohortValues(key).then(setCohortVals);
-    if (!key || cohortValue) {
-      if (externalConsult) externalConsult.onChange(period, null);
-      else void recompute(period, null);
-    }
-  }
-  function applyCohortValue(v: string | null) {
-    setCohortValue(v);
-    const co = cohortKey && v ? { key: cohortKey, value: v } : null;
-    if (externalConsult) {
-      externalConsult.onChange(period, co);
-      return;
-    }
-    void recompute(period, co);
-  }
-
   // Lignes affichées : valeurs serveur, remplacées par le recalcul si filtre actif.
   const shownRows = filtersActive && override
     ? rows.map((r) => ({ ...r, value: override.get(r.name) ?? null }))
@@ -268,18 +345,7 @@ export function BlockDataTable({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {filterable && (
-            <button
-              onClick={toggleFilters}
-              title={showFilters ? "Masquer les filtres (rendu propre)" : "Afficher les filtres"}
-              aria-pressed={!showFilters}
-              className={`rounded-lg p-1.5 transition ${
-                showFilters ? "text-slate-300 hover:bg-slate-100 hover:text-slate-500" : "bg-slate-100 text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-            </button>
-          )}
+          {consult.toggleButton}
           <SurgicalAlertButton
             title={title}
             scopeLabel={`la table « ${title} »${subtitle ? ` (${subtitle})` : ""}`}
@@ -296,46 +362,7 @@ export function BlockDataTable({
 
       {/* ── Barre de consultation (période + cohorte) : lignes reproductibles
              recalculées, composites en « — » (jamais un chiffre faux). ── */}
-      {filterable && showFilters && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2">
-          <ReportPeriodBar
-            onApply={applyPeriod}
-            loading={busyConsult}
-            activeLabel={period?.label ?? "Toutes périodes"}
-            applied={period ?? { preset: "all", from: "", to: "", label: "Toutes les données" }}
-          />
-          {cohortOptions.length > 0 && (
-          <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-            Cohorte
-            <select
-              value={cohortKey ?? ""}
-              disabled={busyConsult}
-              onChange={(e) => applyCohortKey(e.target.value || null)}
-              className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
-            >
-              <option value="">Aucune</option>
-              {cohortOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-            {cohortKey && (
-              <select
-                value={cohortValue ?? ""}
-                disabled={busyConsult}
-                onChange={(e) => applyCohortValue(e.target.value || null)}
-                className="max-w-40 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
-              >
-                <option value="">Toutes les valeurs</option>
-                {(cohortVals.length > 0 ? cohortVals : cohortValue ? [cohortValue] : []).map((v) => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
-            )}
-          </label>
-          )}
-          {busyConsult && <span className="text-[11px] text-slate-400">Recalcul…</span>}
-        </div>
-      )}
+      {consult.bar}
 
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-xs text-slate-400">{emptyLabel}</p>
