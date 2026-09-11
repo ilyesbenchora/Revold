@@ -86,39 +86,47 @@ export default function PourquoiRevoldPage() {
         <div className="pointer-events-none absolute -right-40 top-40 h-96 w-96 rounded-full bg-indigo-600/15 blur-3xl" />
         <div className="pointer-events-none absolute left-1/2 top-0 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-amber-400/5 blur-3xl" />
 
-        <div className="relative mx-auto max-w-5xl px-6 pb-20 pt-20 text-center md:pb-28 md:pt-28">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-fuchsia-400" />
-            </span>
-            Pourquoi Revold
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 py-12 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-2 lg:gap-14 lg:py-8">
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-fuchsia-400" />
+              </span>
+              Pourquoi Revold
+            </div>
+            <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
+              Votre CRM vous montre des données.{" "}
+              <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                Revold vous montre la vérité.
+              </span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
+              La plateforme de Revenue Intelligence construite pour le B2B français. Multi-source, rapprochée par
+              SIREN / SIRET / TVA, avec une équipe d&apos;agents IA disponible 24/7 — qui exécute les actions que vous
+              validez, directement dans vos outils.
+            </p>
+            <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+              <Link
+                href="/demo"
+                className="group rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
+              >
+                Faire une démo
+                <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
+              </Link>
+              <Link
+                href="/tarifs"
+                className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Voir les tarifs
+              </Link>
+            </div>
           </div>
-          <h1 className="mt-8 text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl lg:text-7xl">
-            Votre CRM vous montre des données.{" "}
-            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              Revold vous montre la vérité.
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-400 md:text-xl">
-            La plateforme de Revenue Intelligence construite pour le B2B français. Multi-source, rapprochée par
-            SIREN / SIRET / TVA, avec une équipe d&apos;agents IA disponible 24/7 — qui exécute les actions que vous
-            validez, directement dans vos outils.
-          </p>
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/demo"
-              className="group rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
-            >
-              Faire une démo
-              <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
-            </Link>
-            <Link
-              href="/tarifs"
-              className="rounded-xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-            >
-              Voir les tarifs
-            </Link>
+
+          {/* Capture produit — visible dès la ligne de flottaison */}
+          <div className="lg:pl-2">
+            <ShotReconciliation />
+            <p className="mt-3 text-center text-xs text-slate-500 lg:text-left">Interface Revold — données de démonstration.</p>
           </div>
         </div>
       </section>

@@ -45,50 +45,61 @@ export function ProductPage({
   ctaTitle = "Passez à l'action maintenant",
   crmSetups,
 }: ProductPageProps) {
+  // Capture PRINCIPALE montée dans le hero (au-dessus de la ligne de flottaison) ;
+  // les captures suivantes (une par feature) restent en dessous.
+  const heroShotNode = shots && shots.length > 0 ? shots[0].node : (shot ?? null);
+  const heroShotCaption = shots && shots.length > 0 ? shots[0].caption : "Interface Revold — données de démonstration.";
+  const restShots = shots && shots.length > 1 ? shots.slice(1) : [];
   return (
     <>
-      {/* Hero */}
+      {/* Hero — deux colonnes : titre + CTA + capture, tout au-dessus de la ligne de flottaison */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-40 top-10 h-80 w-80 rounded-full bg-fuchsia-600/15 blur-3xl" />
         <div className="pointer-events-none absolute -right-40 top-32 h-80 w-80 rounded-full bg-indigo-600/15 blur-3xl" />
-        <div className="relative mx-auto max-w-4xl px-6 pb-16 pt-16 text-center md:pb-24 md:pt-24">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
-            <span className="flex h-5 w-5 items-center justify-center text-fuchsia-300">
-              {heroIcon}
-            </span>
-            {badge}
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 py-12 lg:min-h-[calc(100vh-7rem)] lg:grid-cols-2 lg:gap-14 lg:py-8">
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
+              <span className="flex h-5 w-5 items-center justify-center text-fuchsia-300">{heroIcon}</span>
+              {badge}
+            </div>
+            <h1 className="mt-5 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl">
+              {title}{" "}
+              <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                {titleAccent}
+              </span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-xl text-lg text-slate-400 lg:mx-0">{subtitle}</p>
+            <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+              <Link
+                href="/essai-gratuit"
+                className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
+              >
+                {cta}
+              </Link>
+              <Link
+                href="/tarifs"
+                className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Voir les tarifs
+              </Link>
+            </div>
           </div>
-          <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
-            {title}{" "}
-            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              {titleAccent}
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">{subtitle}</p>
-          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/essai-gratuit"
-              className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"
-            >
-              {cta}
-            </Link>
-            <Link
-              href="/tarifs"
-              className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-            >
-              Voir les tarifs
-            </Link>
-          </div>
+          {heroShotNode ? (
+            <div className="lg:pl-2">
+              {heroShotNode}
+              <p className="mt-3 text-center text-xs text-slate-500 lg:text-left">{heroShotCaption}</p>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* Captures produit — chaque feature mise en avant a la sienne */}
-      {shots && shots.length > 0 ? (
-        <section className="relative pb-8">
+      {/* Captures des features suivantes (la principale est dans le hero) */}
+      {restShots.length > 0 && (
+        <section className="relative pb-8 pt-4">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
-              {shots.map((s, i) => (
-                <div key={i} className={shots.length % 2 === 1 && i === shots.length - 1 ? "lg:col-span-2 lg:mx-auto lg:w-2/3" : ""}>
+              {restShots.map((s, i) => (
+                <div key={i} className={restShots.length % 2 === 1 && i === restShots.length - 1 ? "lg:col-span-2 lg:mx-auto lg:w-2/3" : ""}>
                   {s.node}
                   <p className="mt-3 text-center text-xs text-slate-500">{s.caption}</p>
                 </div>
@@ -96,14 +107,7 @@ export function ProductPage({
             </div>
           </div>
         </section>
-      ) : shot ? (
-        <section className="relative pb-8">
-          <div className="mx-auto max-w-5xl px-6">
-            {shot}
-            <p className="mt-3 text-center text-xs text-slate-500">Interface Revold — données de démonstration.</p>
-          </div>
-        </section>
-      ) : null}
+      )}
 
       {/* Pain points (legacy — préférer une capture produit via `shot`) */}
       {pains && pains.length > 0 && (

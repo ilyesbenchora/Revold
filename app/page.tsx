@@ -95,50 +95,52 @@ export default function HomePage() {
           style={{ backgroundImage: "linear-gradient(rgba(148,163,184,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.5) 1px, transparent 1px)", backgroundSize: "40px 40px" }}
         />
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 text-center sm:px-6 md:pt-24">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in France
-          </span>
-          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl">
-            Votre revenue, réconcilié
-            <br className="hidden md:block" />{" "}
-            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              du CRM au compte en banque.
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
-            La seule plateforme qui relie votre CRM, votre facturation et votre compta par
-            SIREN / SIRET / TVA, vous donne une équipe d&apos;agents IA disponible 24/7 — et exécute les
-            actions validées directement dans vos outils.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/essai-gratuit" className="w-full rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40 sm:w-auto">
-              Essai gratuit 14 jours
-            </Link>
-            <Link href="/demo" className="w-full rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10 sm:w-auto">
-              Demander une démo
-            </Link>
-          </div>
-          <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Connexion HubSpot en un clic · Données hébergées en UE · SSO SAML</p>
+        <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col px-4 sm:px-6">
+          {/* Deux colonnes centrées : titre + CTA à gauche, capture produit à droite */}
+          <div className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-2 lg:gap-12">
+            <div className="text-center lg:text-left">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in France
+              </span>
+              <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl">
+                Votre revenue, réconcilié{" "}
+                <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                  du CRM au compte en banque.
+                </span>
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
+                La seule plateforme qui relie votre CRM, votre facturation et votre compta par
+                SIREN / SIRET / TVA, vous donne une équipe d&apos;agents IA disponible 24/7 — et exécute les
+                actions validées directement dans vos outils.
+              </p>
+              <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+                <Link href="/essai-gratuit" className="w-full rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40 sm:w-auto">
+                  Essai gratuit 14 jours
+                </Link>
+                <Link href="/demo" className="w-full rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10 sm:w-auto">
+                  Demander une démo
+                </Link>
+              </div>
+              <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Connexion HubSpot en un clic · Données hébergées en UE · SSO SAML</p>
+            </div>
 
-          {/* Capture produit composite (statique) — le visiteur voit l'outil
-              dès la ligne de flottaison : dashboard réel + alerte, agent IA
-              et action exécutée qui débordent du cadre. */}
-          <div className="mt-14 px-2 lg:px-16">
-            <HeroComposite />
+            {/* Capture produit composite — visible dès la ligne de flottaison */}
+            <div className="lg:pl-2">
+              <HeroComposite />
+            </div>
           </div>
 
-          {/* Intégrations natives réelles */}
-          <div className="mx-auto mt-16 max-w-3xl">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Connecteurs natifs, câblés en profondeur</p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+          {/* Bande connecteurs — épinglée en bas du hero (reste dans le viewport) */}
+          <div className="shrink-0 pb-6">
+            <p className="text-center text-[11px] font-bold uppercase tracking-widest text-slate-500">Connecteurs natifs, câblés en profondeur</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               {INTEGRATIONS.map((name) => (
-                <span key={name} className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm font-medium text-slate-300">
+                <span key={name} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
                   {name}
                 </span>
               ))}
-              <span className="rounded-full border border-dashed border-white/15 px-4 py-1.5 text-sm text-slate-400">＋ Vos ERP &amp; outils métiers (connecteur sur mesure)</span>
-              <span className="rounded-full border border-dashed border-white/15 px-4 py-1.5 text-sm text-slate-500">Excel / Sheets · Slack · Teams…</span>
+              <span className="rounded-full border border-dashed border-white/15 px-3 py-1 text-xs text-slate-400">＋ ERP &amp; outils métiers (sur mesure)</span>
+              <span className="rounded-full border border-dashed border-white/15 px-3 py-1 text-xs text-slate-500">Excel / Sheets · Slack · Teams…</span>
             </div>
           </div>
         </div>
