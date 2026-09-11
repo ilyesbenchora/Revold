@@ -8,6 +8,17 @@ type TeamBenefit = {
   result: string;
 };
 
+/** Page métier canonique par équipe — l'impact détaillé par poste vit LÀ-BAS
+ *  (pages /equipes/*), jamais dupliqué sur les pages Solution. */
+const TEAM_HREFS: Record<string, string> = {
+  Direction: "/equipes/direction",
+  Marketing: "/equipes/marketing",
+  Sales: "/equipes/sales",
+  RevOps: "/equipes/revops",
+  CSM: "/equipes/csm",
+  Finance: "/equipes/finance",
+};
+
 type SolutionPageProps = {
   badge: string;
   title: string;
@@ -123,22 +134,22 @@ export function SolutionPage({
         <div className="relative mx-auto max-w-7xl px-6">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white md:text-3xl">
-              Par équipe
+              Pour qui, concrètement ?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-slate-400">
-              Chaque équipe a ses propres enjeux. Voici comment Revold y répond.
+              Les métiers en première ligne sur cet enjeu — l&apos;impact complet de chaque poste est détaillé sur sa page dédiée.
             </p>
           </div>
-          <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {teams.map((t) => (
-              <div key={t.team} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.05]">
+              <div key={t.team} className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.05]">
                 <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.04] px-6 py-4">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-white">
                     {t.icon}
                   </span>
                   <h3 className="font-bold text-white">{t.team}</h3>
                 </div>
-                <div className="space-y-4 p-6">
+                <div className="flex flex-1 flex-col space-y-4 p-6">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Pain</p>
                     <p className="mt-1 text-sm text-slate-400">{t.pain}</p>
@@ -151,6 +162,13 @@ export function SolutionPage({
                     <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Résultat</p>
                     <p className="mt-1 text-sm text-slate-300">{t.result}</p>
                   </div>
+                  {TEAM_HREFS[t.team] && (
+                    <p className="!mt-auto pt-2">
+                      <Link href={TEAM_HREFS[t.team]} className="text-xs font-medium text-fuchsia-300 transition hover:text-fuchsia-200">
+                        Revold pour {t.team} →
+                      </Link>
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

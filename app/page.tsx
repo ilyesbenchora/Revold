@@ -59,13 +59,15 @@ const FEATURES = [
   },
 ];
 
-const PERSONAS = [
-  { role: "Direction / CEO", pain: "Croissance qui ralentit, sans comprendre pourquoi ni où agir", gain: "Brief vocal quotidien, KPIs câblés en temps réel et actions priorisées validées en un clic" },
-  { role: "Sales / Directeur Commercial", pain: "Forecast au feeling, deals qui meurent en silence", gain: "Détection des deals silencieux → tâche HubSpot créée, projection pondérée du pipeline" },
-  { role: "Marketing", pain: "Impossible de prouver le ROI jusqu'à la facture", gain: "Attribution cross-source : acquisition → pipeline → factures réellement encaissées" },
-  { role: "RevOps", pain: "Des jours à compiler des rapports, données incohérentes entre outils", gain: "Rapprochement SIREN/TVA automatique, KPIs vérifiés sur données réelles, récaps de routine" },
-  { role: "CSM / Customer Success", pain: "Aucune visibilité sur les signaux de churn avant qu'il soit trop tard", gain: "Croisement tickets × paiements × activité CRM, agent service client dédié et alertes câblées" },
-  { role: "Finance / DAF", pain: "Écart permanent entre pipeline CRM et cash réellement encaissé", gain: "Trésorerie temps réel, relances d'impayés exécutées et cash récupéré attribué en euros" },
+// Aiguillage vers les pages métiers — l'impact détaillé par poste vit
+// UNIQUEMENT sur /equipes/* (contenu canonique, jamais dupliqué ici).
+const METIERS = [
+  { role: "Direction / CEO", hook: "Le brief du jour et la vérité revenue, sans ouvrir un tableur.", href: "/equipes/direction" },
+  { role: "Sales", hook: "Deals silencieux détectés, relances créées dans HubSpot.", href: "/equipes/sales" },
+  { role: "Marketing", hook: "Le ROI prouvé de la campagne jusqu'à l'encaissement.", href: "/equipes/marketing" },
+  { role: "RevOps", hook: "Le rapprochement et les récaps qui tournent tout seuls.", href: "/equipes/revops" },
+  { role: "CSM", hook: "Les signaux de churn croisés tickets × paiements × CRM.", href: "/equipes/csm" },
+  { role: "Finance / DAF", hook: "Trésorerie temps réel, impayés relancés, cash attribué.", href: "/equipes/finance" },
 ];
 
 const STEPS = [
@@ -205,24 +207,26 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══ PERSONAS ═══ */}
+      {/* ═══ MÉTIERS — aiguillage vers les pages équipes (contenu canonique) ═══ */}
       <section className="relative border-t border-white/10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold text-white md:text-4xl">Pensé pour chaque métier du revenue</h2>
-            <p className="mt-4 text-slate-400">Des espaces de travail par pôle : chaque équipe voit ses pages, ses agents et ses KPIs.</p>
+            <p className="mt-4 text-slate-400">Chaque poste a sa page dédiée : enjeux, features et impact détaillés.</p>
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {PERSONAS.map((p) => (
-              <div key={p.role} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            {METIERS.map((p) => (
+              <Link
+                key={p.role}
+                href={p.href}
+                className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]"
+              >
                 <h3 className="text-sm font-bold uppercase tracking-wide text-fuchsia-300">{p.role}</h3>
-                <p className="mt-3 text-sm text-slate-500">
-                  <span className="font-semibold text-slate-400">Avant : </span>{p.pain}
+                <p className="mt-3 text-sm text-slate-300">{p.hook}</p>
+                <p className="mt-4 text-xs font-medium text-slate-500 transition group-hover:text-fuchsia-300">
+                  Voir la page métier →
                 </p>
-                <p className="mt-2 text-sm text-slate-300">
-                  <span className="font-semibold text-emerald-400">Avec Revold : </span>{p.gain}
-                </p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
