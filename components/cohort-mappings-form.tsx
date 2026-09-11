@@ -13,6 +13,10 @@ export type CohortMapping = {
   object: string;
   /** Équipe propriétaire de la cohorte (sales/marketing/cs/finance) — "" = transverse (toutes). */
   team: string;
+  /** Afficher cette cohorte dans les filtres/sélecteurs des rapports (défaut : oui).
+   *  Être câblée ≠ vouloir l'afficher : l'utilisateur peut la garder mappée mais
+   *  la retirer des rapports. */
+  show_in_reports?: boolean;
 };
 
 /** État de vérification d'une propriété CRM d'une cohorte. */
@@ -97,12 +101,12 @@ export function CohortMappingsForm({
       const saved = byKey.get(s.key);
       const defaultTeam = STANDARD_COHORT_TEAMS[s.key] ?? "";
       return saved
-        ? { ...saved, object: saved.object || s.object, team: saved.team ?? defaultTeam }
-        : { key: s.key, label: s.label, internal_name: "", api_name: "", object: s.object, team: defaultTeam };
+        ? { ...saved, object: saved.object || s.object, team: saved.team ?? defaultTeam, show_in_reports: saved.show_in_reports ?? true }
+        : { key: s.key, label: s.label, internal_name: "", api_name: "", object: s.object, team: defaultTeam, show_in_reports: true };
     });
     const customs = initial
       .filter((m) => !STANDARD_COHORTS.some((s) => s.key === m.key) && !REMOVED_COHORT_KEYS.has(m.key))
-      .map((m) => ({ ...m, object: m.object ?? "", team: m.team ?? "" }));
+      .map((m) => ({ ...m, object: m.object ?? "", team: m.team ?? "", show_in_reports: m.show_in_reports ?? true }));
     return [...std, ...customs];
   });
   const [status, setStatus] = useState<CohortPropertyStatus>(initialStatus);
@@ -133,7 +137,7 @@ export function CohortMappingsForm({
 
   function addCustom(team: string) {
     const n = rows.filter((r) => !isStandard(r.key)).length + 1;
-    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte custom ${n}`, internal_name: "", api_name: "", object: "contacts", team }]);
+    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte custom ${n}`, internal_name: "", api_name: "", object: "contacts", team, show_in_reports: true }]);
   }
 
   function removeRow(key: string) {
@@ -342,6 +346,17 @@ export function CohortMappingsForm({
             />
           </div>
         </div>
+        {/* Affichage dans les rapports : câblée ≠ affichée — l'utilisateur choisit. */}
+        <label className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
+          <input
+            type="checkbox"
+            checked={m.show_in_reports !== false}
+            disabled={!editable}
+            onChange={(e) => patch(m.key, { show_in_reports: e.target.checked })}
+            className="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent"
+          />
+          Afficher cette cohorte dans les filtres des rapports
+        </label>
       </div>
     );
   };

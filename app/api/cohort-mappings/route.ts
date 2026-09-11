@@ -4,7 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 
 export const dynamic = "force-dynamic";
 
-type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string; team: string };
+type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string; team: string; show_in_reports?: boolean };
 
 /** Objets HubSpot valides pour l'objet porteur d'une cohorte ("" = détection auto). */
 const VALID_OBJECTS = new Set(["contacts", "companies", "deals"]);
@@ -29,6 +29,8 @@ function cleanMappings(v: unknown): CohortMapping[] | null {
       api_name: typeof o.api_name === "string" ? o.api_name.trim().slice(0, 120) : "",
       object: typeof o.object === "string" && VALID_OBJECTS.has(o.object) ? o.object : "",
       team: typeof o.team === "string" && VALID_TEAMS.has(o.team) ? o.team : "",
+      // Affichée dans les filtres des rapports (défaut : oui).
+      show_in_reports: typeof o.show_in_reports === "boolean" ? o.show_in_reports : true,
     });
   }
   return out;
@@ -54,8 +56,11 @@ export async function GET(request: Request) {
       .select("mappings")
       .eq("organization_id", orgId)
       .maybeSingle();
-    let mappings = Array.isArray(data?.mappings) ? (data.mappings as Array<{ team?: string }>) : [];
+    let mappings = Array.isArray(data?.mappings) ? (data.mappings as Array<{ team?: string; show_in_reports?: boolean }>) : [];
     if (scope === "filters") {
+      // Périmètre des RAPPORTS : on retire les cohortes explicitement masquées
+      // (show_in_reports === false) — câblée ≠ affichée.
+      mappings = mappings.filter((m) => m.show_in_reports !== false);
       const { data: prof } = await supabase.from("profiles").select("role, pole").eq("id", user.id).maybeSingle();
       const role = (prof?.role as string | null) ?? null;
       const pole = (prof?.pole as string | null) ?? null;
