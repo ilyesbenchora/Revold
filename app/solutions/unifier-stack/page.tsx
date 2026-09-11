@@ -21,7 +21,7 @@ export default function UnifierStackPage() {
       shot={<ShotDashboard />}
       keyBenefits={[
         { title: "Connecteurs natifs, câblés en profondeur", desc: "HubSpot (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage + import Excel / Google Sheets. Sans code, sans scripts custom, en lecture seule révocable." },
-        { title: "Rapprochement par identifiants légaux", desc: "SIREN, SIRET, N° TVA : la même entreprise est reconnue partout, et les identifiants manquants sont remplis via la base Sirene officielle." },
+        { title: "Rapprochement par identifiants légaux", desc: "Identifiants légaux : la même entreprise est reconnue partout, et les identifiants manquants sont remplis via la base Sirene officielle." },
         { title: "Modèle de données unifié", desc: "Toutes les sources sont normalisées dans un schéma commun. Une seule source de vérité, vérifiable chiffre par chiffre." },
       ]}
       teams={[

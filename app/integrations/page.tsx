@@ -89,7 +89,7 @@ export default function IntegrationsPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
             Revold se connecte à votre CRM, votre facturation et votre compta pour créer une source de vérité unique,
-            rapprochée par SIREN / SIRET / TVA. Lecture seule, révocable à tout moment. On ne liste jamais un outil
+            rapprochée par identifiants officiels. Lecture seule, révocable à tout moment. On ne liste jamais un outil
             que Revold ne sait pas réellement synchroniser.
           </p>
         </div>

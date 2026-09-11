@@ -24,7 +24,7 @@ const FEATURES = [
   {
     icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
     title: "Rapprochement de données à la française",
-    desc: "SIREN, SIRET, N° TVA : Revold relie vos entreprises entre CRM, facturation et compta — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis Sirene et l'INPI, jusque dans votre CRM.",
+    desc: "Revold relie vos entreprises entre CRM, facturation et compta par leurs identifiants légaux — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis Sirene et l'INPI, jusque dans votre CRM.",
     href: "/produits/resolution-entites",
   },
   {
@@ -63,7 +63,7 @@ const FEATURES = [
 // UNIQUEMENT sur /equipes/* (contenu canonique, jamais dupliqué ici).
 const METIERS = [
   { role: "Direction / CEO", hook: "Le brief du jour et la vérité revenue, sans ouvrir un tableur.", href: "/equipes/direction" },
-  { role: "Sales", hook: "Deals silencieux détectés, relances créées dans HubSpot.", href: "/equipes/sales" },
+  { role: "Sales", hook: "Deals silencieux détectés, relances créées dans le CRM.", href: "/equipes/sales" },
   { role: "Marketing", hook: "Le ROI prouvé de la campagne jusqu'à l'encaissement.", href: "/equipes/marketing" },
   { role: "RevOps", hook: "Le rapprochement et les récaps qui tournent tout seuls.", href: "/equipes/revops" },
   { role: "CSM", hook: "Les signaux de churn croisés tickets × paiements × CRM.", href: "/equipes/csm" },
@@ -72,7 +72,7 @@ const METIERS = [
 
 const STEPS = [
   { n: "1", title: "Connectez vos outils", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage par clé API — et vos ERP / outils métiers via un connecteur sur mesure. Lecture seule, révocable à tout moment." },
-  { n: "2", title: "Revold rapproche et fiabilise", desc: "Entités reliées par SIREN / SIRET / TVA / email, identifiants manquants remplis depuis la base Sirene, écarts CRM vs facturé chiffrés en euros." },
+  { n: "2", title: "Revold rapproche et fiabilise", desc: "Entités reliées par identifiants officiels ou email, identifiants manquants remplis depuis la base Sirene, écarts CRM vs facturé chiffrés en euros." },
   { n: "3", title: "Votre équipe IA agit", desc: "Récaps de routine, alertes câblées, brief vocal — et des actions validées par vous, exécutées directement dans vos outils, avec l'impact mesuré." },
 ];
 
@@ -110,7 +110,7 @@ export default function HomePage() {
               </h1>
               <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
                 La seule plateforme qui relie votre CRM, votre facturation et votre compta par
-                SIREN / SIRET / TVA, vous donne une équipe d&apos;agents IA disponible 24/7 — et exécute les
+                identifiants officiels, vous donne une équipe d&apos;agents IA disponible 24/7 — et exécute les
                 actions validées directement dans vos outils.
               </p>
               <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">

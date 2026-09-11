@@ -27,7 +27,7 @@ export default function PiloterPerformancePage() {
       teams={[
         { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Pas de vue consolidée de la performance. Chaque équipe a ses propres métriques.", solution: "Tour de contrôle avec anneau de santé, brief vocal du jour et KPIs câblés partagés.", result: "Vision à 360° en un coup d'oeil. Alignement des équipes sur les mêmes chiffres." },
         { team: "Marketing", icon: teamIcon("M3 3v18h18M7 16l4-8 4 4 4-8"), pain: "Les métriques marketing sont déconnectées des revenus.", solution: "Attribution cross-source : acquisition → pipeline → factures réellement encaissées.", result: "Le marketing parle le même langage que les sales et la direction." },
-        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Compiler les KPIs prend 2 jours/mois. Les dashboards sont toujours en retard.", solution: "KPIs et récaps alimentés automatiquement à chaque sync, sur données rapprochées par SIREN / TVA.", result: "Zéro temps passé à compiler. Focus sur l'analyse et l'optimisation." },
+        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Compiler les KPIs prend 2 jours/mois. Les dashboards sont toujours en retard.", solution: "KPIs et récaps alimentés automatiquement à chaque sync, sur données rapprochées par identifiants officiels.", result: "Zéro temps passé à compiler. Focus sur l'analyse et l'optimisation." },
       ]}
       relatedProducts={[
         { label: "Reporting cross-source", href: "/produits/reporting-cross-source" },

@@ -7,7 +7,7 @@ import { ShotReconciliation, ShotAgents } from "@/components/site/product-shots"
 export const metadata: Metadata = {
   title: "Pourquoi Revold — Revenue Intelligence pour le B2B français",
   description:
-    "Multi-source, rapprochement SIREN/SIRET/TVA, équipe IA 24/7, actions exécutées dans vos outils : pourquoi Revold est différent des outils de reporting classiques.",
+    "Multi-source, rapprochement automatique, équipe IA 24/7, actions exécutées dans vos outils : pourquoi Revold est différent des outils de reporting classiques.",
 };
 
 /**
@@ -25,9 +25,9 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Rapprochement à la française",
-    desc: "Revold relie vos entreprises entre outils par SIREN, SIRET et numéro de TVA — et remplit lui-même les identifiants manquants depuis la base Sirene officielle, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
+    desc: "Revold relie vos entreprises entre outils par leurs identifiants légaux — et remplit lui-même les identifiants manquants depuis la base Sirene officielle, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
     stat: "3",
-    statLabel: "identifiants FR (SIREN, SIRET, TVA)",
+    statLabel: "identifiants légaux reconnus",
   },
   {
     title: "Mon équipe IA, disponible 24/7",
@@ -59,7 +59,7 @@ const DIFFERENTIATORS = [
 const PRINCIPLES = [
   {
     title: "Croisement > Résumé",
-    desc: "La valeur n'est pas dans la donnée, mais dans le croisement entre les données. Un deal n'a de sens que croisé avec la facture et l'écriture comptable du même client — rapprochés par SIREN, quels que soient vos outils.",
+    desc: "La valeur n'est pas dans la donnée, mais dans le croisement entre les données. Un deal n'a de sens que croisé avec la facture et l'écriture comptable du même client — rapprochés automatiquement, quels que soient vos outils.",
   },
   {
     title: "Preuve > Promesse",
@@ -96,14 +96,14 @@ export default function PourquoiRevoldPage() {
               Pourquoi Revold
             </div>
             <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
-              Reliez CRM, facturation et compta par SIREN,{" "}
+              CRM, facturation et compta rapprochés,{" "}
               <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
                 un revenue vérifiable au centime.
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
               La plateforme de Revenue Intelligence construite pour le B2B français. Multi-source, rapprochée par
-              SIREN / SIRET / TVA, avec une équipe d&apos;agents IA disponible 24/7 — qui exécute les actions que vous
+              identifiants officiels, avec une équipe d&apos;agents IA disponible 24/7 — qui exécute les actions que vous
               validez, directement dans vos outils.
             </p>
             <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
@@ -136,7 +136,7 @@ export default function PourquoiRevoldPage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white md:text-4xl">
-              La plupart des outils racontent. Revold montre.
+              Ce que Revold fait, concrètement.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-400">
               L&apos;écart entre le CA signé et le CA encaissé, entreprise par entreprise — et un agent expert
@@ -146,7 +146,7 @@ export default function PourquoiRevoldPage() {
           <div className="mt-14 grid grid-cols-1 gap-8 lg:grid-cols-2">
             <div>
               <ShotReconciliation />
-              <p className="mt-3 text-center text-xs text-slate-500">Réconciliation signé × encaissé, rapprochée par SIREN.</p>
+              <p className="mt-3 text-center text-xs text-slate-500">Réconciliation signé × encaissé, rapprochée automatiquement.</p>
             </div>
             <div>
               <ShotAgents />
@@ -246,7 +246,7 @@ export default function PourquoiRevoldPage() {
               <ul className="mt-8 space-y-4">
                 {[
                   "Interface, agents IA et récaps 100% en français",
-                  "SIREN, SIRET, numéro de TVA natifs + enrichissement base Sirene",
+                  "Identifiants légaux natifs + enrichissement base Sirene",
                   "Connecteurs adaptés : HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage",
                   "Import Excel / Google Sheets, notifications Slack, Teams et email",
                   "Pricing adapté : à partir de 79,90 € HT/mois, essai 14 jours sans CB",
@@ -266,7 +266,7 @@ export default function PourquoiRevoldPage() {
             <div className="grid grid-cols-2 gap-4">
               {[
                 { val: "6", unit: "connecteurs", desc: "CRM, facturation, compta" },
-                { val: "3", unit: "identifiants", desc: "SIREN, SIRET, TVA" },
+                { val: "3", unit: "identifiants", desc: "identifiants officiels" },
                 { val: "24/7", unit: "", desc: "Équipe IA disponible" },
                 { val: "14", unit: "jours", desc: "Essai gratuit, sans CB" },
               ].map((m) => (

@@ -34,7 +34,7 @@ export default function SynchronisationPage() {
         { title: "Lecture seule, révocable", desc: "Revold lit vos données, il n'écrit jamais sans votre validation explicite. Vous révoquez l'accès à tout moment depuis vos outils ou vos paramètres." },
         { title: "Rapport d'audit d'onboarding par outil", desc: "Après chaque connexion, Revold produit un audit : volumes importés, champs remplis, identifiants disponibles, écarts détectés — vous savez exactement ce qui est exploitable." },
         { title: "Monitoring de sync", desc: "Journal des synchronisations, compteurs d'entités, erreurs remontées. Vous savez exactement ce qui se passe, sync après sync." },
-        { title: "Modèle de données unifié", desc: "Chaque source est normalisée dans un schéma commun (entreprises, contacts, deals, factures, abonnements) — prêt pour le rapprochement SIREN / SIRET / TVA." },
+        { title: "Modèle de données unifié", desc: "Chaque source est normalisée dans un schéma commun (entreprises, contacts, deals, factures, abonnements) — prêt pour le rapprochement automatique." },
       ]}
       howItWorks={[
         { step: "Connectez vos outils", desc: "HubSpot en un clic via OAuth ; Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API en lecture seule — et votre ERP ou outil métier via le connecteur sur mesure." },
@@ -49,8 +49,8 @@ export default function SynchronisationPage() {
         { value: "1", label: "rapport d'audit d'onboarding par outil" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Connexion OAuth en un clic, sans clé API à copier", "Sync des companies, contacts, deals et tickets en lecture seule", "Audit d'onboarding : fill rates, identifiants SIREN/TVA disponibles", "Révocation à tout moment depuis HubSpot Connected Apps"] },
-        { crm: "Stripe + Pennylane", items: ["Clé API en lecture seule (Restricted Key côté Stripe)", "Factures, abonnements et paiements normalisés", "Rapprochement avec vos entreprises CRM par SIREN / N° TVA", "Audit d'onboarding : couverture et écarts facturation ↔ CRM"] },
+        { crm: "HubSpot", items: ["Connexion OAuth en un clic, sans clé API à copier", "Sync des companies, contacts, deals et tickets en lecture seule", "Audit d'onboarding : fill rates, identifiants identifiants officiels disponibles", "Révocation à tout moment depuis HubSpot Connected Apps"] },
+        { crm: "Stripe + Pennylane", items: ["Clé API en lecture seule (Restricted Key côté Stripe)", "Factures, abonnements et paiements normalisés", "Rapprochement avec vos entreprises CRM par identifiants officiels", "Audit d'onboarding : couverture et écarts facturation ↔ CRM"] },
         { crm: "Chargebee / GoCardless / Sage", items: ["Connecteurs natifs par clé API, lecture seule", "Abonnements, prélèvements et écritures intégrés au modèle unifié", "Croisement avec le CRM et la facturation existante", "Même monitoring et même audit d'onboarding que les autres outils"] },
       ]}
     />

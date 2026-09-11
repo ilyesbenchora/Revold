@@ -53,7 +53,7 @@ export default function TableauxDeBordPage() {
       ctaTitle="Votre pilotage, prêt en quelques minutes"
       crmSetups={[
         { crm: "HubSpot", items: ["Templates Sales et Direction câblés sur vos pipelines réels", "Tuiles pipeline pondéré, closing, cycle de vente", "Alertes sur tuiles : deal silencieux, conversion en baisse", "Partage du tableau à l'équipe commerciale"] },
-        { crm: "Stripe + Pennylane", items: ["Templates Finance : encaissé, DSO, impayés, MRR", "KPIs réconciliés facturation × compta par SIREN / TVA", "Alertes de trésorerie posées sur les tuiles", "Lien public pour le board ou l'expert-comptable"] },
+        { crm: "Stripe + Pennylane", items: ["Templates Finance : encaissé, DSO, impayés, MRR", "KPIs réconciliés facturation × compta par identifiants officiels", "Alertes de trésorerie posées sur les tuiles", "Lien public pour le board ou l'expert-comptable"] },
         { crm: "Chargebee / GoCardless / Sage", items: ["Template abonnements : MRR, churn, upgrades", "Prélèvements et écritures intégrés aux mêmes tableaux", "Suggestions de KPIs filtrées par outils connectés", "Un seul tableau pour toute la stack revenue"] },
       ]}
     />

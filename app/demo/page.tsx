@@ -57,7 +57,7 @@ export default function DemoPage() {
 
             <div className="mt-10 space-y-6">
               {[
-                { title: "Vos données, pas un dataset fictif", desc: "On connecte votre CRM pendant la démo et vous voyez vos vrais KPIs, rapprochés par SIREN / SIRET / TVA, en temps réel." },
+                { title: "Vos données, pas un dataset fictif", desc: "On connecte votre CRM pendant la démo et vous voyez vos vrais KPIs, rapprochés par identifiants officiels, en temps réel." },
                 { title: "Personnalisé pour votre stack", desc: "HubSpot (OAuth en 1 clic), Stripe, Pennylane, Chargebee, GoCardless, Sage — et import Excel / Google Sheets pour le reste." },
                 { title: "Recommandations actionnables", desc: "Vous repartez avec un diagnostic de la qualité de vos données et des actions prioritaires, exécutables depuis Revold après votre validation." },
               ].map((item) => (

@@ -48,13 +48,13 @@ export default function EssaiGratuitPage() {
               </span>
             </h1>
             <p className="mt-4 text-lg text-slate-400">
-              Connectez vos outils en moins de 5 minutes : Revold rapproche vos données par SIREN / SIRET / TVA et votre équipe IA se met au travail. Aucune carte bancaire requise.
+              Connectez vos outils en moins de 5 minutes : Revold rapproche vos données par identifiants officiels et votre équipe IA se met au travail. Aucune carte bancaire requise.
             </p>
 
             <div className="mt-10 space-y-6">
               {[
                 { title: "Prêt en 5 minutes", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API — ou import Excel / Google Sheets. Aucune configuration technique." },
-                { title: "14 jours de toutes les fonctionnalités", desc: "Rapprochement SIREN/TVA + enrichissement Sirene, équipe IA 24/7, routines & récaps, alertes au câblage vérifié, tour de contrôle vocale — tout est inclus." },
+                { title: "14 jours de toutes les fonctionnalités", desc: "Rapprochement identifiants officiels + enrichissement Sirene, équipe IA 24/7, routines & récaps, alertes au câblage vérifié, tour de contrôle vocale — tout est inclus." },
                 { title: "Vos données restent les vôtres", desc: "Accès en lecture seule, révocable à tout moment. Suppression complète sous 30 jours si vous ne continuez pas. RGPD compliant." },
               ].map((item) => (
                 <div key={item.title} className="flex gap-4">
