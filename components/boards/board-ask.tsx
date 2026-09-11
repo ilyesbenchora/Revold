@@ -19,59 +19,75 @@ type Exchange = { q: string; a: string; agent?: { name: string; role: string } |
 type SourceTool = { key: string; label: string; category: string };
 
 /** Exemples par famille de page — chaque exemple exige une catégorie d'outil. */
-const EXAMPLES: Record<string, Array<{ cat: string; q: string }>> = {
+/**
+ * Suggestions PAR PAGE — chaque exemple porte les catégories d'outils qu'il
+ * requiert (`cats`). Les questions CROISÉES vivent DANS le pool de la page
+ * concernée (plus d'injection globale CRM×facturation qui polluait toutes les
+ * pages) : ainsi chaque page ne propose que des questions qui lui sont propres,
+ * et le croisé n'apparaît que là où il a du sens ET quand les outils sont là.
+ * Les mono-outil sont listés d'abord (cœur de la page), le croisé ensuite.
+ */
+const EXAMPLES: Record<string, Array<{ cats: string[]; q: string }>> = {
+  // Ventes
   perf_ventes: [
-    { cat: "crm", q: "Combien de deals gagnés ce mois-ci ?" },
-    { cat: "crm", q: "Quel est le montant du pipeline en cours ?" },
-    { cat: "crm", q: "Quel est mon taux de perte ce trimestre ?" },
-    { cat: "crm", q: "Combien de deals ont une close date dépassée ?" },
+    { cats: ["crm"], q: "Combien de deals gagnés ce mois-ci ?" },
+    { cats: ["crm"], q: "Quel est le montant du pipeline en cours ?" },
+    { cats: ["crm"], q: "Quel est mon taux de perte ce trimestre ?" },
+    { cats: ["crm"], q: "Combien de deals ont une close date dépassée ?" },
+    { cats: ["crm", "billing"], q: "Quel écart entre le CA signé et le CA facturé ce trimestre ?" },
   ],
+  // Marketing
   perf_marketing: [
-    { cat: "crm", q: "Combien de contacts MQL ce mois-ci ?" },
-    { cat: "crm", q: "Quelle part de mes contacts devient SQL ?" },
-    { cat: "crm", q: "Combien de deals créés ce mois-ci ?" },
-    { cat: "ads", q: "Quelles campagnes génèrent le plus de contacts ?" },
+    { cats: ["crm"], q: "Combien de contacts MQL ce mois-ci ?" },
+    { cats: ["crm"], q: "Quelle part de mes contacts devient SQL ?" },
+    { cats: ["crm"], q: "Combien de deals créés ce mois-ci ?" },
+    { cats: ["ads"], q: "Quelles campagnes génèrent le plus de contacts ?" },
+    { cats: ["ads", "crm"], q: "Quel canal d'acquisition amène le plus de deals gagnés ?" },
   ],
+  // Trésorerie
   audit_paiement_facturation: [
-    { cat: "billing", q: "Quel montant reste impayé aujourd'hui ?" },
-    { cat: "billing", q: "Combien ai-je encaissé ce mois-ci ?" },
-    { cat: "billing", q: "Quelles sont mes plus grosses dépenses par catégorie ?" },
+    { cats: ["billing"], q: "Quel montant reste impayé aujourd'hui ?" },
+    { cats: ["billing"], q: "Combien ai-je encaissé ce mois-ci ?" },
+    { cats: ["billing"], q: "Quel est mon MRR actif en ce moment ?" },
+    { cats: ["billing"], q: "Quelles sont mes plus grosses dépenses par catégorie ?" },
+    { cats: ["crm", "billing"], q: "Le cash encaissé suit-il mes deals gagnés ce mois-ci ?" },
   ],
+  // Service client
   audit_service_client: [
-    { cat: "support", q: "Combien de tickets sont encore ouverts ?" },
-    { cat: "billing", q: "Combien d'abonnements annulés ce mois-ci ?" },
-    { cat: "billing", q: "Quel MRR est actif en ce moment ?" },
+    { cats: ["support"], q: "Combien de tickets sont encore ouverts ?" },
+    { cats: ["support"], q: "Quel est mon délai moyen de résolution ?" },
+    { cats: ["support"], q: "Combien de tickets créés cette semaine ?" },
+    { cats: ["support", "billing"], q: "Mes annulations d'abonnements suivent-elles le volume de tickets ?" },
+    { cats: ["support", "crm"], q: "Quels comptes cumulent tickets en hausse et deals en cours ?" },
   ],
+  // Connectivités outils (ex-Rapprochement données)
   audit_donnees: [
-    { cat: "crm", q: "Combien d'entreprises par segment ?" },
-    { cat: "billing", q: "Combien de factures viennent de chaque outil ?" },
-    { cat: "crm", q: "Combien de contacts sont MQL ?" },
+    { cats: ["crm"], q: "Combien d'entreprises sans SIREN renseigné ?" },
+    { cats: ["crm"], q: "Combien de contacts sans email valide ?" },
+    { cats: ["billing"], q: "Combien de factures proviennent de chaque outil ?" },
+    { cats: ["crm", "billing"], q: "Combien d'entreprises non rapprochées entre CRM et facturation ?" },
   ],
+  // Équipes / adoption
+  audit_adoption: [
+    { cats: ["crm"], q: "Quelle est la charge de deals par commercial ?" },
+    { cats: ["crm"], q: "Qui a le meilleur taux de conversion ce trimestre ?" },
+    { cats: ["crm"], q: "Combien de deals sans activité récente par propriétaire ?" },
+  ],
+  // Appels / téléphonie
   perf_appels: [
-    { cat: "crm", q: "Combien de deals créés cette semaine ?" },
-    { cat: "phone", q: "Quel volume d'activité ce mois-ci ?" },
+    { cats: ["phone"], q: "Quel volume d'appels ce mois-ci ?" },
+    { cats: ["crm"], q: "Combien de deals créés cette semaine ?" },
+    { cats: ["phone", "crm"], q: "Mes appels convertissent-ils en deals créés ?" },
   ],
   // Tableaux de bord créés / Vue d'ensemble : composés selon les outils.
   board: [
-    { cat: "crm", q: "Combien de deals gagnés ce mois-ci ?" },
-    { cat: "billing", q: "Quel montant facturé ce mois-ci ?" },
-    { cat: "billing", q: "Quel montant reste impayé ?" },
-    { cat: "support", q: "Combien de tickets ouverts ?" },
-    { cat: "crm", q: "Combien d'entreprises par segment ?" },
+    { cats: ["crm"], q: "Combien de deals gagnés ce mois-ci ?" },
+    { cats: ["billing"], q: "Quel montant facturé ce mois-ci ?" },
+    { cats: ["billing"], q: "Quel montant reste impayé ?" },
+    { cats: ["support"], q: "Combien de tickets ouverts ?" },
+    { cats: ["crm"], q: "Combien d'entreprises par segment ?" },
   ],
 };
-
-/**
- * Exemples CROISÉS multi-outils : proposés uniquement quand TOUTES les
- * catégories requises sont connectées sur la page — l'agent y répond via ses
- * outils croisés (compare CRM × facturé, synthèses) ou deux agrégats comparés.
- */
-const CROSS_EXAMPLES: Array<{ cats: string[]; q: string }> = [
-  { cats: ["crm", "billing"], q: "Quel écart entre le CA signé et le CA facturé ce trimestre ?" },
-  { cats: ["crm", "billing"], q: "Le cash encaissé suit-il mes deals gagnés ce mois-ci ?" },
-  { cats: ["billing", "support"], q: "Mes annulations d'abonnements suivent-elles le volume de tickets ?" },
-  { cats: ["crm", "support"], q: "Compare mes deals gagnés au volume de tickets ce mois-ci" },
-];
 
 /** Famille d'exemples de la page (les sous-pages héritent de leur parente). */
 function familyOf(pageKey: string): string {
@@ -85,15 +101,16 @@ function familyOf(pageKey: string): string {
 /** Exemples réellement posables : filtrés par les catégories d'outils connectés. */
 function buildExamples(pageKey: string, tools: SourceTool[] | null): string[] {
   const pool = EXAMPLES[familyOf(pageKey)] ?? EXAMPLES.board;
-  // Outils pas encore chargés : on propose les exemples de la page telle quelle.
-  if (tools === null) return pool.slice(0, 3).map((e) => e.q);
+  // Outils pas encore chargés : exemples de la page telle quelle (mono-outil).
+  if (tools === null) return pool.filter((e) => e.cats.length === 1).slice(0, 3).map((e) => e.q);
   const cats = new Set(tools.map((t) => t.category));
-  const matched = pool.filter((e) => cats.has(e.cat)).map((e) => e.q);
-  // Plusieurs outils connectés → les questions CROISÉES d'abord : c'est la
-  // valeur Revold (personne d'autre ne peut y répondre en un champ).
-  const cross = CROSS_EXAMPLES.filter((e) => e.cats.every((c) => cats.has(c))).map((e) => e.q);
-  const dedup = [...new Set([...cross.slice(0, 2), ...matched])];
-  return dedup.slice(0, cross.length > 0 ? 4 : 3);
+  // Ne garder que les questions dont TOUS les outils requis sont connectés,
+  // dans l'ordre du pool (mono-outil d'abord, croisé propre à la page ensuite).
+  const matched = pool.filter((e) => e.cats.every((c) => cats.has(c))).map((e) => e.q);
+  // Rien de connecté pour cette page → on montre quand même 2 questions
+  // mono-outil PROPRES à la page (jamais le pool générique d'une autre page).
+  const list = matched.length > 0 ? matched : pool.filter((e) => e.cats.length === 1).slice(0, 2).map((e) => e.q);
+  return [...new Set(list)].slice(0, 3);
 }
 
 export function BoardAsk({ pageKey }: { pageKey: string }) {
