@@ -720,6 +720,28 @@ const AGG_SPECS: Record<string, AggSpec> = {
     },
     numeric: {},
   },
+  // Appels téléphoniques (Aircall & co) — miroir canonique `activities` de
+  // type "call" : direction et statut lus depuis le sujet normalisé posé par
+  // le connecteur (« Appel entrant/sortant [manqué] — … »). Les autres types
+  // d'activités sortent des dimensions (null) : jamais comptés.
+  calls: {
+    table: "activities",
+    columns: "type, subject, occurred_at, duration_minutes, contact_id",
+    dims: {
+      direction: (r) => {
+        if (r.type !== "call") return null;
+        const s = String(r.subject ?? "");
+        return s.includes("entrant") ? "Entrants" : s.includes("sortant") ? "Sortants" : "Autres";
+      },
+      statut: (r) => (r.type !== "call" ? null : String(r.subject ?? "").includes("manqué") ? "Manqués" : "Aboutis"),
+      // Qualité du rapprochement : l'appel est-il relié à un contact CRM ?
+      rattachement: (r) => (r.type !== "call" ? null : r.contact_id ? "Reliés à un contact" : "Sans contact CRM"),
+      month_call: (r) => (r.type !== "call" ? null : monthOf(r.occurred_at)),
+    },
+    numeric: {
+      duration_minutes: (r) => Number(r.duration_minutes) || 0,
+    },
+  },
   // Écritures comptables agrégées compte × mois (ledger_balances — Pennylane
   // & co) : P&L, TVA et balance recalculables par période/exercice.
   // Conventions PCG : classe 7 = crédit − débit, classe 6 = débit − crédit.
@@ -781,11 +803,11 @@ function dateColumnFor(entity: string, groupBy: string): string | null {
       created: "created_date", closed: "close_date", issued: "issued_at",
       paid: "paid_at", started: "started_at", canceled: "canceled_at",
       transaction: "date", opened: "opened_at", resolved: "resolved_at",
-      entry: "month",
+      entry: "month", call: "occurred_at",
     };
     return m[suffix] ?? null;
   }
-  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date", tickets: "opened_at", ledger: "month" };
+  const def: Record<string, string> = { deals: "created_date", invoices: "issued_at", subscriptions: "started_at", transactions: "date", tickets: "opened_at", ledger: "month", calls: "occurred_at" };
   return def[entity] ?? null;
 }
 

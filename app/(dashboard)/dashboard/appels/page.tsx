@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { PageSourcesGate, PageSourcesFooter } from "@/components/page-sources-gate";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { ConfigurableKpiTiles } from "@/components/kpi-tiles/configurable-kpi-tiles";
+import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
 import { CreateAlertModal } from "@/components/create-alert-modal";
 
 /**
@@ -21,6 +21,85 @@ export default async function AppelsPage() {
   }
   const supabase = await createSupabaseServerClient();
 
+  // ── KPIs de phoning sur les 30 DERNIERS JOURS (la période est toujours
+  // dite) — calculés sur le miroir canonique `activities` type "call"
+  // (alimenté par le connecteur Aircall & co). Résilient : erreur → null (—).
+  const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const countCalls = async (apply: (q: any) => any): Promise<number | null> => {
+    try {
+      const { count, error } = await apply(
+        supabase
+          .from("activities")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId)
+          .eq("type", "call")
+          .gte("occurred_at", since30),
+      );
+      return error ? null : (count ?? 0);
+    } catch {
+      return null;
+    }
+  };
+  const [calls30, sortants30, entrants30, manques30, relies30, durations] = await Promise.all([
+    countCalls((q) => q),
+    countCalls((q) => q.ilike("subject", "%sortant%")),
+    countCalls((q) => q.ilike("subject", "%entrant%")),
+    countCalls((q) => q.ilike("subject", "%manqué%")),
+    countCalls((q) => q.not("contact_id", "is", null)),
+    supabase
+      .from("activities")
+      .select("duration_minutes")
+      .eq("organization_id", orgId)
+      .eq("type", "call")
+      .gte("occurred_at", since30)
+      .not("duration_minutes", "is", null)
+      .limit(2000)
+      .then(({ data, error }) => (error ? null : ((data ?? []) as Array<{ duration_minutes: number }>).map((r) => Number(r.duration_minutes) || 0))),
+  ]);
+  const aboutis30 = calls30 != null && manques30 != null ? calls30 - manques30 : null;
+  const decroche = calls30 != null && calls30 > 0 && aboutis30 != null ? Math.round((aboutis30 / calls30) * 100) : null;
+  const avgMin = durations && durations.length > 0 ? Math.round((durations.reduce((s, v) => s + v, 0) / durations.length) * 10) / 10 : null;
+  const reliesPct = calls30 != null && calls30 > 0 && relies30 != null ? Math.round((relies30 / calls30) * 100) : null;
+  const fmtN = (v: number | null) => (v != null ? v.toLocaleString("fr-FR") : "—");
+
+  const defaultTiles: DefaultTile[] = [
+    { key: "appels_30j", label: "Appels", value: fmtN(calls30), raw: calls30, rawUnit: "count", tone: "accent", sub: "30 derniers jours" },
+    { key: "sortants_30j", label: "Sortants", value: fmtN(sortants30), raw: sortants30, rawUnit: "count", tone: "neutral", sub: "émis — 30 derniers jours" },
+    { key: "entrants_30j", label: "Entrants", value: fmtN(entrants30), raw: entrants30, rawUnit: "count", tone: "neutral", sub: "reçus — 30 derniers jours" },
+    {
+      key: "decroche_30j",
+      label: "Taux de décroché",
+      value: decroche != null ? `${decroche} %` : "—",
+      raw: decroche,
+      rawUnit: "percent",
+      tone: decroche == null ? "neutral" : decroche >= 80 ? "pos" : decroche >= 60 ? "accent" : "neg",
+      sub: `${fmtN(manques30)} manqué${(manques30 ?? 0) > 1 ? "s" : ""} — 30 derniers jours`,
+      verdict: decroche == null ? undefined
+        : decroche >= 80 ? { label: "Excellent (> 80 %)", tone: "pos" }
+        : decroche >= 60 ? { label: "Correct", tone: "warn" }
+        : { label: "Faible (< 60 %)", tone: "neg" },
+    },
+    {
+      key: "duree_moyenne_30j",
+      label: "Durée moyenne",
+      value: avgMin != null ? `${avgMin.toLocaleString("fr-FR")} min` : "—",
+      raw: avgMin,
+      rawUnit: "count",
+      tone: "neutral",
+      sub: "par appel — 30 derniers jours",
+    },
+    {
+      key: "relies_crm_30j",
+      label: "Reliés au CRM",
+      value: fmtN(relies30),
+      raw: relies30,
+      rawUnit: "count",
+      tone: reliesPct != null && reliesPct < 50 ? "neg" : "pos",
+      sub: reliesPct != null ? `${reliesPct} % des appels rattachés à un contact — 30 derniers jours` : "appels rattachés à un contact",
+    },
+  ];
+
   return (
     <section className="space-y-8">
       <header className="flex items-start justify-between gap-4">
@@ -35,23 +114,29 @@ export default async function AppelsPage() {
 
       {/* Blocs pilotés par « Outil source par page » — rien sans outil choisi. */}
       <PageSourcesGate supabase={supabase} orgId={orgId} pageKey="audit_appels" categories={["phone"]}>
-        {/* Tuiles KPI configurables — page préparée, aucun KPI en dur. */}
+        {/* Tuiles KPI configurables (retrait/réajout, suggestions phoning du
+            catalogue — même CTA « Personnaliser les KPIs » que partout). */}
         <ConfigurableKpiTiles
           supabase={supabase}
           orgId={orgId}
           pageKey="perf_appels"
-          defaults={[]}
+          defaults={defaultTiles}
           tablesPageKey="perf_appels"
         />
 
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-          <p className="text-2xl" aria-hidden>📞</p>
-          <p className="mt-2 text-sm font-medium text-slate-700">Ton outil de phoning est connecté — les blocs d&apos;appels arrivent ici.</p>
-          <p className="mt-1.5 text-xs text-slate-500">
-            Volume d&apos;appels par jour, durée moyenne, taux de décroché, appels entrants/sortants et activité par
-            commercial. En attendant, tu peux déjà créer tes propres KPIs avec «&nbsp;＋ Ajouter un KPI&nbsp;».
-          </p>
-        </div>
+        {calls30 === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="text-2xl" aria-hidden>📞</p>
+            <p className="mt-2 text-sm font-medium text-slate-700">
+              Outil de phoning connecté — les appels arrivent à la prochaine synchronisation.
+            </p>
+            <p className="mt-1.5 text-xs text-slate-500">
+              Les tuiles ci-dessus se rempliront automatiquement (volume, décroché, durées, rattachement CRM).
+              Tu peux aussi ajouter des KPIs de phoning depuis «&nbsp;Personnaliser les KPIs&nbsp;» — ils sont
+              recalculables par période comme partout ailleurs.
+            </p>
+          </div>
+        )}
       </PageSourcesGate>
 
       <PageDataTables pageKey="perf_appels" />

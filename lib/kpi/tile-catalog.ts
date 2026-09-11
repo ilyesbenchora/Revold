@@ -82,6 +82,20 @@ const ENRICHMENT_TILES: TileSuggestion[] = [
   { id: "effectif_linkedin", label: "Effectifs via LinkedIn", description: "Entreprises dont l'effectif vient de la source LinkedIn (bêta) — complément du registre", unit: "count", sourceCategory: "crm", aggSpec: { entity: "companies", groupBy: "effectif_linkedin", measure: "count", target: "Effectif LinkedIn connu" } },
 ];
 
+// ── KPIs de phoning (activités « call » du miroir canonique — Aircall & co) :
+// suggestions de la page Appels, tous recalculables par période/cohorte ──
+const CALL_TILES: TileSuggestion[] = [
+  { id: "appels_total", label: "Appels (total)", description: "Volume total d'appels synchronisés depuis l'outil de phoning", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "count" } },
+  { id: "appels_sortants", label: "Appels sortants", description: "Volume d'appels émis par l'équipe — l'effort de prospection", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "direction", measure: "count", target: "Sortants" } },
+  { id: "appels_entrants", label: "Appels entrants", description: "Volume d'appels reçus — la demande entrante", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "direction", measure: "count", target: "Entrants" } },
+  { id: "appels_aboutis", label: "Appels aboutis", description: "Appels décrochés/terminés (non manqués)", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "count", target: "Aboutis" } },
+  { id: "appels_manques", label: "Appels manqués", description: "Appels non décrochés — opportunités de rappel", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "count", target: "Manqués" } },
+  { id: "taux_decroche", label: "Taux de décroché", description: "% d'appels aboutis sur le volume total", unit: "percent", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "count", target: "Aboutis", percent_of_total: true } },
+  { id: "duree_totale_appels", label: "Temps en ligne (min)", description: "Durée cumulée des appels, en minutes", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "sum", field: "duration_minutes" } },
+  { id: "duree_moyenne_appel", label: "Durée moyenne (min)", description: "Durée moyenne d'un appel abouti, en minutes", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "statut", measure: "avg", field: "duration_minutes", target: "Aboutis" } },
+  { id: "appels_relies_crm", label: "Appels reliés au CRM", description: "Appels rattachés à un contact connu — qualité du rapprochement téléphonie ↔ CRM", unit: "count", sourceCategory: "phone", aggSpec: { entity: "calls", groupBy: "rattachement", measure: "count", target: "Reliés à un contact" } },
+];
+
 /** Équipe d'alerte associée aux tuiles de chaque page (KPI personnalisé + création d'alerte). */
 export const PAGE_TILE_TEAM: Record<string, string> = {
   perf_ventes: "sales",
@@ -90,6 +104,7 @@ export const PAGE_TILE_TEAM: Record<string, string> = {
   audit_service_client: "cs",
   audit_donnees: "ops",
   enrichissement: "ops",
+  perf_appels: "sales",
 };
 
 // Pages « racines » du système de tuiles. Les sous-pages (Trésorerie → Paiement,
@@ -129,6 +144,7 @@ const PAGE_TILE_SUGGESTIONS: Record<string, TileSuggestion[]> = {
   ],
   audit_donnees: fromKpiDefs(kpisByTeam.ops),
   enrichissement: ENRICHMENT_TILES,
+  perf_appels: CALL_TILES,
 };
 
 /**

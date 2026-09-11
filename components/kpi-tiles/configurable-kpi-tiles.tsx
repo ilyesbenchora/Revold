@@ -33,6 +33,7 @@ const PAGE_SURGICAL_TEAM: Record<string, string> = {
   audit_service_client: "csm",
   audit_donnees: "revops",
   enrichissement: "revops",
+  perf_appels: "sales",
 };
 
 export async function ConfigurableKpiTiles({
