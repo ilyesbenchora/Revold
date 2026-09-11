@@ -21,7 +21,7 @@ const STATIC_PAGES = [
   "/produits/reporting-cross-source",
   "/produits/resolution-entites",
   "/produits/insights-ia",
-  "/produits/audit-crm",
+  "/produits/tableaux-de-bord",
   "/produits/alertes-previsions",
   "/solutions/optimiser-revenus",
   "/solutions/fiabiliser-donnees",

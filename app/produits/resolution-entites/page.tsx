@@ -1,5 +1,5 @@
 import { ProductPage } from "@/components/product-page";
-import { ShotReconciliation } from "@/components/site/product-shots";
+import { ShotReconciliation, ShotHierarchie } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -24,10 +24,14 @@ export default function ResolutionEntitesPage() {
       titleAccent="Partout."
       subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même la donnée officielle manquante (identifiants, effectifs, CA, secteur, statut juridique, capital social, adresse du siège) depuis Sirene et l'INPI, en continu."
       heroIcon={icon}
-      shot={<ShotReconciliation />}
+      shots={[
+        { node: <ShotReconciliation />, caption: "Réconciliation signé × encaissé, rapprochée par SIREN / N° TVA." },
+        { node: <ShotHierarchie />, caption: "Hiérarchie de comptes : mères et filiales reliées par le registre, CA consolidé par groupe." },
+      ]}
       features={[
         { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
         { title: "Enrichissement officiel Sirene + INPI", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
+        { title: "Hiérarchie de comptes", desc: "Sociétés mères et filiales détectées et reliées par le registre officiel (et par raison sociale, à valider) : le CA, les deals et les factures se consolident par groupe — plus de silos entre entités d'un même client." },
         { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },
         { title: "Validation utilisateur", desc: "Aucun enrichissement n'est écrit sans votre accord. Chaque proposition est présentée avec sa source ; vous validez ou rejetez en un clic." },
         { title: "Écriture dans HubSpot", desc: "Identifiants et données officielles (effectifs, CA, statut juridique…) sont aussi écrits dans vos fiches HubSpot — champs vides uniquement, jamais d'écrasement. Chaque nouvelle entreprise est enrichie automatiquement, et les données évolutives sont rafraîchies tous les 90 jours." },

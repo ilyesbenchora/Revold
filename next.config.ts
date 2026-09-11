@@ -26,6 +26,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  async redirects() {
+    return [
+      // L'audit complet du CRM n'existe plus comme produit : la page est
+      // remplacée par Tableaux de bord & templates (SEO conservé).
+      { source: "/produits/audit-crm", destination: "/produits/tableaux-de-bord", permanent: true },
+    ];
+  },
 };
 
 // Wrappe la config Next avec Sentry seulement si DSN est configuré.

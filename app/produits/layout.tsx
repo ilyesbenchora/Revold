@@ -13,7 +13,7 @@ const PRODUCTS = [
   { label: "Reporting cross-source", href: "/produits/reporting-cross-source" },
   { label: "Résolution d'entités", href: "/produits/resolution-entites" },
   { label: "Mon équipe IA 24/7", href: "/produits/insights-ia" },
-  { label: "Audit complet du CRM", href: "/produits/audit-crm" },
+  { label: "Tableaux de bord & templates", href: "/produits/tableaux-de-bord" },
   { label: "Alertes, objectifs & actions", href: "/produits/alertes-previsions" },
 ];
 

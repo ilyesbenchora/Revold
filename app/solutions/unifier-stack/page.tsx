@@ -32,7 +32,7 @@ export default function UnifierStackPage() {
       relatedProducts={[
         { label: "Synchronisation de données", href: "/produits/synchronisation" },
         { label: "Résolution d'entités", href: "/produits/resolution-entites" },
-        { label: "Audit complet du CRM", href: "/produits/audit-crm" },
+        { label: "Tableaux de bord & templates", href: "/produits/tableaux-de-bord" },
       ]}
     />
   );

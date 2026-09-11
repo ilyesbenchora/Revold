@@ -39,7 +39,7 @@ export async function GET() {
     `- [Reporting cross-source](${SITE_URL}/produits/reporting-cross-source): KPIs câblés et vérifiés croisant CRM, facturation et banque.`,
     `- [Résolution d'entités](${SITE_URL}/produits/resolution-entites): rapprochement des comptes par SIREN, SIRET et TVA.`,
     `- [Équipe IA](${SITE_URL}/produits/insights-ia): agents experts par pôle.`,
-    `- [Audit CRM](${SITE_URL}/produits/audit-crm): complétude, doublons, orphelins, deals stagnants.`,
+    `- [Tableaux de bord & templates](${SITE_URL}/produits/tableaux-de-bord): templates par métier et par outil, construction de zéro, partage.`,
     `- [Alertes et prévisions](${SITE_URL}/produits/alertes-previsions): alertes câblées, objectifs, projection pondérée.`,
     "",
     "## Blog",

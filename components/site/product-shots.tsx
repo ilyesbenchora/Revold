@@ -56,10 +56,6 @@ const SIDEBAR_ITEMS = ["Accueil", "Mon équipe IA", "Performances", "Trésorerie
 function Sidebar({ active }: { active: string }) {
   return (
     <div className="hidden w-36 shrink-0 border-r border-slate-200 bg-white px-2 py-3 sm:block">
-      <div className="mb-3 flex items-center gap-1.5 px-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-[9px] font-black text-white">R</span>
-        <span className="text-[11px] font-bold text-slate-900">Revold</span>
-      </div>
       <div className="space-y-0.5">
         {SIDEBAR_ITEMS.map((item) => (
           <p key={item} className={`rounded-md px-2 py-1 text-[10px] ${item === active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-500"}`}>
@@ -494,6 +490,284 @@ export function ShotIntegrations() {
                 <p className="mt-1.5 text-[9px] font-medium text-emerald-600">{t.s}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Hiérarchie de comptes ─────────────── */
+
+export function ShotHierarchie() {
+  const filiales = [
+    { n: "Dupont Lyon SAS", siren: "552 100 554", ca: "48 000 €" },
+    { n: "Dupont Paris SARL", siren: "552 100 780", ca: "36 500 €" },
+    { n: "Dupont Sud SAS", siren: "552 101 002", ca: "21 200 €" },
+  ];
+  return (
+    <Browser url="app.revold.ai/dashboard/hierarchie">
+      <div className="flex">
+        <Sidebar active="Données" />
+        <div className="min-w-0 flex-1 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Hiérarchie de comptes</p>
+              <p className="text-[10px] text-slate-500">Sociétés mères et filiales reliées par le registre officiel — CA consolidé par groupe.</p>
+            </div>
+            <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700">Groupe : 105 700 €</span>
+          </div>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between rounded-lg bg-indigo-50 px-3 py-2">
+              <div>
+                <p className="text-[11px] font-bold text-indigo-900">Groupe Dupont (holding)</p>
+                <p className="font-mono text-[9px] text-indigo-700">SIREN 552 099 871</p>
+              </div>
+              <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-semibold text-indigo-700">3 filiales détectées</span>
+            </div>
+            <div className="mt-2 space-y-1.5 pl-4">
+              {filiales.map((f) => (
+                <div key={f.n} className="flex items-center gap-2 border-l-2 border-slate-200 pl-3">
+                  <div className="flex min-w-0 flex-1 items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-[10px] font-semibold text-slate-800">{f.n}</p>
+                      <p className="font-mono text-[9px] text-slate-500">{f.siren}</p>
+                    </div>
+                    <span className="tabular-nums text-[10px] font-bold text-slate-700">{f.ca}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[9px] text-slate-400">Rattachements proposés par le moteur (registre + raison sociale) — validés par vous avant consolidation.</p>
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Objectifs par équipe ─────────────── */
+
+export function ShotObjectifs() {
+  const goals = [
+    { t: "Sales", n: "Pipeline pondéré · cible 320 k€", cur: "248 000 €", pct: 78, ok: true },
+    { t: "Finance", n: "DSO · cible 40 j", cur: "43 j", pct: 62, ok: false },
+    { t: "CSM", n: "Rétention · cible 92 %", cur: "94 %", pct: 100, ok: true },
+  ];
+  return (
+    <Browser url="app.revold.ai/dashboard/mes-alertes/objectifs">
+      <div className="flex">
+        <Sidebar active="Alertes" />
+        <div className="min-w-0 flex-1 p-4">
+          <p className="text-sm font-bold text-slate-900">Objectifs</p>
+          <p className="text-[10px] text-slate-500">Un cap chiffré par équipe, suivi en continu sur les données réconciliées.</p>
+          <div className="mt-3 space-y-2">
+            {goals.map((g) => (
+              <div key={g.t} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-slate-800">
+                    <span className="mr-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">{g.t}</span>
+                    {g.n}
+                  </p>
+                  <span className={`tabular-nums text-[11px] font-bold ${g.ok ? "text-emerald-600" : "text-amber-600"}`}>{g.cur}</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className={`h-full rounded-full ${g.ok ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${g.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Boîte d'actions ─────────────── */
+
+export function ShotActions() {
+  return (
+    <Browser url="app.revold.ai/dashboard/mes-alertes/actions">
+      <div className="flex">
+        <Sidebar active="Alertes" />
+        <div className="min-w-0 flex-1 p-4">
+          <p className="text-sm font-bold text-slate-900">Boîte d&apos;actions</p>
+          <p className="text-[10px] text-slate-500">Revold détecte et propose, vous validez, l&apos;action s&apos;exécute dans vos outils.</p>
+          <div className="mt-3 space-y-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-slate-800">Créer une tâche de relance · deal « Groupe Livio »</p>
+                <SourceChip>HubSpot</SourceChip>
+              </div>
+              <p className="mt-0.5 text-[10px] text-slate-500">64 000 € · sans activité depuis 23 j · owner : S. Martin</p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-md bg-indigo-600 px-2.5 py-1 text-[10px] font-semibold text-white">Valider</span>
+                <span className="rounded-md border border-slate-200 px-2.5 py-1 text-[10px] text-slate-500">Rejeter</span>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-slate-800">Envoyer le rappel officiel · facture #4472</p>
+                <SourceChip>Stripe</SourceChip>
+              </div>
+              <p className="mt-0.5 text-[10px] text-slate-500">Dupont SAS · 12 400 € · échue depuis 12 j</p>
+              <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                Validée hier · rappel envoyé
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Cash récupéré, attribué ─────────────── */
+
+export function ShotCashRecupere() {
+  const lignes = [
+    { f: "#4472 · Dupont SAS", a: "Rappel Stripe validé le 2 sept.", v: "12 400 €", d: "encaissé le 8 sept." },
+    { f: "#4391 · Atelier Brio", a: "Relance validée le 26 août", v: "8 800 €", d: "encaissé le 3 sept." },
+    { f: "#4356 · Nexa Conseil", a: "Rappel Stripe validé le 19 août", v: "6 200 €", d: "encaissé le 28 août" },
+  ];
+  return (
+    <Browser url="app.revold.ai/dashboard/mes-alertes/actions">
+      <div className="flex">
+        <Sidebar active="Alertes" />
+        <div className="min-w-0 flex-1 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Cash récupéré</p>
+              <p className="text-[10px] text-slate-500">Chaque euro encaissé après une action validée est attribué, ligne par ligne.</p>
+            </div>
+            <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">27 400 € récupérés ce trimestre</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {lignes.map((l) => (
+              <div key={l.f} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[11px] font-semibold text-slate-800">{l.f}</p>
+                  <p className="text-[9px] text-slate-500">{l.a} · {l.d}</p>
+                </div>
+                <span className="tabular-nums text-[11px] font-bold text-emerald-600">+{l.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Connecteur ERP / outil métier sur mesure ─────────────── */
+
+export function ShotSurMesure() {
+  return (
+    <Browser url="app.revold.ai/dashboard/integration/sur-mesure">
+      <div className="flex">
+        <Sidebar active="Intégrations" />
+        <div className="min-w-0 flex-1 p-4">
+          <p className="text-sm font-bold text-slate-900">Outil sur mesure</p>
+          <p className="text-[10px] text-slate-500">Connectez votre ERP ou n&apos;importe quel outil métier exposant une API — sans développement.</p>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold text-slate-900">ERP interne · Production</p>
+              <span className="inline-flex items-center gap-1 text-[9px] font-medium text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Synchronisé il y a 35 min
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-slate-50 p-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">Champs mappés</p>
+                <p className="mt-1 text-[10px] text-slate-700">code_client → <span className="font-semibold">ID de rapprochement</span></p>
+                <p className="text-[10px] text-slate-700">montant_commande → <span className="font-semibold">CA facturé</span></p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">Champs métier agrégeables</p>
+                <p className="mt-1 text-[10px] text-slate-700">volume_produit · <span className="text-slate-500">somme</span></p>
+                <p className="text-[10px] text-slate-700">taux_rebut · <span className="text-slate-500">moyenne</span></p>
+              </div>
+            </div>
+            <p className="mt-2 text-[9px] text-slate-400">1 240 lignes importées · croisées avec le CRM et la facturation par votre code client.</p>
+          </div>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Templates de tableaux de bord ─────────────── */
+
+export function ShotTemplates() {
+  const templates = [
+    { n: "Direction", d: "MRR, cash, pipeline", tools: "HubSpot × Stripe" },
+    { n: "Sales", d: "Pipeline, closing, cycles", tools: "HubSpot" },
+    { n: "Finance", d: "Encaissé, DSO, impayés", tools: "Stripe × Pennylane" },
+    { n: "Abonnements", d: "MRR, churn, upgrades", tools: "Chargebee" },
+  ];
+  return (
+    <Browser url="app.revold.ai/dashboard/tableaux-de-bord/templates">
+      <div className="flex">
+        <Sidebar active="Tableaux de bord" />
+        <div className="min-w-0 flex-1 p-4">
+          <p className="text-sm font-bold text-slate-900">Templates de tableaux de bord</p>
+          <p className="text-[10px] text-slate-500">Des modèles prêts à l&apos;emploi par métier et par outil — activés en un clic sur vos données.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {templates.map((t) => (
+              <div key={t.n} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex h-8 items-end gap-1">
+                  {[35, 60, 45, 75, 55, 80].map((h, j) => (
+                    <span key={j} className="flex-1 rounded-sm bg-indigo-200" style={{ height: `${h}%` }} />
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-slate-900">{t.n}</p>
+                <p className="text-[9px] text-slate-500">{t.d}</p>
+                <p className="mt-1 text-[9px] font-medium text-indigo-600">{t.tools}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-center text-[10px] text-slate-500">＋ Ou partez d&apos;une page vierge et construisez le vôtre</p>
+        </div>
+      </div>
+    </Browser>
+  );
+}
+
+/* ─────────────── Shot : Tableau de bord construit de zéro ─────────────── */
+
+export function ShotBoards() {
+  return (
+    <Browser url="app.revold.ai/dashboard/tableaux-de-bord/pilotage-q4">
+      <div className="flex">
+        <Sidebar active="Tableaux de bord" />
+        <div className="min-w-0 flex-1 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-900">Pilotage Q4</p>
+            <div className="flex items-center gap-1.5">
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-medium text-slate-600">Visibilité : équipe</span>
+              <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-700">Partager</span>
+            </div>
+          </div>
+          <div className="mt-1.5 flex gap-1 border-b border-slate-200 pb-1.5">
+            {["Vue générale", "Ventes", "Trésorerie", "＋ Onglet"].map((t, i) => (
+              <span key={t} className={`rounded-md px-2 py-0.5 text-[9px] font-medium ${i === 0 ? "bg-indigo-50 text-indigo-700" : "text-slate-500"}`}>{t}</span>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <Tile label="MRR" value="84 300 €" delta="+4,2 %" />
+            <Tile label="Pipeline pondéré" value="248 000 €" tone="text-indigo-600" />
+            <Tile label="Impayés" value="41 200 €" tone="text-rose-600" />
+          </div>
+          <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold text-slate-700">CA encaissé · par mois</p>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500">＋ Ajouter un bloc</span>
+            </div>
+            <div className="mt-2 h-14"><LineChart /></div>
           </div>
         </div>
       </div>

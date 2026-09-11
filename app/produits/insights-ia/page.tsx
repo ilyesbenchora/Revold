@@ -1,5 +1,5 @@
 import { ProductPage } from "@/components/product-page";
-import { ShotAgents } from "@/components/site/product-shots";
+import { ShotAgents, ShotRapports } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -23,7 +23,10 @@ export default function InsightsIAPage() {
       titleAccent="disponible 24/7."
       subtitle="Des agents experts par domaine, des routines programmées et une tour de contrôle vocale — avec une règle absolue : chaque chiffre est câblé sur vos vraies données, jamais inventé."
       heroIcon={icon}
-      shot={<ShotAgents />}
+      shots={[
+        { node: <ShotAgents />, caption: "Un agent expert par domaine, qui répond sur vos vraies données — source à l'appui." },
+        { node: <ShotRapports />, caption: "Routines : le récap de la période, généré et livré automatiquement." },
+      ]}
       features={[
         { title: "Agents experts par domaine", desc: "Performance commerciale, trésorerie, service client, qualité des données : chaque agent maîtrise son périmètre et s'appuie sur vos données rapprochées." },
         { title: "Un langage par équipe", desc: "Sales, marketing, CSM, finance, direction : chaque agent parle le langage de l'équipe qu'il sert et connaît ses KPIs — l'accompagnement vit directement sur la page de l'agent." },

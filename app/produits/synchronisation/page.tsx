@@ -1,5 +1,5 @@
 import { ProductPage } from "@/components/product-page";
-import { ShotIntegrations } from "@/components/site/product-shots";
+import { ShotIntegrations, ShotSurMesure } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -21,11 +21,15 @@ export default function SynchronisationPage() {
       badge="Synchronisation de données"
       title="Vos données revenue,"
       titleAccent="enfin réunies."
-      subtitle="Connectez HubSpot (OAuth en un clic), Stripe, Pennylane, Chargebee, GoCardless et Sage — plus l'import Excel / Google Sheets. Accès en lecture seule, révocable à tout moment, avec un rapport d'audit d'onboarding par outil."
+      subtitle="Connectez HubSpot (OAuth en un clic), Stripe, Pennylane, Chargebee, GoCardless et Sage — mais aussi votre ERP et vos outils métiers via un connecteur sur mesure, plus l'import Excel / Google Sheets. Lecture seule, révocable, avec un rapport d'audit d'onboarding par outil."
       heroIcon={icon}
-      shot={<ShotIntegrations />}
+      shots={[
+        { node: <ShotIntegrations />, caption: "Connecteurs natifs : statut et dernière synchronisation, outil par outil." },
+        { node: <ShotSurMesure />, caption: "Connecteur sur mesure : votre ERP ou outil métier, croisé avec le CRM et la facturation." },
+      ]}
       features={[
         { title: "6 connecteurs natifs, câblés en profondeur", desc: "HubSpot (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage. On ne liste jamais un outil que Revold ne sait pas réellement synchroniser — les autres arrivent, marqués « bientôt disponible »." },
+        { title: "ERP & outils métiers, sur mesure", desc: "Votre ERP, votre outil de production ou n'importe quel logiciel exposant une API se connecte via le connecteur sur mesure : mapping des champs assisté, champs métier agrégeables (somme, moyenne…) utilisables dans vos KPIs et rapports." },
         { title: "Import Excel / Google Sheets", desc: "Vos fichiers de suivi entrent dans le même modèle de données que vos connecteurs, avec mapping des colonnes assisté." },
         { title: "Lecture seule, révocable", desc: "Revold lit vos données, il n'écrit jamais sans votre validation explicite. Vous révoquez l'accès à tout moment depuis vos outils ou vos paramètres." },
         { title: "Rapport d'audit d'onboarding par outil", desc: "Après chaque connexion, Revold produit un audit : volumes importés, champs remplis, identifiants disponibles, écarts détectés — vous savez exactement ce qui est exploitable." },
@@ -33,14 +37,14 @@ export default function SynchronisationPage() {
         { title: "Modèle de données unifié", desc: "Chaque source est normalisée dans un schéma commun (entreprises, contacts, deals, factures, abonnements) — prêt pour le rapprochement SIREN / SIRET / TVA." },
       ]}
       howItWorks={[
-        { step: "Connectez vos outils", desc: "HubSpot en un clic via OAuth ; Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API en lecture seule." },
+        { step: "Connectez vos outils", desc: "HubSpot en un clic via OAuth ; Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API en lecture seule — et votre ERP ou outil métier via le connecteur sur mesure." },
         { step: "La sync démarre automatiquement", desc: "Entreprises, contacts, deals, factures et abonnements sont importés et normalisés dans le modèle de données unifié Revold." },
         { step: "L'audit d'onboarding est généré", desc: "Pour chaque outil : qualité des données importées, identifiants de rapprochement disponibles, plan d'action pour combler les manques." },
         { step: "Vos données sont prêtes", desc: "Les KPIs, alertes, récaps et rapports se câblent automatiquement sur les données synchronisées et vérifiées." },
       ]}
       stats={[
         { value: "6", label: "connecteurs natifs (+ Excel / Sheets)" },
-        { value: "<5 min", label: "pour connecter un outil" },
+        { value: "∞", label: "ERP & outils métiers via connecteur sur mesure" },
         { value: "100%", label: "lecture seule, révocable" },
         { value: "1", label: "rapport d'audit d'onboarding par outil" },
       ]}

@@ -23,7 +23,8 @@ export function SiteFooter() {
               <li><Link href="/produits/insights-ia" className="text-slate-300 transition hover:text-white">Mon équipe IA 24/7</Link></li>
               <li><Link href="/produits/synchronisation" className="text-slate-300 transition hover:text-white">Synchronisation</Link></li>
               <li><Link href="/produits/reporting-cross-source" className="text-slate-300 transition hover:text-white">Reporting cross-source</Link></li>
-              <li><Link href="/produits/alertes-previsions" className="text-slate-300 transition hover:text-white">Alertes & actions</Link></li>
+              <li><Link href="/produits/alertes-previsions" className="text-slate-300 transition hover:text-white">Alertes &amp; actions</Link></li>
+              <li><Link href="/produits/tableaux-de-bord" className="text-slate-300 transition hover:text-white">Tableaux de bord &amp; templates</Link></li>
               <li><Link href="/tarifs" className="text-slate-300 transition hover:text-white">Tarifs</Link></li>
             </ul>
           </div>

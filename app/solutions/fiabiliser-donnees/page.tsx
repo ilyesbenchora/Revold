@@ -30,7 +30,7 @@ export default function FiabiliserDonneesPage() {
         { team: "Finance", icon: teamIcon("M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 1-4 4v14a3 3 0 0 0 3-3h7z"), pain: "Les données de facturation ne matchent pas avec le CRM. Réconciliation manuelle chaque mois.", solution: "Rapprochement automatique factures Stripe / Pennylane × entreprises CRM par SIREN / N° TVA.", result: "Réconciliation des revenus automatique. Clôture comptable accélérée." },
       ]}
       relatedProducts={[
-        { label: "Audit complet du CRM", href: "/produits/audit-crm" },
+        { label: "Tableaux de bord & templates", href: "/produits/tableaux-de-bord" },
         { label: "Résolution d'entités", href: "/produits/resolution-entites" },
         { label: "Synchronisation de données", href: "/produits/synchronisation" },
       ]}

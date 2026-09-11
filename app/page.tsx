@@ -71,7 +71,7 @@ const METIERS = [
 ];
 
 const STEPS = [
-  { n: "1", title: "Connectez vos outils", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage par clé API. Lecture seule, révocable à tout moment." },
+  { n: "1", title: "Connectez vos outils", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage par clé API — et vos ERP / outils métiers via un connecteur sur mesure. Lecture seule, révocable à tout moment." },
   { n: "2", title: "Revold rapproche et fiabilise", desc: "Entités reliées par SIREN / SIRET / TVA / email, identifiants manquants remplis depuis la base Sirene, écarts CRM vs facturé chiffrés en euros." },
   { n: "3", title: "Votre équipe IA agit", desc: "Récaps de routine, alertes câblées, brief vocal — et des actions validées par vous, exécutées directement dans vos outils, avec l'impact mesuré." },
 ];
@@ -137,6 +137,7 @@ export default function HomePage() {
                   {name}
                 </span>
               ))}
+              <span className="rounded-full border border-dashed border-white/15 px-4 py-1.5 text-sm text-slate-400">＋ Vos ERP &amp; outils métiers (connecteur sur mesure)</span>
               <span className="rounded-full border border-dashed border-white/15 px-4 py-1.5 text-sm text-slate-500">Excel / Sheets · Slack · Teams…</span>
             </div>
           </div>

@@ -13,6 +13,8 @@ type ProductPageProps = {
   heroIcon: React.ReactNode;
   /** Capture d'écran produit (statique) montrée sous le héro — remplace les stats génériques. */
   shot?: React.ReactNode;
+  /** Plusieurs captures — UNE PAR FEATURE mise en avant, chacune avec sa légende. Prioritaire sur `shot`. */
+  shots?: { node: React.ReactNode; caption: string }[];
   pains?: Pain[];
   features: Feature[];
   howItWorks: { step: string; desc: string }[];
@@ -34,6 +36,7 @@ export function ProductPage({
   subtitle,
   heroIcon,
   shot,
+  shots,
   pains,
   features,
   howItWorks,
@@ -79,15 +82,28 @@ export function ProductPage({
         </div>
       </section>
 
-      {/* Capture produit — le visiteur voit la feature dans l'interface réelle */}
-      {shot && (
+      {/* Captures produit — chaque feature mise en avant a la sienne */}
+      {shots && shots.length > 0 ? (
+        <section className="relative pb-8">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+              {shots.map((s, i) => (
+                <div key={i} className={shots.length % 2 === 1 && i === shots.length - 1 ? "lg:col-span-2 lg:mx-auto lg:w-2/3" : ""}>
+                  {s.node}
+                  <p className="mt-3 text-center text-xs text-slate-500">{s.caption}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : shot ? (
         <section className="relative pb-8">
           <div className="mx-auto max-w-5xl px-6">
             {shot}
             <p className="mt-3 text-center text-xs text-slate-500">Interface Revold — données de démonstration.</p>
           </div>
         </section>
-      )}
+      ) : null}
 
       {/* Pain points (legacy — préférer une capture produit via `shot`) */}
       {pains && pains.length > 0 && (

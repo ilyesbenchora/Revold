@@ -1,5 +1,5 @@
 import { ProductPage } from "@/components/product-page";
-import { ShotAlertes } from "@/components/site/product-shots";
+import { ShotAlertes, ShotObjectifs, ShotActions, ShotCashRecupere } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -23,7 +23,12 @@ export default function AlertesObjectifsActionsPage() {
       titleAccent="Revold agit avec vous."
       subtitle="Des alertes et objectifs au câblage vérifié — la preuve chiffrée avant création — et une boîte d'actions human-in-the-loop : deal silencieux → tâche HubSpot, impayé → rappel Stripe officiel. Chaque euro récupéré est attribué."
       heroIcon={icon}
-      shot={<ShotAlertes />}
+      shots={[
+        { node: <ShotAlertes />, caption: "Alertes : seuil, valeur actuelle calculée, outil source et canal — le câblage se voit." },
+        { node: <ShotObjectifs />, caption: "Objectifs : un cap chiffré par équipe, suivi en continu vers la cible." },
+        { node: <ShotActions />, caption: "Boîte d'actions : Revold propose, vous validez, l'action s'exécute dans HubSpot ou Stripe." },
+        { node: <ShotCashRecupere />, caption: "Cash récupéré : chaque euro encaissé après une action validée, attribué ligne par ligne." },
+      ]}
       features={[
         { title: "Câblage vérifié avant création", desc: "Avant de créer une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve chiffrée d'abord, le suivi ensuite." },
         { title: "Détection déterministe", desc: "Le seuil est détecté par le moteur sur vos données réelles ; l'agent IA rédige la notification. Jamais l'inverse." },
