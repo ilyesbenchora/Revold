@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Exo_2 } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
+import { organizationJsonLd as organizationJsonLd_, websiteJsonLd as websiteJsonLd_, softwareApplicationJsonLd } from "@/lib/seo/site";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -70,37 +71,11 @@ export const metadata: Metadata = {
   },
 };
 
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "Revold",
-  alternateName: "Revold — Revenue Intelligence",
-  url: "https://revold.ai",
-  logo: "https://revold.ai/icon.svg",
-  description:
-    "Revold connecte vos CRM, outils de facturation et plateformes de support pour piloter vos revenus avec des insights propulsés par l'IA.",
-  foundingDate: "2025",
-  areaServed: "FR",
-  sameAs: [
-    "https://www.linkedin.com/company/revold",
-  ],
-};
-
-const websiteJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "Revold",
-  url: "https://revold.ai",
-  inLanguage: "fr-FR",
-  publisher: {
-    "@type": "Organization",
-    name: "Revold",
-    logo: {
-      "@type": "ImageObject",
-      url: "https://revold.ai/icon.svg",
-    },
-  },
-};
+// Entité de marque (Organization + WebSite + SoftwareApplication avec offres),
+// générée depuis lib/seo/site.ts : mêmes faits partout (llms.txt, pages SEO).
+const organizationJsonLd = organizationJsonLd_();
+const websiteJsonLd = websiteJsonLd_();
+const softwareJsonLd = softwareApplicationJsonLd();
 
 export default function RootLayout({
   children,
@@ -128,6 +103,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
         />
       </head>
       <body className="min-h-full flex flex-col">

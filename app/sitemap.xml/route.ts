@@ -1,11 +1,21 @@
 import { articles } from "../blog/data";
+import { KEYWORD_PAGES } from "@/lib/seo/keyword-pages";
+import { COMPETITORS } from "@/lib/seo/competitors";
 
 const BASE = "https://revold.ai";
 
-// Indexation ciblée : home (requête de marque), blog et pages produits/
+// Indexation ciblée : home (requête de marque), pages de marque (à propos,
+// pourquoi, tarifs), guides mots-clés, comparatifs, blog et pages produits/
 // solutions (longue traîne). Le reste du site est noindex.
 const STATIC_PAGES = [
   "",
+  "/a-propos",
+  "/pourquoi-revold",
+  "/tarifs",
+  "/comparatif",
+  ...KEYWORD_PAGES.map((p) => `/${p.slug}`),
+  ...COMPETITORS.map((c) => `/alternative/${c.slug}`),
+  "/docs/hubspot",
   "/blog",
   "/produits/synchronisation",
   "/produits/reporting-cross-source",
@@ -24,7 +34,13 @@ const STATIC_PAGES = [
 export async function GET() {
   const staticEntries = STATIC_PAGES.map(
     (path) =>
-      `  <url><loc>${BASE}${path}</loc><changefreq>${path === "" ? "weekly" : "monthly"}</changefreq><priority>${path === "" ? "1.0" : path.startsWith("/produits") || path.startsWith("/solutions") ? "0.8" : "0.6"}</priority></url>`
+      `  <url><loc>${BASE}${path}</loc><changefreq>${path === "" ? "weekly" : "monthly"}</changefreq><priority>${
+        path === ""
+          ? "1.0"
+          : path.startsWith("/produits") || path.startsWith("/solutions") || path.startsWith("/alternative/") || KEYWORD_PAGES.some((p) => `/${p.slug}` === path)
+            ? "0.8"
+            : "0.6"
+      }</priority></url>`
   );
 
   const blogEntries = articles.map(

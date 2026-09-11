@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-// Indexation resserrée : seules la home et le blog sont indexées — cette
-// section est noindex (les liens y menant restent suivis).
-export const metadata: Metadata = { robots: { index: false, follow: true } };
+// Page de MARQUE indexée : « pourquoi revold » renforce l'entité Revold
+// (différenciateurs, positionnement) pour les moteurs classiques et génératifs.
+export const metadata: Metadata = { robots: { index: true, follow: true }, alternates: { canonical: "/pourquoi-revold" } };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

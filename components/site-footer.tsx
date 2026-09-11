@@ -9,7 +9,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-white/10 bg-slate-950 py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="grid grid-cols-2 gap-10 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-10 md:grid-cols-5">
           <div className="col-span-2 md:col-span-1">
             <RevoldLogo tone="dark" />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-400">
@@ -36,6 +36,20 @@ export function SiteFooter() {
               <li><Link href="/demo" className="text-slate-300 transition hover:text-white">Demander une démo</Link></li>
               <li><Link href="/essai-gratuit" className="text-slate-300 transition hover:text-white">Essai gratuit 14 jours</Link></li>
               <li><Link href="/statut" className="text-slate-300 transition hover:text-white">Statut de la plateforme</Link></li>
+            </ul>
+          </div>
+          {/* Ressources : guides mots-clés et comparatifs (maillage interne des
+              pages SEO / GEO — voir lib/seo). */}
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Ressources</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li><Link href="/plateforme-revops" className="text-slate-300 transition hover:text-white">Plateforme RevOps</Link></li>
+              <li><Link href="/pilotage-revops" className="text-slate-300 transition hover:text-white">Pilotage RevOps</Link></li>
+              <li><Link href="/plateforme-revenue-intelligence" className="text-slate-300 transition hover:text-white">Revenue Intelligence</Link></li>
+              <li><Link href="/pilotage-performance-entreprise" className="text-slate-300 transition hover:text-white">Pilotage de la performance</Link></li>
+              <li><Link href="/forecast-commercial" className="text-slate-300 transition hover:text-white">Forecast commercial</Link></li>
+              <li><Link href="/comparatif" className="text-slate-300 transition hover:text-white">Comparatifs & alternatives</Link></li>
+              <li><Link href="/a-propos" className="text-slate-300 transition hover:text-white">À propos</Link></li>
             </ul>
           </div>
           <div>

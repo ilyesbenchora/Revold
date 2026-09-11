@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { articles } from "../data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/seo/site";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -56,6 +58,14 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      {/* Données structurées : article de blog + fil d'Ariane (auteur relié à
+          la fiche fondateur, éditeur relié à l'organisation). */}
+      <JsonLd
+        data={[
+          blogPostingJsonLd({ slug: article.slug, title: article.title, description: article.description, date: article.date, author: article.author, category: article.category }),
+          breadcrumbJsonLd([{ name: "Accueil", path: "/" }, { name: "Blog", path: "/blog" }, { name: article.title, path: `/blog/${article.slug}` }]),
+        ]}
+      />
       <style dangerouslySetInnerHTML={{ __html: PROSE_DARK_CSS }} />
       <SiteNavbar />
 

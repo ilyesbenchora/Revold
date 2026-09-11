@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-// Indexation resserrée : seules la home et le blog sont indexées — cette
-// section est noindex (les liens y menant restent suivis).
-export const metadata: Metadata = { robots: { index: false, follow: true } };
+// Page de MARQUE indexée : « revold tarifs » / « revold prix » sont des
+// requêtes de navigation — la page porte les prix publics et sa FAQ.
+export const metadata: Metadata = { robots: { index: true, follow: true }, alternates: { canonical: "/tarifs" } };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;
