@@ -31,6 +31,13 @@ const nextConfig: NextConfig = {
       // L'audit complet du CRM n'existe plus comme produit : la page est
       // remplacée par Tableaux de bord & templates (SEO conservé).
       { source: "/produits/audit-crm", destination: "/produits/tableaux-de-bord", permanent: true },
+      // Variantes du sitemap et du robots saisies à la main (Search Console,
+      // Bing) : sans extension ou avec un nom d'index, elles tombaient sur la
+      // page 404 HTML — « Votre sitemap semble correspondre à une page HTML ».
+      { source: "/sitemap", destination: "/sitemap.xml", permanent: true },
+      { source: "/sitemap_index.xml", destination: "/sitemap.xml", permanent: true },
+      { source: "/sitemap-index.xml", destination: "/sitemap.xml", permanent: true },
+      { source: "/robots", destination: "/robots.txt", permanent: true },
     ];
   },
 };
