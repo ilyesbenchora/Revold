@@ -364,7 +364,7 @@ const SCENES: Scene[] = [
   },
 ];
 
-const SCENE_MS = 7000; // 10 × 7 s = 70 s
+const SCENE_MS = 5000; // 10 × 5 s = 50 s — rythme resserré (−2 s par scène)
 
 export function ProductDemo() {
   const [active, setActive] = useState(0);
