@@ -11,15 +11,12 @@ import type { ReactNode } from "react";
 
 /* ─────────────── Cadre navigateur ─────────────── */
 
-export function Browser({ url, children, className = "" }: { url: string; children: ReactNode; className?: string }) {
+// Cadre épuré : PLUS de bandeau navigateur (pastilles + URL) — la capture
+// commence directement sur l'interface. `url` reste dans la signature pour ne
+// pas toucher les ~16 appels, mais n'est plus rendue.
+export function Browser({ children, className = "" }: { url: string; children: ReactNode; className?: string }) {
   return (
     <div className={`overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl shadow-indigo-950/50 ${className}`}>
-      <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-4 py-2.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-rose-400/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-        <span className="ml-3 flex-1 truncate rounded-md bg-white/5 px-3 py-1 text-center text-[11px] text-slate-500">{url}</span>
-      </div>
       <div className="bg-slate-50 text-left">{children}</div>
     </div>
   );

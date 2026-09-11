@@ -411,16 +411,11 @@ export function ProductDemo() {
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-fuchsia-600/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-600/15 blur-3xl" />
 
-        {/* Barre navigateur */}
-        <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-rose-400/70" />
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-          <span className="ml-3 flex-1 truncate rounded-md bg-white/5 px-3 py-1 text-center text-[11px] text-slate-500">app.revold.ai — {scene.tag}</span>
-          <span className="hidden items-center gap-1 text-[10px] font-medium text-slate-400 sm:flex">
-            <span className={`h-1.5 w-1.5 rounded-full ${playing ? "bg-emerald-400" : "bg-slate-500"}`} /> Démo · 1 min
-          </span>
-        </div>
+        {/* Plus de barre navigateur (pastilles + URL) : la démo ouvre
+            directement sur la scène — l'indicateur discret reste en haut à droite. */}
+        <span className="absolute right-4 top-3 z-10 hidden items-center gap-1 text-[10px] font-medium text-slate-400 sm:flex">
+          <span className={`h-1.5 w-1.5 rounded-full ${playing ? "bg-emerald-400" : "bg-slate-500"}`} /> Démo · 1 min
+        </span>
 
         {/* Scène */}
         <div className="relative min-h-[268px] px-5 py-6 sm:px-8">
