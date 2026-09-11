@@ -1,4 +1,5 @@
 import { SolutionPage } from "@/components/solution-page";
+import { ShotAudit } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -17,7 +18,7 @@ export default function FiabiliserDonneesPage() {
       titleAccent="une bonne fois pour toutes."
       subtitle="76% des orgas ont moins de 50% de données CRM fiables. Revold audite vos données, les rapproche par SIREN / SIRET / TVA et remplit les identifiants manquants depuis la base Sirene officielle."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>}
-      screenshot="/screenshots/dashboard-donnees.png"
+      shot={<ShotAudit />}
       keyBenefits={[
         { title: "Audit automatique", desc: "Complétude par propriété, doublons, fiches orphelines — tout est détecté et scoré automatiquement, avec un plan d'action IA priorisé." },
         { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° TVA, email, domaine et ID custom : une vue unique par entreprise entre CRM, facturation et compta." },

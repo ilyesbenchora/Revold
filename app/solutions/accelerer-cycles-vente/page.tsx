@@ -1,4 +1,5 @@
 import { SolutionPage } from "@/components/solution-page";
+import { ShotPipeline } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -17,7 +18,7 @@ export default function AccelererCyclesVentePage() {
       titleAccent="de vente."
       subtitle="61% des deals perdus le sont par indécision. Revold détecte les deals silencieux sur vos données réelles et crée l'action dans HubSpot — après votre validation — avant qu'il ne soit trop tard."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>}
-      screenshot="/screenshots/dashboard-pipeline.png"
+      shot={<ShotPipeline />}
       keyBenefits={[
         { title: "Deals silencieux détectés tôt", desc: "Inactivité prolongée détectée en déterministe sur vos données HubSpot — le signal remonte avant que le deal ne meure." },
         { title: "Action dans votre CRM", desc: "Deal silencieux → tâche HubSpot créée pour le bon owner, avec le contexte. Vous validez, Revold exécute." },

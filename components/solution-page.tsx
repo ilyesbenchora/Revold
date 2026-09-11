@@ -15,6 +15,8 @@ type SolutionPageProps = {
   subtitle: string;
   heroIcon: React.ReactNode;
   screenshot?: string;
+  /** Capture d'écran produit rendue en code (statique) — prioritaire sur `screenshot`. */
+  shot?: React.ReactNode;
   keyBenefits: { title: string; desc: string }[];
   teams: TeamBenefit[];
   relatedProducts: { label: string; href: string }[];
@@ -32,6 +34,7 @@ export function SolutionPage({
   subtitle,
   heroIcon,
   screenshot,
+  shot,
   keyBenefits,
   teams,
   relatedProducts,
@@ -71,8 +74,13 @@ export function SolutionPage({
             </Link>
           </div>
 
-          {/* Screenshot */}
-          {screenshot && (
+          {/* Capture produit — code statique prioritaire, PNG en repli */}
+          {shot ? (
+            <div className="mt-12 text-left">
+              {shot}
+              <p className="mt-3 text-center text-xs text-slate-500">Interface Revold — données de démonstration.</p>
+            </div>
+          ) : screenshot ? (
             <div className="mt-12">
               <div className="overflow-hidden rounded-xl border border-white/10 shadow-2xl shadow-purple-500/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -83,7 +91,7 @@ export function SolutionPage({
                 />
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </section>
 

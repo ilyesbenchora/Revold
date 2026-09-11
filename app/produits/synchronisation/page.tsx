@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotIntegrations } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -22,11 +23,7 @@ export default function SynchronisationPage() {
       titleAccent="enfin réunies."
       subtitle="Connectez HubSpot (OAuth en un clic), Stripe, Pennylane, Chargebee, GoCardless et Sage — plus l'import Excel / Google Sheets. Accès en lecture seule, révocable à tout moment, avec un rapport d'audit d'onboarding par outil."
       heroIcon={icon}
-      pains={[
-        { value: "27%", label: "du temps des commerciaux perdu à cause de mauvaises données CRM — soit 550h et 32K$ par rep par an.", source: "Validity / Forrester" },
-        { value: "76%", label: "des organisations ont moins de 50% de leurs données CRM fiables et complètes.", source: "Validity" },
-        { value: "13h/sem", label: "passées par un commercial à chercher de l'information dans son CRM au lieu de vendre.", source: "Validity" },
-      ]}
+      shot={<ShotIntegrations />}
       features={[
         { title: "6 connecteurs natifs, câblés en profondeur", desc: "HubSpot (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage. On ne liste jamais un outil que Revold ne sait pas réellement synchroniser — les autres arrivent, marqués « bientôt disponible »." },
         { title: "Import Excel / Google Sheets", desc: "Vos fichiers de suivi entrent dans le même modèle de données que vos connecteurs, avec mapping des colonnes assisté." },

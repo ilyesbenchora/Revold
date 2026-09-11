@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
+import { ShotReconciliation, ShotAgents } from "@/components/site/product-shots";
 
 export const metadata: Metadata = {
   title: "Pourquoi Revold — Revenue Intelligence pour le B2B français",
@@ -84,15 +85,6 @@ const PRINCIPLES = [
   },
 ];
 
-const MARKET_STATS = [
-  { value: "55%", label: "des sales leaders n'ont pas confiance dans leur forecast", source: "Gartner" },
-  { value: "76%", label: "des orgas ont <50% de données CRM fiables", source: "Validity" },
-  { value: "61%", label: "des deals perdus par indécision, pas par la concurrence", source: "Challenger" },
-  { value: "13h/sem", label: "perdues par commercial à chercher dans le CRM", source: "Validity" },
-  { value: "44%", label: "des entreprises perdent +10% de CA à cause de mauvaises données", source: "RevOps 802" },
-  { value: "68%", label: "des organisations citent les silos de données comme obstacle #1", source: "Agents for Hire" },
-];
-
 export default function PourquoiRevoldPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -141,25 +133,27 @@ export default function PourquoiRevoldPage() {
         </div>
       </section>
 
-      {/* ═══ THE PROBLEM ═══ */}
+      {/* ═══ LE PRODUIT, EN CLAIR ═══ */}
       <section className="border-y border-white/10 py-20 md:py-24">
-        <div className="mx-auto max-w-5xl px-6">
+        <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white md:text-4xl">
-              Le marché B2B navigue à l&apos;aveugle
+              La plupart des outils racontent. Revold montre.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-400">
-              Les études sont unanimes. Les équipes commerciales manquent de visibilité, de données fiables et d&apos;insights actionnables.
+              L&apos;écart entre le CA signé et le CA encaissé, entreprise par entreprise — et un agent expert
+              qui répond sur vos vraies données, source à l&apos;appui.
             </p>
           </div>
-          <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {MARKET_STATS.map((s) => (
-              <div key={s.value} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]">
-                <p className="text-4xl font-black tracking-tight text-white">{s.value}</p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">{s.label}</p>
-                <p className="mt-3 text-xs font-medium text-fuchsia-300">Source : {s.source}</p>
-              </div>
-            ))}
+          <div className="mt-14 grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div>
+              <ShotReconciliation />
+              <p className="mt-3 text-center text-xs text-slate-500">Réconciliation signé × encaissé, rapprochée par SIREN.</p>
+            </div>
+            <div>
+              <ShotAgents />
+              <p className="mt-3 text-center text-xs text-slate-500">Un agent de votre équipe IA, câblé sur vos données réelles.</p>
+            </div>
           </div>
         </div>
       </section>

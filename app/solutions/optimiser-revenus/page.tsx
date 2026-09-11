@@ -1,4 +1,5 @@
 import { SolutionPage } from "@/components/solution-page";
+import { ShotReconciliation } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -17,7 +18,7 @@ export default function OptimiserRevenusPage() {
       titleAccent="avec des données fiables."
       subtitle="Passez du pilotage à l'intuition à des chiffres câblés sur vos vraies données : CRM, facturation et compta croisés, projection pondérée du pipeline et actions exécutées dans vos outils."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>}
-      screenshot="/screenshots/dashboard-overview.png"
+      shot={<ShotReconciliation />}
       keyBenefits={[
         { title: "Projection pondérée du pipeline", desc: "Vos deals pondérés par étape, croisés avec vos encaissements réels — une vision de trésorerie qui repose sur la donnée, pas sur l'optimisme." },
         { title: "Revenue réel vs prévu", desc: "Croisement pipeline CRM × factures Stripe / Pennylane pour mesurer l'écart entre le CA promis et le CA réellement facturé." },

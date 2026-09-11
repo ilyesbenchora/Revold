@@ -11,7 +11,9 @@ type ProductPageProps = {
   titleAccent: string;
   subtitle: string;
   heroIcon: React.ReactNode;
-  pains: Pain[];
+  /** Capture d'écran produit (statique) montrée sous le héro — remplace les stats génériques. */
+  shot?: React.ReactNode;
+  pains?: Pain[];
   features: Feature[];
   howItWorks: { step: string; desc: string }[];
   stats: Stat[];
@@ -31,6 +33,7 @@ export function ProductPage({
   titleAccent,
   subtitle,
   heroIcon,
+  shot,
   pains,
   features,
   howItWorks,
@@ -76,35 +79,47 @@ export function ProductPage({
         </div>
       </section>
 
-      {/* Pain points */}
-      <section className="border-y border-white/10 bg-white/[0.02] py-20 md:py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white md:text-3xl">
-              Le problème aujourd&apos;hui
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-400">
-              Les chiffres parlent d&apos;eux-mêmes.
-            </p>
+      {/* Capture produit — le visiteur voit la feature dans l'interface réelle */}
+      {shot && (
+        <section className="relative pb-8">
+          <div className="mx-auto max-w-5xl px-6">
+            {shot}
+            <p className="mt-3 text-center text-xs text-slate-500">Interface Revold — données de démonstration.</p>
           </div>
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {pains.map((p) => (
-              <div
-                key={p.value}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:bg-white/[0.06]"
-              >
-                <p className="text-4xl font-black tracking-tight text-white">
-                  {p.value}
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">{p.label}</p>
-                <p className="mt-3 text-xs font-medium text-fuchsia-300">
-                  Source : {p.source}
-                </p>
-              </div>
-            ))}
+        </section>
+      )}
+
+      {/* Pain points (legacy — préférer une capture produit via `shot`) */}
+      {pains && pains.length > 0 && (
+        <section className="border-y border-white/10 bg-white/[0.02] py-20 md:py-24">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white md:text-3xl">
+                Le problème aujourd&apos;hui
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-slate-400">
+                Les chiffres parlent d&apos;eux-mêmes.
+              </p>
+            </div>
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {pains.map((p) => (
+                <div
+                  key={p.value}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:bg-white/[0.06]"
+                >
+                  <p className="text-4xl font-black tracking-tight text-white">
+                    {p.value}
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-400">{p.label}</p>
+                  <p className="mt-3 text-xs font-medium text-fuchsia-300">
+                    Source : {p.source}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Features */}
       <section className="relative py-20 md:py-24">

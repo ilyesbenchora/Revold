@@ -1,4 +1,5 @@
 import { SolutionPage } from "@/components/solution-page";
+import { ShotRapports } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -17,7 +18,7 @@ export default function PiloterPerformancePage() {
       titleAccent="de chaque équipe."
       subtitle="Des KPIs câblés et vérifiés, des objectifs suivis en déterministe et des récaps de routine livrés automatiquement. Chaque équipe sait où elle en est, chaque jour."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>}
-      screenshot="/screenshots/dashboard-performances.png"
+      shot={<ShotRapports />}
       keyBenefits={[
         { title: "KPIs câblés et vérifiés", desc: "Pipeline, conversion, MRR, encaissements, churn — chaque chiffre affiche sa source et sa valeur calculée sur vos données réelles." },
         { title: "Objectifs au câblage vérifié", desc: "Avant de créer un objectif, Revold montre la donnée suivie et la valeur actuelle. Le suivi est ensuite automatique et déterministe." },

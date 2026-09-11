@@ -1,4 +1,5 @@
 import { SolutionPage } from "@/components/solution-page";
+import { ShotAlertes } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -17,7 +18,7 @@ export default function ReduireChurnPage() {
       titleAccent="avant qu'il n'arrive."
       subtitle="75% des entreprises perdent des clients à cause de mauvaises données. Revold croise CRM, facturation et tickets pour détecter les signaux tôt — et exécute la relance d'impayé validée par vous."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" /></svg>}
-      screenshot="/screenshots/dashboard-alertes.png"
+      shot={<ShotAlertes />}
       keyBenefits={[
         { title: "Signaux croisés", desc: "Tickets × paiements en retard × inactivité CRM : les signaux sont détectés en déterministe sur vos données rapprochées, pas estimés." },
         { title: "Impayé → rappel Stripe officiel", desc: "~10% des churns SaaS sont involontaires : un paiement échoue et personne ne relance. Revold propose le rappel Stripe officiel, vous validez, le cash récupéré est attribué en euros." },

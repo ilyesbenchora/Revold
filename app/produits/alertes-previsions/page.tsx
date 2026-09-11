@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotAlertes } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -22,11 +23,7 @@ export default function AlertesObjectifsActionsPage() {
       titleAccent="Revold agit avec vous."
       subtitle="Des alertes et objectifs au câblage vérifié — la preuve chiffrée avant création — et une boîte d'actions human-in-the-loop : deal silencieux → tâche HubSpot, impayé → rappel Stripe officiel. Chaque euro récupéré est attribué."
       heroIcon={icon}
-      pains={[
-        { value: "61%", label: "des deals perdus le sont par indécision du buyer, pas par la concurrence. Sans alerte, le signal est invisible.", source: "Challenger Inc." },
-        { value: "36–44%", label: "des deals slippent au-delà de leur close date prévue — et meurent en silence.", source: "Ebsta" },
-        { value: "~10%", label: "des churns SaaS sont involontaires : un paiement échoue et personne ne relance à temps.", source: "Recover / ProfitWell" },
-      ]}
+      shot={<ShotAlertes />}
       features={[
         { title: "Câblage vérifié avant création", desc: "Avant de créer une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve chiffrée d'abord, le suivi ensuite." },
         { title: "Détection déterministe", desc: "Le seuil est détecté par le moteur sur vos données réelles ; l'agent IA rédige la notification. Jamais l'inverse." },

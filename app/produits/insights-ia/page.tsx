@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotAgents } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -22,11 +23,7 @@ export default function InsightsIAPage() {
       titleAccent="disponible 24/7."
       subtitle="Des agents experts par domaine, des routines programmées et une tour de contrôle vocale — avec une règle absolue : chaque chiffre est câblé sur vos vraies données, jamais inventé."
       heroIcon={icon}
-      pains={[
-        { value: "61%", label: "des deals perdus le sont par indécision du buyer — des signaux faibles que personne ne détecte.", source: "Challenger Inc." },
-        { value: "55%", label: "des sales leaders n'ont pas confiance dans leurs chiffres. L'intuition ne suffit plus.", source: "Gartner" },
-        { value: "87%", label: "des RevOps leaders trouvent l'adhésion au process difficile — sans insights, pas de motivation.", source: "RevOps Co-op" },
-      ]}
+      shot={<ShotAgents />}
       features={[
         { title: "Agents experts par domaine", desc: "Performance commerciale, trésorerie, service client, qualité des données : chaque agent maîtrise son périmètre et s'appuie sur vos données rapprochées." },
         { title: "Un langage par équipe", desc: "Sales, marketing, CSM, finance, direction : chaque agent parle le langage de l'équipe qu'il sert et connaît ses KPIs — l'accompagnement vit directement sur la page de l'agent." },

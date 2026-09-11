@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { ProductDemo } from "@/components/site/product-demo";
+import { HeroComposite } from "@/components/site/product-shots";
 import { PLANS } from "@/lib/billing/plans";
 
 /**
@@ -12,34 +12,9 @@ import { PLANS } from "@/lib/billing/plans";
  * contrôle de l'app) : slate-950, halos fuchsia/indigo/ambre, contenu aligné
  * sur le produit RÉEL (rapprochement Sirene, équipe IA 24/7, routines,
  * actions human-in-the-loop, tour de contrôle vocale, câblage vérifié).
+ * Héro volontairement STATIQUE (pas de mot rotatif) + capture produit
+ * composite à la ligne de flottaison — crédibilité grands comptes.
  */
-
-const ROTATING_WORDS = ["rapproche", "surveille", "pilote", "audite", "unifie", "fiabilise"];
-
-function RotatingWord() {
-  const [index, setIndex] = useState(0);
-  const [fade, setFade] = useState(true);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setIndex((prev) => (prev + 1) % ROTATING_WORDS.length);
-        setFade(true);
-      }, 300);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <span
-      className={`inline-block bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent transition-all duration-300 ${fade ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
-      style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-    >
-      {ROTATING_WORDS[index]}
-    </span>
-  );
-}
 
 /* ─────────────── DATA ─────────────── */
 
@@ -123,8 +98,11 @@ export default function HomePage() {
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in France
           </span>
           <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl">
-            Revold <RotatingWord /> votre revenue,
-            <br className="hidden md:block" /> du CRM au compte en banque.
+            Votre revenue, réconcilié
+            <br className="hidden md:block" />{" "}
+            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+              du CRM au compte en banque.
+            </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
             La seule plateforme qui relie votre CRM, votre facturation et votre compta par
@@ -139,10 +117,17 @@ export default function HomePage() {
               Demander une démo
             </Link>
           </div>
-          <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Connexion HubSpot en un clic · Données hébergées en UE</p>
+          <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Connexion HubSpot en un clic · Données hébergées en UE · SSO SAML</p>
+
+          {/* Capture produit composite (statique) — le visiteur voit l'outil
+              dès la ligne de flottaison : dashboard réel + alerte, agent IA
+              et action exécutée qui débordent du cadre. */}
+          <div className="mt-14 px-2 lg:px-16">
+            <HeroComposite />
+          </div>
 
           {/* Intégrations natives réelles */}
-          <div className="mx-auto mt-14 max-w-3xl">
+          <div className="mx-auto mt-16 max-w-3xl">
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Connecteurs natifs, câblés en profondeur</p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
               {INTEGRATIONS.map((name) => (

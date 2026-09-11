@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotReconciliation } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -23,11 +24,7 @@ export default function ResolutionEntitesPage() {
       titleAccent="Partout."
       subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même la donnée officielle manquante (identifiants, effectifs, CA, secteur, statut juridique, capital social, adresse du siège) depuis Sirene et l'INPI, en continu."
       heroIcon={icon}
-      pains={[
-        { value: "40%", label: "des leads B2B générés sont invalides, incomplets ou doublons dans le CRM.", source: "Cognism" },
-        { value: "76%", label: "des organisations ont moins de 50% de données CRM fiables — la dédup est un facteur clé.", source: "Validity" },
-        { value: "30%", label: "du CA moyen d'une entreprise est impacté par la mauvaise qualité de données (700 Md$/an mondial).", source: "IBM / Gartner" },
-      ]}
+      shot={<ShotReconciliation />}
       features={[
         { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
         { title: "Enrichissement officiel Sirene + INPI", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },

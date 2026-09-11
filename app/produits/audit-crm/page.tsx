@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotAudit } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -23,11 +24,7 @@ export default function AuditCRMPage() {
       titleAccent="Revold vous dit la vérité."
       subtitle="Complétude de chaque propriété, doublons, fiches orphelines, score de santé et plan d'action généré par l'IA : le regard extérieur que votre CRM ne peut pas avoir sur lui-même."
       heroIcon={icon}
-      pains={[
-        { value: "76%", label: "des organisations ont moins de 50% de données CRM fiables et complètes.", source: "Validity" },
-        { value: "44%", label: "des entreprises perdent +10% de leur revenu annuel à cause de données CRM erronées.", source: "RevOps 802" },
-        { value: "700 Md$", label: "coût annuel mondial des mauvaises données — soit environ 30% du CA moyen d'une entreprise.", source: "IBM / Gartner" },
-      ]}
+      shot={<ShotAudit />}
       features={[
         { title: "Complétude par propriété", desc: "Pour chaque champ de votre CRM, le % de remplissage. Identifiez instantanément les propriétés sous-exploitées — dont les identifiants SIREN / SIRET / TVA." },
         { title: "Détection de doublons", desc: "Entreprises et contacts en double repérés par email, domaine et identifiants légaux. Le rapprochement Sirene aide à trancher les cas ambigus." },

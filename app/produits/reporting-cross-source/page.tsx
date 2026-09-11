@@ -1,4 +1,5 @@
 import { ProductPage } from "@/components/product-page";
+import { ShotRapports } from "@/components/site/product-shots";
 
 import type { Metadata } from "next";
 
@@ -21,11 +22,7 @@ export default function ReportingCrossSourcePage() {
       titleAccent="Jamais inventés."
       subtitle="Croisez votre CRM, votre facturation et votre compta dans des KPIs et des tables vérifiés : chaque chiffre est câblé sur vos données réelles, recalculé en déterministe, avec la preuve de sa source."
       heroIcon={icon}
-      pains={[
-        { value: "68%", label: "des organisations citent les silos de données comme leur principal obstacle opérationnel en 2026.", source: "Agents for Hire" },
-        { value: "2 jours/mois", label: "passés en moyenne par les équipes RevOps à compiler manuellement des rapports cross-tool.", source: "RevOps Co-op" },
-        { value: "44%", label: "des entreprises perdent +10% de leur CA annuel à cause de données CRM erronées ou incomplètes.", source: "RevOps 802" },
-      ]}
+      shot={<ShotRapports />}
       features={[
         { title: "KPIs câblés et vérifiés", desc: "Chaque KPI affiche sa source, l'outil d'origine et la valeur calculée. Pas de chiffre sorti d'un chapeau : vous voyez le câblage avant de faire confiance." },
         { title: "Funnel de câblage", desc: "Avant chaque KPI, l'étape « sources à croiser » : Revold vous montre quels outils connectés alimentent la mesure, et ce qu'il manque pour la fiabiliser." },

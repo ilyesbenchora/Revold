@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShotTresorerie } from "@/components/site/product-shots";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -24,9 +25,9 @@ export default function FinancePage() {
             <Link href="/demo" className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl">Faire une démo</Link>
             <Link href="/essai-gratuit" className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">Essai gratuit</Link>
           </div>
-          <div className="mt-12 overflow-hidden rounded-xl border border-white/10 shadow-2xl shadow-fuchsia-500/10">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/screenshots/dashboard-overview.png" alt="Dashboard Finance Revold" className="w-full" />
+          <div className="mt-12 text-left">
+            <ShotTresorerie />
+            <p className="mt-3 text-center text-xs text-slate-500">Interface Revold — données de démonstration.</p>
           </div>
         </div>
       </section>
