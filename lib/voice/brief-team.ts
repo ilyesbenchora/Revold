@@ -200,6 +200,8 @@ export type BriefBlockDef = {
   days?: { default: number; label: string };
   /** Bloc de PRÉVISION : la date de fermeture est remplaçable par une propriété personnalisée. */
   forecast?: boolean;
+  /** Bloc dont les chiffres peuvent être VENTILÉS par propriétaire (option par card). */
+  ownerBreakdown?: boolean;
 };
 
 const PAST: BriefPeriod[] = ["this_week", "this_month", "this_quarter", "this_year"];
@@ -210,11 +212,11 @@ export function periodsFor(def: BriefBlockDef): BriefPeriod[] {
 
 export const TEAM_BLOCKS: Record<BriefTeamId, BriefBlockDef[]> = {
   sales: [
-    { id: "deals_open", label: "Deals en cours", hint: "Nombre et montant, par pipeline choisi", periods: "none" },
+    { id: "deals_open", label: "Deals en cours", hint: "Nombre et montant, par pipeline choisi", periods: "none", ownerBreakdown: true },
     { id: "deals_won_by_owner", label: "Deals signés par propriétaire", hint: "Signés sur la période, détaillés par propriétaire", periods: "past" },
-    { id: "deals_stagnant", label: "Deals stagnants", hint: "Deals restés dans la même phase au-delà du seuil", periods: "none", days: { default: 14, label: "Jours dans la même phase" } },
-    { id: "deals_ready", label: "Deals prêts à signer", hint: "Deals en cours dont la date de fermeture tombe dans l'échéance", periods: "all", forecast: true },
-    { id: "forecast_weighted", label: "Prévision pondérée", hint: "Montant × probabilité d'étape sur l'échéance", periods: "all", forecast: true },
+    { id: "deals_stagnant", label: "Deals stagnants", hint: "Deals restés dans la même phase au-delà du seuil", periods: "none", days: { default: 14, label: "Jours dans la même phase" }, ownerBreakdown: true },
+    { id: "deals_ready", label: "Deals prêts à signer", hint: "Deals en cours dont la date de fermeture tombe dans l'échéance", periods: "all", forecast: true, ownerBreakdown: true },
+    { id: "forecast_weighted", label: "Prévision pondérée", hint: "Montant × probabilité d'étape sur l'échéance", periods: "all", forecast: true, ownerBreakdown: true },
   ],
   marketing: [
     { id: "contacts_new", label: "Nouveaux contacts", hint: "Contacts créés dans le CRM sur la période", periods: "past" },
@@ -247,6 +249,8 @@ export type BriefBlockConfig = {
   days?: number;
   /** Propriété de date remplaçant la date de fermeture (blocs de prévision) ; null = closedate. */
   dateProperty?: string | null;
+  /** Ventiler les chiffres du bloc par propriétaire (blocs `ownerBreakdown`). */
+  byOwner?: boolean;
 };
 
 export type BriefTeamConfig = {
@@ -255,7 +259,21 @@ export type BriefTeamConfig = {
   blocks: Record<string, BriefBlockConfig>;
   customProperties: BriefCustomProperty[];
   customSuggestions: BriefCustomSuggestion[];
+  /** Focus sur un utilisateur du CRM (propriétaire) : tout le brief de l'équipe
+   *  ne porte que sur ses fiches. null = toute l'équipe. */
+  ownerId?: string | null;
+  /** Nom du propriétaire choisi (affichage, sans refetch). */
+  ownerName?: string | null;
+  /** Objet sur lequel le propriétaire est indexé (propriétaire du deal, du
+   *  contact, de l'entreprise…). Détermine l'objet dont le champ propriétaire
+   *  est vérifié/câblé. null = objet principal de l'équipe. */
+  ownerObject?: BriefCrmObject | null;
 };
+
+/** Objet « propriétaire » par défaut d'une équipe (objet principal). */
+export function defaultOwnerObject(team: BriefTeamId): BriefCrmObject {
+  return team === "marketing" ? "contacts" : team === "cs" ? "tickets" : "deals";
+}
 
 export type BriefTeamSettings = {
   /** Le brief d'équipe est lu dans le brief du jour. */
@@ -267,7 +285,7 @@ export type BriefTeamSettings = {
 export const DEFAULT_BRIEF_TEAM: BriefTeamSettings = { enabled: false, team: "sales", configs: {} };
 
 export function emptyTeamConfig(): BriefTeamConfig {
-  return { pipelines: [], blocks: {}, customProperties: [], customSuggestions: [] };
+  return { pipelines: [], blocks: {}, customProperties: [], customSuggestions: [], ownerId: null, ownerName: null, ownerObject: null };
 }
 
 /** Config par défaut d'un bloc (première période passée cochée, seuil par défaut). */
@@ -315,6 +333,7 @@ export function sanitizeBriefTeam(raw: unknown): BriefTeamSettings {
         periods,
         ...(def.days ? { days: days ?? def.days.default } : {}),
         ...(def.forecast ? { dateProperty } : {}),
+        ...(def.ownerBreakdown && bb.byOwner === true ? { byOwner: true } : {}),
       };
     }
     const customProperties = (Array.isArray(cc.customProperties) ? cc.customProperties : [])
@@ -365,11 +384,17 @@ export function sanitizeBriefTeam(raw: unknown): BriefTeamSettings {
               : null,
         } satisfies BriefCustomSuggestion;
       });
+    const ownerId = typeof cc.ownerId === "string" && cc.ownerId.trim() ? (cc.ownerId as string).slice(0, 64) : null;
+    const ownerName = ownerId && typeof cc.ownerName === "string" && cc.ownerName.trim() ? (cc.ownerName as string).slice(0, 120) : null;
+    const ownerObject = ownerId && isBriefCrmObject(cc.ownerObject) ? cc.ownerObject : (ownerId ? defaultOwnerObject(team) : null);
     configs[team] = {
       pipelines: (Array.isArray(cc.pipelines) ? cc.pipelines : []).filter((p): p is string => typeof p === "string").slice(0, 30),
       blocks,
       customProperties,
       customSuggestions,
+      ownerId,
+      ownerName,
+      ownerObject,
     };
   }
   return {

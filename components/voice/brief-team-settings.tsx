@@ -30,6 +30,7 @@ import {
   activeBlockCount,
   briefTeamLabel,
   defaultBlockConfig,
+  defaultOwnerObject,
   emptyTeamConfig,
   isDateProperty,
   periodsFor,
@@ -51,6 +52,15 @@ type Options = {
   crmLabel: string | null;
   hasToken: boolean;
   pipelines: { id: string; label: string }[];
+  owners: { id: string; name: string }[];
+};
+
+/** Objet HubSpot porteur du propriétaire filtré (owner_id / hubspot_owner_id). */
+const OWNER_PROP: Record<BriefCrmObject, string> = {
+  deals: "hubspot_owner_id",
+  contacts: "hubspot_owner_id",
+  companies: "hubspot_owner_id",
+  tickets: "hubspot_owner_id",
 };
 
 const btnPrimary = "rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50";
@@ -332,6 +342,108 @@ function ProposedSuggestion({
   );
 }
 
+/**
+ * Focus sur un UTILISATEUR du CRM : le brief d'équipe ne porte que sur ses
+ * fiches. On choisit l'OBJET sur lequel le propriétaire est indexé (deal,
+ * contact, ticket) et on peut vérifier le câblage (combien de fiches de cet
+ * objet ont réellement un propriétaire) avant de compter dessus.
+ */
+function OwnerFocus({
+  team,
+  cfg,
+  owners,
+  hasToken,
+  crmLabel,
+  writeCfg,
+}: {
+  team: BriefTeamId;
+  cfg: BriefTeamConfig;
+  owners: { id: string; name: string }[];
+  hasToken: boolean;
+  crmLabel: string | null;
+  writeCfg: (mutate: (c: BriefTeamConfig) => BriefTeamConfig) => void;
+}) {
+  // Objets filtrables par propriétaire pour cette équipe (les entreprises ne
+  // portent pas le filtre côté brief — le propriétaire vit sur deal/contact/ticket).
+  const objs = TEAM_OBJECTS[team].filter((o) => o !== "companies");
+  const ownerObject = cfg.ownerObject ?? defaultOwnerObject(team);
+  const [check, setCheck] = useState<{ loading: boolean; error: string | null; coverage: { withValue: number; total: number } | null }>({
+    loading: false,
+    error: null,
+    coverage: null,
+  });
+
+  async function verify() {
+    if (check.loading || !hasToken) return;
+    setCheck({ loading: true, error: null, coverage: null });
+    try {
+      const res = await fetch("/api/voice/brief-team/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "property", object: ownerObject, name: OWNER_PROP[ownerObject], label: "Propriétaire" }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.ok) throw new Error(d.error || "Vérification impossible.");
+      setCheck({ loading: false, error: null, coverage: d.coverage ?? null });
+    } catch (e) {
+      setCheck({ loading: false, error: e instanceof Error ? e.message : "Erreur inconnue", coverage: null });
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-white/70 p-2.5">
+      <p className="text-[11px] font-semibold text-slate-700">Focus sur un utilisateur (optionnel)</p>
+      <p className="mt-0.5 text-[10px] text-slate-500">
+        Restreins tout le brief aux fiches d&apos;un utilisateur du CRM. Choisis l&apos;objet sur lequel le propriétaire
+        est indexé, puis l&apos;utilisateur.
+      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-medium text-slate-500">Propriétaire du</span>
+        <select
+          value={ownerObject}
+          onChange={(e) => { setCheck({ loading: false, error: null, coverage: null }); writeCfg((c) => ({ ...c, ownerObject: e.target.value as BriefCrmObject })); }}
+          className={input}
+        >
+          {objs.map((o) => (
+            <option key={o} value={o}>{CRM_OBJECT_LABELS[o].toLowerCase()}</option>
+          ))}
+        </select>
+        <select
+          value={cfg.ownerId ?? ""}
+          onChange={(e) => {
+            const id = e.target.value || null;
+            const name = id ? owners.find((o) => o.id === id)?.name ?? null : null;
+            setCheck({ loading: false, error: null, coverage: null });
+            writeCfg((c) => ({ ...c, ownerId: id, ownerName: name, ownerObject: id ? (c.ownerObject ?? defaultOwnerObject(team)) : null }));
+          }}
+          className={`${input} min-w-0 flex-1`}
+        >
+          <option value="">Toute l&apos;équipe (pas de focus)</option>
+          {owners.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+        {cfg.ownerId && (
+          <button type="button" onClick={verify} disabled={check.loading || !hasToken} className={btnPrimary}>
+            {check.loading ? "Vérification…" : "Vérifier le câblage"}
+          </button>
+        )}
+      </div>
+      {owners.length === 0 && <p className="mt-1 text-[10px] text-slate-400">Aucun utilisateur synchronisé depuis le CRM pour l&apos;instant.</p>}
+      {check.error && <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-[10px] text-rose-600">{check.error}</p>}
+      {check.coverage && (
+        <p className="mt-1 rounded bg-indigo-50/50 px-2 py-1 text-[10px] text-slate-600">
+          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ CÂBLÉ{crmLabel ? ` · ${crmLabel}` : ""}</span>{" "}
+          <span className={check.coverage.withValue > 0 ? "font-semibold text-emerald-600" : "font-semibold text-rose-500"}>
+            {check.coverage.withValue} sur {check.coverage.total} {CRM_OBJECT_LABELS[ownerObject].toLowerCase()} ont un propriétaire
+          </span>{" "}
+          — le filtre s&apos;applique sur ce champ.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettings }) {
   const [open, setOpen] = useState(settings.enabled);
   const [options, setOptions] = useState<Options | null>(null);
@@ -423,6 +535,16 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
         </span>
       </div>
 
+      {/* 1b. Focus sur un utilisateur du CRM (propriétaire) */}
+      <OwnerFocus
+        team={team}
+        cfg={cfg}
+        owners={options?.owners ?? []}
+        hasToken={options?.hasToken ?? false}
+        crmLabel={options?.crmLabel ?? null}
+        writeCfg={writeCfg}
+      />
+
       {/* 2. Pipelines (Ventes) */}
       {team === "sales" && (
         <div className="mt-3">
@@ -497,6 +619,17 @@ export function BriefTeamSettingsPanel({ settings }: { settings: BriefTeamSettin
                         customProps={cfg.customProperties}
                         onChange={(v) => writeCfg((c) => ({ ...c, blocks: { ...c.blocks, [def.id]: { ...b, dateProperty: v } } }))}
                       />
+                    )}
+                    {def.ownerBreakdown && (
+                      <label className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={!!b.byOwner}
+                          onChange={(e) => writeCfg((c) => ({ ...c, blocks: { ...c.blocks, [def.id]: { ...b, byOwner: e.target.checked } } }))}
+                          className="h-3 w-3 accent-[var(--accent)]"
+                        />
+                        Ventiler par propriétaire (de la transaction)
+                      </label>
                     )}
                   </div>
                 )}

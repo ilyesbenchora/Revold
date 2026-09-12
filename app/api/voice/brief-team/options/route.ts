@@ -5,6 +5,7 @@ import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { poleToWorkspace } from "@/lib/workspaces";
+import { readOwnersFromCache } from "@/lib/sync/read-cached-objects";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,17 @@ export async function GET() {
     for (const p of await fetchDealsPipelines(token)) if (!p.archived) seen.set(p.id, p.label);
   }
 
+  // Utilisateurs du CRM (propriétaires) — depuis le cache de synchro, sans appel
+  // API : sert au « focus sur un utilisateur » du brief d'équipe.
+  let owners: { id: string; name: string }[] = [];
+  try {
+    const raw = await readOwnersFromCache(supabase, orgId);
+    owners = raw
+      .map((o) => ({ id: String(o.id), name: o.fullName || o.email || String(o.id) }))
+      .filter((o) => o.id)
+      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  } catch { /* pas d'owners synchronisés → focus indisponible */ }
+
   const role = (profile?.role as string | null) ?? null;
   const pole = poleToWorkspace(profile?.pole as string | null);
   return NextResponse.json({
@@ -52,5 +64,6 @@ export async function GET() {
     crmLabel,
     hasToken: !!token,
     pipelines: [...seen.entries()].map(([id, label]) => ({ id, label })),
+    owners,
   });
 }

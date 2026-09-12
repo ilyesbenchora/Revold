@@ -46,6 +46,10 @@ type Ctx = {
   now: Date;
   crmLabel: string | null;
   owners: Map<string, string> | null;
+  /** Focus sur un utilisateur du CRM (propriétaire) : filtre l'objet indexé. */
+  ownerId: string | null;
+  /** Objet sur lequel le propriétaire est indexé (le filtre owner ne s'y applique qu'à lui). */
+  ownerObject: BriefCrmObject | null;
 };
 
 async function ownersOf(ctx: Ctx): Promise<Map<string, string>> {
@@ -144,6 +148,8 @@ async function fetchRows(
     eq?: Record<string, string | boolean | number> | null;
     /** Colonne « is null » / « not null ». */
     nullCol?: { col: string; isNull: boolean } | null;
+    /** false = ne PAS appliquer le focus « utilisateur » (ctx.ownerId) à cette requête. */
+    ownerScope?: boolean;
     max?: number;
   } = {},
 ): Promise<Row[]> {
@@ -180,6 +186,13 @@ async function fetchRows(
     if (opts.inCol) q = q.in(opts.inCol.col, opts.inCol.values);
     if (opts.eq) for (const [k, v] of Object.entries(opts.eq)) q = q.eq(k, v);
     if (opts.nullCol) q = opts.nullCol.isNull ? q.is(opts.nullCol.col, null) : q.not(opts.nullCol.col, "is", null);
+    // Focus « utilisateur » : filtre par propriétaire, UNIQUEMENT sur l'objet
+    // sur lequel le owner est indexé (tickets via colonne, deals/contacts via
+    // la propriété HubSpot).
+    if (ctx.ownerId && ctx.ownerObject === object && opts.ownerScope !== false) {
+      if (object === "tickets") q = q.eq("owner_id", ctx.ownerId);
+      else if (object === "deals" || object === "contacts") q = q.eq("raw_data->properties->>hubspot_owner_id", ctx.ownerId);
+    }
     const { data, error } = await q.range(from, from + PAGE - 1);
     if (error || !data) break;
     for (const r of data as unknown as Array<Record<string, unknown>>) {
@@ -259,14 +272,17 @@ async function liveSearch(
   return { total, rows };
 }
 
-/** Filtres « stock ouvert » côté HubSpot. */
-function liveOpenFilters(object: BriefCrmObject, pipelines: string[]): LiveFilter[] {
+/** Filtres « stock ouvert » côté HubSpot (+ focus propriétaire optionnel). */
+function liveOpenFilters(object: BriefCrmObject, pipelines: string[], ownerId?: string | null): LiveFilter[] {
   const f: LiveFilter[] = [];
   if (object === "deals") {
     f.push({ propertyName: "hs_is_closed", operator: "EQ", value: "false" });
     if (pipelines.length > 0) f.push({ propertyName: "pipeline", operator: "IN", values: pipelines });
   }
   if (object === "tickets") f.push({ propertyName: "closed_date", operator: "NOT_HAS_PROPERTY" });
+  if (ownerId && (object === "deals" || object === "contacts" || object === "tickets")) {
+    f.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId });
+  }
   return f;
 }
 
@@ -280,7 +296,7 @@ export async function propertyCoverage(
   name: string,
 ): Promise<{ withValue: number; total: number } | null> {
   if (!token || !NAME_RE.test(name)) return null;
-  const ctx: Ctx = { supabase: null as unknown as SupabaseClient, orgId: "", token, now: new Date(), crmLabel: null, owners: null };
+  const ctx: Ctx = { supabase: null as unknown as SupabaseClient, orgId: "", token, now: new Date(), crmLabel: null, owners: null, ownerId: null, ownerObject: null };
   const [withValue, all] = await Promise.all([
     liveSearch(ctx, object, [{ propertyName: name, operator: "HAS_PROPERTY" }], [name], 1),
     liveSearch(ctx, object, [{ propertyName: "hs_object_id", operator: "HAS_PROPERTY" }], [], 1),
@@ -303,6 +319,26 @@ function dealCloseDate(r: Row, prop: string | null | undefined): Date | null {
   return toDate(r.props[prop]);
 }
 
+/**
+ * Clause « — par propriétaire : … » ajoutée à un bloc quand l'option de
+ * ventilation est activée. `valueFn` = montant (deals) ou null (comptage seul).
+ * Rien si un seul propriétaire (ou aucun) : la ventilation n'apporte rien.
+ */
+function ownerBreakdownClause(rows: Row[], owners: Map<string, string>, valueFn: ((r: Row) => number) | null): string {
+  const by = new Map<string, { n: number; v: number }>();
+  for (const r of rows) {
+    const k = ownerName(owners, r.owner);
+    const cur = by.get(k) ?? { n: 0, v: 0 };
+    cur.n += 1;
+    cur.v += valueFn ? valueFn(r) : 0;
+    by.set(k, cur);
+  }
+  if (by.size <= 1) return "";
+  const top = [...by.entries()].sort((a, b) => (valueFn ? b[1].v - a[1].v : b[1].n - a[1].n)).slice(0, 3);
+  const seg = top.map(([k, v]) => (valueFn ? `${k} : ${v.n} pour ${fmtEur(v.v)}` : `${k} : ${v.n}`)).join(" ; ");
+  return ` — par propriétaire : ${seg}${by.size > 3 ? ` ; et ${by.size - 3} ${plural(by.size - 3, "autre propriétaire")}` : ""}`;
+}
+
 async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
   const parts: string[] = [];
   const meta = await pipelineMeta(ctx);
@@ -315,6 +351,11 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
     ),
   ];
   const open = await fetchRows(ctx, "deals", { props: dateProps, pipelines: cfg.pipelines, openOnly: true });
+  // Table des propriétaires si un bloc doit être ventilé, ou pour « signés par
+  // propriétaire ». Cache dans le ctx (un seul accès).
+  const ownerBlocks = ["deals_open", "deals_stagnant", "deals_ready", "forecast_weighted"] as const;
+  const needOwners = !!blocks.deals_won_by_owner?.enabled || ownerBlocks.some((id) => blocks[id]?.enabled && blocks[id]?.byOwner);
+  const owners = needOwners ? await ownersOf(ctx) : new Map<string, string>();
   const where = ctx.crmLabel ? ` dans ${ctx.crmLabel}` : "";
   const scope =
     cfg.pipelines.length === 1
@@ -341,11 +382,11 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
             .map(([k, v]) => `${pipelineName(meta, k || null)} : ${v.n} pour ${fmtEur(v.amt)}`)
             .join(" ; ")}`
         : "";
-    parts.push(`${fmtN(open.length)} ${plural(open.length, "deal")} en cours${scope}${where}, ${fmtEur(total)} de pipeline${detail}.`);
+    const oc = blocks.deals_open?.byOwner ? ownerBreakdownClause(open, owners, (r) => r.amount) : "";
+    parts.push(`${fmtN(open.length)} ${plural(open.length, "deal")} en cours${scope}${where}, ${fmtEur(total)} de pipeline${detail}${oc}.`);
   }
 
   if (blocks.deals_won_by_owner?.enabled && blocks.deals_won_by_owner.periods.length > 0) {
-    const owners = await ownersOf(ctx);
     for (const period of blocks.deals_won_by_owner.periods) {
       const w = periodWindow(period, ctx.now);
       const won = await fetchRows(ctx, "deals", {
@@ -385,8 +426,9 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
     if (stuck.length > 0) {
       const amt = stuck.reduce((s, x) => s + x.r.amount, 0);
       const top = stuck.slice(0, 2).map((x) => `${x.r.name ?? "deal sans nom"} (${x.d} jours${x.r.amount ? `, ${fmtEur(x.r.amount)}` : ""})`);
+      const oc = blocks.deals_stagnant?.byOwner ? ownerBreakdownClause(stuck.map((x) => x.r), owners, (r) => r.amount) : "";
       parts.push(
-        `${stuck.length} ${plural(stuck.length, "deal stagnant")}${scope} : dans la même phase depuis plus de ${days} jours, ${fmtEur(amt)} immobilisés — en premier ${top.join(" et ")}.`,
+        `${stuck.length} ${plural(stuck.length, "deal stagnant")}${scope} : dans la même phase depuis plus de ${days} jours, ${fmtEur(amt)} immobilisés — en premier ${top.join(" et ")}${oc}.`,
       );
     } else {
       parts.push(`Aucun deal stagnant au-delà de ${days} jours dans la même phase${scope}.`);
@@ -414,7 +456,7 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
           ctx,
           "deals",
           [
-            ...liveOpenFilters("deals", cfg.pipelines),
+            ...liveOpenFilters("deals", cfg.pipelines, ctx.ownerObject === "deals" ? ctx.ownerId : null),
             { propertyName: prop!, operator: "BETWEEN", value: String(w.from.getTime()), highValue: String(w.to.getTime() - 1) },
           ],
           [prop!, "hubspot_owner_id"],
@@ -432,7 +474,8 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
     if (rows.length === 0) return `Aucun deal prêt à signer ${periodSpoken(period)}${scope} (${propLabel}).`;
     const amt = rows.reduce((s, r) => s + r.amount, 0);
     const top = [...rows].sort((a, b) => b.amount - a.amount).slice(0, 2).map((r) => `${r.name ?? "deal sans nom"}${r.amount ? ` (${fmtEur(r.amount)})` : ""}`);
-    return `Prêts à signer ${periodSpoken(period)}${scope}, d'après ${propLabel} : ${rows.length} ${plural(rows.length, "deal")} pour ${fmtEur(amt)} — en premier ${top.join(" et ")}.`;
+    const oc = blocks.deals_ready?.byOwner ? ownerBreakdownClause(rows, owners, (r) => r.amount) : "";
+    return `Prêts à signer ${periodSpoken(period)}${scope}, d'après ${propLabel} : ${rows.length} ${plural(rows.length, "deal")} pour ${fmtEur(amt)} — en premier ${top.join(" et ")}${oc}.`;
   });
 
   await readyLike("forecast_weighted", (period, rows) => {
@@ -441,7 +484,10 @@ async function salesParts(ctx: Ctx, cfg: BriefTeamConfig): Promise<string[]> {
     const weighted = rows.reduce((s, r) => s + (r.amount * (r.stage ? meta.stageProb.get(r.stage) ?? 0 : 0)) / 100, 0);
     const gross = rows.reduce((s, r) => s + r.amount, 0);
     if (rows.length === 0) return `Prévision ${periodSpoken(period)}${scope} : aucun deal en cours sur l'échéance (${propLabel}).`;
-    return `Prévision pondérée ${periodSpoken(period)}${scope}, d'après ${propLabel} : ${fmtEur(weighted)} attendus sur ${fmtEur(gross)} en jeu (${rows.length} ${plural(rows.length, "deal")}, pondérés par la probabilité d'étape).`;
+    const oc = blocks.forecast_weighted?.byOwner
+      ? ownerBreakdownClause(rows, owners, (r) => (r.amount * (r.stage ? meta.stageProb.get(r.stage) ?? 0 : 0)) / 100)
+      : "";
+    return `Prévision pondérée ${periodSpoken(period)}${scope}, d'après ${propLabel} : ${fmtEur(weighted)} attendus sur ${fmtEur(gross)} en jeu (${rows.length} ${plural(rows.length, "deal")}, pondérés par la probabilité d'étape)${oc}.`;
   });
 
   return parts;
@@ -461,7 +507,13 @@ const LIFECYCLE_LABELS: Record<string, string> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function countWhere(ctx: Ctx, table: string, apply: (q: any) => any): Promise<number> {
   try {
-    const { count } = await apply(ctx.supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", ctx.orgId));
+    let q = apply(ctx.supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", ctx.orgId));
+    // Focus « utilisateur » : uniquement sur l'objet indexé (comme fetchRows).
+    if (ctx.ownerId && ctx.ownerObject === table) {
+      if (table === "tickets") q = q.eq("owner_id", ctx.ownerId);
+      else if (table === "contacts" || table === "deals") q = q.eq("raw_data->properties->>hubspot_owner_id", ctx.ownerId);
+    }
+    const { count } = await q;
     return count ?? 0;
   } catch {
     return 0;
@@ -729,7 +781,7 @@ async function suggestionPreview(ctx: Ctx, cfg: BriefTeamConfig, s: BriefCustomS
     if (synced.length > 0) return synced;
     // Rien de synchronisé avec cette propriété → lecture directe.
     live = true;
-    const filters: LiveFilter[] = [...liveOpenFilters(s.object, pipelines)];
+    const filters: LiveFilter[] = [...liveOpenFilters(s.object, pipelines, ctx.ownerObject === s.object ? ctx.ownerId : null)];
     if (extra.from && extra.to) {
       filters.push({ propertyName: s.property, operator: "BETWEEN", value: String(extra.from.getTime()), highValue: String(extra.to.getTime() - 1) });
     } else {
@@ -792,8 +844,16 @@ async function suggestionPreview(ctx: Ctx, cfg: BriefTeamConfig, s: BriefCustomS
 // ── Point d'entrée : brief d'équipe ─────────────────────────────────────────
 export type TeamBriefResult = { team: BriefTeamId; parts: string[]; label: string };
 
-export function makeCtx(supabase: SupabaseClient, orgId: string, token: string | null, crmLabel: string | null, now = new Date()): Ctx {
-  return { supabase, orgId, token, now, crmLabel, owners: null };
+export function makeCtx(
+  supabase: SupabaseClient,
+  orgId: string,
+  token: string | null,
+  crmLabel: string | null,
+  now = new Date(),
+  ownerId: string | null = null,
+  ownerObject: BriefCrmObject | null = null,
+): Ctx {
+  return { supabase, orgId, token, now, crmLabel, owners: null, ownerId, ownerObject };
 }
 
 /** Phrases du brief d'équipe (config de l'équipe active des réglages). */
@@ -809,7 +869,7 @@ export async function computeTeamBrief(
   const team = settings.team;
   const cfg = settings.configs[team];
   if (!cfg) return null;
-  const ctx = makeCtx(supabase, orgId, token, crmLabel, now);
+  const ctx = makeCtx(supabase, orgId, token, crmLabel, now, cfg.ownerId ?? null, cfg.ownerObject ?? null);
   let parts: string[] = [];
   try {
     if (team === "sales") parts = await salesParts(ctx, cfg);
@@ -824,6 +884,10 @@ export async function computeTeamBrief(
       const pv = await suggestionPreview(ctx, cfg, s);
       parts.push(...pv.sentences);
     } catch {}
+  }
+  // Focus sur un utilisateur : le signaler en tête (une seule fois).
+  if (cfg.ownerId && cfg.ownerName && parts.length > 0) {
+    parts.unshift(`Brief centré sur ${cfg.ownerName}.`);
   }
   return { team, parts, label: briefTeamLabel(team) };
 }
