@@ -26,9 +26,17 @@ export function parseXml(text: string): ParsedPayload {
   return parser.parse(text);
 }
 
-/** CSV (texte) → tableau d'objets { colonne: valeur } via la 1ʳᵉ ligne d'en-têtes. */
+/** CSV (texte) → tableau d'objets. Gère le BOM et détecte le séparateur
+ *  (« ; » des ERP/Excel FR, tabulation, ou « , ») sur la 1ʳᵉ ligne. */
 export function parseCsv(text: string): Record<string, unknown>[] {
-  const wb = XLSX.read(text, { type: "string", raw: false });
+  const clean = text.replace(/^﻿/, ""); // BOM UTF-8 en tête de fichier
+  const firstLine = clean.split(/\r?\n/, 1)[0] ?? "";
+  const count = (ch: string) => (firstLine.match(new RegExp(`\\${ch}`, "g")) ?? []).length;
+  const semi = count(";");
+  const tab = (firstLine.match(/\t/g) ?? []).length;
+  const comma = count(",");
+  const FS = tab > semi && tab > comma ? "\t" : semi > comma ? ";" : ",";
+  const wb = XLSX.read(clean, { type: "string", raw: false, FS });
   const ws = wb.Sheets[wb.SheetNames[0]];
   if (!ws) return [];
   return XLSX.utils.sheet_to_json(ws, { defval: null }) as Record<string, unknown>[];

@@ -624,7 +624,13 @@ export async function fetchPage(
 
   if (recordsPath) {
     const node = recordsPath ? getNode(payload, recordsPath) : payload;
-    const rows = Array.isArray(node) ? (node.filter((r) => r && typeof r === "object") as Record<string, unknown>[]) : [];
+    // Un enregistrement UNIQUE (fréquent en SOAP / XML : un seul <Facture> est
+    // un objet, pas un tableau) est traité comme une liste d'un élément.
+    const rows = Array.isArray(node)
+      ? (node.filter((r) => r && typeof r === "object") as Record<string, unknown>[])
+      : node && typeof node === "object"
+        ? [node as Record<string, unknown>]
+        : [];
     return { ok: true, records: rows, raw: payload, detectedPath: recordsPath };
   }
   const detected = detectRecordsPath(payload);
