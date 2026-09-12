@@ -95,6 +95,20 @@ export async function GET() {
   // seul le marqueur enriched_at fait foi : une donnée légitimement absente
   // (CA confidentiel, effectif non publié) ne la bloque pas à jamais.
   const engineRemaining = (identitiesRemaining ?? 0) + (factsRemaining ?? 0);
+  // ── Passe ZOMBIE : la file est vide mais une passe est restée « running »
+  // (onglet fermé avant la clôture) → clôturée ici, au fil des relevés.
+  // Sans ça, ses champs ne sont jamais « couverts » : à la fin d'une passe,
+  // l'UI retombait sur « Nouveaux champs à enrichir » et la jauge chantier
+  // (99 % → 36 %) alors que tout était traité.
+  if (engineRemaining === 0) {
+    try {
+      await supabase
+        .from("enrichment_runs")
+        .update({ status: "done", finished_at: new Date().toISOString() })
+        .eq("organization_id", orgId)
+        .eq("status", "running");
+    } catch { /* table absente */ }
+  }
   let remaining = engineRemaining;
   let processed = (withSiren ?? 0) + (candidates ?? 0) + (duplicates ?? 0);
   let pct: number;
@@ -108,6 +122,8 @@ export async function GET() {
     // Champs couverts = ceux de la dernière passe terminée ; repli : défauts
     // historiques dès lors que des fiches ont déjà été enrichies (même logique
     // que /api/enrichment/runs).
+    // Couverts = UNION des champs de TOUTES les passes terminées (pas
+    // seulement la dernière) : une donnée couverte un jour le reste.
     let coveredFields: string[] = [];
     try {
       const { data } = await supabase
@@ -116,9 +132,8 @@ export async function GET() {
         .eq("organization_id", orgId)
         .neq("status", "running")
         .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.fields) coveredFields = data.fields as string[];
+        .limit(10);
+      coveredFields = [...new Set((data ?? []).flatMap((r) => ((r as { fields?: string[] }).fields ?? [])))];
     } catch { /* table absente */ }
     if (coveredFields.length === 0) {
       const anyEnriched = await count((q) => q.not("enriched_at", "is", null));

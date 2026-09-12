@@ -53,6 +53,31 @@ export async function GET() {
       .order("started_at", { ascending: false })
       .limit(20);
     runs = (data ?? []) as RunRow[];
+
+    // Passe ZOMBIE (restée « running » alors que la file est vide — onglet
+    // fermé avant la clôture) : clôturée ici pour que ses champs comptent
+    // comme couverts — sinon l'UI réaffichait « Nouveaux champs à enrichir »
+    // sur des champs déjà traités.
+    if (runs.some((r) => r.status === "running")) {
+      const recheckBefore = new Date(Date.now() - 30 * 86_400_000).toISOString();
+      const refreshBefore = new Date(Date.now() - 90 * 86_400_000).toISOString();
+      const [idQ, factQ] = await Promise.all([
+        supabase.from("companies").select("id", { count: "exact", head: true }).eq("organization_id", orgId)
+          .is("siren", null).not("name", "is", null).is("candidate_siren", null)
+          .or(`sirene_checked_at.is.null,sirene_checked_at.lt.${recheckBefore}`),
+        supabase.from("companies").select("id", { count: "exact", head: true }).eq("organization_id", orgId)
+          .not("siren", "is", null).or(`enriched_at.is.null,enriched_at.lt.${refreshBefore}`),
+      ]);
+      if ((idQ.count ?? 0) + (factQ.count ?? 0) === 0) {
+        const now = new Date().toISOString();
+        await supabase
+          .from("enrichment_runs")
+          .update({ status: "done", finished_at: now })
+          .eq("organization_id", orgId)
+          .eq("status", "running");
+        runs = runs.map((r) => (r.status === "running" ? { ...r, status: "done" as const, finished_at: now } : r));
+      }
+    }
   } catch {
     /* table absente (migration non appliquée) → seul l'historique dérivé s'affiche */
   }
@@ -103,10 +128,10 @@ export async function GET() {
     /* colonne absente → pas d'historique dérivé */
   }
 
-  // Champs déjà couverts par une passe terminée (ou par l'enrichissement
-  // initial dérivé) — sert à détecter les NOUVEAUX champs cochés depuis.
-  const lastDone = runs.find((r) => r.status !== "running");
-  const covered = lastDone ? lastDone.fields : [];
+  // Champs déjà couverts — UNION de TOUTES les passes terminées (et de
+  // l'enrichissement initial dérivé) : une donnée couverte un jour le reste,
+  // même si la dernière passe ne portait que sur un sous-ensemble.
+  const covered = [...new Set(runs.filter((r) => r.status !== "running").flatMap((r) => r.fields ?? []))];
 
   return NextResponse.json({ runs, covered });
 }
@@ -151,9 +176,8 @@ export async function POST(request: Request) {
       .eq("organization_id", orgId)
       .neq("status", "running")
       .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data?.fields) covered = data.fields as string[];
+      .limit(10);
+    covered = [...new Set((data ?? []).flatMap((r) => ((r as { fields?: string[] }).fields ?? [])))];
   } catch { /* table absente */ }
   if (covered.length === 0) {
     const { count } = await supabase
