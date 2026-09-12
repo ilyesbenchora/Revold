@@ -140,35 +140,8 @@ export function GroupSignalsSettings({ initialNameMatch, initialDomainMatch }: {
           </button>
         </div>
       </div>
-      {/* Répartition des propositions actuelles par signal — montre d'où vient le total. */}
-      {diag?.bySignal && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-600">
-          <p className="font-medium text-slate-700">
-            Propositions détectées (en direct) par signal :{" "}
-            <span className="font-normal">
-              montant {nf(diag.bySignal.billing_match)} · domaine {nf(diag.bySignal.shared_domain)} · SIREN {nf(diag.bySignal.same_siren)} · nom {nf(diag.bySignal.name_match)}
-            </span>
-          </p>
-          {diag.detectError && (
-            <p className="mt-0.5 text-rose-700">⚠ Le détecteur a échoué : {diag.detectError}</p>
-          )}
-          {diag.nameEnabled === false && (
-            <p className="mt-0.5 text-amber-700">
-              ⚠ Le signal « nom » est <strong>désactivé</strong> — active-le ci-dessus (clique « ✎ Modifier » d&apos;abord), puis relance le rapprochement.
-            </p>
-          )}
-          {diag.nameEnabled === true && !diag.detectError && (diag.bySignal.name_match ?? 0) === 0 && (
-            <p className="mt-0.5 text-amber-700">
-              ⚠ « Nom » est activé et le détecteur tourne (chiffres en direct), mais 0 par le nom : il manque probablement la fiche « mère » NUE (ex. « Banque Populaire » sans ville), ou les noms ne partagent pas un préfixe EXACT (abréviations, variantes). Dis-le moi, j&apos;adapte la règle.
-            </p>
-          )}
-          {diag.nameEnabled === true && (diag.bySignal.name_match ?? 0) > 0 && (
-            <p className="mt-0.5 text-emerald-700">
-              ✓ Le nom détecte {nf(diag.bySignal.name_match)} rapprochements — clique « Relancer la détection » sur Hiérarchie comptes pour les faire apparaître.
-            </p>
-          )}
-        </div>
-      )}
+      {/* (Le mini-bloc « Propositions détectées par signal » a été retiré : ce
+          diagnostic vit sur la page Hiérarchie comptes, pas dans les réglages.) */}
       {saved && <p className="text-[11px] text-emerald-600">✓ Enregistré — relance le rapprochement pour l&apos;appliquer.</p>}
 
       {/* CTA UNIQUE identique aux autres blocs de réglages (verrou d'édition). */}
