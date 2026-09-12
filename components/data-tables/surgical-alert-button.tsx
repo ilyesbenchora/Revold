@@ -9,7 +9,7 @@ import { WiredToolsRow } from "@/components/wired-tools-row";
 import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
 
 /** Entités dont les données portent un owner HubSpot → ciblage par utilisateur CRM possible. */
-const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets"]);
+const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets", "companies"]);
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 

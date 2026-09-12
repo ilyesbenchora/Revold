@@ -567,6 +567,8 @@ async function upsertCompanies(
       industry: pStr(props, "industry"),
       annual_revenue: pNum(props, "annualrevenue") || null,
       employee_count: employees > 0 ? Math.round(employees) : null,
+      // Owner HubSpot — clé du ciblage alertes/objectifs par utilisateur CRM.
+      hs_owner_id: pStr(props, "hubspot_owner_id"),
       raw_data: r,
       hs_last_modified_at: pDate(props, "hs_lastmodifieddate"),
       updated_at: new Date().toISOString(),

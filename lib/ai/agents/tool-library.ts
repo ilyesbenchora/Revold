@@ -1214,10 +1214,10 @@ export async function computeAggregate(
 
   // ── Filtre par UTILISATEUR CRM (owner HubSpot) : colonnes remplies par
   // l'ETL — deals/contacts.hs_owner_id, tickets.owner_id. ──
-  const OWNER_COLS: Record<string, string> = { deals: "hs_owner_id", contacts: "hs_owner_id", tickets: "owner_id" };
+  const OWNER_COLS: Record<string, string> = { deals: "hs_owner_id", contacts: "hs_owner_id", tickets: "owner_id", companies: "hs_owner_id" };
   const ownerFilter = typeof input.owner === "string" && input.owner.trim() ? input.owner.trim() : null;
   if (ownerFilter && !OWNER_COLS[entity]) {
-    return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts et tickets uniquement).` };
+    return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts, entreprises et tickets uniquement).` };
   }
 
   // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
