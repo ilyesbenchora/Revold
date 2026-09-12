@@ -180,26 +180,35 @@ export function SurgicalAlertButton({
   // créée PAR utilisateur, l'agrégat filtré sur ses données (hs_owner_id).
   // Disponible quand l'entité porte un owner (deals/contacts/tickets), ou quand
   // le câblage sera résolu par l'agent (pas d'agg_spec → owner_filter classique).
-  const ownerTargetable = !aggSpec || OWNER_TARGETABLE_ENTITIES.has(aggSpec.entity);
   const [targetMode, setTargetMode] = useState<"team" | "users">("team");
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [owners, setOwners] = useState<CrmOwner[]>([]);
   const [hsTeams, setHsTeams] = useState<string[]>([]);
+  const [hasServiceHub, setHasServiceHub] = useState(false);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
+  // Objet sur lequel le propriétaire est indexé pour cette alerte technique :
+  // l'ENTITÉ de l'agrégat (owner du deal / contact / ticket / entreprise). Le
+  // ticket n'est ciblable que si un hub service client est connecté.
+  const ownerObject = aggSpec?.entity ?? "deals";
+  const ownerObjectLabel = entityLabel(ownerObject).toLowerCase();
+  const ownerTargetable =
+    (!aggSpec || OWNER_TARGETABLE_ENTITIES.has(aggSpec.entity)) &&
+    (ownerObject !== "tickets" || hasServiceHub);
 
-  // Utilisateurs CRM (owners HubSpot + équipes) au premier open, si ciblable.
+  // Utilisateurs CRM (owners HubSpot + équipes) + hub service client au 1er open.
   useEffect(() => {
-    if (open && ownerTargetable && !ownersLoaded) {
+    if (open && !ownersLoaded) {
       fetch("/api/alerts/options")
         .then((r) => (r.ok ? r.json() : { owners: [], teams: [] }))
         .catch(() => ({ owners: [], teams: [] }))
         .then((d) => {
           setOwners(d.owners ?? []);
           setHsTeams(d.teams ?? []);
+          setHasServiceHub(Boolean(d.hasServiceHub));
           setOwnersLoaded(true);
         });
     }
-  }, [open, ownerTargetable, ownersLoaded]);
+  }, [open, ownersLoaded]);
 
   function reset() {
     setState("idle"); setError(null); setStep("form");
@@ -326,6 +335,8 @@ export function SurgicalAlertButton({
             source_key: key,
             owner_filter: owner ? owner.id : null,
             owner_name: ownerLabel,
+            // Objet du propriétaire = entité de l'agrégat (l'owner filtre cette entité).
+            owner_object: owner ? ownerObject : null,
             threshold_secondary: secondary.length ? secondary[0].value : null,
             unit_mode_secondary: secondary.length ? secondary[0].unit_mode : null,
             secondary_kpis: secondary.length ? secondary : null,
@@ -659,6 +670,10 @@ export function SurgicalAlertButton({
                         <CrmUserPicker owners={owners} teams={hsTeams} selected={selectedOwners} onChange={setSelectedOwners} />
                         <p className="mt-1 text-[10px] text-slate-400">
                           Une alerte est créée par utilisateur sélectionné — la donnée est calculée sur les enregistrements dont il est propriétaire dans le CRM.
+                        </p>
+                        {/* Objet du propriétaire : l'entité de ce bloc (câblage garanti sur le bon objet). */}
+                        <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">
+                          👤 Câblé sur le <span className="font-semibold">propriétaire du {ownerObjectLabel}</span> (l&apos;objet de ce bloc)
                         </p>
                       </>
                     )}

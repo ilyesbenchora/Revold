@@ -64,7 +64,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   // Objet sur lequel le propriétaire est indexé (obligatoire dès qu'on cible
   // par utilisateur) : deals | contacts | companies. Câblage vérifié à l'étape
   // suivante ; filtre dur sur l'objet choisi.
-  const [ownerObject, setOwnerObject] = useState<"deals" | "contacts" | "companies">("deals");
+  const [ownerObject, setOwnerObject] = useState<"deals" | "contacts" | "companies" | "tickets">("deals");
   // Filtres non exposés dans le formulaire (valeurs par défaut envoyées au back).
   const frequency = "every_check";
   const minDealAmount = "";
@@ -693,11 +693,13 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                               <label className="mb-1 block text-[11px] font-medium text-slate-600">
                                 Propriétaire de<span className="ml-0.5 text-red-500">*</span>
                               </label>
-                              <div className="flex gap-1.5">
+                              <div className="flex flex-wrap gap-1.5">
                                 {([
                                   ["deals", "Deal"],
                                   ["contacts", "Contact"],
                                   ["companies", "Entreprise"],
+                                  // Ticket : uniquement si un hub service client est connecté.
+                                  ...(connectedTools.some((t) => t.category === "support") ? [["tickets", "Ticket"] as const] : []),
                                 ] as const).map(([id, label]) => (
                                   <button
                                     key={id}
@@ -713,7 +715,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                               </div>
                               <p className="mt-1 text-[10px] text-slate-400">
                                 Objet sur lequel le propriétaire est indexé. Le KPI est filtré sur les{" "}
-                                {ownerObject === "deals" ? "deals" : ownerObject === "contacts" ? "contacts" : "comptes"} dont l&apos;utilisateur
+                                {ownerObject === "deals" ? "deals" : ownerObject === "contacts" ? "contacts" : ownerObject === "tickets" ? "tickets" : "comptes"} dont l&apos;utilisateur
                                 est propriétaire — le câblage est vérifié à l&apos;étape suivante.
                               </p>
                             </div>
@@ -835,7 +837,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                     {/* Filtre par propriétaire : rappel du câblage sur l'objet choisi. */}
                     {targetMode === "users" && selectedOwners.length > 0 && (
                       <p className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-xs text-slate-600">
-                        👤 Filtré sur le <span className="font-semibold">propriétaire du {ownerObject === "deals" ? "deal" : ownerObject === "contacts" ? "contact" : "compte"}</span>
+                        👤 Filtré sur le <span className="font-semibold">propriétaire du {ownerObject === "deals" ? "deal" : ownerObject === "contacts" ? "contact" : ownerObject === "tickets" ? "ticket" : "compte"}</span>
                         {" "}— {selectedOwners.length} utilisateur{selectedOwners.length > 1 ? "s" : ""} ciblé{selectedOwners.length > 1 ? "s" : ""}
                         {ownerObject === "companies" ? " (les fiches rattachées aux comptes de l'utilisateur)" : ""}.
                       </p>

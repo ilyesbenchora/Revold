@@ -3,6 +3,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
+import { getConnectedTools, connectedCategoriesSet } from "@/lib/integrations/connected-tools";
 
 type HsProperty = {
   name: string;
@@ -15,12 +16,20 @@ type HsProperty = {
 
 export async function GET() {
   const orgId = await getOrgId();
-  const empty = { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] };
+  const empty = { pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [], hasServiceHub: false };
   if (!orgId) return NextResponse.json(empty);
 
   const supabase = await createSupabaseServerClient();
   const token = await getHubSpotToken(supabase, orgId);
-  if (!token) return NextResponse.json(empty);
+
+  // Hub service client connecté (outil de catégorie « support ») : conditionne
+  // l'option « propriétaire du ticket » dans les alertes/objectifs.
+  let hasServiceHub = false;
+  try {
+    hasServiceHub = connectedCategoriesSet(await getConnectedTools(supabase, orgId)).has("support");
+  } catch { /* pas de support connecté */ }
+
+  if (!token) return NextResponse.json({ ...empty, hasServiceHub });
 
   try {
     const [pipelinesRes, ownersRes, contactPropsRes] = await Promise.all([
@@ -104,10 +113,10 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { pipelines, owners, teams: Array.from(teamSet).sort(), lifecycleStages, sources, customContactProps },
-      { headers: { "Cache-Control": "public, s-maxage=300" } },
+      { pipelines, owners, teams: Array.from(teamSet).sort(), lifecycleStages, sources, customContactProps, hasServiceHub },
+      { headers: { "Cache-Control": "private, s-maxage=60" } },
     );
   } catch {
-    return NextResponse.json({ pipelines: [], owners: [], teams: [], lifecycleStages: [], sources: [], customContactProps: [] });
+    return NextResponse.json({ ...empty, hasServiceHub });
   }
 }

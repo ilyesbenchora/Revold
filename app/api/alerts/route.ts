@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
   // Objet du propriétaire (obligatoire dès qu'on cible un utilisateur CRM) :
   // deals | contacts | companies. Défaut sûr « deals » si absent.
-  const OWNER_OBJECTS = new Set(["deals", "contacts", "companies"]);
+  const OWNER_OBJECTS = new Set(["deals", "contacts", "companies", "tickets"]);
   const ownerObject = owner_filter
     ? (typeof owner_object === "string" && OWNER_OBJECTS.has(owner_object) ? owner_object : "deals")
     : null;

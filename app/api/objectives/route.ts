@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     // Objet du propriétaire (obligatoire si owner_filter) : deals | contacts | companies.
     owner_object:
       typeof b.owner_filter === "string" && b.owner_filter.trim()
-        ? (["deals", "contacts", "companies"].includes(b.owner_object as string) ? (b.owner_object as string) : "deals")
+        ? (["deals", "contacts", "companies", "tickets"].includes(b.owner_object as string) ? (b.owner_object as string) : "deals")
         : null,
     // Portée (badge Équipe / Personnel) — retirée par l'insert résilient si
     // la migration n'est pas appliquée.
