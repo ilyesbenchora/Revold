@@ -4,10 +4,16 @@ import type { Metadata } from "next";
 import { SiteNavbar } from "@/components/site-navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { articles } from "../data";
+import { isPublished, publishedArticles } from "../published";
 import { JsonLd } from "@/components/seo/json-ld";
-import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/seo/site";
+import { FaqBlock } from "@/components/seo/blocks";
+import { blogPostingJsonLd, breadcrumbJsonLd, faqJsonLd } from "@/lib/seo/site";
 
 type Props = { params: Promise<{ slug: string }> };
+
+// Publication programmée : la page est re-rendue chaque heure, un article
+// dont la date arrive passe de 404 à publié sans redéploiement.
+export const revalidate = 3600;
 
 export async function generateStaticParams() {
   return articles.map((a) => ({ slug: a.slug }));
@@ -16,11 +22,13 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const article = articles.find((a) => a.slug === slug);
-  if (!article) return {};
+  if (!article || !isPublished(article)) return {};
   return {
     title: `${article.title} — Blog Revold`,
     description: article.description,
     authors: [{ name: article.author }],
+    alternates: { canonical: `/blog/${article.slug}` },
+    ...(article.keywords ? { keywords: article.keywords } : {}),
     openGraph: {
       title: article.title,
       description: article.description,
@@ -45,14 +53,16 @@ const PROSE_DARK_CSS = `
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
   const article = articles.find((a) => a.slug === slug);
-  if (!article) notFound();
+  if (!article || !isPublished(article)) notFound();
 
-  const related = articles
+  // Articles voisins : uniquement parmi les articles déjà publiés.
+  const published = publishedArticles();
+  const related = published
     .filter((a) => a.slug !== slug)
     .filter((a) => a.category === article.category)
     .slice(0, 2);
   const extraRelated = related.length < 3
-    ? articles.filter((a) => a.slug !== slug && a.category !== article.category).slice(0, 3 - related.length)
+    ? published.filter((a) => a.slug !== slug && a.category !== article.category).slice(0, 3 - related.length)
     : [];
   const allRelated = [...related, ...extraRelated];
 
@@ -64,6 +74,7 @@ export default async function ArticlePage({ params }: Props) {
         data={[
           blogPostingJsonLd({ slug: article.slug, title: article.title, description: article.description, date: article.date, author: article.author, category: article.category }),
           breadcrumbJsonLd([{ name: "Accueil", path: "/" }, { name: "Blog", path: "/blog" }, { name: article.title, path: `/blog/${article.slug}` }]),
+          ...(article.faq && article.faq.length > 0 ? [faqJsonLd(article.faq)] : []),
         ]}
       />
       <style dangerouslySetInnerHTML={{ __html: PROSE_DARK_CSS }} />
@@ -93,6 +104,27 @@ export default async function ArticlePage({ params }: Props) {
           className="prose-revold prose-dark relative mt-12"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
+
+        {/* Maillage : guides, outils et glossaire liés à l'article. */}
+        {article.related && article.related.length > 0 && (
+          <nav aria-label="Pour aller plus loin" className="relative mt-10 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/5 p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">Pour aller plus loin</p>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {article.related.map((r) => (
+                <li key={r.href}>
+                  <Link href={r.href} className="text-sm text-slate-200 hover:text-fuchsia-300">{r.label} →</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+
+        {/* FAQ (GEO) : réponses courtes reprises par les moteurs génératifs. */}
+        {article.faq && article.faq.length > 0 && (
+          <div className="relative -mx-6">
+            <FaqBlock items={article.faq} />
+          </div>
+        )}
 
         {/* Auteur (E-E-A-T) : qui écrit, d'où vient l'expertise, où vérifier. */}
         <aside className="relative mt-12 flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">

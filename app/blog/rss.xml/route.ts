@@ -1,8 +1,11 @@
-import { articles } from "../data";
+import { publishedArticles } from "../published";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const baseUrl = "https://revold.ai";
-  const sorted = [...articles].sort((a, b) => b.date.localeCompare(a.date));
+  // Publication programmée : un item apparaît dans le flux le jour de sa date.
+  const sorted = publishedArticles();
 
   const items = sorted
     .map(

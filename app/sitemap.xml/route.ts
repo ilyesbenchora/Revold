@@ -1,9 +1,13 @@
-import { articles } from "../blog/data";
+import { publishedArticles } from "../blog/published";
 import { KEYWORD_PAGES } from "@/lib/seo/keyword-pages";
 import { COMPETITORS } from "@/lib/seo/competitors";
 import { TOOLS } from "@/lib/seo/tools";
 
 const BASE = "https://revold.ai";
+
+// Régénéré chaque heure : les articles programmés (published.ts) entrent dans
+// le sitemap le jour de leur date, sans redéploiement.
+export const revalidate = 3600;
 
 // Indexation ciblée : home (requête de marque), pages de marque (à propos,
 // pourquoi, tarifs), guides mots-clés, comparatifs, blog et pages produits/
@@ -56,7 +60,7 @@ export async function GET() {
       }</priority></url>`
   );
 
-  const blogEntries = articles.map(
+  const blogEntries = publishedArticles().map(
     (a) =>
       `  <url><loc>${BASE}/blog/${a.slug}</loc><lastmod>${a.date}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`
   );

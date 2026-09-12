@@ -1,3 +1,5 @@
+import { editorialArticles } from "./articles-2026-09";
+
 export type BlogArticle = {
   slug: string;
   title: string;
@@ -8,6 +10,12 @@ export type BlogArticle = {
   date: string;
   readTime: string;
   content: string;
+  /** Requêtes ciblées (meta keywords + schéma). */
+  keywords?: string[];
+  /** FAQ affichée en fin d'article et émise en JSON-LD FAQPage (GEO). */
+  faq?: { q: string; a: string }[];
+  /** Liens internes vers les guides, outils et glossaire (maillage). */
+  related?: { href: string; label: string }[];
 };
 
 export const CATEGORIES = [
@@ -19,7 +27,10 @@ export const CATEGORIES = [
   "Marché B2B France",
 ];
 
-export const articles: BlogArticle[] = [
+// Articles historiques (janvier → avril 2026). Les articles du calendrier
+// éditorial 2026-09+ vivent dans articles-2026-09.ts ; la publication est
+// programmée par la date (voir published.ts).
+const legacyArticles: BlogArticle[] = [
   {
     slug: "qu-est-ce-que-le-revops-guide-complet-2026",
     title: "Qu'est-ce que le RevOps ? Le guide complet 2026",
@@ -418,3 +429,6 @@ export const articles: BlogArticle[] = [
 <p>Les PME et ETI qui adoptent la Revenue Intelligence en 2026 auront un avantage compétitif structurel sur celles qui attendent 2028. La donnée est le nouveau pétrole — mais seulement si elle est croisée, analysée et actionnée.</p>`,
   },
 ];
+
+/** Tous les articles, publiés ou programmés — filtrer avec published.ts. */
+export const articles: BlogArticle[] = [...legacyArticles, ...editorialArticles];

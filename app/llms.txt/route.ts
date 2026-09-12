@@ -3,7 +3,7 @@ import { KEYWORD_PAGES } from "@/lib/seo/keyword-pages";
 import { COMPETITORS } from "@/lib/seo/competitors";
 import { GLOSSARY } from "@/lib/seo/glossary";
 import { TOOLS } from "@/lib/seo/tools";
-import { articles } from "../blog/data";
+import { publishedArticles } from "../blog/published";
 
 /**
  * /llms.txt — carte du site pour les moteurs génératifs (ChatGPT, Claude,
@@ -11,6 +11,9 @@ import { articles } from "../blog/data";
  * définition stable, puis les pages à lire en priorité avec un résumé chacune.
  * La version détaillée est /llms-full.txt.
  */
+// Régénéré chaque heure (articles programmés).
+export const revalidate = 3600;
+
 export async function GET() {
   const lines: string[] = [
     `# ${BRAND.name}`,
@@ -51,7 +54,7 @@ export async function GET() {
     "",
     "## Blog",
     "",
-    ...articles.slice(0, 12).map((a) => `- [${a.title}](${SITE_URL}/blog/${a.slug}): ${a.description}`),
+    ...publishedArticles().slice(0, 30).map((a) => `- [${a.title}](${SITE_URL}/blog/${a.slug}): ${a.description}`),
     "",
     "## Optional",
     "",
