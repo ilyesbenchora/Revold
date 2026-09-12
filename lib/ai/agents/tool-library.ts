@@ -1356,12 +1356,16 @@ export async function computeAggregate(
   };
   // Mode détail : clé de jointure vers l'entreprise (colonnes cohortes) —
   // id pour companies, company_id pour les entités rattachées.
+  // PAS « transactions » : bank_transactions n'a pas de company_id (une
+  // transaction bancaire n'est pas rattachée à une entreprise) — l'ajouter
+  // faisait échouer tout le drill-down (« column bank_transactions.company_id
+  // does not exist » sur la tuile Encaissements de Trésorerie).
   const withDetailLinkCols = (cols: string) => {
     if (!wantDetail) return cols;
     let out = cols;
     if (entity === "companies") {
       if (!/(^|,\s*)id(\s*,|$)/.test(out)) out = `id, ${out}`;
-    } else if (["deals", "invoices", "subscriptions", "contacts", "tickets", "transactions"].includes(entity) && !out.includes("company_id")) {
+    } else if (["deals", "invoices", "subscriptions", "contacts", "tickets"].includes(entity) && !out.includes("company_id")) {
       out = `${out}, company_id`;
     }
     return out;
