@@ -1,4 +1,8 @@
 import { editorialArticles } from "./articles-2026-09";
+import { articlesOctober2026 } from "./articles-2026-10";
+import { articlesNovember2026 } from "./articles-2026-11";
+import { articlesDecember2026 } from "./articles-2026-12";
+import { articlesJanuary2027 } from "./articles-2027-01";
 
 export type BlogArticle = {
   slug: string;
@@ -431,4 +435,11 @@ const legacyArticles: BlogArticle[] = [
 ];
 
 /** Tous les articles, publiés ou programmés — filtrer avec published.ts. */
-export const articles: BlogArticle[] = [...legacyArticles, ...editorialArticles];
+export const articles: BlogArticle[] = [
+  ...legacyArticles,
+  ...editorialArticles,
+  ...articlesOctober2026,
+  ...articlesNovember2026,
+  ...articlesDecember2026,
+  ...articlesJanuary2027,
+];
