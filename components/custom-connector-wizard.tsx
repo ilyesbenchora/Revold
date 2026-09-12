@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CUSTOM_ENTITIES,
@@ -92,6 +93,7 @@ export function CustomConnectorWizard({
     base_url: string;
     auth_type: string;
     auth_param: string | null;
+    auth_config?: { token_url?: string; client_id?: string; scope?: string | null } | null;
     description?: string | null;
     category?: string | null;
   } | null;
@@ -104,6 +106,15 @@ export function CustomConnectorWizard({
   const [authType, setAuthType] = useState<string>(existing?.auth_type ?? "bearer");
   const [authParam, setAuthParam] = useState(existing?.auth_param ?? "X-API-Key");
   const [authValue, setAuthValue] = useState("");
+  // OAuth2 « client credentials » (M2M) — flux serveur-à-serveur des ERP/API.
+  const [oauthTokenUrl, setOauthTokenUrl] = useState(existing?.auth_config?.token_url ?? "");
+  const [oauthClientId, setOauthClientId] = useState(existing?.auth_config?.client_id ?? "");
+  const [oauthSecret, setOauthSecret] = useState("");
+  const [oauthScope, setOauthScope] = useState(existing?.auth_config?.scope ?? "");
+  const oauthConfig =
+    authType === "oauth2"
+      ? { token_url: oauthTokenUrl.trim(), client_id: oauthClientId.trim(), client_secret: oauthSecret, scope: oauthScope.trim() || null }
+      : undefined;
   const [pages, setPages] = useState<string[]>([]);
   const [endpoints, setEndpoints] = useState<EndpointDraft[]>([]);
   const [saving, setSaving] = useState(false);
@@ -170,6 +181,7 @@ export function CustomConnectorWizard({
           authType,
           authParam,
           authValue: authValue || undefined,
+          authConfig: oauthConfig,
           path: ep.path,
           recordsPath: ep.recordsPath || undefined,
           entity: ep.entity,
@@ -217,6 +229,7 @@ export function CustomConnectorWizard({
           authType,
           authParam,
           authValue: authValue || undefined,
+          authConfig: oauthConfig,
           endpoints: endpoints
             .filter((e) => e.path.trim())
             .map((e) => ({
@@ -397,6 +410,7 @@ export function CustomConnectorWizard({
               <option value="bearer">Jeton Bearer (le plus courant)</option>
               <option value="header">Clé dans un en-tête</option>
               <option value="query">Clé dans l&apos;URL</option>
+              <option value="oauth2">OAuth2 (client ID + secret — ERP)</option>
               <option value="none">Aucune</option>
             </select>
           </div>
@@ -416,7 +430,41 @@ export function CustomConnectorWizard({
               <input value={authParam} onChange={(e) => setAuthParam(e.target.value)} placeholder="X-API-Key" className={`${field} mt-1 w-full`} />
             </div>
           )}
-          {authType !== "none" && (
+          {/* ── OAuth2 « client credentials » : jeton obtenu par Revold auprès du
+                 serveur de jetons de l'ERP, rafraîchi automatiquement. ── */}
+          {authType === "oauth2" && (
+            <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  URL du jeton (token endpoint)
+                  <InfoHint wide text={"L'adresse fournie par l'éditeur où Revold échange l'identifiant + le secret contre un jeton d'accès (ex. https://erp.exemple.fr/oauth/token). Revold le rafraîchit tout seul."} />
+                </label>
+                <input value={oauthTokenUrl} onChange={(e) => setOauthTokenUrl(e.target.value)} placeholder="https://…/oauth/token" className={`${field} mt-1 w-full font-mono`} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500">Client ID</label>
+                <input value={oauthClientId} onChange={(e) => setOauthClientId(e.target.value)} placeholder="client_id" className={`${field} mt-1 w-full font-mono`} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500">Client secret</label>
+                <input
+                  type="password"
+                  value={oauthSecret}
+                  onChange={(e) => setOauthSecret(e.target.value)}
+                  placeholder={existing?.auth_config ? "•••••••• (inchangé si vide)" : "client_secret"}
+                  className={`${field} mt-1 w-full font-mono`}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  Scope (facultatif)
+                  <InfoHint text="Périmètre demandé au jeton, si l'éditeur en impose un (ex. read). Laisse vide sinon." />
+                </label>
+                <input value={oauthScope} onChange={(e) => setOauthScope(e.target.value)} placeholder="read" className={`${field} mt-1 w-full font-mono`} />
+              </div>
+            </div>
+          )}
+          {authType !== "none" && authType !== "oauth2" && (
             <div className="md:col-span-2">
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                 Clé / jeton
@@ -450,9 +498,9 @@ export function CustomConnectorWizard({
           Coche les pages et sous-pages que cet outil doit alimenter :{" "}
           <span className="font-medium text-slate-600">Revold en déduit les données à récupérer</span> à
           l&apos;étape suivante. Le choix est enregistré dans{" "}
-          <a href="/dashboard/parametres/integrations" className="font-medium text-accent hover:underline">
+          <Link href="/dashboard/parametres/integrations" className="font-medium text-accent hover:underline">
             Paramètres → Intégrations → Outil source par page
-          </a>
+          </Link>
           , au même endroit que pour Stripe ou Pennylane — tu pourras l&apos;ajuster là-bas à tout moment.
         </p>
         <div className="mt-3 space-y-3">

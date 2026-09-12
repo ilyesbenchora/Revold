@@ -11,7 +11,17 @@ import { getByPath } from "@/lib/integrations/sync/field-mapping";
  * RAPPROCHEMENT (companies.custom_id).
  */
 
-export type AuthType = "none" | "bearer" | "header" | "query";
+export type AuthType = "none" | "bearer" | "header" | "query" | "oauth2";
+
+/** Config OAuth2 « client credentials » (M2M) — flux serveur-à-serveur des ERP/API métier. */
+export type OAuth2Config = {
+  token_url: string;
+  client_id: string;
+  client_secret: string;
+  scope?: string | null;
+  /** Envoi des identifiants : en-tête Basic (défaut) ou dans le corps. */
+  auth_style?: "basic" | "body";
+};
 
 export type CustomConnector = {
   id: string;
@@ -22,8 +32,13 @@ export type CustomConnector = {
   auth_type: AuthType;
   auth_param: string | null;
   auth_value: string | null;
+  /** Paramètres OAuth2 (auth_type = "oauth2"). */
+  auth_config: OAuth2Config | null;
   is_active: boolean;
 };
+
+/** Sous-ensemble d'un connecteur nécessaire pour l'appel HTTP (auth comprise). */
+export type ConnectorAuth = Pick<CustomConnector, "base_url" | "auth_type" | "auth_param" | "auth_value" | "auth_config">;
 
 export type Pagination = {
   type: "none" | "page" | "offset" | "cursor";
@@ -463,7 +478,7 @@ export const CUSTOM_CATEGORIES: { id: string; label: string }[] = [
 
 // ── Appel HTTP générique ───────────────────────────────────────────────────
 
-function buildUrl(connector: Pick<CustomConnector, "base_url" | "auth_type" | "auth_param" | "auth_value">, path: string, params: Record<string, string>): string {
+function buildUrl(connector: ConnectorAuth, path: string, params: Record<string, string>): string {
   const base = connector.base_url.replace(/\/+$/, "");
   const suffix = path.startsWith("http") ? path : `${base}/${path.replace(/^\/+/, "")}`;
   const url = new URL(suffix);
@@ -474,10 +489,46 @@ function buildUrl(connector: Pick<CustomConnector, "base_url" | "auth_type" | "a
   return url.toString();
 }
 
-function buildHeaders(connector: Pick<CustomConnector, "auth_type" | "auth_param" | "auth_value">): Record<string, string> {
+// ── OAuth2 client-credentials : jeton récupéré à la demande et mis en CACHE
+// (mémoire du process) jusqu'à ~60 s avant expiration — évite un aller-retour
+// au serveur de jetons à chaque page. ──
+const oauthTokenCache = new Map<string, { token: string; exp: number }>();
+
+async function oauth2Token(cfg: OAuth2Config): Promise<string | null> {
+  const cacheKey = `${cfg.token_url}|${cfg.client_id}|${cfg.scope ?? ""}`;
+  const now = Date.now();
+  const cached = oauthTokenCache.get(cacheKey);
+  if (cached && cached.exp > now + 60_000) return cached.token;
+  try {
+    const body = new URLSearchParams({ grant_type: "client_credentials" });
+    if (cfg.scope) body.set("scope", cfg.scope);
+    const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" };
+    if (cfg.auth_style === "body") {
+      body.set("client_id", cfg.client_id);
+      body.set("client_secret", cfg.client_secret);
+    } else {
+      headers.Authorization = `Basic ${Buffer.from(`${cfg.client_id}:${cfg.client_secret}`).toString("base64")}`;
+    }
+    const res = await fetch(cfg.token_url, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    const d = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!d.access_token) return null;
+    const ttl = (Number(d.expires_in) || 3600) * 1000;
+    oauthTokenCache.set(cacheKey, { token: d.access_token, exp: now + ttl });
+    return d.access_token;
+  } catch {
+    return null;
+  }
+}
+
+async function buildHeaders(connector: ConnectorAuth): Promise<Record<string, string>> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (connector.auth_type === "bearer" && connector.auth_value) headers.Authorization = `Bearer ${connector.auth_value}`;
   if (connector.auth_type === "header" && connector.auth_param && connector.auth_value) headers[connector.auth_param] = connector.auth_value;
+  if (connector.auth_type === "oauth2" && connector.auth_config) {
+    const token = await oauth2Token(connector.auth_config);
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
   return headers;
 }
 
@@ -500,17 +551,20 @@ function detectRecordsPath(payload: unknown, prefix = "", depth = 0): { path: st
   return null;
 }
 
-/** Un appel : renvoie les enregistrements + le chemin détecté si non fourni. */
+/** Un appel : renvoie les enregistrements + le chemin détecté si non fourni.
+ *  `absoluteUrl` court-circuite base_url/path/params (suivi d'un @odata.nextLink). */
 export async function fetchPage(
-  connector: Pick<CustomConnector, "base_url" | "auth_type" | "auth_param" | "auth_value">,
+  connector: ConnectorAuth,
   path: string,
   recordsPath: string | null,
   params: Record<string, string> = {},
+  absoluteUrl?: string,
 ): Promise<FetchOutcome> {
   let res: Response;
   try {
-    res = await fetch(buildUrl(connector, path, params), {
-      headers: buildHeaders(connector),
+    const url = absoluteUrl ?? buildUrl(connector, path, params);
+    res = await fetch(url, {
+      headers: await buildHeaders(connector),
       signal: AbortSignal.timeout(15_000),
     });
   } catch (e) {
@@ -549,7 +603,7 @@ function getNode(obj: unknown, path: string): unknown {
  * Toutes les pages d'un endpoint (bornées) — pagination page / offset / curseur.
  */
 export async function fetchAllRecords(
-  connector: Pick<CustomConnector, "base_url" | "auth_type" | "auth_param" | "auth_value">,
+  connector: ConnectorAuth,
   endpoint: Pick<CustomEndpoint, "path" | "records_path" | "pagination">,
   limits: { maxPages?: number; maxRecords?: number } = {},
 ): Promise<{ records: Record<string, unknown>[]; error: string | null }> {
@@ -558,6 +612,9 @@ export async function fetchAllRecords(
   const p: Pagination = endpoint.pagination ?? { type: "none" };
   const out: Record<string, unknown>[] = [];
   let cursor: string | null = null;
+  // OData : lien de page suivante absolu (@odata.nextLink) suivi automatiquement,
+  // quelle que soit la pagination déclarée — inoffensif si le champ est absent.
+  let odataNext: string | null = null;
 
   for (let i = 0; i < maxPages; i++) {
     const params: Record<string, string> = {};
@@ -571,12 +628,19 @@ export async function fetchAllRecords(
       params[p.param || "cursor"] = cursor;
     }
 
-    const page = await fetchPage(connector, endpoint.path, endpoint.records_path, params);
+    const page = await fetchPage(connector, endpoint.path, endpoint.records_path, params, odataNext ?? undefined);
     if (!page.ok) return { records: out, error: page.error };
     out.push(...page.records);
     if (out.length >= maxRecords) break;
-    if (p.type === "none") break;
     if (page.records.length === 0) break;
+    // OData nextLink prioritaire (URL absolue prête à l'emploi).
+    const nextLink = page.raw && typeof page.raw === "object" ? (page.raw as Record<string, unknown>)["@odata.nextLink"] : null;
+    if (typeof nextLink === "string" && nextLink) {
+      odataNext = nextLink;
+      continue;
+    }
+    odataNext = null;
+    if (p.type === "none") break;
     if (p.type === "cursor") {
       const next = p.cursorPath ? getByPath(page.raw, p.cursorPath) : null;
       if (!next) break;

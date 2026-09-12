@@ -14,7 +14,23 @@ import { getToolKeys, setToolKeys } from "@/lib/integrations/tool-mappings";
 
 export const dynamic = "force-dynamic";
 
-const AUTH_TYPES = new Set(["none", "bearer", "header", "query"]);
+const AUTH_TYPES = new Set(["none", "bearer", "header", "query", "oauth2"]);
+
+/** Nettoie la config OAuth2 soumise (client-credentials). */
+function cleanOAuthConfig(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const token_url = typeof o.token_url === "string" ? o.token_url.trim() : "";
+  const client_id = typeof o.client_id === "string" ? o.client_id.trim() : "";
+  if (!/^https?:\/\//i.test(token_url) || !client_id) return null;
+  return {
+    token_url,
+    client_id,
+    client_secret: typeof o.client_secret === "string" ? o.client_secret : "",
+    scope: typeof o.scope === "string" && o.scope.trim() ? o.scope.trim() : null,
+    auth_style: o.auth_style === "body" ? "body" : "basic",
+  };
+}
 const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
 
@@ -76,6 +92,7 @@ export async function POST(request: Request) {
     authType?: string;
     authParam?: string | null;
     authValue?: string | null;
+    authConfig?: unknown;
     endpoints?: Array<{
       entity?: string;
       path?: string;
@@ -118,6 +135,25 @@ export async function POST(request: Request) {
   };
   // Secret : uniquement s'il est fourni (sinon on garde l'existant).
   if (body.authValue) row.auth_value = body.authValue;
+  // OAuth2 : config posée quand auth_type = oauth2 ; sinon on efface toute config.
+  if (row.auth_type === "oauth2") {
+    const cfg = cleanOAuthConfig(body.authConfig);
+    if (!cfg) return NextResponse.json({ error: "OAuth2 : URL du jeton et client ID requis." }, { status: 400 });
+    // Secret masqué à l'édition (non renvoyé) : on récupère celui déjà stocké.
+    if (!cfg.client_secret && body.id) {
+      const { data: prev } = await supabase
+        .from("custom_connectors")
+        .select("auth_config")
+        .eq("id", body.id)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const prevSecret = (prev?.auth_config as { client_secret?: string } | null)?.client_secret;
+      if (prevSecret) cfg.client_secret = prevSecret;
+    }
+    row.auth_config = cfg;
+  } else {
+    row.auth_config = null;
+  }
 
   let connectorId = body.id ?? null;
   let connectorKey: string | null = null;

@@ -7,6 +7,7 @@ import {
   suggestFieldMapFromSample,
   CUSTOM_ENTITIES,
   type CustomEntity,
+  type OAuth2Config,
 } from "@/lib/integrations/custom-connector";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     path?: string;
     recordsPath?: string | null;
     entity?: string;
+    authConfig?: unknown;
     /** Connecteur déjà enregistré : réutilise son secret sans le renvoyer au client. */
     connectorId?: string;
   };
@@ -44,15 +46,16 @@ export async function POST(request: Request) {
   }
 
   let baseUrl = (body.baseUrl ?? "").trim();
-  let authType = (body.authType ?? "none") as "none" | "bearer" | "header" | "query";
+  let authType = (body.authType ?? "none") as "none" | "bearer" | "header" | "query" | "oauth2";
   let authParam = body.authParam ?? null;
   let authValue = body.authValue ?? null;
+  let authConfig = (body.authConfig ?? null) as OAuth2Config | null;
 
   // Secret jamais renvoyé au navigateur : on le relit en base si besoin.
   if (body.connectorId) {
     const { data } = await supabase
       .from("custom_connectors")
-      .select("base_url, auth_type, auth_param, auth_value")
+      .select("base_url, auth_type, auth_param, auth_value, auth_config")
       .eq("id", body.connectorId)
       .eq("organization_id", orgId)
       .maybeSingle();
@@ -61,6 +64,9 @@ export async function POST(request: Request) {
       authType = (data.auth_type as typeof authType) ?? authType;
       authParam = authParam ?? (data.auth_param as string | null);
       authValue = authValue || (data.auth_value as string | null);
+      // OAuth2 : config stockée (secret compris) prioritaire sur celle du client.
+      const stored = data.auth_config as OAuth2Config | null;
+      if (stored) authConfig = { ...stored, ...(authConfig ?? {}), client_secret: authConfig?.client_secret || stored.client_secret };
     }
   }
 
@@ -71,7 +77,7 @@ export async function POST(request: Request) {
   if (!path) return NextResponse.json({ error: "Chemin de l'endpoint requis" }, { status: 400 });
 
   const outcome = await fetchPage(
-    { base_url: baseUrl, auth_type: authType, auth_param: authParam, auth_value: authValue },
+    { base_url: baseUrl, auth_type: authType, auth_param: authParam, auth_value: authValue, auth_config: authConfig },
     path,
     body.recordsPath?.trim() || null,
   );
