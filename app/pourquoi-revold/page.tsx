@@ -36,7 +36,7 @@ const DIFFERENTIATORS = [
     statLabel: "agents experts par domaine",
   },
   {
-    title: "Des actions, pas des dashboards",
+    title: "Des actions, pas seulement des dashboards",
     desc: "Deal silencieux → tâche créée dans votre CRM. Facture en retard → rappel officiel envoyé depuis votre outil de facturation. Revold détecte, vous validez, l'action s'exécute dans vos outils — et chaque euro récupéré est attribué, ligne par ligne.",
     stat: "€",
     statLabel: "cash récupéré, mesuré",
