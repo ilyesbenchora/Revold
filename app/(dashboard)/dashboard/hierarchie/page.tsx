@@ -5,13 +5,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
-import { CollapsibleBlock } from "@/components/collapsible-block";
-import { GroupBigPicture, type BigPictureGroup } from "@/components/reconciliation/group-big-picture";
+import { HierarchieTabs } from "@/components/hierarchie-tabs";
 import { HierarchyConsole } from "@/components/hierarchy-console";
 import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
 import { isHierarchyActivated } from "@/lib/actions/engine";
-import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
 import { FeatureTour } from "@/components/feature-tour";
 
 /**
@@ -41,40 +39,6 @@ export default async function HierarchiePage() {
     }))
     .sort((a, b) => b.members.length - a.members.length);
   const entitiesInGroups = declared.reduce((s, g) => s + g.members.length + 1, 0);
-
-  // ── Vue « big picture » des groupes : SIREN + montant des DEALS ASSOCIÉS
-  // à chaque entité (tous statuts — un deal rattaché suffit) ; sans deal,
-  // aucune information de montant. Le cumul des filiales remonte sur la mère.
-  const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
-  const sirenOf = new Map<string, string | null>();
-  const caOf = new Map<string, number>();
-  if (groupIds.length > 0) {
-    try {
-      for (let i = 0; i < groupIds.length; i += 400) {
-        const chunk = groupIds.slice(i, i + 400);
-        const [{ data: comps }, { data: won }] = await Promise.all([
-          supabase.from("companies").select("id, siren").in("id", chunk),
-          supabase
-            .from("deals")
-            .select("amount, company_id")
-            .eq("organization_id", orgId)
-            .not("amount", "is", null)
-            .in("company_id", chunk)
-            .limit(5000),
-        ]);
-        for (const c of (comps ?? []) as Array<{ id: string; siren: string | null }>) sirenOf.set(c.id, c.siren);
-        for (const d of (won ?? []) as Array<{ amount: number | null; company_id: string | null }>) {
-          if (d.company_id) caOf.set(d.company_id, (caOf.get(d.company_id) ?? 0) + (Number(d.amount) || 0));
-        }
-      }
-    } catch { /* SIREN/CA absents → tirets, la vue reste lisible */ }
-  }
-  const node = (id: string, name: string) => ({ id, name, siren: sirenOf.get(id) ?? null, ca: caOf.get(id) ?? 0 });
-  const bigGroups: BigPictureGroup[] = declared.map((g) => {
-    const root = node(g.root, g.name);
-    const children = g.members.map((id) => node(id, groups.nameOf.get(id) ?? "—"));
-    return { root, children, total: root.ca + children.reduce((s, c) => s + c.ca, 0) };
-  });
 
   // Suggestions en attente (compteur serveur — la console fait le détail).
   let pendingCount: number | null = null;
@@ -151,6 +115,8 @@ export default async function HierarchiePage() {
         </p>
       </header>
 
+      <HierarchieTabs />
+
       {/* ── Tutoriel de prise en main (nouveaux comptes uniquement) ── */}
       <FeatureTour
         tourId="hierarchie"
@@ -211,66 +177,8 @@ export default async function HierarchiePage() {
         <HierarchyConsole hierarchyAvailable={groups.available} wonDealsCount={wonDealsCount} activated={hierarchyActivated} />
       </div>
 
-      {/* ── Groupes déjà déclarés (synchronisés depuis le CRM) ── */}
-      <CollapsibleBlock
-        title={
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Groupes déclarés
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-              {declared.length} groupe{declared.length > 1 ? "s" : ""}
-            </span>
-          </h2>
-        }
-      >
-        {!groups.available ? (
-          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-            La colonne de hiérarchie n&apos;est pas encore disponible — elle s&apos;activera au prochain déploiement
-            (migration <code>company_hierarchy</code>).
-          </p>
-        ) : declared.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-            Aucun groupe multi-entités déclaré pour l&apos;instant. Valide une suggestion ci-dessus, ou déclare un
-            lien parent/enfant directement dans HubSpot — la synchronisation le reflétera ici.
-          </p>
-        ) : (
-          <>
-            {/* Vue « big picture » : holding en bandeau, filiales indentées,
-                CA signé par entité et consolidé par groupe. */}
-            <GroupBigPicture groups={bigGroups} />
-            <p className="mt-2 text-[10px] text-slate-400">
-              Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
-              consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. Montant = deals
-              associés à chaque entité (tous statuts, source CRM) — sans deal rattaché, aucun montant n&apos;est
-              affiché ; le cumul des filiales remonte sur l&apos;entreprise mère.
-            </p>
-          </>
-        )}
-      </CollapsibleBlock>
-
-      {/* ── Établissements (facette SIRET) : le niveau EN DESSOUS du groupe —
-             un même SIREN qui facture depuis plusieurs SIRET. Déjà consolidé en
-             un compte (aucune action) ; séparé des groupes pour la lisibilité.
-             Ne s'affiche que si ≥ 1 entité multi-établissements sur la base. */}
-      {establishments.available && establishments.multiSiret.size > 0 && (
-        <CollapsibleBlock
-          title={
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              Établissements
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-                {establishments.multiSiret.size} entité{establishments.multiSiret.size > 1 ? "s" : ""}
-              </span>
-            </h2>
-          }
-        >
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            L&apos;autre visage du multi-entités : une <strong>même entité légale</strong> (SIREN) qui facture depuis
-            <strong> plusieurs sites</strong> (SIRET). Contrairement aux groupes de sociétés ci-dessus, ces
-            établissements sont <strong>déjà rapprochés</strong> dans un seul compte Revold — rien à déclarer, tu vois
-            juste le détail par site (club, agence…), sur toute la base.
-          </p>
-          <EstablishmentList data={establishments} variant="hierarchy" />
-        </CollapsibleBlock>
-      )}
+      {/* Les groupes déjà déclarés (vue big picture) et les multi-établissements
+          vivent dans l'onglet « Groupes déclarés ». */}
 
       <p className="text-[11px] text-slate-400">
         Quatre signaux, sur toute la base, du plus sûr au plus faible : correspondance exacte de montant entre un
