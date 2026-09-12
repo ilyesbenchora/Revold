@@ -34,6 +34,14 @@ type PropState = { exists: boolean | null; label: string | null; suggestedName: 
 const isTag = (m: Mapping) => m.key.startsWith("hiertag_");
 const MAX_TAGS = 4;
 
+/** Objets CRM porteurs de la propriété — même choix que les cohortes. */
+const TAG_OBJECTS: { id: string; label: string }[] = [
+  { id: "companies", label: "Entreprise" },
+  { id: "contacts", label: "Contact" },
+  { id: "deals", label: "Deal" },
+];
+const TAG_OBJECT_LABEL: Record<string, string> = { companies: "Entreprise", contacts: "Contact", deals: "Deal" };
+
 const field =
   "mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-300 focus:ring-2 focus:ring-fuchsia-100 disabled:bg-slate-50 disabled:text-slate-400";
 
@@ -64,7 +72,7 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
 
   function patch(key: string, p: Partial<Mapping>) {
     setRows((r) => (r ?? []).map((m) => (m.key === key ? { ...m, ...p } : m)));
-    if (p.internal_name !== undefined || p.api_name !== undefined) {
+    if (p.internal_name !== undefined || p.api_name !== undefined || p.object !== undefined) {
       setStatus((prev) => ({ ...prev, [key]: undefined }));
     }
   }
@@ -84,10 +92,14 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
   async function save(): Promise<boolean> {
     if (state === "checking" || state === "saving") return false;
     setError(null);
-    const tags = (rows ?? []).filter((m) => m.label.trim() && (m.internal_name.trim() || m.api_name.trim()));
+    // Le NOM DU TAG est optionnel : par défaut, c'est le nom de la propriété
+    // (libellé saisi, sinon nom API) qui sert de libellé de badge.
+    const tags = (rows ?? [])
+      .filter((m) => m.internal_name.trim() || m.api_name.trim())
+      .map((m) => ({ ...m, label: (m.label.trim() || m.internal_name.trim() || m.api_name.trim()).slice(0, 40) }));
 
-    // 1. Vérification dans le CRM : la propriété doit exister SUR LES FICHES
-    //    ENTREPRISE (les tags lisent la donnée des sociétés des groupes).
+    // 1. Vérification dans le CRM : la propriété doit exister SUR L'OBJET
+    //    CHOISI (Entreprise, Contact ou Deal) — même contrat que les cohortes.
     setState("checking");
     let verified: Record<string, PropState> = {};
     if (hasCrm && tags.length > 0) {
@@ -96,7 +108,7 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            checks: tags.map((m) => ({ objectType: "companies", name: m.api_name.trim(), label: m.internal_name.trim(), fallbackAny: false })),
+            checks: tags.map((m) => ({ objectType: m.object || "companies", name: m.api_name.trim(), label: m.internal_name.trim(), fallbackAny: false })),
           }),
         });
         if (res.ok) {
@@ -118,9 +130,9 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
           const missing = tags.filter((m) => verified[m.key]?.exists === false);
           if (missing.length > 0) {
             setError(
-              `Propriété${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} sur les fiches Entreprise HubSpot : ` +
-              missing.map((m) => `« ${m.api_name.trim() || m.internal_name.trim()} »`).join(", ") +
-              ". Saisis le libellé affiché dans HubSpot (Revold retrouvera le nom API), ou crée d'abord la propriété.",
+              `Propriété${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} dans HubSpot : ` +
+              missing.map((m) => `« ${m.api_name.trim() || m.internal_name.trim()} » (objet ${TAG_OBJECT_LABEL[m.object] ?? "Entreprise"})`).join(", ") +
+              ". Vérifie l'objet choisi, saisis le libellé affiché dans HubSpot (Revold retrouvera le nom API), ou crée d'abord la propriété.",
             );
             setState("error");
             return false;
@@ -161,11 +173,11 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-slate-900">Tags de hiérarchie (Groupes déclarés)</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Câble jusqu&apos;à {MAX_TAGS} propriétés personnalisées de tes fiches Entreprise (segment, tier, ICP,
-            région…) : elles s&apos;affichent en <span className="font-medium text-slate-700">tags à côté des
-            montants</span> sur la page Groupes déclarés et servent de <span className="font-medium text-slate-700">
-            filtres</span> pour hiérarchiser les comptes. Même vérification que les cohortes : la propriété doit
-            exister dans ton CRM.
+            Câble jusqu&apos;à {MAX_TAGS} propriétés personnalisées de ton CRM — sur l&apos;objet de ton choix
+            (Entreprise, Contact ou Deal), comme pour les cohortes : segment, tier, ICP, région… Elles
+            s&apos;affichent en <span className="font-medium text-slate-700">tags à côté des montants</span> sur la
+            page Groupes déclarés et servent de <span className="font-medium text-slate-700">filtres</span> pour
+            hiérarchiser les comptes. La propriété est vérifiée dans ton CRM avant enregistrement.
           </p>
         </div>
         <SettingsSaveButton
@@ -194,9 +206,11 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
               <div key={m.key} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    {m.label.trim() || "Nouveau tag"}
+                    {m.label.trim() || m.internal_name.trim() || m.api_name.trim() || "Nouveau tag"}
                     {st?.exists === true && (
-                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ DANS LE CRM · Entreprise</span>
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                        ✓ DANS LE CRM · {TAG_OBJECT_LABEL[m.object] ?? "Entreprise"}
+                      </span>
                     )}
                     {st?.exists === false && (
                       <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">⚠ ABSENTE DU CRM</span>
@@ -234,17 +248,22 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
                     </span>
                   )}
                 </div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                {/* Ordre des champs : d'abord OÙ vit la propriété (objet), puis
+                    la propriété elle-même — le nom du tag vient EN DERNIER, il
+                    est optionnel (défaut : le nom de la propriété). */}
+                <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="block text-xs font-medium text-slate-600">
-                    Nom du tag (affiché)
-                    <input
-                      type="text"
-                      value={m.label}
+                    Objet de la propriété
+                    <select
+                      value={m.object || "companies"}
                       disabled={!editing}
-                      onChange={(e) => patch(m.key, { label: e.target.value.slice(0, 40) })}
-                      placeholder="Segment"
+                      onChange={(e) => patch(m.key, { object: e.target.value })}
                       className={field}
-                    />
+                    >
+                      {TAG_OBJECTS.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block text-xs font-medium text-slate-600">
                     Libellé de la propriété dans HubSpot
@@ -268,6 +287,17 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
                       className={`${field} font-mono`}
                     />
                   </label>
+                  <label className="block text-xs font-medium text-slate-600">
+                    Nom du tag (optionnel)
+                    <input
+                      type="text"
+                      value={m.label}
+                      disabled={!editing}
+                      onChange={(e) => patch(m.key, { label: e.target.value.slice(0, 40) })}
+                      placeholder={m.internal_name.trim() || m.api_name.trim() || "Par défaut : nom de la propriété"}
+                      className={field}
+                    />
+                  </label>
                 </div>
               </div>
             );
@@ -278,7 +308,7 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
               onClick={addRow}
               className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-fuchsia-300 hover:text-fuchsia-700"
             >
-              ＋ Ajouter une propriété d&apos;entreprise
+              ＋ Ajouter un tag (propriété CRM)
             </button>
           )}
           {!hasCrm && (

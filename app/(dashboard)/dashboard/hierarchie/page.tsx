@@ -42,7 +42,7 @@ export default async function GroupesDeclaresPage() {
   // personnalisées des fiches Entreprise, affichées en tags à côté des
   // montants et utilisables en filtres — stockage partagé avec les cohortes
   // (cohort_mappings, clé hiertag_). ──
-  let tagDefs: Array<{ key: string; label: string; prop: string; color?: string }> = [];
+  let tagDefs: Array<{ key: string; label: string; prop: string; object: string; color?: string }> = [];
   try {
     const { data } = await supabase.from("cohort_mappings").select("mappings").eq("organization_id", orgId).maybeSingle();
     const all = Array.isArray(data?.mappings) ? (data.mappings as Array<Record<string, unknown>>) : [];
@@ -52,10 +52,15 @@ export default async function GroupesDeclaresPage() {
         key: m.key as string,
         label: ((m.label as string) || (m.api_name as string)).trim(),
         prop: (m.api_name as string).trim(),
+        // Objet CRM porteur de la propriété (comme les cohortes) — défaut : Entreprise.
+        object: m.object === "contacts" || m.object === "deals" ? (m.object as string) : "companies",
         color: typeof m.color === "string" ? (m.color as string) : undefined,
       }))
       .slice(0, 4);
   } catch { /* table absente → pas de tags */ }
+  const companyTagDefs = tagDefs.filter((t) => t.object === "companies");
+  const dealTagDefs = tagDefs.filter((t) => t.object === "deals");
+  const contactTagDefs = tagDefs.filter((t) => t.object === "contacts");
 
   // ── Vue « big picture » : SIREN + montant des DEALS ASSOCIÉS à chaque
   // entité (tous statuts — un deal rattaché suffit) ; sans deal, aucune
@@ -68,36 +73,54 @@ export default async function GroupesDeclaresPage() {
   const dealsOf = new Map<string, DealInfo[]>();
   if (groupIds.length > 0) {
     try {
+      // Valeur de tag depuis un raw_data HubSpot (properties.<prop>).
+      const propOf = (raw: unknown, prop: string): string | null => {
+        const props = ((raw as { properties?: Record<string, unknown> } | null)?.properties ?? {}) as Record<string, unknown>;
+        const v = props[prop];
+        return v != null && String(v).trim() ? String(v).trim().slice(0, 60) : null;
+      };
+      const setTag = (companyId: string, key: string, value: string) => {
+        const rec = tagsOf.get(companyId) ?? {};
+        if (!rec[key]) {
+          rec[key] = value;
+          tagsOf.set(companyId, rec);
+        }
+      };
       for (let i = 0; i < groupIds.length; i += 400) {
         const chunk = groupIds.slice(i, i + 400);
-        const [{ data: comps }, { data: dealRows }] = await Promise.all([
-          supabase.from("companies").select(tagDefs.length > 0 ? "id, siren, raw_data" : "id, siren").in("id", chunk),
+        const [{ data: comps }, { data: dealRows }, { data: contactRows }] = await Promise.all([
+          supabase.from("companies").select(companyTagDefs.length > 0 ? "id, siren, raw_data" : "id, siren").in("id", chunk),
           supabase
             .from("deals")
-            // Étape + pipeline de CHAQUE deal associé : affichés sous l'entité.
-            .select("name, amount, company_id, pipeline_stages(name, pipeline_name)")
+            // Étape + pipeline de CHAQUE deal associé — raw_data seulement si un
+            // tag est câblé sur l'objet Deal.
+            .select(
+              dealTagDefs.length > 0
+                ? "name, amount, company_id, raw_data, pipeline_stages(name, pipeline_name)"
+                : "name, amount, company_id, pipeline_stages(name, pipeline_name)",
+            )
             .eq("organization_id", orgId)
             .not("amount", "is", null)
             .in("company_id", chunk)
             .limit(5000),
+          // Tags câblés sur l'objet Contact : lus sur les contacts rattachés
+          // aux entreprises du groupe (première valeur non vide).
+          contactTagDefs.length > 0
+            ? supabase.from("contacts").select("company_id, raw_data").eq("organization_id", orgId).in("company_id", chunk).limit(2000)
+            : Promise.resolve({ data: null }),
         ]);
         for (const c of (comps ?? []) as unknown as Array<{ id: string; siren: string | null; raw_data?: unknown }>) {
           sirenOf.set(c.id, c.siren);
-          if (tagDefs.length > 0) {
-            const props = ((c.raw_data as { properties?: Record<string, unknown> } | null)?.properties ?? {}) as Record<string, unknown>;
-            const rec: Record<string, string> = {};
-            for (const def of tagDefs) {
-              const v = props[def.prop];
-              if (v != null && String(v).trim()) rec[def.key] = String(v).trim().slice(0, 60);
-            }
-            if (Object.keys(rec).length > 0) tagsOf.set(c.id, rec);
+          for (const def of companyTagDefs) {
+            const v = propOf(c.raw_data, def.prop);
+            if (v) setTag(c.id, def.key, v);
           }
         }
         type Row = {
-          name: string | null; amount: number | null; company_id: string | null;
+          name: string | null; amount: number | null; company_id: string | null; raw_data?: unknown;
           pipeline_stages: { name: string | null; pipeline_name: string | null } | Array<{ name: string | null; pipeline_name: string | null }> | null;
         };
-        for (const d of (dealRows ?? []) as Row[]) {
+        for (const d of (dealRows ?? []) as unknown as Row[]) {
           if (!d.company_id) continue;
           const st = (Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages) ?? null;
           const amount = Number(d.amount) || 0;
@@ -108,6 +131,17 @@ export default async function GroupesDeclaresPage() {
             stage: st?.name ?? null,
             pipeline: st?.pipeline_name ?? null,
           });
+          for (const def of dealTagDefs) {
+            const v = propOf(d.raw_data, def.prop);
+            if (v) setTag(d.company_id, def.key, v);
+          }
+        }
+        for (const c of (contactRows ?? []) as Array<{ company_id: string | null; raw_data?: unknown }>) {
+          if (!c.company_id) continue;
+          for (const def of contactTagDefs) {
+            const v = propOf(c.raw_data, def.prop);
+            if (v) setTag(c.company_id, def.key, v);
+          }
         }
       }
     } catch { /* SIREN/montants absents → la vue reste lisible sans montants */ }
