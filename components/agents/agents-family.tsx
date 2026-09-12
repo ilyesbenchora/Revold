@@ -1,56 +1,49 @@
-"use client";
-
-import { AgentProfileAvatar } from "./agent-profile-avatar";
+import Link from "next/link";
 import { getAgentPersona, personaImagePath } from "@/lib/ai/agents/coach-personas";
 
 /**
- * « Photo de famille » des agents IA — un aperçu humain de l'équipe d'agents
- * Revold directement sur la home page. Avatars qui se chevauchent, façon photo
- * d'équipe, avec le prénom + rôle au survol.
+ * « Mon équipe d'agents IA » sur la home — des CARTES cliquables : vrai avatar
+ * + prénom + spécialité de chaque agent construit. Un clic ouvre directement la
+ * page de l'agent (plus de présentation orale : la valeur est dans l'accès
+ * direct à l'expert et sa spécialité, pas dans une vidéo d'intro).
  */
 
-// Les agents de Mon équipe IA — un seul roster depuis le retrait des coachs.
 const FAMILY_KEYS = ["performance", "paiement-facturation", "service-client", "proprietes"];
 
 export function AgentsFamily() {
   return (
     <div className="card overflow-hidden">
-      <div className="relative bg-gradient-to-br from-fuchsia-50 via-white to-indigo-50 p-6">
-        <div>
-          <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-fuchsia-700 ring-1 ring-fuchsia-100">
-            <span>✨</span> Ton équipe d&apos;agents IA
-          </div>
-          <h2 className="text-lg font-semibold text-slate-900">Une équipe d&apos;experts IA à ton service</h2>
-          <p className="mt-1 max-w-xl text-sm text-slate-500">
-            Chaque agent a sa spécialité — performance, trésorerie, service client, données. Ils analysent tes données
-            et te proposent des actions concrètes.
-          </p>
+      <div className="bg-gradient-to-br from-fuchsia-50 via-white to-indigo-50 p-6">
+        <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-fuchsia-700 ring-1 ring-fuchsia-100">
+          <span>✨</span> Ton équipe d&apos;agents IA
         </div>
+        <h2 className="text-lg font-semibold text-slate-900">Tes experts IA, un clic pour les ouvrir</h2>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          Chaque agent a sa spécialité — performance, trésorerie, service client, données. Clique pour ouvrir son
+          espace : il analyse tes vraies données et te propose des actions concrètes.
+        </p>
 
-        {/* Rangée d'avatars qui se chevauchent — façon photo de famille */}
-        <div className="mt-5 flex flex-wrap items-center gap-y-3 pl-3">
+        {/* Cartes agent : avatar réel + nom + rôle, cliquables vers leur page. */}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {FAMILY_KEYS.map((key) => {
             const p = getAgentPersona(key);
             return (
-              <div key={key} className="group relative -ml-3 transition hover:z-20">
-                <div className="transition group-hover:-translate-y-1">
-                  <AgentProfileAvatar
-                    name={p.name}
-                    emoji={p.emoji}
-                    image={personaImagePath(key)} agentKey={key}
-                    role={p.role}
-                    pitch={p.pitch}
-                    size={56}
-                    className="ring-2 ring-white"
-                    chatHref={`/dashboard/agents/${key}`}
-                  />
+              <Link
+                key={key}
+                href={`/dashboard/agents/${key}`}
+                className="group flex flex-col items-center gap-2 rounded-xl border border-card-border bg-white/80 p-4 text-center backdrop-blur transition hover:-translate-y-0.5 hover:border-fuchsia-300 hover:shadow-md"
+              >
+                <span className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-fuchsia-100 to-indigo-100 text-2xl ring-2 ring-white">
+                  <span aria-hidden>{p.emoji}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={personaImagePath(key)} alt={p.name} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 transition group-hover:text-fuchsia-700">{p.name}</p>
+                  <p className="text-[11px] leading-tight text-slate-500">{p.role}</p>
                 </div>
-                {/* Étiquette au survol (le clic ouvre la fiche de profil) */}
-                <div className="pointer-events-none invisible absolute left-1/2 top-full z-30 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg border border-card-border bg-white px-2.5 py-1 text-center opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
-                  <span className="block text-[12px] font-semibold text-slate-900">{p.name}</span>
-                  <span className="block text-[10px] text-slate-500">{p.role}</span>
-                </div>
-              </div>
+                <span className="text-[10px] font-medium text-fuchsia-600 opacity-0 transition group-hover:opacity-100">Ouvrir l&apos;agent →</span>
+              </Link>
             );
           })}
         </div>
