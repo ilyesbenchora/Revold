@@ -1193,6 +1193,33 @@ export async function syncCrmObject(
 // morte. Contacts : via la propriété associatedcompanyid. Deals : via l'API
 // associations HubSpot v4 (deals → companies). Idempotent, résilient.
 
+/**
+ * TOUTES les companies (id, hubspot_id) de l'org — PAGINÉ. Sans pagination,
+ * PostgREST plafonne à 1 000 lignes : sur les bases de 7 000+ entreprises, la
+ * table de correspondance était silencieusement tronquée et les deals (comme
+ * les hiérarchies) des entreprises au-delà du plafond ne se reliaient JAMAIS.
+ */
+async function fetchCompanyMapPaged(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<Map<string, string>> {
+  const compByHs = new Map<string, string>();
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from("companies")
+      .select("id, hubspot_id")
+      .eq("organization_id", orgId)
+      .not("hubspot_id", "is", null)
+      .order("id", { ascending: true })
+      .range(page * 1000, page * 1000 + 999);
+    if (error) break;
+    const rows = (data ?? []) as Array<{ id: string; hubspot_id: string | null }>;
+    for (const c of rows) if (c.hubspot_id) compByHs.set(String(c.hubspot_id), c.id);
+    if (rows.length < 1000) break;
+  }
+  return compByHs;
+}
+
 /** hubspot_id source → hubspot_id cible (association v4 primaire, batch). */
 async function fetchAssociations(
   token: string,
@@ -1384,13 +1411,23 @@ export async function linkCompanyHierarchyForOrg(
   orgId: string,
   token: string,
 ): Promise<{ linked: number }> {
-  const { data: comps, error: colErr } = await supabase
-    .from("companies")
-    .select("id, hubspot_id, parent_company_id")
-    .eq("organization_id", orgId);
-  // Colonne parent_company_id absente → migration non appliquée : on s'arrête.
-  if (colErr && /parent_company_id/.test(colErr.message)) return { linked: 0 };
-  const rows = (comps ?? []) as Array<{ id: string; hubspot_id: string | null; parent_company_id: string | null }>;
+  // PAGINÉ (plafond PostgREST 1 000 lignes) : sans ça, la hiérarchie des
+  // entreprises au-delà du plafond n'était jamais lue ni écrite.
+  const rows: Array<{ id: string; hubspot_id: string | null; parent_company_id: string | null }> = [];
+  for (let page = 0; page < 100; page++) {
+    const { data: comps, error: colErr } = await supabase
+      .from("companies")
+      .select("id, hubspot_id, parent_company_id")
+      .eq("organization_id", orgId)
+      .order("id", { ascending: true })
+      .range(page * 1000, page * 1000 + 999);
+    // Colonne parent_company_id absente → migration non appliquée : on s'arrête.
+    if (colErr && /parent_company_id/.test(colErr.message)) return { linked: 0 };
+    if (colErr) break;
+    const batch = (comps ?? []) as typeof rows;
+    rows.push(...batch);
+    if (batch.length < 1000) break;
+  }
   const compByHs = new Map<string, string>();
   for (const c of rows) if (c.hubspot_id) compByHs.set(String(c.hubspot_id), c.id);
   const hsIds = [...compByHs.keys()];
@@ -1432,12 +1469,9 @@ export async function linkCompaniesForOrg(
   orgId: string,
   token: string,
 ): Promise<{ contactsLinked: number; dealsLinked: number }> {
-  // Map company hubspot_id → uuid canonique.
-  const { data: comps } = await supabase.from("companies").select("id, hubspot_id").eq("organization_id", orgId);
-  const compByHs = new Map<string, string>();
-  for (const c of (comps ?? []) as Array<{ id: string; hubspot_id: string | null }>) {
-    if (c.hubspot_id) compByHs.set(String(c.hubspot_id), c.id);
-  }
+  // Map company hubspot_id → uuid canonique — PAGINÉE (le plafond PostgREST
+  // de 1 000 lignes tronquait la map sur les grosses bases : deals jamais reliés).
+  const compByHs = await fetchCompanyMapPaged(supabase, orgId);
   if (compByHs.size === 0) return { contactsLinked: 0, dealsLinked: 0 };
 
   // ── Contacts : associatedcompanyid (dans raw_data) → company_id ──
@@ -1509,6 +1543,7 @@ export async function linkCompaniesForOrg(
       .select("id, hubspot_id, company_id")
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
+      .order("id", { ascending: true })
       .range(page * 1000, page * 1000 + 999);
     if (error) break;
     const rows = (data ?? []) as Array<{ id: string; hubspot_id: string; company_id: string | null }>;
@@ -1525,6 +1560,7 @@ export async function linkCompaniesForOrg(
       .select(hasContactCol ? "id, hubspot_id, company_id, contact_id" : "id, hubspot_id, company_id")
       .eq("organization_id", orgId)
       .not("hubspot_id", "is", null)
+      .order("id", { ascending: true })
       .range(page * 500, page * 500 + 499);
     if (error && /contact_id/.test(error.message) && hasContactCol) {
       hasContactCol = false;
