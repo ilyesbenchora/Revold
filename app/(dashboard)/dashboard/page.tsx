@@ -143,7 +143,7 @@ export default async function DashboardOverviewPage() {
     // id « coaching » conservé (les tuiles choisies par l'utilisateur sont
     // stockées par id) alors que la famille de coachs a disparu : ce compteur
     // mesure les analyses en attente, désormais traitées par Mon équipe IA.
-    { id: "coaching", label: "Analyses à traiter", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/audit", color: "text-fuchsia-600" },
+    { id: "coaching", label: "Analyses à traiter", value: coachingTotal.toLocaleString("fr-FR"), href: "/dashboard/donnees/recommandations", color: "text-fuchsia-600" },
     { id: "rapports", label: "Rapports actionnables", value: reportsTotal.toLocaleString("fr-FR"), href: "/dashboard/rapports", color: "text-emerald-600" },
     { id: "revenue", label: "Données Revenue analysées", value: revenueRecordsTotal.toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-teal-600" },
     { id: "deals", label: "Deals analysés", value: (dealsCount ?? ctx.totalDeals ?? 0).toLocaleString("fr-FR"), href: "/dashboard/performances", color: "text-indigo-600" },
@@ -247,7 +247,7 @@ export default async function DashboardOverviewPage() {
     {
       label: "Données",
       description: "Diagnostiquez la santé de toute votre stack connectée : CRM, facturation, publicité, support — qualité, process, performances, adoption.",
-      href: "/dashboard/audit",
+      href: "/dashboard/donnees",
       cta: "Lancer le diagnostic",
       gradient: "from-blue-500 to-indigo-500",
       icon: (

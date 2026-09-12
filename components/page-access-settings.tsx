@@ -44,7 +44,7 @@ const SECTIONS: Section[] = [
     id: "audit",
     title: "Données",
     pages: [
-      { href: "/dashboard/audit", label: "Mon équipe IA" },
+      // « Mon équipe IA » a rejoint la Vue d'ensemble (home) — plus une page à part.
       { href: "/dashboard/performances", label: "Performances" },
       { href: "/dashboard/performances/commerciale", label: "Ventes", indent: true, defaultFrom: "/dashboard/performances" },
       { href: "/dashboard/performances/marketing", label: "Marketing", indent: true, defaultFrom: "/dashboard/performances" },

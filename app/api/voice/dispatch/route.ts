@@ -26,7 +26,7 @@ const KPI_FOLLOWUP_AGENT: Record<string, string> = { sales: "performance", marke
 /** Pages navigables à la voix (cible → route + libellé). */
 const NAV_TARGETS: Record<string, { href: string; label: string }> = {
   dashboard: { href: "/dashboard", label: "le tableau de bord" },
-  "equipe-ia": { href: "/dashboard/audit", label: "Mon équipe IA" },
+  "equipe-ia": { href: "/dashboard", label: "Mon équipe IA" },
   "performances-ventes": { href: "/dashboard/performances/commerciale", label: "Performances Ventes" },
   "performances-marketing": { href: "/dashboard/performances/marketing", label: "Performances Marketing" },
   tresorerie: { href: "/dashboard/audit/paiement-facturation", label: "la Trésorerie" },

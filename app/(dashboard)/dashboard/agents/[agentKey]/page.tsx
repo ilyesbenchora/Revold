@@ -46,10 +46,10 @@ export default async function AgentPage({
   const { agentKey } = await params;
   const sp = await searchParams;
   // Ancien lien vers un coach retiré → agent expert équivalent (ou, si cet
-  // agent n'existe plus lui non plus, le hub Mon équipe IA).
+  // agent n'existe plus lui non plus, l'équipe IA sur la Vue d'ensemble).
   const successor = RETIRED_COACHES[agentKey];
   if (successor) {
-    redirect(getAgent(successor) ? `/dashboard/agents/${successor}` : "/dashboard/audit");
+    redirect(getAgent(successor) ? `/dashboard/agents/${successor}` : "/dashboard");
   }
   const agent = getAgent(agentKey);
   if (!agent) notFound();

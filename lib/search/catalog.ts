@@ -9,7 +9,7 @@ export type SearchPage = { label: string; href: string; keywords?: string };
 
 export const SEARCH_PAGES: SearchPage[] = [
   { label: "Vue d'ensemble", href: "/dashboard", keywords: "home accueil dashboard" },
-  { label: "Mon équipe IA", href: "/dashboard/audit", keywords: "agents experts coach" },
+  { label: "Mon équipe IA", href: "/dashboard", keywords: "agents experts coach équipe ia" },
   { label: "Performances — Ventes (Cycle de ventes)", href: "/dashboard/performances/commerciale", keywords: "sales pipeline closing deals ca" },
   { label: "Transactions à risque", href: "/dashboard/performances/commerciale/deals-a-risque", keywords: "deals bloqués risque sans activité" },
   { label: "Transactions expirées (Forecast)", href: "/dashboard/performances/commerciale/forecast-management", keywords: "close date forecast trimestre" },

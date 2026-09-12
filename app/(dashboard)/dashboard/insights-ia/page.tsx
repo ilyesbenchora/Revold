@@ -6,5 +6,5 @@ import { redirect } from "next/navigation";
  * engagements, style, plan). Le cadrage en amont vit dans Suivi → Séances.
  */
 export default function CoachsRedirect() {
-  redirect("/dashboard/audit");
+  redirect("/dashboard");
 }
