@@ -42,8 +42,9 @@ export default async function HierarchiePage() {
     .sort((a, b) => b.members.length - a.members.length);
   const entitiesInGroups = declared.reduce((s, g) => s + g.members.length + 1, 0);
 
-  // ── Vue « big picture » des groupes : SIREN + CA signé (deals gagnés) par
-  // entité, CA consolidé par groupe — mêmes données que la consolidation.
+  // ── Vue « big picture » des groupes : SIREN + montant des DEALS ASSOCIÉS
+  // à chaque entité (tous statuts — un deal rattaché suffit) ; sans deal,
+  // aucune information de montant. Le cumul des filiales remonte sur la mère.
   const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
   const sirenOf = new Map<string, string | null>();
   const caOf = new Map<string, number>();
@@ -57,7 +58,6 @@ export default async function HierarchiePage() {
             .from("deals")
             .select("amount, company_id")
             .eq("organization_id", orgId)
-            .eq("is_closed_won", true)
             .not("amount", "is", null)
             .in("company_id", chunk)
             .limit(5000),
@@ -239,8 +239,9 @@ export default async function HierarchiePage() {
             <GroupBigPicture groups={bigGroups} />
             <p className="mt-2 text-[10px] text-slate-400">
               Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
-              consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. CA = deals gagnés
-              par entité (source CRM), consolidé au niveau du groupe.
+              consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. Montant = deals
+              associés à chaque entité (tous statuts, source CRM) — sans deal rattaché, aucun montant n&apos;est
+              affiché ; le cumul des filiales remonte sur l&apos;entreprise mère.
             </p>
           </>
         )}

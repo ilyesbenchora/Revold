@@ -1,9 +1,11 @@
 /**
  * Vue « BIG PICTURE » des groupes déclarés — reprise de la visualisation de la
  * capture marketing (page Résolution d'entités) : la holding en bandeau
- * indigo (nom, SIREN, nombre de sociétés reliées, CA consolidé du groupe),
- * les filiales indentées sous une ligne de filiation avec leur SIREN et leur
- * CA signé. Remplace l'ancienne liste à plat des groupes déclarés.
+ * indigo (nom, SIREN, nombre de sociétés reliées, montant consolidé du
+ * groupe), les filiales indentées sous une ligne de filiation avec leur SIREN
+ * et le montant de leurs DEALS ASSOCIÉS. Sans deal rattaché à une entité,
+ * aucune information de montant n'est affichée ; dès qu'une ou plusieurs
+ * associations existent, les montants des filiales se CUMULENT sur la mère.
  */
 
 export type GroupNode = { id: string; name: string; siren: string | null; ca: number };
@@ -44,9 +46,10 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                     <p className="truncate text-[11px] font-semibold text-slate-800">{c.name}</p>
                     <p className="font-mono text-[10px] text-slate-500">{c.siren ? `SIREN ${c.siren}` : "SIREN —"}</p>
                   </div>
-                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-slate-700">
-                    {c.ca > 0 ? eur(c.ca) : "—"}
-                  </span>
+                  {/* Sans deal associé : aucune info de montant (pas même un tiret). */}
+                  {c.ca > 0 && (
+                    <span className="shrink-0 text-[11px] font-bold tabular-nums text-slate-700">{eur(c.ca)}</span>
+                  )}
                 </div>
               </div>
             ))}
