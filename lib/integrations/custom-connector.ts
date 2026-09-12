@@ -536,9 +536,11 @@ export type FetchOutcome =
   | { ok: true; records: Record<string, unknown>[]; raw: unknown; detectedPath: string | null }
   | { ok: false; error: string; status?: number; raw?: unknown };
 
-/** Premier tableau d'objets trouvé dans la réponse (détection du chemin). */
+/** Premier tableau d'objets trouvé dans la réponse (détection du chemin).
+ *  Profondeur généreuse : les enveloppes SOAP imbriquent (Envelope > Body >
+ *  Réponse > Liste > Élément) — un plafond trop bas raterait le tableau. */
 function detectRecordsPath(payload: unknown, prefix = "", depth = 0): { path: string; rows: Record<string, unknown>[] } | null {
-  if (depth > 3 || payload == null) return null;
+  if (depth > 8 || payload == null) return null;
   if (Array.isArray(payload)) {
     const rows = payload.filter((r) => r && typeof r === "object") as Record<string, unknown>[];
     return rows.length > 0 ? { path: prefix, rows } : null;
