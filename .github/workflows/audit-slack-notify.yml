@@ -63,6 +63,7 @@ jobs:
               *revenue*) TYPE="Audit Revenue Intelligence hebdomadaire"; EMOJI="💰" ;;
               *marketplace*) TYPE="Audit Marketplace"; EMOJI="🏪" ;;
               *roadmap*) TYPE="Mise à jour roadmap"; EMOJI="🗺️" ;;
+              *seo*) TYPE="Audit SEO / GEO hebdomadaire"; EMOJI="🔭" ;;
             esac
 
             # Titre H1 du fichier (ou fallback sur filename)

@@ -14,7 +14,9 @@
     "test:run": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "personas": "node scripts/generate-personas.mjs"
+    "personas": "node scripts/generate-personas.mjs",
+    "seo:audit": "node scripts/seo-audit.mjs",
+    "seo:gsc": "node scripts/seo-search-console.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
