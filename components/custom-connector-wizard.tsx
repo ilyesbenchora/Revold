@@ -831,8 +831,9 @@ export function CustomConnectorWizard({
                     )}
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    {ready ? "KPIs disponibles : " : "KPIs en attente : "}
-                    {p.kpis.join(" · ")}
+                    {ready
+                      ? "Prête : cet outil alimentera cette page dès la première synchronisation."
+                      : "En attente des données obligatoires ci-dessus."}
                   </p>
                   {ready && p.caveat && (
                     <p className="mt-1 text-[11px] text-amber-700">Couverture partielle — {p.caveat}</p>

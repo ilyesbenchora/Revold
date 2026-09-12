@@ -111,7 +111,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
   deals: {
     label: "Opportunités / affaires",
-    hint: "Les affaires gérées dans l'outil, croisées avec la facturation (CA signé vs facturé).",
+    hint: "Les opportunités / affaires de l'outil, rattachées aux entreprises du CRM par l'ID de rapprochement.",
     fields: [
       { id: "external_id", label: "ID de l'affaire", hint: "Identifiant technique côté outil", required: true },
       { id: "custom_id", label: "ID de rapprochement du client", hint: "Relie l'affaire à l'entreprise", required: true },
@@ -124,7 +124,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
   invoices: {
     label: "Factures",
-    hint: "Croisées avec le CRM : CA signé vs facturé, impayés, délais.",
+    hint: "Les factures de l'outil, rattachées aux entreprises du CRM par l'ID de rapprochement.",
     fields: [
       { id: "custom_id", label: "ID de rapprochement du client", hint: "Le code client inscrit sur la facture — le même que dans le CRM. C'est lui qui rattache la facture à la bonne entreprise (et permet de comparer CA signé et CA facturé).", required: true },
       { id: "external_id", label: "ID de la facture", hint: "Identifiant technique côté outil", required: true },
@@ -140,7 +140,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
   subscriptions: {
     label: "Abonnements",
-    hint: "MRR/ARR réconciliés et MRR à risque.",
+    hint: "Les abonnements de l'outil, rattachés aux entreprises du CRM par l'ID de rapprochement.",
     fields: [
       { id: "custom_id", label: "ID de rapprochement du client", hint: "Relie l'abonnement à l'entreprise", required: true },
       { id: "external_id", label: "ID de l'abonnement", hint: "Identifiant technique côté outil", required: true },
@@ -152,7 +152,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
   transactions: {
     label: "Transactions / paiements",
-    hint: "Encaissements et décaissements réels.",
+    hint: "Les transactions / paiements de l'outil, rattachés aux entreprises du CRM par l'ID de rapprochement.",
     fields: [
       { id: "external_id", label: "ID de la transaction", hint: "Identifiant technique côté outil", required: true },
       { id: "custom_id", label: "ID de rapprochement du client", hint: "Optionnel — relie la transaction à une entreprise" },
@@ -164,7 +164,7 @@ export const ENTITY_FIELDS: Record<CustomEntity, { label: string; hint: string; 
   },
   tickets: {
     label: "Tickets / demandes",
-    hint: "Croisés avec le revenu : MRR à risque, comptes en tension.",
+    hint: "Les tickets / demandes de l'outil, rattachés aux entreprises du CRM par l'ID de rapprochement.",
     fields: [
       { id: "external_id", label: "ID du ticket", hint: "Identifiant technique côté outil", required: true },
       { id: "custom_id", label: "ID de rapprochement du client", hint: "Relie le ticket à l'entreprise" },
