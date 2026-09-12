@@ -10,8 +10,6 @@ import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
 import { supportedOwnerObjects, OWNER_OBJECT_LABEL } from "@/lib/crm/owner-scope";
 import { NumberInput } from "@/components/ui/number-input";
 
-/** Entités dont les données portent un owner HubSpot → ciblage par utilisateur CRM possible. */
-const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets", "companies"]);
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 
@@ -179,9 +177,10 @@ export function SurgicalAlertButton({
   // sont gérés centralement dans Mon compte → Notifications.
   const [scope, setScope] = useState<"personal" | "team">("personal");
   // Cible du suivi : toute l'équipe OU des utilisateurs CRM précis — une alerte
-  // créée PAR utilisateur, l'agrégat filtré sur ses données (hs_owner_id).
-  // Disponible quand l'entité porte un owner (deals/contacts/tickets), ou quand
-  // le câblage sera résolu par l'agent (pas d'agg_spec → owner_filter classique).
+  // créée PAR utilisateur, l'agrégat filtré sur ses données (owner direct ou
+  // croisé par association : factures/abonnements/paiements via l'entreprise ou
+  // le contact possédés). Seules les entités sans AUCUN lien CRM (transactions
+  // bancaires) restent non ciblables.
   const [targetMode, setTargetMode] = useState<"team" | "users">("team");
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [owners, setOwners] = useState<CrmOwner[]>([]);
@@ -199,13 +198,17 @@ export function SurgicalAlertButton({
         .map((o) => [o, OWNER_OBJECT_LABEL[o]] as [string, string]),
     [aggEntity, hasServiceHub],
   );
-  const [ownerObject, setOwnerObject] = useState<string>(aggEntity);
+  // Défaut : l'entité si elle porte un owner, sinon le 1er objet croisé
+  // disponible (facturation → entreprise) — jamais une valeur hors options.
+  const defaultOwnerObject = supportedOwnerObjects(aggEntity)[0] ?? aggEntity;
+  const [ownerObject, setOwnerObject] = useState<string>(defaultOwnerObject);
   // Ré-aligne l'objet par défaut si le bloc (entité) change.
-  useEffect(() => { setOwnerObject(aggEntity); }, [aggEntity]);
+  useEffect(() => { setOwnerObject(defaultOwnerObject); }, [defaultOwnerObject]);
   const ownerObjectLabel = (ownerObjOptions.find(([id]) => id === ownerObject)?.[1] ?? entityLabel(ownerObject)).toLowerCase();
-  // Le ticket (entité du bloc) n'est ciblable que si un hub service client est connecté.
+  // Ciblable dès qu'un objet propriétaire existe (direct ou croisé) ; le ticket
+  // (entité du bloc) n'est ciblable que si un hub service client est connecté.
   const ownerTargetable =
-    (!aggSpec || OWNER_TARGETABLE_ENTITIES.has(aggSpec.entity)) &&
+    (!aggSpec || supportedOwnerObjects(aggSpec.entity).length > 0) &&
     (aggEntity !== "tickets" || hasServiceHub);
 
   // Utilisateurs CRM (owners HubSpot + équipes) + hub service client au 1er open.
@@ -231,7 +234,7 @@ export function SurgicalAlertButton({
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
     setContinuous(true); setDateFrom(""); setDateTo(""); setDescription("");
     setScope("personal");
-    setTargetMode("team"); setSelectedOwners([]); setOwnerObject(aggEntity);
+    setTargetMode("team"); setSelectedOwners([]); setOwnerObject(defaultOwnerObject);
   }
 
   /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi).

@@ -5,7 +5,7 @@ import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { fetchAdsPerformance } from "@/lib/integrations/sources/ads";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
 import { CLASSE_LABELS as LEDGER_CLASSE_LABELS } from "@/lib/audit/pnl";
-import { resolveOwnerScope, applyOwnerScope } from "@/lib/crm/owner-scope";
+import { resolveOwnerScope, applyOwnerScope, supportedOwnerObjects } from "@/lib/crm/owner-scope";
 
 /**
  * Performance publicité & web (Google Analytics/Ads, Meta Ads, LinkedIn Ads) sur
@@ -1282,8 +1282,10 @@ export async function computeAggregate(
   // l'ETL — deals/contacts.hs_owner_id, tickets.owner_id. ──
   const OWNER_COLS: Record<string, string> = { deals: "hs_owner_id", contacts: "hs_owner_id", tickets: "owner_id", companies: "hs_owner_id" };
   const ownerFilter = typeof input.owner === "string" && input.owner.trim() ? input.owner.trim() : null;
-  if (ownerFilter && !OWNER_COLS[entity]) {
-    return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts, entreprises et tickets uniquement).` };
+  // Entités sans owner direct : OK si un ciblage croisé existe (facturation →
+  // entreprise/contact possédés) ; sinon erreur explicite (bank_transactions).
+  if (ownerFilter && !OWNER_COLS[entity] && supportedOwnerObjects(entity).length === 0) {
+    return { error: `Filtre par utilisateur CRM non disponible pour ${entity} — aucune colonne propriétaire ni lien entreprise/contact sur cette entité.` };
   }
   // CHOIX LIBRE de l'objet du propriétaire : croisé par association (helper
   // partagé). Résolu une fois ; null = combinaison sans lien connu → repli direct.

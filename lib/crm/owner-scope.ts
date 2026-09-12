@@ -36,6 +36,20 @@ const FK: Partial<Record<OwnerObject, Partial<Record<OwnerObject, string>>>> = {
   tickets: { companies: "company_id", contacts: "contact_id" },
 };
 
+/**
+ * Entités de KPI SANS colonne owner (facturation / paiement) mais rattachées au
+ * CRM par FK : le ciblage passe forcément par l'objet du propriétaire
+ * (entreprise ou contact possédés par l'utilisateur). L'ordre des clés fixe
+ * l'objet par défaut (entreprise d'abord — le rattachement le plus fiable).
+ * bank_transactions n'a AUCUN lien CRM → volontairement absent.
+ */
+const BILLING_FK: Record<string, Array<{ object: OwnerObject; col: string }>> = {
+  invoices: [{ object: "companies", col: "company_id" }, { object: "contacts", col: "contact_id" }],
+  supplier_invoices: [{ object: "companies", col: "company_id" }, { object: "contacts", col: "contact_id" }],
+  subscriptions: [{ object: "companies", col: "company_id" }, { object: "contacts", col: "contact_id" }],
+  payments: [{ object: "companies", col: "company_id" }, { object: "contacts", col: "contact_id" }],
+};
+
 export const OWNER_OBJECT_LABEL: Record<OwnerObject, string> = {
   deals: "Deal",
   contacts: "Contact",
@@ -48,7 +62,8 @@ const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
 /** Objets « propriétaire » pris en charge pour une entité de KPI (direct + associations). */
 export function supportedOwnerObjects(entity: string): OwnerObject[] {
-  if (!isOwnerObject(entity)) return [];
+  // Entités de facturation : pas d'owner direct, ciblage croisé uniquement.
+  if (!isOwnerObject(entity)) return (BILLING_FK[entity] ?? []).map((f) => f.object);
   const out: OwnerObject[] = [entity];
   for (const o of OWNER_OBJECTS) {
     if (o === entity) continue;
@@ -108,7 +123,18 @@ export async function resolveOwnerScope(
   ownerObject: string | null | undefined,
   ownerId: string | null | undefined,
 ): Promise<OwnerScope | null> {
-  if (!ownerId || !isOwnerObject(entity)) return null;
+  if (!ownerId) return null;
+
+  // Entité de facturation (invoices, subscriptions, payments…) : filtre par la
+  // FK vers l'objet du propriétaire — objet demandé si câblé, sinon le défaut
+  // (entreprise). Aucun lien CRM (bank_transactions) → null.
+  if (!isOwnerObject(entity)) {
+    const fks = BILLING_FK[entity] ?? [];
+    if (fks.length === 0) return null;
+    const fk = fks.find((f) => f.object === ownerObject) ?? fks[0];
+    const ids = await ownedValues(supabase, orgId, fk.object, ownerId, "id");
+    return { mode: "in", col: fk.col, ids };
+  }
   const obj: OwnerObject = isOwnerObject(ownerObject) ? ownerObject : entity;
 
   // Direct : propriétaire de l'entité elle-même.
