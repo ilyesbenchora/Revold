@@ -8,11 +8,34 @@
  * associations existent, les montants des filiales se CUMULENT sur la mère.
  */
 
-export type GroupNode = { id: string; name: string; siren: string | null; ca: number };
+export type GroupDeal = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
+export type GroupNode = { id: string; name: string; siren: string | null; ca: number; deals?: GroupDeal[] };
 export type BigPictureGroup = { root: GroupNode; children: GroupNode[]; total: number };
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(v));
+
+/** Lignes « pipeline · étape — montant » des deals associés (3 max + reste). */
+function DealLines({ deals }: { deals: GroupDeal[] }) {
+  if (deals.length === 0) return null;
+  const shown = deals.slice(0, 3);
+  return (
+    <div className="mt-1 space-y-0.5">
+      {shown.map((d, i) => (
+        <p key={i} className="truncate text-[9px] text-slate-400">
+          <span className="font-medium text-slate-500">{d.pipeline ?? "Pipeline —"}</span>
+          {" · "}
+          {d.stage ?? "étape —"}
+          {" — "}
+          <span className="tabular-nums font-semibold text-slate-500">{eur(d.amount)}</span>
+        </p>
+      ))}
+      {deals.length > shown.length && (
+        <p className="text-[9px] text-slate-300">+ {deals.length - shown.length} autre{deals.length - shown.length > 1 ? "s" : ""} deal{deals.length - shown.length > 1 ? "s" : ""}</p>
+      )}
+    </div>
+  );
+}
 
 export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
   return (
@@ -37,6 +60,13 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
             </div>
           </div>
 
+          {/* Deals associés à la société MÈRE elle-même (étape + pipeline). */}
+          {(g.root.deals?.length ?? 0) > 0 && (
+            <div className="mt-1.5 rounded-lg bg-indigo-50/50 px-3 py-1.5">
+              <DealLines deals={g.root.deals!} />
+            </div>
+          )}
+
           {/* ── Filiales (ligne de filiation) ── */}
           <div className="mt-2 space-y-1.5 pl-4">
             {g.children.map((c) => (
@@ -45,6 +75,8 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                   <div className="min-w-0">
                     <p className="truncate text-[11px] font-semibold text-slate-800">{c.name}</p>
                     <p className="font-mono text-[10px] text-slate-500">{c.siren ? `SIREN ${c.siren}` : "SIREN —"}</p>
+                    {/* Étape + pipeline de chaque deal associé (aucune ligne sans deal). */}
+                    <DealLines deals={c.deals ?? []} />
                   </div>
                   {/* Sans deal associé : aucune info de montant (pas même un tiret). */}
                   {c.ca > 0 && (

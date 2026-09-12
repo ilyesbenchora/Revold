@@ -66,7 +66,7 @@ async function executeByType(
     if (type === "hubspot_sequence_enroll") return executeHubspotSequenceEnroll(token, payload);
     if (type === "hubspot_merge") return executeHubspotMerge(token, payload);
     if (type === "hubspot_company_update") return executeHubspotCompanyUpdate(token, payload);
-    if (type === "hubspot_company_associate") return executeHubspotCompanyAssociate(token, payload);
+    if (type === "hubspot_company_associate") return executeHubspotCompanyAssociate(token, payload, { supabase, orgId });
     if (type === "hubspot_create_deal") return executeHubspotCreateDeal(token, payload);
     if (type === "hubspot_create_contact") return executeHubspotCreateContact(token, payload);
   }

@@ -42,28 +42,50 @@ export default async function GroupesDeclaresPage() {
   const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
   const sirenOf = new Map<string, string | null>();
   const caOf = new Map<string, number>();
+  type DealInfo = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
+  const dealsOf = new Map<string, DealInfo[]>();
   if (groupIds.length > 0) {
     try {
       for (let i = 0; i < groupIds.length; i += 400) {
         const chunk = groupIds.slice(i, i + 400);
-        const [{ data: comps }, { data: won }] = await Promise.all([
+        const [{ data: comps }, { data: dealRows }] = await Promise.all([
           supabase.from("companies").select("id, siren").in("id", chunk),
           supabase
             .from("deals")
-            .select("amount, company_id")
+            // Étape + pipeline de CHAQUE deal associé : affichés sous l'entité.
+            .select("name, amount, company_id, pipeline_stages(name, pipeline_name)")
             .eq("organization_id", orgId)
             .not("amount", "is", null)
             .in("company_id", chunk)
             .limit(5000),
         ]);
         for (const c of (comps ?? []) as Array<{ id: string; siren: string | null }>) sirenOf.set(c.id, c.siren);
-        for (const d of (won ?? []) as Array<{ amount: number | null; company_id: string | null }>) {
-          if (d.company_id) caOf.set(d.company_id, (caOf.get(d.company_id) ?? 0) + (Number(d.amount) || 0));
+        type Row = {
+          name: string | null; amount: number | null; company_id: string | null;
+          pipeline_stages: { name: string | null; pipeline_name: string | null } | Array<{ name: string | null; pipeline_name: string | null }> | null;
+        };
+        for (const d of (dealRows ?? []) as Row[]) {
+          if (!d.company_id) continue;
+          const st = (Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages) ?? null;
+          const amount = Number(d.amount) || 0;
+          caOf.set(d.company_id, (caOf.get(d.company_id) ?? 0) + amount);
+          (dealsOf.get(d.company_id) ?? dealsOf.set(d.company_id, []).get(d.company_id)!).push({
+            name: d.name,
+            amount,
+            stage: st?.name ?? null,
+            pipeline: st?.pipeline_name ?? null,
+          });
         }
       }
     } catch { /* SIREN/montants absents → la vue reste lisible sans montants */ }
   }
-  const node = (id: string, name: string) => ({ id, name, siren: sirenOf.get(id) ?? null, ca: caOf.get(id) ?? 0 });
+  const node = (id: string, name: string) => ({
+    id,
+    name,
+    siren: sirenOf.get(id) ?? null,
+    ca: caOf.get(id) ?? 0,
+    deals: dealsOf.get(id) ?? [],
+  });
   const bigGroups: BigPictureGroup[] = declared.map((g) => {
     const root = node(g.root, g.name);
     const children = g.members.map((id) => node(id, groups.nameOf.get(id) ?? "—"));

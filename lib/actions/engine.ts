@@ -1679,6 +1679,10 @@ export async function executeHubspotMerge(
 export async function executeHubspotCompanyAssociate(
   hubspotToken: string,
   payload: ActionPayload,
+  /** Fournis → la relation est AUSSI écrite localement (parent_company_id) :
+   *  le groupe apparaît immédiatement dans « Groupes déclarés », sans attendre
+   *  la prochaine synchronisation (qui la confirmera depuis HubSpot). */
+  local?: { supabase: SupabaseClient; orgId: string },
 ): Promise<{ ok: boolean; detail: string }> {
   const { parentHubspotId, childHubspotId } = payload;
   if (!parentHubspotId || !childHubspotId || parentHubspotId === childHubspotId) {
@@ -1695,9 +1699,29 @@ export async function executeHubspotCompanyAssociate(
       },
     );
     if (res.ok) {
+      // Miroir local best-effort : Groupes déclarés à jour tout de suite.
+      let localDone = false;
+      if (local) {
+        try {
+          const { data: parent } = await local.supabase
+            .from("companies")
+            .select("id")
+            .eq("organization_id", local.orgId)
+            .eq("hubspot_id", parentHubspotId)
+            .maybeSingle();
+          if (parent?.id) {
+            const { error } = await local.supabase
+              .from("companies")
+              .update({ parent_company_id: parent.id })
+              .eq("organization_id", local.orgId)
+              .eq("hubspot_id", childHubspotId);
+            localDone = !error;
+          }
+        } catch { /* colonne absente (migration) → la sync fera foi */ }
+      }
       return {
         ok: true,
-        detail: `Hiérarchie déclarée dans HubSpot : « ${payload.parentCompanyName ?? parentHubspotId} » parente de « ${payload.childCompanyName ?? childHubspotId} ». Le rapprochement du deal et le garde-fou inter-entités s'activeront à la prochaine synchronisation.`,
+        detail: `Hiérarchie déclarée dans HubSpot : « ${payload.parentCompanyName ?? parentHubspotId} » parente de « ${payload.childCompanyName ?? childHubspotId} ».${localDone ? " Visible immédiatement dans « Groupes déclarés »." : ""} Le rapprochement du deal et le garde-fou inter-entités s'activeront à la prochaine synchronisation.`,
       };
     }
     const err = await res.text();
