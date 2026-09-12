@@ -67,6 +67,35 @@ export function CompanyEnrichmentBlock() {
     void load();
   }, [load]);
 
+  // ── Corrélation avec l'enrichissement EN COURS : le runner émet un
+  // événement à chaque lot traité → la file se resynchronise SILENCIEUSEMENT
+  // (liste remplacée, sélection et page conservées — jamais de « Chargement… »
+  // qui casserait une validation en cours). Le compteur du bloc reste ainsi
+  // aligné sur la tuile « Identités à valider » et la barre de complétion.
+  const refreshSilent = useCallback(async () => {
+    try {
+      const res = await fetch("/api/enrichment/companies");
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      const next = (d.proposals ?? []) as Proposal[];
+      setProposals(next);
+      setSelected((prev) => new Set([...prev].filter((id) => next.some((p) => p.companyId === id))));
+    } catch { /* prochain lot */ }
+  }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onProgress = () => {
+      if (timer) return; // débounce : au plus un rafraîchissement par seconde
+      timer = setTimeout(() => { timer = null; void refreshSilent(); }, 1_000);
+    };
+    window.addEventListener("revold:enrichment-progress", onProgress);
+    return () => {
+      window.removeEventListener("revold:enrichment-progress", onProgress);
+      if (timer) clearTimeout(timer);
+    };
+  }, [refreshSilent]);
+
   async function apply() {
     if (applying) return;
     const items = proposals
@@ -131,7 +160,7 @@ export function CompanyEnrichmentBlock() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900">
-            ✅ Identités à valider
+            Identités à valider
             {proposals.length > 0 && (
               <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
                 {proposals.length}

@@ -166,10 +166,14 @@ export function EnrichmentBackfillRunner({
     };
   }, [loadStatus, loadRuns]);
 
-  // Suivi du robot de fond même sans passe locale.
+  // Suivi du robot de fond même sans passe locale — chaque relevé propage
+  // l'avancement au bloc « Identités à valider » (même événement que la passe).
   useEffect(() => {
     if (!status?.inProgress || runningRef.current) return;
-    const iv = setInterval(() => void loadStatus(), POLL_MS);
+    const iv = setInterval(
+      () => void loadStatus().then(() => window.dispatchEvent(new Event("revold:enrichment-progress"))),
+      POLL_MS,
+    );
     return () => clearInterval(iv);
   }, [status?.inProgress, loadStatus]);
 
@@ -241,6 +245,11 @@ export function EnrichmentBackfillRunner({
         setSession({ ...totals });
         const fresh = await loadStatus();
         if (fresh) setPassRemaining(fresh.remaining);
+        // Après CHAQUE lot : le bloc « Identités à valider » se resynchronise
+        // (événement) et les tuiles serveur (couverture, à valider) sont
+        // recalées — tout avance en même temps que la barre.
+        window.dispatchEvent(new Event("revold:enrichment-progress"));
+        router.refresh();
         if ((fresh?.remaining ?? 0) <= 0) break;
         if (d.interrupted) {
           setNotice("Le registre ne répond pas — nouvelle tentative dans 5 s.");
