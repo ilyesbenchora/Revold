@@ -38,6 +38,8 @@ export type EditableAlert = {
   recon_spec?: { recipe?: string } | null;
   /** Portée : « personal » (mon suivi) ou « team » (partagé avec l'équipe). */
   scope?: string | null;
+  /** Utilisateur CRM ciblé (owner HubSpot) — l'alerte est calculée sur SES données. */
+  owner_name?: string | null;
   /** Outils croisés par l'alerte — badges sur la carte. */
   cross_sources?: string[] | null;
 };
@@ -137,6 +139,15 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
               }`}
             >
               {alert.scope === "team" ? "👥 Équipe" : "👤 Personnel"}
+            </span>
+          )}
+          {/* Utilisateur CRM ciblé — alerte indexée sur ses données */}
+          {alert.owner_name && (
+            <span
+              title="Alerte calculée sur les données de cet utilisateur CRM"
+              className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-700"
+            >
+              🎯 {alert.owner_name}
             </span>
           )}
           {/* Outils liés à l'alerte */}

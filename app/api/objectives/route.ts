@@ -79,6 +79,9 @@ export async function POST(request: Request) {
     date_from: typeof b.date_from === "string" && dateRe.test(b.date_from) ? b.date_from : null,
     date_to: typeof b.date_to === "string" && dateRe.test(b.date_to) ? b.date_to : null,
     priority: b.priority === "faible" || b.priority === "urgent" ? b.priority : "moyen",
+    // Ciblage par utilisateur CRM (owner HubSpot) — en plus de l'équipe.
+    owner_filter: typeof b.owner_filter === "string" && b.owner_filter.trim() ? b.owner_filter.trim().slice(0, 60) : null,
+    owner_name: typeof b.owner_name === "string" && b.owner_name.trim() ? b.owner_name.trim().slice(0, 120) : null,
     // Portée (badge Équipe / Personnel) — retirée par l'insert résilient si
     // la migration n'est pas appliquée.
     scope: b.scope === "team" ? "team" : "personal",

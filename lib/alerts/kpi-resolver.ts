@@ -56,7 +56,8 @@ function applyDealFilters(query: any, filters: AlertFilters) {
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
   if (filters.pipeline_id) query = query.eq("stage_id", filters.pipeline_id);
-  if (filters.owner_filter) query = query.eq("owner_id", filters.owner_filter);
+  // Ciblage par utilisateur CRM : hs_owner_id (id owner HubSpot, rempli par l'ETL).
+  if (filters.owner_filter) query = query.eq("hs_owner_id", filters.owner_filter);
   if (filters.min_deal_amount) query = query.gte("amount", filters.min_deal_amount);
   return query;
 }
@@ -66,7 +67,7 @@ function applyContactFilters(query: any, filters: AlertFilters) {
   const { from, to } = resolveDateRange(filters);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
-  if (filters.owner_filter) query = query.eq("owner_id", filters.owner_filter);
+  if (filters.owner_filter) query = query.eq("hs_owner_id", filters.owner_filter);
   return query;
 }
 
@@ -81,6 +82,10 @@ async function queryHubSpotContacts(
 ): Promise<number> {
   const allFilters = [...extraFilters];
 
+  // Ciblage par utilisateur CRM — même filtre côté API HubSpot.
+  if (filters.owner_filter) {
+    allFilters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: filters.owner_filter });
+  }
   if (filters.lifecycle_stage) {
     allFilters.push({ propertyName: "lifecyclestage", operator: "EQ", value: filters.lifecycle_stage });
   }

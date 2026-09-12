@@ -20,10 +20,10 @@ export default async function ObjectifsPage() {
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Aucune organisation configurée.</p>;
 
   const supabase = await createSupabaseServerClient();
-  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, recon_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status, scope";
+  const COLS: string = "id, title, description, impact, category, forecast_type, agg_spec, recon_spec, target, unit_mode, direction, current_value, date_from, date_to, created_at, status, scope, owner_filter, owner_name";
   let res = await supabase.from("objectives").select(COLS).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
-  if (res.error && /(agg_spec|recon_spec|scope)/.test(res.error.message)) {
-    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "").replace(", scope", "");
+  if (res.error && /(agg_spec|recon_spec|scope|owner_filter|owner_name)/.test(res.error.message)) {
+    const legacy = COLS.replace(", agg_spec", "").replace(", recon_spec", "").replace(", scope", "").replace(", owner_filter", "").replace(", owner_name", "");
     res = await supabase.from("objectives").select(legacy).eq("organization_id", orgId).order("created_at", { ascending: false }).limit(200);
   }
   const { data, error } = res;
@@ -39,7 +39,7 @@ export default async function ObjectifsPage() {
     rows.map(async (o) => {
       try {
         if (o.forecast_type) {
-          const v = await resolveKpiValue(supabase, orgId, o.forecast_type, { date_from: o.date_from, date_to: o.date_to });
+          const v = await resolveKpiValue(supabase, orgId, o.forecast_type, { date_from: o.date_from, date_to: o.date_to, owner_filter: (o as { owner_filter?: string | null }).owner_filter ?? null });
           return { ...o, computedValue: typeof v === "number" ? v : null };
         }
         if (o.recon_spec?.recipe) {

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     title, description, impact, category,
     forecast_type, threshold, direction,
     // Advanced filters
-    team, pipeline_id, owner_filter,
+    team, pipeline_id, owner_filter, owner_name,
     date_from, date_to, date_preset,
     unit_mode, segment_filter, severity, frequency,
     expires_at, min_deal_amount, deal_stage_filter,
@@ -134,6 +134,7 @@ export async function POST(request: Request) {
     team: team || null,
     pipeline_id: pipeline_id || null,
     owner_filter: owner_filter || null,
+    owner_name: typeof owner_name === "string" && owner_name.trim() ? owner_name.trim().slice(0, 120) : null,
     date_from: date_from || null,
     date_to: date_to || null,
     date_preset: date_preset || null,

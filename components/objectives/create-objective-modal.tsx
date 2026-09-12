@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
 import { DictationButton } from "@/components/voice/dictation-button";
+import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
 
 const TEAMS = [
   { id: "sales", label: "Ventes" },
@@ -47,11 +48,33 @@ export function CreateObjectiveModal() {
   const [proposal, setProposal] = useState<TrackingProposal | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [verifying, setVerifying] = useState(false);
+  // Cible du suivi : équipe entière OU utilisateurs CRM (un objectif PAR
+  // utilisateur sélectionné, indexé sur son hubspot_owner_id).
+  const [targetMode, setTargetMode] = useState<"team" | "users">("team");
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  const [owners, setOwners] = useState<CrmOwner[]>([]);
+  const [hsTeams, setHsTeams] = useState<string[]>([]);
+  const [ownersLoaded, setOwnersLoaded] = useState(false);
+
+  // Liste des utilisateurs CRM (owners HubSpot + équipes) au premier open.
+  useEffect(() => {
+    if (open && !ownersLoaded) {
+      fetch("/api/alerts/options")
+        .then((r) => (r.ok ? r.json() : { owners: [], teams: [] }))
+        .catch(() => ({ owners: [], teams: [] }))
+        .then((d) => {
+          setOwners(d.owners ?? []);
+          setHsTeams(d.teams ?? []);
+          setOwnersLoaded(true);
+        });
+    }
+  }, [open, ownersLoaded]);
 
   function reset() {
     setTitle(""); setTeam("sales"); setForecast(""); setUnit("currency"); setDirection("above");
     setTarget(""); setCurrent(""); setDateFrom(""); setDateTo(""); setPriority("moyen"); setDescription(""); setImpact("");
     setError(null);
+    setTargetMode("team"); setSelectedOwners([]);
     setProposal(null); setCounts({}); setVerifying(false);
   }
 
@@ -101,36 +124,53 @@ export function CreateObjectiveModal() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !target) { setError("Titre et cible requis."); return; }
+    if (targetMode === "users" && selectedOwners.length === 0) { setError("Sélectionne au moins un utilisateur CRM."); return; }
 
     // Étape Vérification d'abord — TOUJOURS : le câblage (catalogué ou proposé
     // par l'agent) est affiché et validé avant la création.
     if (!proposal) { await requestPreview(); return; }
 
+    // Cible : équipe entière (un objectif) OU utilisateurs CRM (UN OBJECTIF PAR
+    // UTILISATEUR — le cron calcule la valeur sur SES données via owner_filter).
+    const targetOwners =
+      targetMode === "users" && selectedOwners.length > 0
+        ? selectedOwners.map((id) => owners.find((o) => o.id === id)).filter((o): o is CrmOwner => Boolean(o))
+        : [null];
+
     setBusy(true); setError(null);
     try {
-      const res = await fetch("/api/objectives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          team, category: team,
-          // Câblage confirmé à l'écran (appliqué tel quel, sans re-passage agent).
-          forecast_type: proposal?.forecast_type ?? (forecast || null),
-          agg_spec: proposal?.agg_spec ?? null,
-          recon_recipe: proposal?.recon_recipe ?? null,
-          target: Number(target),
-          unit_mode: unit,
-          direction,
-          current_value: forecast || proposal ? null : current ? Number(current) : null,
-          date_from: dateFrom || null,
-          date_to: dateTo || null,
-          priority,
-          scope,
-          description, impact,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Échec."); return; }
+      let okCount = 0;
+      let lastError: string | null = null;
+      for (const owner of targetOwners) {
+        const ownerLabel = owner ? owner.name || owner.email : null;
+        const res = await fetch("/api/objectives", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: ownerLabel && targetOwners.length > 1 ? `${title.trim()} — ${ownerLabel}` : title.trim(),
+            team, category: team,
+            // Câblage confirmé à l'écran (appliqué tel quel, sans re-passage agent).
+            forecast_type: proposal?.forecast_type ?? (forecast || null),
+            agg_spec: proposal?.agg_spec ?? null,
+            recon_recipe: proposal?.recon_recipe ?? null,
+            target: Number(target),
+            unit_mode: unit,
+            direction,
+            current_value: forecast || proposal ? null : current ? Number(current) : null,
+            date_from: dateFrom || null,
+            date_to: dateTo || null,
+            priority,
+            scope,
+            owner_filter: owner ? owner.id : null,
+            owner_name: ownerLabel,
+            description, impact,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) okCount++;
+        else lastError = data.error ?? "Échec.";
+      }
+      if (okCount === 0) { setError(lastError ?? "Échec."); return; }
       setOpen(false); reset(); router.refresh();
     } finally {
       setBusy(false);
@@ -210,6 +250,31 @@ export function CreateObjectiveModal() {
                     className={`rounded-full px-3 py-1 text-xs font-medium transition ${priority === p.id ? p.color : "bg-white border border-slate-200 text-slate-500"}`}>{p.label}</button>
                 ))}
               </div>
+            </div>
+
+            {/* Cible : équipe entière OU utilisateurs CRM précis */}
+            <div>
+              <label className={lbl}>Cible du suivi</label>
+              <div className="mt-1 mb-2 flex overflow-hidden rounded-lg border border-slate-200">
+                <button type="button" onClick={() => setTargetMode("team")}
+                  className={`flex-1 py-2 text-xs font-medium transition ${targetMode === "team" ? "bg-accent text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                  🌍 Toute l&apos;équipe
+                </button>
+                <button type="button" onClick={() => setTargetMode("users")}
+                  className={`flex-1 py-2 text-xs font-medium transition ${targetMode === "users" ? "bg-accent text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                  👤 Par utilisateur CRM
+                </button>
+              </div>
+              {targetMode === "team" ? (
+                <p className="text-[10px] text-slate-400">L&apos;objectif est calculé sur toutes les données, sans filtre d&apos;utilisateur.</p>
+              ) : (
+                <>
+                  <CrmUserPicker owners={owners} teams={hsTeams} selected={selectedOwners} onChange={setSelectedOwners} />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Un objectif est créé par utilisateur sélectionné — sa progression est calculée sur les données dont il est propriétaire dans le CRM.
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Portée : personnelle ou d'équipe */}

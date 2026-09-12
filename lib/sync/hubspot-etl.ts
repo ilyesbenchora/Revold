@@ -343,6 +343,8 @@ async function upsertContacts(
       customer_date: pDate(props, "hs_v2_date_entered_customer"),
       is_mql: Boolean(mqlDate) || (stage ? MQL_REACHED.has(stage) : false),
       is_sql: Boolean(sqlDate) || (stage ? SQL_REACHED.has(stage) : false),
+      // Owner HubSpot — clé du ciblage alertes/objectifs par utilisateur CRM.
+      hs_owner_id: pStr(props, "hubspot_owner_id"),
       raw_data: r,
       hs_last_modified_at: pDate(props, "lastmodifieddate"),
     };
@@ -350,7 +352,7 @@ async function upsertContacts(
   const rows = dedupeByKey(rowsRaw, (r) => r.hubspot_id);
   // Migration lifecycle pas encore appliquée → on retente sans ces colonnes
   // (la sync ne doit jamais casser sur un déploiement avant migration).
-  const LIFECYCLE_COLS = ["lifecycle_stage", "hs_created_at", "lead_date", "mql_date", "sql_date", "opportunity_date", "customer_date"] as const;
+  const LIFECYCLE_COLS = ["lifecycle_stage", "hs_created_at", "lead_date", "mql_date", "sql_date", "opportunity_date", "customer_date", "hs_owner_id"] as const;
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
@@ -713,6 +715,8 @@ async function upsertDeals(
       next_activity_date: pDate(props, "notes_next_activity_date"),
       sales_activities_count: pNum(props, "num_notes") || null,
       associated_contacts_count: pNum(props, "num_associated_contacts") || null,
+      // Owner HubSpot — clé du ciblage alertes/objectifs par utilisateur CRM.
+      hs_owner_id: pStr(props, "hubspot_owner_id"),
       raw_data: r,
       hs_last_modified_at: pDate(props, "hs_lastmodifieddate"),
       updated_at: new Date().toISOString(),

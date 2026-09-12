@@ -6,6 +6,7 @@ import { toolDomain } from "@/lib/integrations/tool-domains";
 import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
 import { DictationButton } from "@/components/voice/dictation-button";
 import { teams, kpisByTeam, unitLabels, type KpiDef } from "@/lib/alerts/kpi-catalog";
+import { CrmUserPicker } from "@/components/crm-user-picker";
 
 type ToolOption = { key: string; label: string; icon: string; category?: string };
 
@@ -56,12 +57,14 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   // Step 3 — marketing
   const [lifecycleStage, setLifecycleStage] = useState("");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  // Cible du suivi : l'équipe entière OU des utilisateurs CRM précis (owners
+  // HubSpot) — un suivi est créé PAR utilisateur sélectionné.
+  const [targetMode, setTargetMode] = useState<"team" | "users">("team");
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   // Filtres non exposés dans le formulaire (valeurs par défaut envoyées au back).
   const frequency = "every_check";
   const minDealAmount = "";
   const expiresIn = "";
-  const ownerFilter = "";
-  const hsTeamFilter = "";
   const customProp = "";
   const customPropValue = "";
   // (Les canaux de notification sont gérés dans Mon compte → Notifications —
@@ -153,6 +156,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]); setAgentContext("");
     setLifecycleStage(""); setSelectedSources([]);
     setCrossSources([]); setSourceKpis({});
+    setTargetMode("team"); setSelectedOwners([]);
     setTeamLocked(false);
     setState("idle"); setResult(null);
     setProposal(null); setCounts({}); setVerifying(false);
@@ -283,58 +287,80 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     }
     if (agentContext.trim()) parts.push(`Contexte : ${agentContext.trim()}`);
 
-    try {
-      const res = await fetch("/api/alerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: alertTitle.trim() || `${kpi.label} : ${threshold}${unit}`,
-          description: parts.join(". ") + ".",
-          impact: `Notification quand le KPI ${dirLabel} ${threshold}${unit}`,
-          category: kpi.category,
-          // Câblage CONFIRMÉ à l'étape Vérification, envoyé tel quel
-          // (repli : l'id du KPI catalogué si la vérification a échoué).
-          forecast_type: proposal?.forecast_type ?? (kpiId !== "custom" ? kpi.id : null),
-          agg_spec: proposal?.agg_spec ?? null,
-          recon_recipe: proposal?.recon_recipe ?? null,
-          threshold: Number(threshold),
-          direction,
-          team,
-          pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
-          owner_filter: ownerFilter || null,
-          date_preset: null,
-          date_from: continuous ? null : dateFrom || null,
-          date_to: continuous ? null : dateTo || null,
-          unit_mode: unitMode,
-          severity,
-          priority,
-          continuous,
-          frequency,
-          min_deal_amount: minDealAmount ? Number(minDealAmount) : null,
-          expires_at: null,
-          lifecycle_stage: lifecycleStage || null,
-          source_filters: selectedSources.length > 0 ? selectedSources : null,
-          custom_property: customProp || null,
-          custom_prop_value: customPropValue || null,
-          user_context: agentContext.trim() || null,
-          // Canaux gérés centralement (Mon compte → Notifications) : le cron
-          // lit la préférence de l'événement, plus de canaux par alerte.
-          scope,
-          cross_sources: crossSources.length ? crossSources : null,
-          secondary_kpis: secondaryKpis.length ? secondaryKpis : null,
-          threshold_secondary: secondaryKpis.length ? secondaryKpis[0].value : null,
-          unit_mode_secondary: secondaryKpis.length ? secondaryKpis[0].unit_mode : null,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setResult({ currentValue: data.current_value });
-        setState("done");
-        setTimeout(() => { setOpen(false); reset(); }, 3000);
-      } else {
-        setState("idle");
+    // Cible : équipe entière (une alerte) OU utilisateurs CRM (UNE ALERTE PAR
+    // UTILISATEUR, indexée sur son hubspot_owner_id — le moteur filtre ses données).
+    const targetOwners =
+      targetMode === "users" && selectedOwners.length > 0
+        ? selectedOwners
+            .map((id) => owners.find((o) => o.id === id))
+            .filter((o): o is Owner => Boolean(o))
+        : [null];
+
+    const baseTitle = alertTitle.trim() || `${kpi.label} : ${threshold}${unit}`;
+    let okCount = 0;
+    let lastValue: number | null = null;
+    for (const owner of targetOwners) {
+      const ownerLabel = owner ? owner.name || owner.email : null;
+      const ownerParts = ownerLabel ? [...parts, `Utilisateur CRM : ${ownerLabel}`] : parts;
+      try {
+        const res = await fetch("/api/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: ownerLabel && targetOwners.length > 1 ? `${baseTitle} — ${ownerLabel}` : baseTitle,
+            description: ownerParts.join(". ") + ".",
+            impact: `Notification quand le KPI ${dirLabel} ${threshold}${unit}`,
+            category: kpi.category,
+            // Câblage CONFIRMÉ à l'étape Vérification, envoyé tel quel
+            // (repli : l'id du KPI catalogué si la vérification a échoué).
+            forecast_type: proposal?.forecast_type ?? (kpiId !== "custom" ? kpi.id : null),
+            agg_spec: proposal?.agg_spec ?? null,
+            recon_recipe: proposal?.recon_recipe ?? null,
+            threshold: Number(threshold),
+            direction,
+            team,
+            pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
+            owner_filter: owner ? owner.id : null,
+            owner_name: ownerLabel,
+            date_preset: null,
+            date_from: continuous ? null : dateFrom || null,
+            date_to: continuous ? null : dateTo || null,
+            unit_mode: unitMode,
+            severity,
+            priority,
+            continuous,
+            frequency,
+            min_deal_amount: minDealAmount ? Number(minDealAmount) : null,
+            expires_at: null,
+            lifecycle_stage: lifecycleStage || null,
+            source_filters: selectedSources.length > 0 ? selectedSources : null,
+            custom_property: customProp || null,
+            custom_prop_value: customPropValue || null,
+            user_context: agentContext.trim() || null,
+            // Canaux gérés centralement (Mon compte → Notifications) : le cron
+            // lit la préférence de l'événement, plus de canaux par alerte.
+            scope,
+            cross_sources: crossSources.length ? crossSources : null,
+            secondary_kpis: secondaryKpis.length ? secondaryKpis : null,
+            threshold_secondary: secondaryKpis.length ? secondaryKpis[0].value : null,
+            unit_mode_secondary: secondaryKpis.length ? secondaryKpis[0].unit_mode : null,
+          }),
+        });
+        if (res.ok) {
+          okCount++;
+          const data = await res.json();
+          lastValue = data.current_value ?? null;
+        }
+      } catch {
+        /* on continue : les autres cibles doivent quand même être créées */
       }
-    } catch {
+    }
+    if (okCount > 0) {
+      // La valeur actuelle n'a de sens que pour une cible unique.
+      setResult({ currentValue: targetOwners.length === 1 ? lastValue : null });
+      setState("done");
+      setTimeout(() => { setOpen(false); reset(); }, 3000);
+    } else {
       setState("idle");
     }
   }
@@ -464,7 +490,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
                 {/* ── Step 3: Configure ── */}
                 {step === 3 && kpi && (
-                  <form onSubmit={(e) => { e.preventDefault(); if (threshold && (kpiId !== "source_to_lifecycle" || lifecycleStage)) setStep(4); }}>
+                  <form onSubmit={(e) => { e.preventDefault(); if (threshold && (kpiId !== "source_to_lifecycle" || lifecycleStage) && (targetMode === "team" || selectedOwners.length > 0)) setStep(4); }}>
                     <h2 className="text-lg font-semibold text-slate-900">Évaluation</h2>
                     <p className="mt-1 text-sm text-slate-500">{kpi.label} — {kpi.description}</p>
 
@@ -636,6 +662,31 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         </div>
                       )}
 
+                      {/* Cible : équipe entière OU utilisateurs CRM précis */}
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Cible du suivi</label>
+                        <div className="mb-2 flex overflow-hidden rounded-lg border border-slate-200">
+                          <button type="button" onClick={() => setTargetMode("team")}
+                            className={`flex-1 px-3 py-2 text-xs font-medium transition ${targetMode === "team" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                            🌍 Toute l&apos;équipe
+                          </button>
+                          <button type="button" onClick={() => setTargetMode("users")}
+                            className={`flex-1 px-3 py-2 text-xs font-medium transition ${targetMode === "users" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                            👤 Par utilisateur CRM
+                          </button>
+                        </div>
+                        {targetMode === "team" ? (
+                          <p className="text-[10px] text-slate-400">Le KPI est calculé sur toutes les données, sans filtre d&apos;utilisateur.</p>
+                        ) : (
+                          <>
+                            <CrmUserPicker owners={owners} teams={hsTeams} selected={selectedOwners} onChange={setSelectedOwners} />
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Une alerte est créée par utilisateur sélectionné — le KPI est calculé sur les données dont il est propriétaire dans le CRM.
+                            </p>
+                          </>
+                        )}
+                      </div>
+
                       {/* Portée : personnelle ou d'équipe */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">Portée</label>
@@ -720,7 +771,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={!threshold || (kpiId === "source_to_lifecycle" && !lifecycleStage)}
+                        <button type="submit" disabled={!threshold || (kpiId === "source_to_lifecycle" && !lifecycleStage) || (targetMode === "users" && selectedOwners.length === 0)}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           Suivant : Vérification →
                         </button>

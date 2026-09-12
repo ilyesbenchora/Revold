@@ -66,6 +66,8 @@ async function handler(request: Request) {
       currentValue = await resolveKpiValue(supabase, obj.organization_id as string, forecastType, {
         date_from: (obj.date_from as string | null) ?? null,
         date_to: (obj.date_to as string | null) ?? null,
+        // Objectif indexé sur un utilisateur CRM : le moteur filtre par owner.
+        owner_filter: (obj.owner_filter as string | null) ?? null,
       });
     } else if (obj.agg_spec) {
       const token = await getHubSpotToken(supabase, obj.organization_id as string);
