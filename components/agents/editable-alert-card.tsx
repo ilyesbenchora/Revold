@@ -63,8 +63,15 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
   // Vérification du câblage à l'édition — même mécanique que la création.
   // (Les canaux de notification sont gérés dans Mon compte → Notifications.)
   const { proposal, counts, verifying, requestPreview, resetProposal } = useWiringPreview();
+  const [editError, setEditError] = useState<string | null>(null);
+  // Mêmes règles qu'à la création : tout obligatoire sauf description/impact.
+  const editValid = Boolean(title.trim() && kpiValue && (continuous || (dateFrom && dateTo)));
 
   async function save() {
+    if (!title.trim()) { setEditError("Renseigne le titre de l'alerte."); return; }
+    if (!kpiValue) { setEditError("Renseigne le KPI attendu."); return; }
+    if (!continuous && (!dateFrom || !dateTo)) { setEditError("Renseigne les deux dates — ou coche « En continu »."); return; }
+    setEditError(null);
     // Étape Vérification d'abord : le câblage (existant ré-évalué en déterministe,
     // ou re-proposé par l'agent si le titre a changé) est affiché puis validé.
     if (!proposal) {
@@ -173,13 +180,13 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
       {editing ? (
         <div className="space-y-2.5">
           <div>
-            <label className={lbl}>Alerte fixée</label>
-            <input value={title} onChange={(e) => { setTitle(e.target.value); resetProposal(); }} className={field} />
+            <label className={lbl}>Alerte fixée<span className="ml-1 text-red-500">*</span></label>
+            <input value={title} onChange={(e) => { setTitle(e.target.value); resetProposal(); }} className={field} required />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className={lbl}>KPI attendu</label>
-              <input type="number" value={kpiValue} onChange={(e) => setKpiValue(e.target.value)} className={field} placeholder="Ex : 30" />
+              <label className={lbl}>KPI attendu<span className="ml-1 text-red-500">*</span></label>
+              <input type="number" value={kpiValue} onChange={(e) => setKpiValue(e.target.value)} className={field} placeholder="Ex : 30" required />
             </div>
             <div>
               <label className={lbl}>Format</label>
@@ -194,7 +201,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
             </div>
           </div>
           <div>
-            <label className={lbl}>Période de suivi</label>
+            <label className={lbl}>Période de suivi{!continuous && <span className="ml-1 text-red-500">*</span>}</label>
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm" />
               {!continuous && <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm" />}
@@ -202,13 +209,14 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
                 <input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} /> En continu
               </label>
             </div>
+            {!continuous && <p className="mt-1 text-[10px] text-slate-400">Les deux dates sont requises — ou coche « En continu ».</p>}
           </div>
           <div>
-            <label className={lbl}>Description</label>
+            <label className={lbl}>Description (optionnel)</label>
             <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
           </div>
           <div>
-            <label className={lbl}>Impact attendu</label>
+            <label className={lbl}>Impact attendu (optionnel)</label>
             <textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} />
           </div>
           {/* Canaux gérés centralement — plus de choix par alerte. */}
@@ -230,11 +238,13 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
             />
           )}
 
+          {editError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{editError}</p>}
+
           <div className="flex items-center gap-2 pt-1">
-            <button onClick={save} disabled={busy || verifying} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">
+            <button onClick={save} disabled={busy || verifying || !editValid} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-60">
               {verifying ? "Vérification…" : busy ? "Enregistrement…" : !proposal ? "Vérifier le câblage" : "Confirmer et enregistrer"}
             </button>
-            <button onClick={() => { setEditing(false); resetProposal(); }} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => { setEditing(false); resetProposal(); setEditError(null); }} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               Annuler
             </button>
           </div>
