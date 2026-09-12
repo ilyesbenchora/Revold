@@ -61,6 +61,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
   // HubSpot) — un suivi est créé PAR utilisateur sélectionné.
   const [targetMode, setTargetMode] = useState<"team" | "users">("team");
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  // Objet sur lequel le propriétaire est indexé (obligatoire dès qu'on cible
+  // par utilisateur) : deals | contacts | companies. Câblage vérifié à l'étape
+  // suivante ; filtre dur sur l'objet choisi.
+  const [ownerObject, setOwnerObject] = useState<"deals" | "contacts" | "companies">("deals");
   // Filtres non exposés dans le formulaire (valeurs par défaut envoyées au back).
   const frequency = "every_check";
   const minDealAmount = "";
@@ -156,7 +160,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
     setDateFrom(""); setDateTo(""); setCustomKpi(""); setSelectedPipelines([]); setAgentContext("");
     setLifecycleStage(""); setSelectedSources([]);
     setCrossSources([]); setSourceKpis({});
-    setTargetMode("team"); setSelectedOwners([]);
+    setTargetMode("team"); setSelectedOwners([]); setOwnerObject("deals");
     setTeamLocked(false);
     setState("idle"); setResult(null);
     setProposal(null); setCounts({}); setVerifying(false);
@@ -322,6 +326,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
             pipeline_id: selectedPipelines.length === 1 ? selectedPipelines[0] : null,
             owner_filter: owner ? owner.id : null,
             owner_name: ownerLabel,
+            owner_object: owner ? ownerObject : null,
             date_preset: null,
             date_from: continuous ? null : dateFrom || null,
             date_to: continuous ? null : dateTo || null,
@@ -683,6 +688,35 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                             <p className="mt-1 text-[10px] text-slate-400">
                               Une alerte est créée par utilisateur sélectionné — le KPI est calculé sur les données dont il est propriétaire dans le CRM.
                             </p>
+                            {/* Objet du propriétaire — OBLIGATOIRE : garantit le câblage sur le bon objet. */}
+                            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+                              <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                                Propriétaire de<span className="ml-0.5 text-red-500">*</span>
+                              </label>
+                              <div className="flex gap-1.5">
+                                {([
+                                  ["deals", "Deal"],
+                                  ["contacts", "Contact"],
+                                  ["companies", "Entreprise"],
+                                ] as const).map(([id, label]) => (
+                                  <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => setOwnerObject(id)}
+                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+                                      ownerObject === id ? "bg-accent text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-accent/40"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                Objet sur lequel le propriétaire est indexé. Le KPI est filtré sur les{" "}
+                                {ownerObject === "deals" ? "deals" : ownerObject === "contacts" ? "contacts" : "comptes"} dont l&apos;utilisateur
+                                est propriétaire — le câblage est vérifié à l&apos;étape suivante.
+                              </p>
+                            </div>
                           </>
                         )}
                       </div>
@@ -797,6 +831,15 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       </a>
                       .
                     </p>
+
+                    {/* Filtre par propriétaire : rappel du câblage sur l'objet choisi. */}
+                    {targetMode === "users" && selectedOwners.length > 0 && (
+                      <p className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-xs text-slate-600">
+                        👤 Filtré sur le <span className="font-semibold">propriétaire du {ownerObject === "deals" ? "deal" : ownerObject === "contacts" ? "contact" : "compte"}</span>
+                        {" "}— {selectedOwners.length} utilisateur{selectedOwners.length > 1 ? "s" : ""} ciblé{selectedOwners.length > 1 ? "s" : ""}
+                        {ownerObject === "companies" ? " (les fiches rattachées aux comptes de l'utilisateur)" : ""}.
+                      </p>
+                    )}
 
                     {/* Étape « Vérification » : le câblage (catalogué ou proposé par
                         l'agent) est affiché SYSTÉMATIQUEMENT et validé avant la création. */}

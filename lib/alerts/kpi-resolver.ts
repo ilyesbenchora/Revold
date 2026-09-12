@@ -4,6 +4,10 @@ import { hubFetch } from "@/lib/integrations/hub-fetch";
 export type AlertFilters = {
   pipeline_id?: string | null;
   owner_filter?: string | null;
+  /** Objet sur lequel le propriétaire est indexé : deals | contacts | companies. */
+  owner_object?: string | null;
+  /** Interne : ids des entreprises du propriétaire (résolu quand owner_object = companies). */
+  ownerCompanyIds?: string[] | null;
   date_from?: string | null;
   date_to?: string | null;
   date_preset?: string | null;
@@ -50,14 +54,32 @@ function resolveDateRange(filters: AlertFilters): { from: string | null; to: str
   return { from, to };
 }
 
+/** Sentinelle « aucun résultat » (uuid impossible) pour un focus entreprise sans société. */
+const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Filtre par propriétaire, sur l'OBJET choisi (owner_object) :
+ *  - deals/contacts → hs_owner_id direct sur la table courante ;
+ *  - companies → filtre dur sur les entreprises du propriétaire (company_id ∈
+ *    ids résolus en amont) : « les <objet> des comptes que possède cet utilisateur ».
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyOwnerFilter(query: any, filters: AlertFilters) {
+  if (!filters.owner_filter) return query;
+  if (filters.owner_object === "companies") {
+    const ids = filters.ownerCompanyIds ?? [];
+    return query.in("company_id", ids.length ? ids : [NO_MATCH_UUID]);
+  }
+  return query.eq("hs_owner_id", filters.owner_filter);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyDealFilters(query: any, filters: AlertFilters) {
   const { from, to } = resolveDateRange(filters);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
   if (filters.pipeline_id) query = query.eq("stage_id", filters.pipeline_id);
-  // Ciblage par utilisateur CRM : hs_owner_id (id owner HubSpot, rempli par l'ETL).
-  if (filters.owner_filter) query = query.eq("hs_owner_id", filters.owner_filter);
+  query = applyOwnerFilter(query, filters);
   if (filters.min_deal_amount) query = query.gte("amount", filters.min_deal_amount);
   return query;
 }
@@ -67,8 +89,28 @@ function applyContactFilters(query: any, filters: AlertFilters) {
   const { from, to } = resolveDateRange(filters);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
-  if (filters.owner_filter) query = query.eq("hs_owner_id", filters.owner_filter);
+  query = applyOwnerFilter(query, filters);
   return query;
+}
+
+/** Ids (uuid) des entreprises possédées par un utilisateur CRM — focus « entreprise ». */
+async function resolveOwnerCompanyIds(supabase: SupabaseClient, orgId: string, ownerId: string): Promise<string[]> {
+  const ids: string[] = [];
+  const PAGE = 1000;
+  try {
+    for (let from = 0; from < 50000; from += PAGE) {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("hs_owner_id", ownerId)
+        .range(from, from + PAGE - 1);
+      if (error || !data) break;
+      for (const r of data as Array<{ id: string }>) ids.push(String(r.id));
+      if (data.length < PAGE) break;
+    }
+  } catch { /* pas d'entreprises rapprochées → aucun résultat */ }
+  return ids;
 }
 
 /**
@@ -82,8 +124,10 @@ async function queryHubSpotContacts(
 ): Promise<number> {
   const allFilters = [...extraFilters];
 
-  // Ciblage par utilisateur CRM — même filtre côté API HubSpot.
-  if (filters.owner_filter) {
+  // Ciblage par utilisateur CRM — même filtre côté API HubSpot. Le focus
+  // « entreprise » ne s'applique pas à la recherche live de contacts (pas
+  // d'association owner d'entreprise ici) : il est porté par les KPIs en base.
+  if (filters.owner_filter && filters.owner_object !== "companies") {
     allFilters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: filters.owner_filter });
   }
   if (filters.lifecycle_stage) {
@@ -156,6 +200,12 @@ export async function resolveKpiValue(
   forecastType: string,
   filters: AlertFilters = {},
 ): Promise<number | null> {
+  // Focus « entreprise » : résoudre une fois les sociétés du propriétaire, puis
+  // filtrer deals/contacts par company_id (filtre dur sur l'objet choisi).
+  if (filters.owner_filter && filters.owner_object === "companies" && filters.ownerCompanyIds == null) {
+    filters.ownerCompanyIds = await resolveOwnerCompanyIds(supabase, orgId, filters.owner_filter);
+  }
+
   // ── Recettes réconciliées cross-source (délais médians CRM × facturation) :
   //    mêmes ids que le moteur de réconciliation — rend ces KPIs utilisables
   //    en tuile de page (ex-tuiles Alignement, suggérées sur Trésorerie). ──

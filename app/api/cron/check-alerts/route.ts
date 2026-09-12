@@ -93,6 +93,7 @@ async function handler(request: Request) {
       const filters = {
         pipeline_id: alert.pipeline_id,
         owner_filter: alert.owner_filter,
+        owner_object: alert.owner_object,
         date_from: alert.date_from,
         date_to: alert.date_to,
         date_preset: alert.date_preset,

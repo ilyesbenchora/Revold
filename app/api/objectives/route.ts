@@ -82,6 +82,11 @@ export async function POST(request: Request) {
     // Ciblage par utilisateur CRM (owner HubSpot) — en plus de l'équipe.
     owner_filter: typeof b.owner_filter === "string" && b.owner_filter.trim() ? b.owner_filter.trim().slice(0, 60) : null,
     owner_name: typeof b.owner_name === "string" && b.owner_name.trim() ? b.owner_name.trim().slice(0, 120) : null,
+    // Objet du propriétaire (obligatoire si owner_filter) : deals | contacts | companies.
+    owner_object:
+      typeof b.owner_filter === "string" && b.owner_filter.trim()
+        ? (["deals", "contacts", "companies"].includes(b.owner_object as string) ? (b.owner_object as string) : "deals")
+        : null,
     // Portée (badge Équipe / Personnel) — retirée par l'insert résilient si
     // la migration n'est pas appliquée.
     scope: b.scope === "team" ? "team" : "personal",

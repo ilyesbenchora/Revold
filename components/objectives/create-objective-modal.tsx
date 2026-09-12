@@ -52,6 +52,8 @@ export function CreateObjectiveModal() {
   // utilisateur sélectionné, indexé sur son hubspot_owner_id).
   const [targetMode, setTargetMode] = useState<"team" | "users">("team");
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  // Objet du propriétaire (obligatoire dès qu'on cible par utilisateur) : deals | contacts | companies.
+  const [ownerObject, setOwnerObject] = useState<"deals" | "contacts" | "companies">("deals");
   const [owners, setOwners] = useState<CrmOwner[]>([]);
   const [hsTeams, setHsTeams] = useState<string[]>([]);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
@@ -74,7 +76,7 @@ export function CreateObjectiveModal() {
     setTitle(""); setTeam("sales"); setForecast(""); setUnit("currency"); setDirection("above");
     setTarget(""); setCurrent(""); setDateFrom(""); setDateTo(""); setPriority("moyen"); setDescription(""); setImpact("");
     setError(null);
-    setTargetMode("team"); setSelectedOwners([]);
+    setTargetMode("team"); setSelectedOwners([]); setOwnerObject("deals");
     setProposal(null); setCounts({}); setVerifying(false);
   }
 
@@ -165,6 +167,7 @@ export function CreateObjectiveModal() {
             scope,
             owner_filter: owner ? owner.id : null,
             owner_name: ownerLabel,
+            owner_object: owner ? ownerObject : null,
             description, impact,
           }),
         });
@@ -275,6 +278,32 @@ export function CreateObjectiveModal() {
                   <p className="mt-1 text-[10px] text-slate-400">
                     Un objectif est créé par utilisateur sélectionné — sa progression est calculée sur les données dont il est propriétaire dans le CRM.
                   </p>
+                  {/* Objet du propriétaire — OBLIGATOIRE : garantit le câblage sur le bon objet. */}
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">Propriétaire de<span className="ml-0.5 text-red-500">*</span></label>
+                    <div className="flex gap-1.5">
+                      {([
+                        ["deals", "Deal"],
+                        ["contacts", "Contact"],
+                        ["companies", "Entreprise"],
+                      ] as const).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setOwnerObject(id)}
+                          className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+                            ownerObject === id ? "bg-accent text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-accent/40"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      Objet sur lequel le propriétaire est indexé — la progression est filtrée sur les{" "}
+                      {ownerObject === "deals" ? "deals" : ownerObject === "contacts" ? "contacts" : "comptes"} dont l&apos;utilisateur est propriétaire (câblage vérifié à l&apos;étape suivante).
+                    </p>
+                  </div>
                 </>
               )}
             </div>
@@ -301,6 +330,14 @@ export function CreateObjectiveModal() {
               <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
             </div>
             <div><label className={lbl}>Impact attendu (optionnel)</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
+
+            {/* Filtre par propriétaire : rappel du câblage sur l'objet choisi. */}
+            {targetMode === "users" && selectedOwners.length > 0 && (
+              <p className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-xs text-slate-600">
+                👤 Filtré sur le <span className="font-semibold">propriétaire du {ownerObject === "deals" ? "deal" : ownerObject === "contacts" ? "contact" : "compte"}</span>
+                {ownerObject === "companies" ? " (les fiches rattachées aux comptes de l'utilisateur)" : ""}.
+              </p>
+            )}
 
             {/* Étape « Vérification » : câblage affiché SYSTÉMATIQUEMENT avant création. */}
             {proposal && (

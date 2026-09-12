@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     title, description, impact, category,
     forecast_type, threshold, direction,
     // Advanced filters
-    team, pipeline_id, owner_filter, owner_name,
+    team, pipeline_id, owner_filter, owner_name, owner_object,
     date_from, date_to, date_preset,
     unit_mode, segment_filter, severity, frequency,
     expires_at, min_deal_amount, deal_stage_filter,
@@ -83,11 +83,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
+  // Objet du propriétaire (obligatoire dès qu'on cible un utilisateur CRM) :
+  // deals | contacts | companies. Défaut sûr « deals » si absent.
+  const OWNER_OBJECTS = new Set(["deals", "contacts", "companies"]);
+  const ownerObject = owner_filter
+    ? (typeof owner_object === "string" && OWNER_OBJECTS.has(owner_object) ? owner_object : "deals")
+    : null;
+
   // Compute current KPI value with filters
   let currentValue: number | null = null;
   if (forecast_type && threshold != null) {
     currentValue = await resolveKpiValue(supabase, profile.organization_id, forecast_type, {
-      pipeline_id, owner_filter, date_from, date_to, date_preset,
+      pipeline_id, owner_filter, owner_object: ownerObject, date_from, date_to, date_preset,
       segment_filter, min_deal_amount, deal_stage_filter,
       lifecycle_stage, source_filters, custom_property, custom_prop_value,
     });
@@ -135,6 +142,7 @@ export async function POST(request: Request) {
     pipeline_id: pipeline_id || null,
     owner_filter: owner_filter || null,
     owner_name: typeof owner_name === "string" && owner_name.trim() ? owner_name.trim().slice(0, 120) : null,
+    owner_object: ownerObject,
     date_from: date_from || null,
     date_to: date_to || null,
     date_preset: date_preset || null,
