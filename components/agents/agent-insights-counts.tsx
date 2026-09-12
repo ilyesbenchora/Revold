@@ -96,11 +96,15 @@ const ITEMS: { key: keyof Counts; label: string; tab: string; icon: React.ReactN
 export function AgentInsightsCounts({
   agentKey,
   discussionsLabel,
+  compact = false,
 }: {
   agentKey: string;
   /** Libellé du compteur de discussions — « coachings faits » (coachs, défaut)
    *  ou « discussions faites » (agents experts de Mon équipe IA). */
   discussionsLabel?: string;
+  /** Mode CARTE COMPACTE (home) : icône + nombre seulement (libellé en
+   *  tooltip), sans le compteur de séances — pour tenir dans la petite carte. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -121,9 +125,11 @@ export function AgentInsightsCounts({
     router.push(`/dashboard/agents/${agentKey}?tab=${tab}`);
   }
 
+  const items = compact ? ITEMS.filter((it) => it.key !== "discussions") : ITEMS;
+
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {ITEMS.map((it) => {
+    <div className={`flex flex-wrap gap-1.5 ${compact ? "justify-center" : ""}`}>
+      {items.map((it) => {
         const label = it.key === "discussions" && discussionsLabel ? discussionsLabel : it.label;
         return (
           <span
@@ -138,7 +144,7 @@ export function AgentInsightsCounts({
             <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {it.icon}
             </svg>
-            {counts === null ? "…" : counts[it.key]} {label}
+            {counts === null ? "…" : counts[it.key]}{compact ? "" : ` ${label}`}
           </span>
         );
       })}
