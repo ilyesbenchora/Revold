@@ -314,7 +314,7 @@ export function HierarchyConsole({
           </h2>
           <div className="flex items-center gap-2">
             {(pending?.length ?? 0) > 0 && (
-              {/* Table (en masse) EN PREMIER — c'est aussi la vue par défaut. */}
+              // Table (en masse) EN PREMIER — c'est aussi la vue par défaut.
               <div className="flex overflow-hidden rounded-lg border border-slate-200 text-xs">
                 <button
                   type="button"
