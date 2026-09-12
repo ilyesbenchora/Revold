@@ -102,7 +102,7 @@ export function AlertBody({
   return (
     <div className="space-y-3">
       <div>
-        <SectionLabel>Objectif</SectionLabel>
+        <SectionLabel>Alerte fixée</SectionLabel>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold leading-snug text-slate-900 break-words">{readable(title)}</div>
           {category && (
