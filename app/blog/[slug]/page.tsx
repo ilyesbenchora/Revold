@@ -24,7 +24,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = articles.find((a) => a.slug === slug);
   if (!article || !isPublished(article)) return {};
   return {
-    title: `${article.title} — Blog Revold`,
+    // Absolu : le gabarit racine ajoute déjà « — Revold » (sinon double marque
+    // « — Blog Revold — Revold », 15 caractères de title perdus sur chaque article).
+    title: { absolute: `${article.title} — Revold` },
     description: article.description,
     authors: [{ name: article.author }],
     alternates: { canonical: `/blog/${article.slug}` },

@@ -22,21 +22,22 @@ export type KeywordTarget = {
 export const KEYWORD_TARGETS: KeywordTarget[] = [
   // ── Marque ────────────────────────────────────────────────────────────────
   { keyword: "revold", group: "brand", url: "/", priority: 1, volume: "faible" },
-  { keyword: "revold ai", group: "brand", url: "/", priority: 1, volume: "faible" },
-  { keyword: "revold revenue intelligence", group: "brand", url: "/", priority: 1, volume: "faible" },
+  { keyword: "revold ai", group: "brand", url: "/", priority: 2, volume: "faible" },
+  { keyword: "revold revenue intelligence", group: "brand", url: "/", priority: 2, volume: "faible" },
   { keyword: "revold tarifs", group: "brand", url: "/tarifs", priority: 1, volume: "faible" },
   { keyword: "revold avis", group: "brand", url: "/a-propos", priority: 2, volume: "faible" },
   { keyword: "revold hubspot", group: "brand", url: "/integrations/hubspot", priority: 2, volume: "faible" },
 
   // ── Métier (fort volume, concurrentiel) ───────────────────────────────────
   { keyword: "plateforme revops", group: "metier", url: "/plateforme-revops", priority: 1, volume: "moyen" },
-  { keyword: "revops plateforme", group: "metier", url: "/plateforme-revops", priority: 1, volume: "moyen" },
+  { keyword: "revops plateforme", group: "metier", url: "/plateforme-revops", priority: 2, volume: "moyen" },
   { keyword: "logiciel revops", group: "metier", url: "/logiciel-revops", priority: 1, volume: "moyen" },
   { keyword: "outil revops", group: "metier", url: "/logiciel-revops", priority: 2, volume: "faible" },
   { keyword: "pilotage revops", group: "metier", url: "/pilotage-revops", priority: 1, volume: "faible" },
-  { keyword: "pilotage performance d'entreprise", group: "metier", url: "/pilotage-performance-entreprise", priority: 1, volume: "moyen" },
+  { keyword: "pilotage de la performance d'entreprise", group: "metier", url: "/pilotage-performance-entreprise", priority: 1, volume: "moyen" },
+  { keyword: "pilotage performance d'entreprise", group: "metier", url: "/pilotage-performance-entreprise", priority: 2, volume: "faible" },
   { keyword: "pilotage de la performance", group: "metier", url: "/pilotage-performance-entreprise", priority: 2, volume: "moyen" },
-  { keyword: "plateforme intelligence revenue", group: "metier", url: "/plateforme-revenue-intelligence", priority: 1, volume: "faible" },
+  { keyword: "plateforme intelligence revenue", group: "metier", url: "/plateforme-revenue-intelligence", priority: 2, volume: "faible" },
   { keyword: "plateforme de revenue intelligence", group: "metier", url: "/plateforme-revenue-intelligence", priority: 1, volume: "faible" },
   { keyword: "revenue intelligence", group: "metier", url: "/revenue-intelligence", priority: 1, volume: "moyen" },
   { keyword: "revenue intelligence définition", group: "metier", url: "/revenue-intelligence", priority: 2, volume: "faible" },
@@ -87,16 +88,16 @@ export const KEYWORD_TARGETS: KeywordTarget[] = [
   { keyword: "reporting hubspot", group: "longue-traine", url: "/blog/reporting-hubspot-limites-tableaux-de-bord-natifs", priority: 3, volume: "moyen" },
 
   // ── Concurrents (trafic de comparaison) ───────────────────────────────────
-  { keyword: "alternative clari", group: "concurrent", url: "/alternative/clari", priority: 1, volume: "faible" },
-  { keyword: "clari vs revold", group: "concurrent", url: "/alternative/clari", priority: 2, volume: "faible" },
-  { keyword: "alternative gong", group: "concurrent", url: "/alternative/gong", priority: 2, volume: "faible" },
-  { keyword: "forecastio", group: "concurrent", url: "/alternative/forecastio", priority: 1, volume: "faible" },
-  { keyword: "alternative forecastio", group: "concurrent", url: "/alternative/forecastio", priority: 1, volume: "faible" },
+  { keyword: "alternative clari", group: "concurrent", url: "/plateforme-revenue-intelligence", priority: 2, volume: "faible" },
+  { keyword: "clari vs revold", group: "concurrent", url: "/plateforme-revenue-intelligence", priority: 3, volume: "faible" },
+  { keyword: "alternative gong", group: "concurrent", url: "/revenue-intelligence", priority: 3, volume: "faible" },
+  { keyword: "forecastio", group: "concurrent", url: "/forecast-commercial", priority: 3, volume: "faible" },
+  { keyword: "alternative forecastio", group: "concurrent", url: "/forecast-commercial", priority: 3, volume: "faible" },
   { keyword: "alternative looker studio", group: "concurrent", url: "/alternative/looker-studio", priority: 2, volume: "moyen" },
   { keyword: "alternative data studio", group: "concurrent", url: "/alternative/looker-studio", priority: 2, volume: "faible" },
   { keyword: "alternative grow bi", group: "concurrent", url: "/alternative/grow", priority: 3, volume: "faible" },
   { keyword: "alternative power bi", group: "concurrent", url: "/alternative/power-bi", priority: 3, volume: "moyen" },
-  { keyword: "prévisions hubspot", group: "concurrent", url: "/alternative/hubspot-previsions", priority: 2, volume: "faible" },
+  { keyword: "prévisions hubspot", group: "concurrent", url: "/forecast-commercial", priority: 2, volume: "faible" },
   { keyword: "tableau de bord commercial excel", group: "concurrent", url: "/alternative/excel", priority: 2, volume: "moyen" },
 
   // ── Outils gratuits (aimants à liens) ─────────────────────────────────────

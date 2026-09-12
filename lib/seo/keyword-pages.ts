@@ -37,7 +37,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "plateforme-revops",
     keyword: "Plateforme RevOps",
     secondaryKeywords: ["RevOps plateforme", "logiciel RevOps", "outil RevOps", "solution RevOps"],
-    title: "Plateforme RevOps : définition, fonctions et choix (guide 2026)",
+    title: "Plateforme RevOps : définition, fonctions, comment choisir",
     description:
       "Qu'est-ce qu'une plateforme RevOps ? Fonctions indispensables, différences avec un CRM ou un outil de BI, critères de choix et positionnement de Revold, plateforme RevOps française.",
     h1: "Plateforme RevOps :",
@@ -108,7 +108,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "pilotage-revops",
     keyword: "Pilotage RevOps",
     secondaryKeywords: ["piloter le RevOps", "pilotage des revenus", "pilotage commercial et financier", "gouvernance revenue"],
-    title: "Pilotage RevOps : méthode, indicateurs et outil pour piloter le revenu",
+    title: "Pilotage RevOps : méthode, indicateurs et rituels",
     description:
       "Le pilotage RevOps aligne ventes, marketing, service client et finance sur un revenu mesuré et prévu. Méthode en 5 étapes, KPIs à suivre, rituels d'équipe et outil Revold.",
     h1: "Pilotage RevOps :",
@@ -172,7 +172,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "pilotage-performance-entreprise",
     keyword: "Pilotage de la performance d'entreprise",
     secondaryKeywords: ["pilotage de performance", "piloter la performance de l'entreprise", "indicateurs de performance", "tableau de bord de direction"],
-    title: "Pilotage de la performance d'entreprise : méthode et outil pour le B2B",
+    title: "Pilotage de la performance d'entreprise : méthode et outil",
     description:
       "Comment piloter la performance d'une entreprise B2B à partir de données réconciliées : indicateurs par équipe, fréquence des revues, erreurs fréquentes et rôle d'une plateforme comme Revold.",
     h1: "Pilotage de la performance d'entreprise :",
@@ -237,7 +237,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "plateforme-revenue-intelligence",
     keyword: "Plateforme de Revenue Intelligence",
     secondaryKeywords: ["plateforme intelligence revenue", "revenue intelligence platform", "logiciel revenue intelligence", "revenue intelligence France"],
-    title: "Plateforme de Revenue Intelligence : définition et comparatif 2026",
+    title: "Plateforme de Revenue Intelligence : définition et comparatif",
     description:
       "Une plateforme de Revenue Intelligence collecte, réconcilie et analyse les données de revenu pour prévoir et agir. Définition, fonctions, acteurs (Clari, Gong, Revold) et critères de choix pour une entreprise française.",
     h1: "Plateforme de Revenue Intelligence :",
@@ -411,7 +411,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "revenue-intelligence",
     keyword: "Revenue Intelligence",
     secondaryKeywords: ["revenue intelligence définition", "qu'est-ce que la revenue intelligence", "revenue intelligence B2B", "revenue intelligence français"],
-    title: "Revenue Intelligence : définition, exemples et outils (guide 2026)",
+    title: "Revenue Intelligence : définition, exemples et outils",
     description:
       "La Revenue Intelligence exploite automatiquement les données de revenu pour prévoir, détecter les risques et agir. Définition, origine, cas d'usage concrets, outils et spécificités françaises.",
     h1: "Revenue Intelligence :",
@@ -470,7 +470,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "forecast-commercial",
     keyword: "Forecast commercial",
     secondaryKeywords: ["prévision des ventes", "forecast de vente", "prévision commerciale B2B", "forecast pondéré", "logiciel de prévision des ventes", "forecast HubSpot"],
-    title: "Forecast commercial et prévision des ventes : méthode fiable en B2B (2026)",
+    title: "Forecast commercial : prévision des ventes fiable en B2B",
     description:
       "Comment construire un forecast commercial fiable : pondération par étape, dates de fermeture, propriétés personnalisées, données réconciliées avec la facturation. Méthode et outil Revold.",
     h1: "Forecast commercial :",
@@ -531,7 +531,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "tableau-de-bord-revops",
     keyword: "Tableau de bord RevOps",
     secondaryKeywords: ["dashboard RevOps", "tableau de bord revenue", "reporting RevOps", "KPI RevOps"],
-    title: "Tableau de bord RevOps : les KPIs à suivre et comment le construire",
+    title: "Tableau de bord RevOps : KPIs à suivre et construction",
     description:
       "Construire un tableau de bord RevOps : indicateurs par équipe, sources de données à croiser, fréquence, erreurs à éviter, et comment Revold génère des tableaux vérifiés sur les vraies données.",
     h1: "Tableau de bord RevOps :",
@@ -593,7 +593,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "reconciliation-crm-facturation",
     keyword: "Réconciliation CRM et facturation",
     secondaryKeywords: ["rapprochement CRM facturation", "connecter CRM et facturation", "HubSpot Pennylane", "revenu signé vs facturé"],
-    title: "Réconciliation CRM et facturation : mesurer l'écart signé / facturé",
+    title: "Réconciliation CRM facturation : l'écart signé / facturé",
     description:
       "Pourquoi et comment réconcilier le CRM avec la facturation : rapprochement des comptes par SIREN, écart signé / facturé / encaissé, fuites de revenu, et méthode Revold pour HubSpot, Pennylane, Stripe et Sage.",
     h1: "Réconciliation CRM et facturation :",
@@ -651,9 +651,9 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "fuite-de-revenus",
     keyword: "Fuite de revenus (revenue leakage)",
     secondaryKeywords: ["revenue leakage", "fuite de revenu B2B", "revenus non facturés", "deals signés non facturés", "perte de revenus facturation"],
-    title: "Fuite de revenus (revenue leakage) : la détecter et la colmater en B2B",
+    title: "Fuite de revenus : détecter et colmater le revenue leakage",
     description:
-      "La fuite de revenus, ou revenue leakage, est le revenu gagné mais jamais facturé ou encaissé : deals signés sans facture, renouvellements oubliés, retards de paiement. Causes, ordre de grandeur, méthode de détection et outil.",
+      "Fuite de revenus (revenue leakage) : le revenu gagné mais jamais facturé ni encaissé. Causes, ordre de grandeur (1 à 5 % du CA), méthode de détection en 4 étapes.",
     h1: "Fuite de revenus :",
     h1Accent: "le revenu gagné que vous n'encaissez jamais",
     answer:
@@ -714,7 +714,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "kpi-revops",
     keyword: "KPI RevOps",
     secondaryKeywords: ["indicateurs RevOps", "métriques revenue operations", "KPI revenue operations", "revops metrics"],
-    title: "KPI RevOps : les 20 indicateurs à suivre, par équipe (avec formules)",
+    title: "KPI RevOps : 20 indicateurs, formules et sources par équipe",
     description:
       "Les KPI RevOps à suivre en 2026 : acquisition, pipeline, forecast, facturation, rétention. Formules, source de données de chaque indicateur et fréquence de suivi. Guide en français.",
     h1: "KPI RevOps :",
@@ -794,7 +794,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "revops-vs-sales-ops",
     keyword: "RevOps vs Sales Ops",
     secondaryKeywords: ["différence RevOps Sales Ops", "sales operations vs revenue operations", "RevOps ou Sales Ops", "revenue operations définition"],
-    title: "RevOps vs Sales Ops : quelle différence, et lequel mettre en place ?",
+    title: "RevOps vs Sales Ops : différences et lequel choisir",
     description:
       "Sales Ops optimise l'équipe commerciale ; RevOps aligne ventes, marketing, service client et finance sur un revenu commun. Différences de périmètre, d'indicateurs, d'outils et de rattachement, et quand passer de l'un à l'autre.",
     h1: "RevOps vs Sales Ops :",
@@ -855,7 +855,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "tableau-de-bord-commercial",
     keyword: "Tableau de bord commercial",
     secondaryKeywords: ["dashboard commercial", "tableau de bord des ventes", "KPI commerciaux", "tableau de bord commercial exemple", "modèle tableau de bord commercial"],
-    title: "Tableau de bord commercial : KPI, exemples et modèle prêt à l'emploi",
+    title: "Tableau de bord commercial : 7 KPI, exemples et modèle",
     description:
       "Construire un tableau de bord commercial qui sert vraiment : les 7 KPI à afficher, un exemple par niveau (commercial, manager, direction), les erreurs d'Excel et du CRM seul, et un modèle prêt dans Revold.",
     h1: "Tableau de bord commercial :",
@@ -918,9 +918,9 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "hubspot-pennylane",
     keyword: "HubSpot et Pennylane",
     secondaryKeywords: ["intégration HubSpot Pennylane", "connecter HubSpot à Pennylane", "HubSpot Pennylane réconciliation", "CRM et comptabilité Pennylane"],
-    title: "HubSpot et Pennylane : connecter le CRM à la facturation et réconcilier le revenu",
+    title: "Intégration HubSpot Pennylane : réconcilier CRM et facturation",
     description:
-      "Connecter HubSpot et Pennylane ne suffit pas : il faut réconcilier les deals signés avec les factures émises et les paiements. Ce que fait l'intégration native, ce qu'elle ne fait pas, et comment Revold mesure l'écart signé / facturé / encaissé.",
+      "Intégration HubSpot Pennylane : ce que fait le connecteur natif, ce qu'il ne fait pas, et comment réconcilier deals signés, factures et paiements par SIREN.",
     h1: "HubSpot et Pennylane :",
     h1Accent: "du deal signé à la facture encaissée",
     answer:
@@ -979,7 +979,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "hubspot-stripe",
     keyword: "HubSpot et Stripe",
     secondaryKeywords: ["intégration HubSpot Stripe", "connecter HubSpot à Stripe", "MRR HubSpot Stripe", "abonnements Stripe CRM"],
-    title: "HubSpot et Stripe : réconcilier les deals du CRM avec les abonnements et paiements",
+    title: "Intégration HubSpot Stripe : MRR et churn lus avec le CRM",
     description:
       "Connecter HubSpot et Stripe pour lire MRR, churn et encaissements avec les deals du CRM : ce que fait l'intégration native, ses limites, et comment Revold rapproche les deux outils par entreprise.",
     h1: "HubSpot et Stripe :",
@@ -1033,9 +1033,9 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "hubspot-sage",
     keyword: "HubSpot et Sage",
     secondaryKeywords: ["intégration HubSpot Sage", "connecter HubSpot à Sage", "HubSpot Sage 100 facturation", "CRM ERP réconciliation"],
-    title: "HubSpot et Sage : rapprocher le CRM et la comptabilité sans intégrateur",
+    title: "Intégration HubSpot Sage : rapprocher CRM et comptabilité",
     description:
-      "Connecter HubSpot et Sage demande souvent un connecteur ou un intégrateur. Revold lit les deux outils en lecture seule, rapproche les clients par SIREN et mesure l'écart entre deals signés, factures Sage et encaissements.",
+      "HubSpot et Sage sans intégrateur : lecture seule des deux outils, rapprochement des clients par SIREN, écart entre deals signés, factures Sage et encaissements.",
     h1: "HubSpot et Sage :",
     h1Accent: "le CRM et la compta rapprochés par SIREN",
     answer:
@@ -1083,9 +1083,9 @@ export const KEYWORD_PAGES: KeywordPage[] = [
     slug: "audit-crm-hubspot",
     keyword: "Audit CRM HubSpot",
     secondaryKeywords: ["nettoyer CRM HubSpot", "doublons HubSpot", "qualité des données HubSpot", "audit de données CRM", "contacts sans entreprise HubSpot"],
-    title: "Audit CRM HubSpot : la checklist en 12 points et l'audit automatique",
+    title: "Audit CRM HubSpot : la checklist en 12 points",
     description:
-      "Auditer son CRM HubSpot : complétude des propriétés, doublons, contacts sans entreprise, deals sans montant ou sans date, pipelines stagnants. Checklist en 12 points et audit automatique continu avec Revold.",
+      "Audit CRM HubSpot : complétude, doublons, contacts sans entreprise, deals sans montant ou sans date, stagnants. Checklist en 12 points et audit automatique continu.",
     h1: "Audit CRM HubSpot :",
     h1Accent: "12 points à vérifier, puis un audit qui tourne seul",
     answer:

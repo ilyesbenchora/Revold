@@ -28,7 +28,7 @@ export const TOOLS: ToolPage[] = [
     name: "Calculateur MRR",
     keyword: "Calculateur MRR",
     secondaryKeywords: ["calcul MRR", "MRR formule", "calculateur ARR", "revenu mensuel récurrent", "net new MRR"],
-    title: "Calculateur MRR gratuit : MRR, ARR et Net New MRR en quelques secondes",
+    title: "Calculateur MRR gratuit : calcul MRR, ARR et Net New MRR",
     description:
       "Calculez votre MRR, votre ARR et votre Net New MRR à partir de vos abonnements : nouveaux clients, expansion, contraction, churn. Formules expliquées, calculateur gratuit, sans inscription.",
     answer:
@@ -49,7 +49,7 @@ export const TOOLS: ToolPage[] = [
     name: "Calculateur de churn",
     keyword: "Calcul du taux de churn",
     secondaryKeywords: ["calculateur churn", "taux d'attrition formule", "churn revenu", "churn client", "NRR calcul"],
-    title: "Calculateur de churn gratuit : churn client, churn revenu et rétention nette",
+    title: "Calculateur churn gratuit : calcul churn client, revenu et NRR",
     description:
       "Calculez votre taux de churn client, votre churn revenu (MRR) et votre rétention nette (NRR) sur une période. Formules, interprétation et calculateur gratuit.",
     answer:
@@ -70,7 +70,7 @@ export const TOOLS: ToolPage[] = [
     name: "Calculateur de forecast pondéré",
     keyword: "Forecast pondéré",
     secondaryKeywords: ["calcul forecast pondéré", "prévision des ventes pondérée", "pipeline pondéré", "forecast par étape"],
-    title: "Calculateur de forecast pondéré : votre pipeline × probabilité d'étape",
+    title: "Calculateur forecast pondéré : pipeline × probabilité d'étape",
     description:
       "Saisissez vos étapes de pipeline, leurs probabilités et le montant des deals : le calculateur donne le forecast pondéré de la période. Méthode, pièges (dates, stagnants) et outil gratuit.",
     answer:
@@ -91,7 +91,7 @@ export const TOOLS: ToolPage[] = [
     name: "Estimateur de fuite de revenus",
     keyword: "Estimation de la fuite de revenus",
     secondaryKeywords: ["revenue leakage calcul", "revenus non facturés estimation", "écart signé facturé", "perte de revenu facturation"],
-    title: "Estimateur de fuite de revenus : combien de revenu signé n'est jamais encaissé ?",
+    title: "Estimateur de fuite de revenus : signé, facturé, encaissé",
     description:
       "Estimez la fuite de revenus de votre entreprise à partir du signé, du facturé et de l'encaissé : deals sans facture, écarts de montant, factures en retard. Ordres de grandeur, méthode et estimateur gratuit.",
     answer:
