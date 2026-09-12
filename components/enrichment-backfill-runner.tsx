@@ -119,6 +119,12 @@ export function EnrichmentBackfillRunner({
   const [covered, setCovered] = useState<string[]>([]);
   const [session, setSession] = useState({ identities: 0, candidates: 0, facts: 0, duplicates: 0 });
   const [notice, setNotice] = useState<string | null>(null);
+  // Récap de complétion (100 %) : refermable. On mémorise l'id de la passe
+  // acquittée → le récap réapparaît à la prochaine passe terminée, jamais après.
+  const [dismissedRecap, setDismissedRecap] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return localStorage.getItem("revold:enrich-recap-dismissed"); } catch { return null; }
+  });
 
   // ── Passe en cours (fenêtre de complétion) ──
   const [modalOpen, setModalOpen] = useState(false);
@@ -356,6 +362,32 @@ export function EnrichmentBackfillRunner({
   const sessionTotal = session.identities + session.facts + session.candidates + session.duplicates;
   const historyRuns = (runs ?? []).slice(0, 8);
 
+  // ── État « terminé » (100 %) : on masque la jauge (%, barre, statut chiffré)
+  // et on affiche un RÉCAP par donnée enrichie, refermable. ──
+  const lastDone = (runs ?? []).find((r) => r.status !== "running" && !r.derived) ?? (runs ?? [])[0] ?? null;
+  const fullyDone = status != null && activated && !inProgress && !runningRef.current && pct >= 100;
+  const showRecap = fullyDone && !!lastDone && dismissedRecap !== lastDone.id;
+  const dismissRecap = () => {
+    if (!lastDone) return;
+    setDismissedRecap(lastDone.id);
+    try { localStorage.setItem("revold:enrich-recap-dismissed", lastDone.id); } catch {}
+  };
+  // Lignes du récap : par donnée enrichie — couverture actuelle (% de complétion)
+  // + gain de la dernière passe (« +N », « nouvelle donnée » si partie de zéro).
+  const recapRows = fullyDone
+    ? activeFieldIds
+        .map((k) => {
+          const count = Number(status?.fieldCounts?.[k] ?? 0);
+          const totalRows = status?.total ?? 0;
+          const delta = Number(lastDone?.stats?.[`field_${k}`] ?? 0);
+          const pctNow = totalRows > 0 ? Math.round((count / totalRows) * 100) : null;
+          const pctGain = totalRows > 0 ? Math.round((delta / totalRows) * 100) : null;
+          const fromZero = delta > 0 && count > 0 && count === delta;
+          return { k, label: FIELD_LABEL[k] ?? k, count, pctNow, delta, pctGain, fromZero };
+        })
+        .filter((r) => r.count > 0 || r.delta > 0)
+    : [];
+
   return (
     <>
       <div className="card border-fuchsia-200/70 bg-gradient-to-r from-fuchsia-50/50 via-white to-white p-4">
@@ -448,7 +480,7 @@ export function EnrichmentBackfillRunner({
           {/* % et barre de complétion : UNIQUEMENT une fois l'enrichissement
               lancé — avant le premier « Enrichir mon CRM », un 0 % serait un
               faux signal d'échec sur un moteur qui n'a jamais tourné. */}
-          {status != null && (activated || runningRef.current) && (
+          {status != null && (activated || runningRef.current) && !fullyDone && (
             <p className="shrink-0 text-right text-xs text-slate-500">
               <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
@@ -462,7 +494,7 @@ export function EnrichmentBackfillRunner({
           )}
         </div>
 
-        {(activated || runningRef.current) && (
+        {(activated || runningRef.current) && !fullyDone && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className={`h-full rounded-full bg-gradient-to-r from-fuchsia-600 to-pink-600 transition-all duration-700 ${inProgress ? "animate-pulse" : ""}`}
@@ -477,11 +509,59 @@ export function EnrichmentBackfillRunner({
         {status != null && sessionTotal > 0 && (inProgress || runningRef.current) && (
           <p className="mt-1.5 text-[11px] text-fuchsia-600">+{sessionTotal} pendant cette passe</p>
         )}
-        {status != null && activated && !inProgress && !runningRef.current && (() => {
-          // Récap visible dès qu'aucune passe ne tourne — même avec un
-          // reliquat de file (re-scan 30 j / rafraîchissement 90 j).
-          const lastDone = (runs ?? []).find((r) => r.status !== "running" && !r.derived) ?? (runs ?? [])[0];
-          if (!lastDone) return null;
+        {/* 100 % : RÉCAP détaillé par donnée enrichie (couverture + gain),
+            refermable → on retombe alors sur le bloc normal (statut + CTA). */}
+        {showRecap && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-emerald-800">✓ Enrichissement terminé — récap</p>
+                <p className="mt-0.5 text-[10px] text-emerald-700">
+                  Dernière passe {dateTimeFr(lastDone!.started_at)} · {fmt(status?.total)} fiches au périmètre.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={dismissRecap}
+                aria-label="Fermer le récap"
+                title="Fermer le récap"
+                className="shrink-0 rounded-md p-1 text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-800"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {recapRows.length > 0 ? (
+              <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                {recapRows.map((r) => (
+                  <li key={r.k} className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2.5 py-1.5">
+                    <span className="text-[11px] font-medium text-slate-700">{r.label}</span>
+                    <span className="flex items-center gap-1.5 text-right">
+                      <span className="text-[11px] tabular-nums text-slate-600">
+                        {fmt(r.count)} fiches{r.pctNow != null && <span className="text-slate-400"> · {r.pctNow}%</span>}
+                      </span>
+                      {r.delta > 0 && (
+                        r.fromZero ? (
+                          <span className="rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-700">nouvelle donnée +{fmt(r.delta)}</span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">+{fmt(r.delta)}{r.pctGain ? ` · +${r.pctGain}%` : ""}</span>
+                        )
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-[11px] text-slate-500">
+                {(() => {
+                  const parts = runStatsParts(lastDone!.stats ?? {});
+                  return parts.length > 0 ? parts.join(" · ") : "Base déjà complète — aucune nouvelle donnée sur cette passe.";
+                })()}
+              </p>
+            )}
+          </div>
+        )}
+        {/* Reliquat (pas 100 %, aucune passe active) : récap une ligne discret. */}
+        {status != null && activated && !inProgress && !runningRef.current && !fullyDone && lastDone && (() => {
           const parts = runStatsParts(lastDone.stats ?? {});
           return (
             <p className="mt-1.5 text-[11px] text-slate-500">
@@ -534,14 +614,24 @@ export function EnrichmentBackfillRunner({
                   Première passe faite : la synchronisation couvre désormais chaque nouvelle entreprise, sans action de
                   ta part.
                 </p>
-                {inactiveFieldIds.length > 0 && (
-                  <Link
-                    href="/dashboard/parametres/enrichissement"
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={runningRef.current}
+                    onClick={() => void startPass()}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:opacity-60"
                   >
-                    ＋ Ajouter des données
-                  </Link>
-                )}
+                    Relancer la détection
+                  </button>
+                  {inactiveFieldIds.length > 0 && (
+                    <Link
+                      href="/dashboard/parametres/enrichissement"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
+                    >
+                      ＋ Ajouter des données
+                    </Link>
+                  )}
+                </div>
               </>
             )}
           </div>
