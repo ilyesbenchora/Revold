@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { TrackingVerification, type TrackingProposal } from "@/components/tracking-verification";
 import { DictationButton } from "@/components/voice/dictation-button";
 import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
+import { NumberInput } from "@/components/ui/number-input";
 
 const TEAMS = [
   { id: "sales", label: "Ventes" },
@@ -217,7 +218,7 @@ export function CreateObjectiveModal() {
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <div><label className={lbl}>Cible<span className="ml-1 text-red-500">*</span></label><input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="200000" className={field} required /></div>
+              <div><label className={lbl}>Cible<span className="ml-1 text-red-500">*</span></label><NumberInput value={target} onChange={setTarget} placeholder="200 000" required className="mt-0.5 w-full rounded-lg border border-slate-200 px-3.5 py-3 text-base outline-none focus:border-accent focus:ring-1 focus:ring-accent" /></div>
               <div>
                 <label className={lbl}>Unité</label>
                 <div className="mt-0.5 flex overflow-hidden rounded-lg border border-slate-200">
@@ -237,7 +238,7 @@ export function CreateObjectiveModal() {
             </div>
 
             {!forecast && (
-              <div><label className={lbl}>Valeur actuelle (manuelle)<span className="ml-1 text-red-500">*</span></label><input type="number" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} required /></div>
+              <div><label className={lbl}>Valeur actuelle (manuelle)<span className="ml-1 text-red-500">*</span></label><NumberInput value={current} onChange={setCurrent} required className="mt-0.5 w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" /></div>
             )}
 
             <div className="grid grid-cols-2 gap-3">

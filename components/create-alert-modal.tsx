@@ -7,6 +7,7 @@ import { TrackingVerification, type TrackingProposal } from "@/components/tracki
 import { DictationButton } from "@/components/voice/dictation-button";
 import { teams, kpisByTeam, unitLabels, type KpiDef } from "@/lib/alerts/kpi-catalog";
 import { CrmUserPicker } from "@/components/crm-user-picker";
+import { NumberInput } from "@/components/ui/number-input";
 
 type ToolOption = { key: string; label: string; icon: string; category?: string };
 
@@ -538,10 +539,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           KPI à surveiller{crossSources.length > 0 ? ` — ${dataSources.find((t) => t.key === crossSources[0])?.label ?? "1ʳᵉ source"}` : ""}<span className="ml-1 text-red-500">*</span>
                         </label>
                         <div className="flex items-center gap-2">
-                          <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)}
-                            placeholder={unitMode === "currency" ? "50000" : unitMode === "percent" ? "35" : "10"}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
-                          <span className="text-sm font-semibold text-slate-500">{unitLabels[unitMode]}</span>
+                          <NumberInput value={threshold} onChange={setThreshold}
+                            placeholder={unitMode === "currency" ? "50 000" : unitMode === "percent" ? "35" : "10"}
+                            className="w-full rounded-lg border border-slate-200 px-3.5 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                          <span className="shrink-0 text-sm font-semibold text-slate-500">{unitLabels[unitMode]}</span>
                         </div>
                       </div>
 
@@ -577,10 +578,10 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                                       KPI <BrandLogo domain={toolDomain(key)} alt={label} fallback={icon} size={13} /> {label}
                                     </label>
                                     <div className="flex items-center gap-1.5">
-                                      <input type="number" step="any" value={sk.value}
-                                        onChange={(e) => setSourceKpi(key, { value: e.target.value })}
+                                      <NumberInput value={sk.value}
+                                        onChange={(v) => setSourceKpi(key, { value: v })}
                                         placeholder="Ex : 20"
-                                        className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
+                                        className="w-40 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
                                       <div className="flex overflow-hidden rounded-lg border border-slate-200">
                                         {(["percent", "currency", "count"] as const).map((u) => (
                                           <button key={u} type="button" onClick={() => setSourceKpi(key, { unit: u })}

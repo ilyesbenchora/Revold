@@ -8,6 +8,7 @@ import { DictationButton } from "@/components/voice/dictation-button";
 import { WiredToolsRow } from "@/components/wired-tools-row";
 import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
 import { supportedOwnerObjects, OWNER_OBJECT_LABEL } from "@/lib/crm/owner-scope";
+import { NumberInput } from "@/components/ui/number-input";
 
 /** Entités dont les données portent un owner HubSpot → ciblage par utilisateur CRM possible. */
 const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets", "companies"]);
@@ -609,7 +610,7 @@ export function SurgicalAlertButton({
                 <div>
                   <label className={lbl}>KPI à surveiller<span className="ml-1 text-red-500">*</span></label>
                   <div className="flex items-center gap-1.5">
-                    <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="Ex : 20" className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100" />
+                    <NumberInput value={threshold} onChange={setThreshold} placeholder="Ex : 20" className="w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100" />
                     <div className="flex overflow-hidden rounded-lg border border-slate-200">
                       {(["percent", "currency", "count"] as const).map((u) => (
                         <button key={u} type="button" onClick={() => setUnit(u)} className={`px-2.5 py-1.5 text-xs font-medium transition ${unit === u ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{unitSym(u)}</button>
@@ -630,7 +631,7 @@ export function SurgicalAlertButton({
                     </label>
                     {second && (
                       <div className="mt-2 flex items-center gap-1.5">
-                        <input type="number" step="any" value={threshold2} onChange={(e) => setThreshold2(e.target.value)} placeholder="Ex : 15" className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100" />
+                        <NumberInput value={threshold2} onChange={setThreshold2} placeholder="Ex : 15" className="w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100" />
                         <div className="flex overflow-hidden rounded-lg border border-slate-200">
                           {(["percent", "currency", "count"] as const).map((u) => (
                             <button key={u} type="button" onClick={() => setUnit2(u)} className={`px-2.5 py-1.5 text-xs font-medium transition ${unit2 === u ? "bg-fuchsia-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{unitSym(u)}</button>
