@@ -672,19 +672,29 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   }, []);
   useEffect(() => () => { stopAudioLevel(); recRef.current?.stop(); }, [stopAudioLevel]);
 
-  /* ── Brief du jour (déterministe, lu à voix haute) ── */
-  const runBrief = useCallback(async () => {
+  /* ── Brief du jour (déterministe, lu à voix haute).
+        opts.delta : l'orbe est VERTE alors que le brief du jour a déjà été
+        écouté → on ne lit QUE ce qui vient d'être atteint/exécuté (sections
+        d'accomplissement, déjà filtrées par les acquittements côté serveur),
+        jamais le brief global une deuxième fois. ── */
+  const runBrief = useCallback(async (opts?: { delta?: boolean }) => {
+    // Sections d'accomplissement = celles qui produisent des clés d'orbe verte.
+    const ACHIEVEMENT_SECTIONS = ["objectives_reached", "actions_done", "enrichment"];
+    const allSections = briefSectionsParam(readTowerSettings());
+    const deltaSections = allSections.split(",").filter((s) => ACHIEVEMENT_SECTIONS.includes(s));
+    const delta = opts?.delta === true && !veille && deltaSections.length > 0;
     setStatus("thinking");
-    setCaption(veille ? "Brief (mode veille)…" : "Je prépare ton brief…");
+    setCaption(veille ? "Brief (mode veille)…" : delta ? "Je regarde ce qui est nouveau…" : "Je prépare ton brief…");
     // La voix démarre TOUT DE SUITE (phrase courte, générée en ~1 s) pendant
     // que le brief se prépare (narration + synthèse longue) — plus de silence
     // de plusieurs secondes après le clic. Coupée net quand le brief est prêt.
-    speak(veille ? "Je vérifie les exceptions." : "Je te prépare ton brief du jour.");
+    speak(veille ? "Je vérifie les exceptions." : delta ? "Je regarde ce qui est nouveau." : "Je te prépare ton brief du jour.");
     try {
       // Contenu du brief personnalisé (Paramètres → Tour de contrôle).
       const params = new URLSearchParams();
       if (veille) params.set("mode", "veille");
-      params.set("sections", briefSectionsParam(readTowerSettings()));
+      params.set("sections", delta ? deltaSections.join(",") : allSections);
+      if (delta) params.set("delta", "1");
       // Accomplissements déjà entendus : le digest ne les répète pas, il
       // n'annonce que les NOUVELLES atteintes/exécutions.
       params.set("ack", [...readBriefAck()].join(","));
@@ -710,9 +720,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       // de nouveau. La fenêtre « à traiter » s'ouvre à côté de l'orbe.
       const todos = todosOf(d);
       const kpis = kpisOf(d);
-      if (d.text) {
+      if (d.text && !delta) {
         // Tuiles KPI mémorisées AVEC le brief : la réécoute ↺ rejoue aussi le
-        // rapport visuel, pas seulement la voix et les actions.
+        // rapport visuel, pas seulement la voix et les actions. Une lecture
+        // DELTA (nouveautés seules) n'écrase pas le brief complet en cache.
         writeLastBrief(d.text, todos, kpis);
         setLastBriefAt(Date.now());
       }
@@ -1418,9 +1429,12 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
               du NOUVEAU (orbe verte) ; sinon il se replie en icône ↺ épurée de
               réécoute — le CTA plein réapparaît avec la prochaine nouveauté. */}
           {settings.brief && (achieved || !lastBriefAt || Date.now() - lastBriefAt > LAST_BRIEF_TTL_MS ? (
+            /* Orbe verte APRÈS un brief déjà écouté = du nouveau vient de
+               tomber → la lecture ne porte QUE sur les nouveautés (delta),
+               jamais le brief global une deuxième fois. */
             <button
               type="button"
-              onClick={() => void runBrief()}
+              onClick={() => void runBrief(achieved && lastBriefAt != null && Date.now() - lastBriefAt <= LAST_BRIEF_TTL_MS ? { delta: true } : undefined)}
               disabled={busy || status === "listening"}
               className={`rounded-md border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
                 isLight
@@ -1428,7 +1442,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
                   : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
               }`}
             >
-              Brief du jour
+              {achieved && lastBriefAt != null && Date.now() - lastBriefAt <= LAST_BRIEF_TTL_MS ? "Quoi de neuf" : "Brief du jour"}
             </button>
           ) : (
             <button

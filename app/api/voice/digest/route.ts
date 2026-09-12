@@ -80,6 +80,10 @@ export async function GET(request: Request) {
   // par le polling de statut de l'orbe (anneau de santé), qui doit rester
   // instantané et gratuit.
   const narrate = url.searchParams.get("narrate") === "1";
+  // delta=1 : lecture « quoi de neuf » (orbe verte après un brief déjà écouté)
+  // → UNIQUEMENT ce qui vient d'être atteint/exécuté, jamais les états en
+  // cours (fiches restantes…) ni le brief global.
+  const delta = url.searchParams.get("delta") === "1";
   // Accomplissements DÉJÀ ENTENDUS (clés acquittées par l'orbe) : jamais
   // répétés — le brief n'annonce que les nouvelles atteintes/exécutions.
   const ack = new Set((url.searchParams.get("ack") ?? "").split(",").filter(Boolean));
@@ -258,7 +262,11 @@ export async function GET(request: Request) {
         .eq("status", "executed")
         .gte("decided_at", since)
         .limit(500);
-      const rows = (doneRows ?? []) as Array<{ title: string | null; decided_by: string | null; decided_at: string | null }>;
+      // Une action validée PAR L'AUDITEUR lui-même n'est pas une nouvelle pour
+      // lui (il vient de la faire, ex. validation de hiérarchie) : le brief
+      // n'annonce que l'automatique et ce que les AUTRES ont exécuté.
+      const rows = ((doneRows ?? []) as Array<{ title: string | null; decided_by: string | null; decided_at: string | null }>)
+        .filter((r) => r.decided_by !== user.id);
       actionsDone = rows.length;
       actionsAuto = rows.filter((r) => !r.decided_by).length;
       actionsSample = rows.map((r) => r.title?.trim()).filter((t): t is string => !!t).slice(0, 2);
@@ -532,7 +540,7 @@ export async function GET(request: Request) {
     if (sections.has("enrichment") && enrichmentActivated && enrichmentRemaining != null) {
       if (enrichmentRemaining === 0 && enrichmentDone > 0 && !ack.has(`enrichment:${new Date().toISOString().slice(0, 10)}`)) {
         parts.push(`Sur la donnée : enrichissement terminé sur ${crmLabel ?? "ton CRM"}, ${enrichmentDone} entreprise${enrichmentDone > 1 ? "s" : ""} identifiée${enrichmentDone > 1 ? "s" : ""} via l'API Sirene — plus rien en attente.`);
-      } else if (enrichmentRemaining > 0) {
+      } else if (!delta && enrichmentRemaining > 0) {
         parts.push(`Sur la donnée : enrichissement en cours, ${enrichmentRemaining} fiche${enrichmentRemaining > 1 ? "s" : ""} ${crmLabel ? `${crmLabel} ` : ""}encore à traiter.`);
       }
     }
@@ -636,7 +644,7 @@ export async function GET(request: Request) {
     // Opt-in jamais donné : aucune action d'enrichissement — le panneau ne
     // reflète que ce que le brief a réellement annoncé (sections de la Tour
     // de contrôle), jamais les paramètres d'enrichissement.
-    if (sections.has("enrichment") && enrichmentActivated && (enrichmentRemaining ?? 0) > 0) {
+    if (!delta && sections.has("enrichment") && enrichmentActivated && (enrichmentRemaining ?? 0) > 0) {
       todos.push({
         key: "enrichment",
         label: `${enrichmentRemaining} fiche${(enrichmentRemaining ?? 0) > 1 ? "s" : ""} ${crmLabel ?? "CRM"} à enrichir`,
