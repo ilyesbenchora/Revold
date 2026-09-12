@@ -53,8 +53,9 @@ export const PLANS: Record<PlanKey, Plan> = {
     monthlyPrice: 79.9,
     yearlyPrice: 799,
     description: "Pour les équipes qui démarrent leur journey RevOps",
-    // Pas de routines programmées sur Starter (feature "routines" absente).
-    features: ["weekly_pulse", "metrics_essential"],
+    // Starter inclut désormais les routines/récaps programmés et la tour de
+    // contrôle vocale (seul gate runtime réel : voice_control_tower).
+    features: ["weekly_pulse", "metrics_essential", "routines", "voice_control_tower"],
     maxConnectors: 3,
     featured: false,
   },
