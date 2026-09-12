@@ -61,13 +61,26 @@ export async function GET() {
       .is("siren", null)
       .not("candidate_siren", "is", null)
       .order("candidate_revenue", { ascending: false, nullsFirst: false })
-      .limit(500);
+      .limit(2000);
 
   // Colonnes de faits d'une migration récente → repli sur les colonnes de base.
   let { data: queued, error } = await fetchQueue(COLS_FULL);
   if (error) ({ data: queued, error } = await fetchQueue(COLS_BASE));
   // Colonnes candidate_* absentes (migration non appliquée) → file vide.
-  if (error) return NextResponse.json({ proposals: [], unavailable: true });
+  if (error) return NextResponse.json({ proposals: [], total: 0, unavailable: true });
+
+  // Total EXACT de la file — le compteur du bloc doit être CORRÉLÉ à la tuile
+  // « Identités à valider » (même filtre), même si la liste est plafonnée.
+  let total = 0;
+  try {
+    const { count } = await supabase
+      .from("companies")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .is("siren", null)
+      .not("candidate_siren", "is", null);
+    total = count ?? 0;
+  } catch { /* repli : longueur de la liste */ }
 
   const proposals: ProposalOut[] = [];
   for (const row of (queued ?? []) as unknown as Record<string, unknown>[]) {
@@ -91,7 +104,7 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ proposals });
+  return NextResponse.json({ proposals, total: Math.max(total, proposals.length) });
 }
 
 export async function POST(request: Request) {

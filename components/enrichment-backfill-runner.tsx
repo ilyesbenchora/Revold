@@ -454,7 +454,7 @@ export function EnrichmentBackfillRunner({
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
               {(inProgress || runningRef.current) && etaMin != null ? (
                 <span className="block font-medium text-fuchsia-600">≈ {etaMin} min restante{etaMin > 1 ? "s" : ""}</span>
-              ) : activated && remaining === 0 && !runningRef.current ? (
+              ) : activated && !inProgress && !runningRef.current && pct >= 100 ? (
                 // 100 % : plus d'estimation — statut TERMINÉ à la place.
                 <span className="block font-medium text-emerald-600">✓ Terminé</span>
               ) : null}
@@ -477,7 +477,9 @@ export function EnrichmentBackfillRunner({
         {status != null && sessionTotal > 0 && (inProgress || runningRef.current) && (
           <p className="mt-1.5 text-[11px] text-fuchsia-600">+{sessionTotal} pendant cette passe</p>
         )}
-        {status != null && activated && remaining === 0 && !inProgress && !runningRef.current && (() => {
+        {status != null && activated && !inProgress && !runningRef.current && (() => {
+          // Récap visible dès qu'aucune passe ne tourne — même avec un
+          // reliquat de file (re-scan 30 j / rafraîchissement 90 j).
           const lastDone = (runs ?? []).find((r) => r.status !== "running" && !r.derived) ?? (runs ?? [])[0];
           if (!lastDone) return null;
           const parts = runStatsParts(lastDone.stats ?? {});

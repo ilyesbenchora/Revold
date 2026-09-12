@@ -40,6 +40,9 @@ export function CompanyEnrichmentBlock() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  // Total EXACT de la file côté serveur (la liste peut être plafonnée) —
+  // c'est LUI qui est affiché : même chiffre que la tuile « Identités à valider ».
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ applied: number; pushedToHubspot: number } | null>(null);
@@ -54,6 +57,7 @@ export function CompanyEnrichmentBlock() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Chargement impossible");
       setProposals((d.proposals ?? []) as Proposal[]);
+      setTotal(typeof d.total === "number" ? d.total : (d.proposals ?? []).length);
       setSelected(new Set());
       setPage(0);
     } catch (e) {
@@ -79,6 +83,7 @@ export function CompanyEnrichmentBlock() {
       if (!res.ok) return;
       const next = (d.proposals ?? []) as Proposal[];
       setProposals(next);
+      setTotal(typeof d.total === "number" ? d.total : next.length);
       setSelected((prev) => new Set([...prev].filter((id) => next.some((p) => p.companyId === id))));
     } catch { /* prochain lot */ }
   }, []);
@@ -123,6 +128,7 @@ export function CompanyEnrichmentBlock() {
       if (!res.ok) throw new Error(d.error || "Application impossible");
       setResult({ applied: d.applied ?? 0, pushedToHubspot: d.pushedToHubspot ?? 0 });
       setProposals((prev) => prev.filter((p) => !selected.has(p.companyId)));
+      setTotal((t) => Math.max(0, t - items.length));
       setSelected(new Set());
       router.refresh(); // tuiles de couverture
     } catch (e) {
@@ -161,9 +167,9 @@ export function CompanyEnrichmentBlock() {
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900">
             Identités à valider
-            {proposals.length > 0 && (
+            {Math.max(total, proposals.length) > 0 && (
               <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                {proposals.length}
+                {Math.max(total, proposals.length).toLocaleString("fr-FR")}
               </span>
             )}
           </h3>
@@ -263,6 +269,7 @@ export function CompanyEnrichmentBlock() {
                 </select>
                 <span className="text-slate-400">
                   {current * pageSize + 1}–{Math.min((current + 1) * pageSize, proposals.length)} sur {proposals.length}
+                  {total > proposals.length && <> — file totale : {total.toLocaleString("fr-FR")} (les plus grosses d&apos;abord)</>}
                 </span>
               </div>
               {pageCount > 1 && (
