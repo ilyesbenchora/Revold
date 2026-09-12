@@ -103,7 +103,8 @@ export function AgentInsightsCounts({
    *  ou « discussions faites » (agents experts de Mon équipe IA). */
   discussionsLabel?: string;
   /** Mode CARTE COMPACTE (home) : icône + nombre seulement (libellé en
-   *  tooltip), sans le compteur de séances — pour tenir dans la petite carte. */
+   *  tooltip) ; n'affiche que alertes et routines (séances, suggestions et
+   *  actions masquées) — pour tenir dans la petite carte. */
   compact?: boolean;
 }) {
   const router = useRouter();
@@ -125,7 +126,10 @@ export function AgentInsightsCounts({
     router.push(`/dashboard/agents/${agentKey}?tab=${tab}`);
   }
 
-  const items = compact ? ITEMS.filter((it) => it.key !== "discussions") : ITEMS;
+  // Home (compact) : on masque séances, suggestions et actions — la carte ne
+  // met en avant que les alertes et les routines de l'agent.
+  const HOME_HIDDEN = new Set<keyof Counts>(["discussions", "suggestions", "actions"]);
+  const items = compact ? ITEMS.filter((it) => !HOME_HIDDEN.has(it.key)) : ITEMS;
 
   return (
     <div className={`flex flex-wrap gap-1.5 ${compact ? "justify-center" : ""}`}>
