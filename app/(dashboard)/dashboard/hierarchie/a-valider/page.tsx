@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
@@ -93,7 +94,15 @@ export default async function HierarchiePage() {
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Hiérarchie comptes</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold text-slate-900">Hiérarchie comptes</h1>
+          <Link
+            href="/dashboard/hierarchie/contacts-sans-entreprise"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
+          >
+            Contacts sans entreprise →
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-slate-500">
           Les groupes multi-sociétés de ton portefeuille, détectés sur <span className="font-medium text-slate-700">toute la base</span> :
           facture émise par une autre entité que celle qui a signé (correspondance de montant) et fiches qui

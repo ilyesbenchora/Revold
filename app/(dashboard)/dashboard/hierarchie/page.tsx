@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
@@ -163,15 +162,7 @@ export default async function GroupesDeclaresPage() {
   return (
     <section className="space-y-6">
       <header>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold text-slate-900">Hiérarchie comptes</h1>
-          <Link
-            href="/dashboard/hierarchie/contacts-sans-entreprise"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
-          >
-            Contacts sans entreprise →
-          </Link>
-        </div>
+        <h1 className="text-2xl font-semibold text-slate-900">Hiérarchie comptes</h1>
         <p className="mt-1 text-sm text-slate-500">
           Les groupes multi-sociétés déjà déclarés dans ton CRM — holding, filiales et montants des deals associés,
           consolidés par groupe. La validation des nouvelles suggestions se fait dans l&apos;onglet{" "}
