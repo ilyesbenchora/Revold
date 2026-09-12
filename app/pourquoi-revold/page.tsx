@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { ShotReconciliation, ShotAgents } from "@/components/site/product-shots";
 
 export const metadata: Metadata = {
-  title: "Pourquoi Revold — Revenue Intelligence pour le B2B français",
+  title: "Pourquoi Revold — Revenue Intelligence pour le B2B européen",
   description:
     "Multi-source, rapprochement automatique, équipe IA 24/7, actions exécutées dans vos outils : pourquoi Revold est différent des outils de reporting classiques.",
 };
@@ -24,7 +24,7 @@ const DIFFERENTIATORS = [
     statLabel: "connecteurs natifs",
   },
   {
-    title: "Rapprochement à la française",
+    title: "Rapprochement à l'européenne",
     desc: "Revold relie vos entreprises entre outils par leurs identifiants légaux — et remplit lui-même les identifiants manquants depuis les registres officiels, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
     stat: "3",
     statLabel: "identifiants légaux reconnus",
@@ -62,7 +62,7 @@ const PRINCIPLES = [
     desc: "La valeur n'est pas dans la donnée, mais dans le croisement entre les données. Un deal n'a de sens que croisé avec la facture et l'écriture comptable du même client — rapprochés automatiquement, quels que soient vos outils.",
   },
   {
-    title: "Preuve > Promesse",
+    title: "Fiabilité > Promesse",
     desc: "Aucun KPI, aucune alerte, aucun objectif n'est créé sans montrer d'abord la donnée réellement suivie, l'outil source et la valeur actuelle calculée. Les chiffres sont recalculés en déterministe — jamais inventés par l'IA.",
   },
   {
@@ -102,7 +102,7 @@ export default function PourquoiRevoldPage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
-              La plateforme de Revenue Intelligence construite pour le B2B français. Multi-source, rapprochée par
+              La plateforme de Revenue Intelligence construite pour le B2B européen. Multi-source, rapprochée par
               identifiants officiels, avec une équipe d&apos;agents IA disponible 24/7 — qui exécute les actions que vous
               validez, directement dans vos outils.
             </p>
@@ -236,12 +236,12 @@ export default function PourquoiRevoldPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
             <div>
-              <span className="text-sm font-semibold uppercase tracking-widest text-fuchsia-300">Made for France</span>
+              <span className="text-sm font-semibold uppercase tracking-widest text-fuchsia-300">Made for Europe</span>
               <h2 className="mt-4 text-2xl font-bold tracking-tight text-white md:text-4xl">
-                Construit pour le B2B français
+                Construit pour le B2B européen
               </h2>
               <p className="mt-4 leading-relaxed text-slate-400">
-                Les solutions de pilotage existantes sont souvent anglophones et calibrées pour les grands groupes. Le marché français des PME et ETI mérite un outil à sa mesure.
+                Les solutions de pilotage existantes sont souvent anglophones et calibrées pour les grands groupes. Le marché européen des PME et ETI mérite un outil à sa mesure.
               </p>
               <ul className="mt-8 space-y-4">
                 {[
