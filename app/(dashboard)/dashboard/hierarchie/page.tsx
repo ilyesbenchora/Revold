@@ -5,7 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
-import { HierarchieTabs } from "@/components/hierarchie-tabs";
+import { PageNavTabs } from "@/components/page-nav-tabs";
+import { HIERARCHIE_NAV } from "@/lib/settings/page-nav";
 import { HierarchyConsole } from "@/components/hierarchy-console";
 import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -115,7 +116,7 @@ export default async function HierarchiePage() {
         </p>
       </header>
 
-      <HierarchieTabs />
+      <PageNavTabs nav={HIERARCHIE_NAV} />
 
       {/* ── Tutoriel de prise en main (nouveaux comptes uniquement) ── */}
       <FeatureTour

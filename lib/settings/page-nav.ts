@@ -78,10 +78,25 @@ export const SERVICE_CLIENT_NAV: PageNavDef = {
   ],
 };
 
+/** Page Hiérarchie comptes (Enrichissement → hiérarchie). Section transverse :
+ * onglets standard « à valider » + « Groupes déclarés », pages custom ajoutables. */
+export const HIERARCHIE_NAV: PageNavDef = {
+  navKey: "hierarchie",
+  baseHref: "/dashboard/hierarchie",
+  basePageKey: "hierarchie",
+  team: "revops",
+  teamLabel: "Data / RevOps",
+  defaults: [
+    { slug: "", label: "Hiérarchies à valider" },
+    { slug: "groupes", label: "Groupes déclarés" },
+  ],
+};
+
 export const PAGE_NAVS: Record<string, PageNavDef> = {
   ventes: VENTES_NAV,
   marketing: MARKETING_NAV,
   service_client: SERVICE_CLIENT_NAV,
+  hierarchie: HIERARCHIE_NAV,
 };
 
 /** URL d'un onglet : racine, sous-page standard, ou page custom (/p/slug). */

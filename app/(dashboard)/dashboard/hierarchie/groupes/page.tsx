@@ -7,7 +7,8 @@ import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establis
 import { CollapsibleBlock } from "@/components/collapsible-block";
 import { GroupBigPicture, type BigPictureGroup } from "@/components/reconciliation/group-big-picture";
 import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
-import { HierarchieTabs } from "@/components/hierarchie-tabs";
+import { PageNavTabs } from "@/components/page-nav-tabs";
+import { HIERARCHIE_NAV } from "@/lib/settings/page-nav";
 
 /**
  * Hiérarchie comptes → GROUPES DÉCLARÉS : la vue « big picture » des groupes
@@ -103,7 +104,7 @@ export default async function GroupesDeclaresPage() {
         </p>
       </header>
 
-      <HierarchieTabs />
+      <PageNavTabs nav={HIERARCHIE_NAV} />
 
       {/* ── Tuiles de synthèse ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
