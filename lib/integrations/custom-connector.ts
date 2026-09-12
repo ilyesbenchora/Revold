@@ -11,7 +11,7 @@ import { getByPath } from "@/lib/integrations/sync/field-mapping";
  * RAPPROCHEMENT (companies.custom_id).
  */
 
-export type AuthType = "none" | "bearer" | "header" | "query" | "oauth2";
+export type AuthType = "none" | "bearer" | "header" | "query" | "oauth2" | "sftp";
 
 /** Config OAuth2 « client credentials » (M2M) — flux serveur-à-serveur des ERP/API métier. */
 export type OAuth2Config = {
@@ -560,26 +560,66 @@ export async function fetchPage(
   params: Record<string, string> = {},
   absoluteUrl?: string,
 ): Promise<FetchOutcome> {
-  let res: Response;
-  try {
-    const url = absoluteUrl ?? buildUrl(connector, path, params);
-    res = await fetch(url, {
-      headers: await buildHeaders(connector),
-      signal: AbortSignal.timeout(15_000),
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? `Appel impossible : ${e.message}` : "Appel impossible" };
-  }
-  const text = await res.text();
   let payload: unknown;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    return { ok: false, error: "La réponse n'est pas du JSON.", status: res.status, raw: text.slice(0, 500) };
+
+  // ── Source FICHIER par SFTP (base_url sftp://) : l'ERP dépose un export,
+  // Revold le lit en lecture seule et le parse selon son extension. ──
+  if (/^sftp:\/\//i.test(connector.base_url)) {
+    const src = await import("@/lib/integrations/custom-source");
+    const base = src.parseSftpBase(connector.base_url);
+    if (!base) return { ok: false, error: "URL SFTP invalide (sftp://hôte[:port]/)." };
+    if (!connector.auth_param || !connector.auth_value) {
+      return { ok: false, error: "SFTP : identifiant et mot de passe (ou clé) requis." };
+    }
+    const file = await src.fetchSftpFile(
+      { host: base.host, port: base.port, username: connector.auth_param, secret: connector.auth_value },
+      path,
+    );
+    if (!file.ok) return { ok: false, error: file.error };
+    const format = src.detectFormat(null, path);
+    try {
+      payload = src.parseByFormat(format, file.buf.toString("utf8"), file.buf);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? `Fichier illisible : ${e.message}` : "Fichier illisible" };
+    }
+  } else {
+    // ── Source API HTTP(S) : JSON par défaut, sinon XML/CSV/XLSX (parseur lourd
+    // chargé dynamiquement, jamais côté client). ──
+    let res: Response;
+    try {
+      const url = absoluteUrl ?? buildUrl(connector, path, params);
+      res = await fetch(url, {
+        headers: await buildHeaders(connector),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? `Appel impossible : ${e.message}` : "Appel impossible" };
+    }
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return { ok: false, error: `L'outil a répondu ${res.status}.`, status: res.status, raw: errText.slice(0, 500) };
+    }
+    const ct = res.headers.get("content-type");
+    const buf = Buffer.from(await res.arrayBuffer());
+    const text = buf.toString("utf8");
+    const { detectFormat } = await import("@/lib/integrations/custom-source");
+    const format = detectFormat(ct, absoluteUrl ?? path);
+    if (format === "json") {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        return { ok: false, error: "La réponse n'est pas du JSON.", status: res.status, raw: text.slice(0, 500) };
+      }
+    } else {
+      try {
+        const src = await import("@/lib/integrations/custom-source");
+        payload = src.parseByFormat(format, text, buf);
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? `Réponse illisible (${format}) : ${e.message}` : "Réponse illisible", status: res.status, raw: text.slice(0, 500) };
+      }
+    }
   }
-  if (!res.ok) {
-    return { ok: false, error: `L'outil a répondu ${res.status}.`, status: res.status, raw: payload };
-  }
+
   if (recordsPath) {
     const node = recordsPath ? getNode(payload, recordsPath) : payload;
     const rows = Array.isArray(node) ? (node.filter((r) => r && typeof r === "object") as Record<string, unknown>[]) : [];

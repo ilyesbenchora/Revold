@@ -23,6 +23,9 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Paquets Node (bindings/deps CommonJS lourdes) laissés HORS du bundle serveur
+  // Next : chargés à l'exécution via require — connecteur sur-mesure SFTP/Excel.
+  serverExternalPackages: ["ssh2-sftp-client", "ssh2", "xlsx"],
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

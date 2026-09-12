@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   }
 
   let baseUrl = (body.baseUrl ?? "").trim();
-  let authType = (body.authType ?? "none") as "none" | "bearer" | "header" | "query" | "oauth2";
+  let authType = (body.authType ?? "none") as "none" | "bearer" | "header" | "query" | "oauth2" | "sftp";
   let authParam = body.authParam ?? null;
   let authValue = body.authValue ?? null;
   let authConfig = (body.authConfig ?? null) as OAuth2Config | null;
@@ -71,8 +71,8 @@ export async function POST(request: Request) {
   }
 
   const path = (body.path ?? "").trim();
-  if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
-    return NextResponse.json({ error: "URL de base invalide (https://…)" }, { status: 400 });
+  if (!baseUrl || !/^(https?|sftp):\/\//i.test(baseUrl)) {
+    return NextResponse.json({ error: "URL de base invalide (https://… ou sftp://…)" }, { status: 400 });
   }
   if (!path) return NextResponse.json({ error: "Chemin de l'endpoint requis" }, { status: 400 });
 

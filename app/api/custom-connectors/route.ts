@@ -14,7 +14,7 @@ import { getToolKeys, setToolKeys } from "@/lib/integrations/tool-mappings";
 
 export const dynamic = "force-dynamic";
 
-const AUTH_TYPES = new Set(["none", "bearer", "header", "query", "oauth2"]);
+const AUTH_TYPES = new Set(["none", "bearer", "header", "query", "oauth2", "sftp"]);
 
 /** Nettoie la config OAuth2 soumise (client-credentials). */
 function cleanOAuthConfig(v: unknown): Record<string, unknown> | null {
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!/^https?:\/\//i.test(baseUrl)) return NextResponse.json({ error: "URL de base invalide (https://…)" }, { status: 400 });
+  if (!/^(https?|sftp):\/\//i.test(baseUrl)) return NextResponse.json({ error: "URL de base invalide (https://… ou sftp://…)" }, { status: 400 });
 
   const row: Record<string, unknown> = {
     organization_id: orgId,

@@ -396,7 +396,10 @@ export function CustomConnectorWizard({
                 text={"L'adresse Internet par laquelle on interroge le logiciel — différente de l'adresse où tes équipes se connectent.\n\nExemple : si tes équipes utilisent gaia.monentreprise.fr, l'API est souvent api.gaia.monentreprise.fr ou gaia.monentreprise.fr/api.\n\nOù la trouver : documentation « API » ou « développeurs » de l'outil, ou demande à son éditeur (message à copier en haut de page)."}
               />
             </label>
-            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.gaia.exemple.fr" className={`${field} mt-1 w-full`} />
+            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.gaia.exemple.fr — ou sftp://serveur.exemple.fr" className={`${field} mt-1 w-full`} />
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              API REST/JSON, XML/SOAP ou OData — ou <code className="rounded bg-slate-100 px-1">sftp://</code> si l&apos;ERP dépose un export CSV/Excel (choisis « Fichier SFTP » ci-dessous).
+            </p>
           </div>
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
@@ -411,23 +414,26 @@ export function CustomConnectorWizard({
               <option value="header">Clé dans un en-tête</option>
               <option value="query">Clé dans l&apos;URL</option>
               <option value="oauth2">OAuth2 (client ID + secret — ERP)</option>
+              <option value="sftp">Fichier SFTP (identifiant + mot de passe/clé)</option>
               <option value="none">Aucune</option>
             </select>
           </div>
-          {(authType === "header" || authType === "query") && (
+          {(authType === "header" || authType === "query" || authType === "sftp") && (
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                {authType === "header" ? "Nom de l'en-tête" : "Nom du paramètre"}
+                {authType === "header" ? "Nom de l'en-tête" : authType === "sftp" ? "Identifiant SFTP" : "Nom du paramètre"}
                 <InfoHint
                   wide
                   text={
                     authType === "header"
                       ? "L'étiquette sous laquelle envoyer la clé. L'éditeur te donne un nom précis, souvent X-API-Key, Api-Key ou Token. Recopie-le à l'identique (majuscules comprises)."
-                      : "Le nom du paramètre à ajouter à l'adresse, souvent api_key, key ou token. Exemple : ?api_key=abc123 → écris ici api_key."
+                      : authType === "sftp"
+                        ? "Le nom d'utilisateur du compte SFTP fourni par l'éditeur/DSI pour lire le dossier d'exports (lecture seule)."
+                        : "Le nom du paramètre à ajouter à l'adresse, souvent api_key, key ou token. Exemple : ?api_key=abc123 → écris ici api_key."
                   }
                 />
               </label>
-              <input value={authParam} onChange={(e) => setAuthParam(e.target.value)} placeholder="X-API-Key" className={`${field} mt-1 w-full`} />
+              <input value={authParam} onChange={(e) => setAuthParam(e.target.value)} placeholder={authType === "sftp" ? "utilisateur" : "X-API-Key"} className={`${field} mt-1 w-full`} />
             </div>
           )}
           {/* ── OAuth2 « client credentials » : jeton obtenu par Revold auprès du
@@ -467,17 +473,21 @@ export function CustomConnectorWizard({
           {authType !== "none" && authType !== "oauth2" && (
             <div className="md:col-span-2">
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                Clé / jeton
+                {authType === "sftp" ? "Mot de passe ou clé privée" : "Clé / jeton"}
                 <InfoHint
                   wide
-                  text={"La suite de caractères secrète fournie par l'éditeur (ex. sk_live_4f8a…). Demande une clé en LECTURE SEULE : Revold n'a jamais besoin de modifier les données de l'outil.\n\nElle est stockée de façon sécurisée et n'est plus jamais réaffichée. Pour la changer, il suffit d'en saisir une nouvelle."}
+                  text={
+                    authType === "sftp"
+                      ? "Le mot de passe du compte SFTP, OU la clé privée (colle le bloc PEM complet, de -----BEGIN…KEY----- à -----END…KEY-----). Compte en LECTURE SEULE de préférence. Stocké de façon sécurisée, jamais réaffiché."
+                      : "La suite de caractères secrète fournie par l'éditeur (ex. sk_live_4f8a…). Demande une clé en LECTURE SEULE : Revold n'a jamais besoin de modifier les données de l'outil.\n\nElle est stockée de façon sécurisée et n'est plus jamais réaffichée. Pour la changer, il suffit d'en saisir une nouvelle."
+                  }
                 />
               </label>
               <input
                 type="password"
                 value={authValue}
                 onChange={(e) => setAuthValue(e.target.value)}
-                placeholder={existing ? "•••••••• (inchangé si vide)" : "Colle la clé fournie par l'outil"}
+                placeholder={existing ? "•••••••• (inchangé si vide)" : authType === "sftp" ? "mot de passe SFTP ou clé PEM" : "Colle la clé fournie par l'outil"}
                 className={`${field} mt-1 w-full font-mono`}
               />
             </div>
