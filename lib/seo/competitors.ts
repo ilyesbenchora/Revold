@@ -37,7 +37,7 @@ const REVOLD_CONNECTORS = "HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sa
 const REVOLD_RECON = "Rapprochement des comptes par SIREN, SIRET et TVA (API Sirene / INPI), réconciliation signé / facturé / encaissé";
 const REVOLD_HOSTING = "Application à Paris, base de données à Francfort, IA Anthropic en zone EU sans rétention, RGPD documenté";
 
-export const COMPETITORS: Competitor[] = [
+const ALL_COMPETITORS: Competitor[] = [
   {
     slug: "clari",
     name: "Clari",
@@ -53,7 +53,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Périmètre du revenu", them: "Pipeline et forecast à partir du CRM et de l'activité commerciale", revold: "CRM × facturation × banque × support : signé, facturé, encaissé" },
       { criterion: "CRM cible", them: "Salesforce en priorité", revold: "HubSpot (OAuth en un clic) ; Salesforce et Pipedrive en développement" },
       { criterion: "Rapprochement des comptes", them: "Sur les objets du CRM", revold: REVOLD_RECON },
-      { criterion: "Langue de l'interface", them: "Anglais", revold: "Français" },
       { criterion: "Cible", them: "Équipes commerciales enterprise", revold: "PME et ETI B2B de 10 à 500 salariés" },
       { criterion: "Tarification", them: "Sur devis", revold: REVOLD_PRICING },
       { criterion: "Hébergement et données", them: "Infrastructure américaine (voir leur documentation)", revold: REVOLD_HOSTING },
@@ -96,7 +95,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Rapprochement des comptes entre outils", them: "Manuel, par clés à définir", revold: REVOLD_RECON },
       { criterion: "Connecteurs", them: "Large catalogue de sources génériques", revold: REVOLD_CONNECTORS },
       { criterion: "Restitution", them: "Tableaux de bord et rapports", revold: "Tableaux par équipe, briefs vocaux, récaps, alertes sur Slack, Teams, e-mail, SMS, WhatsApp" },
-      { criterion: "Langue", them: "Anglais", revold: "Français" },
       { criterion: "Tarification", them: "Sur devis", revold: REVOLD_PRICING },
       { criterion: "Hébergement", them: "États-Unis (voir leur documentation)", revold: REVOLD_HOSTING },
     ],
@@ -173,7 +171,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Fonction centrale", them: "Analyse de conversations, coaching, forecast", revold: "Réconciliation du revenu, forecast pondéré, alertes, audit CRM, briefs par équipe" },
       { criterion: "Rapprochement des comptes", them: "Sur les objets du CRM", revold: REVOLD_RECON },
       { criterion: "CRM cible", them: "Salesforce, HubSpot et autres CRM enterprise", revold: "HubSpot ; Salesforce et Pipedrive en développement" },
-      { criterion: "Langue", them: "Anglais (transcription multilingue)", revold: "Français" },
       { criterion: "Tarification", them: "Sur devis, par utilisateur", revold: REVOLD_PRICING },
       { criterion: "Hébergement", them: "Infrastructure américaine (options régionales, voir leur documentation)", revold: REVOLD_HOSTING },
     ],
@@ -248,7 +245,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Périmètre des données", them: "Objets Salesforce", revold: "CRM × facturation × banque × support" },
       { criterion: "Rapprochement des comptes", them: "Interne à Salesforce", revold: REVOLD_RECON },
       { criterion: "Équipes couvertes", them: "Ventes", revold: "Ventes, marketing, service client, comptabilité" },
-      { criterion: "Langue", them: "Multilingue (Salesforce)", revold: "Français" },
       { criterion: "Tarification", them: "Complément de licence Salesforce (voir Salesforce)", revold: REVOLD_PRICING },
       { criterion: "Hébergement", them: "Salesforce (régions au choix)", revold: REVOLD_HOSTING },
     ],
@@ -284,7 +280,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Périmètre", them: "CRM et activité commerciale", revold: "CRM × facturation × banque × support" },
       { criterion: "Rapprochement des comptes", them: "Sur les objets du CRM", revold: REVOLD_RECON },
       { criterion: "Cible", them: "Enterprise", revold: "PME et ETI B2B" },
-      { criterion: "Langue", them: "Anglais", revold: "Français" },
       { criterion: "Tarification", them: "Sur devis", revold: REVOLD_PRICING },
       { criterion: "Hébergement", them: "États-Unis (voir leur documentation)", revold: REVOLD_HOSTING },
     ],
@@ -319,7 +314,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Périmètre", them: "CRM et activité commerciale", revold: "CRM × facturation × banque × support" },
       { criterion: "Rapprochement des comptes", them: "Sur les objets du CRM", revold: REVOLD_RECON },
       { criterion: "Équipes couvertes", them: "Ventes, RevOps", revold: "Ventes, marketing, service client, comptabilité" },
-      { criterion: "Langue", them: "Anglais", revold: "Français" },
       { criterion: "Tarification", them: "Sur devis", revold: REVOLD_PRICING },
       { criterion: "Hébergement", them: "États-Unis (voir leur documentation)", revold: REVOLD_HOSTING },
     ],
@@ -390,7 +384,6 @@ export const COMPETITORS: Competitor[] = [
       { criterion: "Rapprochement des comptes", them: "Objets HubSpot", revold: REVOLD_RECON },
       { criterion: "Équipes couvertes", them: "Ventes, RevOps", revold: "Ventes, marketing, service client, comptabilité" },
       { criterion: "Approche IA", them: "Modèles prédictifs entraînés sur l'historique", revold: "Calculs déterministes recalculables ; IA pour rédiger, expliquer, proposer" },
-      { criterion: "Langue", them: "Anglais", revold: "Français" },
       { criterion: "Tarification", them: "Par utilisateur, à partir d'environ 199 $/mois (annuel) pour 2 sièges, d'après leur page tarifs", revold: `${REVOLD_PRICING} — par organisation, utilisateurs illimités` },
       { criterion: "Hébergement", them: "Voir leur documentation", revold: REVOLD_HOSTING },
     ],
@@ -451,7 +444,7 @@ export const COMPETITORS: Competitor[] = [
     slug: "excel",
     name: "Excel",
     aka: "Google Sheets",
-    category: "Tableur",
+    category: "Tableur & reporting manuel (Excel ou Google Sheets)",
     summary:
       "Excel et Google Sheets restent l'outil de pilotage commercial le plus répandu : export du CRM, tableau croisé par étape et par commercial, graphiques. Gratuit ou déjà payé, immédiat, mais figé au moment de l'export et sans lien vivant avec la facturation.",
     title: "Tableau de bord commercial sur Excel : limites et alternative Revold",
@@ -485,6 +478,14 @@ export const COMPETITORS: Competitor[] = [
     related: ["tableau-de-bord-commercial", "tableau-de-bord-revops", "kpi-revops"],
   },
 ];
+
+/**
+ * Comparatifs PUBLIÉS : on ne garde que les outils de Business Intelligence /
+ * reporting et le tableur. Les plateformes de Revenue Intelligence / RevOps ont
+ * été retirées (pages /alternative/* supprimées, hors sitemap/llms/comparatif).
+ */
+const HIDDEN_SLUGS = new Set(["clari", "gong", "salesforce-revenue-intelligence", "aviso", "boostup", "forecastio", "hubspot-previsions"]);
+export const COMPETITORS: Competitor[] = ALL_COMPETITORS.filter((c) => !HIDDEN_SLUGS.has(c.slug));
 
 export function getCompetitor(slug: string): Competitor | undefined {
   return COMPETITORS.find((c) => c.slug === slug);

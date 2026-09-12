@@ -25,7 +25,7 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Rapprochement à la française",
-    desc: "Revold relie vos entreprises entre outils par leurs identifiants légaux — et remplit lui-même les identifiants manquants depuis la base Sirene officielle, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
+    desc: "Revold relie vos entreprises entre outils par leurs identifiants légaux — et remplit lui-même les identifiants manquants depuis les registres officiels, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
     stat: "3",
     statLabel: "identifiants légaux reconnus",
   },
@@ -246,7 +246,7 @@ export default function PourquoiRevoldPage() {
               <ul className="mt-8 space-y-4">
                 {[
                   "Interface, agents IA et récaps 100% en français",
-                  "Identifiants légaux natifs + enrichissement base Sirene",
+                  "Identifiants légaux natifs + enrichissement officiel",
                   "Connecteurs adaptés : HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage",
                   "Import Excel / Google Sheets, notifications Slack, Teams et email",
                   "Pricing adapté : à partir de 79,90 € HT/mois, essai 14 jours sans CB",

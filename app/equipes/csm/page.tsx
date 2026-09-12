@@ -3,7 +3,7 @@ import { ShotAlertes } from "@/components/site/product-shots";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Revold pour le CSM / Customer Success — Revenue Intelligence",
+  title: "Revold pour le service client / Customer Success — Revenue Intelligence",
   description: "Revold aide les équipes Customer Success à détecter le churn avant qu'il n'arrive grâce au croisement tickets × paiements × activité CRM et des alertes au câblage vérifié.",
 };
 
@@ -15,7 +15,7 @@ export default function CSMPage() {
         <div className="pointer-events-none absolute -left-40 top-10 h-96 w-96 rounded-full bg-fuchsia-600/15 blur-3xl" />
         <div className="pointer-events-none absolute -right-40 top-40 h-96 w-96 rounded-full bg-indigo-600/15 blur-3xl" />
         <div className="relative mx-auto max-w-5xl px-6 pb-16 pt-16 text-center md:pb-24 md:pt-24">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-fuchsia-300">CSM / Customer Success</div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-fuchsia-300">Service client / Customer Success</div>
           <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
             Détectez le churn{" "}
             <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">avant vos clients.</span>

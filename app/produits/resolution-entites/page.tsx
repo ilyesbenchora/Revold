@@ -22,7 +22,7 @@ export default function ResolutionEntitesPage() {
       badge="Résolution d'entités"
       title="Une entreprise, une fiche."
       titleAccent="Partout."
-      subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même la donnée officielle manquante (identifiants, effectifs, CA, secteur, statut juridique, capital social, adresse du siège) depuis Sirene et l'INPI, en continu."
+      subtitle="Revold rapproche vos entreprises entre CRM, facturation et compta par SIREN, SIRET et N° de TVA — et remplit lui-même la donnée officielle manquante (identifiants, effectifs, CA, secteur, statut juridique, capital social, adresse du siège) depuis les registres officiels, en continu."
       heroIcon={icon}
       shots={[
         { node: <ShotReconciliation />, caption: "Réconciliation signé × encaissé, rapprochée par SIREN / N° TVA." },
@@ -30,7 +30,7 @@ export default function ResolutionEntitesPage() {
       ]}
       features={[
         { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
-        { title: "Enrichissement officiel Sirene + INPI", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
+        { title: "Enrichissement officiel", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
         { title: "Hiérarchie de comptes", desc: "Sociétés mères et filiales détectées et reliées par le registre officiel (et par raison sociale, à valider) : le CA, les deals et les factures se consolident par groupe — plus de silos entre entités d'un même client." },
         { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },
         { title: "Validation utilisateur", desc: "Aucun enrichissement n'est écrit sans votre accord. Chaque proposition est présentée avec sa source ; vous validez ou rejetez en un clic." },
@@ -40,18 +40,18 @@ export default function ResolutionEntitesPage() {
       howItWorks={[
         { step: "Les données arrivent de vos sources", desc: "Entreprises, contacts et deals sont synchronisés depuis HubSpot, Stripe, Pennylane, Chargebee, GoCardless et Sage." },
         { step: "Le moteur rapproche par identifiants légaux", desc: "SIREN, SIRET, N° TVA, email, domaine et votre ID custom sont appliqués selon la priorité configurée." },
-        { step: "Sirene comble les manques", desc: "Pour les fiches sans identifiant, Revold interroge la base Sirene officielle et vous propose l'enrichissement, preuve à l'appui." },
+        { step: "Revold comble les manques", desc: "Pour les fiches sans identifiant, Revold interroge les registres officiels et vous propose l'enrichissement, preuve à l'appui." },
         { step: "Vous validez, tout se propage", desc: "La fiche unifiée est consolidée et les identifiants validés sont écrits dans HubSpot pour garder votre CRM cohérent." },
       ]}
       stats={[
         { value: "SIREN", label: "SIRET & N° TVA comme clés de rapprochement" },
-        { value: "1 clic", label: "pour valider un enrichissement Sirene" },
+        { value: "1 clic", label: "pour valider un enrichissement officiel" },
         { value: "6", label: "sources rapprochées + Excel / Sheets" },
         { value: "100%", label: "traçabilité des rapprochements" },
       ]}
       crmSetups={[
-        { crm: "HubSpot", items: ["Rapprochement companies HubSpot ↔ clients Stripe / Pennylane par SIREN / TVA", "Identifiants manquants remplis depuis la base Sirene, à valider en un clic", "Écriture des SIREN / SIRET validés dans vos fiches HubSpot", "Traçabilité complète : source, méthode, date de rapprochement"] },
-        { crm: "Stripe + Pennylane", items: ["Le même client facturé et comptabilisé = une seule entreprise", "Rapprochement par N° TVA et SIREN entre facturation et compta", "Écarts CRM ↔ facturé enfin mesurables entreprise par entreprise", "Enrichissement Sirene pour les clients sans identifiant légal"] },
+        { crm: "HubSpot", items: ["Rapprochement companies HubSpot ↔ clients Stripe / Pennylane par SIREN / TVA", "Identifiants manquants remplis depuis les registres officiels, à valider en un clic", "Écriture des SIREN / SIRET validés dans vos fiches HubSpot", "Traçabilité complète : source, méthode, date de rapprochement"] },
+        { crm: "Stripe + Pennylane", items: ["Le même client facturé et comptabilisé = une seule entreprise", "Rapprochement par N° TVA et SIREN entre facturation et compta", "Écarts CRM ↔ facturé enfin mesurables entreprise par entreprise", "Enrichissement officiel pour les clients sans identifiant légal"] },
         { crm: "Import Excel / Sheets", items: ["Vos fichiers rejoignent le même moteur de rapprochement", "Mapping de votre ID de rapprochement custom à l'onboarding", "Dédoublonnage contre les entités déjà connues", "Audit de qualité sur les lignes non rapprochées"] },
       ]}
     />

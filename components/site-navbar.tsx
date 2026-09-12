@@ -32,7 +32,7 @@ const TEAM_LINKS = [
   { label: "Marketing", href: "/equipes/marketing" },
   { label: "Sales", href: "/equipes/sales" },
   { label: "RevOps", href: "/equipes/revops" },
-  { label: "CSM", href: "/equipes/csm" },
+  { label: "Service client", href: "/equipes/csm" },
   { label: "Finance", href: "/equipes/finance" },
 ];
 

@@ -24,7 +24,7 @@ const FEATURES = [
   {
     icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
     title: "Rapprochement de données à la française",
-    desc: "Revold relie vos entreprises entre CRM, facturation et compta par leurs identifiants légaux — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis Sirene et l'INPI, jusque dans votre CRM.",
+    desc: "Revold relie vos entreprises entre CRM, facturation et compta par leurs identifiants légaux — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis les registres officiels, jusque dans votre CRM.",
     href: "/produits/resolution-entites",
   },
   {
@@ -62,17 +62,17 @@ const FEATURES = [
 // Aiguillage vers les pages métiers — l'impact détaillé par poste vit
 // UNIQUEMENT sur /equipes/* (contenu canonique, jamais dupliqué ici).
 const METIERS = [
-  { role: "Direction / CEO", hook: "Le brief du jour et la vérité revenue, sans ouvrir un tableur.", href: "/equipes/direction" },
-  { role: "Sales", hook: "Deals silencieux détectés, relances créées dans le CRM.", href: "/equipes/sales" },
+  { role: "Direction / CEO", hook: "Une seule vérité du revenue — pipeline, facturé, encaissé — et un brief quotidien pour trancher vite.", href: "/equipes/direction" },
+  { role: "Sales", hook: "Plus de temps à vendre : les deals qui dorment sont repérés, la relance arrive toute prête dans votre CRM.", href: "/equipes/sales" },
   { role: "Marketing", hook: "Le ROI prouvé de la campagne jusqu'à l'encaissement.", href: "/equipes/marketing" },
-  { role: "RevOps", hook: "Le rapprochement et les récaps qui tournent tout seuls.", href: "/equipes/revops" },
-  { role: "CSM", hook: "Les signaux de churn croisés tickets × paiements × CRM.", href: "/equipes/csm" },
+  { role: "RevOps", hook: "Des données fiables sans plomberie : rapprochement, enrichissement officiel et récaps cross-source automatisés.", href: "/equipes/revops" },
+  { role: "Service client", hook: "Les comptes à risque repérés avant la résiliation : tickets, paiements et activité CRM croisés en continu.", href: "/equipes/csm" },
   { role: "Finance / DAF", hook: "Trésorerie temps réel, impayés relancés, cash attribué.", href: "/equipes/finance" },
 ];
 
 const STEPS = [
   { n: "1", title: "Connectez vos outils", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless, Sage par clé API — et vos ERP / outils métiers via un connecteur sur mesure. Lecture seule, révocable à tout moment." },
-  { n: "2", title: "Revold rapproche et fiabilise", desc: "Entités reliées par identifiants officiels ou email, identifiants manquants remplis depuis la base Sirene, écarts CRM vs facturé chiffrés en euros." },
+  { n: "2", title: "Revold rapproche et fiabilise", desc: "Entités reliées par identifiants officiels ou email, identifiants manquants remplis depuis les registres officiels, écarts CRM vs facturé chiffrés en euros." },
   { n: "3", title: "Votre équipe IA agit", desc: "Récaps de routine, alertes câblées, brief vocal — et des actions validées par vous, exécutées directement dans vos outils, avec l'impact mesuré." },
 ];
 

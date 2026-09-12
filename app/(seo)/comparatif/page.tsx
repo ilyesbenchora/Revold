@@ -40,7 +40,7 @@ export default function ComparatifHub() {
       {[
         { title: "Plateformes de Revenue Intelligence et RevOps", items: ri },
         { title: "Outils de Business Intelligence et de reporting", items: bi },
-      ].map((group) => (
+      ].filter((group) => group.items.length > 0).map((group) => (
         <section key={group.title} className="mx-auto max-w-5xl px-6 py-8">
           <h2 className="text-2xl font-semibold text-white">{group.title}</h2>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
