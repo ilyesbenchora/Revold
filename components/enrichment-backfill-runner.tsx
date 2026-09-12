@@ -72,6 +72,25 @@ const FIELD_SHORT: Record<string, string> = {
 
 const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("fr-FR"));
 
+/** Récap chiffré d'une passe (« +12 SIREN · 30 à valider · 45 fiches CRM
+ *  synchronisées ») — partagé entre l'historique et le récap sous la barre. */
+function runStatsParts(s: Record<string, number>): string[] {
+  const fieldParts = Object.entries(s ?? {})
+    .filter(([k, v]) => k.startsWith("field_") && typeof v === "number" && v > 0)
+    .map(([k, v]) => `+${fmt(v)} ${FIELD_SHORT[k.slice(6)] ?? FIELD_LABEL[k.slice(6)] ?? k.slice(6)}`);
+  return [
+    ...(fieldParts.length > 0
+      ? fieldParts
+      : [
+          s?.identities ? `${fmt(s.identities)} identités` : null,
+          s?.facts ? `${fmt(s.facts)} fiches complétées` : null,
+        ].filter((v): v is string => v != null)),
+    s?.candidates ? `${fmt(s.candidates)} à valider` : null,
+    s?.duplicates ? `${fmt(s.duplicates)} doublons détectés` : null,
+    s?.crmPushed ? `${fmt(s.crmPushed)} fiches CRM synchronisées` : null,
+  ].filter((v): v is string => v != null);
+}
+
 function sinceFr(iso: string | null): string {
   if (!iso) return "en attente du premier passage";
   const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
@@ -433,9 +452,12 @@ export function EnrichmentBackfillRunner({
             <p className="shrink-0 text-right text-xs text-slate-500">
               <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
-              {(inProgress || runningRef.current) && etaMin != null && (
+              {(inProgress || runningRef.current) && etaMin != null ? (
                 <span className="block font-medium text-fuchsia-600">≈ {etaMin} min restante{etaMin > 1 ? "s" : ""}</span>
-              )}
+              ) : activated && remaining === 0 && !runningRef.current ? (
+                // 100 % : plus d'estimation — statut TERMINÉ à la place.
+                <span className="block font-medium text-emerald-600">✓ Terminé</span>
+              ) : null}
             </p>
           )}
         </div>
@@ -449,11 +471,23 @@ export function EnrichmentBackfillRunner({
           </div>
         )}
 
-        {/* Le détail chiffré (identités, effectifs, doublons…) vit dans
-            l'historique des enrichissements ci-dessous — pas ici. */}
-        {status != null && sessionTotal > 0 && (
+        {/* Pendant la passe : compteur de session. À 100 % : RÉCAP de la
+            dernière passe directement sous la barre (le détail complet reste
+            dans l'historique ci-dessous). */}
+        {status != null && sessionTotal > 0 && (inProgress || runningRef.current) && (
           <p className="mt-1.5 text-[11px] text-fuchsia-600">+{sessionTotal} pendant cette passe</p>
         )}
+        {status != null && activated && remaining === 0 && !inProgress && !runningRef.current && (() => {
+          const lastDone = (runs ?? []).find((r) => r.status !== "running" && !r.derived) ?? (runs ?? [])[0];
+          if (!lastDone) return null;
+          const parts = runStatsParts(lastDone.stats ?? {});
+          return (
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              <span className="font-medium text-emerald-700">Récap de la dernière passe</span> ({dateTimeFr(lastDone.started_at)}) :{" "}
+              {parts.length > 0 ? parts.join(" · ") : `${fmt(lastDone.scope_total)} fiches au périmètre`}
+            </p>
+          );
+        })()}
 
         {notice && !modalOpen && <p className="mt-1.5 text-[11px] font-medium text-amber-700">{notice}</p>}
 
@@ -520,23 +554,9 @@ export function EnrichmentBackfillRunner({
           </p>
           <ul className="mt-2 divide-y divide-slate-100">
             {historyRuns.map((r) => {
-              const s = r.stats ?? {};
               // Détail PAR DONNÉE enrichie (« +12 SIREN · +30 effectifs ») quand
               // la passe l'a consigné ; sinon repli sur les compteurs globaux.
-              const fieldParts = Object.entries(s)
-                .filter(([k, v]) => k.startsWith("field_") && typeof v === "number" && v > 0)
-                .map(([k, v]) => `+${fmt(v)} ${FIELD_SHORT[k.slice(6)] ?? FIELD_LABEL[k.slice(6)] ?? k.slice(6)}`);
-              const parts = [
-                ...(fieldParts.length > 0
-                  ? fieldParts
-                  : [
-                      s.identities ? `${fmt(s.identities)} identités` : null,
-                      s.facts ? `${fmt(s.facts)} fiches complétées` : null,
-                    ].filter(Boolean)),
-                s.candidates ? `${fmt(s.candidates)} à valider` : null,
-                s.duplicates ? `${fmt(s.duplicates)} doublons détectés` : null,
-                s.crmPushed ? `${fmt(s.crmPushed)} fiches CRM synchronisées` : null,
-              ].filter(Boolean);
+              const parts = runStatsParts(r.stats ?? {});
               return (
                 <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
                   <div className="min-w-0">
