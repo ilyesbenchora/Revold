@@ -102,7 +102,7 @@ export async function GET(request: Request) {
     // (posées sur une tuile/bloc/table), lues avec les alertes classiques.
     supabase
       .from("alerts")
-      .select("title, severity, threshold, direction, current_value, unit_mode, source_key")
+      .select("id, title, severity, threshold, direction, current_value, unit_mode, source_key")
       .eq("organization_id", orgId)
       .eq("status", "active")
       .limit(200),
@@ -138,6 +138,7 @@ export async function GET(request: Request) {
 
   // ── Alertes en tension : seuil atteint sur la dernière valeur connue ──
   type AlertRow = {
+    id: string;
     title: string;
     severity: string | null;
     threshold: number | null;
@@ -152,6 +153,9 @@ export async function GET(request: Request) {
   );
   const tenseCritical = tense.filter((a) => a.severity === "critical");
   const tenseTechnical = tense.filter((a) => a.source_key != null);
+  // Lecture DELTA (« quoi de neuf ») : seules les alertes dont le seuil vient
+  // d'être atteint et PAS ENCORE écoutées — le brief complet lit tout l'état.
+  const tenseSpoken = delta ? tense.filter((a) => !ack.has(`alert:${a.id}`)) : tense;
 
   // ── Objectifs qui décrochent ──
   type ObjRow = {
@@ -454,13 +458,13 @@ export async function GET(request: Request) {
   // facturation… ») : à l'écoute, on suit les transitions au lieu d'une dictée
   // monotone — puis les CHIFFRES : valeur face au seuil, progression, montants.
   const parts: string[] = [];
-  if (sections.has("alerts") && tense.length > 0) {
+  if (sections.has("alerts") && tenseSpoken.length > 0) {
     // Détail chiffré des 3 premières : « MRR à 42 000 € (seuil 45 000 €) ».
-    const details = tense
+    const details = tenseSpoken
       .slice(0, 3)
       .map((a) => `${a.title} à ${fmtCustomValue(a.current_value!, a.unit_mode)} pour un seuil à ${fmtCustomValue(a.threshold!, a.unit_mode)}`)
       .join(" ; ");
-    for (const a of tense.slice(0, 3)) {
+    for (const a of tenseSpoken.slice(0, 3)) {
       kpiTiles.push({
         key: `alert:${a.title}`,
         label: a.title,
@@ -468,12 +472,16 @@ export async function GET(request: Request) {
         sub: `Seuil ${fmtCustomValue(a.threshold!, a.unit_mode)}`,
       });
     }
+    const spokenCritical = tenseSpoken.filter((a) => a.severity === "critical");
+    const spokenTechnical = tenseSpoken.filter((a) => a.source_key != null);
     const qualif = [
-      tenseCritical.length > 0 ? `${tenseCritical.length} critique${tenseCritical.length > 1 ? "s" : ""}` : null,
-      tenseTechnical.length > 0 ? `${tenseTechnical.length} technique${tenseTechnical.length > 1 ? "s" : ""}` : null,
+      spokenCritical.length > 0 ? `${spokenCritical.length} critique${spokenCritical.length > 1 ? "s" : ""}` : null,
+      spokenTechnical.length > 0 ? `${spokenTechnical.length} technique${spokenTechnical.length > 1 ? "s" : ""}` : null,
     ].filter(Boolean);
     parts.push(
-      `Côté alertes : ${tense.length} en tension${qualif.length > 0 ? ` dont ${qualif.join(" et ")}` : ""} — ${details}${tense.length > 3 ? ` ; et ${tense.length - 3} autre${tense.length - 3 > 1 ? "s" : ""}` : ""}.`,
+      delta
+        ? `Alerte${tenseSpoken.length > 1 ? "s" : ""} au seuil atteint : ${details}.`
+        : `Côté alertes : ${tenseSpoken.length} en tension${qualif.length > 0 ? ` dont ${qualif.join(" et ")}` : ""} — ${details}${tenseSpoken.length > 3 ? ` ; et ${tenseSpoken.length - 3} autre${tenseSpoken.length - 3 > 1 ? "s" : ""}` : ""}.`,
     );
   }
   if (sections.has("radar") && radarOverdue > 0) {
@@ -609,11 +617,11 @@ export async function GET(request: Request) {
   type BriefTodo = { key: string; label: string; detail?: string; href: string; action?: "enrichment_run" };
   const todos: BriefTodo[] = [];
   if (!veille) {
-    if (sections.has("alerts") && tense.length > 0) {
+    if (sections.has("alerts") && tenseSpoken.length > 0) {
       todos.push({
         key: "alerts",
-        label: `${tense.length} alerte${tense.length > 1 ? "s" : ""} en tension`,
-        detail: tense[0] ? `${tense[0].title} à ${fmtCustomValue(tense[0].current_value!, tense[0].unit_mode)}` : undefined,
+        label: `${tenseSpoken.length} alerte${tenseSpoken.length > 1 ? "s" : ""} ${delta ? "au seuil atteint" : "en tension"}`,
+        detail: tenseSpoken[0] ? `${tenseSpoken[0].title} à ${fmtCustomValue(tenseSpoken[0].current_value!, tenseSpoken[0].unit_mode)}` : undefined,
         href: "/dashboard/mes-alertes",
       });
     }
@@ -669,6 +677,10 @@ export async function GET(request: Request) {
   // une clé NOUVELLE — nouvel objectif atteint, nouvelle fournée d'actions
   // exécutées, enrichissement re-terminé. Sections décochées = jamais de clé.
   const achievedKeys: string[] = [];
+  // Alertes AU SEUIL ATTEINT : une clé stable par alerte — l'orbe verdit à la
+  // détection, l'écoute acquitte ; l'alerte encore en tension les jours
+  // suivants reste lue dans le brief complet mais ne re-verdit pas l'orbe.
+  if (sections.has("alerts")) for (const a of tense) achievedKeys.push(`alert:${a.id}`);
   if (sections.has("objectives_reached")) for (const o of reached) achievedKeys.push(`obj:${o.id}`);
   if (sections.has("actions_done") && actionsDone > 0 && actionsLatestAt) achievedKeys.push(`actions:${actionsLatestAt}`);
   if (sections.has("enrichment") && enrichmentRemaining === 0 && enrichmentDone > 0) {

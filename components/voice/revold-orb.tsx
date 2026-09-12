@@ -351,8 +351,10 @@ function hasUnackedAchievement(keys: string[]): boolean {
 function newBriefLabel(keys: string[]): string {
   const ack = readBriefAck();
   const fresh = keys.filter((k) => !ack.has(k));
+  const alerts = fresh.filter((k) => k.startsWith("alert:")).length;
   const objs = fresh.filter((k) => k.startsWith("obj:")).length;
   const parts: string[] = [];
+  if (alerts > 0) parts.push(alerts > 1 ? "Alertes atteintes" : "Alerte atteinte");
   if (objs > 0) parts.push(objs > 1 ? "Objectifs atteints" : "Objectif atteint");
   if (fresh.some((k) => k.startsWith("actions:"))) parts.push("Actions exécutées");
   if (fresh.some((k) => k.startsWith("enrichment:"))) parts.push("Enrichissement terminé");
@@ -697,7 +699,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         jamais le brief global une deuxième fois. ── */
   const runBrief = useCallback(async (opts?: { delta?: boolean }) => {
     // Sections d'accomplissement = celles qui produisent des clés d'orbe verte.
-    const ACHIEVEMENT_SECTIONS = ["objectives_reached", "actions_done", "enrichment"];
+    const ACHIEVEMENT_SECTIONS = ["alerts", "objectives_reached", "actions_done", "enrichment"];
     const allSections = briefSectionsParam(readTowerSettings());
     const deltaSections = allSections.split(",").filter((s) => ACHIEVEMENT_SECTIONS.includes(s));
     const delta = opts?.delta === true && !veille && deltaSections.length > 0;
