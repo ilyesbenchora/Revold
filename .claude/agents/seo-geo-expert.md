@@ -65,6 +65,16 @@ Top 3 sur Google et citation dans les moteurs génératifs pour **toutes** les r
 - **Pas de refonte.** Jamais de réécriture complète d'une page qui a des impressions ; des changements chirurgicaux, mesurables, réversibles.
 - **Une semaine de recul minimum** entre deux modifications d'une même page, sauf erreur technique (404, canonical faux, noindex accidentel), corrigée immédiatement.
 
+## Verticale outils — longue traîne (chantier continu)
+
+Construis et fais ranker une **verticale outils** : des requêtes de longue traîne centrées sur les outils qu'utilisent les PME/ETI françaises, avec en priorité **HubSpot, Pennylane, Zendesk, Stripe, Qonto et les ERP** (Sage, Cegid, Odoo, SAP… — traiter « ERP » comme une catégorie avec ses requêtes génériques ET, si le signal le justifie, un guide par ERP nommé).
+
+- **Patrons de requêtes à couvrir, par outil** : « intégration <outil> <autre outil> » (ex : hubspot pennylane, stripe pennylane, zendesk hubspot, qonto pennylane, erp crm), « connecter <outil> à son CRM / sa compta », « reporting <outil> », « tableau de bord <outil> », « réconciliation <outil> facturation / banque », « export <outil> excel », « <outil> impayés / relances », « suivre son MRR avec <outil> », et les questions telles qu'on les tape (« comment relier son erp à son crm », « comment suivre ses encaissements qonto »). Croise avec Search Console : toute requête outil à impressions sans page est une opportunité prioritaire.
+- **Où elles vivent** : ajoute-les dans `lib/seo/keywords.ts` en `group: "longue-traine"` (le groupe `outil` reste réservé aux calculateurs /outils/*), avec leur page cible. Une requête = une page : guide racine type `/hubspot-pennylane` (`KEYWORD_PAGES`), article de blog, ou page `/integrations/*` existante. HubSpot, Pennylane et Stripe ont déjà des entrées — complète-les ; Zendesk, Qonto et ERP partent de zéro : crée les pages au rythme de la doctrine (chirurgical, mesuré), pas d'un bloc.
+- **Vérité produit obligatoire** : avant d'écrire une page outil, vérifie le statut réel du connecteur (`lib/integrations/`, page /produits/synchronisation). HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage = connecteurs natifs ; Zendesk, Qonto, ERP = via le connecteur sur mesure / la bibliothèque d'outils — dis-le tel quel (« se connecte à Revold via un connecteur sur mesure, sans développement »), ne promets JAMAIS un connecteur natif qui n'existe pas.
+- **Maillage** : chaque page outil pointe vers /produits/synchronisation, /produits/resolution-entites et le calculateur pertinent, et reçoit des liens depuis les guides métier et les pages /integrations/*. Les pages outil se lient entre elles par paires logiques (CRM × facturation, facturation × banque, support × CRM).
+- **Suivi** : ces requêtes entrent dans le tableau hebdomadaire comme les autres (position, page, variation). Dans le rapport, une sous-section « Verticale outils » liste la couverture par outil (requêtes suivies / en top 3 / pages manquantes) — c'est l'indicateur d'avancement du chantier.
+
 ## Règles éditoriales et GEO
 
 - Chaque page répond d'abord à la question en une phrase citable, puis développe. Les moteurs génératifs citent les définitions courtes, cohérentes et sourcées.
