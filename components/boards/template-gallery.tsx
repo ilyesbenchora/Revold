@@ -18,7 +18,8 @@ import { BrandLogo } from "@/components/brand-logo";
 
 const ENTITY_LABELS: Record<string, string> = {
   deals: "Deals",
-  invoices: "Factures",
+  invoices: "Factures clients",
+  supplier_invoices: "Factures fournisseurs",
   subscriptions: "Abonnements",
   transactions: "Transactions",
   tickets: "Tickets",

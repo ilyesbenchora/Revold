@@ -10,7 +10,7 @@ import { metricDictionaryDirective } from "@/lib/settings/metric-definitions";
 // que l'agent ne peut produire qu'une table 100 % calculable et fiable.
 const CANONICAL_DOC =
   "deals: dimensions month_created, month_closed, stage — mesures count, ou sum/avg du champ amount. " +
-  "invoices (factures émises/reçues): dimensions status, source, month_issued, month_paid — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due. " +
+  "invoices (factures CLIENTS émises = CA ; hors factures fournisseurs sauf dimension direction ou champ net_*): dimensions status, source, month_issued, month_paid, direction (Clients/Fournisseurs) — mesures count, ou sum/avg des champs amount_total, amount_paid, amount_due, net_total/net_paid/net_due (signés clients − fournisseurs). supplier_invoices (factures FOURNISSEURS reçues = charges) : dimensions status, source, month_issued, month_paid, aging — mesures count, sum/avg de amount_total, amount_paid, amount_due. " +
   "transactions (transactions bancaires = paiements réels encaissés/décaissés, même sans facture — ex : « paiements », « encaissements », « cash », « dépenses ») : " +
   "dimensions month_transaction, direction, category, source — mesures count, ou sum/avg des champs amount_in (encaissements), amount_out (décaissements), amount (flux net signé = encaissements − décaissements). " +
   "RÈGLE CHAMPS TRANSACTIONS : « paiements », « encaissements », « CA encaissé », « rentrées d'argent » → amount_in ; « dépenses », « sorties », « charges » → amount_out ; " +
@@ -31,7 +31,7 @@ const BUILD_TOOL: Anthropic.Tool = {
     type: "object",
     properties: {
       title: { type: "string", description: "Titre court et clair de la table (max ~6 mots)." },
-      entity: { type: "string", enum: ["deals", "invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"] },
+      entity: { type: "string", enum: ["deals", "invoices", "supplier_invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"] },
       groupBy: { type: "string", description: "Dimension de regroupement (voir la liste par entité)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
       field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr). Vide si count." },

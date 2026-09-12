@@ -56,7 +56,7 @@ const BUILD_TOOL: Anthropic.Tool = {
       mode: { type: "string", enum: ["forecast", "aggregate", "reconciled"], description: "reconciled si le KPI croise plusieurs outils (CRM↔facturation↔support) ; forecast si indicateur catalogué ; sinon aggregate mono-entité." },
       recipe: { type: "string", enum: [...RECON_IDS], description: "Requis si mode=reconciled." },
       forecast_type: { type: "string", enum: [...FORECAST_TYPES], description: "Requis si mode=forecast." },
-      entity: { type: "string", enum: ["deals", "invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
+      entity: { type: "string", enum: ["deals", "invoices", "supplier_invoices", "transactions", "subscriptions", "tickets", "companies", "contacts"], description: "Requis si mode=aggregate." },
       groupBy: { type: "string", description: "Dimension de regroupement (mode=aggregate)." },
       measure: { type: "string", enum: ["count", "sum", "avg"] },
       field: { type: "string", description: "Champ numérique pour sum/avg (amount, amount_total, amount_paid, amount_due, amount_in, amount_out, mrr)." },

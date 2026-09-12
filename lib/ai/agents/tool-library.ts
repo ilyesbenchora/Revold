@@ -430,6 +430,9 @@ type AggSpec = {
   hasSource?: boolean;
   /** Table physique quand elle diffère du nom d'entité (ex : transactions → bank_transactions). */
   table?: string;
+  /** Filtre de périmètre appliqué à CHAQUE lecture (ex : factures fournisseurs = direction 'out'). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  where?: (qb: any) => any;
   dims: Record<string, (r: Record<string, unknown>) => string | null>;
   numeric: Record<string, (r: Record<string, unknown>) => number>;
 };
@@ -608,6 +611,34 @@ const AGG_SPECS: Record<string, AggSpec> = {
       amount_paid: (r) => Number(r.amount_paid) || 0,
       amount_due: (r) => Number(r.amount_due) || 0,
       // Valeur absolue (piège avoirs : reste dû négatif) — balance âgée.
+      amount_due_abs: (r) => Math.abs(Number(r.amount_due) || 0),
+      // Montants SIGNÉS par sens (clients +, fournisseurs −) : lèvent le filtre
+      // clients par défaut → solde de facturation clients − fournisseurs.
+      net_total: (r) => (r.direction === "out" ? -1 : 1) * (Number(r.amount_total) || 0),
+      net_paid: (r) => (r.direction === "out" ? -1 : 1) * (Number(r.amount_paid) || 0),
+      net_due: (r) => (r.direction === "out" ? -1 : 1) * (Number(r.amount_due) || 0),
+    },
+  },
+  // Factures FOURNISSEURS (reçues, direction 'out' — Pennylane & co) : même
+  // table que les factures clients, périmètre strictement inverse. Entité
+  // distincte pour que tuiles, tables et alertes séparent toujours les deux.
+  supplier_invoices: {
+    table: "invoices",
+    columns: "amount_total, amount_paid, amount_due, status, primary_source, issued_at, paid_at, due_at, direction",
+    hasSource: true,
+    where: (qb) => qb.eq("direction", "out"),
+    dims: {
+      status: (r) => String(r.status ?? "inconnu"),
+      source: (r) => String(r.primary_source ?? "inconnu"),
+      month_issued: (r) => monthOf(r.issued_at),
+      month_paid: (r) => monthOf(r.paid_at),
+      // Balance âgée fournisseurs (factures ouvertes, retard vs aujourd'hui).
+      aging: (r) => agingBucketOf(r),
+    },
+    numeric: {
+      amount_total: (r) => Number(r.amount_total) || 0,
+      amount_paid: (r) => Number(r.amount_paid) || 0,
+      amount_due: (r) => Number(r.amount_due) || 0,
       amount_due_abs: (r) => Math.abs(Number(r.amount_due) || 0),
     },
   },
@@ -941,7 +972,9 @@ const DETAIL_COLUMNS: Record<string, string> = {
   deals:
     "name, amount, created_date, close_date, days_in_stage, last_activity_at, is_at_risk, stage_external_id, pipeline_stages(name, pipeline_name, pipeline_external_id, probability, is_closed_won, is_closed_lost), companies(name)",
   invoices:
-    "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, companies(name)",
+    "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, direction, companies(name)",
+  supplier_invoices:
+    "number, status, amount_total, amount_paid, amount_due, issued_at, paid_at, due_at, primary_source, direction, companies(name)",
   subscriptions: "mrr, status, primary_source, started_at, canceled_at, current_period_end, companies(name)",
   transactions: "label, amount, date, category, primary_source",
   companies: "name, domain, segment, industry, country_code, annual_revenue, employee_count, created_at",
@@ -985,6 +1018,19 @@ const DETAIL_FIELDS: Record<string, DetailField[]> = {
     { id: "amount_total", label: "Montant", kind: "currency", default: true, value: (r) => Number(r.amount_total) || 0 },
     { id: "amount_due", label: "Restant dû", kind: "currency", default: true, value: (r) => Number(r.amount_due) || 0 },
     { id: "issued", label: "Émise le", kind: "date", default: true, value: (r) => r.issued_at ?? null },
+    { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
+    { id: "amount_paid", label: "Payé", kind: "currency", value: (r) => Number(r.amount_paid) || 0 },
+    { id: "paid", label: "Payée le", kind: "date", value: (r) => r.paid_at ?? null },
+    { id: "due", label: "Échéance", kind: "date", value: (r) => r.due_at ?? null },
+    { id: "direction", label: "Sens", value: (r) => (r.direction === "out" ? "Fournisseur" : "Client") },
+  ],
+  supplier_invoices: [
+    { id: "number", label: "Facture", default: true, value: (r) => r.number ?? "—" },
+    { id: "company", label: "Fournisseur", default: true, value: (r) => relField(r.companies, "name") ?? "—" },
+    { id: "status", label: "Statut", default: true, value: (r) => r.status ?? "—" },
+    { id: "amount_total", label: "Montant", kind: "currency", default: true, value: (r) => Number(r.amount_total) || 0 },
+    { id: "amount_due", label: "Reste à payer", kind: "currency", default: true, value: (r) => Number(r.amount_due) || 0 },
+    { id: "issued", label: "Reçue le", kind: "date", default: true, value: (r) => r.issued_at ?? null },
     { id: "source", label: "Source", default: true, value: (r) => r.primary_source ?? "—" },
     { id: "amount_paid", label: "Payé", kind: "currency", value: (r) => Number(r.amount_paid) || 0 },
     { id: "paid", label: "Payée le", kind: "date", value: (r) => r.paid_at ?? null },
@@ -1147,7 +1193,7 @@ export async function computeAggregate(
   // Dimension "extra.<id>" (libellé) et champ numérique "extra.<id>" : lus dans
   // source_metadata.extra, posé à la sync custom (migration 20260819000002).
   // Uniquement sur les entités qui portent source_metadata.
-  const EXTRA_ENTITIES = new Set(["deals", "invoices", "subscriptions", "transactions", "tickets"]);
+  const EXTRA_ENTITIES = new Set(["deals", "invoices", "supplier_invoices", "subscriptions", "transactions", "tickets"]);
   const readExtra = (r: Record<string, unknown>, id: string): unknown => {
     const meta = r.source_metadata as Record<string, unknown> | null | undefined;
     const extra = meta?.extra as Record<string, unknown> | undefined;
@@ -1215,7 +1261,7 @@ export async function computeAggregate(
   // ── Filtre COHORTE : segment/industry canoniques + TOUTES les cohortes de
   // Paramètres → Cohortes (objet Company) — leurs valeurs vivent dans
   // companies.raw_data (propriétés demandées par la sync). « inconnu » = null.
-  const COHORT_ENTITIES = new Set(["companies", "deals", "contacts", "invoices", "subscriptions", "tickets"]);
+  const COHORT_ENTITIES = new Set(["companies", "deals", "contacts", "invoices", "supplier_invoices", "subscriptions", "tickets"]);
   const cohortKey = input.cohort?.key ? String(input.cohort.key) : null;
   const cohortValue =
     cohortKey && typeof input.cohort?.value === "string" && input.cohort.value !== "" ? input.cohort.value : null;
@@ -1269,8 +1315,18 @@ export async function computeAggregate(
     return { data: all, error: null };
   };
   const buildQuery = (cols: string) => fetchPaged(() => buildPage(cols));
+  // Factures : périmètre CLIENTS par défaut (factures émises = chiffre d'affaires).
+  // Les factures fournisseurs (direction 'out', Pennylane & co) vivent dans la
+  // même table : seules les lectures qui les distinguent explicitement les
+  // voient — dimension « direction » / balance âgée fournisseurs, ou champ
+  // signé net_* (solde clients − fournisseurs). L'entité supplier_invoices
+  // porte le périmètre inverse.
+  const invoicesAllDirections =
+    entity === "invoices" && (groupBy === "direction" || groupBy === "aging_fournisseurs" || (field ?? "").startsWith("net_"));
   const buildPage = (cols: string) => {
     let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId);
+    if (spec.where) qb = spec.where(qb);
+    if (entity === "invoices" && !invoicesAllDirections) qb = qb.or("direction.is.null,direction.neq.out");
     if (src && spec.hasSource) qb = qb.in("primary_source", src);
     // Filtre propriétaire : direct sur l'entité, ou croisé par association.
     if (ownerFilter) {
@@ -1624,7 +1680,7 @@ export const aggregateCanonical: AgentTool = {
     name: "aggregate_canonical",
     description:
       "Agrégation flexible sur les tables canoniques synchronisées, pour répondre à toute question chiffrée non couverte par un autre outil. Groupe une entité par une dimension et calcule une mesure. " +
-      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date), equipement (deals avec produits : Mono-produit/Multi-produits (≥ 2)), has_products (Avec produits/Sans produit) (mesures: count, sum/avg de amount, avg de products = line items associés, à moyenner avec target Avec produits) ; invoices: status, source, month_issued, month_paid (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status, priority, channel, month_opened, month_resolved, replied (Répondu/Sans réponse), sla_first_response (≤ 4 h / > 4 h / Sans réponse) (count, sum/avg de first_response_hours/resolution_hours — à moyenner avec target Répondu ou closed) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
+      "Entités et dimensions disponibles — deals: month_created, month_closed, stage, pipeline, stage_pipeline, status (En cours/Gagnés/Perdus), outcome (deals clôturés uniquement : Gagnés/Perdus), close_date_state (deals en cours : Dépassée/À jour/Sans close date), equipement (deals avec produits : Mono-produit/Multi-produits (≥ 2)), has_products (Avec produits/Sans produit) (mesures: count, sum/avg de amount, avg de products = line items associés, à moyenner avec target Avec produits) ; invoices (factures CLIENTS émises = CA ; les factures fournisseurs en sont exclues sauf dimension direction ou champ net_*): status, source, month_issued, month_paid, direction (Clients/Fournisseurs) (count, sum/avg de amount_total/amount_paid/amount_due, net_total/net_paid/net_due = signés clients − fournisseurs) ; supplier_invoices (factures FOURNISSEURS reçues = charges à payer): status, source, month_issued, month_paid, aging (count, sum/avg de amount_total/amount_paid/amount_due) ; subscriptions: status, source, month_started, month_canceled (count, sum/avg de mrr) ; transactions (transactions bancaires = paiements réels, même sans facture): month_transaction, direction, category, source (count, sum/avg de amount net signé / amount_in encaissements / amount_out décaissements) ; tickets: status, priority, channel, month_opened, month_resolved, replied (Répondu/Sans réponse), sla_first_response (≤ 4 h / > 4 h / Sans réponse) (count, sum/avg de first_response_hours/resolution_hours — à moyenner avec target Répondu ou closed) ; companies: segment, industry, country (count) ; contacts: mql, sql (count). " +
       "Renvoie une liste {group, value} prête à visualiser.",
     input_schema: {
       type: "object",

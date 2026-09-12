@@ -54,6 +54,7 @@ export const ENTITY_SOURCE_CATEGORY: Record<string, ConnectableTool["category"]>
   contacts: "crm",
   companies: "crm",
   invoices: "billing",
+  supplier_invoices: "billing",
   subscriptions: "billing",
   transactions: "billing",
   tickets: "support",
@@ -81,6 +82,16 @@ export const ENTITY_DIMS: Record<string, { id: string; label: string }[]> = {
     { id: "source", label: "Source" },
     { id: "month_issued", label: "Date d'émission" },
     { id: "month_paid", label: "Date de paiement" },
+    // Seule dimension qui montre les DEUX sens (clients vs fournisseurs) ;
+    // les autres ne lisent que les factures clients.
+    { id: "direction", label: "Sens (clients / fournisseurs)" },
+  ],
+  supplier_invoices: [
+    { id: "status", label: "Statut" },
+    { id: "source", label: "Source" },
+    { id: "month_issued", label: "Date de réception" },
+    { id: "month_paid", label: "Date de paiement" },
+    { id: "aging", label: "Retard de paiement (balance âgée)" },
   ],
   subscriptions: [
     { id: "status", label: "Statut" },
@@ -117,7 +128,8 @@ export const ENTITY_LABELS: Record<string, string> = {
   deals: "Deals",
   contacts: "Contacts",
   companies: "Entreprises",
-  invoices: "Factures",
+  invoices: "Factures clients",
+  supplier_invoices: "Factures fournisseurs",
   subscriptions: "Abonnements",
   transactions: "Transactions bancaires",
   tickets: "Tickets",
@@ -146,6 +158,14 @@ export const ENTITY_FIELDS: Record<string, { id: string; label: string; unit: Ta
     { id: "amount_total", label: "montant total facturé", unit: "currency" },
     { id: "amount_paid", label: "montant encaissé", unit: "currency" },
     { id: "amount_due", label: "reste dû (impayés)", unit: "currency" },
+    { id: "net_total", label: "solde facturé clients − fournisseurs", unit: "currency" },
+    { id: "net_paid", label: "solde encaissé − payé fournisseurs", unit: "currency" },
+    { id: "net_due", label: "solde reste dû clients − reste à payer fournisseurs", unit: "currency" },
+  ],
+  supplier_invoices: [
+    { id: "amount_total", label: "montant total reçu (fournisseurs)", unit: "currency" },
+    { id: "amount_paid", label: "montant payé aux fournisseurs", unit: "currency" },
+    { id: "amount_due", label: "reste à payer (dettes fournisseurs)", unit: "currency" },
   ],
   subscriptions: [{ id: "mrr", label: "MRR", unit: "currency" }],
   transactions: [
@@ -275,6 +295,13 @@ export const TABLE_PRESETS: Record<string, TablePreset[]> = {
     { id: "receivables_status", label: "Créances (impayés) par statut", entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
     { id: "real_cash_month", label: "Évolution du cash réel encaissé", entity: "invoices", groupBy: "month_paid", measure: "sum", field: "amount_paid", unit: "currency", view: "line" },
     { id: "invoices_source", label: "Factures par source", entity: "invoices", groupBy: "source", measure: "count", unit: "count", view: "donut" },
+    // ── Factures FOURNISSEURS (Pennylane & co, direction 'out') : séparées des
+    //    factures clients, puis vue combinée clients vs fournisseurs et solde ──
+    { id: "supplier_invoices_status", label: "Factures fournisseurs par statut", entity: "supplier_invoices", groupBy: "status", measure: "count", unit: "count", view: "bar" },
+    { id: "supplier_invoiced_month", label: "Évolution des factures fournisseurs reçues", entity: "supplier_invoices", groupBy: "month_issued", measure: "sum", field: "amount_total", unit: "currency", view: "line" },
+    { id: "supplier_payables_aging", label: "Dettes fournisseurs par retard (balance âgée)", entity: "supplier_invoices", groupBy: "aging", measure: "sum", field: "amount_due", unit: "currency", view: "bar" },
+    { id: "invoices_direction", label: "Facturé clients vs fournisseurs", entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_total", unit: "currency", view: "bar" },
+    { id: "net_invoiced_month", label: "Évolution du solde facturé (clients − fournisseurs)", entity: "invoices", groupBy: "month_issued", measure: "sum", field: "net_total", unit: "currency", view: "line" },
     // ── Radar de facturation : factures attendues (rythme observé dans la
     //    facturation / fin de contrat CRM) non émises — l'amont du recouvrement ──
     { id: "billing_radar_overdue", label: "Factures attendues en retard", entity: "invoices", groupBy: "recon", measure: "count", unit: "count", view: "bloc", forecastType: "billing_radar_overdue", tileOnly: true },

@@ -3,6 +3,8 @@ import type { AggSpec } from "@/lib/alerts/agg-value";
 
 // Entités canoniques susceptibles d'alimenter un KPI (tables synchronisées).
 const CANONICAL_ENTITIES = ["deals", "invoices", "subscriptions", "tickets", "companies", "contacts"] as const;
+// Pseudo-entité factures FOURNISSEURS : même table invoices, direction 'out'.
+const SUPPLIER_INVOICES = "supplier_invoices";
 
 // KPI catalogué → entité source principale (pour juger si la donnée est enrichie).
 const FORECAST_ENTITY: Record<string, string> = {
@@ -30,6 +32,17 @@ export async function loadEntitiesWithData(supabase: SupabaseClient, orgId: stri
       }
     }),
   );
+  // Factures fournisseurs : présentes seulement si au moins une facture 'out'.
+  try {
+    const { count } = await supabase
+      .from("invoices")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("direction", "out");
+    if ((count ?? 0) > 0) set.add(SUPPLIER_INVOICES);
+  } catch {
+    /* colonne direction absente → aucune facture fournisseur */
+  }
   return set;
 }
 

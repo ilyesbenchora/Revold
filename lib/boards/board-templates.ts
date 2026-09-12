@@ -63,6 +63,28 @@ export type BoardTemplate = {
   cohorts?: string[];
   tiles: TemplateTile[];
   tables: TemplateTable[];
+  /**
+   * Compléments CONDITIONNELS : ajoutés à la composition seulement si l'org a
+   * des données pour l'entité `when` (ex. factures fournisseurs Pennylane →
+   * tuiles/tables fournisseurs + vue combinée). Sinon le template reste tel quel.
+   */
+  extras?: { when: string; tiles: TemplateTile[]; tables: TemplateTable[] }[];
+};
+
+// Complément « factures fournisseurs » partagé par les templates facturation :
+// séparation stricte clients / fournisseurs, puis le solde qui combine les deux.
+const SUPPLIER_EXTRAS: NonNullable<BoardTemplate["extras"]>[number] = {
+  when: "supplier_invoices",
+  tiles: [
+    { title: "Factures fournisseurs", unit: "currency", agg: { entity: "supplier_invoices", groupBy: "status", measure: "sum", field: "amount_total" } },
+    { title: "Reste à payer fournisseurs", unit: "currency", agg: { entity: "supplier_invoices", groupBy: "status", measure: "sum", field: "amount_due" } },
+    { title: "Solde facturé (clients − fournisseurs)", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "net_total" } },
+  ],
+  tables: [
+    { title: "Facturé clients vs fournisseurs", entity: "invoices", group_by: "direction", measure: "sum", field: "amount_total", unit_mode: "currency", view: "bar", description: "Les deux sens côte à côte : émis aux clients, reçu des fournisseurs." },
+    { title: "Factures fournisseurs reçues par mois", entity: "supplier_invoices", group_by: "month_issued", measure: "sum", field: "amount_total", unit_mode: "currency", view: "line", description: "Charges facturées par les fournisseurs, mois par mois." },
+    { title: "Solde facturé par mois (clients − fournisseurs)", entity: "invoices", group_by: "month_issued", measure: "sum", field: "net_total", unit_mode: "currency", view: "line", description: "Ce qui reste une fois les factures fournisseurs déduites du facturé clients." },
+  ],
 };
 
 /** Libellés des cohortes standard requises par des templates (miroir de STANDARD_COHORTS). */
@@ -113,6 +135,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
       { title: "Montant facturé par mois", entity: "invoices", group_by: "month_issued", measure: "sum", field: "amount_total", unit_mode: "currency", view: "line", description: "Montant émis par mois (facturation) — à comparer au signé." },
       { title: "Créances par statut", entity: "invoices", group_by: "status", measure: "sum", field: "amount_due", unit_mode: "currency", view: "bar", description: "Le reste dû : où le cash bloque." },
     ],
+    extras: [SUPPLIER_EXTRAS],
   },
   {
     id: "marketing_croise",
@@ -187,6 +210,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
       { title: "Facturation par mois", entity: "invoices", group_by: "month_issued", measure: "sum", field: "amount_total", unit_mode: "currency", view: "line", description: "Montant facturé par mois d'émission." },
       { title: "Factures par statut", entity: "invoices", group_by: "status", measure: "count", unit_mode: "count", view: "donut", description: "Répartition payées / ouvertes / en retard." },
     ],
+    extras: [SUPPLIER_EXTRAS],
   },
   {
     id: "revenu_recurrent",
@@ -355,17 +379,19 @@ export type BoardTemplateGalleryItem = BoardTemplateOption & {
 
 /** Volumes synchronisés par entité agrégeable (comptages head, coût borné). */
 async function entityCounts(supabase: SupabaseClient, orgId: string): Promise<Map<string, number>> {
-  const entities = [...new Set(BOARD_TEMPLATES.flatMap((t) => t.entities))];
+  const entities = [
+    ...new Set(BOARD_TEMPLATES.flatMap((t) => [...t.entities, ...(t.extras ?? []).map((x) => x.when)])),
+  ];
   const counts = new Map<string, number>();
   await Promise.all(
     entities.map(async (e) => {
-      const table = ENTITY_TABLE[e];
+      // Pseudo-entité factures fournisseurs : même table, direction 'out'.
+      const table = e === "supplier_invoices" ? "invoices" : ENTITY_TABLE[e];
       if (!table) return counts.set(e, 0);
       try {
-        const { count, error } = await supabase
-          .from(table)
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId);
+        let q = supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+        if (e === "supplier_invoices") q = q.eq("direction", "out");
+        const { count, error } = await q;
         counts.set(e, error ? 0 : count ?? 0);
       } catch {
         counts.set(e, 0);
@@ -373,6 +399,19 @@ async function entityCounts(supabase: SupabaseClient, orgId: string): Promise<Ma
     }),
   );
   return counts;
+}
+
+/** Composition EFFECTIVE d'un template pour l'org : base + compléments dont l'entité a des données. */
+function effectiveComposition(tpl: BoardTemplate, counts: Map<string, number>): BoardComposition {
+  const tiles = [...tpl.tiles];
+  const tables = [...tpl.tables];
+  for (const x of tpl.extras ?? []) {
+    if ((counts.get(x.when) ?? 0) > 0) {
+      tiles.push(...x.tiles);
+      tables.push(...x.tables);
+    }
+  }
+  return { tiles, tables };
 }
 
 /**
@@ -427,6 +466,7 @@ export async function boardTemplateGallery(
   };
   return BOARD_TEMPLATES.map((t) => {
     const missingEntities = t.entities.filter((e) => (counts.get(e) ?? 0) === 0);
+    const comp = effectiveComposition(t, counts);
     const cohorts = (t.cohorts ?? []).map(
       (k) => cohortStatuses.get(k) ?? { key: k, label: COHORT_LABELS[k] ?? k, state: "unmapped" as const },
     );
@@ -441,10 +481,10 @@ export async function boardTemplateGallery(
     cross: t.cross === true,
     tools: toolsFor(t.entities),
     entities: t.entities,
-    tileTitles: t.tiles.map((x) => x.title),
-    tableTitles: t.tables.map((x) => x.title),
-    previewTiles: t.tiles.map((x) => ({ title: x.title, unit: x.unit })),
-    previewTables: t.tables.map((x) => ({ title: x.title, view: x.view })),
+    tileTitles: comp.tiles.map((x) => x.title),
+    tableTitles: comp.tables.map((x) => x.title),
+    previewTiles: comp.tiles.map((x) => ({ title: x.title, unit: x.unit })),
+    previewTables: comp.tables.map((x) => ({ title: x.title, view: x.view })),
     };
   });
 }
@@ -520,5 +560,8 @@ export async function seedBoardFromTemplate(
 ): Promise<void> {
   const tpl = BOARD_TEMPLATES.find((t) => t.id === templateId);
   if (!tpl) return;
-  await seedBoardComposition(supabase, orgId, userId, boardId, { tiles: tpl.tiles, tables: tpl.tables });
+  // Compléments conditionnels (ex. factures fournisseurs) : seedés seulement
+  // si l'org a réellement ces données — jamais une tuile à zéro par principe.
+  const counts = tpl.extras?.length ? await entityCounts(supabase, orgId) : new Map<string, number>();
+  await seedBoardComposition(supabase, orgId, userId, boardId, effectiveComposition(tpl, counts));
 }

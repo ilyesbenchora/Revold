@@ -19,7 +19,8 @@ import type { BoardComposition, TemplateTile, TemplateTable } from "@/lib/boards
 /** Dimensions valides par entité (miroir de AGG_SPECS — tool-library). */
 const ENTITY_DIMS: Record<string, string[]> = {
   deals: ["status", "outcome", "stage", "pipeline", "stage_pipeline", "close_date_state", "month_created", "month_closed"],
-  invoices: ["status", "source", "month_issued", "month_paid"],
+  invoices: ["status", "source", "month_issued", "month_paid", "direction"],
+  supplier_invoices: ["status", "source", "month_issued", "month_paid", "aging"],
   subscriptions: ["status", "source", "month_started", "month_canceled"],
   transactions: ["month_transaction", "direction", "category", "source"],
   tickets: ["status"],
@@ -30,7 +31,8 @@ const ENTITY_DIMS: Record<string, string[]> = {
 /** Champs numériques valides par entité (miroir de AGG_SPECS.numeric). */
 const ENTITY_NUM_FIELDS: Record<string, string[]> = {
   deals: ["amount"],
-  invoices: ["amount_total", "amount_paid", "amount_due"],
+  invoices: ["amount_total", "amount_paid", "amount_due", "net_total", "net_paid", "net_due"],
+  supplier_invoices: ["amount_total", "amount_paid", "amount_due"],
   subscriptions: ["mrr"],
   transactions: ["amount", "amount_in", "amount_out"],
   tickets: [],
@@ -42,6 +44,7 @@ const ENTITY_NUM_FIELDS: Record<string, string[]> = {
 const ENTITY_TABLE: Record<string, string> = {
   deals: "deals",
   invoices: "invoices",
+  supplier_invoices: "invoices",
   subscriptions: "subscriptions",
   transactions: "bank_transactions",
   tickets: "tickets",

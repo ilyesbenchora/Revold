@@ -57,6 +57,25 @@ class FakeQuery {
     return this;
   }
 
+  // Disjonction PostgREST « col.op.val,col.op.val » (sous-ensemble : is.null,
+  // eq, neq) — utilisée par le périmètre clients des factures
+  // (« direction.is.null,direction.neq.out »).
+  or(expr: string): this {
+    const clauses = expr.split(",").map((c) => {
+      const [col, op, ...rest] = c.trim().split(".");
+      return { col, op, val: rest.join(".") };
+    });
+    this.rows = this.rows.filter((r) =>
+      clauses.some(({ col, op, val }) => {
+        if (op === "is" && val === "null") return r[col] == null;
+        if (op === "eq") return String(r[col]) === val;
+        if (op === "neq") return r[col] != null && String(r[col]) !== val;
+        return false;
+      }),
+    );
+    return this;
+  }
+
   order(): this {
     return this;
   }
