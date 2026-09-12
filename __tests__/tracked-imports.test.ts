@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — script utilitaire en JS pur, sans types.
+// Script utilitaire en JS pur : ses types sont inférés (`allowJs`), donc pas
+// de directive de suppression ici — elle serait inutilisée et ferait échouer
+// `tsc --noEmit` (TS2578), donc le build Vercel.
 import { findUntrackedImports, gitAvailable } from "../scripts/check-tracked-imports.mjs";
 
 /**
