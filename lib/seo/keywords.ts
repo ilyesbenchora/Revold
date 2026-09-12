@@ -57,6 +57,10 @@ export const KEYWORD_TARGETS: KeywordTarget[] = [
   { keyword: "taux de conversion commercial", group: "metier", url: "/blog/taux-de-conversion-commercial-benchmarks-b2b", priority: 2, volume: "moyen" },
   { keyword: "cycle de vente", group: "metier", url: "/blog/cycle-de-vente-b2b-calculer-comparer-raccourcir", priority: 3, volume: "moyen" },
   { keyword: "audit crm", group: "metier", url: "/audit-crm-hubspot", priority: 2, volume: "moyen" },
+  // Découvertes Search Console (12/09/2026) : impressions sans page cible déclarée.
+  { keyword: "fiabiliser les données crm", group: "metier", url: "/solutions/fiabiliser-donnees", priority: 2, volume: "faible" },
+  { keyword: "résolution d'entités", group: "longue-traine", url: "/produits/resolution-entites", priority: 1, volume: "faible" },
+  { keyword: "résolution d'entités dynamique", group: "longue-traine", url: "/produits/resolution-entites", priority: 2, volume: "faible" },
 
   // ── Longue traîne (faible concurrence, forte intention) ───────────────────
   { keyword: "fuite de revenus", group: "longue-traine", url: "/fuite-de-revenus", priority: 1, volume: "faible" },
