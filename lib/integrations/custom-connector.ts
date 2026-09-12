@@ -587,13 +587,19 @@ export async function fetchPage(
   } else {
     // ── Source API HTTP(S) : JSON par défaut, sinon XML/CSV/XLSX (parseur lourd
     // chargé dynamiquement, jamais côté client). ──
+    const url = absoluteUrl ?? buildUrl(connector, path, params);
+    const headers = await buildHeaders(connector);
     let res: Response;
+    // Les ERP limitent le débit (429) ou renvoient un 503 transitoire : jusqu'à
+    // 3 tentatives, en respectant Retry-After (borné à 10 s pour ne pas bloquer).
     try {
-      const url = absoluteUrl ?? buildUrl(connector, path, params);
-      res = await fetch(url, {
-        headers: await buildHeaders(connector),
-        signal: AbortSignal.timeout(15_000),
-      });
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+      for (let attempt = 0; attempt < 2 && (res.status === 429 || res.status === 503); attempt++) {
+        const ra = Number(res.headers.get("retry-after"));
+        const waitMs = Math.min(Number.isFinite(ra) && ra >= 0 ? ra * 1000 : 500 * (attempt + 1), 10_000);
+        await new Promise((r) => setTimeout(r, waitMs));
+        res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+      }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? `Appel impossible : ${e.message}` : "Appel impossible" };
     }
