@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Alert = {
@@ -42,7 +42,8 @@ export function AlertsDropdown() {
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  // true au départ : 1er chargement au montage (spinner tant que non chargé).
+  const [loading, setLoading] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
 
   // Click outside to close
@@ -57,26 +58,44 @@ export function AlertsDropdown() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  // Lazy-load on first open
+  // Chargement des notifications + alertes (compteur inclus). Appelé au MONTAGE
+  // (pour que le badge s'affiche dès l'arrivée d'une notif, sans ouvrir la
+  // cloche), en polling, au focus de l'onglet, et à l'ouverture.
+  const load = useCallback(() => {
+    return Promise.all([
+      fetch("/api/alerts/active").then((r) => (r.ok ? r.json() : { alerts: [] })),
+      fetch("/api/notifications").then((r) => (r.ok ? r.json() : { notifications: [], unreadCount: 0 })),
+    ])
+      .then(([alertData, notifData]) => {
+        setAlerts(alertData.alerts ?? []);
+        setNotifications(notifData.notifications ?? []);
+        setUnreadCount(notifData.unreadCount ?? 0);
+      })
+      .catch(() => {
+        setAlerts((a) => a ?? []);
+        setNotifications((n) => n ?? []);
+      });
+  }, []);
+
+  // Montage : 1er chargement (spinner via l'état initial) + rafraîchissement
+  // périodique et au focus de l'onglet.
   useEffect(() => {
-    if (open && alerts === null && !loading) {
-      setLoading(true);
-      Promise.all([
-        fetch("/api/alerts/active").then((r) => (r.ok ? r.json() : { alerts: [] })),
-        fetch("/api/notifications").then((r) => (r.ok ? r.json() : { notifications: [], unreadCount: 0 })),
-      ])
-        .then(([alertData, notifData]) => {
-          setAlerts(alertData.alerts ?? []);
-          setNotifications(notifData.notifications ?? []);
-          setUnreadCount(notifData.unreadCount ?? 0);
-        })
-        .catch(() => {
-          setAlerts([]);
-          setNotifications([]);
-        })
-        .finally(() => setLoading(false));
-    }
-  }, [open, alerts, loading]);
+    load().finally(() => setLoading(false));
+    const iv = setInterval(load, 60_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("revold:notifications-refresh", onFocus);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("revold:notifications-refresh", onFocus);
+    };
+  }, [load]);
+
+  // Ouverture : rafraîchit pour avoir l'état le plus récent.
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
 
   async function markAllRead() {
     await fetch("/api/notifications", {
