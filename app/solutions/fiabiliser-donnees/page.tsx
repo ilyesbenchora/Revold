@@ -15,7 +15,7 @@ export default function FiabiliserDonneesPage() {
     <SolutionPage
       badge="Solution"
       title="Fiabilisez vos données CRM"
-      titleAccent="une bonne fois pour toutes."
+      titleAccent="par identifiants officiels."
       subtitle="76% des orgas ont moins de 50% de données CRM fiables. Revold audite vos données, les rapproche par identifiants officiels et remplit les identifiants manquants depuis les registres officiels."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>}
       shot={<ShotAudit />}
@@ -25,9 +25,9 @@ export default function FiabiliserDonneesPage() {
         { title: "Enrichissement officiel", desc: "Les identifiants manquants sont remplis depuis les registres officiels, validés par vous en un clic — et écrits aussi dans votre CRM." },
       ]}
       teams={[
-        { team: "Marketing", icon: teamIcon("M3 3v18h18M7 16l4-8 4 4 4-8"), pain: "40% des leads sont invalides ou doublons. Les campagnes ciblent des fantômes.", solution: "Dédoublonnage cross-source + complétude par propriété + détection de fiches invalides.", result: "Base marketing propre. Meilleur taux de conversion, moins de gaspillage." },
-        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Nettoyage de données manuel, récurrent, sans fin. Scripts custom fragiles.", solution: "Rapprochement automatique par identifiants légaux + audit à chaque sync + plan d'action IA.", result: "Data ops automatisé. Le RevOps pilote la stratégie, pas la plomberie." },
-        { team: "Finance", icon: teamIcon("M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 1-4 4v14a3 3 0 0 0 3-3h7z"), pain: "Les données de facturation ne matchent pas avec le CRM. Réconciliation manuelle chaque mois.", solution: "Rapprochement automatique factures Stripe / Pennylane × entreprises CRM par identifiants officiels.", result: "Réconciliation des revenus automatique. Clôture comptable accélérée." },
+        { team: "Marketing", icon: teamIcon("M3 3v18h18M7 16l4-8 4 4 4-8"), pain: "40% des leads sont invalides ou doublons. Les campagnes ciblent des fantômes.", solution: "Dédoublonnage cross-source + complétude par propriété + détection de fiches invalides.", result: "Doublons fusionnés et fiches invalides écartées avant vos ciblages." },
+        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Nettoyage de données manuel, récurrent, sans fin. Scripts custom fragiles.", solution: "Rapprochement automatique par identifiants légaux + audit à chaque sync + plan d'action IA.", result: "Le rapprochement et l'audit tournent à chaque sync — plus de scripts à maintenir." },
+        { team: "Finance", icon: teamIcon("M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 1-4 4v14a3 3 0 0 0 3-3h7z"), pain: "Les données de facturation ne matchent pas avec le CRM. Réconciliation manuelle chaque mois.", solution: "Rapprochement automatique factures Stripe / Pennylane × entreprises CRM par identifiants officiels.", result: "Factures et fiches CRM rapprochées automatiquement, écarts chiffrés entreprise par entreprise." },
       ]}
       relatedProducts={[
         { label: "Tableaux de bord & templates", href: "/produits/tableaux-de-bord" },

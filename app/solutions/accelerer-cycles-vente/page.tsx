@@ -25,9 +25,9 @@ export default function AccelererCyclesVentePage() {
         { title: "Agent commercial IA", desc: "Un agent expert dédié aux sales, branché sur vos pipelines réels : priorités du jour, deals en tension, chiffres toujours câblés." },
       ]}
       teams={[
-        { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Les deals traînent dans le pipeline sans que personne ne réagisse.", solution: "Alertes câblées sur les deals qui stagnent + brief du jour sur la tour de contrôle.", result: "Pipeline qui avance. Décisions rapides sur les deals bloqués." },
-        { team: "Sales", icon: teamIcon("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"), pain: "Relances oubliées. Les deals avancent au feeling, puis meurent en silence.", solution: "Détection des deals silencieux → tâche CRM proposée dans la boîte d'actions, validée en un clic.", result: "Aucun deal oublié. Les bons réflexes au bon moment." },
-        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Vélocité du pipeline impossible à mesurer. Pas de benchmark par étape.", solution: "KPIs de pipeline câblés et vérifiés, comparables par période.", result: "Identification des goulots d'étranglement. Process optimisé." },
+        { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Les deals traînent dans le pipeline sans que personne ne réagisse.", solution: "Alertes câblées sur les deals qui stagnent + brief du jour sur la tour de contrôle.", result: "Les deals bloqués remontent dans le brief du jour, avec leur montant." },
+        { team: "Sales", icon: teamIcon("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"), pain: "Relances oubliées. Les deals avancent au feeling, puis meurent en silence.", solution: "Détection des deals silencieux → tâche CRM proposée dans la boîte d'actions, validée en un clic.", result: "Chaque deal silencieux depuis 21 jours ressort, relance prête à valider." },
+        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Vélocité du pipeline impossible à mesurer. Pas de benchmark par étape.", solution: "KPIs de pipeline câblés et vérifiés, comparables par période.", result: "Temps passé par étape mesuré — les étapes qui bloquent sont identifiées, chiffres à l'appui." },
       ]}
       relatedProducts={[
         { label: "Alertes, objectifs & actions", href: "/produits/alertes-previsions" },

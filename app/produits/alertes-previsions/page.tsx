@@ -44,10 +44,10 @@ export default function AlertesObjectifsActionsPage() {
         { step: "Vous validez, l'impact est mesuré", desc: "L'action s'exécute dans le CRM ou votre outil de facturation, et le résultat — dont le cash récupéré — est attribué en euros, ligne par ligne." },
       ]}
       stats={[
-        { value: "100%", label: "des alertes au câblage vérifié" },
         { value: "0", label: "action exécutée sans votre validation" },
         { value: "21 j", label: "de silence → tâche CRM proposée" },
-        { value: "€", label: "cash récupéré attribué, ligne par ligne" },
+        { value: "3", label: "relances max par impayé — arrêt dès le paiement" },
+        { value: "1", label: "câblage vérifié (source + valeur) avant chaque alerte" },
       ]}
       crmSetups={[
         { crm: "HubSpot", items: ["Détection des deals silencieux sur vos pipelines réels", "Tâche HubSpot créée pour le bon owner, après votre validation", "Alertes d'objectifs câblées sur vos KPIs HubSpot", "Notifications par email, Slack ou Teams"] },

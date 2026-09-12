@@ -32,14 +32,14 @@ const DIFFERENTIATORS = [
   {
     title: "Mon équipe IA, disponible 24/7",
     desc: "Des agents experts par domaine (performance, trésorerie, service client, qualité des données), à briefer par écrit ou à la voix depuis la tour de contrôle. Chaque chiffre affiché est câblé sur vos vraies données — jamais inventé par l'IA.",
-    stat: "24/7",
+    stat: "4",
     statLabel: "agents experts par domaine",
   },
   {
     title: "Des actions, pas seulement des dashboards",
     desc: "Deal silencieux → tâche créée dans votre CRM. Facture en retard → rappel officiel envoyé depuis votre outil de facturation. Revold détecte, vous validez, l'action s'exécute dans vos outils — et chaque euro récupéré est attribué, ligne par ligne.",
-    stat: "€",
-    statLabel: "cash récupéré, mesuré",
+    stat: "3",
+    statLabel: "relances max par impayé — arrêt dès le paiement",
   },
   {
     title: "Tour de contrôle vocale",
@@ -50,8 +50,8 @@ const DIFFERENTIATORS = [
   {
     title: "Câblage vérifié, chiffres prouvés",
     desc: "Avant de créer une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. La preuve chiffrée d'abord, le suivi automatique ensuite.",
-    stat: "100%",
-    statLabel: "des KPIs câblés sur vos données",
+    stat: "0",
+    statLabel: "chiffre inventé — source et valeur montrées avant tout suivi",
   },
 ];
 
@@ -67,7 +67,7 @@ const PRINCIPLES = [
   },
   {
     title: "Neutre > Captif",
-    desc: "Revold n'est pas un CRM. On ne vous enferme pas : accès en lecture seule, révocable à tout moment. Vous changez d'outil ? Revold continue. Votre intelligence revenue vous appartient.",
+    desc: "Revold n'est pas un CRM. On ne vous enferme pas : accès en lecture seule, révocable à tout moment. Vous changez d'outil ? Revold continue — le rapprochement suit vos identifiants légaux, pas votre stack.",
   },
   {
     title: "Exécution > Constat",
@@ -98,7 +98,7 @@ export default function PourquoiRevoldPage() {
             <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
               CRM, facturation et compta rapprochés,{" "}
               <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-                un revenue vérifiable au centime.
+                un revenu vérifié facture par facture.
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
@@ -216,7 +216,7 @@ export default function PourquoiRevoldPage() {
             Envie de voir Revold en action ?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-400">
-            30 minutes pour comprendre comment Revold peut transformer votre approche revenue. Sans engagement.
+            30 minutes sur vos données : connecteurs branchés, écarts signé / facturé / encaissé chiffrés. Sans engagement.
           </p>
           <Link
             href="/demo"
@@ -245,12 +245,11 @@ export default function PourquoiRevoldPage() {
               </p>
               <ul className="mt-8 space-y-4">
                 {[
-                  "Interface, agents IA et récaps 100% en français",
-                  "Identifiants légaux natifs + enrichissement officiel",
+                  "SIREN, SIRET et N° TVA comme clés de rapprochement — enrichissement Sirene / INPI inclus",
+                  "Hébergement en Europe : application à Paris, données à Francfort, IA en zone EU sans rétention",
                   "Connecteurs natifs pour votre CRM, votre facturation et votre compta",
                   "Import Excel / Google Sheets, notifications Slack, Teams et email",
                   "Pricing adapté : à partir de 79,90 € HT/mois, essai 14 jours sans CB",
-                  "Support et accompagnement en français",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm text-slate-300">
                     <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-fuchsia-500/15 text-fuchsia-300">
@@ -267,7 +266,7 @@ export default function PourquoiRevoldPage() {
               {[
                 { val: "6", unit: "connecteurs", desc: "CRM, facturation, compta" },
                 { val: "3", unit: "identifiants", desc: "identifiants officiels" },
-                { val: "24/7", unit: "", desc: "Équipe IA disponible" },
+                { val: "4", unit: "agents", desc: "ventes, trésorerie, service client, données" },
                 { val: "14", unit: "jours", desc: "Essai gratuit, sans CB" },
               ].map((m) => (
                 <div key={m.desc} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]">
@@ -287,10 +286,10 @@ export default function PourquoiRevoldPage() {
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-96 w-[50rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/15 via-purple-600/15 to-indigo-600/15 blur-3xl" />
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white md:text-5xl">
-            Prêt à voir vos données autrement ?
+            Vos outils sont prêts. Branchez-les.
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-400">
-            30 minutes. Vos données. Vos insights. Sans engagement.
+            30 minutes sur vos données, sans engagement.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link

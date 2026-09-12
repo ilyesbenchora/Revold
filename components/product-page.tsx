@@ -42,7 +42,7 @@ export function ProductPage({
   howItWorks,
   stats,
   cta = "Essayer gratuitement",
-  ctaTitle = "Passez à l'action maintenant",
+  ctaTitle = "Voyez-le sur vos données",
   crmSetups,
 }: ProductPageProps) {
   // Capture PRINCIPALE montée dans le hero (au-dessus de la ligne de flottaison) ;
@@ -118,7 +118,7 @@ export function ProductPage({
                 Le problème aujourd&apos;hui
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-slate-400">
-                Les chiffres parlent d&apos;eux-mêmes.
+                Ce que ça coûte de piloter sur des données non rapprochées.
               </p>
             </div>
             <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -202,7 +202,7 @@ export function ProductPage({
                 <span className="text-fuchsia-300">Voici ce qu&apos;on met en place pour vous.</span>
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-slate-400">
-                Revold se connecte à votre stack existant et ajoute une couche d&apos;intelligence par-dessus — sans rien remplacer.
+                Revold se branche sur vos outils existants en lecture seule — rien à remplacer, rien à migrer.
               </p>
             </div>
             <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">

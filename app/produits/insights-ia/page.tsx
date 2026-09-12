@@ -42,9 +42,9 @@ export default function InsightsIAPage() {
         { step: "Vous recevez briefs et récaps, où vous voulez", desc: "Brief vocal sur la tour de contrôle, routines livrées par email, Slack ou Teams — à votre rythme, sans ouvrir l'app." },
       ]}
       stats={[
-        { value: "24/7", label: "disponibilité de votre équipe IA" },
-        { value: "4", label: "domaines experts : performance, trésorerie, service client, qualité des données" },
-        { value: "100%", label: "des chiffres câblés en déterministe" },
+        { value: "4", label: "agents experts : performance, trésorerie, service client, qualité des données" },
+        { value: "0", label: "chiffre inventé par l'IA — tout est recalculé en déterministe" },
+        { value: "3", label: "canaux de livraison des récaps : email, Slack, Teams" },
         { value: "1", label: "brief vocal du jour, à la demande" },
       ]}
       crmSetups={[

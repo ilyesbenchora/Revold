@@ -16,7 +16,7 @@ export default function PiloterPerformancePage() {
       badge="Solution"
       title="Pilotez la performance"
       titleAccent="de chaque équipe."
-      subtitle="Des KPIs câblés et vérifiés, des objectifs suivis en déterministe et des récaps de routine livrés automatiquement. Chaque équipe sait où elle en est, chaque jour."
+      subtitle="Des KPIs câblés et vérifiés, des objectifs suivis en déterministe et des récaps de routine livrés automatiquement par email, Slack ou Teams — même app fermée."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>}
       shot={<ShotRapports />}
       keyBenefits={[
@@ -25,9 +25,9 @@ export default function PiloterPerformancePage() {
         { title: "Routines & récaps programmés", desc: "Semaine, mois, trimestre : les récaps sont générés et livrés automatiquement (email, Slack, Teams) — même app fermée." },
       ]}
       teams={[
-        { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Pas de vue consolidée de la performance. Chaque équipe a ses propres métriques.", solution: "Tour de contrôle avec anneau de santé, brief vocal du jour et KPIs câblés partagés.", result: "Vision à 360° en un coup d'oeil. Alignement des équipes sur les mêmes chiffres." },
-        { team: "Marketing", icon: teamIcon("M3 3v18h18M7 16l4-8 4 4 4-8"), pain: "Les métriques marketing sont déconnectées des revenus.", solution: "Attribution cross-source : acquisition → pipeline → factures réellement encaissées.", result: "Le marketing parle le même langage que les sales et la direction." },
-        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Compiler les KPIs prend 2 jours/mois. Les dashboards sont toujours en retard.", solution: "KPIs et récaps alimentés automatiquement à chaque sync, sur données rapprochées par identifiants officiels.", result: "Zéro temps passé à compiler. Focus sur l'analyse et l'optimisation." },
+        { team: "Direction", icon: teamIcon("M3 3v18h18"), pain: "Pas de vue consolidée de la performance. Chaque équipe a ses propres métriques.", solution: "Tour de contrôle avec anneau de santé, brief vocal du jour et KPIs câblés partagés.", result: "Toutes les équipes lisent les mêmes chiffres, recalculés à chaque synchronisation." },
+        { team: "Marketing", icon: teamIcon("M3 3v18h18M7 16l4-8 4 4 4-8"), pain: "Les métriques marketing sont déconnectées des revenus.", solution: "Attribution cross-source : acquisition → pipeline → factures réellement encaissées.", result: "Chaque campagne reliée au pipeline puis aux factures réellement encaissées." },
+        { team: "RevOps", icon: teamIcon("M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"), pain: "Compiler les KPIs prend 2 jours/mois. Les dashboards sont toujours en retard.", solution: "KPIs et récaps alimentés automatiquement à chaque sync, sur données rapprochées par identifiants officiels.", result: "Les récaps se génèrent seuls à chaque sync — plus de compilation manuelle." },
       ]}
       relatedProducts={[
         { label: "Reporting cross-source", href: "/produits/reporting-cross-source" },

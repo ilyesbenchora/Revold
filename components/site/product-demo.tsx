@@ -117,7 +117,7 @@ const SCENES: Scene[] = [
   {
     tag: "Synchronisation multi-outils",
     title: "Tous vos outils, croisés",
-    impact: "CRM, facturation, compta, service client, téléphonie — reliés et croisés en une seule vérité.",
+    impact: "CRM, facturation, compta, service client, téléphonie — reliés par identifiants officiels, croisés dans un même modèle.",
     render: () => {
       const cats = [
         { c: "CRM", t: "HubSpot" },
@@ -340,7 +340,7 @@ const SCENES: Scene[] = [
   {
     tag: "Cockpit cross-source",
     title: "CRM × facturation × trésorerie",
-    impact: "Une seule vérité, réconciliée — le pilotage, pas le reporting.",
+    impact: "Pipeline, facturé et encaissé lus ensemble — et des actions exécutées, pas seulement des rapports.",
     render: () => (
       <div className="grid w-full gap-3">
         <div className="grid grid-cols-4 gap-2">

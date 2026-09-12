@@ -19,8 +19,8 @@ export default function SynchronisationPage() {
   return (
     <ProductPage
       badge="Synchronisation de données"
-      title="Vos données revenue,"
-      titleAccent="enfin réunies."
+      title="CRM, facturation, compta :"
+      titleAccent="un seul modèle de données."
       subtitle="Connectez HubSpot (OAuth en un clic), Stripe, Pennylane, Chargebee, GoCardless et Sage — mais aussi votre ERP et vos outils métiers via un connecteur sur mesure, plus l'import Excel / Google Sheets. Lecture seule, révocable, avec un rapport d'audit d'onboarding par outil."
       heroIcon={icon}
       shots={[
@@ -44,8 +44,8 @@ export default function SynchronisationPage() {
       ]}
       stats={[
         { value: "6", label: "connecteurs natifs (+ Excel / Sheets)" },
-        { value: "∞", label: "ERP & outils métiers via connecteur sur mesure" },
-        { value: "100%", label: "lecture seule, révocable" },
+        { value: "API", label: "votre ERP / outil métier via connecteur sur mesure" },
+        { value: "0", label: "écriture sans validation — lecture seule, révocable" },
         { value: "1", label: "rapport d'audit d'onboarding par outil" },
       ]}
       crmSetups={[

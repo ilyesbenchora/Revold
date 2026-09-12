@@ -80,13 +80,13 @@ export default function MarketingPage() {
       {/* Impact */}
       <section className="border-y border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Impact mesurable</h2>
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Ce que ça change, concrètement</h2>
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "+40%", desc: "lead quality" },
-              { val: "E2E", desc: "attribution end-to-end" },
-              { val: "0", desc: "spreadsheet" },
-              { val: "24/7", desc: "agent Marketing IA" },
+              { val: "MQL→CA", desc: "chaque lead suivi jusqu'aux factures encaissées" },
+              { val: "3", desc: "sources croisées : campagnes, CRM, facturation" },
+              { val: "0", desc: "export manuel — récaps livrés par email, Slack, Teams" },
+              { val: "1", desc: "agent Marketing branché sur vos données réelles" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>

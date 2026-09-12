@@ -20,7 +20,7 @@ export default function RevOpsPage() {
             Arrêtez la plomberie data.{" "}
             <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">Pilotez la stratégie.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">Récaps automatisés cross-source, qualité des données garantie par rapprochement automatique et enrichissement officiel. Libérez-vous de l&apos;opérationnel pour vous concentrer sur la stratégie.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">Récaps cross-source automatisés, rapprochement par identifiants officiels, enrichissement depuis les registres — et un audit qualité généré à chaque synchronisation.</p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/demo" className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl">Faire une démo</Link>
             <Link href="/essai-gratuit" className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">Essai gratuit</Link>
@@ -58,7 +58,7 @@ export default function RevOpsPage() {
           <div className="mt-12 space-y-6">
             {[
               { title: "Rapprochement identifiants officiels", desc: "Vos entreprises sont reliées entre CRM, facturation et compta par leurs identifiants officiels. Les identifiants manquants sont remplis automatiquement depuis les registres officiels, à valider en un clic.", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
-              { title: "Routines & récaps programmés", desc: "Choisissez la période et les KPIs à couvrir : l'agent génère un récap complet (tuiles, courbes, synthèses), validé en aperçu puis livré automatiquement. Plus jamais un export CSV.", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+              { title: "Routines & récaps programmés", desc: "Choisissez la période et les KPIs à couvrir : l'agent génère un récap complet (tuiles, courbes, synthèses), validé en aperçu puis livré automatiquement par email, Slack ou Teams.", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
               { title: "Audit qualité automatique", desc: "Détection continue des champs vides, identifiants manquants, doublons et incohérences entre sources. Vous savez exactement où agir pour améliorer la qualité.", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
               { title: "KPIs au câblage vérifié", desc: "Avant de créer un KPI, une alerte ou un objectif, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. Toujours à jour, jamais inventé.", icon: "M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" },
               { title: "Connecteurs natifs + import Excel/Sheets", desc: "Votre CRM, votre facturation et votre compta connectés en quelques clics — et import Excel / Google Sheets pour les sources sans connecteur. Lecture seule, révocable à tout moment.", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
@@ -80,13 +80,13 @@ export default function RevOpsPage() {
       {/* Impact */}
       <section className="border-y border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Impact mesurable</h2>
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Ce que ça change, concrètement</h2>
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "6", desc: "connecteurs natifs + Excel/Sheets" },
-              { val: "Officiel", desc: "rapprochement + enrichissement automatique" },
-              { val: "0", desc: "export manuel" },
-              { val: "24/7", desc: "agents IA sur vos données" },
+              { val: "6", desc: "connecteurs natifs + Excel/Sheets, maintenus par Revold" },
+              { val: "2", desc: "registres officiels pour l'enrichissement : Sirene, INPI" },
+              { val: "1", desc: "audit qualité généré à chaque synchronisation" },
+              { val: "0", desc: "script custom à maintenir pour le rapprochement" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>

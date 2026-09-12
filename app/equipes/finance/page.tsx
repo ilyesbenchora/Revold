@@ -20,7 +20,7 @@ export default function FinancePage() {
             Réconciliez pipeline et revenus{" "}
             <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">automatiquement.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">MRR/ARR calculés en temps réel depuis votre outil de facturation, trésorerie en projection pondérée et réconciliation automatique par identifiants officiels. Fini les tableurs et les écarts inexpliqués.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">MRR/ARR recalculés à chaque synchronisation, prévisionnel de trésorerie sur 12 mois (3 scénarios) et réconciliation par identifiants officiels — chaque écart chiffré entreprise par entreprise.</p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/demo" className="rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl">Faire une démo</Link>
             <Link href="/essai-gratuit" className="rounded-xl border border-white/15 bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">Essai gratuit</Link>
@@ -58,7 +58,7 @@ export default function FinancePage() {
           <div className="mt-12 space-y-6">
             {[
               { title: "MRR/ARR/churn rate temps réel", desc: "Calculés automatiquement depuis votre outil de facturation croisés avec votre CRM. Nouveaux clients, upgrades, downgrades, churns — tout est ventilé en temps réel.", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-              { title: "Pipeline vs facturation réelle", desc: "Visualisez l'écart entre ce que le CRM promet et ce que la facturation confirme. Par mois, par trimestre, par commercial. Zéro ambiguïté.", icon: "M3 3v18h18M7 16l4-8 4 4 4-8" },
+              { title: "Pipeline vs facturation réelle", desc: "Visualisez l'écart entre ce que le CRM promet et ce que la facturation confirme — par mois, par trimestre, par commercial.", icon: "M3 3v18h18M7 16l4-8 4 4 4-8" },
               { title: "Trésorerie en projection pondérée", desc: "Encaissements attendus pondérés par leur probabilité, croisés avec vos échéances fiscales (TVA, IS, URSSAF). Vous voyez venir les tensions de trésorerie avant qu'elles n'arrivent.", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
               { title: "Réconciliation automatique factures × deals", desc: "Revold rapproche automatiquement chaque facture avec le deal CRM correspondant grâce au rapprochement automatique. Les écarts sont identifiés et expliqués.", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
               { title: "Relances d'impayés exécutées", desc: "Facture en retard détectée → rappel officiel de facturation proposé. Vous validez, la relance part — et chaque euro récupéré est attribué, ligne par ligne, en euros.", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
@@ -80,13 +80,13 @@ export default function FinancePage() {
       {/* Impact */}
       <section className="border-y border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Impact mesurable</h2>
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Ce que ça change, concrètement</h2>
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "Temps réel", desc: "MRR/ARR calculés" },
-              { val: "0", desc: "réconciliation manuelle" },
-              { val: "CRM↔Fact", desc: "pipeline vs facturé" },
-              { val: "€", desc: "cash récupéré attribué" },
+              { val: "MRR", desc: "recalculé à chaque synchronisation, réconcilié facturation × compta" },
+              { val: "3", desc: "relances max par impayé — arrêt dès le paiement" },
+              { val: "12", desc: "mois de prévisionnel de trésorerie, 3 scénarios" },
+              { val: "1", desc: "écart signé / facturé / encaissé chiffré par entreprise" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>

@@ -13,7 +13,7 @@ export function SiteFooter() {
           <div className="col-span-2 md:col-span-1">
             <RevoldLogo tone="dark" />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-400">
-              La vérité revenue des entreprises françaises — du CRM au compte en banque.
+              CRM, facturation et compta rapprochés par identifiants officiels — du deal au compte en banque.
             </p>
           </div>
           <div>
@@ -65,7 +65,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 md:flex-row">
-          <p>© {new Date().getFullYear()} Revold — Revenue Intelligence made in France 🇫🇷</p>
+          <p>© {new Date().getFullYear()} Revold — hébergé en Europe (app à Paris, données à Francfort)</p>
           <p>Données hébergées dans l&apos;Union européenne · Accès lecture seule à vos outils, révocable à tout moment</p>
         </div>
       </div>

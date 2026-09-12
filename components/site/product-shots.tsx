@@ -73,7 +73,7 @@ export function ShotDashboard() {
         <Sidebar active="Accueil" />
         <div className="min-w-0 flex-1 p-4">
           <p className="text-sm font-bold text-slate-900">Camille, voici ton tableau de bord</p>
-          <p className="text-[10px] text-slate-500">Synthèse globale de votre intelligence revenue.</p>
+          <p className="text-[10px] text-slate-500">Pipeline, facturé, encaissé — réconciliés sur la même page.</p>
           <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
             <Tile label="MRR réconcilié" value="84 300 €" delta="+4,2 % vs mois dernier" />
             <Tile label="Intégrations actives" value="5" tone="text-indigo-600" />

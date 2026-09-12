@@ -46,7 +46,7 @@ export default function ContactPage() {
               <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             </div>
             <h2 className="mt-6 text-xl font-bold text-white">Message envoyé !</h2>
-            <p className="mt-2 text-sm text-slate-400">Nous reviendrons vers vous dans les plus brefs délais.</p>
+            <p className="mt-2 text-sm text-slate-400">Nous revenons vers vous sous 24 h ouvrées.</p>
             <Link href="/" className="mt-6 inline-block text-sm font-semibold text-fuchsia-300 transition hover:text-fuchsia-200">Retour à l&apos;accueil &rarr;</Link>
           </div>
         ) : (

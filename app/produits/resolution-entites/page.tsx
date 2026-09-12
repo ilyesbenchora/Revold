@@ -29,13 +29,13 @@ export default function ResolutionEntitesPage() {
         { node: <ShotHierarchie />, caption: "Hiérarchie de comptes : mères et filiales reliées par le registre, CA consolidé par groupe." },
       ]}
       features={[
-        { title: "Rapprochement UE", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux européens comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
+        { title: "Rapprochement UE", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux européens comme clés de rapprochement — la même entreprise reconnue dans le CRM, la facturation et la compta." },
         { title: "Enrichissement officiel", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
         { title: "Hiérarchie de comptes", desc: "Sociétés mères et filiales détectées et reliées par le registre officiel (et par raison sociale, à valider) : le CA, les deals et les factures se consolident par groupe — plus de silos entre entités d'un même client." },
         { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },
         { title: "Validation utilisateur", desc: "Aucun enrichissement n'est écrit sans votre accord. Chaque proposition est présentée avec sa source ; vous validez ou rejetez en un clic." },
         { title: "Écriture dans HubSpot", desc: "Identifiants et données officielles (effectifs, CA, statut juridique…) sont aussi écrits dans vos fiches HubSpot — champs vides uniquement, jamais d'écrasement. Chaque nouvelle entreprise est enrichie automatiquement, et les données évolutives sont rafraîchies tous les 90 jours." },
-        { title: "Traçabilité totale", desc: "Chaque entité sait d'où elle vient : outil source, identifiant externe, méthode de rapprochement. Rien n'est une boîte noire." },
+        { title: "Traçabilité totale", desc: "Chaque entité sait d'où elle vient : outil source, identifiant externe, méthode et date de rapprochement — consultables sur chaque fiche." },
       ]}
       howItWorks={[
         { step: "Les données arrivent de vos sources", desc: "Entreprises, contacts et deals sont synchronisés depuis votre CRM, votre facturation et votre compta." },
@@ -47,7 +47,7 @@ export default function ResolutionEntitesPage() {
         { value: "SIREN", label: "SIRET & N° TVA comme clés de rapprochement" },
         { value: "1 clic", label: "pour valider un enrichissement officiel" },
         { value: "6", label: "sources rapprochées + Excel / Sheets" },
-        { value: "100%", label: "traçabilité des rapprochements" },
+        { value: "2", label: "registres officiels interrogés : Sirene et INPI" },
       ]}
       crmSetups={[
         { crm: "HubSpot", items: ["Rapprochement companies HubSpot ↔ clients Stripe / Pennylane par SIREN / TVA", "Identifiants manquants remplis depuis les registres officiels, à valider en un clic", "Écriture des SIREN / SIRET validés dans vos fiches HubSpot", "Traçabilité complète : source, méthode, date de rapprochement"] },

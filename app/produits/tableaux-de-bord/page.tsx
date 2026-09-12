@@ -21,8 +21,8 @@ export default function TableauxDeBordPage() {
   return (
     <ProductPage
       badge="Tableaux de bord & templates"
-      title="Votre pilotage,"
-      titleAccent="à votre main."
+      title="Templates par métier,"
+      titleAccent="tuiles câblées sur vos données."
       subtitle="Partez d'un template prêt à l'emploi — par métier ou par outil — ou construisez votre tableau de bord de zéro : onglets, tuiles KPI câblées sur vos données réconciliées, alertes posées sur chaque tuile, partage à l'équipe ou par lien public."
       heroIcon={icon}
       shots={[
@@ -40,17 +40,17 @@ export default function TableauxDeBordPage() {
       howItWorks={[
         { step: "Choisissez un template — ou une page vierge", desc: "La galerie propose des modèles par métier et par outil, avec un aperçu fidèle. Vous pouvez aussi partir de zéro." },
         { step: "Le tableau se câble sur vos données", desc: "Les tuiles se remplissent avec vos KPIs réconciliés ; les suggestions ne proposent que ce que vos outils connectés savent calculer." },
-        { step: "Ajustez à votre main", desc: "Ajoutez des onglets, déplacez des blocs, renommez des tuiles, posez des alertes — chaque équipe compose sa lecture." },
+        { step: "Ajustez librement", desc: "Ajoutez des onglets, déplacez des blocs, renommez des tuiles, posez des alertes — chaque équipe compose sa lecture." },
         { step: "Partagez", desc: "À l'équipe, à toute l'organisation, ou par lien public signé — le tableau vit et se met à jour tout seul." },
       ]}
       stats={[
         { value: "1 clic", label: "pour activer un template sur vos données" },
         { value: "0", label: "KPI inventé — tout est câblé et sourcé" },
-        { value: "∞", label: "onglets et blocs par tableau de bord" },
+        { value: "3", label: "portées de partage : privé, équipe, lien public" },
         { value: "Public", label: "partage par lien signé, sans compte" },
       ]}
       cta="Créer mon premier tableau de bord"
-      ctaTitle="Votre pilotage, prêt en quelques minutes"
+      ctaTitle="Activez un template sur vos données"
       crmSetups={[
         { crm: "HubSpot", items: ["Templates Sales et Direction câblés sur vos pipelines réels", "Tuiles pipeline pondéré, closing, cycle de vente", "Alertes sur tuiles : deal silencieux, conversion en baisse", "Partage du tableau à l'équipe commerciale"] },
         { crm: "Stripe + Pennylane", items: ["Templates Finance : encaissé, DSO, impayés, MRR", "KPIs réconciliés facturation × compta par identifiants officiels", "Alertes de trésorerie posées sur les tuiles", "Lien public pour le board ou l'expert-comptable"] },

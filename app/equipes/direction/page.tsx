@@ -17,8 +17,8 @@ export default function DirectionPage() {
         <div className="relative mx-auto max-w-5xl px-6 pb-16 pt-16 text-center md:pb-24 md:pt-24">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-fuchsia-300">Direction / CEO</div>
           <h1 className="mt-6 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl lg:text-6xl">
-            Prenez des décisions revenue{" "}
-            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">basées sur les données.</span>
+            Pipeline, facturé, encaissé :{" "}
+            <span className="bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">les mêmes chiffres pour trancher.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">Fini le pilotage au feeling. Revold relie CRM, facturation et compta par identifiants officiels, vous donne un brief vocal quotidien et des actions priorisées, validées en un clic.</p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -80,13 +80,13 @@ export default function DirectionPage() {
       {/* Impact */}
       <section className="border-y border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Impact mesurable</h2>
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Ce que ça change, concrètement</h2>
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "24/7", desc: "équipe IA disponible" },
-              { val: "100%", desc: "des chiffres câblés" },
-              { val: "0", desc: "exports manuels" },
-              { val: "<5 min", desc: "pour être opérationnel" },
+              { val: "1", desc: "brief du jour : alertes, objectifs, impayés — à la voix" },
+              { val: "3", desc: "univers réconciliés : pipeline, facturé, encaissé" },
+              { val: "0", desc: "export manuel — récaps livrés automatiquement" },
+              { val: "0", desc: "chiffre inventé — chaque KPI montre sa source" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>
@@ -100,7 +100,7 @@ export default function DirectionPage() {
       {/* CTA */}
       <section className="bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 py-20">
         <div className="mx-auto max-w-3xl px-6 text-center">
-          <h2 className="text-3xl font-bold text-white">Prêt à piloter votre croissance avec confiance ?</h2>
+          <h2 className="text-3xl font-bold text-white">Prêt à lire pipeline, facturé et encaissé sur une seule page ?</h2>
           <p className="mx-auto mt-4 max-w-xl text-purple-100">30 minutes de démo sur vos données. Sans engagement.</p>
           <Link href="/demo" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-purple-600 shadow-lg transition hover:bg-purple-50">
             Faire une démo

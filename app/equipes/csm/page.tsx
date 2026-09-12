@@ -60,7 +60,7 @@ export default function CSMPage() {
               { title: "Croisement tickets × paiements × activité CRM", desc: "Revold croise les signaux de votre outil de support, vos données de paiement et l'activité CRM pour détecter les premiers signes de désengagement.", icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" },
               { title: "Agent CSM IA 24/7", desc: "Un agent expert dédié à votre métier, disponible en direct : posez vos questions sur un compte, ses paiements, son historique — chaque réponse est câblée sur vos vraies données.", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
               { title: "Alertes au câblage vérifié sur comptes à fort MRR", desc: "Avant de créer une alerte, Revold montre la donnée réellement suivie, l'outil source et la valeur actuelle calculée. Plus le MRR est élevé, plus l'alerte est prioritaire.", icon: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" },
-              { title: "Vue unifiée du client", desc: "Grâce au rapprochement automatique, Revold réconcilie toutes les données d'un même client entre CRM, support et facturation. Une seule fiche, zéro trou.", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+              { title: "Vue unifiée du client", desc: "Grâce au rapprochement automatique, Revold réconcilie toutes les données d'un même client entre CRM, support et facturation — une seule fiche, alimentée par tous vos outils.", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { title: "Historique complet deal → onboarding → support", desc: "Visualisez le parcours complet du client : du premier deal à l'onboarding, en passant par chaque interaction support. Le contexte est toujours là.", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
             ].map((f) => (
               <div key={f.title} className="flex gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-fuchsia-400/40 hover:bg-white/[0.06]">
@@ -80,13 +80,13 @@ export default function CSMPage() {
       {/* Impact */}
       <section className="border-y border-white/10 bg-white/[0.02] py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Impact mesurable</h2>
+          <h2 className="text-center text-2xl font-bold text-white md:text-3xl">Ce que ça change, concrètement</h2>
           <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
-              { val: "3×", desc: "sources croisées par compte" },
-              { val: "24/7", desc: "agent CSM IA" },
-              { val: "Temps réel", desc: "alertes câblées" },
-              { val: "360°", desc: "vue client unifiée" },
+              { val: "3", desc: "signaux croisés par compte : tickets, paiements, activité CRM" },
+              { val: "1", desc: "agent Service client branché sur vos comptes réels" },
+              { val: "1", desc: "fiche par client, tous outils confondus" },
+              { val: "0", desc: "compte à risque découvert après la résiliation — alerte avant" },
             ].map((m) => (
               <div key={m.desc} className="text-center">
                 <p className="text-3xl font-black text-white">{m.val}</p>

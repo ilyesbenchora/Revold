@@ -20,7 +20,7 @@ const PRICING = [
     price: "79,90",
     priceFrom: false,
     credits: "2500 analyses & actions IA multi-sources / mois",
-    desc: "Découvre l'impact de Revold sur ton business",
+    desc: "Connecte ta stack, rapproche tes données, agis",
     features: [
       "3 intégrations incluses (CRM, facturation, compta…)",
       "Rapprochement identifiants officiels + enrichissement Sirene",
@@ -41,7 +41,7 @@ const PRICING = [
     price: "149,90",
     priceFrom: false,
     credits: "5 000 analyses & actions IA / mois",
-    desc: "Pour les équipes qui veulent piloter et agir",
+    desc: "Diagnostic IA, deals à risque, volumes supérieurs",
     features: [
       "Tout Starter inclus",
       "6 intégrations incluses",
@@ -63,7 +63,7 @@ const PRICING = [
       "Intégrations illimitées",
       "Rapports illimités",
       "Utilisateurs illimités · rôles & permissions",
-      "Participation au développement produit",
+      "Canal direct avec l'équipe produit (priorisation de vos besoins)",
       "Advisor RevOps dédié · SLA",
     ],
     featured: false,
@@ -97,7 +97,7 @@ export default function TarifsPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-400">
             Un tarif selon ton usage. <span className="font-semibold text-slate-200">14 jours d&apos;essai gratuit</span>,
-            sans carte bancaire. Vois l&apos;impact sur ton business en 5 minutes.
+            sans carte bancaire — connecte un outil, tes premiers écarts sont chiffrés dès la première synchronisation.
           </p>
         </div>
       </section>
@@ -116,7 +116,7 @@ export default function TarifsPage() {
             >
               {plan.featured && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-4 py-1 text-xs font-semibold text-white shadow-md">
-                  Le plus populaire
+                  Recommandé
                 </span>
               )}
               <h3 className="text-xl font-bold text-white">{plan.name}</h3>
@@ -159,7 +159,7 @@ export default function TarifsPage() {
 
         <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-slate-500">
           Le tarif s&apos;adapte à ton usage (analyses &amp; actions IA par mois), au nombre d&apos;utilisateurs et aux
-          intégrations connectées. Besoin de plus de volume sur un plan ? On ajuste sans te faire changer de logique.
+          intégrations connectées. Besoin de plus de volume sur un plan ? Le quota s&apos;ajuste sans changer de plan.
         </p>
       </section>
 
@@ -183,7 +183,7 @@ export default function TarifsPage() {
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/20 via-purple-600/20 to-indigo-600/20 blur-3xl" />
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-3xl font-bold text-white">Testez Revold gratuitement pendant 14 jours</h2>
-          <p className="mx-auto mt-4 max-w-xl text-slate-400">Aucune carte bancaire. Aucun engagement. Vos premiers insights en 5 minutes.</p>
+          <p className="mx-auto mt-4 max-w-xl text-slate-400">Aucune carte bancaire. Aucun engagement. Premiers écarts chiffrés dès la première synchronisation.</p>
           <Link href="/essai-gratuit" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40">
             Démarrer l&apos;essai gratuit
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>

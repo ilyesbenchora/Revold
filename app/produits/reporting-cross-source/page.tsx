@@ -38,8 +38,8 @@ export default function ReportingCrossSourcePage() {
         { step: "Vous croisez ce qui était impossible", desc: "Pipeline réel vs facturé, revenus encaissés vs prévus, churn constaté : une seule source de vérité pour votre équipe et votre board." },
       ]}
       stats={[
-        { value: "100%", label: "des chiffres câblés sur vos données réelles" },
         { value: "3", label: "univers croisés : CRM × facturation × compta" },
+        { value: "1", label: "clic pour vérifier la source de chaque chiffre" },
         { value: "0", label: "export manuel" },
         { value: "0", label: "chiffre inventé par l'IA" },
       ]}

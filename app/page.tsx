@@ -63,7 +63,7 @@ const FEATURES = [
 // UNIQUEMENT sur /equipes/* (contenu canonique, jamais dupliqué ici).
 const METIERS = [
   { role: "Direction / CEO", hook: "Une seule vérité du revenue — pipeline, facturé, encaissé — et un brief quotidien pour trancher vite.", href: "/equipes/direction" },
-  { role: "Sales", hook: "Plus de temps à vendre : les deals qui dorment sont repérés, la relance arrive toute prête dans votre CRM.", href: "/equipes/sales" },
+  { role: "Sales", hook: "Les deals silencieux depuis 21 jours sont repérés, la relance arrive prête dans votre CRM — tâche ou séquence email.", href: "/equipes/sales" },
   { role: "Marketing", hook: "Le ROI prouvé de la campagne jusqu'à l'encaissement.", href: "/equipes/marketing" },
   { role: "RevOps", hook: "Des données fiables sans plomberie : rapprochement, enrichissement officiel et récaps cross-source automatisés.", href: "/equipes/revops" },
   { role: "Service client", hook: "Les comptes à risque repérés avant la résiliation : tickets, paiements et activité CRM croisés en continu.", href: "/equipes/csm" },
@@ -100,7 +100,7 @@ export default function HomePage() {
           <div className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-2 lg:gap-12">
             <div className="text-center lg:text-left">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in Europe
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> CRM × facturation × compta, rapprochés
               </span>
               <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl">
                 Votre revenue, réconcilié{" "}
@@ -109,9 +109,9 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
-                La seule plateforme qui relie votre CRM, votre facturation et votre compta par
-                identifiants officiels, vous donne une équipe d&apos;agents IA disponible 24/7 — et exécute les
-                actions validées directement dans vos outils.
+                Revold relie votre CRM, votre facturation et votre compta par identifiants officiels,
+                chiffre les écarts signé / facturé / encaissé — et exécute les actions que vous validez
+                directement dans vos outils.
               </p>
               <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
                 <Link href="/essai-gratuit" className="w-full rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40 sm:w-auto">
@@ -132,7 +132,7 @@ export default function HomePage() {
 
           {/* Bande connecteurs — épinglée en bas du hero (reste dans le viewport) */}
           <div className="shrink-0 pb-6">
-            <p className="text-center text-[11px] font-bold uppercase tracking-widest text-slate-500">Connecteurs natifs, câblés en profondeur</p>
+            <p className="text-center text-[11px] font-bold uppercase tracking-widest text-slate-500">Connecteurs natifs — deals, factures, paiements, écritures</p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               {INTEGRATIONS.map((name) => (
                 <span key={name} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
@@ -153,7 +153,7 @@ export default function HomePage() {
           <div className="mx-auto mb-8 max-w-2xl text-center">
             <p className="text-[11px] font-bold uppercase tracking-widest text-fuchsia-300/80">Démo produit</p>
             <h2 className="mt-2 text-3xl font-bold text-white md:text-4xl">Voyez Revold en action</h2>
-            <p className="mt-3 text-slate-400">Les features qui déplacent le revenue — en 1 minute, sans inscription.</p>
+            <p className="mt-3 text-slate-400">Réconciliation, alertes, actions exécutées — 1 minute, sans inscription.</p>
           </div>
           <ProductDemo />
         </div>
@@ -163,7 +163,7 @@ export default function HomePage() {
       <section className="relative border-t border-white/10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold text-white md:text-4xl">Une plateforme qui ferme la boucle</h2>
+            <h2 className="text-3xl font-bold text-white md:text-4xl">Détecter, valider, exécuter — dans vos outils</h2>
             <p className="mt-4 text-slate-400">
               Constater ne suffit pas. Revold rapproche, corrige, alerte — et exécute les actions que vous validez,
               avec l&apos;impact mesuré en euros.
@@ -194,7 +194,7 @@ export default function HomePage() {
         <div className="pointer-events-none absolute right-0 top-0 h-72 w-72 rounded-full bg-indigo-600/10 blur-3xl" />
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold text-white md:text-4xl">Opérationnel en une matinée</h2>
+            <h2 className="text-3xl font-bold text-white md:text-4xl">Trois étapes : connecter, rapprocher, agir</h2>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {STEPS.map((s) => (
@@ -214,7 +214,7 @@ export default function HomePage() {
       <section className="relative border-t border-white/10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold text-white md:text-4xl">Pensé pour chaque métier du revenue</h2>
+            <h2 className="text-3xl font-bold text-white md:text-4xl">Ce que chaque équipe en tire</h2>
             <p className="mt-4 text-slate-400">Chaque poste a sa page dédiée : enjeux, features et impact détaillés.</p>
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -240,7 +240,7 @@ export default function HomePage() {
         <div className="pointer-events-none absolute left-0 bottom-0 h-72 w-72 rounded-full bg-fuchsia-600/10 blur-3xl" />
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold text-white md:text-4xl">Un tarif simple, un essai sans risque</h2>
+            <h2 className="text-3xl font-bold text-white md:text-4xl">Tarifs publics, essai 14 jours sans carte</h2>
             <p className="mt-4 text-slate-400">14 jours d&apos;essai gratuit sur tous les plans, sans carte bancaire.</p>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-5 md:grid-cols-3">
@@ -282,10 +282,11 @@ export default function HomePage() {
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-96 w-[50rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/15 via-purple-600/15 to-indigo-600/15 blur-3xl" />
         <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6">
           <h2 className="text-3xl font-bold text-white md:text-4xl">
-            La vérité revenue de votre entreprise, en une matinée.
+            Vos écarts signé / facturé / encaissé, chiffrés sur vos données.
           </h2>
           <p className="mt-4 text-slate-400">
-            Connectez HubSpot, Stripe ou Pennylane et voyez immédiatement ce que vos outils ne vous disent pas.
+            Connectez HubSpot, Stripe ou Pennylane : l&apos;essai rapproche vos entreprises et calcule les écarts
+            dès la première synchronisation.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/essai-gratuit" className="w-full rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40 sm:w-auto">

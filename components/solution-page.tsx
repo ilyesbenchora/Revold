@@ -196,7 +196,7 @@ export function SolutionPage({
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/20 via-purple-600/20 to-indigo-600/20 blur-3xl" />
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-3xl font-bold text-white">
-            Voyez l&apos;impact sur vos revenus en 5 minutes
+            Essayez-le sur vos données
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-400">
             Connectez vos outils en moins de 5 minutes. Lecture seule, révocable à tout moment, essai 14 jours sans carte bancaire.

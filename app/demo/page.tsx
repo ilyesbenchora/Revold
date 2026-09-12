@@ -52,7 +52,7 @@ export default function DemoPage() {
               </span>
             </h1>
             <p className="mt-4 text-lg text-slate-400">
-              30 minutes pour comprendre comment Revold peut transformer votre approche revenue. Sans engagement.
+              30 minutes sur vos données : connecteurs branchés en direct, écarts signé / facturé / encaissé chiffrés. Sans engagement.
             </p>
 
             <div className="mt-10 space-y-6">
@@ -77,9 +77,9 @@ export default function DemoPage() {
 
             <div className="mt-10 grid grid-cols-3 gap-4">
               {[
-                { val: "30", unit: "min", desc: "de démo" },
-                { val: "0", unit: "€", desc: "engagement" },
-                { val: "<5", unit: "min", desc: "pour connecter" },
+                { val: "30", unit: "min", desc: "de démo, sur vos données" },
+                { val: "14", unit: "jours", desc: "d'essai ensuite, sans carte" },
+                { val: "<5", unit: "min", desc: "pour connecter votre CRM" },
               ].map((m) => (
                 <div key={m.desc} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
                   <p className="text-2xl font-black text-white">{m.val}<span className="ml-0.5 text-sm font-bold text-fuchsia-300">{m.unit}</span></p>
