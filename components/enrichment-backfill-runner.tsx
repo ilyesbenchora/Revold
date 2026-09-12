@@ -365,7 +365,10 @@ export function EnrichmentBackfillRunner({
   // ── État « terminé » (100 %) : on masque la jauge (%, barre, statut chiffré)
   // et on affiche un RÉCAP par donnée enrichie, refermable. ──
   const lastDone = (runs ?? []).find((r) => r.status !== "running" && !r.derived) ?? (runs ?? [])[0] ?? null;
-  const fullyDone = status != null && activated && !inProgress && !runningRef.current && pct >= 100;
+  // « Terminé » = couverture complète (pct arrondi à 100). Indépendant du moteur
+  // continu, qui garde inProgress=true tant qu'il reste un reliquat de file
+  // (re-scan 30 j / rafraîchissement 90 j) — sinon la jauge ne partirait jamais.
+  const fullyDone = status != null && activated && !runningRef.current && pct >= 100;
   const showRecap = fullyDone && !!lastDone && dismissedRecap !== lastDone.id;
   const dismissRecap = () => {
     if (!lastDone) return;
@@ -401,7 +404,7 @@ export function EnrichmentBackfillRunner({
                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-300" />
                   Lecture de l&apos;avancement…
                 </>
-              ) : inProgress || runningRef.current ? (
+              ) : (inProgress || runningRef.current) && !fullyDone ? (
                 <>
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-60" />
@@ -421,7 +424,7 @@ export function EnrichmentBackfillRunner({
             <p className="mt-0.5 text-xs text-slate-500">
               {status == null ? (
                 <>Récupération de l&apos;état réel de ta base…</>
-              ) : inProgress || runningRef.current ? (
+              ) : (inProgress || runningRef.current) && !fullyDone ? (
                 <>
                   Revold traite ta base en continu, application ouverte ou fermée. Dernière avancée{" "}
                   <span className="font-medium text-slate-700">{sinceFr(status?.lastActivityAt ?? null)}</span>.
@@ -577,7 +580,7 @@ export function EnrichmentBackfillRunner({
                nouveaux champs sont cochés ; sinon état discret. ── */}
         {status != null && runs != null && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-fuchsia-100 pt-3">
-            {activated && (inProgress || runningRef.current) ? (
+            {activated && (inProgress || runningRef.current) && !fullyDone ? (
               // Une passe tourne déjà (ici ou par le robot) : pas de CTA
               // « Relancer la détection » qui prête à confusion — la file se
               // vide toute seule, relancer n'apporterait rien.
@@ -585,7 +588,7 @@ export function EnrichmentBackfillRunner({
                 Une passe est en cours — la file se vide toute seule
                 {etaMin != null ? ` (≈ ${etaMin} min restante${etaMin > 1 ? "s" : ""})` : ""}. Inutile de relancer.
               </p>
-            ) : !activated || needsRun ? (
+            ) : (!activated || needsRun) && !fullyDone ? (
               <>
                 <p className="text-[11px] text-slate-400">
                   {!activated && activeFieldIds.length === 0 ? (
