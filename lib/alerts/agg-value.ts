@@ -17,6 +17,8 @@ export type AggSpec = {
    * Lève l'ambiguïté des libellés d'étape partagés entre pipelines.
    */
   pipeline?: string | null;
+  /** Utilisateur CRM ciblé (id owner HubSpot) — l'agrégat est filtré sur SES données. */
+  owner?: string | null;
   /** Outils sources de la table d'origine (ex : ["pennylane"]) — même filtre que son recalcul. */
   sources?: string[] | null;
   /** Période exacte (tuiles KPI à période figée/preset) — filtre déterministe sur la date de l'entité. */
@@ -44,6 +46,7 @@ export async function valueFromAggSpec(
       measure: spec.measure || "count",
       field: spec.field ?? null,
       pipeline: spec.pipeline ?? null,
+      owner: spec.owner ?? null,
       date_from: spec.date_from ?? null,
       date_to: spec.date_to ?? null,
     });

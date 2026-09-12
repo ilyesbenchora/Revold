@@ -23,6 +23,8 @@ export async function POST(request: Request) {
   let body: {
     query?: {
       entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null; granularity?: string | null;
+      /** Filtre par utilisateur CRM (id owner HubSpot). */
+      owner?: string | null;
       /** Filtre cohorte (segment / industry de l'entreprise). */
       cohort?: { key?: string; value?: string } | null;
     };
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
     measure: q.measure,
     field: q.field ?? null,
     pipeline: typeof q.pipeline === "string" && q.pipeline.trim() ? q.pipeline.trim() : null,
+    owner: typeof q.owner === "string" && q.owner.trim() ? q.owner.trim() : null,
     granularity: typeof q.granularity === "string" && q.granularity.trim() ? q.granularity.trim() : null,
     date_from: from,
     date_to: to,

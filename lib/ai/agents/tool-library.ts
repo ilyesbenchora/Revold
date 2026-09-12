@@ -899,6 +899,12 @@ export type AggregateSpec = {
    */
   pipeline?: string | null;
   /**
+   * Filtre par UTILISATEUR CRM (id owner HubSpot) — deals/contacts via
+   * hs_owner_id, tickets via owner_id. Sert au ciblage des alertes techniques
+   * et objectifs par utilisateur.
+   */
+  owner?: string | null;
+  /**
    * Fréquence d'affichage des dimensions temporelles (month_*) :
    * day | week | month (défaut) | quarter | semester | year.
    */
@@ -1206,6 +1212,14 @@ export async function computeAggregate(
     }
   }
 
+  // ── Filtre par UTILISATEUR CRM (owner HubSpot) : colonnes remplies par
+  // l'ETL — deals/contacts.hs_owner_id, tickets.owner_id. ──
+  const OWNER_COLS: Record<string, string> = { deals: "hs_owner_id", contacts: "hs_owner_id", tickets: "owner_id" };
+  const ownerFilter = typeof input.owner === "string" && input.owner.trim() ? input.owner.trim() : null;
+  if (ownerFilter && !OWNER_COLS[entity]) {
+    return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts et tickets uniquement).` };
+  }
+
   // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
   // colonnes de l'agrégat si le schéma ne les porte pas toutes.
   const wantDetail = input.detail === true;
@@ -1213,6 +1227,7 @@ export async function computeAggregate(
   const buildQuery = (cols: string) => {
     let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId).limit(10000);
     if (src && spec.hasSource) qb = qb.in("primary_source", src);
+    if (ownerFilter && OWNER_COLS[entity]) qb = qb.eq(OWNER_COLS[entity], ownerFilter);
     // Période exacte : filtre déterministe sur la vraie colonne de date.
     if (dateCol && from) qb = qb.gte(dateCol, from);
     if (dateCol && to) qb = qb.lte(dateCol, to);

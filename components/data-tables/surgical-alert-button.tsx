@@ -6,6 +6,10 @@ import { entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-pres
 import { InfoHint } from "@/components/info-hint";
 import { DictationButton } from "@/components/voice/dictation-button";
 import { WiredToolsRow } from "@/components/wired-tools-row";
+import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
+
+/** Entités dont les données portent un owner HubSpot → ciblage par utilisateur CRM possible. */
+const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets"]);
 
 export type SurgicalUnit = "percent" | "currency" | "count";
 
@@ -172,6 +176,30 @@ export function SurgicalAlertButton({
   // même sélecteur que le formulaire d'alerte classique. Les CANAUX, eux,
   // sont gérés centralement dans Mon compte → Notifications.
   const [scope, setScope] = useState<"personal" | "team">("personal");
+  // Cible du suivi : toute l'équipe OU des utilisateurs CRM précis — une alerte
+  // créée PAR utilisateur, l'agrégat filtré sur ses données (hs_owner_id).
+  // Disponible quand l'entité porte un owner (deals/contacts/tickets), ou quand
+  // le câblage sera résolu par l'agent (pas d'agg_spec → owner_filter classique).
+  const ownerTargetable = !aggSpec || OWNER_TARGETABLE_ENTITIES.has(aggSpec.entity);
+  const [targetMode, setTargetMode] = useState<"team" | "users">("team");
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  const [owners, setOwners] = useState<CrmOwner[]>([]);
+  const [hsTeams, setHsTeams] = useState<string[]>([]);
+  const [ownersLoaded, setOwnersLoaded] = useState(false);
+
+  // Utilisateurs CRM (owners HubSpot + équipes) au premier open, si ciblable.
+  useEffect(() => {
+    if (open && ownerTargetable && !ownersLoaded) {
+      fetch("/api/alerts/options")
+        .then((r) => (r.ok ? r.json() : { owners: [], teams: [] }))
+        .catch(() => ({ owners: [], teams: [] }))
+        .then((d) => {
+          setOwners(d.owners ?? []);
+          setHsTeams(d.teams ?? []);
+          setOwnersLoaded(true);
+        });
+    }
+  }, [open, ownerTargetable, ownersLoaded]);
 
   function reset() {
     setState("idle"); setError(null); setStep("form");
@@ -181,9 +209,11 @@ export function SurgicalAlertButton({
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
     setContinuous(true); setDateFrom(""); setDateTo(""); setDescription("");
     setScope("personal");
+    setTargetMode("team"); setSelectedOwners([]);
   }
 
-  /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi). */
+  /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi).
+   *  Cible = UN utilisateur CRM → la vérification est filtrée sur ses données. */
   const runVerify = useCallback(async (pipelineOverride: string | null) => {
     if (!aggSpec) return;
     setVerify((v) => ({ ...v, loading: true, error: null }));
@@ -198,6 +228,7 @@ export function SurgicalAlertButton({
             measure: aggSpec.measure,
             field: aggSpec.field ?? undefined,
             pipeline: pipelineOverride ?? undefined,
+            owner: targetMode === "users" && selectedOwners.length === 1 ? selectedOwners[0] : undefined,
           },
           sources: aggSpec.sources ?? [],
           all: true,
@@ -219,12 +250,13 @@ export function SurgicalAlertButton({
     } catch (e) {
       setVerify({ loading: false, rowCount: null, targetValue: null, error: e instanceof Error ? e.message : "Recalcul impossible" });
     }
-  }, [aggSpec, target]);
+  }, [aggSpec, target, targetMode, selectedOwners]);
 
   /** Étape 1 → 2 : validation du formulaire puis vérification du câblage. */
   async function goConfirm(e: React.FormEvent) {
     e.preventDefault();
     if (!threshold) { setError("Renseigne le KPI à surveiller."); return; }
+    if (ownerTargetable && targetMode === "users" && selectedOwners.length === 0) { setError("Sélectionne au moins un utilisateur CRM."); return; }
     setError(null);
     setStep("confirm");
     if (aggSpec) {
@@ -255,57 +287,77 @@ export function SurgicalAlertButton({
     parts.push(`Période : ${continuous ? "en continu" : `${dateFrom || "…"} → ${dateTo || "…"}`}.`);
     if (description.trim()) parts.push(`Contexte : ${description.trim()}`);
 
-    try {
-      const res = await fetch("/api/alerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: alertTitle.trim() || `Alerte — ${title}`,
-          description: parts.join(" "),
-          impact: `Surveillance chirurgicale de « ${target} » sur ${impactScope}`,
-          category: team,
-          team,
-          forecast_type: null,
-          threshold: Number(threshold),
-          direction,
-          unit_mode: unit,
-          priority: "moyen",
-          continuous,
-          date_from: continuous ? null : dateFrom || null,
-          date_to: continuous ? null : dateTo || null,
-          user_context: description.trim() || null,
-          // Canaux gérés centralement (Mon compte → Notifications).
-          scope,
-          source_key: key,
-          threshold_secondary: secondary.length ? secondary[0].value : null,
-          unit_mode_secondary: secondary.length ? secondary[0].unit_mode : null,
-          secondary_kpis: secondary.length ? secondary : null,
-          // Rapprochement données réelles : le cron rejoue cette agrégation.
-          // Absente (bloc non reproductible en agrégat) → l'API laisse l'agent
-          // rattacher le KPI aux vraies données.
-          agg_spec: aggSpec
-            ? {
-                entity: aggSpec.entity,
-                groupBy: aggSpec.groupBy,
-                measure: aggSpec.measure,
-                field: aggSpec.field ?? null,
-                multiplier: aggSpec.multiplier ?? null,
-                // Pipeline CONFIRMÉ à l'étape de vérification (peut différer de
-                // celui de la table si l'utilisateur l'a corrigé).
-                pipeline: pipeline ?? null,
-                sources: aggSpec.sources?.length ? aggSpec.sources : null,
-                target,
-              }
-            : null,
-        }),
-      });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "Création impossible."); setState("idle"); return; }
-      setState("done");
-      refreshLinked();
-      setTimeout(() => { setOpen(false); reset(); }, 1600);
-    } catch {
-      setError("Création impossible."); setState("idle");
+    // Cible : toute l'équipe (une alerte) OU utilisateurs CRM (UNE ALERTE PAR
+    // UTILISATEUR — l'agrégat est rejoué par le cron filtré sur ses données).
+    const targetOwners =
+      ownerTargetable && targetMode === "users" && selectedOwners.length > 0
+        ? selectedOwners.map((id) => owners.find((o) => o.id === id)).filter((o): o is CrmOwner => Boolean(o))
+        : [null];
+
+    const baseTitle = alertTitle.trim() || `Alerte — ${title}`;
+    let okCount = 0;
+    let lastError: string | null = null;
+    for (const owner of targetOwners) {
+      const ownerLabel = owner ? owner.name || owner.email : null;
+      const ownerParts = ownerLabel ? [...parts, `Utilisateur CRM : ${ownerLabel}.`] : parts;
+      try {
+        const res = await fetch("/api/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: ownerLabel && targetOwners.length > 1 ? `${baseTitle} — ${ownerLabel}` : baseTitle,
+            description: ownerParts.join(" "),
+            impact: `Surveillance chirurgicale de « ${target} » sur ${impactScope}`,
+            category: team,
+            team,
+            forecast_type: null,
+            threshold: Number(threshold),
+            direction,
+            unit_mode: unit,
+            priority: "moyen",
+            continuous,
+            date_from: continuous ? null : dateFrom || null,
+            date_to: continuous ? null : dateTo || null,
+            user_context: description.trim() || null,
+            // Canaux gérés centralement (Mon compte → Notifications).
+            scope,
+            source_key: key,
+            owner_filter: owner ? owner.id : null,
+            owner_name: ownerLabel,
+            threshold_secondary: secondary.length ? secondary[0].value : null,
+            unit_mode_secondary: secondary.length ? secondary[0].unit_mode : null,
+            secondary_kpis: secondary.length ? secondary : null,
+            // Rapprochement données réelles : le cron rejoue cette agrégation.
+            // Absente (bloc non reproductible en agrégat) → l'API laisse l'agent
+            // rattacher le KPI aux vraies données.
+            agg_spec: aggSpec
+              ? {
+                  entity: aggSpec.entity,
+                  groupBy: aggSpec.groupBy,
+                  measure: aggSpec.measure,
+                  field: aggSpec.field ?? null,
+                  multiplier: aggSpec.multiplier ?? null,
+                  // Pipeline CONFIRMÉ à l'étape de vérification (peut différer de
+                  // celui de la table si l'utilisateur l'a corrigé).
+                  pipeline: pipeline ?? null,
+                  // Utilisateur CRM ciblé : le cron filtre l'agrégat sur ses données.
+                  owner: owner ? owner.id : null,
+                  sources: aggSpec.sources?.length ? aggSpec.sources : null,
+                  target,
+                }
+              : null,
+          }),
+        });
+        if (res.ok) okCount++;
+        else { const d = await res.json().catch(() => ({})); lastError = d.error || "Création impossible."; }
+      } catch {
+        lastError = "Création impossible.";
+      }
     }
+    if (okCount === 0) { setError(lastError ?? "Création impossible."); setState("idle"); return; }
+    setState("done");
+    refreshLinked();
+    setTimeout(() => { setOpen(false); reset(); }, 1600);
   }
 
   const lbl = "mb-1 block text-[11px] font-medium text-slate-500";
@@ -428,6 +480,11 @@ export function SurgicalAlertButton({
                       </div>
                     </dl>
                     {verify.error && <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-600">{verify.error}</p>}
+                    {targetMode === "users" && selectedOwners.length > 1 && (
+                      <p className="mt-2 text-[10px] text-slate-400">
+                        Valeur affichée = toutes données confondues ; chaque alerte créée sera calculée sur les données de son utilisateur.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
@@ -459,6 +516,16 @@ export function SurgicalAlertButton({
                       <dt className="text-xs text-slate-500">Portée</dt>
                       <dd className="text-xs font-semibold text-slate-900">{scope === "team" ? "👥 Équipe" : "👤 Personnel"}</dd>
                     </div>
+                    {ownerTargetable && targetMode === "users" && selectedOwners.length > 0 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-slate-500">Cible</dt>
+                        <dd className="text-right text-xs font-semibold text-slate-900">
+                          {selectedOwners.length === 1
+                            ? (owners.find((o) => o.id === selectedOwners[0])?.name ?? "1 utilisateur CRM")
+                            : `${selectedOwners.length} utilisateurs CRM — une alerte chacun`}
+                        </dd>
+                      </div>
+                    )}
                     {description.trim() && (
                       <div className="flex items-start justify-between gap-3">
                         <dt className="shrink-0 text-xs text-slate-500">Contexte</dt>
@@ -567,6 +634,31 @@ export function SurgicalAlertButton({
                   </div>
                   <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex : alerter si cette ligne décroche vs le mois dernier." className={`${inp} resize-none`} />
                 </div>
+
+                {/* Cible : équipe entière OU utilisateurs CRM — iso alerte classique */}
+                {ownerTargetable && (
+                  <div>
+                    <label className={lbl}>Cible du suivi</label>
+                    <div className="mb-1.5 flex overflow-hidden rounded-lg border border-slate-200">
+                      <button type="button" onClick={() => setTargetMode("team")}
+                        className={`flex-1 px-3 py-1.5 text-xs font-medium transition ${targetMode === "team" ? "bg-fuchsia-500 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                        Toute l&apos;équipe
+                      </button>
+                      <button type="button" onClick={() => setTargetMode("users")}
+                        className={`flex-1 px-3 py-1.5 text-xs font-medium transition ${targetMode === "users" ? "bg-fuchsia-500 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                        Par utilisateur CRM
+                      </button>
+                    </div>
+                    {targetMode === "users" && (
+                      <>
+                        <CrmUserPicker owners={owners} teams={hsTeams} selected={selectedOwners} onChange={setSelectedOwners} />
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Une alerte est créée par utilisateur sélectionné — la donnée est calculée sur les enregistrements dont il est propriétaire dans le CRM.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Portée : personnelle ou d'équipe — iso avec l'alerte classique */}
                 <div>
