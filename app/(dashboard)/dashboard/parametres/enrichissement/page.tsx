@@ -7,6 +7,7 @@ import { ParametresTabs } from "@/components/parametres-tabs";
 import { SettingsEditLock } from "@/components/settings-edit-lock";
 import { EnrichmentSettingsForm } from "@/components/enrichment-settings-form";
 import { GroupSignalsSettings } from "@/components/group-signals-settings";
+import { HierarchyTagsSettings } from "@/components/hierarchy-tags-settings";
 import { isNameMatchEnabled, isDomainMatchEnabled } from "@/lib/actions/engine";
 import { IdentifierMappingForm, type HubSpotPropertyStatus } from "@/components/identifier-mapping-form";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -181,6 +182,14 @@ export default async function ParametresEnrichissementPage() {
              d'édition (✎ Modifier) comme les autres blocs — réglage auto-enregistré. ── */}
       <SettingsEditLock>
         <GroupSignalsSettings initialNameMatch={nameMatchEnabled} initialDomainMatch={domainMatchEnabled} />
+      </SettingsEditLock>
+
+      {/* ── Tags de hiérarchie : propriétés CRM personnalisées (fiches
+             Entreprise) affichées en tags à côté des montants sur la page
+             Groupes déclarés + filtres — même système de câblage/vérification
+             que les cohortes personnalisées (stockage partagé, clé hiertag_). ── */}
+      <SettingsEditLock>
+        <HierarchyTagsSettings hasCrm={!!hubspotToken} />
       </SettingsEditLock>
 
       {/* ── Propriétés CRM cibles de l'enrichissement — même bloc que le

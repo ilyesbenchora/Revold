@@ -38,11 +38,26 @@ export default async function GroupesDeclaresPage() {
     .sort((a, b) => b.members.length - a.members.length);
   const entitiesInGroups = declared.reduce((s, g) => s + g.members.length + 1, 0);
 
+  // ── Tags de hiérarchie (Paramètres → Enrichissement) : propriétés CRM
+  // personnalisées des fiches Entreprise, affichées en tags à côté des
+  // montants et utilisables en filtres — stockage partagé avec les cohortes
+  // (cohort_mappings, clé hiertag_). ──
+  let tagDefs: Array<{ key: string; label: string; prop: string }> = [];
+  try {
+    const { data } = await supabase.from("cohort_mappings").select("mappings").eq("organization_id", orgId).maybeSingle();
+    const all = Array.isArray(data?.mappings) ? (data.mappings as Array<Record<string, unknown>>) : [];
+    tagDefs = all
+      .filter((m) => typeof m.key === "string" && (m.key as string).startsWith("hiertag_") && typeof m.api_name === "string" && (m.api_name as string).trim())
+      .map((m) => ({ key: m.key as string, label: ((m.label as string) || (m.api_name as string)).trim(), prop: (m.api_name as string).trim() }))
+      .slice(0, 4);
+  } catch { /* table absente → pas de tags */ }
+
   // ── Vue « big picture » : SIREN + montant des DEALS ASSOCIÉS à chaque
   // entité (tous statuts — un deal rattaché suffit) ; sans deal, aucune
   // information de montant. Le cumul des filiales remonte sur la mère.
   const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
   const sirenOf = new Map<string, string | null>();
+  const tagsOf = new Map<string, Record<string, string>>();
   const caOf = new Map<string, number>();
   type DealInfo = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
   const dealsOf = new Map<string, DealInfo[]>();
@@ -51,7 +66,7 @@ export default async function GroupesDeclaresPage() {
       for (let i = 0; i < groupIds.length; i += 400) {
         const chunk = groupIds.slice(i, i + 400);
         const [{ data: comps }, { data: dealRows }] = await Promise.all([
-          supabase.from("companies").select("id, siren").in("id", chunk),
+          supabase.from("companies").select(tagDefs.length > 0 ? "id, siren, raw_data" : "id, siren").in("id", chunk),
           supabase
             .from("deals")
             // Étape + pipeline de CHAQUE deal associé : affichés sous l'entité.
@@ -61,7 +76,18 @@ export default async function GroupesDeclaresPage() {
             .in("company_id", chunk)
             .limit(5000),
         ]);
-        for (const c of (comps ?? []) as Array<{ id: string; siren: string | null }>) sirenOf.set(c.id, c.siren);
+        for (const c of (comps ?? []) as unknown as Array<{ id: string; siren: string | null; raw_data?: unknown }>) {
+          sirenOf.set(c.id, c.siren);
+          if (tagDefs.length > 0) {
+            const props = ((c.raw_data as { properties?: Record<string, unknown> } | null)?.properties ?? {}) as Record<string, unknown>;
+            const rec: Record<string, string> = {};
+            for (const def of tagDefs) {
+              const v = props[def.prop];
+              if (v != null && String(v).trim()) rec[def.key] = String(v).trim().slice(0, 60);
+            }
+            if (Object.keys(rec).length > 0) tagsOf.set(c.id, rec);
+          }
+        }
         type Row = {
           name: string | null; amount: number | null; company_id: string | null;
           pipeline_stages: { name: string | null; pipeline_name: string | null } | Array<{ name: string | null; pipeline_name: string | null }> | null;
@@ -87,6 +113,7 @@ export default async function GroupesDeclaresPage() {
     siren: sirenOf.get(id) ?? null,
     ca: caOf.get(id) ?? 0,
     deals: dealsOf.get(id) ?? [],
+    tags: tagsOf.get(id),
   });
   const bigGroups: BigPictureGroup[] = declared.map((g) => {
     const root = node(g.root, g.name);
@@ -144,7 +171,7 @@ export default async function GroupesDeclaresPage() {
         </p>
       ) : (
         <>
-          <GroupBigPicture groups={bigGroups} />
+          <GroupBigPicture groups={bigGroups} tagDefs={tagDefs.map(({ key, label }) => ({ key, label }))} />
           <p className="text-[10px] text-slate-400">
             Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
             consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. Montant = deals

@@ -16,8 +16,18 @@
 import { useMemo, useState } from "react";
 
 export type GroupDeal = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
-export type GroupNode = { id: string; name: string; siren: string | null; ca: number; deals?: GroupDeal[] };
+export type GroupNode = {
+  id: string;
+  name: string;
+  siren: string | null;
+  ca: number;
+  deals?: GroupDeal[];
+  /** Tags de hiérarchie (Paramètres → Enrichissement) : clé de tag → valeur CRM. */
+  tags?: Record<string, string>;
+};
 export type BigPictureGroup = { root: GroupNode; children: GroupNode[]; total: number };
+/** Définition d'un tag câblé (propriété CRM personnalisée des fiches Entreprise). */
+export type GroupTagDef = { key: string; label: string };
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(v));
@@ -44,24 +54,67 @@ function DealLines({ deals }: { deals: GroupDeal[] }) {
   );
 }
 
+/** Tags de hiérarchie d'une entité — affichés À CÔTÉ des montants pour
+ *  hiérarchiser les comptes sur la donnée CRM personnalisée. */
+function TagBadges({ node, defs, dark = false }: { node: GroupNode; defs: GroupTagDef[]; dark?: boolean }) {
+  const entries = defs.map((d) => ({ label: d.label, v: node.tags?.[d.key] })).filter((e): e is { label: string; v: string } => !!e.v);
+  if (entries.length === 0) return null;
+  return (
+    <>
+      {entries.map((e) => (
+        <span
+          key={e.label}
+          title={e.label}
+          className={
+            dark
+              ? "rounded-md bg-white/25 px-1.5 py-0.5 text-[9px] font-semibold text-white"
+              : "rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+          }
+        >
+          {e.v}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** Normalise pour la recherche : minuscules, sans accents. */
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
+export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGroup[]; tagDefs?: GroupTagDef[] }) {
   const [query, setQuery] = useState("");
   // Groupes repliés (par id de la mère) — repli/dépli depuis l'entité groupe.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Filtres par TAG de hiérarchie (Paramètres → Enrichissement) : "" = tous.
+  const [tagFilters, setTagFilters] = useState<Record<string, string>>({});
+
+  // Valeurs distinctes de chaque tag sur les groupes affichés (mère + filiales).
+  const tagOptions = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const def of tagDefs) {
+      const vals = new Set<string>();
+      for (const g of groups) for (const n of [g.root, ...g.children]) {
+        const v = n.tags?.[def.key];
+        if (v) vals.add(v);
+      }
+      out[def.key] = [...vals].sort((a, b) => a.localeCompare(b, "fr"));
+    }
+    return out;
+  }, [groups, tagDefs]);
 
   const filtered = useMemo(() => {
     const term = norm(query.trim());
-    if (!term) return groups;
     const digits = query.replace(/\D/g, ""); // SIREN/SIRET tapé avec espaces
+    const activeTags = Object.entries(tagFilters).filter(([, v]) => v);
     const matchNode = (n: GroupNode) =>
       norm(n.name).includes(term) ||
       (!!n.siren && (norm(n.siren).includes(term) || (digits.length > 0 && n.siren.includes(digits))));
-    return groups.filter((g) => matchNode(g.root) || g.children.some(matchNode));
-  }, [groups, query]);
+    // Tag actif : le groupe reste si la mère OU une filiale porte la valeur.
+    const matchTags = (g: BigPictureGroup) =>
+      activeTags.every(([k, v]) => [g.root, ...g.children].some((n) => n.tags?.[k] === v));
+    return groups.filter((g) => (!term || matchNode(g.root) || g.children.some(matchNode)) && matchTags(g));
+  }, [groups, query, tagFilters]);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -108,6 +161,37 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
         )}
       </div>
 
+      {/* ── Filtres par tag de hiérarchie (propriétés CRM câblées dans
+             Paramètres → Enrichissement) — un sélecteur par tag. ── */}
+      {tagDefs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {tagDefs.map((def) => (
+            <label key={def.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+              {def.label}
+              <select
+                value={tagFilters[def.key] ?? ""}
+                onChange={(e) => setTagFilters((prev) => ({ ...prev, [def.key]: e.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+              >
+                <option value="">Tous</option>
+                {(tagOptions[def.key] ?? []).map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+          {Object.values(tagFilters).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setTagFilters({})}
+              className="text-[11px] font-medium text-slate-400 underline decoration-dotted underline-offset-2 hover:text-slate-600"
+            >
+              Réinitialiser
+            </button>
+          )}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
           Aucun groupe ne correspond à « {query.trim()} ».
@@ -136,7 +220,8 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                 <p className="font-mono text-[10px] text-indigo-700">{g.root.siren ? `SIREN ${g.root.siren}` : "SIREN —"}</p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <TagBadges node={g.root} defs={tagDefs} dark />
               <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
                 {g.children.length} société{g.children.length > 1 ? "s" : ""} reliée{g.children.length > 1 ? "s" : ""}
               </span>
@@ -168,10 +253,14 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                     {/* Étape + pipeline de chaque deal associé (aucune ligne sans deal). */}
                     <DealLines deals={c.deals ?? []} />
                   </div>
-                  {/* Sans deal associé : aucune info de montant (pas même un tiret). */}
-                  {c.ca > 0 && (
-                    <span className="shrink-0 text-[11px] font-bold tabular-nums text-slate-700">{eur(c.ca)}</span>
-                  )}
+                  {/* Sans deal associé : aucune info de montant (pas même un tiret) —
+                      les tags de hiérarchie, eux, s'affichent dès qu'ils existent. */}
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <TagBadges node={c} defs={tagDefs} />
+                    {c.ca > 0 && (
+                      <span className="text-[11px] font-bold tabular-nums text-slate-700">{eur(c.ca)}</span>
+                    )}
+                  </span>
                 </div>
               </div>
             ))}

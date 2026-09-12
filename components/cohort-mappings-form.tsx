@@ -373,7 +373,11 @@ export function CohortMappingsForm({
       )}
 
       {visibleGroups.map((g) => {
-        const groupRows = rows.filter((m) => (m.team || "") === g.id);
+        // Les TAGS DE HIÉRARCHIE (préfixe hiertag_, gérés dans Paramètres →
+        // Enrichissement) partagent le stockage des cohortes mais ne sont pas
+        // des cohortes : masqués ici, CONSERVÉS dans l'état → l'enregistrement
+        // les renvoie intacts (le POST remplace la liste entière).
+        const groupRows = rows.filter((m) => (m.team || "") === g.id && !m.key.startsWith("hiertag_"));
         // Groupe transverse vide et non créable : rien à montrer.
         if (g.id === "" && groupRows.length === 0 && !canCreate("")) return null;
         const editable = canEdit(g.id);
@@ -398,7 +402,7 @@ export function CohortMappingsForm({
                     (sans la retaper) : vers « Toutes les équipes » elle devient
                     transverse ; vers une équipe, elle rejoint son périmètre. */}
                 {editable && (() => {
-                  const candidates = rows.filter((m) => (m.team || "") !== g.id && canView(m.team || ""));
+                  const candidates = rows.filter((m) => (m.team || "") !== g.id && canView(m.team || "") && !m.key.startsWith("hiertag_"));
                   if (candidates.length === 0) return null;
                   return (
                     <select
