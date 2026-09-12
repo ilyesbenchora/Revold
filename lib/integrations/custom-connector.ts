@@ -609,7 +609,7 @@ const HINTS: Record<string, RegExp> = {
   name: /(raison_?sociale|nom|name|societe|company|libelle_?client|intitule|titre)/i,
   email: /(e?-?mail|courriel)/i,
   full_name: /(nom_?complet|full_?name|contact_?name|prenom_?nom|display_?name)/i,
-  phone: /(tel|phone|mobile|portable)/i,
+  phone: /(tel|phone|mobile|portable|gsm)/i,
   title: /(fonction|poste|title|job|role)/i,
   created_date: /(date_?(creation|ouverture)|created_?(at|date))/i,
   close_date: /(date_?(closing|signature|cloture|fin)|close_?date|signed_?at)/i,
@@ -617,9 +617,9 @@ const HINTS: Record<string, RegExp> = {
   siren: /siren/i,
   vat_number: /(tva|vat)/i,
   number: /(numero_?facture|invoice_?number|num_?facture|reference_?facture)/i,
-  amount_total: /(montant_?(ttc|total)?|total_?amount|amount_?total|prix_?total)/i,
-  amount_paid: /(paye|paid|regle|encaisse)/i,
-  amount_due: /(reste|due|restant|solde|balance)/i,
+  amount_total: /(montant_?(ttc|total)?|total_?amount|amount_?total|prix_?total|grand_?total|net_?amount)/i,
+  amount_paid: /(paye|paid|regle|encaisse|settled|amount_?paid)/i,
+  amount_due: /(reste|due|restant|solde|balance|outstanding|remaining)/i,
   status: /(statut|status|etat|state)/i,
   issued_at: /(date_?(emission|facture)|issued|created_?at|date$)/i,
   paid_at: /(date_?(paiement|reglement)|paid_?at|payment_?date)/i,
@@ -645,6 +645,67 @@ export function suggestFieldMap(entity: CustomEntity, keys: string[]): Record<st
     if (!re) continue;
     const match = keys.find((k) => re.test(k.split(".").pop() ?? k)) ?? keys.find((k) => re.test(k));
     if (match) out[f.id] = match;
+  }
+  return out;
+}
+
+// ── Inférence PAR VALEUR (complément du nom) : sur les ERP, les champs portent
+// des noms exotiques (« champ_perso_12 »). On reconnaît alors la donnée à sa
+// FORME dans l'échantillon — uniquement pour les types à signal fort, jamais
+// pour du texte libre (nom, statut…) où deviner serait risqué. ──
+const looksEmail = (v: unknown) => typeof v === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.trim());
+const looksSiren = (v: unknown) => /^\d{9}$/.test(String(v ?? "").replace(/\s/g, ""));
+const looksVat = (v: unknown) => /^[A-Z]{2}[A-Z0-9]{6,13}$/i.test(String(v ?? "").replace(/\s/g, ""));
+const looksDomain = (v: unknown) =>
+  typeof v === "string" && !v.includes("@") && /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/.*)?$/i.test(v.trim());
+const looksDate = (v: unknown) => {
+  if (v == null || v === "") return false;
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2})?/.test(s)) return true; // ISO
+  if (/^\d{13}$/.test(s)) return true; // epoch ms
+  return false;
+};
+const looksNumber = (v: unknown) => {
+  if (typeof v === "number") return Number.isFinite(v);
+  const s = String(v ?? "").trim();
+  if (!s) return false;
+  return Number.isFinite(Number(s.replace(/\s/g, "").replace(",", ".").replace(/[€$£]/g, "")));
+};
+
+/** Règles de reconnaissance par valeur, par champ canonique (signal fort seul). */
+const VALUE_RULES: Record<string, (v: unknown) => boolean> = {
+  email: looksEmail,
+  siren: looksSiren,
+  vat_number: looksVat,
+  domain: looksDomain,
+  created_date: looksDate, close_date: looksDate, issued_at: looksDate, paid_at: looksDate,
+  due_at: looksDate, started_at: looksDate, canceled_at: looksDate, date: looksDate,
+  opened_at: looksDate, resolved_at: looksDate,
+  amount_total: looksNumber, amount_paid: looksNumber, amount_due: looksNumber, amount: looksNumber, mrr: looksNumber,
+};
+
+/**
+ * Pré-remplissage combiné NOM + VALEUR : le nom d'abord (précis), puis la valeur
+ * de l'échantillon pour les champs à signal fort encore non reconnus — sans
+ * jamais écraser une correspondance déjà trouvée ni réutiliser une clé prise.
+ */
+export function suggestFieldMapFromSample(
+  entity: CustomEntity,
+  keys: string[],
+  sample: Record<string, unknown> | null | undefined,
+): Record<string, string> {
+  const out = suggestFieldMap(entity, keys);
+  if (!sample) return out;
+  const used = new Set(Object.values(out));
+  for (const f of ENTITY_FIELDS[entity].fields) {
+    if (out[f.id]) continue;
+    const rule = VALUE_RULES[f.id];
+    if (!rule) continue;
+    const match = keys.find((k) => !used.has(k) && rule(getByPath(sample, k)));
+    if (match) {
+      out[f.id] = match;
+      used.add(match);
+    }
   }
   return out;
 }

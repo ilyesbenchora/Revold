@@ -569,12 +569,27 @@ export function CustomConnectorWizard({
 
             {ep.error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{ep.error}</p>}
 
-            {ep.tested && (
+            {ep.tested && (() => {
+              // Auto-mapping : combien de champs reconnus, combien d'obligatoires
+              // restent à compléter (retour visuel après le test).
+              const recognized = def.fields.filter((f) => ep.fieldMap[f.id]).length;
+              const reqMissing = def.fields.filter((f) => f.required && !ep.fieldMap[f.id]);
+              return (
               <>
                 <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                   ✓ {ep.count} enregistrement{ep.count > 1 ? "s" : ""} reçu{ep.count > 1 ? "s" : ""}
                   {ep.recordsPath && <> · liste détectée dans <code className="rounded bg-white/60 px-1">{ep.recordsPath}</code></>}
                   {" "}· {ep.keys.length} champs disponibles
+                </p>
+
+                {/* Bilan de l'auto-détection nom + valeur (avant correction manuelle). */}
+                <p className={`mt-2 rounded-lg px-3 py-2 text-[11px] ${reqMissing.length > 0 ? "bg-amber-50 text-amber-800" : "bg-indigo-50/60 text-indigo-700"}`}>
+                  ✨ Reconnu automatiquement : <span className="font-semibold">{recognized}/{def.fields.length}</span> champs
+                  {reqMissing.length > 0 ? (
+                    <> · <span className="font-semibold">{reqMissing.length} obligatoire{reqMissing.length > 1 ? "s" : ""}</span> à compléter : {reqMissing.map((f) => f.label).join(", ")}</>
+                  ) : (
+                    <> · tous les champs obligatoires sont mappés</>
+                  )}
                 </p>
 
                 {/* Correspondance champ canonique → champ de l'outil */}
@@ -600,9 +615,14 @@ export function CustomConnectorWizard({
                     </p>
                   )}
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {def.fields.map((f) => (
+                    {def.fields.map((f) => {
+                      const mapped = !!ep.fieldMap[f.id];
+                      const missingReq = f.required && !mapped;
+                      return (
                       <div key={f.id} className="flex items-center gap-2">
                         <label className="flex w-44 shrink-0 items-center gap-1 text-[11px] text-slate-600">
+                          {/* Pastille : vert = auto-reconnu, ambre = obligatoire manquant. */}
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${mapped ? "bg-emerald-500" : missingReq ? "bg-amber-500" : "bg-slate-300"}`} />
                           {f.label}
                           {f.required && <span className="text-rose-500">*</span>}
                           {f.hint && <InfoHint text={f.hint} />}
@@ -610,7 +630,7 @@ export function CustomConnectorWizard({
                         <select
                           value={ep.fieldMap[f.id] ?? ""}
                           onChange={(e) => patch(i, { fieldMap: { ...ep.fieldMap, [f.id]: e.target.value } })}
-                          className={`${field} min-w-0 flex-1 py-1.5 text-xs`}
+                          className={`${field} min-w-0 flex-1 py-1.5 text-xs ${missingReq ? "border-amber-300" : ""}`}
                         >
                           <option value="">— non fourni —</option>
                           {ep.keys.map((k) => (
@@ -618,7 +638,8 @@ export function CustomConnectorWizard({
                           ))}
                         </select>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -758,7 +779,8 @@ export function CustomConnectorWizard({
                   </details>
                 )}
               </>
-            )}
+              );
+            })()}
           </div>
         );
       })}

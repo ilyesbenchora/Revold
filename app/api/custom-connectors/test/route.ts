@@ -4,7 +4,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import {
   fetchPage,
   flattenKeys,
-  suggestFieldMap,
+  suggestFieldMapFromSample,
   CUSTOM_ENTITIES,
   type CustomEntity,
 } from "@/lib/integrations/custom-connector";
@@ -91,6 +91,7 @@ export async function POST(request: Request) {
     detectedPath: outcome.detectedPath,
     keys,
     sample: first,
-    suggestion: entity ? suggestFieldMap(entity, keys) : {},
+    // Correspondance pré-remplie par NOM + VALEUR (échantillon) — l'utilisateur corrige.
+    suggestion: entity ? suggestFieldMapFromSample(entity, keys, first) : {},
   });
 }
