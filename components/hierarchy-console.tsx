@@ -90,15 +90,18 @@ export function HierarchyConsole({
   const [refreshing, setRefreshing] = useState(false);
   // Sens parent/enfant inversé par l'utilisateur avant validation (par fiche).
   const [swapped, setSwapped] = useState<Set<string>>(new Set());
-  // Vue « Fiches » (détail complet) ou « Table » (ligne par ligne + bulk,
-  // même mécanique que les identités à valider de la page Enrichissement).
-  const [view, setView] = useState<"cards" | "table">("cards");
+  // Vue « Table » (ligne par ligne + bulk, même mécanique que les identités à
+  // valider de la page Enrichissement) — PAR DÉFAUT — ou « Fiches » (détail).
+  const [view, setView] = useState<"cards" | "table">("table");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState<"approve" | "reject" | null>(null);
   const [bulkProgress, setBulkProgress] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
-  // Pagination de la file (grosses files de rapprochements par le nom).
-  const PAGE_SIZE = 25;
+  // Pagination de la file : table = 25 lignes ; fiches = 15 par défaut,
+  // ajustable (15 / 25 / 50 / 100).
+  const CARD_SIZES = [15, 25, 50, 100] as const;
+  const [cardsPageSize, setCardsPageSize] = useState<number>(15);
+  const pageSize = view === "table" ? 25 : cardsPageSize;
   const [page, setPage] = useState(0);
   // Recherche dans la vue Table (en masse) : filtre sur les noms parent/enfant,
   // le domaine partagé et le SIREN/SIRET — pour retrouver un compte sans
@@ -259,14 +262,34 @@ export function HierarchyConsole({
 
   // Tranche affichée (pagination) — la sélection en masse reste sur toute la
   // file VISIBLE (filtrée quand une recherche est active, triée le cas échéant).
-  const totalPages = sortedVisible ? Math.max(1, Math.ceil(sortedVisible.length / PAGE_SIZE)) : 1;
+  const totalPages = sortedVisible ? Math.max(1, Math.ceil(sortedVisible.length / pageSize)) : 1;
   const curPage = Math.min(page, totalPages - 1);
-  const pageItems = sortedVisible ? sortedVisible.slice(curPage * PAGE_SIZE, curPage * PAGE_SIZE + PAGE_SIZE) : [];
+  const pageItems = sortedVisible ? sortedVisible.slice(curPage * pageSize, curPage * pageSize + pageSize) : [];
   const Pager = () =>
-    sortedVisible && sortedVisible.length > PAGE_SIZE ? (
-      <div className="flex items-center justify-between gap-2 pt-1 text-xs text-slate-500">
-        <span className="tabular-nums">
-          {curPage * PAGE_SIZE + 1}–{Math.min((curPage + 1) * PAGE_SIZE, sortedVisible.length)} sur {sortedVisible.length}
+    sortedVisible && sortedVisible.length > (view === "cards" ? Math.min(...CARD_SIZES) : pageSize) ? (
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-slate-500">
+        <span className="flex items-center gap-2">
+          <span className="tabular-nums">
+            {curPage * pageSize + 1}–{Math.min((curPage + 1) * pageSize, sortedVisible.length)} sur {sortedVisible.length}
+          </span>
+          {/* Vue Fiches : nombre de fiches affichées par page, au choix. */}
+          {view === "cards" && (
+            <span className="flex items-center gap-1">
+              <span>· Fiches par page :</span>
+              {CARD_SIZES.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => { setCardsPageSize(n); setPage(0); }}
+                  className={`rounded-md px-1.5 py-0.5 font-medium transition ${
+                    cardsPageSize === n ? "bg-indigo-100 text-indigo-700" : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </span>
+          )}
         </span>
         <span className="flex items-center gap-1">
           <button type="button" disabled={curPage === 0} onClick={() => setPage(curPage - 1)} className="rounded-md border border-slate-200 px-2 py-1 font-medium transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40">← Précédent</button>
@@ -291,20 +314,21 @@ export function HierarchyConsole({
           </h2>
           <div className="flex items-center gap-2">
             {(pending?.length ?? 0) > 0 && (
+              {/* Table (en masse) EN PREMIER — c'est aussi la vue par défaut. */}
               <div className="flex overflow-hidden rounded-lg border border-slate-200 text-xs">
                 <button
                   type="button"
-                  onClick={() => setView("cards")}
-                  className={`px-2.5 py-1.5 transition ${view === "cards" ? "bg-accent/10 font-semibold text-accent" : "text-slate-500 hover:bg-slate-50"}`}
-                >
-                  Fiches
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("table")}
+                  onClick={() => { setView("table"); setPage(0); }}
                   className={`px-2.5 py-1.5 transition ${view === "table" ? "bg-accent/10 font-semibold text-accent" : "text-slate-500 hover:bg-slate-50"}`}
                 >
                   Table (en masse)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setView("cards"); setPage(0); }}
+                  className={`px-2.5 py-1.5 transition ${view === "cards" ? "bg-accent/10 font-semibold text-accent" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Fiches
                 </button>
               </div>
             )}
