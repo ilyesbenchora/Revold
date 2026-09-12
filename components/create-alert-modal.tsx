@@ -668,11 +668,11 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                         <div className="mb-2 flex overflow-hidden rounded-lg border border-slate-200">
                           <button type="button" onClick={() => setTargetMode("team")}
                             className={`flex-1 px-3 py-2 text-xs font-medium transition ${targetMode === "team" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                            🌍 Toute l&apos;équipe
+                            Toute l&apos;équipe
                           </button>
                           <button type="button" onClick={() => setTargetMode("users")}
                             className={`flex-1 px-3 py-2 text-xs font-medium transition ${targetMode === "users" ? "bg-accent text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                            👤 Par utilisateur CRM
+                            Par utilisateur CRM
                           </button>
                         </div>
                         {targetMode === "team" ? (

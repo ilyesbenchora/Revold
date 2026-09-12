@@ -65,7 +65,7 @@ export function CrmUserPicker({
           onChange={(e) => setTeamFilter(e.target.value)}
           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-accent"
         >
-          <option value="">🌍 Toutes les équipes</option>
+          <option value="">Toutes les équipes</option>
           {teams.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}

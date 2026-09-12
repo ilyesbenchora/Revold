@@ -231,7 +231,7 @@ export function ObjectiveCard({ objective, dataReady }: { objective: Objective; 
                   title="Objectif calculé sur les données de cet utilisateur CRM"
                   className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-700"
                 >
-                  🎯 {o.owner_name}
+                  {o.owner_name}
                 </span>
               )}
               {o.scope && (
