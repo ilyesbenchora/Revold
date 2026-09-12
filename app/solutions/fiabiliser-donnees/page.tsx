@@ -21,7 +21,7 @@ export default function FiabiliserDonneesPage() {
       shot={<ShotAudit />}
       keyBenefits={[
         { title: "Audit automatique", desc: "Complétude par propriété, doublons, fiches orphelines — tout est détecté et scoré automatiquement, avec un plan d'action IA priorisé." },
-        { title: "Rapprochement à l'européenne", desc: "Identifiants légaux, email, domaine et ID custom : une vue unique par entreprise entre CRM, facturation et compta." },
+        { title: "Rapprochement UE", desc: "Identifiants légaux, email, domaine et ID custom : une vue unique par entreprise entre CRM, facturation et compta." },
         { title: "Enrichissement officiel", desc: "Les identifiants manquants sont remplis depuis les registres officiels, validés par vous en un clic — et écrits aussi dans votre CRM." },
       ]}
       teams={[

@@ -90,7 +90,7 @@ export const KEYWORD_PAGES: KeywordPage[] = [
       },
     ],
     whyRevold: [
-      { title: "Rapprochement à l'européenne", desc: "Comptes réconciliés par SIREN, SIRET et TVA via l'API Sirene, pas par un nom d'entreprise approximatif." },
+      { title: "Rapprochement UE", desc: "Comptes réconciliés par SIREN, SIRET et TVA via l'API Sirene, pas par un nom d'entreprise approximatif." },
       { title: "CRM × facturation × banque", desc: "Signé, facturé, encaissé sur une même ligne, avec l'écart révélé au lieu d'être masqué par la compensation." },
       { title: "Tarif public, essai gratuit", desc: "Trois plans affichés à partir de 79,90 € HT par mois, 14 jours d'essai sans carte bancaire." },
       { title: "Données hébergées en Europe", desc: "Application à Paris, base de données à Francfort, IA Anthropic en zone EU sans rétention." },

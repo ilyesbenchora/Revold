@@ -24,7 +24,7 @@ const DIFFERENTIATORS = [
     statLabel: "connecteurs natifs",
   },
   {
-    title: "Rapprochement à l'européenne",
+    title: "Rapprochement UE",
     desc: "Revold relie vos entreprises entre outils par leurs identifiants légaux — et remplit lui-même les identifiants manquants depuis les registres officiels, avec validation par vous avant application. Un client dans 3 outils = une seule fiche.",
     stat: "3",
     statLabel: "identifiants légaux reconnus",

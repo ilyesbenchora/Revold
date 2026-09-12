@@ -23,7 +23,7 @@ const INTEGRATIONS = ["HubSpot", "Stripe", "Pennylane", "Chargebee", "GoCardless
 const FEATURES = [
   {
     icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-    title: "Rapprochement de données à l'européenne",
+    title: "Rapprochement de données UE",
     desc: "Revold relie vos entreprises entre CRM, facturation et compta par leurs identifiants légaux — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis les registres officiels, jusque dans votre CRM.",
     href: "/produits/resolution-entites",
   },
