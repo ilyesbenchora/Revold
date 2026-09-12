@@ -447,7 +447,9 @@ export function EnrichmentBackfillRunner({
                   onClick={() => void startPass()}
                   className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-60"
                 >
-                  Enrichir mon CRM
+                  {/* 1ʳᵉ passe = « Enrichir mon CRM » ; dès qu'une passe a eu
+                      lieu (flag serveur activated), on RELANCE la détection. */}
+                  {activated ? "Relancer la détection" : "Enrichir mon CRM"}
                 </button>
               </>
             ) : (
