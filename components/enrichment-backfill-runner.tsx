@@ -125,6 +125,8 @@ export function EnrichmentBackfillRunner({
     if (typeof window === "undefined") return null;
     try { return localStorage.getItem("revold:enrich-recap-dismissed"); } catch { return null; }
   });
+  // Historique des enrichissements : repliable (par défaut déplié).
+  const [historyOpen, setHistoryOpen] = useState(true);
 
   // ── Passe en cours (fenêtre de complétion) ──
   const [modalOpen, setModalOpen] = useState(false);
@@ -645,12 +647,27 @@ export function EnrichmentBackfillRunner({
         )}
       </div>
 
-      {/* ── Historique des enrichissements (date, heure, champs, volumes) ── */}
+      {/* ── Historique des enrichissements (date, heure, champs, volumes) — repliable ── */}
       {historyRuns.length > 0 && (
         <div className="card p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Historique des enrichissements
-          </p>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-expanded={historyOpen}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Historique des enrichissements
+              <span className="ml-1.5 normal-case text-slate-300">({historyRuns.length})</span>
+            </span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              className={`shrink-0 text-slate-400 transition-transform ${historyOpen ? "" : "-rotate-90"}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {historyOpen && (
           <ul className="mt-2 divide-y divide-slate-100">
             {historyRuns.map((r) => {
               // Détail PAR DONNÉE enrichie (« +12 SIREN · +30 effectifs ») quand
@@ -686,10 +703,11 @@ export function EnrichmentBackfillRunner({
               );
             })}
           </ul>
+          )}
 
           {/* ── Détail fiche par fiche : les entreprises enrichies, dépliables
                  ICI (même bloc que les passes — pas de carte doublon). ── */}
-          <EnrichedCompaniesPanel />
+          {historyOpen && <EnrichedCompaniesPanel />}
         </div>
       )}
 

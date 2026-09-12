@@ -179,13 +179,6 @@ export function CompanyEnrichmentBlock() {
             trancher, et sont appliqués en même temps que l&apos;identité.
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-        >
-          {loading ? "Chargement…" : "Rafraîchir la file"}
-        </button>
       </div>
 
       <div className="p-4">
@@ -304,7 +297,7 @@ export function CompanyEnrichmentBlock() {
                 disabled={applying || selected.size === 0}
                 className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-pink-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-50"
               >
-                {applying ? "Application…" : "✓ Valider la sélection (Revold + HubSpot)"}
+                {applying ? "Application…" : "✓ Valider la sélection"}
               </button>
             </div>
           </>
