@@ -255,7 +255,9 @@ export function SurgicalAlertButton({
   /** Étape 1 → 2 : validation du formulaire puis vérification du câblage. */
   async function goConfirm(e: React.FormEvent) {
     e.preventDefault();
+    if (!alertTitle.trim()) { setError("Renseigne le titre de l'alerte."); return; }
     if (!threshold) { setError("Renseigne le KPI à surveiller."); return; }
+    if (!continuous && (!dateFrom || !dateTo)) { setError("Renseigne les deux dates — ou repasse en continu."); return; }
     if (ownerTargetable && targetMode === "users" && selectedOwners.length === 0) { setError("Sélectionne au moins un utilisateur CRM."); return; }
     setError(null);
     setStep("confirm");
@@ -564,8 +566,8 @@ export function SurgicalAlertButton({
                 </div>
 
                 <div>
-                  <label className={lbl}>Titre de l&apos;alerte</label>
-                  <input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} className={inp} />
+                  <label className={lbl}>Titre de l&apos;alerte<span className="ml-1 text-red-500">*</span></label>
+                  <input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} className={inp} required />
                 </div>
 
                 <div>
@@ -579,7 +581,7 @@ export function SurgicalAlertButton({
                 </div>
 
                 <div>
-                  <label className={lbl}>KPI à surveiller</label>
+                  <label className={lbl}>KPI à surveiller<span className="ml-1 text-red-500">*</span></label>
                   <div className="flex items-center gap-1.5">
                     <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="Ex : 20" className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100" />
                     <div className="flex overflow-hidden rounded-lg border border-slate-200">
@@ -620,16 +622,19 @@ export function SurgicalAlertButton({
                     <button type="button" onClick={() => setContinuous(false)} className={`flex-1 px-3 py-1.5 text-xs font-medium transition ${!continuous ? "bg-fuchsia-500 text-white" : "text-slate-600 hover:bg-slate-50"}`}>Plage de dates</button>
                   </div>
                   {!continuous && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inp} />
-                      <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inp} />
-                    </div>
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inp} required />
+                        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inp} required />
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-400">Les deux dates sont requises — ou repasse « En continu ».</p>
+                    </>
                   )}
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <label className={lbl}>Description (pour l&apos;agent)</label>
+                    <label className={lbl}>Description (optionnel — pour l&apos;agent)</label>
                     <DictationButton onText={(t) => setDescription((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
                   </div>
                   <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex : alerter si cette ligne décroche vs le mois dernier." className={`${inp} resize-none`} />
@@ -689,7 +694,7 @@ export function SurgicalAlertButton({
 
                 <div className="flex items-center justify-between pt-1">
                   <button type="button" onClick={() => { setOpen(false); reset(); }} className="text-xs text-slate-400 hover:text-fuchsia-600">Annuler</button>
-                  <button type="submit" disabled={state === "saving" || !threshold}
+                  <button type="submit" disabled={state === "saving" || !alertTitle.trim() || !threshold || (!continuous && (!dateFrom || !dateTo))}
                     className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-fuchsia-500 hover:to-indigo-500 disabled:opacity-50">
                     Vérifier le câblage →
                   </button>

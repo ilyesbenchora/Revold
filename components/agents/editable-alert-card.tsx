@@ -173,7 +173,7 @@ export function EditableAlertCard({ alert, badge = "Alerte de suivi", dataReady 
       {editing ? (
         <div className="space-y-2.5">
           <div>
-            <label className={lbl}>Objectif</label>
+            <label className={lbl}>Alerte fixée</label>
             <input value={title} onChange={(e) => { setTitle(e.target.value); resetProposal(); }} className={field} />
           </div>
           <div className="grid grid-cols-2 gap-2">

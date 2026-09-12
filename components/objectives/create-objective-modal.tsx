@@ -124,6 +124,8 @@ export function CreateObjectiveModal() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !target) { setError("Titre et cible requis."); return; }
+    if (!dateFrom || !dateTo) { setError("Renseigne le début et l'échéance de l'objectif."); return; }
+    if (!forecast && !current) { setError("Renseigne la valeur actuelle (ou choisis un KPI auto-suivi)."); return; }
     if (targetMode === "users" && selectedOwners.length === 0) { setError("Sélectionne au moins un utilisateur CRM."); return; }
 
     // Étape Vérification d'abord — TOUJOURS : le câblage (catalogué ou proposé
@@ -192,7 +194,7 @@ export function CreateObjectiveModal() {
             <h2 className="text-lg font-semibold text-slate-900">Nouvel objectif</h2>
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-            <div><label className={lbl}>Objectif</label><input value={title} onChange={(e) => { setTitle(e.target.value); setProposal(null); }} placeholder="Ex : +200 k€ de CA signé au T3" className={field} /></div>
+            <div><label className={lbl}>Objectif<span className="ml-1 text-red-500">*</span></label><input value={title} onChange={(e) => { setTitle(e.target.value); setProposal(null); }} placeholder="Ex : +200 k€ de CA signé au T3" className={field} required /></div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -210,7 +212,7 @@ export function CreateObjectiveModal() {
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <div><label className={lbl}>Cible</label><input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="200000" className={field} /></div>
+              <div><label className={lbl}>Cible<span className="ml-1 text-red-500">*</span></label><input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="200000" className={field} required /></div>
               <div>
                 <label className={lbl}>Unité</label>
                 <div className="mt-0.5 flex overflow-hidden rounded-lg border border-slate-200">
@@ -230,12 +232,12 @@ export function CreateObjectiveModal() {
             </div>
 
             {!forecast && (
-              <div><label className={lbl}>Valeur actuelle (manuelle)</label><input type="number" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} /></div>
+              <div><label className={lbl}>Valeur actuelle (manuelle)<span className="ml-1 text-red-500">*</span></label><input type="number" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} required /></div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>Début</label><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={field} /></div>
-              <div><label className={lbl}>Échéance</label><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={field} /></div>
+              <div><label className={lbl}>Début<span className="ml-1 text-red-500">*</span></label><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={field} required /></div>
+              <div><label className={lbl}>Échéance<span className="ml-1 text-red-500">*</span></label><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={field} required /></div>
             </div>
 
             <div>
@@ -293,12 +295,12 @@ export function CreateObjectiveModal() {
 
             <div>
               <div className="flex items-center justify-between gap-2">
-                <label className={lbl}>Description</label>
+                <label className={lbl}>Description (optionnel)</label>
                 <DictationButton onText={(t) => setDescription((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
               </div>
               <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
             </div>
-            <div><label className={lbl}>Impact attendu</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
+            <div><label className={lbl}>Impact attendu (optionnel)</label><textarea rows={2} value={impact} onChange={(e) => setImpact(e.target.value)} className={field} /></div>
 
             {/* Étape « Vérification » : câblage affiché SYSTÉMATIQUEMENT avant création. */}
             {proposal && (

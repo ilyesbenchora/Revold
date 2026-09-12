@@ -393,7 +393,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                   <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
                     <p className="text-xs text-slate-500">Valeur actuelle</p>
                     <p className="mt-1 text-2xl font-bold text-slate-900">{result.currentValue.toLocaleString("fr-FR")}{unitLabels[unitMode]}</p>
-                    <p className="mt-1 text-xs text-slate-400">Objectif : {direction === "below" ? "< " : ""}{threshold}{unitLabels[unitMode]}</p>
+                    <p className="mt-1 text-xs text-slate-400">Alerte fixée : {direction === "below" ? "< " : ""}{threshold}{unitLabels[unitMode]}</p>
                   </div>
                 )}
               </div>
@@ -490,16 +490,16 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
 
                 {/* ── Step 3: Configure ── */}
                 {step === 3 && kpi && (
-                  <form onSubmit={(e) => { e.preventDefault(); if (threshold && (kpiId !== "source_to_lifecycle" || lifecycleStage) && (targetMode === "team" || selectedOwners.length > 0)) setStep(4); }}>
+                  <form onSubmit={(e) => { e.preventDefault(); if (alertTitle.trim() && threshold && (continuous || (dateFrom && dateTo)) && (kpiId !== "source_to_lifecycle" || lifecycleStage) && (targetMode === "team" || selectedOwners.length > 0)) setStep(4); }}>
                     <h2 className="text-lg font-semibold text-slate-900">Évaluation</h2>
                     <p className="mt-1 text-sm text-slate-500">{kpi.label} — {kpi.description}</p>
 
                     <div className="mt-5 space-y-4">
                       {/* Titre de l'alerte — éditable */}
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Titre de l&apos;alerte</label>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-600">Titre de l&apos;alerte<span className="ml-1 text-red-500">*</span></label>
                         <input type="text" value={alertTitle} onChange={(e) => { setAlertTitle(e.target.value); setProposal(null); }}
-                          placeholder="Nom de l'alerte"
+                          placeholder="Nom de l'alerte" required
                           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                       </div>
 
@@ -530,7 +530,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       {/* KPI à surveiller (seuil) — = KPI de la 1ʳᵉ source croisée */}
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                          KPI à surveiller{crossSources.length > 0 ? ` — ${dataSources.find((t) => t.key === crossSources[0])?.label ?? "1ʳᵉ source"}` : ""}
+                          KPI à surveiller{crossSources.length > 0 ? ` — ${dataSources.find((t) => t.key === crossSources[0])?.label ?? "1ʳᵉ source"}` : ""}<span className="ml-1 text-red-500">*</span>
                         </label>
                         <div className="flex items-center gap-2">
                           <input type="number" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)}
@@ -735,17 +735,17 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                           <>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <span className="text-[10px] text-slate-400">Date de début</span>
-                                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                                <span className="text-[10px] text-slate-400">Date de début<span className="ml-0.5 text-red-500">*</span></span>
+                                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} required
                                   className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400">Date de fin</span>
-                                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                                <span className="text-[10px] text-slate-400">Date de fin<span className="ml-0.5 text-red-500">*</span></span>
+                                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} required
                                   className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent" />
                               </div>
                             </div>
-                            <p className="mt-1 text-[10px] text-slate-400">Laisse vide pour analyser toute la période.</p>
+                            <p className="mt-1 text-[10px] text-slate-400">Les deux dates sont requises — ou repasse « En continu ».</p>
                           </>
                         )}
                       </div>
@@ -771,7 +771,7 @@ export function CreateAlertModal({ hideTrigger = false }: { hideTrigger?: boolea
                       <div className="flex gap-3">
                         <button type="button" onClick={() => { setOpen(false); reset(); }}
                           className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Annuler</button>
-                        <button type="submit" disabled={!threshold || (kpiId === "source_to_lifecycle" && !lifecycleStage) || (targetMode === "users" && selectedOwners.length === 0)}
+                        <button type="submit" disabled={!alertTitle.trim() || !threshold || (!continuous && (!dateFrom || !dateTo)) || (kpiId === "source_to_lifecycle" && !lifecycleStage) || (targetMode === "users" && selectedOwners.length === 0)}
                           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:opacity-50">
                           Suivant : Vérification →
                         </button>
