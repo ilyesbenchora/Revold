@@ -108,7 +108,10 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
     const activeTags = Object.entries(tagFilters).filter(([, v]) => v);
     const matchNode = (n: GroupNode) =>
       norm(n.name).includes(term) ||
-      (!!n.siren && (norm(n.siren).includes(term) || (digits.length > 0 && n.siren.includes(digits))));
+      (!!n.siren && (norm(n.siren).includes(term) || (digits.length > 0 && n.siren.includes(digits)))) ||
+      // La recherche couvre aussi les TAGS : taper « Tier 1 » ou « Enterprise »
+      // retrouve les groupes dont la mère ou une filiale porte cette valeur.
+      Object.values(n.tags ?? {}).some((v) => norm(v).includes(term));
     // Tag actif : le groupe reste si la mère OU une filiale porte la valeur.
     const matchTags = (g: BigPictureGroup) =>
       activeTags.every(([k, v]) => [g.root, ...g.children].some((n) => n.tags?.[k] === v));
@@ -140,7 +143,7 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un groupe par nom d'entreprise ou SIREN…"
+            placeholder={tagDefs.length > 0 ? "Rechercher par nom, SIREN ou tag (segment, tier…)…" : "Rechercher un groupe par nom d'entreprise ou SIREN…"}
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-accent"
           />
           {query.trim() && (
