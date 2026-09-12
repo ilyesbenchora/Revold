@@ -344,6 +344,20 @@ function hasUnackedAchievement(keys: string[]): boolean {
   const ack = readBriefAck();
   return keys.some((k) => !ack.has(k));
 }
+/** Libellé du CTA selon la NATURE des nouveautés non écoutées (préfixes des
+ *  clés d'accomplissement : obj:/actions:/enrichment:) — « Objectif atteint »,
+ *  « Actions exécutées », « Enrichissement terminé »… jamais un « Quoi de
+ *  neuf » générique. */
+function newBriefLabel(keys: string[]): string {
+  const ack = readBriefAck();
+  const fresh = keys.filter((k) => !ack.has(k));
+  const objs = fresh.filter((k) => k.startsWith("obj:")).length;
+  const parts: string[] = [];
+  if (objs > 0) parts.push(objs > 1 ? "Objectifs atteints" : "Objectif atteint");
+  if (fresh.some((k) => k.startsWith("actions:"))) parts.push("Actions exécutées");
+  if (fresh.some((k) => k.startsWith("enrichment:"))) parts.push("Enrichissement terminé");
+  return parts.length > 0 ? parts.join(" + ") : "Brief du jour";
+}
 
 // Dernier brief ÉCOUTÉ (texte + horodatage) : une fois le brief du jour
 // entendu et sans rien de nouveau, le CTA se replie en icône ↺ épurée
@@ -452,6 +466,9 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
   const [health, setHealth] = useState<Health | null>(null);
   // Vert émeraude : un contenu du brief est finalisé/exécuté/atteint.
   const [achieved, setAchieved] = useState(false);
+  // Clés d'accomplissement du dernier digest : la NATURE des nouveautés
+  // (objectif atteint, actions, enrichissement) donne son libellé au CTA.
+  const [achievedList, setAchievedList] = useState<string[]>([]);
   // Horodatage du dernier brief écouté (localStorage, posé après montage) :
   // pilote le repli du CTA « Brief du jour » en icône ↺ de réécoute.
   const [lastBriefAt, setLastBriefAt] = useState<number | null>(null);
@@ -542,6 +559,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
         if (!alive || !d) return;
         if (settings.healthRing && (d.status === "ok" || d.status === "warn" || d.status === "critical")) setHealth(d.status);
         setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
+        setAchievedList(achievedKeysOf(d));
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -712,8 +730,10 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
       if (!veille) {
         writeBriefAck(achievedKeysOf(d));
         setAchieved(false);
+        setAchievedList([]);
       } else {
         setAchieved(hasUnackedAchievement(achievedKeysOf(d)));
+        setAchievedList(achievedKeysOf(d));
       }
       // Brief écouté : mémorisé (texte + horodatage + actions) pour la
       // réécoute — le CTA plein se replie en icône ↺ tant qu'il n'y a rien
@@ -1442,7 +1462,7 @@ export function RevoldOrb({ size = 210 }: { size?: number }) {
                   : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-300/40 hover:text-amber-200"
               }`}
             >
-              {achieved && lastBriefAt != null && Date.now() - lastBriefAt <= LAST_BRIEF_TTL_MS ? "Quoi de neuf" : "Brief du jour"}
+              {achieved && lastBriefAt != null && Date.now() - lastBriefAt <= LAST_BRIEF_TTL_MS ? newBriefLabel(achievedList) : "Brief du jour"}
             </button>
           ) : (
             <button
