@@ -154,7 +154,10 @@ export default async function DashboardOverviewPage() {
     { id: "tickets", label: "Tickets support", value: (ticketsCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/service-client", color: "text-orange-600" },
     { id: "transactions", label: "Transactions bancaires", value: (txCount ?? 0).toLocaleString("fr-FR"), href: "/dashboard/audit/paiement-facturation", color: "text-lime-600" },
   ];
-  const DEFAULT_HOME_KPIS = ["integrations", "coaching", "rapports", "revenue"];
+  // 5 tuiles par défaut (la grille du bloc central en affiche 5) : la 5e est
+  // le volume d'entreprises du modèle de données — présent dès qu'un CRM est
+  // connecté, quel que soit l'outil. Une sélection enregistrée prime toujours.
+  const DEFAULT_HOME_KPIS = ["integrations", "coaching", "rapports", "revenue", "companies"];
   const homeCust = await getPageCustomization(supabase, orgId, "home_hero");
 
   // ── KPIs « maison » : écrits par l'utilisateur puis CÂBLÉS par l'agent
