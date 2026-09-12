@@ -23,6 +23,9 @@ export type BriefCustomItem = {
   enabled: boolean;
   unit: string | null;
   query: { entity: string; groupBy: string; measure: string; field?: string | null };
+  /** Période de recalcul (preset de lib/reports/periods) ; null/absent = cumul
+   *  toutes périodes. La période est toujours DITE avec le chiffre. */
+  period?: string | null;
 };
 
 export type TowerSettings = {

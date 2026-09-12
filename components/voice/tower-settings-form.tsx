@@ -17,6 +17,7 @@ import {
   type BriefCustomItem,
 } from "@/lib/voice/tower-settings";
 import { entityLabel, dimLabel, ENTITY_SOURCE_CATEGORY } from "@/lib/reports/data-table-presets";
+import { PERIOD_PRESETS } from "@/lib/reports/periods";
 import { BriefTeamSettingsPanel } from "@/components/voice/brief-team-settings";
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
@@ -391,6 +392,14 @@ export function TowerSettingsForm() {
     const cur = readTowerSettings();
     writeTowerSettings({ ...cur, briefCustom: [...cur.briefCustom, item].slice(0, 12) });
   }, []);
+  // Période de recalcul d'un KPI personnalisé (« all » = cumul toutes périodes).
+  const setCustomPeriod = useCallback((id: string, period: string) => {
+    const cur = readTowerSettings();
+    writeTowerSettings({
+      ...cur,
+      briefCustom: cur.briefCustom.map((i) => (i.id === id ? { ...i, period: period === "all" ? null : period } : i)),
+    });
+  }, []);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -485,6 +494,18 @@ export function TowerSettingsForm() {
                     <span className="block text-[10px] text-slate-500">
                       KPI personnalisé · {entityLabel(item.query.entity)} par {dimLabel(item.query.entity, item.query.groupBy).toLowerCase()} — recalculé à chaque brief
                     </span>
+                    {/* Période de recalcul : mêmes presets que les tables de
+                        données (exercice compris) — toujours dite avec le chiffre. */}
+                    <select
+                      value={item.period ?? "all"}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setCustomPeriod(item.id, e.target.value)}
+                      className="mt-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] text-slate-600 outline-none focus:border-accent"
+                    >
+                      {PERIOD_PRESETS.filter((p) => p.id !== "custom").map((p) => (
+                        <option key={p.id} value={p.id}>{p.id === "all" ? "Cumul toutes périodes" : p.label}</option>
+                      ))}
+                    </select>
                   </span>
                   <button
                     type="button"

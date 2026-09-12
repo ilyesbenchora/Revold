@@ -10,6 +10,7 @@ import { computeBillingRadar } from "@/lib/audit/billing-radar";
 import { CONNECTABLE_TOOLS } from "@/lib/integrations/connect-catalog";
 import { narrateForVoice, firstNameFromUser } from "@/lib/voice/narrate";
 import { getEnrichmentSettings } from "@/lib/enrichment/settings";
+import { computePeriod, presetLabel, type PeriodPreset } from "@/lib/reports/periods";
 import { sanitizeBriefTeam, isBriefTeamId } from "@/lib/voice/brief-team";
 import { computeTeamBrief } from "@/lib/voice/brief-team-engine";
 import { poleToWorkspace } from "@/lib/workspaces";
@@ -314,6 +315,26 @@ export async function GET(request: Request) {
     enabled?: boolean;
     unit?: string | null;
     query?: { entity?: string; groupBy?: string; measure?: string; field?: string | null };
+    period?: string | null;
+  };
+  // Période parlée des KPIs personnalisés — mêmes presets que les tables de
+  // données ; absent/inconnu = cumul toutes périodes (toujours dit).
+  const SPOKEN_PERIOD: Record<string, string> = {
+    this_week: "cette semaine",
+    last_week: "la semaine dernière",
+    this_month: "ce mois-ci",
+    last_month: "le mois dernier",
+    mtd: "depuis le début du mois",
+    this_quarter: "ce trimestre",
+    last_quarter: "le trimestre dernier",
+    qtd: "depuis le début du trimestre",
+    this_semester: "ce semestre",
+    std: "depuis le début du semestre",
+    this_year: "cette année",
+    last_year: "l'année dernière",
+    ytd: "depuis le début de l'année",
+    exercice: "sur l'exercice en cours",
+    last_exercice: "sur l'exercice précédent",
   };
   let customParts: string[] = [];
   // ── Tuiles KPI du brief : chaque chiffre annoncé à voix haute existe aussi
@@ -383,6 +404,16 @@ export async function GET(request: Request) {
       .slice(0, 8);
     if (enabled.length > 0) {
       const hubspotToken = await getHubSpotToken(supabase, orgId);
+      // Début d'exercice fiscal : nécessaire seulement si un KPI est calé sur
+      // l'exercice (même source que les tables de données).
+      let fiscalStart = 1;
+      if (enabled.some((i) => i.period === "exercice" || i.period === "last_exercice")) {
+        try {
+          const { data } = await supabase.from("organizations").select("fiscal_year_start").eq("id", orgId).maybeSingle();
+          const v = Number((data as { fiscal_year_start?: unknown } | null)?.fiscal_year_start);
+          if (Number.isInteger(v) && v >= 1 && v <= 12) fiscalStart = v;
+        } catch { /* défaut janvier */ }
+      }
       // Source de chaque entité NOMMÉE dans le brief (« via Pennylane ») :
       // entités billing/banque → primary_source réel des lignes ; sinon CRM.
       const entitySource = async (entity: string): Promise<string | null> => {
@@ -404,6 +435,10 @@ export async function GET(request: Request) {
       const computed = await Promise.all(
         enabled.map(async (i) => {
           try {
+            // Période choisie dans les paramètres (mêmes presets que les
+            // tables de données, exercice compris) ; absente = cumul.
+            const presetId = typeof i.period === "string" && SPOKEN_PERIOD[i.period] ? i.period : null;
+            const window = presetId ? computePeriod(presetId as PeriodPreset, now, fiscalStart) : null;
             const result = await computeAggregate(supabase, orgId, [], hubspotToken, {
               entity: i.query!.entity!,
               groupBy: i.query!.groupBy!,
@@ -411,22 +446,22 @@ export async function GET(request: Request) {
               field: i.query!.field ?? null,
               pipeline: null,
               granularity: null,
-              date_from: null,
-              date_to: null,
+              date_from: window?.from ?? null,
+              date_to: window?.to ?? null,
             });
             if (result.error) return null;
             const rows = ((result.rows as { value?: number }[] | undefined) ?? []);
             const total = rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
             const src = await entitySource(i.query!.entity!);
-            // PÉRIODE toujours dite : ces KPIs sont calculés sans filtre de
-            // date → cumul historique, à contextualiser à l'écoute.
+            // PÉRIODE toujours dite : celle des paramètres, sinon le cumul.
+            const spoken = presetId ? SPOKEN_PERIOD[presetId] : "en cumul toutes périodes confondues";
             return {
-              text: `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}, en cumul toutes périodes confondues`,
+              text: `${i.label}${src ? `, via ${src}` : ""} : ${fmtCustomValue(total, i.unit ?? null)}, ${spoken}`,
               tile: {
                 key: `custom:${i.label}`,
                 label: src ? `${i.label} · via ${src}` : i.label!,
                 value: fmtCustomValue(total, i.unit ?? null),
-                sub: "Cumul toutes périodes",
+                sub: presetId ? presetLabel(presetId as PeriodPreset) : "Cumul toutes périodes",
               },
             };
           } catch {
