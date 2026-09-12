@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 const DIFFERENTIATORS = [
   {
     title: "Multi-source, pas mono-CRM",
-    desc: "Les outils traditionnels sont construits autour d'un seul CRM. Revold croise CRM, facturation et compta — HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage — dans un modèle unifié. L'intelligence naît du croisement, pas de la donnée isolée.",
+    desc: "Les outils traditionnels sont construits autour d'un seul CRM. Revold croise CRM, facturation et compta dans un modèle unifié. L'intelligence naît du croisement, pas de la donnée isolée.",
     stat: "6",
     statLabel: "connecteurs natifs",
   },
@@ -247,7 +247,7 @@ export default function PourquoiRevoldPage() {
                 {[
                   "Interface, agents IA et récaps 100% en français",
                   "Identifiants légaux natifs + enrichissement officiel",
-                  "Connecteurs adaptés : HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage",
+                  "Connecteurs natifs pour votre CRM, votre facturation et votre compta",
                   "Import Excel / Google Sheets, notifications Slack, Teams et email",
                   "Pricing adapté : à partir de 79,90 € HT/mois, essai 14 jours sans CB",
                   "Support et accompagnement en français",

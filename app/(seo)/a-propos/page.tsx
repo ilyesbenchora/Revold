@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 const FAQ: FaqItem[] = [
   { q: "Qu'est-ce que Revold ?", a: BRAND_DEFINITION },
   { q: "Qui édite Revold ?", a: `Revold est édité par ${BRAND.editor}. La plateforme a été fondée en ${BRAND.foundingDate} par ${BRAND.founder.name}, expert RevOps, qui signe aussi les articles du blog Revold.` },
-  { q: "À qui s'adresse Revold ?", a: "Aux entreprises B2B de 10 à 500 salariés, principalement françaises, qui utilisent un CRM (HubSpot) et un outil de facturation (Stripe, Pennylane, Chargebee, GoCardless, Sage) et veulent piloter leur revenu sans équipe data." },
+  { q: "À qui s'adresse Revold ?", a: "Aux entreprises B2B de 10 à 500 salariés, principalement françaises, qui utilisent un CRM et un outil de facturation et veulent piloter leur revenu sans équipe data." },
   { q: "Combien coûte Revold ?", a: `Trois plans publics : ${PRICING.map((p) => `${p.name} ${"from" in p && p.from ? "à partir de " : ""}${fmtPrice(p.monthly)} HT par mois`).join(", ")}. Essai gratuit de ${BRAND.trialDays} jours sans carte bancaire.` },
   { q: "Où sont hébergées les données Revold ?", a: BRAND.hosting },
   { q: "Revold est-il un CRM ?", a: "Non. Revold se connecte au CRM et aux outils de facturation en lecture seule, les réconcilie et pilote le revenu par équipe. Le CRM reste la source de vérité commerciale." },

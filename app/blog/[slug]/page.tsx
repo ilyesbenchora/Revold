@@ -173,7 +173,7 @@ export default async function ArticlePage({ params }: Props) {
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-600/20 via-purple-600/20 to-indigo-600/20 blur-3xl" />
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-2xl font-bold text-white">Prêt à passer à l&apos;action ?</h2>
-          <p className="mt-4 text-slate-400">Connectez HubSpot en un clic et voyez vos premiers insights câblés sur vos vraies données.</p>
+          <p className="mt-4 text-slate-400">Connectez vos outils en quelques clics et voyez vos premiers insights câblés sur vos vraies données.</p>
           <Link
             href="/essai-gratuit"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40"

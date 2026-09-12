@@ -36,7 +36,7 @@ export default function InsightsIAPage() {
         { title: "Chiffres câblés, jamais inventés", desc: "L'agent rédige, mais les valeurs viennent du moteur déterministe : source, outil et calcul vérifiables pour chaque chiffre cité." },
       ]}
       howItWorks={[
-        { step: "Vos données sont synchronisées et rapprochées", desc: "HubSpot, Stripe, Pennylane, Chargebee, GoCardless, Sage : tout est normalisé et relié par identifiants officiels." },
+        { step: "Vos données sont synchronisées et rapprochées", desc: "CRM, facturation, compta : tout est normalisé et relié par identifiants officiels." },
         { step: "Le moteur calcule en déterministe", desc: "KPIs, alertes et objectifs sont recalculés sur vos données réelles — c'est cette base chiffrée que les agents utilisent." },
         { step: "Votre équipe IA analyse et rédige", desc: "Les agents experts croisent les sources, détectent tendances et anomalies, et rédigent briefs, récaps et réponses à vos questions." },
         { step: "Vous recevez briefs et récaps, où vous voulez", desc: "Brief vocal sur la tour de contrôle, routines livrées par email, Slack ou Teams — à votre rythme, sans ouvrir l'app." },

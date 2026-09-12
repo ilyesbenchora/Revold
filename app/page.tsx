@@ -121,7 +121,7 @@ export default function HomePage() {
                   Demander une démo
                 </Link>
               </div>
-              <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Connexion HubSpot en un clic · Données hébergées en UE · SSO SAML</p>
+              <p className="mt-4 text-xs text-slate-500">Sans carte bancaire · Lecture seule, révocable à tout moment · Données hébergées en UE · SSO SAML</p>
             </div>
 
             {/* Capture produit composite — visible dès la ligne de flottaison */}

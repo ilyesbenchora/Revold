@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Tableaux de bord & templates",
-  description: "Des templates de tableaux de bord prêts à l'emploi par métier et par outil (HubSpot, Stripe, Pennylane, Chargebee…), ou une construction de zéro : onglets, tuiles KPI câblées, alertes et partage.",
+  description: "Des templates de tableaux de bord prêts à l'emploi par métier et par outil (CRM, facturation, abonnements…), ou une construction de zéro : onglets, tuiles KPI câblées, alertes et partage.",
 };
 
 const icon = (
@@ -30,7 +30,7 @@ export default function TableauxDeBordPage() {
         { node: <ShotBoards />, caption: "Construction de zéro : onglets, tuiles, blocs — et partage en un clic." },
       ]}
       features={[
-        { title: "Templates par métier et par outil", desc: "Direction, Sales, Finance, abonnements… chaque modèle est pensé pour un métier et câblé sur les outils concernés (HubSpot, Stripe, Pennylane, Chargebee). Vous l'activez, il se remplit avec vos données." },
+        { title: "Templates par métier et par outil", desc: "Direction, Sales, Finance, abonnements… chaque modèle est pensé pour un métier et câblé sur les outils concernés (CRM, facturation, abonnements). Vous l'activez, il se remplit avec vos données." },
         { title: "Construction de zéro", desc: "Page vierge, cadre par défaut, puis tout est à vous : tuiles KPI, courbes, barres, tableaux — vous ajoutez, retirez et réorganisez les blocs comme dans Notion." },
         { title: "Onglets illimités", desc: "Un tableau de bord peut porter plusieurs onglets (Vue générale, Ventes, Trésorerie…) — un seul lien, toute la lecture." },
         { title: "KPIs câblés, jamais inventés", desc: "Chaque tuile affiche une mesure calculée sur vos données synchronisées et réconciliées, avec son outil source. Le catalogue de KPIs est filtré selon les outils réellement connectés." },

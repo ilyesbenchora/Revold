@@ -21,7 +21,7 @@ const PRICING = [
     credits: "300 analyses & actions IA multi-sources / mois",
     desc: "Découvre l'impact de Revold sur ton business",
     features: [
-      "3 intégrations incluses (HubSpot en 1 clic, Stripe, Pennylane…)",
+      "3 intégrations incluses (CRM, facturation, compta…)",
       "Rapprochement identifiants officiels + enrichissement Sirene",
       "Agents experts IA par domaine, pilotables à la voix",
       "Rapports & graphiques câblés sur tes vraies données (jusqu'à 20)",
@@ -42,7 +42,7 @@ const PRICING = [
       "6 intégrations incluses",
       "Routines & récaps programmés (générés même app fermée)",
       "Tour de contrôle vocale (brief du jour, navigation, création à la voix)",
-      "Actions exécutées dans tes outils (tâches HubSpot, rappels Stripe) + cash récupéré",
+      "Actions exécutées dans tes outils (tâches CRM, rappels de facturation) + cash récupéré",
       "Espaces de travail par équipe (Ventes, Marketing, CS, Finance)",
       "Plus de rapports (jusqu'à 200) · alertes & objectifs illimités",
       "5 utilisateurs · support prioritaire",

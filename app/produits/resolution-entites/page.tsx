@@ -38,7 +38,7 @@ export default function ResolutionEntitesPage() {
         { title: "Traçabilité totale", desc: "Chaque entité sait d'où elle vient : outil source, identifiant externe, méthode de rapprochement. Rien n'est une boîte noire." },
       ]}
       howItWorks={[
-        { step: "Les données arrivent de vos sources", desc: "Entreprises, contacts et deals sont synchronisés depuis HubSpot, Stripe, Pennylane, Chargebee, GoCardless et Sage." },
+        { step: "Les données arrivent de vos sources", desc: "Entreprises, contacts et deals sont synchronisés depuis votre CRM, votre facturation et votre compta." },
         { step: "Le moteur rapproche par identifiants légaux", desc: "SIREN, SIRET, N° TVA, email, domaine et votre ID custom sont appliqués selon la priorité configurée." },
         { step: "Revold comble les manques", desc: "Pour les fiches sans identifiant, Revold interroge les registres officiels et vous propose l'enrichissement, preuve à l'appui." },
         { step: "Vous validez, tout se propage", desc: "La fiche unifiée est consolidée et les identifiants validés sont écrits dans HubSpot pour garder votre CRM cohérent." },

@@ -53,7 +53,7 @@ export default function EssaiGratuitPage() {
 
             <div className="mt-10 space-y-6">
               {[
-                { title: "Prêt en 5 minutes", desc: "HubSpot en un clic (OAuth), Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API — ou import Excel / Google Sheets. Aucune configuration technique." },
+                { title: "Prêt en 5 minutes", desc: "Connectez votre CRM, votre facturation et votre compta en quelques clics — ou importez un Excel / Google Sheets. Aucune configuration technique." },
                 { title: "14 jours de toutes les fonctionnalités", desc: "Rapprochement identifiants officiels + enrichissement officiel, équipe IA 24/7, routines & récaps, alertes au câblage vérifié, tour de contrôle vocale — tout est inclus." },
                 { title: "Vos données restent les vôtres", desc: "Accès en lecture seule, révocable à tout moment. Suppression complète sous 30 jours si vous ne continuez pas. RGPD compliant." },
               ].map((item) => (

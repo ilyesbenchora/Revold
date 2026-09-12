@@ -37,7 +37,7 @@ export default function SynchronisationPage() {
         { title: "Modèle de données unifié", desc: "Chaque source est normalisée dans un schéma commun (entreprises, contacts, deals, factures, abonnements) — prêt pour le rapprochement automatique." },
       ]}
       howItWorks={[
-        { step: "Connectez vos outils", desc: "HubSpot en un clic via OAuth ; Stripe, Pennylane, Chargebee, GoCardless et Sage par clé API en lecture seule — et votre ERP ou outil métier via le connecteur sur mesure." },
+        { step: "Connectez vos outils", desc: "Votre CRM en un clic ; facturation et compta par clé API en lecture seule — et votre ERP ou outil métier via le connecteur sur mesure." },
         { step: "La sync démarre automatiquement", desc: "Entreprises, contacts, deals, factures et abonnements sont importés et normalisés dans le modèle de données unifié Revold." },
         { step: "L'audit d'onboarding est généré", desc: "Pour chaque outil : qualité des données importées, identifiants de rapprochement disponibles, plan d'action pour combler les manques." },
         { step: "Vos données sont prêtes", desc: "Les KPIs, alertes, récaps et rapports se câblent automatiquement sur les données synchronisées et vérifiées." },
