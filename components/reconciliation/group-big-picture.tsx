@@ -132,7 +132,7 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                 <polyline points="6 9 12 15 18 9" />
               </svg>
               <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-indigo-900">{g.root.name}</p>
+                <p className="truncate text-sm font-bold text-slate-900">{g.root.name}</p>
                 <p className="font-mono text-[10px] text-indigo-700">{g.root.siren ? `SIREN ${g.root.siren}` : "SIREN —"}</p>
               </div>
             </div>
