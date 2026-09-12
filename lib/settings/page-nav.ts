@@ -87,8 +87,8 @@ export const HIERARCHIE_NAV: PageNavDef = {
   team: "revops",
   teamLabel: "Data / RevOps",
   defaults: [
-    { slug: "", label: "Hiérarchies à valider" },
-    { slug: "groupes", label: "Groupes déclarés" },
+    { slug: "", label: "Groupes déclarés" },
+    { slug: "a-valider", label: "Hiérarchies à valider" },
   ],
 };
 

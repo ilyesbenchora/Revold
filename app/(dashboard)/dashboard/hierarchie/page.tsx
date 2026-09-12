@@ -5,23 +5,20 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
+import { CollapsibleBlock } from "@/components/collapsible-block";
+import { GroupBigPicture, type BigPictureGroup } from "@/components/reconciliation/group-big-picture";
+import { EstablishmentList } from "@/components/reconciliation/establishment-breakdown";
 import { PageNavTabs } from "@/components/page-nav-tabs";
 import { HIERARCHIE_NAV } from "@/lib/settings/page-nav";
-import { HierarchyConsole } from "@/components/hierarchy-console";
-import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
-import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
-import { isHierarchyActivated } from "@/lib/actions/engine";
-import { FeatureTour } from "@/components/feature-tour";
 
 /**
- * Enrichissement → Hiérarchie comptes : met en avant les rapprochements
- * d'entités PARENT/ENFANT (groupes multi-sociétés). Revold détecte qu'un deal
- * signé sur une entité est facturé sur une autre (correspondance de montant,
- * jamais le nom) et propose de déclarer la hiérarchie dans le CRM — validée
- * ici, elle alimente la consolidation par groupe et le garde-fou inter-entités
- * du rapprochement. Même source de vérité que la boîte Actions.
+ * Hiérarchie comptes → GROUPES DÉCLARÉS : la vue « big picture » des groupes
+ * multi-sociétés déjà déclarés (holding en bandeau, filiales indentées,
+ * montants des deals associés cumulés sur la mère) + les multi-établissements
+ * (SIRET). La validation des suggestions vit dans l'onglet « Hiérarchies à
+ * valider ».
  */
-export default async function HierarchiePage() {
+export default async function GroupesDeclaresPage() {
   const orgId = await getOrgId();
   if (!orgId) return <p className="p-8 text-center text-sm text-slate-600">Non authentifié.</p>;
   const supabase = await createSupabaseServerClient();
@@ -41,55 +38,61 @@ export default async function HierarchiePage() {
     .sort((a, b) => b.members.length - a.members.length);
   const entitiesInGroups = declared.reduce((s, g) => s + g.members.length + 1, 0);
 
-  // Suggestions en attente (compteur serveur — la console fait le détail).
-  let pendingCount: number | null = null;
-  try {
-    const { count, error } = await supabase
-      .from("action_items")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", orgId)
-      .eq("source", "detector:declare_group")
-      .eq("status", "pending");
-    pendingCount = error ? null : (count ?? 0);
-  } catch { /* table absente → console vide */ }
-
-  // Deals gagnés analysables (miroir du filtre du détecteur) : explique un vide
-  // dans la console — 0 deal gagné vs deals analysés sans signal fiable.
-  let wonDealsCount: number | null = null;
-  try {
-    const { count, error } = await supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", orgId)
-      .eq("is_closed_won", true)
-      .not("company_id", "is", null);
-    wonDealsCount = error ? null : (count ?? 0);
-  } catch { /* non bloquant */ }
-
-  // Périmètre de la synchronisation HubSpot (runner) : entreprises CRM + état.
-  let crmCompaniesCount = 0;
-  try {
-    const { count } = await supabase
-      .from("companies")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", orgId)
-      .not("hubspot_id", "is", null);
-    crmCompaniesCount = count ?? 0;
-  } catch { /* non bloquant */ }
-  const hubspotToken = await getHubSpotToken(supabase, orgId);
-  // Opt-in : la détection de suggestions ne démarre qu'au premier clic sur
-  // « Lancer le rapprochement » — avant, le bloc à valider reste vide.
-  const hierarchyActivated = await isHierarchyActivated(supabase, orgId);
-  const linkedChildrenCount = groups.available
-    ? [...groups.rootOf.entries()].filter(([id, root]) => id !== root).length
-    : 0;
-
-  const tiles = [
-    { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 sociétés reliées" },
-    { label: "Entités en groupe", value: entitiesInGroups, sub: "parents + enfants" },
-    { label: "À valider", value: pendingCount, sub: "hiérarchies proposées en attente" },
-    { label: "Multi-établissements", value: establishments.available ? establishments.multiSiret.size : null, sub: "1 SIREN, plusieurs SIRET" },
-  ];
+  // ── Vue « big picture » : SIREN + montant des DEALS ASSOCIÉS à chaque
+  // entité (tous statuts — un deal rattaché suffit) ; sans deal, aucune
+  // information de montant. Le cumul des filiales remonte sur la mère.
+  const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
+  const sirenOf = new Map<string, string | null>();
+  const caOf = new Map<string, number>();
+  type DealInfo = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
+  const dealsOf = new Map<string, DealInfo[]>();
+  if (groupIds.length > 0) {
+    try {
+      for (let i = 0; i < groupIds.length; i += 400) {
+        const chunk = groupIds.slice(i, i + 400);
+        const [{ data: comps }, { data: dealRows }] = await Promise.all([
+          supabase.from("companies").select("id, siren").in("id", chunk),
+          supabase
+            .from("deals")
+            // Étape + pipeline de CHAQUE deal associé : affichés sous l'entité.
+            .select("name, amount, company_id, pipeline_stages(name, pipeline_name)")
+            .eq("organization_id", orgId)
+            .not("amount", "is", null)
+            .in("company_id", chunk)
+            .limit(5000),
+        ]);
+        for (const c of (comps ?? []) as Array<{ id: string; siren: string | null }>) sirenOf.set(c.id, c.siren);
+        type Row = {
+          name: string | null; amount: number | null; company_id: string | null;
+          pipeline_stages: { name: string | null; pipeline_name: string | null } | Array<{ name: string | null; pipeline_name: string | null }> | null;
+        };
+        for (const d of (dealRows ?? []) as Row[]) {
+          if (!d.company_id) continue;
+          const st = (Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages) ?? null;
+          const amount = Number(d.amount) || 0;
+          caOf.set(d.company_id, (caOf.get(d.company_id) ?? 0) + amount);
+          (dealsOf.get(d.company_id) ?? dealsOf.set(d.company_id, []).get(d.company_id)!).push({
+            name: d.name,
+            amount,
+            stage: st?.name ?? null,
+            pipeline: st?.pipeline_name ?? null,
+          });
+        }
+      }
+    } catch { /* SIREN/montants absents → la vue reste lisible sans montants */ }
+  }
+  const node = (id: string, name: string) => ({
+    id,
+    name,
+    siren: sirenOf.get(id) ?? null,
+    ca: caOf.get(id) ?? 0,
+    deals: dealsOf.get(id) ?? [],
+  });
+  const bigGroups: BigPictureGroup[] = declared.map((g) => {
+    const root = node(g.root, g.name);
+    const children = g.members.map((id) => node(id, groups.nameOf.get(id) ?? "—"));
+    return { root, children, total: root.ca + children.reduce((s, c) => s + c.ca, 0) };
+  });
 
   return (
     <section className="space-y-6">
@@ -104,40 +107,21 @@ export default async function HierarchiePage() {
           </Link>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          Les groupes multi-sociétés de ton portefeuille, détectés sur <span className="font-medium text-slate-700">toute la base</span> :
-          facture émise par une autre entité que celle qui a signé (correspondance de montant) et fiches qui
-          partagent le même domaine web — jamais déduits du nom. Revold propose le lien parent/enfant à déclarer
-          dans le CRM, sens inversable avant validation.{" "}
-          <span className="font-medium text-slate-700">
-            Une hiérarchie validée alimente automatiquement la consolidation par groupe et le garde-fou
-            inter-entités du rapprochement
-          </span>{" "}
-          — plus aucun rattachement manuel ensuite.
+          Les groupes multi-sociétés déjà déclarés dans ton CRM — holding, filiales et montants des deals associés,
+          consolidés par groupe. La validation des nouvelles suggestions se fait dans l&apos;onglet{" "}
+          <span className="font-medium text-slate-700">Hiérarchies à valider</span>.
         </p>
       </header>
 
       <PageNavTabs nav={HIERARCHIE_NAV} />
 
-      {/* ── Tutoriel de prise en main (nouveaux comptes uniquement) ── */}
-      <FeatureTour
-        tourId="hierarchie"
-        steps={[
-          {
-            anchor: "hierarchie-tuiles",
-            title: "Tes groupes d'entreprises",
-            text: "Les tuiles mesurent les hiérarchies déjà déclarées dans ton CRM et les suggestions en attente de validation.",
-          },
-          {
-            anchor: "hierarchie-console",
-            title: "Rien ne s'écrit sans toi",
-            text: "Chaque suggestion montre le parent (qui facture), l'enfant (qui signe) et ce qui sera écrit dans HubSpot. Valider déclare la hiérarchie ; refuser ne touche à rien.",
-          },
-        ]}
-      />
-
-      {/* ── Tuiles ── */}
-      <div data-tour="hierarchie-tuiles" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {tiles.map((t) => (
+      {/* ── Tuiles de synthèse ── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {[
+          { label: "Groupes déclarés", value: declared.length, sub: "≥ 2 sociétés reliées" },
+          { label: "Entités en groupe", value: entitiesInGroups, sub: "parents + enfants" },
+          { label: "Multi-établissements", value: establishments.available ? establishments.multiSiret.size : null, sub: "1 SIREN, plusieurs SIRET" },
+        ].map((t) => (
           <article key={t.label} className="card p-4 text-center">
             <p className="text-[10px] font-medium uppercase text-slate-500">{t.label}</p>
             <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{t.value ?? "—"}</p>
@@ -146,50 +130,51 @@ export default async function HierarchiePage() {
         ))}
       </div>
 
-      {/* ── Compteurs à zéro : le dire EXPLICITEMENT (pas un dysfonctionnement,
-             la base ne contient simplement pas encore de hiérarchie). ── */}
-      {!hierarchyActivated && groups.available && declared.length === 0 && (pendingCount ?? 0) === 0 && (
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm text-slate-600">
-          <p className="font-medium text-slate-800">Les compteurs sont à zéro — c&apos;est normal au premier passage.</p>
-          <p className="mt-0.5 text-xs leading-relaxed">
-            Aucune hiérarchie parent/enfant n&apos;a encore été déclarée dans ta base (ni dans HubSpot, ni via une
-            validation Revold) : la page n&apos;a donc rien à afficher — ce n&apos;est pas un dysfonctionnement.
-            Pour démarrer : <strong>1.</strong> lance le rapprochement dans Revold ci-dessous (lecture seule — il
-            importe les hiérarchies « Société mère / Entreprise enfant » déjà posées dans le CRM),{" "}
-            <strong>2.</strong> puis « Relancer la détection » : les suggestions arrivent dans la table de
-            validation, et c&apos;est elle qui écrit dans HubSpot.
+      {/* ── Groupes déclarés en big picture ── */}
+      {!groups.available ? (
+        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+          La colonne de hiérarchie n&apos;est pas encore disponible — elle s&apos;activera au prochain déploiement
+          (migration <code>company_hierarchy</code>).
+        </p>
+      ) : declared.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+          Aucun groupe multi-entités déclaré pour l&apos;instant. Valide une suggestion dans l&apos;onglet
+          « Hiérarchies à valider », ou déclare un lien parent/enfant directement dans HubSpot — la synchronisation
+          le reflétera ici.
+        </p>
+      ) : (
+        <>
+          <GroupBigPicture groups={bigGroups} />
+          <p className="text-[10px] text-slate-400">
+            Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
+            consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. Montant = deals
+            associés à chaque entité (tous statuts, source CRM) — sans deal rattaché, aucun montant n&apos;est
+            affiché ; le cumul des filiales remonte sur l&apos;entreprise mère.
           </p>
-        </div>
+        </>
       )}
 
-      {/* ── Lancement initial (onboarding) : une fois le rapprochement lancé une
-             première fois (hiérarchie activée), le bloc disparaît — la relance
-             se fait via « Relancer la détection » de la table ci-dessous. ── */}
-      {!hierarchyActivated && (
-        <HierarchySyncRunner
-          total={crmCompaniesCount}
-          linkedChildren={linkedChildrenCount}
-          hubspotConnected={Boolean(hubspotToken)}
-        />
+      {/* ── Établissements (facette SIRET) : déjà consolidés, détail par site ── */}
+      {establishments.available && establishments.multiSiret.size > 0 && (
+        <CollapsibleBlock
+          title={
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              Établissements
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+                {establishments.multiSiret.size} entité{establishments.multiSiret.size > 1 ? "s" : ""}
+              </span>
+            </h2>
+          }
+        >
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+            L&apos;autre visage du multi-entités : une <strong>même entité légale</strong> (SIREN) qui facture depuis
+            <strong> plusieurs sites</strong> (SIRET). Contrairement aux groupes de sociétés ci-dessus, ces
+            établissements sont <strong>déjà rapprochés</strong> dans un seul compte Revold — rien à déclarer, tu vois
+            juste le détail par site (club, agence…), sur toute la base.
+          </p>
+          <EstablishmentList data={establishments} variant="hierarchy" />
+        </CollapsibleBlock>
       )}
-
-      {/* ── Suggestions à valider + historique (console) ── */}
-      <div data-tour="hierarchie-console">
-        <HierarchyConsole hierarchyAvailable={groups.available} wonDealsCount={wonDealsCount} activated={hierarchyActivated} />
-      </div>
-
-      {/* Les groupes déjà déclarés (vue big picture) et les multi-établissements
-          vivent dans l'onglet « Groupes déclarés ». */}
-
-      <p className="text-[11px] text-slate-400">
-        Quatre signaux, sur toute la base, du plus sûr au plus faible : correspondance exacte de montant entre un
-        deal gagné d&apos;une entité et une facture d&apos;une autre (sens sûr : le facturier est parent), même SIREN
-        avec des SIRET d&apos;établissements distincts (registre officiel via l&apos;enrichissement — siège parent,
-        agence enfant), domaine web partagé entre fiches CRM (sens proposé, inversable), et noms structurellement
-        apparentés — préfixe ou marqueur « groupe/holding », jamais de ressemblance floue (signal faible, badge
-        ambre, à confirmer avant validation). Valider ici ou dans Suivi → Actions est strictement équivalent
-        (même file, même historique).
-      </p>
     </section>
   );
 }
