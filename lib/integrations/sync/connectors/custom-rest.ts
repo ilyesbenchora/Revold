@@ -33,18 +33,68 @@ export type CustomSyncCounts = {
   unmatched: number;
 };
 
-const num = (v: string | null | undefined): number | null => {
+
+/**
+ * Montant tolérant aux formats des ERP : « 1 234,56 € » (FR), « 1.234,56 »
+ * (point = milliers, virgule = décimale), « 1,234.56 » (US), « 980,00 ».
+ * Le DERNIER séparateur (, ou .) est la décimale ; les autres = milliers.
+ */
+export const num = (v: string | number | null | undefined): number | null => {
   if (v == null || v === "") return null;
-  // Tolère « 1 234,56 € » et « 1,234.56 ».
-  const cleaned = String(v).replace(/\s|€| /g, "");
-  const normalized = cleaned.includes(",") && !cleaned.includes(".") ? cleaned.replace(",", ".") : cleaned.replace(/,(?=\d{3}\b)/g, "");
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const cleaned = String(v).replace(/[^\d,.-]/g, ""); // retire espaces, €, lettres…
+  if (!/\d/.test(cleaned)) return null;
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  let normalized: string;
+  if (lastComma === -1 && lastDot === -1) {
+    normalized = cleaned;
+  } else {
+    const dec = Math.max(lastComma, lastDot);
+    const intPart = cleaned.slice(0, dec).replace(/[.,]/g, "");
+    const decPart = cleaned.slice(dec + 1).replace(/[.,]/g, "");
+    normalized = `${intPart}.${decPart}`;
+  }
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 };
 
-const date = (v: string | null | undefined): string | null => {
-  if (!v) return null;
-  const d = new Date(v);
+/**
+ * Date tolérante : ISO (natif), epoch (secondes/millisecondes), et surtout les
+ * formats ERP FR JJ/MM/AAAA (et JJ-MM-AAAA, avec heure optionnelle) que
+ * `new Date()` interprète à tort en MM/JJ. FR d'abord (mois > 12 → repli natif US).
+ */
+export const date = (v: string | number | null | undefined): string | null => {
+  if (v == null || v === "") return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  if (/^\d{13}$/.test(s)) { const d = new Date(Number(s)); return Number.isNaN(d.getTime()) ? null : d.toISOString(); }
+  if (/^\d{10}$/.test(s)) { const d = new Date(Number(s) * 1000); return Number.isNaN(d.getTime()) ? null : d.toISOString(); }
+  const fr = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (fr) {
+    const [, dd, mm, yyyy, hh, mi, ss] = fr;
+    if (+mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31) {
+      const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd, +(hh ?? 0), +(mi ?? 0), +(ss ?? 0)));
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  const ymd = s.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})/);
+  if (ymd) {
+    const [, yyyy, mm, dd] = ymd;
+    const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  // US MM/JJ/AAAA (le format FR n'a pas matché car mois > 12) — en UTC pour
+  // éviter le décalage de fuseau de `new Date()` sur une date sans heure.
+  const us = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (us) {
+    const [, mm, dd, yyyy, hh, mi, ss] = us;
+    if (+mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31) {
+      const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd, +(hh ?? 0), +(mi ?? 0), +(ss ?? 0)));
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
