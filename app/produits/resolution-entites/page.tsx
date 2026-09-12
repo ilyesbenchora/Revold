@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Résolution d'entités par SIREN, SIRET et TVA",
-  description: "Le rapprochement à la française : SIREN, SIRET et n° de TVA intracommunautaire comme clés pour relier CRM, facturation et comptabilité sans doublons.",
+  description: "Le rapprochement à l'européenne : SIREN, SIRET et n° de TVA intracommunautaire comme clés pour relier CRM, facturation et comptabilité sans doublons.",
 };
 
 const icon = (
@@ -29,7 +29,7 @@ export default function ResolutionEntitesPage() {
         { node: <ShotHierarchie />, caption: "Hiérarchie de comptes : mères et filiales reliées par le registre, CA consolidé par groupe." },
       ]}
       features={[
-        { title: "Rapprochement à la française", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux français comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
+        { title: "Rapprochement à l'européenne", desc: "SIREN, SIRET, N° de TVA intracommunautaire : les identifiants légaux européens comme clés de rapprochement. Aucun outil US ne gère ça nativement." },
         { title: "Enrichissement officiel", desc: "Le cœur du moteur : identifiants (SIREN / SIRET / TVA), effectifs URSSAF/INSEE, CA du dernier exercice déposé, secteur NAF, statut juridique, capital social et adresse du siège — remplis depuis les registres officiels, en continu." },
         { title: "Hiérarchie de comptes", desc: "Sociétés mères et filiales détectées et reliées par le registre officiel (et par raison sociale, à valider) : le CA, les deals et les factures se consolident par groupe — plus de silos entre entités d'un même client." },
         { title: "ID de rapprochement custom", desc: "Votre propre identifiant (code client, référence interne…) peut servir de clé de rapprochement entre outils, mappé à l'onboarding." },

@@ -23,7 +23,7 @@ const INTEGRATIONS = ["HubSpot", "Stripe", "Pennylane", "Chargebee", "GoCardless
 const FEATURES = [
   {
     icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-    title: "Rapprochement de données à la française",
+    title: "Rapprochement de données à l'européenne",
     desc: "Revold relie vos entreprises entre CRM, facturation et compta par leurs identifiants légaux — et REMPLIT lui-même la donnée officielle manquante (identifiants, effectifs, CA, statut juridique, adresse du siège) depuis les registres officiels, jusque dans votre CRM.",
     href: "/produits/resolution-entites",
   },
@@ -100,7 +100,7 @@ export default function HomePage() {
           <div className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-2 lg:gap-12">
             <div className="text-center lg:text-left">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in France
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Revenue Intelligence made in Europe
               </span>
               <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl">
                 Votre revenue, réconcilié{" "}

@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     "Salesforce analytics",
     "insights IA",
     "pilotage revenue",
-    "B2B France",
+    "B2B Europe",
     "Revold",
   ],
   robots: {

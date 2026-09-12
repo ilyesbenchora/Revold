@@ -18,7 +18,7 @@ export async function GET() {
     `- Site : ${SITE_URL}`,
     `- Éditeur : ${BRAND.editor}`,
     `- Fondation : ${BRAND.foundingDate}, par ${BRAND.founder.name} (${BRAND.founder.role})`,
-    `- Marché : entreprises B2B françaises de 10 à 500 salariés`,
+    `- Marché : entreprises B2B européennes de 10 à 500 salariés (marché d'origine : France)`,
     `- Langue : français`,
     `- Connecteurs natifs : ${BRAND.integrations.join(", ")}`,
     `- Notifications : ${BRAND.notifications.join(", ")}`,
