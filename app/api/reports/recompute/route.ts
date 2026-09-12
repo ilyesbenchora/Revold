@@ -25,6 +25,8 @@ export async function POST(request: Request) {
       entity?: string; groupBy?: string; measure?: string; field?: string; pipeline?: string | null; granularity?: string | null;
       /** Filtre par utilisateur CRM (id owner HubSpot). */
       owner?: string | null;
+      /** Objet du propriétaire (choix libre) : deals | contacts | companies | tickets. */
+      owner_object?: string | null;
       /** Filtre cohorte (segment / industry de l'entreprise). */
       cohort?: { key?: string; value?: string } | null;
     };
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
     field: q.field ?? null,
     pipeline: typeof q.pipeline === "string" && q.pipeline.trim() ? q.pipeline.trim() : null,
     owner: typeof q.owner === "string" && q.owner.trim() ? q.owner.trim() : null,
+    owner_object: typeof q.owner_object === "string" && q.owner_object.trim() ? q.owner_object.trim() : null,
     granularity: typeof q.granularity === "string" && q.granularity.trim() ? q.granularity.trim() : null,
     date_from: from,
     date_to: to,

@@ -19,6 +19,8 @@ export type AggSpec = {
   pipeline?: string | null;
   /** Utilisateur CRM ciblé (id owner HubSpot) — l'agrégat est filtré sur SES données. */
   owner?: string | null;
+  /** Objet du propriétaire (choix libre) : deals | contacts | companies | tickets. */
+  owner_object?: string | null;
   /** Outils sources de la table d'origine (ex : ["pennylane"]) — même filtre que son recalcul. */
   sources?: string[] | null;
   /** Période exacte (tuiles KPI à période figée/preset) — filtre déterministe sur la date de l'entité. */
@@ -47,6 +49,7 @@ export async function valueFromAggSpec(
       field: spec.field ?? null,
       pipeline: spec.pipeline ?? null,
       owner: spec.owner ?? null,
+      owner_object: spec.owner_object ?? null,
       date_from: spec.date_from ?? null,
       date_to: spec.date_to ?? null,
     });

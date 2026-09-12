@@ -905,6 +905,12 @@ export type AggregateSpec = {
    */
   owner?: string | null;
   /**
+   * Objet sur lequel le propriétaire est indexé (choix libre) : deals |
+   * contacts | companies | tickets. Croisé par association quand ≠ entité :
+   * companies → company_id, contacts (KPI deals) → contact_id. Défaut = entité.
+   */
+  owner_object?: string | null;
+  /**
    * Fréquence d'affichage des dimensions temporelles (month_*) :
    * day | week | month (défaut) | quarter | semester | year.
    */
@@ -1219,6 +1225,27 @@ export async function computeAggregate(
   if (ownerFilter && !OWNER_COLS[entity]) {
     return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts, entreprises et tickets uniquement).` };
   }
+  // CHOIX LIBRE de l'objet du propriétaire : croisé par association quand il
+  // diffère de l'entité (companies → company_id ; contacts sur KPI deals →
+  // contact_id). Résolu une fois ici (uuid impossible si aucune fiche → 0 résultat).
+  const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
+  const ownerObj = ownerFilter ? (typeof input.owner_object === "string" && input.owner_object.trim() ? input.owner_object.trim() : entity) : null;
+  const ownedIds = async (table: "companies" | "contacts"): Promise<string[]> => {
+    const ids: string[] = [];
+    for (let f = 0; f < 50000; f += 1000) {
+      const { data, error } = await supabase.from(table).select("id").eq("organization_id", orgId).eq("hs_owner_id", ownerFilter!).range(f, f + 999);
+      if (error || !data) break;
+      for (const r of data as Array<{ id: string }>) ids.push(String(r.id));
+      if (data.length < 1000) break;
+    }
+    return ids;
+  };
+  let ownerCompanyIds: string[] | null = null;
+  let ownerContactIds: string[] | null = null;
+  if (ownerFilter && ownerObj && ownerObj !== entity) {
+    if (ownerObj === "companies") ownerCompanyIds = await ownedIds("companies");
+    else if (ownerObj === "contacts" && entity === "deals") ownerContactIds = await ownedIds("contacts");
+  }
 
   // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
   // colonnes de l'agrégat si le schéma ne les porte pas toutes.
@@ -1227,7 +1254,20 @@ export async function computeAggregate(
   const buildQuery = (cols: string) => {
     let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId).limit(10000);
     if (src && spec.hasSource) qb = qb.in("primary_source", src);
-    if (ownerFilter && OWNER_COLS[entity]) qb = qb.eq(OWNER_COLS[entity], ownerFilter);
+    // Filtre propriétaire : direct sur l'entité, ou croisé par association.
+    if (ownerFilter) {
+      if (!ownerObj || ownerObj === entity) {
+        if (OWNER_COLS[entity]) qb = qb.eq(OWNER_COLS[entity], ownerFilter);
+      } else if (ownerObj === "companies") {
+        const ids = ownerCompanyIds ?? [];
+        qb = qb.in("company_id", ids.length ? ids : [NO_MATCH_UUID]);
+      } else if (ownerObj === "contacts" && entity === "deals") {
+        const ids = ownerContactIds ?? [];
+        qb = qb.in("contact_id", ids.length ? ids : [NO_MATCH_UUID]);
+      } else if (OWNER_COLS[entity]) {
+        qb = qb.eq(OWNER_COLS[entity], ownerFilter);
+      }
+    }
     // Période exacte : filtre déterministe sur la vraie colonne de date.
     if (dateCol && from) qb = qb.gte(dateCol, from);
     if (dateCol && to) qb = qb.lte(dateCol, to);

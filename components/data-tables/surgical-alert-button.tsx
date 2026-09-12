@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { entityLabel, dimLabel, fieldLabel } from "@/lib/reports/data-table-presets";
 import { InfoHint } from "@/components/info-hint";
@@ -186,14 +186,25 @@ export function SurgicalAlertButton({
   const [hsTeams, setHsTeams] = useState<string[]>([]);
   const [hasServiceHub, setHasServiceHub] = useState(false);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
-  // Objet sur lequel le propriétaire est indexé pour cette alerte technique :
-  // l'ENTITÉ de l'agrégat (owner du deal / contact / ticket / entreprise). Le
-  // ticket n'est ciblable que si un hub service client est connecté.
-  const ownerObject = aggSpec?.entity ?? "deals";
-  const ownerObjectLabel = entityLabel(ownerObject).toLowerCase();
+  // Objet sur lequel le propriétaire est indexé — CHOIX LIBRE, contraint aux
+  // associations disponibles pour l'entité du bloc : entité elle-même (direct),
+  // entreprise (company_id), et contact (contact_id, deals uniquement).
+  const aggEntity = aggSpec?.entity ?? "deals";
+  const ownerObjOptions = useMemo<[string, string][]>(() => {
+    const single: Record<string, string> = { deals: "Deal", contacts: "Contact", tickets: "Ticket", companies: "Entreprise" };
+    const opts: [string, string][] = [[aggEntity, single[aggEntity] ?? entityLabel(aggEntity)]];
+    if (aggEntity !== "companies") opts.push(["companies", "Entreprise"]);
+    if (aggEntity === "deals") opts.push(["contacts", "Contact"]);
+    return opts;
+  }, [aggEntity]);
+  const [ownerObject, setOwnerObject] = useState<string>(aggEntity);
+  // Ré-aligne l'objet par défaut si le bloc (entité) change.
+  useEffect(() => { setOwnerObject(aggEntity); }, [aggEntity]);
+  const ownerObjectLabel = (ownerObjOptions.find(([id]) => id === ownerObject)?.[1] ?? entityLabel(ownerObject)).toLowerCase();
+  // Le ticket (entité du bloc) n'est ciblable que si un hub service client est connecté.
   const ownerTargetable =
     (!aggSpec || OWNER_TARGETABLE_ENTITIES.has(aggSpec.entity)) &&
-    (ownerObject !== "tickets" || hasServiceHub);
+    (aggEntity !== "tickets" || hasServiceHub);
 
   // Utilisateurs CRM (owners HubSpot + équipes) + hub service client au 1er open.
   useEffect(() => {
@@ -218,7 +229,7 @@ export function SurgicalAlertButton({
     setDirection("above"); setSecond(false); setThreshold2(""); setUnit2(baseUnit);
     setContinuous(true); setDateFrom(""); setDateTo(""); setDescription("");
     setScope("personal");
-    setTargetMode("team"); setSelectedOwners([]);
+    setTargetMode("team"); setSelectedOwners([]); setOwnerObject(aggEntity);
   }
 
   /** Recalcule la donnée avec le câblage courant (dont le pipeline choisi).
@@ -238,6 +249,7 @@ export function SurgicalAlertButton({
             field: aggSpec.field ?? undefined,
             pipeline: pipelineOverride ?? undefined,
             owner: targetMode === "users" && selectedOwners.length === 1 ? selectedOwners[0] : undefined,
+            owner_object: targetMode === "users" && selectedOwners.length === 1 ? ownerObject : undefined,
           },
           sources: aggSpec.sources ?? [],
           all: true,
@@ -259,7 +271,7 @@ export function SurgicalAlertButton({
     } catch (e) {
       setVerify({ loading: false, rowCount: null, targetValue: null, error: e instanceof Error ? e.message : "Recalcul impossible" });
     }
-  }, [aggSpec, target, targetMode, selectedOwners]);
+  }, [aggSpec, target, targetMode, selectedOwners, ownerObject]);
 
   /** Étape 1 → 2 : validation du formulaire puis vérification du câblage. */
   async function goConfirm(e: React.FormEvent) {
@@ -353,8 +365,10 @@ export function SurgicalAlertButton({
                   // Pipeline CONFIRMÉ à l'étape de vérification (peut différer de
                   // celui de la table si l'utilisateur l'a corrigé).
                   pipeline: pipeline ?? null,
-                  // Utilisateur CRM ciblé : le cron filtre l'agrégat sur ses données.
+                  // Utilisateur CRM ciblé : le cron filtre l'agrégat sur ses données,
+                  // sur l'objet du propriétaire choisi (croisé par association si ≠ entité).
                   owner: owner ? owner.id : null,
+                  owner_object: owner ? ownerObject : null,
                   sources: aggSpec.sources?.length ? aggSpec.sources : null,
                   target,
                 }
@@ -671,10 +685,29 @@ export function SurgicalAlertButton({
                         <p className="mt-1 text-[10px] text-slate-400">
                           Une alerte est créée par utilisateur sélectionné — la donnée est calculée sur les enregistrements dont il est propriétaire dans le CRM.
                         </p>
-                        {/* Objet du propriétaire : l'entité de ce bloc (câblage garanti sur le bon objet). */}
-                        <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">
-                          👤 Câblé sur le <span className="font-semibold">propriétaire du {ownerObjectLabel}</span> (l&apos;objet de ce bloc)
-                        </p>
+                        {/* Objet du propriétaire — CHOIX LIBRE (associations dispo pour ce bloc). */}
+                        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+                          <label className="mb-1 block text-[11px] font-medium text-slate-600">Propriétaire de<span className="ml-0.5 text-red-500">*</span></label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ownerObjOptions.map(([id, label]) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setOwnerObject(id)}
+                                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+                                  ownerObject === id ? "bg-fuchsia-500 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-fuchsia-300"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {ownerObject === aggEntity
+                              ? `Filtré sur les ${ownerObjectLabel}s dont l'utilisateur est propriétaire.`
+                              : `Croisé : ${entityLabel(aggEntity).toLowerCase()} rattachés aux ${ownerObjectLabel}s dont l'utilisateur est propriétaire.`}
+                          </p>
+                        </div>
                       </>
                     )}
                   </div>
