@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
-import { BOARD_TEMPLATES, seedBoardFromTemplate, seedBoardComposition } from "@/lib/boards/board-templates";
+import { BOARD_TEMPLATES, seedBoardFromTemplate, seedBoardComposition, templateCohortStatuses, blockingCohorts } from "@/lib/boards/board-templates";
 import { sanitizeComposition, listKnownExtraFields } from "@/lib/boards/board-suggest";
 import { BOARD_VISIBILITIES, getBoardViewer, listVisibleBoards, type BoardVisibility } from "@/lib/boards/visibility";
 
@@ -47,6 +47,21 @@ export async function POST(request: Request) {
     typeof body.template === "string" && BOARD_TEMPLATES.some((t) => t.id === body.template)
       ? body.template
       : null;
+  // Même garde-fou que la galerie, côté serveur : un template dont une cohorte
+  // requise n'est pas mappée + vérifiée dans Paramètres → Cohortes n'est pas
+  // seedé (ses tables afficheraient « inconnu »).
+  if (template) {
+    const tpl = BOARD_TEMPLATES.find((t) => t.id === template)!;
+    if (tpl.cohorts?.length) {
+      const blocking = blockingCohorts(tpl, await templateCohortStatuses(supabase, orgId, tpl.cohorts));
+      if (blocking.length > 0) {
+        return NextResponse.json(
+          { error: `Cohortes à valider dans Paramètres → Cohortes avant d'utiliser ce template : ${blocking.map((c) => c.label).join(", ")}.` },
+          { status: 400 },
+        );
+      }
+    }
+  }
   // Composition proposée par l'agent (page Templates) — RE-sanitisée ici :
   // on ne fait jamais confiance au client pour des specs d'agrégats.
   const composition = body.composition

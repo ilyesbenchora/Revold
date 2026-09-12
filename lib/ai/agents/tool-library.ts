@@ -1163,6 +1163,19 @@ export async function computeAggregate(
   // source des valeurs du filtre cohorte des rapports.
   const COHORT_DIM_ENTITIES = new Set(["companies", "contacts", "deals"]);
   const cohortDimKey = COHORT_DIM_ENTITIES.has(entity) && groupBy.startsWith("cohort.") ? groupBy.slice(7) : null;
+  // Dimensions CANONIQUES segment / industry des entreprises : la colonne
+  // `segment` n'est jamais remplie par la synchro et `industry` ne l'est que
+  // par la propriété HubSpot standard. La vérité est dans Paramètres →
+  // Cohortes : quand la cohorte est mappée sur une propriété Entreprise, on
+  // lit cette propriété (raw_data) ; sinon repli sur la colonne canonique.
+  const canonicalCohortDim = entity === "companies" && (groupBy === "segment" || groupBy === "industry");
+  const dimAcc = cohortDimKey
+    ? await resolveCohortAccessor(supabase, orgId, cohortDimKey)
+    : canonicalCohortDim
+      ? await resolveCohortAccessor(supabase, orgId, groupBy)
+      : null;
+  // Lecture mappée effective pour une dimension canonique : propriété sur l'objet Entreprise.
+  const canonicalMapped = canonicalCohortDim && !!dimAcc?.prop && dimAcc.object === "companies";
   const dimFn = extraDim
     ? (r: Record<string, unknown>) => {
         const v = readExtra(r, extraDim);
@@ -1236,8 +1249,28 @@ export async function computeAggregate(
   // colonnes de l'agrégat si le schéma ne les porte pas toutes.
   const wantDetail = input.detail === true;
   const src = billingSourceFilter(sources);
-  const buildQuery = (cols: string) => {
-    let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId).limit(10000);
+  // PostgREST plafonne chaque réponse à 1 000 lignes (max_rows) : un simple
+  // `.limit(10000)` renvoyait silencieusement les 1 000 premières lignes, donc
+  // des tuiles/tables fausses dès qu'une entité dépasse 1 000 enregistrements
+  // (13 628 entreprises → « 1 000 »). Lecture PAGINÉE jusqu'à AGG_MAX_ROWS.
+  const AGG_PAGE = 1000;
+  const AGG_MAX_ROWS = 50000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type PagedBuilder = { order: (col: string, opts: { ascending: boolean }) => any };
+  const fetchPaged = async (make: () => PagedBuilder): Promise<{ data: unknown[] | null; error: { message: string } | null }> => {
+    const all: unknown[] = [];
+    for (let from = 0; from < AGG_MAX_ROWS; from += AGG_PAGE) {
+      const { data, error } = await make().order("id", { ascending: true }).range(from, from + AGG_PAGE - 1);
+      if (error) return { data: null, error };
+      const page = (data ?? []) as unknown[];
+      all.push(...page);
+      if (page.length < AGG_PAGE) break;
+    }
+    return { data: all, error: null };
+  };
+  const buildQuery = (cols: string) => fetchPaged(() => buildPage(cols));
+  const buildPage = (cols: string) => {
+    let qb = supabase.from(spec.table ?? entity).select(cols).eq("organization_id", orgId);
     if (src && spec.hasSource) qb = qb.in("primary_source", src);
     // Filtre propriétaire : direct sur l'entité, ou croisé par association.
     if (ownerFilter) {
@@ -1262,7 +1295,7 @@ export async function computeAggregate(
     // Cohorte CONTACT sur les deals : lien direct deal → contact (association
     // HubSpot) — la colonne peut être absente (migration récente), repli plus bas.
     if (cohortValue && cohortAcc?.object === "contacts" && entity === "deals" && !out.includes("contact_id")) out = `${out}, contact_id`;
-    if (cohortDimKey && !out.includes("raw_data")) out = `${out}, raw_data`;
+    if ((cohortDimKey || canonicalMapped) && !out.includes("raw_data")) out = `${out}, raw_data`;
     return out;
   };
   // Mode détail : clé de jointure vers l'entreprise (colonnes cohortes) —
@@ -1295,8 +1328,8 @@ export async function computeAggregate(
   // ── Dimension cohorte : lecture mappée (raw_data de l'objet PORTEUR) sinon
   // colonne canonique companies. Regrouper une entité par une cohorte portée
   // par un AUTRE objet n'a pas de sens → erreur claire.
-  if (cohortDimKey) {
-    const acc = await resolveCohortAccessor(supabase, orgId, cohortDimKey);
+  if (cohortDimKey || canonicalMapped) {
+    const acc = dimAcc!;
     if (!acc.prop && !acc.col) {
       return { error: `Cohorte inconnue ou non mappée : ${cohortDimKey}. Mappe-la dans Paramètres → Cohortes.` };
     }
@@ -1336,9 +1369,12 @@ export async function computeAggregate(
     } else if (!acc.prop || acc.object === "companies") {
       // Entreprises de la cohorte → Set d'ids → jointure JS (company_id / id).
       const target = acc.prop ? `raw_data->properties->>${acc.prop}` : acc.col!;
-      let cq = supabase.from("companies").select("id").eq("organization_id", orgId).limit(10000);
-      cq = cohortValue === "inconnu" ? cq.is(target, null) : cq.eq(target, cohortValue);
-      const { data: comp, error: compErr } = await cq;
+      // Paginé (plafond PostgREST 1 000 lignes) : une cohorte de 5 000 entreprises
+      // tronquée à 1 000 fausserait silencieusement le filtre.
+      const { data: comp, error: compErr } = await fetchPaged(() => {
+        const cq = supabase.from("companies").select("id").eq("organization_id", orgId);
+        return cohortValue === "inconnu" ? cq.is(target, null) : cq.eq(target, cohortValue);
+      });
       if (compErr) throw new Error(compErr.message);
       const ids = new Set(((comp ?? []) as { id: string }[]).map((c) => c.id));
       scoped = scoped.filter((r) => {
@@ -1352,9 +1388,10 @@ export async function computeAggregate(
       // cohortes CONTACT sur les tables de deals — indispensable quand le
       // portail n'associe pas les deals aux entreprises.
       const target = `raw_data->properties->>${acc.prop}`;
-      let oq = supabase.from(acc.object).select("id, company_id").eq("organization_id", orgId).limit(10000);
-      oq = cohortValue === "inconnu" ? oq.is(target, null) : oq.eq(target, cohortValue);
-      const { data: objRows, error: objErr } = await oq;
+      const { data: objRows, error: objErr } = await fetchPaged(() => {
+        const oq = supabase.from(acc.object).select("id, company_id").eq("organization_id", orgId);
+        return cohortValue === "inconnu" ? oq.is(target, null) : oq.eq(target, cohortValue);
+      });
       if (objErr) throw new Error(objErr.message);
       const rowsObj = (objRows ?? []) as { id: string; company_id: string | null }[];
       const companyIds = new Set(

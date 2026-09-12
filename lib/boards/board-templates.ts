@@ -15,6 +15,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConnectedTools } from "@/lib/integrations/tool-mappings";
 import { ENTITY_SOURCE_CATEGORY } from "@/lib/reports/data-table-presets";
+import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
+import { checkHubSpotProperty } from "@/lib/integrations/hubspot-properties";
 
 export type TemplateTile = {
   title: string;
@@ -52,9 +54,24 @@ export type BoardTemplate = {
   cross?: boolean;
   /** Entités agrégeables requises (≥ 1 enregistrement synchronisé). */
   entities: string[];
+  /**
+   * Cohortes (Paramètres → Cohortes) dont dépendent les dimensions du template
+   * (segment / industry des entreprises = propriété CRM mappée). Le template
+   * n'est proposé que si CHACUNE est mappée ET vérifiée dans le CRM : sinon
+   * ses tables afficheraient « inconnu » sur toute la ligne.
+   */
+  cohorts?: string[];
   tiles: TemplateTile[];
   tables: TemplateTable[];
 };
+
+/** Libellés des cohortes standard requises par des templates (miroir de STANDARD_COHORTS). */
+const COHORT_LABELS: Record<string, string> = { segment: "Segment", industry: "Secteur d'activité", source: "Sources" };
+
+// Factures : la dimension « direction » isole les factures CLIENTS (émises) des
+// factures FOURNISSEURS (reçues, ex. Pennylane) — un CA facturé / encaissé qui
+// additionnerait les deux serait faux. Les tuiles ciblent la ligne « Clients ».
+const CLIENTS = "Clients";
 
 /** Table physique de chaque entité agrégeable (miroir de AGG_ENTITY_TABLES). */
 const ENTITY_TABLE: Record<string, string> = {
@@ -87,8 +104,8 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     entities: ["deals", "invoices"],
     tiles: [
       { title: "CA signé", unit: "currency", agg: { entity: "deals", groupBy: "outcome", measure: "sum", field: "amount", target: WON } },
-      { title: "CA facturé", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_total" } },
-      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_paid" } },
+      { title: "CA facturé", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_total", target: CLIENTS } },
+      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_paid", target: CLIENTS } },
       { title: "Pipeline en cours", unit: "currency", agg: { entity: "deals", groupBy: "status", measure: "sum", field: "amount", target: OPEN } },
     ],
     tables: [
@@ -108,7 +125,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
       { title: "Contacts MQL", unit: "count", agg: { entity: "contacts", groupBy: "mql", measure: "count", target: "MQL" } },
       { title: "Contacts SQL", unit: "count", agg: { entity: "contacts", groupBy: "sql", measure: "count", target: "SQL" } },
       { title: "CA signé", unit: "currency", agg: { entity: "deals", groupBy: "outcome", measure: "sum", field: "amount", target: WON } },
-      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_paid" } },
+      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_paid", target: CLIENTS } },
     ],
     tables: [
       { title: "Répartition MQL / non-MQL", entity: "contacts", group_by: "mql", measure: "count", unit_mode: "count", view: "donut", description: "Part des contacts qualifiés marketing." },
@@ -123,8 +140,10 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     team: "Qualité de données",
     cross: true,
     entities: ["companies", "contacts"],
+    cohorts: ["segment", "industry"],
     tiles: [
-      { title: "Entreprises", unit: "count", agg: { entity: "companies", groupBy: "segment", measure: "count" } },
+      // Total (sans cible) sur une dimension toujours résolue — indépendant des cohortes.
+      { title: "Entreprises", unit: "count", agg: { entity: "companies", groupBy: "siren_connu", measure: "count" } },
       { title: "Taux de MQL", unit: "percent", agg: { entity: "contacts", groupBy: "mql", measure: "count", target: "MQL", percent_of_total: true } },
     ],
     tables: [
@@ -159,10 +178,10 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     team: "Trésorerie",
     entities: ["invoices"],
     tiles: [
-      { title: "CA facturé", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_total" } },
-      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_paid" } },
-      { title: "Impayés (reste dû)", unit: "currency", agg: { entity: "invoices", groupBy: "status", measure: "sum", field: "amount_due" } },
-      { title: "Factures", unit: "count", agg: { entity: "invoices", groupBy: "status", measure: "count" } },
+      { title: "CA facturé", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_total", target: CLIENTS } },
+      { title: "CA encaissé", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_paid", target: CLIENTS } },
+      { title: "Impayés (reste dû)", unit: "currency", agg: { entity: "invoices", groupBy: "direction", measure: "sum", field: "amount_due", target: CLIENTS } },
+      { title: "Factures clients", unit: "count", agg: { entity: "invoices", groupBy: "direction", measure: "count", target: CLIENTS } },
     ],
     tables: [
       { title: "Facturation par mois", entity: "invoices", group_by: "month_issued", measure: "sum", field: "amount_total", unit_mode: "currency", view: "line", description: "Montant facturé par mois d'émission." },
@@ -235,11 +254,13 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "portefeuille_clients",
     label: "Portefeuille clients",
-    description: "Tes entreprises par segment, industrie et pays.",
+    description: "Tes entreprises par segment et par secteur — les cohortes mappées dans Paramètres → Cohortes.",
     team: "Qualité de données",
     entities: ["companies"],
+    cohorts: ["segment", "industry"],
     tiles: [
-      { title: "Entreprises", unit: "count", agg: { entity: "companies", groupBy: "segment", measure: "count" } },
+      // Total (sans cible) sur une dimension toujours résolue — indépendant des cohortes.
+      { title: "Entreprises", unit: "count", agg: { entity: "companies", groupBy: "siren_connu", measure: "count" } },
     ],
     tables: [
       { title: "Entreprises par segment", entity: "companies", group_by: "segment", measure: "count", unit_mode: "count", view: "bar", description: "PME / ETI / Enterprise…" },
@@ -254,9 +275,70 @@ export type BoardTemplateOption = { id: string; label: string; description: stri
 /** Outil connecté qui alimente un template (logo affiché sur la carte). */
 export type TemplateTool = { key: string; label: string; domain: string; icon: string };
 
+/**
+ * État d'une cohorte requise par un template : `ok` = mappée sur une propriété
+ * Entreprise ET vérifiée dans le CRM ; `unmapped` = aucune propriété saisie ;
+ * `wrong_object` = mappée sur un autre objet (contact / deal) ; `missing` =
+ * propriété introuvable dans le CRM ; `unverifiable` = CRM non connecté.
+ */
+export type TemplateCohortStatus = {
+  key: string;
+  label: string;
+  state: "ok" | "unmapped" | "wrong_object" | "missing" | "unverifiable";
+};
+
+/**
+ * Vérifie les cohortes requises par les templates — MÊME contrôle que
+ * Paramètres → Cohortes (propriété mappée + existence vérifiée dans HubSpot).
+ * Une seule lecture du mapping et une vérification par cohorte.
+ */
+export async function templateCohortStatuses(
+  supabase: SupabaseClient,
+  orgId: string,
+  keys: string[] = [...new Set(BOARD_TEMPLATES.flatMap((t) => t.cohorts ?? []))],
+): Promise<Map<string, TemplateCohortStatus>> {
+  const out = new Map<string, TemplateCohortStatus>();
+  if (keys.length === 0) return out;
+  type Mapping = { key?: string; label?: string; internal_name?: string; api_name?: string; object?: string };
+  let mappings: Mapping[] = [];
+  try {
+    const { data } = await supabase.from("cohort_mappings").select("mappings").eq("organization_id", orgId).maybeSingle();
+    if (Array.isArray(data?.mappings)) mappings = data.mappings as Mapping[];
+  } catch {
+    /* table absente → aucune cohorte mappée */
+  }
+  const token = await getHubSpotToken(supabase, orgId).catch(() => null);
+  await Promise.all(
+    keys.map(async (key) => {
+      const m = mappings.find((x) => x.key === key);
+      const label = (m?.internal_name ?? "").trim() || COHORT_LABELS[key] || key;
+      const apiName = (m?.api_name ?? "").trim();
+      if (!apiName) return out.set(key, { key, label, state: "unmapped" });
+      // Objet vide = détection legacy (Entreprise) ; un autre objet ne peut pas
+      // regrouper les entreprises.
+      if (m?.object && m.object !== "companies") return out.set(key, { key, label, state: "wrong_object" });
+      if (!token) return out.set(key, { key, label, state: "unverifiable" });
+      const check = await checkHubSpotProperty(token, "companies", apiName, m?.internal_name).catch(() => null);
+      out.set(key, { key, label, state: check?.exists === true ? "ok" : check?.exists === false ? "missing" : "unverifiable" });
+    }),
+  );
+  return out;
+}
+
+/** Cohortes NON validées d'un template (vide = template câblable). */
+export function blockingCohorts(tpl: BoardTemplate, statuses: Map<string, TemplateCohortStatus>): TemplateCohortStatus[] {
+  return (tpl.cohorts ?? [])
+    .map((k) => statuses.get(k) ?? { key: k, label: COHORT_LABELS[k] ?? k, state: "unmapped" as const })
+    .filter((s) => s.state !== "ok");
+}
+
 /** Carte de la galerie Templates : composition détaillée + disponibilité. */
 export type BoardTemplateGalleryItem = BoardTemplateOption & {
   available: boolean;
+  /** Entités requises sans aucune donnée synchronisée (raison d'indisponibilité). */
+  missingEntities: string[];
+  /** Cohortes requises par le template, avec leur état de validation. */
+  cohorts: TemplateCohortStatus[];
   /** Équipe (regroupement de la galerie) + proposition croisée multi-outils. */
   team: BoardTemplate["team"];
   cross: boolean;
@@ -295,16 +377,16 @@ async function entityCounts(supabase: SupabaseClient, orgId: string): Promise<Ma
 
 /**
  * Templates réellement proposables : chaque entité requise a au moins un
- * enregistrement synchronisé.
+ * enregistrement synchronisé ET chaque cohorte requise est mappée + vérifiée.
  */
 export async function availableBoardTemplates(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<BoardTemplateOption[]> {
-  const counts = await entityCounts(supabase, orgId);
-  return BOARD_TEMPLATES.filter((t) => t.entities.every((e) => (counts.get(e) ?? 0) > 0)).map(
-    (t) => ({ id: t.id, label: t.label, description: t.description }),
-  );
+  const [counts, cohorts] = await Promise.all([entityCounts(supabase, orgId), templateCohortStatuses(supabase, orgId)]);
+  return BOARD_TEMPLATES.filter(
+    (t) => t.entities.every((e) => (counts.get(e) ?? 0) > 0) && blockingCohorts(t, cohorts).length === 0,
+  ).map((t) => ({ id: t.id, label: t.label, description: t.description }));
 }
 
 /**
@@ -316,9 +398,10 @@ export async function boardTemplateGallery(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<BoardTemplateGalleryItem[]> {
-  const [counts, connected] = await Promise.all([
+  const [counts, connected, cohortStatuses] = await Promise.all([
     entityCounts(supabase, orgId),
     listConnectedTools(supabase, orgId).catch(() => []),
+    templateCohortStatuses(supabase, orgId),
   ]);
   // Outils connectés qui portent chaque catégorie d'entité (crm/billing/support) :
   // les logos affichés sur la carte = les outils dont les DONNÉES alimentent le template.
@@ -342,11 +425,18 @@ export async function boardTemplateGallery(
     }
     return out;
   };
-  return BOARD_TEMPLATES.map((t) => ({
+  return BOARD_TEMPLATES.map((t) => {
+    const missingEntities = t.entities.filter((e) => (counts.get(e) ?? 0) === 0);
+    const cohorts = (t.cohorts ?? []).map(
+      (k) => cohortStatuses.get(k) ?? { key: k, label: COHORT_LABELS[k] ?? k, state: "unmapped" as const },
+    );
+    return {
     id: t.id,
     label: t.label,
     description: t.description,
-    available: t.entities.every((e) => (counts.get(e) ?? 0) > 0),
+    available: missingEntities.length === 0 && cohorts.every((c) => c.state === "ok"),
+    missingEntities,
+    cohorts,
     team: t.team,
     cross: t.cross === true,
     tools: toolsFor(t.entities),
@@ -355,7 +445,8 @@ export async function boardTemplateGallery(
     tableTitles: t.tables.map((x) => x.title),
     previewTiles: t.tiles.map((x) => ({ title: x.title, unit: x.unit })),
     previewTables: t.tables.map((x) => ({ title: x.title, view: x.view })),
-  }));
+    };
+  });
 }
 
 /** Composition seedable (template statique ou proposition de l'agent). */

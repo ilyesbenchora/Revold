@@ -28,6 +28,19 @@ const STATUS_MAP: Record<string, string> = {
   voided: "void",
 };
 
+// Statuts d'abonnement Chargebee → vocabulaire canonique (celui de Stripe,
+// attendu par les tuiles/templates : « active », « canceled », « trialing ») :
+// sans cette normalisation, « cancelled » et « in_trial » échappaient au taux
+// d'annulation et à la santé du portefeuille.
+const SUB_STATUS_MAP: Record<string, string> = {
+  active: "active",
+  non_renewing: "active",
+  in_trial: "trialing",
+  cancelled: "canceled",
+  paused: "paused",
+  future: "future",
+};
+
 export const chargebeeConnector: SourceConnector = async (ctx) => {
   const site = ctx.credentials.site;
   const apiKey = ctx.credentials.api_key ?? ctx.primaryToken;
@@ -164,7 +177,7 @@ export const chargebeeConnector: SourceConnector = async (ctx) => {
       organization_id: ctx.orgId,
       contact_id: contactFor(sub.customer_id),
       company_id: companyFor(sub.customer_id),
-      status: sub.status ?? "active",
+      status: SUB_STATUS_MAP[sub.status ?? ""] ?? sub.status ?? "active",
       currency: (sub.currency_code ?? "EUR").toUpperCase(),
       mrr: computeChargebeeMrr(sub),
       current_period_start: toIso(sub.current_term_start),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { BoardTemplateGalleryItem } from "@/lib/boards/board-templates";
 import { TemplatePreview } from "@/components/boards/template-preview";
@@ -23,6 +24,15 @@ const ENTITY_LABELS: Record<string, string> = {
   tickets: "Tickets",
   contacts: "Contacts",
   companies: "Entreprises",
+};
+
+/** Explication courte de l'état d'une cohorte requise (miroir des badges de Paramètres → Cohortes). */
+const COHORT_STATE_LABELS: Record<string, string> = {
+  ok: "vérifiée",
+  unmapped: "aucune propriété CRM mappée",
+  wrong_object: "mappée sur un autre objet que l'entreprise",
+  missing: "propriété introuvable dans le CRM",
+  unverifiable: "CRM non connecté, vérification impossible",
 };
 
 export function TemplateGallery({ items }: { items: BoardTemplateGalleryItem[] }) {
@@ -111,6 +121,20 @@ export function TemplateGallery({ items }: { items: BoardTemplateGalleryItem[] }
         <TemplatePreview id={t.id} tiles={t.previewTiles} tables={t.previewTables} />
       </div>
 
+      {/* Cohortes dont dépend le template : état de validation (Paramètres → Cohortes). */}
+      {t.cohorts.length > 0 && (
+        <ul className="mt-2 space-y-0.5">
+          {t.cohorts.map((c) => (
+            <li key={c.key} className="flex items-center gap-1.5 text-[11px]">
+              <span className={c.state === "ok" ? "text-emerald-600" : "text-amber-600"}>{c.state === "ok" ? "✓" : "!"}</span>
+              <span className="text-slate-600">
+                Cohorte <span className="font-medium">{c.label}</span> — {COHORT_STATE_LABELS[c.state] ?? c.state}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <p className="mt-2 text-[10px] text-slate-400">
         {t.tileTitles.length} tuile{t.tileTitles.length > 1 ? "s" : ""}
         {t.tableTitles.length > 0 && (
@@ -128,10 +152,19 @@ export function TemplateGallery({ items }: { items: BoardTemplateGalleryItem[] }
           >
             Utiliser ce template
           </button>
-        ) : (
+        ) : t.missingEntities.length > 0 ? (
           <p className="text-[11px] text-slate-400">
-            Aucune donnée synchronisée pour {t.entities.map((e) => ENTITY_LABELS[e] ?? e).join(" + ")} — connecte un
+            Aucune donnée synchronisée pour {t.missingEntities.map((e) => ENTITY_LABELS[e] ?? e).join(" + ")} — connecte un
             outil qui les porte pour l&apos;activer.
+          </p>
+        ) : (
+          <p className="text-[11px] text-amber-700">
+            Valide d&apos;abord {t.cohorts.filter((c) => c.state !== "ok").length > 1 ? "les cohortes" : "la cohorte"}{" "}
+            {t.cohorts.filter((c) => c.state !== "ok").map((c) => c.label).join(", ")} dans{" "}
+            <Link href="/dashboard/parametres/cohortes" className="font-medium text-accent hover:underline">
+              Paramètres → Cohortes
+            </Link>
+            {" "}: sans propriété CRM vérifiée, ces tables afficheraient « inconnu ».
           </p>
         )}
       </div>

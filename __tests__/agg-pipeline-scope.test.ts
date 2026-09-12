@@ -11,7 +11,7 @@ import { computeAggregate } from "@/lib/ai/agents/tool-library";
 
 type Row = Record<string, unknown>;
 
-/** Supabase minimal : .from().select().eq().limit() → { data } */
+/** Supabase minimal : .from().select().eq().order().range() → { data } (lecture paginée du moteur). */
 function fakeSupabase(rows: Row[]) {
   const q: Record<string, unknown> = {};
   q.select = () => q;
@@ -19,7 +19,9 @@ function fakeSupabase(rows: Row[]) {
   q.in = () => q;
   q.gte = () => q;
   q.lte = () => q;
+  q.order = () => q;
   q.limit = () => Promise.resolve({ data: rows, error: null });
+  q.range = (from: number, to: number) => Promise.resolve({ data: rows.slice(from, to + 1), error: null });
   return { from: () => q } as never;
 }
 
