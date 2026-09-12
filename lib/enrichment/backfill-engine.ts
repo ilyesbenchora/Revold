@@ -31,7 +31,7 @@ import {
  *  2. EFFECTIFS & CA — entreprises AVEC SIREN jamais enrichies ou > 90 j.
  */
 
-const THROTTLE_MS = 200; // ~5 req/s — l'API publique tolère 7/s
+const THROTTLE_MS = 150; // ~6,6 req/s — sous le plafond de 7/s de l'API publique (backoff sur 429 conservé)
 /** Propriété HubSpot cible par champ d'enrichissement (fallback si non mappée). */
 const HS_PROP = Object.fromEntries(ENRICHMENT_HUBSPOT_PROPERTIES.map((p) => [p.field, p])) as Record<
   string,

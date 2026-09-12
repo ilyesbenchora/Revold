@@ -138,7 +138,29 @@ export async function GET() {
     newFieldScope = 0;
   }
 
-  if (newFieldScope > 0) {
+  // ── Passe EN COURS : la jauge suit la FILE de la passe (fiches passées au
+  // moteur / périmètre ouvert au départ), pas la présence des valeurs — une
+  // donnée légitimement absente du registre (capital non publié, effectif
+  // confidentiel) ne fige plus la barre alors que le moteur avance.
+  let runningScope = 0;
+  try {
+    const { data } = await supabase
+      .from("enrichment_runs")
+      .select("scope_total")
+      .eq("organization_id", orgId)
+      .eq("status", "running")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    runningScope = Number((data as { scope_total?: unknown } | null)?.scope_total) || 0;
+  } catch { /* table absente */ }
+
+  if (runningScope > 0 && engineRemaining > 0) {
+    const effScope = Math.max(runningScope, engineRemaining);
+    remaining = engineRemaining;
+    processed = Math.max(0, effScope - engineRemaining);
+    pct = Math.max(0, Math.min(100, Math.round((processed / effScope) * 100)));
+  } else if (newFieldScope > 0) {
     // Jauge du chantier « nouvelle donnée » : 0 % au départ, 100 % couvert.
     pct = Math.max(0, Math.min(100, Math.round((processed / newFieldScope) * 100)));
   } else {

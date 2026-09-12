@@ -111,12 +111,32 @@ export function EnrichmentBackfillRunner({
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
 
+  // ── Temps restant estimé : débit OBSERVÉ (fiches/min sur les derniers
+  // relevés de la file) × restantes — jamais une promesse théorique.
+  const [etaMin, setEtaMin] = useState<number | null>(null);
+  const samplesRef = useRef<Array<{ t: number; r: number }>>([]);
+
   const loadStatus = useCallback(async (): Promise<Status | null> => {
     try {
       const res = await fetch("/api/enrichment/status");
       if (!res.ok) return null;
       const d = (await res.json()) as Status;
-      if (mountedRef.current) setStatus(d);
+      if (mountedRef.current) {
+        setStatus(d);
+        // File repartie à la hausse (remise en file d'une nouvelle passe) →
+        // l'estimation repart de zéro plutôt que d'afficher un débit négatif.
+        const prev = samplesRef.current[samplesRef.current.length - 1];
+        if (prev && d.remaining > prev.r + 5) samplesRef.current = [];
+        samplesRef.current = [...samplesRef.current, { t: Date.now(), r: d.remaining }].slice(-8);
+        const arr = samplesRef.current;
+        if (arr.length >= 2) {
+          const dt = arr[arr.length - 1].t - arr[0].t;
+          const dr = arr[0].r - arr[arr.length - 1].r;
+          setEtaMin(dt > 10_000 && dr > 0 && d.remaining > 0 ? Math.max(1, Math.ceil((d.remaining * (dt / dr)) / 60_000)) : null);
+        } else {
+          setEtaMin(null);
+        }
+      }
       return d;
     } catch {
       return null;
@@ -404,6 +424,9 @@ export function EnrichmentBackfillRunner({
             <p className="shrink-0 text-right text-xs text-slate-500">
               <span className="block text-2xl font-bold tabular-nums text-slate-900">{pct} %</span>
               {fmt(status.processed)} traitées{remaining > 0 && <> · {fmt(remaining)} restantes</>}
+              {(inProgress || runningRef.current) && etaMin != null && (
+                <span className="block font-medium text-fuchsia-600">≈ {etaMin} min restante{etaMin > 1 ? "s" : ""}</span>
+              )}
             </p>
           )}
         </div>
@@ -429,7 +452,15 @@ export function EnrichmentBackfillRunner({
                nouveaux champs sont cochés ; sinon état discret. ── */}
         {status != null && runs != null && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-fuchsia-100 pt-3">
-            {!activated || needsRun ? (
+            {activated && (inProgress || runningRef.current) ? (
+              // Une passe tourne déjà (ici ou par le robot) : pas de CTA
+              // « Relancer la détection » qui prête à confusion — la file se
+              // vide toute seule, relancer n'apporterait rien.
+              <p className="text-[11px] text-slate-400">
+                Une passe est en cours — la file se vide toute seule
+                {etaMin != null ? ` (≈ ${etaMin} min restante${etaMin > 1 ? "s" : ""})` : ""}. Inutile de relancer.
+              </p>
+            ) : !activated || needsRun ? (
               <>
                 <p className="text-[11px] text-slate-400">
                   {!activated && activeFieldIds.length === 0 ? (
@@ -546,6 +577,7 @@ export function EnrichmentBackfillRunner({
                 <>
                   Identification au registre officiel — {fmt(Math.max(0, passScope - passRemaining))}
                   {passScope > 0 && <> / {fmt(passScope)}</>} fiches traitées.
+                  {etaMin != null && <> ≈ {etaMin} min restante{etaMin > 1 ? "s" : ""}.</>}
                 </>
               )}
               {phase === "crm" && <>Écriture dans les fiches HubSpot (champs vides uniquement — rien n&apos;est écrasé).</>}

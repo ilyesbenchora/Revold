@@ -9,9 +9,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * « Enrichir toute ma base MAINTENANT » — un appel traite un lot (~60 lookups,
- * ≈ 30 s) pour l'org courante ; l'UI boucle tant qu'il reste des entreprises,
- * avec progression visible. Même moteur que le cron horaire (backfill-engine) :
+ * « Enrichir toute ma base MAINTENANT » — un appel traite un lot (~150 lookups,
+ * ≈ 30 s à ~6,6 req/s) pour l'org courante ; l'UI boucle tant qu'il reste des
+ * entreprises, avec progression visible. Un lot plus gros = moins d'allers-
+ * retours HTTP et de recomptages entre lots → passe nettement plus rapide,
+ * même moteur et mêmes règles de qualité que le cron horaire (backfill-engine) :
  * correspondances sûres appliquées, plausibles en file de validation persistante.
  */
 export async function POST(request: Request) {
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const result = await runEnrichmentBatch(sb, { orgId, budget: 60 });
+  const result = await runEnrichmentBatch(sb, { orgId, budget: 150 });
   if (result.unavailable) {
     return NextResponse.json({ error: "Migration enrichment_scale non appliquée — redéploie puis réessaie." }, { status: 500 });
   }
