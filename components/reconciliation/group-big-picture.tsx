@@ -85,8 +85,11 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
   const [query, setQuery] = useState("");
   // Groupes repliés (par id de la mère) — repli/dépli depuis l'entité groupe.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // Filtres par TAG de hiérarchie (Paramètres → Enrichissement) : "" = tous.
-  const [tagFilters, setTagFilters] = useState<Record<string, string>>({});
+  // Filtre par TAG compact : UN tag choisi dans la liste → sa valeur — la
+  // barre de recherche couvre déjà « tous les tags » en texte libre, inutile
+  // d'afficher un sélecteur par tag (trop de place).
+  const [tagKey, setTagKey] = useState("");
+  const [tagValue, setTagValue] = useState("");
 
   // Valeurs distinctes de chaque tag sur les groupes affichés (mère + filiales).
   const tagOptions = useMemo(() => {
@@ -105,18 +108,19 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
   const filtered = useMemo(() => {
     const term = norm(query.trim());
     const digits = query.replace(/\D/g, ""); // SIREN/SIRET tapé avec espaces
-    const activeTags = Object.entries(tagFilters).filter(([, v]) => v);
     const matchNode = (n: GroupNode) =>
       norm(n.name).includes(term) ||
       (!!n.siren && (norm(n.siren).includes(term) || (digits.length > 0 && n.siren.includes(digits)))) ||
       // La recherche couvre aussi les TAGS : taper « Tier 1 » ou « Enterprise »
       // retrouve les groupes dont la mère ou une filiale porte cette valeur.
       Object.values(n.tags ?? {}).some((v) => norm(v).includes(term));
-    // Tag actif : le groupe reste si la mère OU une filiale porte la valeur.
-    const matchTags = (g: BigPictureGroup) =>
-      activeTags.every(([k, v]) => [g.root, ...g.children].some((n) => n.tags?.[k] === v));
-    return groups.filter((g) => (!term || matchNode(g.root) || g.children.some(matchNode)) && matchTags(g));
-  }, [groups, query, tagFilters]);
+    // Tag choisi : le groupe reste si la mère OU une filiale porte la valeur
+    // (tag sans valeur choisie = toute fiche portant CE tag).
+    const matchTag = (g: BigPictureGroup) =>
+      !tagKey ||
+      [g.root, ...g.children].some((n) => (tagValue ? n.tags?.[tagKey] === tagValue : !!n.tags?.[tagKey]));
+    return groups.filter((g) => (!term || matchNode(g.root) || g.children.some(matchNode)) && matchTag(g));
+  }, [groups, query, tagKey, tagValue]);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -163,29 +167,44 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
         )}
       </div>
 
-      {/* ── Filtres par tag de hiérarchie (propriétés CRM câblées dans
-             Paramètres → Enrichissement) — un sélecteur par tag. ── */}
+      {/* ── Filtre par tag COMPACT : on choisit UN tag dans la liste, puis sa
+             valeur — pas un sélecteur par tag (trop de place). La barre de
+             recherche couvre déjà tous les tags en texte libre. ── */}
       {tagDefs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {tagDefs.map((def) => (
-            <label key={def.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-              {def.label}
-              <select
-                value={tagFilters[def.key] ?? ""}
-                onChange={(e) => setTagFilters((prev) => ({ ...prev, [def.key]: e.target.value }))}
-                className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
-              >
-                <option value="">Tous</option>
-                {(tagOptions[def.key] ?? []).map((v) => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-          ))}
-          {Object.values(tagFilters).some(Boolean) && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+          <span>Filtrer par tag :</span>
+          <select
+            value={tagKey}
+            onChange={(e) => {
+              setTagKey(e.target.value);
+              setTagValue("");
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+          >
+            <option value="">Choisir un tag…</option>
+            {tagDefs.map((def) => (
+              <option key={def.key} value={def.key}>{def.label}</option>
+            ))}
+          </select>
+          {tagKey && (
+            <select
+              value={tagValue}
+              onChange={(e) => setTagValue(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
+            >
+              <option value="">Toutes les valeurs</option>
+              {(tagOptions[tagKey] ?? []).map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          )}
+          {tagKey && (
             <button
               type="button"
-              onClick={() => setTagFilters({})}
+              onClick={() => {
+                setTagKey("");
+                setTagValue("");
+              }}
               className="text-[11px] font-medium text-slate-400 underline decoration-dotted underline-offset-2 hover:text-slate-600"
             >
               Réinitialiser
