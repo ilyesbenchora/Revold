@@ -17,7 +17,7 @@ Ligne de base avant toute optimisation. Search Console (28 jours, 13/08 → 10/0
 ## Conditions de mesure
 
 - Exécution manuelle de la routine cloud le 12/09 à 11h33 : audit réalisé, mais publication impossible (git push, API GitHub et connecteur refusés en 403 : l'application GitHub « Claude » n'a plus l'accès en écriture au dépôt). Le dossier `audits/` ne contenait aucun rapport avant celui-ci : les routines CTO et Revenue étaient dans la même situation.
-- Search Console branchée le 12/09 (compte de service, propriété `sc-domain:revold.ai`). Variable `GSC_SERVICE_ACCOUNT_JSON` posée sur Vercel ; à poser dans l'environnement de la routine.
+- Search Console branchée le 12/09 (compte de service, propriété `sc-domain:revold.ai`). Variable `GSC_SERVICE_ACCOUNT_JSON` posée sur Vercel ET dans l'environnement cloud de la routine (fait le 12/09) — la routine lira les vraies positions Search Console au prochain run.
 - Audit technique local sur la production : 71 URLs en 200, 208 ms en moyenne, robots IA déclarés, llms.txt et RSS (hub WebSub) en place.
 
 ## Requêtes cibles (Search Console, 28 jours)
