@@ -50,6 +50,8 @@ const norm = (s: string) =>
 
 export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
   const [query, setQuery] = useState("");
+  // Groupes repliés (par id de la mère) — repli/dépli depuis l'entité groupe.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const term = norm(query.trim());
@@ -61,24 +63,48 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
     return groups.filter((g) => matchNode(g.root) || g.children.some(matchNode));
   }, [groups, query]);
 
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // « Tout réduire » tant qu'au moins un groupe visible est déplié ; sinon « Tout déplier ».
+  const allCollapsed = filtered.length > 0 && filtered.every((g) => collapsed.has(g.root.id));
+  const toggleAll = () =>
+    setCollapsed(allCollapsed ? new Set() : new Set(filtered.map((g) => g.root.id)));
+
   return (
     <div className="space-y-3">
-      {/* ── Recherche par nom ou SIREN ── */}
-      <div className="relative">
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher un groupe par nom d'entreprise ou SIREN…"
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-accent"
-        />
-        {query.trim() && (
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
-            {filtered.length} / {groups.length}
-          </span>
+      {/* ── Recherche par nom ou SIREN + repli global ── */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un groupe par nom d'entreprise ou SIREN…"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-accent"
+          />
+          {query.trim() && (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
+              {filtered.length} / {groups.length}
+            </span>
+          )}
+        </div>
+        {filtered.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
+          >
+            {allCollapsed ? "Tout déplier" : "Tout réduire"}
+          </button>
         )}
       </div>
 
@@ -87,13 +113,28 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
           Aucun groupe ne correspond à « {query.trim()} ».
         </p>
       ) : (
-        filtered.map((g) => (
+        filtered.map((g) => {
+        const isCollapsed = collapsed.has(g.root.id);
+        return (
         <article key={g.root.id} className="rounded-xl border border-slate-200 bg-white p-3">
-          {/* ── Tête de groupe (parent) ── */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-indigo-50 px-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-indigo-900">{g.root.name}</p>
-              <p className="font-mono text-[10px] text-indigo-700">{g.root.siren ? `SIREN ${g.root.siren}` : "SIREN —"}</p>
+          {/* ── Tête de groupe (parent) — clic = replier/déplier le groupe ── */}
+          <button
+            type="button"
+            onClick={() => toggle(g.root.id)}
+            aria-expanded={!isCollapsed}
+            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-left transition hover:bg-indigo-100/70"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`shrink-0 text-indigo-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-indigo-900">{g.root.name}</p>
+                <p className="font-mono text-[10px] text-indigo-700">{g.root.siren ? `SIREN ${g.root.siren}` : "SIREN —"}</p>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
@@ -105,8 +146,10 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
                 </span>
               )}
             </div>
-          </div>
+          </button>
 
+          {!isCollapsed && (
+            <>
           {/* Deals associés à la société MÈRE elle-même (étape + pipeline). */}
           {(g.root.deals?.length ?? 0) > 0 && (
             <div className="mt-1.5 rounded-lg bg-indigo-50/50 px-3 py-1.5">
@@ -133,8 +176,11 @@ export function GroupBigPicture({ groups }: { groups: BigPictureGroup[] }) {
               </div>
             ))}
           </div>
+            </>
+          )}
         </article>
-        ))
+        );
+        })
       )}
     </div>
   );
