@@ -5,6 +5,7 @@ import { fetchDealsPipelines } from "@/lib/integrations/hubspot-snapshot";
 import { fetchAdsPerformance } from "@/lib/integrations/sources/ads";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
 import { CLASSE_LABELS as LEDGER_CLASSE_LABELS } from "@/lib/audit/pnl";
+import { resolveOwnerScope, applyOwnerScope } from "@/lib/crm/owner-scope";
 
 /**
  * Performance publicité & web (Google Analytics/Ads, Meta Ads, LinkedIn Ads) sur
@@ -1225,27 +1226,11 @@ export async function computeAggregate(
   if (ownerFilter && !OWNER_COLS[entity]) {
     return { error: `Filtre par utilisateur CRM non disponible pour ${entity} (deals, contacts, entreprises et tickets uniquement).` };
   }
-  // CHOIX LIBRE de l'objet du propriétaire : croisé par association quand il
-  // diffère de l'entité (companies → company_id ; contacts sur KPI deals →
-  // contact_id). Résolu une fois ici (uuid impossible si aucune fiche → 0 résultat).
-  const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
-  const ownerObj = ownerFilter ? (typeof input.owner_object === "string" && input.owner_object.trim() ? input.owner_object.trim() : entity) : null;
-  const ownedIds = async (table: "companies" | "contacts"): Promise<string[]> => {
-    const ids: string[] = [];
-    for (let f = 0; f < 50000; f += 1000) {
-      const { data, error } = await supabase.from(table).select("id").eq("organization_id", orgId).eq("hs_owner_id", ownerFilter!).range(f, f + 999);
-      if (error || !data) break;
-      for (const r of data as Array<{ id: string }>) ids.push(String(r.id));
-      if (data.length < 1000) break;
-    }
-    return ids;
-  };
-  let ownerCompanyIds: string[] | null = null;
-  let ownerContactIds: string[] | null = null;
-  if (ownerFilter && ownerObj && ownerObj !== entity) {
-    if (ownerObj === "companies") ownerCompanyIds = await ownedIds("companies");
-    else if (ownerObj === "contacts" && entity === "deals") ownerContactIds = await ownedIds("contacts");
-  }
+  // CHOIX LIBRE de l'objet du propriétaire : croisé par association (helper
+  // partagé). Résolu une fois ; null = combinaison sans lien connu → repli direct.
+  const ownerScope = ownerFilter
+    ? await resolveOwnerScope(supabase, orgId, entity, typeof input.owner_object === "string" ? input.owner_object : null, ownerFilter)
+    : null;
 
   // Mode détail : colonnes riches (nom, client, montants…) avec repli sur les
   // colonnes de l'agrégat si le schéma ne les porte pas toutes.
@@ -1256,17 +1241,7 @@ export async function computeAggregate(
     if (src && spec.hasSource) qb = qb.in("primary_source", src);
     // Filtre propriétaire : direct sur l'entité, ou croisé par association.
     if (ownerFilter) {
-      if (!ownerObj || ownerObj === entity) {
-        if (OWNER_COLS[entity]) qb = qb.eq(OWNER_COLS[entity], ownerFilter);
-      } else if (ownerObj === "companies") {
-        const ids = ownerCompanyIds ?? [];
-        qb = qb.in("company_id", ids.length ? ids : [NO_MATCH_UUID]);
-      } else if (ownerObj === "contacts" && entity === "deals") {
-        const ids = ownerContactIds ?? [];
-        qb = qb.in("contact_id", ids.length ? ids : [NO_MATCH_UUID]);
-      } else if (OWNER_COLS[entity]) {
-        qb = qb.eq(OWNER_COLS[entity], ownerFilter);
-      }
+      qb = ownerScope ? applyOwnerScope(qb, ownerScope) : (OWNER_COLS[entity] ? qb.eq(OWNER_COLS[entity], ownerFilter) : qb);
     }
     // Période exacte : filtre déterministe sur la vraie colonne de date.
     if (dateCol && from) qb = qb.gte(dateCol, from);

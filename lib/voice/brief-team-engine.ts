@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
 import { readOwnersMapFromCache } from "@/lib/sync/read-cached-objects";
+import { resolveOwnerScope, applyOwnerScope, type OwnerScope } from "@/lib/crm/owner-scope";
 import {
   BRIEF_TEAMS,
   TEAM_BLOCKS,
@@ -46,11 +47,22 @@ type Ctx = {
   now: Date;
   crmLabel: string | null;
   owners: Map<string, string> | null;
-  /** Focus sur un utilisateur du CRM (propriétaire) : filtre l'objet indexé. */
+  /** Focus sur un utilisateur du CRM (propriétaire) : filtre par association. */
   ownerId: string | null;
-  /** Objet sur lequel le propriétaire est indexé (le filtre owner ne s'y applique qu'à lui). */
+  /** Objet sur lequel le propriétaire est indexé (croisé par association). */
   ownerObject: BriefCrmObject | null;
+  /** Cache des scopes propriétaire résolus par objet interrogé. */
+  ownerScopes: Map<string, OwnerScope | null>;
 };
+
+/** Scope propriétaire pour un objet interrogé (résolu + mis en cache). */
+async function ownerScopeFor(ctx: Ctx, object: BriefCrmObject): Promise<OwnerScope | null> {
+  if (!ctx.ownerId) return null;
+  if (ctx.ownerScopes.has(object)) return ctx.ownerScopes.get(object) ?? null;
+  const scope = await resolveOwnerScope(ctx.supabase, ctx.orgId, object, ctx.ownerObject, ctx.ownerId);
+  ctx.ownerScopes.set(object, scope);
+  return scope;
+}
 
 async function ownersOf(ctx: Ctx): Promise<Map<string, string>> {
   if (ctx.owners) return ctx.owners;
@@ -153,6 +165,8 @@ async function fetchRows(
     max?: number;
   } = {},
 ): Promise<Row[]> {
+  // Focus « utilisateur » : scope résolu une fois (direct ou croisé par association).
+  const ownerScope = ctx.ownerId && opts.ownerScope !== false ? await ownerScopeFor(ctx, object) : null;
   const props = [...new Set([...(opts.props ?? []), ...NATIVE_PROPS[object]])].filter((p) => NAME_RE.test(p));
   const aliases = props.map((p) => `p_${p}:raw_data->properties->>${p}`);
   const base: Record<BriefCrmObject, string> = {
@@ -186,13 +200,8 @@ async function fetchRows(
     if (opts.inCol) q = q.in(opts.inCol.col, opts.inCol.values);
     if (opts.eq) for (const [k, v] of Object.entries(opts.eq)) q = q.eq(k, v);
     if (opts.nullCol) q = opts.nullCol.isNull ? q.is(opts.nullCol.col, null) : q.not(opts.nullCol.col, "is", null);
-    // Focus « utilisateur » : filtre par propriétaire, UNIQUEMENT sur l'objet
-    // sur lequel le owner est indexé (tickets via colonne, deals/contacts via
-    // la propriété HubSpot).
-    if (ctx.ownerId && ctx.ownerObject === object && opts.ownerScope !== false) {
-      if (object === "tickets") q = q.eq("owner_id", ctx.ownerId);
-      else if (object === "deals" || object === "contacts") q = q.eq("raw_data->properties->>hubspot_owner_id", ctx.ownerId);
-    }
+    // Focus « utilisateur » : filtre direct ou croisé par association.
+    if (ownerScope) q = applyOwnerScope(q, ownerScope);
     const { data, error } = await q.range(from, from + PAGE - 1);
     if (error || !data) break;
     for (const r of data as unknown as Array<Record<string, unknown>>) {
@@ -296,7 +305,7 @@ export async function propertyCoverage(
   name: string,
 ): Promise<{ withValue: number; total: number } | null> {
   if (!token || !NAME_RE.test(name)) return null;
-  const ctx: Ctx = { supabase: null as unknown as SupabaseClient, orgId: "", token, now: new Date(), crmLabel: null, owners: null, ownerId: null, ownerObject: null };
+  const ctx: Ctx = { supabase: null as unknown as SupabaseClient, orgId: "", token, now: new Date(), crmLabel: null, owners: null, ownerId: null, ownerObject: null, ownerScopes: new Map() };
   const [withValue, all] = await Promise.all([
     liveSearch(ctx, object, [{ propertyName: name, operator: "HAS_PROPERTY" }], [name], 1),
     liveSearch(ctx, object, [{ propertyName: "hs_object_id", operator: "HAS_PROPERTY" }], [], 1),
@@ -508,10 +517,9 @@ const LIFECYCLE_LABELS: Record<string, string> = {
 async function countWhere(ctx: Ctx, table: string, apply: (q: any) => any): Promise<number> {
   try {
     let q = apply(ctx.supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", ctx.orgId));
-    // Focus « utilisateur » : uniquement sur l'objet indexé (comme fetchRows).
-    if (ctx.ownerId && ctx.ownerObject === table) {
-      if (table === "tickets") q = q.eq("owner_id", ctx.ownerId);
-      else if (table === "contacts" || table === "deals") q = q.eq("raw_data->properties->>hubspot_owner_id", ctx.ownerId);
+    // Focus « utilisateur » : direct ou croisé par association (comme fetchRows).
+    if (ctx.ownerId && (table === "deals" || table === "contacts" || table === "tickets" || table === "companies")) {
+      q = applyOwnerScope(q, await ownerScopeFor(ctx, table));
     }
     const { count } = await q;
     return count ?? 0;
@@ -853,7 +861,7 @@ export function makeCtx(
   ownerId: string | null = null,
   ownerObject: BriefCrmObject | null = null,
 ): Ctx {
-  return { supabase, orgId, token, now, crmLabel, owners: null, ownerId, ownerObject };
+  return { supabase, orgId, token, now, crmLabel, owners: null, ownerId, ownerObject, ownerScopes: new Map() };
 }
 
 /** Phrases du brief d'équipe (config de l'équipe active des réglages). */

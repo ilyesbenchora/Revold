@@ -7,6 +7,7 @@ import { InfoHint } from "@/components/info-hint";
 import { DictationButton } from "@/components/voice/dictation-button";
 import { WiredToolsRow } from "@/components/wired-tools-row";
 import { CrmUserPicker, type CrmOwner } from "@/components/crm-user-picker";
+import { supportedOwnerObjects, OWNER_OBJECT_LABEL } from "@/lib/crm/owner-scope";
 
 /** Entités dont les données portent un owner HubSpot → ciblage par utilisateur CRM possible. */
 const OWNER_TARGETABLE_ENTITIES = new Set(["deals", "contacts", "tickets", "companies"]);
@@ -190,13 +191,13 @@ export function SurgicalAlertButton({
   // associations disponibles pour l'entité du bloc : entité elle-même (direct),
   // entreprise (company_id), et contact (contact_id, deals uniquement).
   const aggEntity = aggSpec?.entity ?? "deals";
-  const ownerObjOptions = useMemo<[string, string][]>(() => {
-    const single: Record<string, string> = { deals: "Deal", contacts: "Contact", tickets: "Ticket", companies: "Entreprise" };
-    const opts: [string, string][] = [[aggEntity, single[aggEntity] ?? entityLabel(aggEntity)]];
-    if (aggEntity !== "companies") opts.push(["companies", "Entreprise"]);
-    if (aggEntity === "deals") opts.push(["contacts", "Contact"]);
-    return opts;
-  }, [aggEntity]);
+  const ownerObjOptions = useMemo<[string, string][]>(
+    () =>
+      supportedOwnerObjects(aggEntity)
+        .filter((o) => o !== "tickets" || o === aggEntity || hasServiceHub)
+        .map((o) => [o, OWNER_OBJECT_LABEL[o]] as [string, string]),
+    [aggEntity, hasServiceHub],
+  );
   const [ownerObject, setOwnerObject] = useState<string>(aggEntity);
   // Ré-aligne l'objet par défaut si le bloc (entité) change.
   useEffect(() => { setOwnerObject(aggEntity); }, [aggEntity]);

@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readTowerSettings, writeTowerSettings } from "@/lib/voice/tower-settings";
+import { supportedOwnerObjects } from "@/lib/crm/owner-scope";
 import {
   BRIEF_PERIODS,
   BRIEF_PROPERTY_ROLE_LABELS,
@@ -365,7 +366,10 @@ function OwnerFocus({
 }) {
   // Objets filtrables par propriétaire pour cette équipe (les entreprises ne
   // portent pas le filtre côté brief — le propriétaire vit sur deal/contact/ticket).
-  const objs = TEAM_OBJECTS[team].filter((o) => o !== "companies");
+  // Choix libre : objet du propriétaire pris en charge pour l'objet principal
+  // de l'équipe (direct + associations). Ticket réservé au pôle service client.
+  const primary = defaultOwnerObject(team);
+  const objs = (supportedOwnerObjects(primary) as BriefCrmObject[]).filter((o) => o !== "tickets" || team === "cs");
   const ownerObject = cfg.ownerObject ?? defaultOwnerObject(team);
   const [check, setCheck] = useState<{ loading: boolean; error: string | null; coverage: { withValue: number; total: number } | null }>({
     loading: false,

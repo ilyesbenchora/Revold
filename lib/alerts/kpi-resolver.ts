@@ -1,15 +1,15 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { hubFetch } from "@/lib/integrations/hub-fetch";
+import { resolveOwnerScope, applyOwnerScope, type OwnerScope } from "@/lib/crm/owner-scope";
 
 export type AlertFilters = {
   pipeline_id?: string | null;
   owner_filter?: string | null;
   /** Objet sur lequel le propriétaire est indexé : deals | contacts | companies | tickets. */
   owner_object?: string | null;
-  /** Interne : ids des entreprises du propriétaire (résolu quand owner_object = companies). */
-  ownerCompanyIds?: string[] | null;
-  /** Interne : ids des contacts du propriétaire (résolu quand owner_object = contacts, KPI deals). */
-  ownerContactIds?: string[] | null;
+  /** Interne : scopes propriétaire résolus (association) par entité de KPI. */
+  dealOwnerScope?: OwnerScope | null;
+  contactOwnerScope?: OwnerScope | null;
   date_from?: string | null;
   date_to?: string | null;
   date_preset?: string | null;
@@ -56,43 +56,13 @@ function resolveDateRange(filters: AlertFilters): { from: string | null; to: str
   return { from, to };
 }
 
-/** Sentinelle « aucun résultat » (uuid impossible) pour un focus entreprise sans société. */
-const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
-
-/**
- * Filtre par propriétaire, CHOIX LIBRE de l'objet (owner_object), relatif à
- * l'entité du KPI (`entity`) :
- *  - owner_object = entité du KPI → hs_owner_id direct ;
- *  - companies → company_id ∈ entreprises du propriétaire (deals & contacts) ;
- *  - contacts (KPI deals) → contact_id ∈ contacts du propriétaire ;
- *  - combinaison non encore câblée (inverse, tickets) → repli sur le
- *    propriétaire de l'entité du KPI (jamais de faux résultat).
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyOwnerFilter(query: any, filters: AlertFilters, entity: "deals" | "contacts") {
-  if (!filters.owner_filter) return query;
-  const obj = filters.owner_object ?? entity;
-  if (obj === entity) return query.eq("hs_owner_id", filters.owner_filter);
-  if (obj === "companies") {
-    const ids = filters.ownerCompanyIds ?? [];
-    return query.in("company_id", ids.length ? ids : [NO_MATCH_UUID]);
-  }
-  if (obj === "contacts" && entity === "deals") {
-    const ids = filters.ownerContactIds ?? [];
-    return query.in("contact_id", ids.length ? ids : [NO_MATCH_UUID]);
-  }
-  // Combinaison non câblée (ex. propriétaire du deal sur un KPI contacts, ou
-  // tickets en croisé) → propriétaire de l'entité du KPI.
-  return query.eq("hs_owner_id", filters.owner_filter);
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyDealFilters(query: any, filters: AlertFilters) {
   const { from, to } = resolveDateRange(filters);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
   if (filters.pipeline_id) query = query.eq("stage_id", filters.pipeline_id);
-  query = applyOwnerFilter(query, filters, "deals");
+  if (filters.owner_filter) query = applyOwnerScope(query, filters.dealOwnerScope ?? null);
   if (filters.min_deal_amount) query = query.gte("amount", filters.min_deal_amount);
   return query;
 }
@@ -102,28 +72,8 @@ function applyContactFilters(query: any, filters: AlertFilters) {
   const { from, to } = resolveDateRange(filters);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", to);
-  query = applyOwnerFilter(query, filters, "contacts");
+  if (filters.owner_filter) query = applyOwnerScope(query, filters.contactOwnerScope ?? null);
   return query;
-}
-
-/** Ids (uuid) des fiches d'un objet possédées par un utilisateur CRM (association). */
-async function resolveOwnedIds(supabase: SupabaseClient, orgId: string, table: "companies" | "contacts", ownerId: string): Promise<string[]> {
-  const ids: string[] = [];
-  const PAGE = 1000;
-  try {
-    for (let from = 0; from < 50000; from += PAGE) {
-      const { data, error } = await supabase
-        .from(table)
-        .select("id")
-        .eq("organization_id", orgId)
-        .eq("hs_owner_id", ownerId)
-        .range(from, from + PAGE - 1);
-      if (error || !data) break;
-      for (const r of data as Array<{ id: string }>) ids.push(String(r.id));
-      if (data.length < PAGE) break;
-    }
-  } catch { /* pas de fiches rapprochées → aucun résultat */ }
-  return ids;
 }
 
 /**
@@ -137,10 +87,10 @@ async function queryHubSpotContacts(
 ): Promise<number> {
   const allFilters = [...extraFilters];
 
-  // Ciblage par utilisateur CRM — même filtre côté API HubSpot. Le focus
-  // « entreprise » ne s'applique pas à la recherche live de contacts (pas
-  // d'association owner d'entreprise ici) : il est porté par les KPIs en base.
-  if (filters.owner_filter && filters.owner_object !== "companies") {
+  // Ciblage par utilisateur CRM — recherche live de contacts : seul le
+  // propriétaire DIRECT du contact est applicable ici (les croisements par
+  // association sont portés par les KPIs en base).
+  if (filters.owner_filter && (!filters.owner_object || filters.owner_object === "contacts")) {
     allFilters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: filters.owner_filter });
   }
   if (filters.lifecycle_stage) {
@@ -213,14 +163,14 @@ export async function resolveKpiValue(
   forecastType: string,
   filters: AlertFilters = {},
 ): Promise<number | null> {
-  // Choix libre de l'objet du propriétaire : résoudre une fois les fiches
-  // possédées (entreprises / contacts), puis filtrer par company_id / contact_id.
+  // Choix LIBRE de l'objet du propriétaire (croisé par association) : on résout
+  // une fois le scope pour les deux entités que les KPIs interrogent.
   if (filters.owner_filter) {
-    if (filters.owner_object === "companies" && filters.ownerCompanyIds == null) {
-      filters.ownerCompanyIds = await resolveOwnedIds(supabase, orgId, "companies", filters.owner_filter);
+    if (filters.dealOwnerScope === undefined) {
+      filters.dealOwnerScope = await resolveOwnerScope(supabase, orgId, "deals", filters.owner_object, filters.owner_filter);
     }
-    if (filters.owner_object === "contacts" && filters.ownerContactIds == null) {
-      filters.ownerContactIds = await resolveOwnedIds(supabase, orgId, "contacts", filters.owner_filter);
+    if (filters.contactOwnerScope === undefined) {
+      filters.contactOwnerScope = await resolveOwnerScope(supabase, orgId, "contacts", filters.owner_object, filters.owner_filter);
     }
   }
 
