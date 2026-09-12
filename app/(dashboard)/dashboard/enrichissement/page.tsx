@@ -98,8 +98,10 @@ export default async function EnrichissementPage() {
     ...activeFields.map((f, i): DefaultTile => {
       const t = FIELD_TILE[f.id] ?? { label: f.label, sub: "" };
       const v = fieldValues[i];
+      // Complétion sur TOUTES les tuiles de champ (pas seulement SIREN) :
+      // « n entreprises — x % » lit d'un coup la couverture de chaque donnée.
       const pctOf = total && v != null ? ` — ${Math.round((v / total) * 100)} %` : "";
-      return { key: `champ_${f.id}`, label: t.label, value: fmtCount(v), raw: v, rawUnit: "count", tone: "neutral", sub: `${t.sub}${f.id === "siren" ? pctOf : ""}` };
+      return { key: `champ_${f.id}`, label: t.label, value: fmtCount(v), raw: v, rawUnit: "count", tone: "neutral", sub: `${t.sub}${pctOf}` };
     }),
     { key: "a_valider", label: "À valider", value: fmtCount(toReview), raw: toReview, rawUnit: "count", tone: toReview != null && toReview > 0 ? "accent" : "neutral", sub: "correspondances plausibles en attente" },
   ];
