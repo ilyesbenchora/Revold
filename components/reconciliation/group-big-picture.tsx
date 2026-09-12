@@ -13,6 +13,7 @@
  * ou des centaines de groupes — filtre sur la mère ET les filiales.
  */
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { tagColorClasses } from "@/lib/reconciliation/tag-colors";
 
@@ -90,6 +91,9 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
   // d'afficher un sélecteur par tag (trop de place).
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
+  // Pagination : 10 par défaut, ajustable à 20 / 50 / 100.
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(0);
 
   // Valeurs distinctes de chaque tag sur les groupes affichés (mère + filiales).
   const tagOptions = useMemo(() => {
@@ -122,6 +126,12 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
     return groups.filter((g) => (!term || matchNode(g.root) || g.children.some(matchNode)) && matchTag(g));
   }, [groups, query, tagKey, tagValue]);
 
+  // Pagination sur les groupes filtrés. safePage borne l'index si le filtre a
+  // réduit la liste sous la page courante (sans set-state en rendu).
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
   const toggle = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -146,7 +156,7 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             placeholder={tagDefs.length > 0 ? "Rechercher par nom, SIREN ou tag (segment, tier…)…" : "Rechercher un groupe par nom d'entreprise ou SIREN…"}
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-accent"
           />
@@ -178,6 +188,7 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
             onChange={(e) => {
               setTagKey(e.target.value);
               setTagValue("");
+              setPage(0);
             }}
             className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
           >
@@ -189,7 +200,7 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
           {tagKey && (
             <select
               value={tagValue}
-              onChange={(e) => setTagValue(e.target.value)}
+              onChange={(e) => { setTagValue(e.target.value); setPage(0); }}
               className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-600 outline-none focus:border-accent"
             >
               <option value="">Toutes les valeurs</option>
@@ -218,28 +229,32 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
           Aucun groupe ne correspond à « {query.trim()} ».
         </p>
       ) : (
-        filtered.map((g) => {
+        paged.map((g) => {
         const isCollapsed = collapsed.has(g.root.id);
         return (
         <article key={g.root.id} className="rounded-xl border border-slate-200 bg-white p-3">
-          {/* ── Tête de groupe (parent) — clic = replier/déplier le groupe ── */}
-          <button
-            type="button"
-            onClick={() => toggle(g.root.id)}
-            aria-expanded={!isCollapsed}
-            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-left transition hover:bg-indigo-100/70"
-          >
+          {/* ── Tête de groupe (parent) : chevron = replier/déplier ; NOM = lien
+                 vers la page dédiée de la hiérarchie du groupe. ── */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-indigo-50 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`shrink-0 text-indigo-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+              <button
+                type="button"
+                onClick={() => toggle(g.root.id)}
+                aria-expanded={!isCollapsed}
+                aria-label={isCollapsed ? "Déplier le groupe" : "Replier le groupe"}
+                className="shrink-0 rounded p-0.5 text-indigo-500 transition hover:bg-indigo-100"
               >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-900">{g.root.name}</p>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className={`transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <Link href={`/dashboard/hierarchie/groupe/${g.root.id}`} className="group min-w-0" title="Ouvrir la hiérarchie de ce groupe">
+                <p className="truncate text-sm font-bold text-slate-900 transition group-hover:text-indigo-700 group-hover:underline">{g.root.name}</p>
                 <p className="font-mono text-[10px] text-indigo-700">{g.root.siren ? `SIREN ${g.root.siren}` : "SIREN —"}</p>
-              </div>
+              </Link>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-1.5">
               <TagBadges node={g.root} defs={tagDefs} dark />
@@ -251,8 +266,14 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
                   Groupe : {eur(g.total)}
                 </span>
               )}
+              <Link
+                href={`/dashboard/hierarchie/groupe/${g.root.id}`}
+                className="rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-600 ring-1 ring-indigo-100 transition hover:bg-indigo-600 hover:text-white"
+              >
+                Ouvrir →
+              </Link>
             </div>
-          </button>
+          </div>
 
           {!isCollapsed && (
             <>
@@ -291,6 +312,46 @@ export function GroupBigPicture({ groups, tagDefs = [] }: { groups: BigPictureGr
         </article>
         );
         })
+      )}
+
+      {/* ── Pagination : taille de page (10/20/50/100) + navigation. ── */}
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <span>Afficher</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+              className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 font-medium text-slate-600 outline-none focus:border-accent"
+            >
+              {[10, 20, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <span>par page · {filtered.length} groupe{filtered.length > 1 ? "s" : ""}</span>
+          </div>
+          {pageCount > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage <= 0}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40"
+              >
+                ← Précédent
+              </button>
+              <span className="tabular-nums">Page {safePage + 1} / {pageCount}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={safePage >= pageCount - 1}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40"
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
