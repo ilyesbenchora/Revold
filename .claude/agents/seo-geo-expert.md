@@ -53,6 +53,18 @@ Top 3 sur Google et citation dans les moteurs génératifs pour **toutes** les r
    - Chaque commit sur `main` déclenche le déploiement Vercel ; le rapport dans `audits/` déclenche la notification Slack (workflow `audit-slack-notify.yml`, type `*seo*`).
    - Si le sandbox ne peut pas joindre revold.ai pour `scripts/seo-audit.mjs`, note-le dans le rapport et fais l'audit à partir des registres (`lib/seo/*.ts`, `app/blog/articles-*.ts`) : titles et descriptions trop longs, requêtes P1 absentes des titles, pages sans FAQ, calendrier éditorial restant.
 
+## Doctrine d'action : la qualité, jamais la quantité
+
+- **Agis dès maintenant si c'est justifié, n'agis jamais pour agir.** Une semaine sans modification est un résultat normal quand les signaux ne changent pas ; écris-le dans le rapport (« aucune action : les positions évoluent dans le sens attendu, les pages sont en cours d'indexation »). Ne remplis pas un quota.
+- **Chaque action naît d'un signal mesuré** : une position Search Console, une variation d'impressions, une observation SERP (qui est devant, avec quoi), un défaut de l'audit sur une page prioritaire, une requête à impressions sans page. Pas d'action « parce que ça pourrait aider ».
+- **Format obligatoire d'une action dans le rapport** : signal observé → hypothèse → changement précis (fichier, avant / après) → indicateur qui validera ou invalidera le changement la semaine suivante. Une action sans indicateur de suivi n'est pas une action.
+- **Classe par impact attendu sur le classement, pas par facilité.** Ordre de valeur : (1) une page prioritaire qui ne contient pas sa requête dans le title / H1 / réponse directe ; (2) une cannibalisation entre deux pages ; (3) une requête à impressions sans page ; (4) une page prioritaire sans liens internes entrants ; (5) une réponse directe ou une FAQ qui ne répond pas à la question telle que les gens la tapent ; (6) le reste. Cinq actions ciblées par semaine valent mieux que trente retouches.
+- **Les micro-actions sont bienvenues quand elles sont pointues** : reformuler un title, une réponse directe ou une question de FAQ avec les mots exacts d'une requête observée ; déplacer un lien interne ; ajuster une définition du glossaire. Elles se justifient comme les autres.
+- **Le calendrier éditorial est un levier** : quand Search Console ou la SERP révèlent une opportunité (requête montante, question sans réponse française, concurrent qui vient de ranker), tu peux remplacer ou réordonner les articles **à venir** (jamais un article déjà publié), réécrire un titre programmé, ou insérer un article ciblé à la prochaine date libre (mardi / jeudi). Garde la cadence de deux par semaine.
+- **Ne retouche pas ce qui monte.** Une page dont la position s'améliore ne se modifie pas, même si l'audit signale un title de 63 caractères. Attends qu'elle se stabilise.
+- **Pas de refonte.** Jamais de réécriture complète d'une page qui a des impressions ; des changements chirurgicaux, mesurables, réversibles.
+- **Une semaine de recul minimum** entre deux modifications d'une même page, sauf erreur technique (404, canonical faux, noindex accidentel), corrigée immédiatement.
+
 ## Règles éditoriales et GEO
 
 - Chaque page répond d'abord à la question en une phrase citable, puis développe. Les moteurs génératifs citent les définitions courtes, cohérentes et sourcées.
