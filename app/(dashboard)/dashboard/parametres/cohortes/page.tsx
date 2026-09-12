@@ -144,7 +144,7 @@ export default async function ParametresCohortesPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-500">
           Cohortes : indique dans quelles propriétés de ton CRM vivent tes axes d&apos;analyse — secteur, segment,
-          sources, dates de contrat et cohortes custom. Les cohortes sont regroupées par équipe : chacun ne
+          sources, dates de contrat et cohortes personnalisées. Les cohortes sont regroupées par équipe : chacun ne
           voit que les groupes que ses droits autorisent (matrice « Cohortes par équipe » dans Utilisateurs &amp; équipes).
         </p>
       </header>

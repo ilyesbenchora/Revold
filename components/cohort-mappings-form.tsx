@@ -137,7 +137,7 @@ export function CohortMappingsForm({
 
   function addCustom(team: string) {
     const n = rows.filter((r) => !isStandard(r.key)).length + 1;
-    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte custom ${n}`, internal_name: "", api_name: "", object: "contacts", team, show_in_reports: true }]);
+    setRows((r) => [...r, { key: `custom_${Date.now()}`, label: `Cohorte personnalisée ${n}`, internal_name: "", api_name: "", object: "contacts", team, show_in_reports: true }]);
   }
 
   function removeRow(key: string) {
@@ -285,7 +285,7 @@ export function CohortMappingsForm({
               <input
                 value={m.label}
                 onChange={(e) => patch(m.key, { label: e.target.value })}
-                placeholder="Nom de la cohorte custom"
+                placeholder="Nom de la cohorte personnalisée"
                 disabled={!editable}
                 className="w-64 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-800 outline-none focus:border-fuchsia-300 disabled:bg-slate-50 disabled:text-slate-400"
               />
@@ -426,7 +426,7 @@ export function CohortMappingsForm({
                     onClick={() => addCustom(g.id)}
                     className="rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
                   >
-                    ＋ Ajouter une cohorte custom
+                    ＋ Ajouter une cohorte personnalisée
                   </button>
                 )}
               </div>
