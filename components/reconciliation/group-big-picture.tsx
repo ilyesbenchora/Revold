@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { tagColorClasses } from "@/lib/reconciliation/tag-colors";
 
 export type GroupDeal = { name: string | null; amount: number; stage: string | null; pipeline: string | null };
 export type GroupNode = {
@@ -27,7 +28,7 @@ export type GroupNode = {
 };
 export type BigPictureGroup = { root: GroupNode; children: GroupNode[]; total: number };
 /** Définition d'un tag câblé (propriété CRM personnalisée des fiches Entreprise). */
-export type GroupTagDef = { key: string; label: string };
+export type GroupTagDef = { key: string; label: string; color?: string };
 
 const eur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(v));
@@ -57,7 +58,9 @@ function DealLines({ deals }: { deals: GroupDeal[] }) {
 /** Tags de hiérarchie d'une entité — affichés À CÔTÉ des montants pour
  *  hiérarchiser les comptes sur la donnée CRM personnalisée. */
 function TagBadges({ node, defs, dark = false }: { node: GroupNode; defs: GroupTagDef[]; dark?: boolean }) {
-  const entries = defs.map((d) => ({ label: d.label, v: node.tags?.[d.key] })).filter((e): e is { label: string; v: string } => !!e.v);
+  const entries = defs
+    .map((d) => ({ label: d.label, color: d.color, v: node.tags?.[d.key] }))
+    .filter((e): e is { label: string; color: string | undefined; v: string } => !!e.v);
   if (entries.length === 0) return null;
   return (
     <>
@@ -65,11 +68,7 @@ function TagBadges({ node, defs, dark = false }: { node: GroupNode; defs: GroupT
         <span
           key={e.label}
           title={e.label}
-          className={
-            dark
-              ? "rounded-md bg-white/25 px-1.5 py-0.5 text-[9px] font-semibold text-white"
-              : "rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
-          }
+          className={`rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${tagColorClasses(e.color, dark)}`}
         >
           {e.v}
         </span>

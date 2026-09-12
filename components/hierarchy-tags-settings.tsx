@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SettingsSaveButton, useSettingsEditLock } from "@/components/settings-edit-lock";
+import { TAG_COLORS, TAG_COLOR_IDS, DEFAULT_TAG_COLOR } from "@/lib/reconciliation/tag-colors";
 
 /**
  * Paramètres → Enrichissement : TAGS DE HIÉRARCHIE — des propriétés CRM
@@ -24,6 +25,8 @@ type Mapping = {
   object: string;
   team: string;
   show_in_reports?: boolean;
+  /** Couleur du badge sur la page Groupes déclarés (palette prédéfinie). */
+  color?: string;
 };
 
 type PropState = { exists: boolean | null; label: string | null; suggestedName: string | null };
@@ -69,7 +72,7 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
     setRows((r) => [
       ...(r ?? []),
       // Tag = propriété d'ENTREPRISE, jamais listée dans les rapports.
-      { key: `hiertag_${Date.now()}`, label: "", internal_name: "", api_name: "", object: "companies", team: "", show_in_reports: false },
+      { key: `hiertag_${Date.now()}`, label: "", internal_name: "", api_name: "", object: "companies", team: "", show_in_reports: false, color: DEFAULT_TAG_COLOR },
     ]);
   }
   function removeRow(key: string) {
@@ -207,6 +210,28 @@ export function HierarchyTagsSettings({ hasCrm = false }: { hasCrm?: boolean }) 
                     >
                       Retirer
                     </button>
+                  )}
+                </div>
+                {/* Couleur du badge : palette prédéfinie (cohérence DA) — la
+                    pastille sélectionnée porte un anneau + un aperçu du badge. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-slate-600">Couleur du badge</span>
+                  {TAG_COLOR_IDS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      disabled={!editing}
+                      title={TAG_COLORS[c].label}
+                      onClick={() => patch(m.key, { color: c })}
+                      className={`h-5 w-5 rounded-full ${TAG_COLORS[c].swatch} transition disabled:opacity-50 ${
+                        (m.color ?? DEFAULT_TAG_COLOR) === c ? "ring-2 ring-slate-700 ring-offset-1" : "hover:scale-110"
+                      }`}
+                    />
+                  ))}
+                  {m.label.trim() && (
+                    <span className={`ml-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${TAG_COLORS[m.color ?? DEFAULT_TAG_COLOR]?.light ?? TAG_COLORS[DEFAULT_TAG_COLOR].light}`}>
+                      {m.label.trim()}
+                    </span>
                   )}
                 </div>
                 <div className="mt-2 grid gap-3 sm:grid-cols-3">

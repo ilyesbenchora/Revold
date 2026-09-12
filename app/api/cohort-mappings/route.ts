@@ -4,7 +4,10 @@ import { getOrgId } from "@/lib/supabase/cached";
 
 export const dynamic = "force-dynamic";
 
-type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string; team: string; show_in_reports?: boolean };
+type CohortMapping = { key: string; label: string; internal_name: string; api_name: string; object: string; team: string; show_in_reports?: boolean; color?: string };
+
+/** Couleurs valides des tags de hiérarchie (palette lib/reconciliation/tag-colors). */
+const VALID_TAG_COLORS = new Set(["slate", "indigo", "emerald", "amber", "rose", "fuchsia", "sky", "violet"]);
 
 /** Objets HubSpot valides pour l'objet porteur d'une cohorte ("" = détection auto). */
 const VALID_OBJECTS = new Set(["contacts", "companies", "deals"]);
@@ -31,6 +34,8 @@ function cleanMappings(v: unknown): CohortMapping[] | null {
       team: typeof o.team === "string" && VALID_TEAMS.has(o.team) ? o.team : "",
       // Affichée dans les filtres des rapports (défaut : oui).
       show_in_reports: typeof o.show_in_reports === "boolean" ? o.show_in_reports : true,
+      // Couleur du badge (tags de hiérarchie uniquement) — palette prédéfinie.
+      ...(typeof o.color === "string" && VALID_TAG_COLORS.has(o.color) ? { color: o.color } : {}),
     });
   }
   return out;

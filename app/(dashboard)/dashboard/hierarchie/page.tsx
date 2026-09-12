@@ -42,13 +42,18 @@ export default async function GroupesDeclaresPage() {
   // personnalisées des fiches Entreprise, affichées en tags à côté des
   // montants et utilisables en filtres — stockage partagé avec les cohortes
   // (cohort_mappings, clé hiertag_). ──
-  let tagDefs: Array<{ key: string; label: string; prop: string }> = [];
+  let tagDefs: Array<{ key: string; label: string; prop: string; color?: string }> = [];
   try {
     const { data } = await supabase.from("cohort_mappings").select("mappings").eq("organization_id", orgId).maybeSingle();
     const all = Array.isArray(data?.mappings) ? (data.mappings as Array<Record<string, unknown>>) : [];
     tagDefs = all
       .filter((m) => typeof m.key === "string" && (m.key as string).startsWith("hiertag_") && typeof m.api_name === "string" && (m.api_name as string).trim())
-      .map((m) => ({ key: m.key as string, label: ((m.label as string) || (m.api_name as string)).trim(), prop: (m.api_name as string).trim() }))
+      .map((m) => ({
+        key: m.key as string,
+        label: ((m.label as string) || (m.api_name as string)).trim(),
+        prop: (m.api_name as string).trim(),
+        color: typeof m.color === "string" ? (m.color as string) : undefined,
+      }))
       .slice(0, 4);
   } catch { /* table absente → pas de tags */ }
 
@@ -171,7 +176,7 @@ export default async function GroupesDeclaresPage() {
         </p>
       ) : (
         <>
-          <GroupBigPicture groups={bigGroups} tagDefs={tagDefs.map(({ key, label }) => ({ key, label }))} />
+          <GroupBigPicture groups={bigGroups} tagDefs={tagDefs.map(({ key, label, color }) => ({ key, label, color }))} />
           <p className="text-[10px] text-slate-400">
             Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
             consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. Montant = deals
