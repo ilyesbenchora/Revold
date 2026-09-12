@@ -4,7 +4,7 @@ import { ShotAudit } from "@/components/site/product-shots";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Fiabiliser ses données CRM",
+  title: "Fiabiliser les données CRM : audit, doublons, SIREN",
   description: "Audit automatique, déduplication automatique et enrichissement officiel : une base CRM propre, complète et rapprochée de la facturation.",
 };
 
@@ -14,7 +14,7 @@ export default function FiabiliserDonneesPage() {
   return (
     <SolutionPage
       badge="Solution"
-      title="Fiabilisez vos données"
+      title="Fiabilisez vos données CRM"
       titleAccent="une bonne fois pour toutes."
       subtitle="76% des orgas ont moins de 50% de données CRM fiables. Revold audite vos données, les rapproche par identifiants officiels et remplit les identifiants manquants depuis les registres officiels."
       heroIcon={<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>}
