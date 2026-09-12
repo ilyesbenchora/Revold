@@ -6,7 +6,7 @@ Deuxième exécution le même jour (10h18 UTC), 10 min après le rapport hebdoma
 
 **3 variations.** (1) `npx tsc --noEmit` échoue sur `__tests__/tracked-imports.test.ts` (TS2578) depuis le 11/09 14h37 : 20 h de CI rouge, 9 commits empilés dessus sans que personne ne le voie. (2) Les 7 comparatifs dépubliés n'ont plus aucune requête qui pointe vers eux : 0 cible cassée sur 75. (3) 0 slug en double, 0 date d'article en double hors la paire de lancement du 12/09.
 
-**Action appliquée : 1.** Directive `@ts-expect-error` inutilisée retirée → `tsc` passe, 95 tests verts, eslint propre. Indicateur : le prochain run CI sur `main` doit être vert.
+**Action appliquée : 1.** Directive `@ts-expect-error` inutilisée retirée → `tsc` passe, 95 tests verts, eslint propre. Indicateur : CI verte au prochain push — vérifié, run #415 vert.
 
 **Aucune action SEO.** Les 8 titles encore > 60 caractères ont été réécrits ce matin ou n'ont aucune impression : la doctrine impose une semaine de recul. Agir aujourd'hui serait agir pour agir.
 
@@ -60,7 +60,7 @@ import { describe, it, expect } from "vitest";
 import { findUntrackedImports, gitAvailable } from "../scripts/check-tracked-imports.mjs";
 ```
 
-**Indicateur (semaine prochaine)** → le run CI du prochain push sur `main` est vert. S'il est encore rouge, la cause est ailleurs et le diagnostic ci-dessus est faux.
+**Indicateur** → le run CI du prochain push sur `main` est vert. **Vérifié le jour même : run #415 sur `4a71b3b` → `success`**, après neuf runs rouges consécutifs. Le diagnostic est confirmé, la cause était bien unique.
 
 **Pourquoi un agent SEO touche à un fichier de test.** Parce que c'est la correction technique au plus fort impact disponible : tant que la CI est rouge en permanence, aucun correctif SEO n'a de garde-fou, et la question « mon changement est-il passé ? » n'a plus de réponse. Le playbook autorise les corrections techniques ; `__tests__/` n'est dans aucune zone interdite (`app/(dashboard)`, `lib/billing`, tarifs, faits de marque, pages légales).
 
@@ -102,6 +102,7 @@ Les quatre actions du rapport du matin (`2026-09-12-seo-weekly.md`) portent des 
 - `npm run test:run` → 14 fichiers, 95 tests, tous verts.
 - `npx eslint __tests__/tracked-imports.test.ts` → exit 0.
 - `npm run build` → compile et passe le type-check ; échoue ensuite sur `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` absentes du sandbox (attendu, sans rapport).
+- CI GitHub sur le commit du correctif (`4a71b3b`) → run #415 **vert**, premier run vert de `main` depuis le 11/09 14h37.
 
 ## Fichiers modifiés
 
