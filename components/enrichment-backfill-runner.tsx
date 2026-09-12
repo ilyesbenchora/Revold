@@ -417,6 +417,10 @@ export function EnrichmentBackfillRunner({
                 <>Enrichissement pas encore lancé</>
               ) : newFields.length > 0 ? (
                 <>✦ Nouveaux champs à enrichir</>
+              ) : fullyDone && !showRecap ? (
+                // Récap fermé : on invite à relancer la détection plutôt que de
+                // répéter « base entièrement enrichie ».
+                <>Relance la détection quand tu veux</>
               ) : (
                 <>✓ Base entièrement enrichie et synchronisée</>
               )}
