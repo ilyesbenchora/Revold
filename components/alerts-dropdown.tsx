@@ -92,9 +92,24 @@ export function AlertsDropdown() {
     };
   }, [load]);
 
-  // Ouverture : rafraîchit pour avoir l'état le plus récent.
+  // Ouverture : rafraîchit puis ACQUITTE tout — ouvrir la cloche remet le
+  // compteur à zéro (notifications considérées vues) ; une nouvelle notif
+  // fera repartir le badge de zéro. Le style « non lu » des lignes reste
+  // affiché le temps de cette ouverture pour repérer les nouveautés.
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    void load().then(async () => {
+      try {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markAllRead: true }),
+        });
+      } catch {
+        /* best effort — le badge local est acquitté quand même */
+      }
+      setUnreadCount(0);
+    });
   }, [open, load]);
 
   async function markAllRead() {
@@ -120,7 +135,10 @@ export function AlertsDropdown() {
   }
 
   const activeCount = alerts?.length ?? 0;
-  const totalBadge = unreadCount + activeCount;
+  // Badge de la cloche : UNIQUEMENT les notifications non lues. Les alertes
+  // actives ne comptent plus (elles restent actives en permanence — le badge
+  // ne redescendait jamais) ; leur compteur vit dans l'onglet « Alertes ».
+  const totalBadge = unreadCount;
 
   return (
     <div ref={ref} className="relative">
