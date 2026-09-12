@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/supabase/cached";
 import { isThresholdMet } from "@/lib/alerts/kpi-resolver";
@@ -313,12 +314,37 @@ export async function GET(request: Request) {
   // réglages du compte, calculé par le moteur déterministe par pôle.
   let teamParts: string[] = [];
   let teamLabel: string | null = null;
+  // ── Mémoire SERVEUR du brief (voice_tower_settings.brief_state), rattachée
+  //    au compte : `ack` = accomplissements déjà entendus (l'orbe ne reste
+  //    plus verte sur un autre appareil), `heard` = empreintes des chiffres
+  //    d'état déjà lus avec leur date. Un chiffre INCHANGÉ (même phrase) déjà
+  //    lu il y a moins de 7 jours n'est pas relu — « jamais deux fois la même
+  //    annonce » ; il revient dès que sa valeur change, ou après 7 jours. ──
+  let heard: Record<string, string> = {};
+  const spokenKeys: string[] = [];
+  let skippedHeard = 0;
+  const fingerprint = (s: string) => `h:${createHash("sha1").update(s).digest("hex").slice(0, 16)}`;
+  const HEARD_TTL_MS = 7 * 86400 * 1000;
+  /** Vrai si la phrase (identique) a déjà été lue récemment ; sinon la marque comme lue. */
+  const alreadyHeard = (sentence: string): boolean => {
+    const key = fingerprint(sentence);
+    const at = heard[key] ? new Date(heard[key]).getTime() : NaN;
+    if (Number.isFinite(at) && now.getTime() - at < HEARD_TTL_MS) {
+      skippedHeard++;
+      return true;
+    }
+    spokenKeys.push(key);
+    return false;
+  };
   try {
     const { data: settingsRow } = await supabase
       .from("voice_tower_settings")
-      .select("settings")
+      .select("settings, brief_state")
       .eq("user_id", user.id)
       .maybeSingle();
+    const briefState = ((settingsRow as { brief_state?: unknown } | null)?.brief_state ?? {}) as { ack?: Record<string, string>; heard?: Record<string, string> };
+    if (briefState.ack && typeof briefState.ack === "object") for (const k of Object.keys(briefState.ack)) ack.add(k);
+    if (briefState.heard && typeof briefState.heard === "object") heard = briefState.heard;
     if (sections.has("team") && !veille) {
       try {
         const teamSettings = sanitizeBriefTeam((settingsRow?.settings as { briefTeam?: unknown } | null)?.briefTeam);
@@ -330,7 +356,8 @@ export async function GET(request: Request) {
           if (profile?.role !== "admin" && isBriefTeamId(ownTeam)) teamSettings.team = ownTeam;
           const res = await computeTeamBrief(supabase, orgId, await getHubSpotToken(supabase, orgId), teamSettings, crmLabel, now);
           if (res) {
-            teamParts = res.parts;
+            // Phrases d'équipe inchangées depuis une lecture récente : tues.
+            teamParts = narrate ? res.parts.filter((p) => !alreadyHeard(p)) : res.parts;
             teamLabel = res.label;
           }
         }
@@ -395,7 +422,10 @@ export async function GET(request: Request) {
           }
         }),
       );
-      const ok = computed.filter((p): p is NonNullable<(typeof computed)[number]> => p !== null);
+      // Chiffres suivis déjà lus avec la même valeur récemment : tus (texte ET tuile).
+      const ok = computed
+        .filter((p): p is NonNullable<(typeof computed)[number]> => p !== null)
+        .filter((c) => !narrate || !alreadyHeard(c.text));
       customParts = ok.map((c) => c.text);
       customTiles = ok.map((c) => c.tile);
     }
@@ -518,7 +548,10 @@ export async function GET(request: Request) {
       const gapTxt = reconGapGross > 0
         ? ` Écart signé/facturé réel à traiter : ${fmtCustomValue(reconGapGross, "currency")} sur ${reconDeals} deal${reconDeals > 1 ? "s" : ""}, en cumul à date.`
         : "";
-      parts.push(`Côté réconciliation : santé ${reconScore} sur 100 à ce jour${trendTxt}.${gapTxt}`);
+      const reconLine = `Côté réconciliation : santé ${reconScore} sur 100 à ce jour${trendTxt}.${gapTxt}`;
+      // Score inchangé et déjà lu récemment : pas relu (le détail est sur la
+      // page Récupération de cash).
+      if (!narrate || !alreadyHeard(reconLine)) parts.push(reconLine);
     }
     if (customParts.length > 0) {
       parts.push(`Côté chiffres suivis : ${customParts.join(" ; ")}.`);
@@ -550,7 +583,13 @@ export async function GET(request: Request) {
         teamTiles++;
       }
     }
-    if (parts.length === 0) parts.push("Rien à signaler sur le périmètre de ton brief — tout est au vert.");
+    if (parts.length === 0) {
+      parts.push(
+        skippedHeard > 0
+          ? "Rien de nouveau depuis ton dernier brief : tes chiffres suivis sont inchangés et tout est au vert."
+          : "Rien à signaler sur le périmètre de ton brief — tout est au vert.",
+      );
+    }
   } else if (parts.length === 0) {
     parts.push("Mode veille : aucune exception — tout est au vert.");
   }
@@ -632,7 +671,27 @@ export async function GET(request: Request) {
     // par jour.
     achievedKeys.push(`enrichment:${new Date().toISOString().slice(0, 10)}`);
   }
-  const achieved = achievedKeys.length > 0;
+  // Accompli = au moins une clé PAS encore entendue (acquittements du compte
+  // + acquittements transmis par l'orbe) : sur tous les appareils.
+  const achieved = achievedKeys.some((k) => !ack.has(k));
+
+  // ── Brief LU (narrate=1, hors veille) : on mémorise côté compte ce qui
+  //    vient d'être entendu — accomplissements (l'orbe redevient fuchsia
+  //    partout) et chiffres d'état (pas relus tant qu'ils ne changent pas). ──
+  if (narrate && !veille) {
+    try {
+      const day = now.toISOString();
+      const prune = (m: Record<string, string>) =>
+        Object.fromEntries(Object.entries(m).filter(([, d]) => now.getTime() - new Date(d).getTime() < 30 * 86400 * 1000));
+      const nextAck = prune({ ...Object.fromEntries([...ack].map((k) => [k, heard[k] ?? day])), ...Object.fromEntries(achievedKeys.map((k) => [k, day])) });
+      const nextHeard = prune({ ...heard, ...Object.fromEntries(spokenKeys.map((k) => [k, day])) });
+      await supabase
+        .from("voice_tower_settings")
+        .upsert({ user_id: user.id, organization_id: orgId, brief_state: { ack: nextAck, heard: nextHeard } }, { onConflict: "user_id" });
+    } catch {
+      /* colonne absente (migration pas encore passée) → mémoire navigateur seule */
+    }
+  }
 
   // ── Mise en récit parlée (lecture uniquement) : l'app a calculé, l'agent
   // raconte — contexte, transitions, rythme posé. Repli : texte déterministe.
