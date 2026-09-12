@@ -24,11 +24,7 @@ import { TresoLineChart, TresoFlowsChart, SimpleBarsChart } from "@/components/c
 import { ForecastChart } from "@/components/charts/forecast-chart";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { PageDataTables } from "@/components/data-tables/page-data-tables";
-import { CashRecoveryBlock } from "@/components/roi/cash-recovery-block";
-import { ReconciliationHealthCard } from "@/components/reconciliation/reconciliation-health-card";
-import { DealInvoiceLinks } from "@/components/reconciliation/deal-invoice-links";
 import { EstablishmentBreakdown } from "@/components/reconciliation/establishment-breakdown";
-import { GapReviewQueue } from "@/components/reconciliation/gap-review-queue";
 import { BlockDataTable } from "@/components/data-tables/block-data-table";
 import { SourceToolSwitcher } from "@/components/source-tool-switcher";
 import { ConfigurableKpiTiles, type DefaultTile } from "@/components/kpi-tiles/configurable-kpi-tiles";
@@ -661,27 +657,15 @@ export default async function PaiementFacturationOverviewPage({
         </div>
       )}
 
-      {/* ROI : relances d'impayés suivies → cash récupéré attribué (en euros). */}
-      <CashRecoveryBlock />
-
-      {/* Santé de réconciliation : score + tendance + le lignage deal → facture
-          → encaissement, avec l'écart NET vs BRUT (compensation révélée). */}
-      <ReconciliationHealthCard supabase={supabase} orgId={orgId} />
-
-      {/* Réconciliation au niveau du DEAL (le croisement CRM × facturation que
-          la compta ne fait pas) : chaque deal gagné relié à SES factures,
-          écart signé − facturé deal par deal. L'encaissement, lui, vient du
-          lettrage natif de la compta (amount_paid) — pas de doublon. */}
-      <DealInvoiceLinks />
+      {/* Relances d'impayés, cash récupéré et monitoring des écarts (signé ↔
+          facturé ↔ encaissé) vivent désormais dans Finance → Relances
+          facturation & Récupération de cash (distinction claire vs les rapports
+          de trésorerie). */}
 
       {/* Ventilation par établissement (facette SIRET) : une même entité légale
           qui facture depuis plusieurs SIRET → CA ventilé par site, sans
           dé-consolider le compte. Ne s'affiche que si ≥ 1 entité multi-SIRET. */}
       <EstablishmentBreakdown supabase={supabase} orgId={orgId} />
-
-      {/* File d'apurement : les écarts signé ↔ facturé statués entreprise par
-          entreprise (justifié / à corriger / corrigé), export CSV. */}
-      <GapReviewQueue />
 
       <PageDataTables pageKey="audit_paiement_facturation" />
 

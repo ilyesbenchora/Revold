@@ -53,7 +53,7 @@ function daysLate(dueAt: string | null): number {
   return Math.max(0, Math.floor((Date.now() - new Date(`${dueAt}T00:00:00`).getTime()) / 86_400_000));
 }
 
-export function CashRecoveryBlock() {
+export function CashRecoveryBlock({ view = "all" }: { view?: "relances" | "recovery" | "all" } = {}) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [rows, setRows] = useState<ReminderRow[] | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
@@ -227,32 +227,42 @@ export function CashRecoveryBlock() {
     );
   }
 
+  const shownRows = rows === null ? null : view === "relances" ? rows.filter((r) => !r.recoveredAt) : view === "recovery" ? rows.filter((r) => r.recoveredAt) : rows;
+  const title = view === "relances" ? "Relances de facturation" : view === "recovery" ? "Cash récupéré" : "Relances & cash récupéré";
+  const desc = view === "recovery"
+    ? "Chaque facture relancée puis encaissée est attribuée ici, ligne par ligne — la preuve du cash récupéré, en euros."
+    : "Relance tes impayés depuis Revold : mail pré-rédigé avec la facture, renvois automatiques jusqu'au paiement — chaque facture relancée puis encaissée alimente le compteur, prouvable ligne à ligne.";
+  const emptyText = view === "recovery" ? "Aucun cash récupéré pour l'instant." : "Aucune facture en retard — rien à relancer.";
+
   return (
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border bg-slate-50/60 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Relances & cash récupéré</h3>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            Relance tes impayés depuis Revold : mail pré-rédigé avec la facture, renvois automatiques jusqu&apos;au
-            paiement — chaque facture relancée puis encaissée alimente le compteur, prouvable ligne à ligne.
-          </p>
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+          <p className="mt-0.5 text-[11px] text-slate-500">{desc}</p>
         </div>
         {stats && (
           <div className="flex items-center gap-5">
-            <div className="text-right">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Cash récupéré</p>
-              <p className={`text-xl font-bold tabular-nums ${stats.recovered > 0 ? "text-emerald-600" : "text-slate-400"}`}>
-                {eur(stats.recovered)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Factures récupérées</p>
-              <p className="text-xl font-bold tabular-nums text-slate-900">{stats.recoveredCount}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Relances en cours</p>
-              <p className="text-xl font-bold tabular-nums text-slate-900">{stats.remindedPending}</p>
-            </div>
+            {view !== "relances" && (
+              <>
+                <div className="text-right">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Cash récupéré</p>
+                  <p className={`text-xl font-bold tabular-nums ${stats.recovered > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                    {eur(stats.recovered)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Factures récupérées</p>
+                  <p className="text-xl font-bold tabular-nums text-slate-900">{stats.recoveredCount}</p>
+                </div>
+              </>
+            )}
+            {view !== "recovery" && (
+              <div className="text-right">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Relances en cours</p>
+                <p className="text-xl font-bold tabular-nums text-slate-900">{stats.remindedPending}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -267,10 +277,10 @@ export function CashRecoveryBlock() {
         {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
         {warning && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{warning}</p>}
 
-        {rows === null ? (
+        {shownRows === null ? (
           <p className="text-xs text-slate-400">Chargement des impayés…</p>
-        ) : rows.length === 0 ? (
-          <p className="text-xs text-slate-500">Aucune facture en retard — rien à relancer.</p>
+        ) : shownRows.length === 0 ? (
+          <p className="text-xs text-slate-500">{emptyText}</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-100">
             <table className="w-full text-left text-xs">
@@ -279,12 +289,12 @@ export function CashRecoveryBlock() {
                   <th className="px-2.5 py-2 font-semibold">Facture</th>
                   <th className="px-2.5 py-2 font-semibold">Client</th>
                   <th className="px-2.5 py-2 text-right font-semibold">Reste dû</th>
-                  <th className="px-2.5 py-2 text-right font-semibold">Retard</th>
+                  <th className="px-2.5 py-2 text-right font-semibold">{view === "recovery" ? "Statut" : "Retard"}</th>
                   <th className="px-2.5 py-2 font-semibold">Relance</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((inv) => (
+                {shownRows.map((inv) => (
                   <tr key={inv.id} className="border-b border-slate-100 transition last:border-0 hover:bg-indigo-50/40">
                     <td className="px-2.5 py-2 font-medium text-slate-800">
                       {inv.number ?? "—"}

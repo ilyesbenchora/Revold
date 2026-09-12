@@ -27,6 +27,23 @@ function isGroup(item: SidebarItem): item is GroupLink {
   return "children" in item;
 }
 
+const financeChildren: LeafLink[] = [
+  {
+    href: "/dashboard/finance/relances-facturation",
+    label: "Relances facturation",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4z" /></svg>
+    ),
+  },
+  {
+    href: "/dashboard/finance/recuperation-cash",
+    label: "Récupération de cash",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
+    ),
+  },
+];
+
 const auditChildren: LeafLink[] = [
   {
     href: "/dashboard/audit",
@@ -233,6 +250,17 @@ const sidebarLinks: SidebarItem[] = [
       </svg>
     ),
     children: auditChildren,
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+    ),
+    children: financeChildren,
   },
   // Section « Coaching IA » supprimée : un seul roster d'agents (Mon équipe
   // IA) qui porte la mécanique de séance, directement sur la page de l'agent.
