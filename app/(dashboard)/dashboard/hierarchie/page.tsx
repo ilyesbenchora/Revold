@@ -6,7 +6,7 @@ import { getOrgId } from "@/lib/supabase/cached";
 import { loadCompanyGroups } from "@/lib/reconciliation/company-groups";
 import { loadCompanyEstablishments } from "@/lib/reconciliation/company-establishments";
 import { CollapsibleBlock } from "@/components/collapsible-block";
-import { BlockDataTable } from "@/components/data-tables/block-data-table";
+import { GroupBigPicture, type BigPictureGroup } from "@/components/reconciliation/group-big-picture";
 import { HierarchyConsole } from "@/components/hierarchy-console";
 import { HierarchySyncRunner } from "@/components/hierarchy-sync-runner";
 import { getHubSpotToken } from "@/lib/integrations/get-hubspot-token";
@@ -41,6 +41,40 @@ export default async function HierarchiePage() {
     }))
     .sort((a, b) => b.members.length - a.members.length);
   const entitiesInGroups = declared.reduce((s, g) => s + g.members.length + 1, 0);
+
+  // ── Vue « big picture » des groupes : SIREN + CA signé (deals gagnés) par
+  // entité, CA consolidé par groupe — mêmes données que la consolidation.
+  const groupIds = declared.flatMap((g) => [g.root, ...g.members]);
+  const sirenOf = new Map<string, string | null>();
+  const caOf = new Map<string, number>();
+  if (groupIds.length > 0) {
+    try {
+      for (let i = 0; i < groupIds.length; i += 400) {
+        const chunk = groupIds.slice(i, i + 400);
+        const [{ data: comps }, { data: won }] = await Promise.all([
+          supabase.from("companies").select("id, siren").in("id", chunk),
+          supabase
+            .from("deals")
+            .select("amount, company_id")
+            .eq("organization_id", orgId)
+            .eq("is_closed_won", true)
+            .not("amount", "is", null)
+            .in("company_id", chunk)
+            .limit(5000),
+        ]);
+        for (const c of (comps ?? []) as Array<{ id: string; siren: string | null }>) sirenOf.set(c.id, c.siren);
+        for (const d of (won ?? []) as Array<{ amount: number | null; company_id: string | null }>) {
+          if (d.company_id) caOf.set(d.company_id, (caOf.get(d.company_id) ?? 0) + (Number(d.amount) || 0));
+        }
+      }
+    } catch { /* SIREN/CA absents → tirets, la vue reste lisible */ }
+  }
+  const node = (id: string, name: string) => ({ id, name, siren: sirenOf.get(id) ?? null, ca: caOf.get(id) ?? 0 });
+  const bigGroups: BigPictureGroup[] = declared.map((g) => {
+    const root = node(g.root, g.name);
+    const children = g.members.map((id) => node(id, groups.nameOf.get(id) ?? "—"));
+    return { root, children, total: root.ca + children.reduce((s, c) => s + c.ca, 0) };
+  });
 
   // Suggestions en attente (compteur serveur — la console fait le détail).
   let pendingCount: number | null = null;
@@ -199,24 +233,16 @@ export default async function HierarchiePage() {
             lien parent/enfant directement dans HubSpot — la synchronisation le reflétera ici.
           </p>
         ) : (
-          <BlockDataTable
-            title="Groupes déclarés"
-            subtitle="parents & entités"
-            team="revops"
-            unit="count"
-            nameLabel="Tête de groupe (parent)"
-            valueLabel="Entités"
-            extraColumns={["Sociétés du groupe"]}
-            rows={declared.map((g) => ({
-              name: g.name,
-              value: g.members.length + 1,
-              cells: [
-                g.members.map((id) => groups.nameOf.get(id) ?? "—").slice(0, 6).join(" · ") +
-                  (g.members.length > 6 ? ` · +${g.members.length - 6}` : ""),
-              ],
-            }))}
-            footnote="Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la consolidation par groupe et le rapprochement inter-entités s'appuient dessus."
-          />
+          <>
+            {/* Vue « big picture » : holding en bandeau, filiales indentées,
+                CA signé par entité et consolidé par groupe. */}
+            <GroupBigPicture groups={bigGroups} />
+            <p className="mt-2 text-[10px] text-slate-400">
+              Hiérarchies lues depuis le CRM à chaque synchronisation (associations parent/enfant HubSpot) — la
+              consolidation par groupe et le rapprochement inter-entités s&apos;appuient dessus. CA = deals gagnés
+              par entité (source CRM), consolidé au niveau du groupe.
+            </p>
+          </>
         )}
       </CollapsibleBlock>
 
